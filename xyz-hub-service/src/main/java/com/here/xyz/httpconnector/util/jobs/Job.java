@@ -19,12 +19,29 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Export.PARAM_CONTEXT;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.collecting_trigger_status;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing_trigger;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.preparing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.queued;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_status_collected;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.validated;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.validating;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.CANCELLED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.FAILED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.PENDING;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.RUNNING;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.SUBMITTED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.SUCCEEDED;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.addJob;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -40,6 +57,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
@@ -98,11 +116,13 @@ public abstract class Job<T extends Job> extends Payload {
     private long finalizedAt = -1;
 
     /**
-     * The expiration timestamp.
+     * The timestamp (in milliseconds) of when this job will expire.
+     * When a job expires, it will be deleted from the system. Also, all the stored data associated with it will be deleted and will not
+     * be accessible after that date.
+     * Set this value to -1 to keep a job and its data forever.
      */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonView({Public.class})
-    private Long exp;
+    private long keepUntil = System.currentTimeMillis() + 14 * 24 * 60 * 60_000; //Default is 2 weeks
 
     /**
      * The job ID
@@ -167,6 +187,7 @@ public abstract class Job<T extends Job> extends Payload {
     @Deprecated
     @JsonIgnore
     private boolean childJob;
+    private RuntimeStatus runtimeStatus = new RuntimeStatus();
 
     public Job() {}
 
@@ -204,13 +225,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     public Future<Job> executeAbort() {
-      try {
-        isValidForAbort();
-      }
-      catch (HttpException e) {
-        return Future.failedFuture(e);
-      }
-      return Future.succeededFuture(this);
+      return updateJobStatus(this, aborted);
     }
 
     public Future<Job> prepareStart() {
@@ -219,12 +234,6 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     public abstract Future<Job> executeStart();
-
-    public Future<Void> abortIfPossible() {
-        //Target: we want to terminate all running sqlQueries
-        return executeAbort()
-            .compose(job -> Future.succeededFuture(), t -> Future.succeededFuture()); //Job is not in state "executing" ignore
-    }
 
     public Future<Job> executeRetry() {
       try {
@@ -334,18 +343,6 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     @JsonIgnore
-    public void isValidForAbort() throws HttpException {
-        /*
-        It is only allowed to abort a job inside executing state, because we have multiple nodes running.
-        During the execution we have running SQL-Statements - due to the abortion of them, the client which
-        has executed the Query will handle the abortion.
-         */
-        //TODO: Allow abortion also in other states (e.g. queued), because it could be the user started a job accidentally and wants to stop & recreate
-        if (getStatus() != executing && getStatus() != finalizing)
-            throw new HttpException(PRECONDITION_FAILED, "Invalid state: [" + getStatus() + "] for abort!");
-    }
-
-    @JsonIgnore
     protected void isValidForRetry() throws HttpException {
         if (!getStatus().equals(Status.failed) && !getStatus().equals(Status.aborted))
             throw new HttpException(PRECONDITION_FAILED, "Invalid state: [" + getStatus() + "] for retry!");
@@ -361,6 +358,11 @@ public abstract class Job<T extends Job> extends Payload {
     @JsonInclude
     private String getType() {
         return getClass().getSimpleName();
+    }
+
+    public Future<T> store() {
+      return CService.jobConfigClient.store(getMarker(), this)
+          .map(job -> (T) job);
     }
 
     @JsonView({Public.class})
@@ -397,7 +399,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     @JsonView({Public.class})
     public enum CSVFormat {
-        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, PARTITIONID_FC_B64;
+        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, PARTITIONID_FC_B64, PARTITIONED_JSON_WKB;
 
         public static CSVFormat of(String value) {
             if (value == null) {
@@ -524,6 +526,8 @@ public abstract class Job<T extends Job> extends Payload {
         if ((status == aborted || status == failed) && lastStatus == null)
             lastStatus = this.status;
         this.status = status;
+        //Set future-proof state
+        getRuntimeStatus().setState(bwcStatusMapping.get(status));
     }
 
     public T withStatus(final Job.Status status) {
@@ -619,21 +623,21 @@ public abstract class Job<T extends Job> extends Payload {
         return (T) this;
     }
 
-    public void finalizeJob() {
+    public Future<Void> finalizeJob() {
         logger.info("job[{}] is finalized!", id);
-        updateJobStatus(this, finalized);
+        return updateJobStatus(this, finalized).mapEmpty();
     }
 
-    public Long getExp() {
-        return exp;
+    public long getKeepUntil() {
+        return keepUntil;
     }
 
-    public void setExp(final Long exp) {
-        this.exp = exp;
+    public void setKeepUntil(long keepUntil) {
+        this.keepUntil = keepUntil;
     }
 
-    public T withExp(final Long exp) {
-        setExp(exp);
+    public T withKeepUntil(long keepUntil) {
+        setKeepUntil(keepUntil);
         return (T) this;
     }
 
@@ -758,8 +762,11 @@ public abstract class Job<T extends Job> extends Payload {
         //Keep BWC
         if (source instanceof DatasetDescription.Space space) {
             setTargetSpaceId(space.getId());
-            if (this instanceof Export export)
+            if (this instanceof Export export) {
                 export.setFilters(space.getFilters());
+                if (export.getFilters() != null)
+                    addParam(PARAM_CONTEXT, export.getFilters().getContext());
+            }
         }
     }
 
@@ -862,10 +869,7 @@ public abstract class Job<T extends Job> extends Payload {
                     logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
-                if (this instanceof Export && rdsStatus.getRdsMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
+
                 return Future.succeededFuture(this);
             });
     }
@@ -876,7 +880,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     public abstract void execute();
 
-    public static class Public {}
+    public static class Public extends XyzSerializable.Public {} //TODO: User XyzSerializable.Public everywhere directly
 
     public static class Static implements SerializationView {}
 
@@ -902,15 +906,30 @@ public abstract class Job<T extends Job> extends Payload {
         return marker;
     }
 
-    public static class ValidationException extends Exception {
-        public ValidationException(String message) {
-            super(message);
-        }
-
-        public ValidationException(String message, Exception cause) {
-            super(message, cause);
-        }
+    @JsonIgnore
+    public RuntimeStatus getRuntimeStatus() {
+        return runtimeStatus;
     }
+
+    private static final Map<Status, State> bwcStatusMapping = new HashMap<>() {{
+        put(waiting, SUBMITTED);
+        put(queued, PENDING);
+        put(validating, PENDING);
+        put(validated, PENDING);
+        put(preparing, PENDING);
+        put(prepared, PENDING);
+        put(executing, RUNNING);
+        put(executed, RUNNING);
+        put(executing_trigger, RUNNING);
+        put(trigger_executed, RUNNING);
+        put(collecting_trigger_status, RUNNING);
+        put(trigger_status_collected, RUNNING);
+        put(finalizing, RUNNING);
+
+        put(finalized, SUCCEEDED);
+        put(aborted, CANCELLED);
+        put(failed, FAILED);
+    }};
 
     public static class ProcessingNotPossibleException extends Exception {
 

@@ -26,6 +26,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
@@ -168,6 +169,8 @@ public class JobApiImportIT extends JobApiIT {
             if(job.getImportObjects().get(key).getDetails() != null
                     && job.getImportObjects().get(key).getDetails().equalsIgnoreCase("1 rows imported"))
                 foundDetails = true;
+            assertTrue(job.getImportObjects().get(key).isRetryPossible());
+            assertEquals(job.getImportObjects().get(key).getRetryCount(), 0);
         }
 
         assertEquals(2,foundFailed);
@@ -304,7 +307,7 @@ public class JobApiImportIT extends JobApiIT {
                 .getBody().asString();
         String url = new JsonObject(resp).getString("url");
 
-        /** Upload File */
+        /** Upload File - (invalid json) */
         uploadDummyFile(new URL(url), 1);
 
         /** retry import */
@@ -319,7 +322,16 @@ public class JobApiImportIT extends JobApiIT {
         /** Poll status */
         pollStatus(getScopedSpaceId(testSpaceId1, scope), job.getId(), Job.Status.failed, Job.Status.finalized);
 
-        /** Upload File */
+        /** load job*/
+        job = (Import) loadJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
+        assertTrue(job.getErrorDescription().equalsIgnoreCase(Import.ERROR_DESCRIPTION_INVALID_FILE));
+
+        for(String key : job.getImportObjects().keySet()){
+            assertFalse(job.getImportObjects().get(key).isRetryPossible());
+            assertEquals(job.getImportObjects().get(key).getRetryCount(), ImportObject.MAX_RETRIES);
+        }
+
+        /** Upload File (invalid geometry)*/
         uploadDummyFile(new URL(url), 2);
 
         /** retry import */
@@ -334,7 +346,12 @@ public class JobApiImportIT extends JobApiIT {
         /** Poll status */
         pollStatus(getScopedSpaceId(testSpaceId1, scope), job.getId(), Job.Status.failed, Job.Status.finalized);
 
-        /** Upload File */
+        /** load job*/
+        job = (Import) loadJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
+        //will be SQL error XX000
+        assertTrue(job.getErrorDescription().equalsIgnoreCase(Import.ERROR_DESCRIPTION_UNEXPECTED));
+
+        /** Upload File (unknown 3rd colum) */
         uploadDummyFile(new URL(url), 3);
 
         /** retry import */
@@ -348,6 +365,31 @@ public class JobApiImportIT extends JobApiIT {
 
         /** Poll status */
         pollStatus(getScopedSpaceId(testSpaceId1, scope), job.getId(), Job.Status.failed, Job.Status.finalized);
+
+        /** load job*/
+        job = (Import) loadJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
+        //will be SQL error extra data after last expected column (22P04)
+        assertTrue(job.getErrorDescription().equalsIgnoreCase(Import.ERROR_DESCRIPTION_INVALID_FILE));
+
+        /** Upload File (cut json) */
+        uploadDummyFile(new URL(url), 4);
+
+        /** retry */
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=retry")
+                .then()
+                .statusCode(NO_CONTENT.code());
+
+        /** Poll status */
+        pollStatus(getScopedSpaceId(testSpaceId1, scope), job.getId(), Job.Status.failed, Job.Status.finalized);
+
+        /** load job*/
+        job = (Import) loadJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
+        //will be SQL unterminated CSV quoted field (22P04)
+        assertTrue(job.getErrorDescription().equalsIgnoreCase(Import.ERROR_DESCRIPTION_INVALID_FILE));
     }
 
     @Test

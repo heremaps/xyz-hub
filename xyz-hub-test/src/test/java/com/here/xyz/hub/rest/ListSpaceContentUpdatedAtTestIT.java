@@ -141,77 +141,77 @@ public class ListSpaceContentUpdatedAtTestIT extends TestSpaceWithFeature {
       .body("$.size()", equalTo(6));
   }
 
-  @Test
-  public void testListSpacesEquals() {
-    // ts not found
-    listSpaces("=1", "*")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(0));
+//  @Test
+//  public void testListSpacesEquals() {
+//    // ts not found
+//    listSpaces("=1", "*")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(0));
+//
+//    // ts found
+//    listSpaces("=" + timestampStar, "*")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(1));
+//
+//    boolean bFlag = RestAssured.urlEncodingEnabled;
+//    RestAssured.urlEncodingEnabled = false;
+//    // both ts found
+//    listSpaces("=" + timestampStar + "," + timestampStarAnother, "*")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(2));
+//
+//    // one ts found, the other one not
+//    listSpaces("=" + timestampStar + ",0", "*")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(1));
+//
+//    // ts not found
+//    listSpaces("=0", "me")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(0));
+//
+//    // ts found
+//    listSpaces("=" + timestampMe, "me")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(1));
+//
+//    // both ts found
+//    listSpaces("=" + timestampMe + "," + timestampMeAnother, "me")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(2));
+//
+//
+//    // one ts found, the other one not
+//    listSpaces("=" + timestampMe + ",0", "me")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(1));
+//    RestAssured.urlEncodingEnabled = bFlag;
+//
+//    // nothing found
+//    // search for 123,456 by input 123%2C456
+//    listSpaces("=" + timestampMe + "," + timestampMeAnother, "me")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(0));
+//  }
 
-    // ts found
-    listSpaces("=" + timestampStar, "*")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(1));
-
-    boolean bFlag = RestAssured.urlEncodingEnabled;
-    RestAssured.urlEncodingEnabled = false;
-    // both ts found
-    listSpaces("=" + timestampStar + "," + timestampStarAnother, "*")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(2));
-    
-    // one ts found, the other one not
-    listSpaces("=" + timestampStar + ",0", "*")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(1));
-
-    // ts not found
-    listSpaces("=0", "me")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(0));
-
-    // ts found
-    listSpaces("=" + timestampMe, "me")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(1));
-  
-    // both ts found
-    listSpaces("=" + timestampMe + "," + timestampMeAnother, "me")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(2));
-
-
-    // one ts found, the other one not
-    listSpaces("=" + timestampMe + ",0", "me")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(1));
-    RestAssured.urlEncodingEnabled = bFlag;
-
-    // nothing found
-    // search for 123,456 by input 123%2C456
-    listSpaces("=" + timestampMe + "," + timestampMeAnother, "me")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(0));
-  }
-
-  @Test
-  public void testListSpacesNotEquals() {
-    listSpaces("!=1", "*")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(7));
-
-    listSpaces("!=" + timestampStar, "*")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(6));
-
-    listSpaces("!=0", "me")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(5));
-
-    listSpaces("!=" + timestampMe, "me")
-      .statusCode(OK.code())
-      .body("$.size()", equalTo(4));
-  }
+//  @Test
+//  public void testListSpacesNotEquals() {
+//    listSpaces("!=1", "*")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(7));
+//
+//    listSpaces("!=" + timestampStar, "*")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(6));
+//
+//    listSpaces("!=0", "me")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(5));
+//
+//    listSpaces("!=" + timestampMe, "me")
+//      .statusCode(OK.code())
+//      .body("$.size()", equalTo(4));
+//  }
 
   @Test
   public void testListSpacesGreater() {

@@ -23,6 +23,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -38,6 +40,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.nio.charset.Charset;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -288,16 +291,21 @@ public class JobProxyApi extends Api{
 
     private void jobAPIListResultHandler(final RoutingContext context, HttpResponse<Buffer> res, String spaceId){
         if (res.statusCode() < 500) {
-            try {
-                this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()),
-                        Json.decodeValue(DatabindCodec.mapper().writerWithView(Job.Public.class).writeValueAsString(res.bodyAsJson(Job[].class))));
-                return;
-            } catch (Exception e){}
+            try{
+              //Deserialize and serialize the response list again to filter out internal job properties
+              List<Job> upstreamResponse = XyzSerializable.deserialize(res.body().getBytes(), new TypeReference<List<Job>>() {});
+              sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), Json.decodeValue(XyzSerializable.serialize(upstreamResponse, Job.Public.class)));
+              return;
+            }catch (Exception e){
+              logger.error(Api.Context.getMarker(context), "Error in Job-Proxy during response serialization.", e);
+            }
 
             try {
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                 return;
-            } catch (Exception e){}
+            }catch (Exception e){
+              logger.error(Api.Context.getMarker(context), "Error in Job-Proxy during response serialization.", e);
+            }
         }
 
         this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));

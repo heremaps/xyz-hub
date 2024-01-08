@@ -1,0 +1,3 @@
+com.here.xyz.hub.config.dynamo.DynamoSpaceConfigClient$Provider
+com.here.xyz.hub.config.jdbc.JDBCSpaceConfigClient$Provider
+com.here.xyz.hub.config.memory.InMemSpaceConfigClient$Provider

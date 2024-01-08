@@ -158,7 +158,7 @@ public abstract class JobQueue implements Runnable {
     }
 
     protected static Future<Job> updateJobStatus(Job job, Job.Status status, String errorDescription, String errorType) {
-        if(hasJob(job) == null) {
+        if(hasJob(job) == null && status != aborted) {
             logger.warn("[{}] Job is already removed from queue, dont update status {}!", job.getId(), job.getStatus());
             return Future.failedFuture("Job " + job.getId() + " is not in queue anymore!");
         }

@@ -43,6 +43,8 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
   private PropertiesStatistics properties;
   private Value<List<PropertyStatistics>> tags;
   private Value<List<String>> geometryTypes;
+  private Value<Long> minVersion;
+  private Value<Long> maxVersion;
 
   /**
    * Returns the amount of features stored in the space.
@@ -242,6 +244,32 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
   @SuppressWarnings("unused")
   public StatisticsResponse withGeometryTypes(Value<List<String>> geometryTypes) {
     setGeometryTypes(geometryTypes);
+    return this;
+  }
+
+  public Value<Long> getMinVersion() {
+    return minVersion;
+  }
+
+  public void setMinVersion(Value<Long> minVersion) {
+    this.minVersion = minVersion;
+  }
+
+  public StatisticsResponse withMinVersion(Value<Long> minVersion) {
+    setMinVersion(minVersion);
+    return this;
+  }
+
+  public Value<Long> getMaxVersion() {
+    return maxVersion;
+  }
+
+  public void setMaxVersion(Value<Long> maxVersion) {
+    this.maxVersion = maxVersion;
+  }
+
+  public StatisticsResponse withMaxVersion(Value<Long> maxVersion) {
+    setMaxVersion(maxVersion);
     return this;
   }
 

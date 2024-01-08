@@ -53,7 +53,7 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
     @Override
     public Future<Void> init() {
         if (dynamoClient.isLocal()) {
-            dynamoClient.createTable(subscriptions.getTableName(), "id:S,source:S", "id", "source", null);
+            dynamoClient.createTable(subscriptions.getTableName(), "id:S,source:S", "id", List.of(new IndexDefinition("source")), null);
         }
 
         return Future.succeededFuture();

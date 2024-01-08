@@ -27,10 +27,14 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.httpconnector.CService;
 import java.net.URL;
 import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
 
 
 /**
@@ -85,6 +89,21 @@ public class AwsS3Client {
         for (S3ObjectSummary file : client.listObjects(bucketName, folderPath).getObjectSummaries()){
             client.deleteObject(bucketName, file.getKey());
         }
+    }
+
+    public void copyFolder(String bucketName, String sourceFolderPath, String targetFolderPath) {
+        for (String objectPath : scanFolder(bucketName, sourceFolderPath)) {
+            String targetObjectPath = objectPath.replace(sourceFolderPath, targetFolderPath);
+            client.copyObject(bucketName, objectPath, bucketName, targetObjectPath);
+        }
+    }
+
+    public List<String> scanFolder(String bucketName, String folderPath) {
+        ListObjectsRequest listObjects = new ListObjectsRequest()
+            .withPrefix(folderPath)
+            .withBucketName(bucketName);
+        ObjectListing objectListing = client.listObjects(listObjects);
+        return objectListing.getObjectSummaries().stream().map(os -> os.getKey()).collect(Collectors.toList());
     }
 
     public boolean isLocal() {

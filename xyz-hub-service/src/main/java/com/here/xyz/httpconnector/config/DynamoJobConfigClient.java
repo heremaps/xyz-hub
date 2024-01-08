@@ -18,22 +18,30 @@
  */
 package com.here.xyz.httpconnector.config;
 
-import com.amazonaws.services.dynamodbv2.document.DeleteItemOutcome;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+
 import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.Page;
 import com.amazonaws.services.dynamodbv2.document.ScanFilter;
+import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
+import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
+import com.here.xyz.hub.config.dynamo.IndexDefinition;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
@@ -45,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -55,20 +64,16 @@ import org.apache.logging.log4j.Marker;
 public class DynamoJobConfigClient extends JobConfigClient {
 
     private static final Logger logger = LogManager.getLogger();
-
     private final Table jobs;
     private final DynamoClient dynamoClient;
-    private Long expiration;
-
-    private static final String IO_IMPORT_ATTR_NAME = "importObjects";
-    private static final String IO_EXPORT_ATTR_NAME = "exportObjects";
+    private static final String IMPORT_OBJECTS = "importObjects";
+    private static final String EXPORT_OBJECTS = "exportObjects";
+    private static final String SUPER_EXPORT_OBJECTS = "superExportObjects";
 
     public DynamoJobConfigClient(String tableArn) {
         dynamoClient = new DynamoClient(tableArn, null);
         logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
         jobs = dynamoClient.db.getTable(dynamoClient.tableName);
-        if(CService.configuration != null && CService.configuration.JOB_DYNAMO_EXP_IN_DAYS != null)
-            expiration = CService.configuration.JOB_DYNAMO_EXP_IN_DAYS;
     }
 
     @Override
@@ -77,7 +82,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
             logger.info("DynamoDB running locally, initializing tables.");
 
             try {
-                dynamoClient.createTable(jobs.getTableName(), "id:S,type:S,status:S", "id", "type,status", "exp");
+                List<IndexDefinition> indexes = List.of(new IndexDefinition("type"), new IndexDefinition("status"));
+                dynamoClient.createTable(jobs.getTableName(), "id:S,type:S,status:S", "id", indexes, "exp");
             }
             catch (Exception e) {
                 logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
@@ -104,7 +110,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
                     p.complete();
                 }
                 else {
-                    p.complete(convertItemToJob(jobItem));
+                    convertItemToJob(jobItem)
+                        .onSuccess(job -> p.complete(job))
+                        .onFailure(t -> p.fail(t));
                 }
             }
             catch (Exception e) {
@@ -117,7 +125,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
     protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
-                final List<Job> result = new ArrayList<>();
                 List<ScanFilter> filterList = new ArrayList<>();
 
                 if(type != null)
@@ -127,15 +134,18 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 if(targetSpaceId != null)
                     filterList.add(new ScanFilter("targetSpaceId").eq(targetSpaceId));
 
-                jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
+                List<Future<Job>> jobFutures = new ArrayList<>();
+                jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(page -> page.forEach(item -> {
                     try{
-                        final Job job = convertItemToJob(i);
-                        result.add(job);
+                        jobFutures.add(convertItemToJob(item));
                     }catch (DecodeException e){
                         logger.warn("Cant decode Job-Item - skip!", e);
                     }
                 }));
-                p.complete(result);
+
+                Future.all(jobFutures)
+                    .onSuccess(cf -> p.complete(cf.list()))
+                    .onFailure(t -> p.fail(t));
             } catch (Exception e) {
                 p.fail(e);
             }
@@ -150,8 +160,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 List<String> filterExpression = new ArrayList<>();
                 Map<String, String> nameMap = new HashMap<>();
                 Map<String, Object> valueMap = new HashMap<>();
-
-                final List<Job> result = new ArrayList<>();
 
                 if (status != null) {
                     nameMap.put("#status", "status");
@@ -176,16 +184,18 @@ public class DynamoJobConfigClient extends JobConfigClient {
                         .withNameMap(nameMap)
                         .withValueMap(valueMap);
 
-
-                jobs.scan(scanSpec).pages().forEach(j -> j.forEach(i -> {
+                List<Future<Job>> jobFutures = new ArrayList<>();
+                jobs.scan(scanSpec).pages().forEach(page -> page.forEach(item -> {
                     try{
-                        final Job job = convertItemToJob(i);
-                        result.add(job);
+                        jobFutures.add(convertItemToJob(item));
                     }catch (DecodeException e){
                         logger.warn("Cant decode Job-Item - skip!", e);
                     }
                 }));
-                p.complete(result);
+
+                Future.all(jobFutures)
+                    .onSuccess(cf -> p.complete(cf.list()))
+                    .onFailure(t -> p.fail(t));
             } catch (Exception e) {
                 p.fail(e);
             }
@@ -195,33 +205,34 @@ public class DynamoJobConfigClient extends JobConfigClient {
     protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
-                List<ScanFilter> filterList = new ArrayList<>();
+                Map<String, Object> expressionAttributeValues = ImmutableMap.of(
+                    ":type", type.toString(),
+                    ":spaceId", targetSpaceId,
+                    ":waiting", waiting.toString(),
+                    ":failed", failed.toString(),
+                    ":finalized", finalized.toString()
+                );
+                List<String> conjunctions = ImmutableList.of(
+                    "#type = :type",
+                    "targetSpaceId = :spaceId",
+                    "#status <> :waiting",
+                    "#status <> :failed",
+                    "#status <> :finalized"
+                );
+                ScanSpec scanSpec = new ScanSpec()
+                    .withFilterExpression(String.join(" AND ", conjunctions))
+                    .withNameMap(ImmutableMap.of("#type", "type", "#status", "status"))
+                    .withValueMap(expressionAttributeValues);
 
-                filterList.add(new ScanFilter("type").eq(type.toString()));
-                filterList.add(new ScanFilter("status").ne(Status.finalized.toString()));
-                filterList.add(new ScanFilter("targetSpaceId").eq(targetSpaceId));
-
-                jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
-                    try{
-                        final Job job = convertItemToJob(i);
-
-                        switch (job.getStatus()){
-                            case waiting:
-                            case failed:
-                            case finalized:
-                                break;
-                            default: {
-                                logger.info("{} is blocked!",targetSpaceId);
-                                p.complete(job.getId());
-                            }
-                        }
-                    }catch (DecodeException e){
-                        logger.warn("Cant decode Job-Item - skip!", e);
+                for (Page<Item, ScanOutcome> page : jobs.scan(scanSpec).pages())
+                    for (Item item : page) {
+                        p.complete(item.getString("id"));
+                        return;
                     }
-                }));
 
                 p.complete(null);
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 p.fail(e);
             }
         });
@@ -233,21 +244,13 @@ public class DynamoJobConfigClient extends JobConfigClient {
             DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
                     .withPrimaryKey("id", job.getId())
                     .withReturnValues(ReturnValue.ALL_OLD);
-            DeleteItemOutcome response = jobs.deleteItem(deleteItemSpec);
-
-            if (response.getItem() != null)
-                p.complete(convertItemToJob(response.getItem()));
-            else {
-                p.complete();
-            }
+            jobs.deleteItem(deleteItemSpec);
+            p.complete(job);
         });
     }
 
     @Override
     protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-        //If exp is set we take it
-        if (!isUpdate && this.expiration != null && job.getExp() == null)
-            job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
@@ -263,49 +266,50 @@ public class DynamoJobConfigClient extends JobConfigClient {
             json.put("_sourceKey", job.getSource().getKey());
         if(job.getTarget() != null)
             json.put("_targetKey", job.getTarget().getKey());
+        //Set the item's "exp" field on which the table's automated expiry is watching
+        json.put("exp", job.getKeepUntil() < 0 ? -1 : job.getKeepUntil() / 1000);
         //TODO: Remove the following hacks from the persistence layer!
-        if (json.containsKey(IO_IMPORT_ATTR_NAME))
-            return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
-        else if (job instanceof CombinedJob && ((CombinedJob) job).getChildren().size() > 0)
+        if (job instanceof Import)
+            return convertImportJobToItem(json);
+        else if (job instanceof CombinedJob combinedJob && combinedJob.getChildren().size() > 0)
             sanitizeChildren(json);
-        else if (json.containsKey(IO_EXPORT_ATTR_NAME))
-            sanitizeJob(json);
+        else
+            sanitizeExportJob(json);
         return Item.fromJSON(json.toString());
     }
 
-    private static void sanitizeJob(JsonObject json) {
-        Map<String, Object> exportObjects = json.getJsonObject(IO_EXPORT_ATTR_NAME).getMap();
-        sanitizeUrls(exportObjects);
-        json.put(IO_EXPORT_ATTR_NAME, exportObjects);
+    private static void sanitizeExportJob(JsonObject jobJson) {
+        if (jobJson.containsKey(EXPORT_OBJECTS))
+            jobJson.remove(EXPORT_OBJECTS);
+        if (jobJson.containsKey(SUPER_EXPORT_OBJECTS))
+            jobJson.remove(SUPER_EXPORT_OBJECTS);
     }
 
     private static void sanitizeChildren(JsonObject combinedJob) {
         JsonArray children = combinedJob.getJsonArray("children");
         for (int i = 0; i < children.size(); i++) {
             JsonObject childJob = children.getJsonObject(i);
-            if (childJob.containsKey(IO_EXPORT_ATTR_NAME))
-                sanitizeJob(childJob);
+            sanitizeExportJob(childJob);
         }
     }
 
-    private static void sanitizeUrls(Map<String, Object> exportObjects) {
-        exportObjects.forEach((fileName, exportObject) -> ((Map<String, Object>) exportObject).remove("downloadUrl"));
+    private Future<Job> convertItemToJob(Item item){
+        if(item.isPresent(IMPORT_OBJECTS))
+            return convertItemToJob(item, IMPORT_OBJECTS);
+        return convertItemToJob(item, EXPORT_OBJECTS);
     }
 
-    private static Job convertItemToJob(Item item){
-        if(item.isPresent(IO_IMPORT_ATTR_NAME))
-            return convertItemToJob(item, IO_IMPORT_ATTR_NAME);
-        return convertItemToJob(item, IO_EXPORT_ATTR_NAME);
+    private static Item convertImportJobToItem(JsonObject jobJson) {
+        if (jobJson.containsKey(IMPORT_OBJECTS)) {
+            String str = jobJson.getJsonObject(IMPORT_OBJECTS).encode();
+            jobJson.remove(IMPORT_OBJECTS);
+            Item item = Item.fromJSON(jobJson.toString());
+            return item.withBinary(IMPORT_OBJECTS, compressString(str));
+        }
+        return Item.fromJSON(jobJson.toString());
     }
 
-    private static Item convertJobToItem(JsonObject json, String attrName) {
-        String str = json.getJsonObject(attrName).encode();
-        json.remove(attrName);
-        Item item = Item.fromJSON(json.toString());
-        return item.withBinary(attrName, compressString(str));
-    }
-
-    private static Job convertItemToJob(Item item, String attrName) {
+    private Future<Job> convertItemToJob(Item item, String attrName) {
         JsonObject ioObjects = null;
         if(item.isPresent(attrName)) {
             try{
@@ -317,13 +321,33 @@ public class DynamoJobConfigClient extends JobConfigClient {
         }
 
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
-                .put(attrName, ioObjects);
+            .put(attrName, ioObjects);
+
+        Future<Void> resolvedFuture = Future.succeededFuture();
+        if (json.containsKey("children"))
+            resolvedFuture = resolveChildren(json);
         try {
-            return XyzSerializable.deserialize(json.toString(), Job.class);
+            final Job job = XyzSerializable.deserialize(json.toString(), Job.class);
+            Long exp = json.getLong("exp");
+            job.setKeepUntil(exp == null || exp < 0 ? -1 : exp * 1_000);
+            return resolvedFuture.map(v -> job);
         }
         catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Future<Void> resolveChildren(JsonObject combinedJob) {
+        JsonArray children = combinedJob.getJsonArray("children");
+        if (!children.isEmpty() && children.getValue(0) instanceof String) {
+            List<Future<Job>> jobFutures = children.stream().map(childId -> getJob(null, (String) childId))
+                .collect(Collectors.toList());
+            return Future.all(jobFutures).compose(cf -> {
+                combinedJob.put("children", new JsonArray(cf.list()));
+                return Future.succeededFuture();
+            });
+        }
+        return Future.succeededFuture();
     }
 
     private static byte[] compressString(String input) {

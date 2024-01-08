@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
 import com.here.xyz.hub.Service;
 import java.io.File;
@@ -107,6 +108,66 @@ public class OpenApiGenerator {
     final String result = YAML_MAPPER.writeValueAsString(root);
     return result.getBytes();
   }
+
+  public static byte[] merge(byte[] rootSourceBytes, byte[] updateSourceBytes) throws Exception {
+
+    JsonNode rootNode = YAML_MAPPER.readTree(rootSourceBytes);
+    JsonNode updateNode = YAML_MAPPER.readTree(updateSourceBytes);
+
+    mergePaths(rootNode, updateNode);
+    mergeComponents(rootNode, updateNode);
+
+    // write the results in YAML format
+    final String result = YAML_MAPPER.writeValueAsString(rootNode);
+    return result.getBytes();
+  }
+
+  /**
+   *
+   * Merges all the paths from updateNode into the rootNode.
+   * Throws exception if duplicate path exists.
+   */
+  private static void mergePaths(JsonNode rootNode, JsonNode updateNode) throws Exception {
+    if(!updateNode.has("paths")) return;
+
+    JsonNode rootPathNode = rootNode.get("paths");
+    JsonNode updatePathNode = updateNode.get("paths");
+
+    for(String fieldName : ImmutableList.copyOf( updatePathNode.fieldNames())) {
+      if(rootPathNode.has(fieldName))
+        throw new Exception("The path already exists in root yaml : " + fieldName);
+
+      ((ObjectNode) rootPathNode).put(fieldName, updatePathNode.get(fieldName));
+    }
+  }
+
+  /**
+   * Merge all the components from updateNode into the rootNode.
+   * Ignores the components from updateNode if already exists in rootNode.
+   */
+  private static void mergeComponents(JsonNode rootNode, JsonNode updateNode) {
+    if(!updateNode.has("components")) return;
+
+    rootNode = rootNode.get("components");
+    updateNode = updateNode.get("components");
+
+    for(String fieldName : ImmutableList.copyOf(updateNode.fieldNames())) {
+      JsonNode updateComponentNode = updateNode.get(fieldName);
+      JsonNode rootComponentNode = rootNode.has(fieldName) ? rootNode.get(fieldName)
+              : ((ObjectNode) rootNode).putObject(fieldName);
+
+      for(String componentFieldName : ImmutableList.copyOf(updateComponentNode.fieldNames())) {
+        if(rootComponentNode.has(componentFieldName)) {
+          logger.warn("Ignoring already existing component : " + componentFieldName);
+          continue;
+        }
+
+        ((ObjectNode) rootComponentNode).put(componentFieldName, updateComponentNode.get(componentFieldName));
+
+      }
+    }
+  }
+
 
   /**
    * Validates whether the recipe which contains other recipes is valid.

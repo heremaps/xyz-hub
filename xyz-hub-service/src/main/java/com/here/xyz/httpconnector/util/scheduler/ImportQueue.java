@@ -19,6 +19,7 @@
 package com.here.xyz.httpconnector.util.scheduler;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -52,6 +53,11 @@ public class ImportQueue extends JobQueue {
                          **/
 
                         switch (currentJob.getStatus()){
+                            case aborted:
+                                //Abort has happened on other node
+                                removeJob(job);
+                                JDBCClients.abortJobsByJobId(job);
+                                break;
                             case waiting:
                                 updateJobStatus(currentJob,Job.Status.validating)
                                         .compose(j -> {

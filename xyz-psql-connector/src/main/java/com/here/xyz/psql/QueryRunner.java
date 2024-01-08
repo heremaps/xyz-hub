@@ -47,6 +47,8 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   public R run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    if (dbHandler == null)
+      dbHandler = PSQLXyzConnector.getInstance(); //TODO: Remove that workaround once refactoring is complete
     return dbHandler.executeQueryWithRetry(prepareQuery(), this, useReadReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter());
   }
 

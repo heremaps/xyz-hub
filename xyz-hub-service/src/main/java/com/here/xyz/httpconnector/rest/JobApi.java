@@ -19,6 +19,7 @@
 
 package com.here.xyz.httpconnector.rest;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
@@ -26,12 +27,15 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.rest.HApiParam.Path;
 import com.here.xyz.httpconnector.task.JobHandler;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.RuntimeStatus;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.ext.web.RoutingContext;
@@ -44,12 +48,22 @@ import java.util.List;
 public class JobApi extends Api {
 
   public JobApi(RouterBuilder rb) {
+    //Legacy endpoints
+    rb.operation("postJobLegacy").handler(this::postJob);
+    rb.operation("patchJobLegacy").handler(this::patchJob);
+    rb.operation("getJobsLegacy").handler(this::getJobs);
+    rb.operation("getJobLegacy").handler(this::getJob);
+    rb.operation("deleteJobLegacy").handler(this::deleteJob);
+    rb.operation("postExecuteLegacy").handler(this::postExecute);
+
+    //Space endpoints
     rb.operation("postJob").handler(this::postJob);
     rb.operation("patchJob").handler(this::patchJob);
     rb.operation("getJobs").handler(this::getJobs);
     rb.operation("getJob").handler(this::getJob);
     rb.operation("deleteJob").handler(this::deleteJob);
-    rb.operation("postExecute").handler(this::postExecute);
+    rb.operation("patchJobStatus").handler(handleErrors(this::patchJobStatus));
+    rb.operation("getJobStatus").handler(this::getJobStatus);
   }
 
   private void postJob(final RoutingContext context) {
@@ -154,6 +168,29 @@ public class JobApi extends Api {
                   }
               }
             });
+  }
+
+  private RuntimeStatus getStatus(RoutingContext context) throws HttpException {
+    try {
+      return XyzSerializable.deserialize(context.body().asString(), RuntimeStatus.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new HttpException(BAD_REQUEST, "Error parsing status.");
+    }
+  }
+
+  protected void patchJobStatus(RoutingContext context) throws HttpException {
+    RuntimeStatus status = getStatus(context);
+    JobHandler.loadJob(context.pathParam(Path.JOB_ID), Api.Context.getMarker(context))
+        .compose(job -> JobHandler.tryExecuteAction(status, job))
+        .onFailure(e -> this.sendError(e, context))
+        .onSuccess(job -> this.sendResponse(context, ACCEPTED, job.getRuntimeStatus()));
+  }
+
+  protected void getJobStatus(RoutingContext context) {
+    JobHandler.loadJob(context.pathParam(Path.JOB_ID), Api.Context.getMarker(context))
+        .onFailure(e -> this.sendError(e, context))
+        .onSuccess(job -> this.sendResponse(context, OK, job.getRuntimeStatus()));
   }
 
   private void sendError(Throwable e, RoutingContext context) {
