@@ -41,12 +41,14 @@ import java.util.regex.Pattern;
 
 public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, StatisticsResponse> {
   private String spaceId;
+  private Map<String, Object> connectorParams;
   private static final Pattern BBOX_PATTERN = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
 
   public GetStatistics(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
     spaceId = event.getSpace();
+    connectorParams = event.getConnectorParams();
   }
 
   @Override
@@ -64,7 +66,10 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
     long minVersion;
     long maxVersion;
     try {
-      ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(new GetChangesetStatisticsEvent().withSpace(spaceId)).run();
+      final GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent()
+          .withSpace(spaceId)
+          .withConnectorParams(connectorParams);
+      ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(event).run();
       minVersion = versionResponse.getMinVersion();
       maxVersion = versionResponse.getMaxVersion();
     }
