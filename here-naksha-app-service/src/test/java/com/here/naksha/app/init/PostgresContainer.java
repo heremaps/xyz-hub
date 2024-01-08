@@ -66,6 +66,7 @@ public class PostgresContainer {
   }
 
   public void stop() {
+    log.info("Stopping Container...");
     nakshaPostgres.stop();
   }
 
