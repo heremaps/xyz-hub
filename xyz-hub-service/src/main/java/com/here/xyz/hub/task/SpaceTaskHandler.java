@@ -722,10 +722,10 @@ public class SpaceTaskHandler {
 
   static void invokeConditionally(final ModifySpaceQuery task, final Callback<ModifySpaceQuery> callback) {
     if (task.getEvent().isDryRun() && Payload.compareVersions(task.storage.getRemoteFunction().protocolVersion, DRY_RUN_SUPPORT_VERSION) < 0) {
-
       callback.call(task);
     }
-
-    FeatureTaskHandler.invoke(task, callback);
+    else {
+      FeatureTaskHandler.invoke(task, callback);
+    }
   }
 }

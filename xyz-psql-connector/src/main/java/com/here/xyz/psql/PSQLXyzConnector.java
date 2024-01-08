@@ -330,7 +330,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try{
       logger.info("{} Received ModifySpaceEvent", traceItem);
 
-      if (config.getConnectorParams().isIgnoreCreateMse())
+      if (config.getConnectorParams().isIgnoreCreateMse() || event.isDryRun())
         return new SuccessResponse().withStatus("OK");
 
       this.validateModifySpaceEvent(event);
