@@ -21,6 +21,8 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
@@ -199,7 +201,7 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
 
   @Test
   public void patchVersionsToKeepToZero() {
-    final ValidatableResponse response = given()
+    given()
         .accept(APPLICATION_JSON)
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -265,5 +267,61 @@ public class ModifySpaceApiIT extends TestSpaceWithFeature {
         .patch("/spaces/" + cleanUpId)
         .then()
         .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void createSpaceDryRun() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"id\":\"x-psql-test-dry-run\",\"title\": \"dryRun-space\"}")
+        .when()
+        .post("/spaces?dryRun=true")
+        .then()
+        .statusCode(OK.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-dry-run")
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
+  public void modifySpaceDryRun() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"title\": \"dryRun-space\"}")
+        .when()
+        .patch("/spaces/x-psql-test?dryRun=true")
+        .then()
+        .statusCode(OK.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test")
+        .then()
+        .statusCode(OK.code())
+        .body("title", equalTo("My Demo Space"));
+  }
+
+  @Test
+  public void deleteSpaceDryRun() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/x-psql-test?dryRun=true")
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test")
+        .then()
+        .statusCode(OK.code());
   }
 }
