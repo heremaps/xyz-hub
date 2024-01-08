@@ -29,6 +29,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.here.naksha.app.common.assertions.POpAssertion;
 import com.here.naksha.app.service.http.apis.ApiUtil;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterDecoder;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.OpType;
@@ -111,32 +112,14 @@ class ApiUtilTest {
     assertion.accept(new POpAssertion(op));
   }
 
-  /**
-   * This behavior might be changed in the future - currently when `tags` value starts with delimiter (ie ',') we will treat this as empty list (no matter what comes after the ',').
-   * An alternative to this approach would be to omit the first delimiter that does not have former value and start reading value from the next position. To change that, one would have to introduce logic change in {@link QueryParameterDecoder#parse(QueryParameterList, CharSequence, int, int)}
-   */
   @Test
-  void ignoresTagsThatStartWithDelimiter(){
+  void assertionFailWhenTryingToBuildOperationWithSurroundingDelimiters(){
     // Given
-    String queryStartingWithDelimeter = "tags=,foo+bar";
-
-    // When
-    QueryParameterList queryParameters = new QueryParameterList(queryStartingWithDelimeter);
+    String queryWithSurroundingDelimiters = "tags=,foo,";
+    final QueryParameterList params = new QueryParameterList(queryWithSurroundingDelimiters);
 
     // Then
-    assertNull(queryParameters.getValue("tags"));
-  }
-
-  /**
-   * See note about {@link #ignoresTagsThatStartWithDelimiter()}
-   */
-  @Test
-  void assertionFailWhenTryingToParseQueryWithSurroundingDelimeters(){
-    // Given
-    String queryWithSurroundingDelimteres = "tags=,foo+bar,";
-
-    // Then
-    assertThrows(AssertionError.class, () -> new QueryParameterList(queryWithSurroundingDelimteres));
+    assertThrows(XyzErrorException.class, () -> ApiUtil.buildOperationForTagsQueryParam(params));
   }
 
   private static Stream<Arguments> simpleTagsSample() {
@@ -155,7 +138,22 @@ class ApiUtilTest {
                 .hasChildrenThat(
                     child -> child.existsWithTagName("foo"),
                     child -> child.existsWithTagName("bar")),
-            "'foo' and 'bar'")
+            "'foo' and 'bar'"),
+        tagQuerySpec("tags=,foo", op -> op.existsWithTagName("foo"), "just delimiter and 'foo'"),
+        tagQuerySpec(
+                "tags=,foo+bar",
+                op -> op.hasType(OpType.AND)
+                        .hasChildrenThat(
+                                child -> child.existsWithTagName("foo"),
+                                child -> child.existsWithTagName("bar")),
+                "delimiter followed by 'foo' and 'bar'"),
+        tagQuerySpec(
+                "tags=,foo,bar",
+                op -> op.hasType(OpType.OR)
+                        .hasChildrenThat(
+                                child -> child.existsWithTagName("foo"),
+                                child -> child.existsWithTagName("bar")),
+                "delimiter followed by 'foo' or 'bar'")
     );
   }
 

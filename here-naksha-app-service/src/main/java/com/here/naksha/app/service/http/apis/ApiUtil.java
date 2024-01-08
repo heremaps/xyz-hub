@@ -111,9 +111,25 @@ public class ApiUtil {
       List<String> andList = null;
       int delimIdx = 0;
       for (final Object obj : tagTokenList) {
-        if (obj == null) continue;
+        if (obj == null) {
+          if (crtOp == NONE) { // we skip null value if it is at the start of operation
+            delimIdx++;
+            continue;
+          } else { // null value in middle of AND/OR operation not allowed
+            throw new XyzErrorException(
+                XyzError.ILLEGAL_ARGUMENT, "Empty tag not allowed - " + tagTokenList);
+          }
+        }
         final String tag = (String) obj;
-        if (tag.isEmpty()) continue;
+        if (tag.isEmpty()) {
+          if (crtOp == NONE) { // we skip empty value if it is at the start of operation
+            delimIdx++;
+            continue;
+          } else { // empty value in middle of AND/OR operation not allowed
+            throw new XyzErrorException(
+                XyzError.ILLEGAL_ARGUMENT, "Empty tag not allowed - " + tagTokenList);
+          }
+        }
         final QueryDelimiter delimiter = delimList.get(delimIdx++);
         if (delimiter != AMPERSAND && delimiter != END && delimiter != COMMA && delimiter != PLUS) {
           throw new XyzErrorException(
