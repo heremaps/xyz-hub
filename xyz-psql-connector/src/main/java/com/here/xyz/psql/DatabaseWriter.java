@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import static com.here.xyz.psql.QueryRunner.TABLE;
 import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -38,8 +39,6 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -49,6 +48,8 @@ import java.util.List;
 import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.io.WKBWriter;
 import org.postgresql.util.PGobject;
 
 public class DatabaseWriter {
@@ -182,7 +183,7 @@ public class DatabaseWriter {
             if (event.getVersionsToKeep() <= 1)
               feature.getProperties().getXyzNamespace().setAuthor(null);
 
-            json = feature.serialize();
+            json = feature.serialize(Static.class);
         }
         finally {
             feature.setGeometry(geometry);

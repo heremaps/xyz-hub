@@ -60,7 +60,7 @@ public class JsonMappingTest {
 
     String result = obj.serialize();
 
-    final String string1 = "{\"id\":\"xyz123\",\"properties\":{\"x\":5,\"y\":7},\"type\":\"Feature\"}";
+    final String string1 = "{\"id\":\"xyz123\",\"properties\":{\"x\":5,\"y\":7},\"type\":\"Feature\",\"geometry\":null}";
     assertTrue(jsonCompare(string1, result));
   }
 
