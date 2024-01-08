@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,12 +83,12 @@ public class GeometryCollection extends Geometry {
   }
 
   @Override
-  protected com.vividsolutions.jts.geom.GeometryCollection convertToJTSGeometry() {
+  protected org.locationtech.jts.geom.GeometryCollection convertToJTSGeometry() {
     if (this.geometries == null || this.geometries.size() == 0) {
       return null;
     }
 
-    com.vividsolutions.jts.geom.Geometry[] jtsGeometries = new com.vividsolutions.jts.geom.Geometry[this.geometries.size()];
+    org.locationtech.jts.geom.Geometry[] jtsGeometries = new org.locationtech.jts.geom.Geometry[this.geometries.size()];
     for (int i = 0; i < jtsGeometries.length; i++) {
       jtsGeometries[i] = this.geometries.get(i).getJTSGeometry();
     }

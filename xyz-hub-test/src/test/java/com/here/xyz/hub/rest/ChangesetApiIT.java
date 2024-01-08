@@ -26,6 +26,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.nullValue;
 
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -338,5 +340,16 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
+  }
+
+  @Test
+  public void getChangesetWithGeometryNull() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=0")
+        .then()
+        .statusCode(OK.code())
+        .body("versions.0.inserted.features[0]", hasKey("geometry"))
+        .body("versions.0.inserted.features[0].geometry", nullValue());
   }
 }
