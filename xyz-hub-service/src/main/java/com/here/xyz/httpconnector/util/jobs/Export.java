@@ -237,14 +237,14 @@ public class Export extends JDBCBasedJob<Export> {
                         logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
                     }
 
-                    if (csvFormat.equals(GEOJSON) || context == EXTENSION || context == SUPER)
+                    if (GEOJSON.equals(csvFormat) || context == EXTENSION || context == SUPER)
                         params.remove(PARAM_COMPOSITE_MODE);
                 }else{
                     //Only make sense in case of extended space
                     params.remove(PARAM_COMPOSITE_MODE);
                 }
 
-                if (readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
+                if (readParamCompositeMode() == FULL_OPTIMIZED && exportTarget != null && DOWNLOAD.equals(exportTarget.type)) {
                     //Override Target-Format to PARTITIONED_JSON_WKB
                     csvFormat = PARTITIONED_JSON_WKB;
                     //if (getTarget() instanceof FileBasedTarget<?> fbt)
