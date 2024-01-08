@@ -31,6 +31,7 @@ import static com.here.xyz.psql.QueryRunner.TABLE;
 import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -182,7 +183,7 @@ public class DatabaseWriter {
             if (event.getVersionsToKeep() <= 1)
               feature.getProperties().getXyzNamespace().setAuthor(null);
 
-            json = feature.serialize();
+            json = feature.serialize(Static.class);
         }
         finally {
             feature.setGeometry(geometry);
