@@ -55,6 +55,8 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.Point;
+
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
@@ -79,9 +81,13 @@ public class FeatureQueryApi extends SpaceBasedApi {
    * Retrieves the statistics about a space.
    */
   private void getStatistics(final RoutingContext context) {
-    new GetStatistics(new GetStatisticsEvent().withContext(getSpaceContext(context)), context, ApiResponseType.STATISTICS_RESPONSE,
-        Query.getBoolean(context, SKIP_CACHE, false))
-        .execute(this::sendResponse, this::sendErrorResponse);
+    try {
+      new GetStatistics(new GetStatisticsEvent().withContext(getSpaceContext(context)), context, ApiResponseType.STATISTICS_RESPONSE,
+              Query.getBoolean(context, SKIP_CACHE, false))
+              .execute(this::sendResponse, this::sendErrorResponse);
+    } catch (HttpException e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   /**
@@ -222,6 +228,18 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withForce2D(force2D)
           .withContext(spaceContext)
           .withRef(version);
+
+       
+       if( event.getGeometry() != null && !( (event.getGeometry() instanceof Point) && event.getRadius() == 0 ) )
+       { boolean bCrossDateLine = false;
+         try 
+         { bCrossDateLine = GeoTools.geometryCrossesDateline(event.getGeometry(), event.getRadius()); }
+         catch (Exception e) 
+         { throw new HttpException(BAD_REQUEST,e.getMessage()); }
+
+         if( bCrossDateLine )
+          throw new HttpException(BAD_REQUEST, "Invalid arguments! geometry filter intersects with antimeridian");
+       }
 
       final GeometryQuery task = new GeometryQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
       task.execute(this::sendResponse, this::sendErrorResponse);

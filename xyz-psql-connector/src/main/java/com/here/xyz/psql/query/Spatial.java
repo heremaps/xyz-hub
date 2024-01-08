@@ -36,7 +36,7 @@ public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse
     SQLQuery geoFilter = buildGeoFilter(event);
 
     SQLQuery query = super.buildQuery(event);
-    SQLQuery geoQuery = new SQLQuery("ST_Intersects(geo, ${{geoFilter}})")
+    SQLQuery geoQuery = new SQLQuery("(ST_isvalid( ${{geoFilter}} ) AND ST_Intersects(geo, ${{geoFilter}}))")
         .withQueryFragment("geoFilter", geoFilter);
 
     SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")

@@ -23,10 +23,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
+import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.datasource.DataSourceProvider;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import java.sql.ResultSet;
@@ -37,12 +40,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, StatisticsResponse> {
-
+  private String spaceId;
   private static final Pattern BBOX_PATTERN = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
 
   public GetStatistics(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
+    spaceId = event.getSpace();
   }
 
   @Override
@@ -52,6 +56,25 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter(TABLE, getDefaultTable(event))
         .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION);
+  }
+
+  @Override
+  public StatisticsResponse run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    //TODO: Do version related queries directly inside xyz_statistic_space() and remove GetChangesetStatistics / GetChangesetStatisticsEvent / ChangesetStatisticsResponse ...
+    long minVersion;
+    long maxVersion;
+    try {
+      ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(new GetChangesetStatisticsEvent().withSpace(spaceId)).run();
+      minVersion = versionResponse.getMinVersion();
+      maxVersion = versionResponse.getMaxVersion();
+    }
+    catch (ErrorResponseException e) {
+      throw new RuntimeException(e);
+    }
+
+    return super.run(dataSourceProvider)
+        .withMinVersion(new Value<>(minVersion).withEstimated(false))
+        .withMaxVersion(new Value<>(maxVersion).withEstimated(false));
   }
 
   @Override

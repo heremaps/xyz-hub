@@ -58,7 +58,7 @@ public class ExportObject {
         if(pos == -1)
             getFilename();
 
-        return s3Key.substring(pos + prefix.length() + 1);
+        return s3Key.substring(pos + prefix.length() + (prefix.endsWith("/") ? 0 : 1));
     }
 
     public void setS3Key(String s3Key) {

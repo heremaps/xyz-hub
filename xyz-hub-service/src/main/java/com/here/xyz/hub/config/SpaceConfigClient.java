@@ -21,11 +21,9 @@ package com.here.xyz.hub.config;
 
 import com.google.common.util.concurrent.Monitor;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.hub.Service;
-import com.here.xyz.hub.config.dynamo.DynamoSpaceConfigClient;
-import com.here.xyz.hub.config.jdbc.JDBCSpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
+import com.here.xyz.hub.util.di.ImplementationProvider;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.Collections;
@@ -60,10 +58,15 @@ public abstract class SpaceConfigClient implements Initializable {
   public static final String UPDATED_AT = "updatedAt";
 
   public static SpaceConfigClient getInstance() {
-    if (Service.configuration.SPACES_DYNAMODB_TABLE_ARN != null) {
-      return new DynamoSpaceConfigClient(Service.configuration.SPACES_DYNAMODB_TABLE_ARN);
-    } else {
-      return JDBCSpaceConfigClient.getInstance();
+    return Provider.provideInstance();
+  }
+
+  public static abstract class Provider implements ImplementationProvider {
+    public Provider() {}
+    protected abstract SpaceConfigClient getInstance();
+    private static SpaceConfigClient provideInstance() {
+      SpaceConfigClient client =  ImplementationProvider.loadProvider(Provider.class).getInstance();
+      return client;
     }
   }
 

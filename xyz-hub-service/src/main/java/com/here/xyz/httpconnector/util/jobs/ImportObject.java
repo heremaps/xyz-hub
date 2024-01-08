@@ -30,6 +30,8 @@ import java.net.URL;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class ImportObject {
+    public static int MAX_RETRIES = 2;
+
     @JsonIgnore
     private String s3Key;
     private URL uploadUrl;
@@ -37,11 +39,12 @@ public class ImportObject {
     private Boolean valid;
     private Status status;
     private String details;
+    private int retryCount;
 
     private long filesize;
 
     public enum Status {
-        waiting, processing, imported, failed;
+        waiting, imported, failed;
         public static Status of(String value) {
             if (value == null) {
                 return null;
@@ -130,22 +133,31 @@ public class ImportObject {
         this.status = status;
     }
 
-    public String getDetails() {
-        return details;
-    }
+    public String getDetails() { return details; }
 
     public void setDetails(String details) {
         this.details = details;
     }
 
+    public int getRetryCount() { return retryCount; }
+
+    public void setRetryCount(int retryCount) { this.retryCount = retryCount; }
+
+    public void increaseRetryCount() { this.retryCount++;}
+
+    @JsonIgnore
+    public boolean isRetryPossible() { return this.retryCount < MAX_RETRIES ; }
+
     @Override
     public String toString() {
         return "ImportObject{" +
-                "s3key='" + s3Key + '\'' +
-                ", filename='" + getFilename() + '\'' +
+                "s3Key='" + s3Key + '\'' +
                 ", uploadUrl=" + uploadUrl +
                 ", compressed=" + compressed +
                 ", valid=" + valid +
+                ", status=" + status +
+                ", details='" + details + '\'' +
+                ", retryCount=" + retryCount +
                 ", filesize=" + filesize +
                 '}';
     }

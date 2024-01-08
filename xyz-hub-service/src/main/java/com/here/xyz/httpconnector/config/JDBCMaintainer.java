@@ -56,7 +56,7 @@ public class JDBCMaintainer extends JDBCClients{
     public static Future<ConnectorStatus> getConnectorStatus(String connectorId) {
        return addClientsIfRequired(connectorId, false)
                .compose(dbSettings -> {
-                    SQLQuery q = new SQLQuery("select (select row_to_json( prop ) from ( select 'ConnectorStatus' as type, connector_id, initialized, " +
+                    SQLQuery q = new SQLQuery("select /*maintenance_hint m499#connectorId("+connectorId+")*/ (select row_to_json( prop ) from ( select 'ConnectorStatus' as type, connector_id, initialized, " +
                             "extensions, script_versions as \"scriptVersions\", maintenance_status as \"maintenanceStatus\") prop ) " +
                             "from xyz_config.db_status where dh_schema = #{schema} AND connector_id = #{connectorId}")
                             .withNamedParameter("schema", dbSettings.getSchema())
@@ -112,7 +112,7 @@ public class JDBCMaintainer extends JDBCClients{
 
                                     logger.info("[{}]: Get maintenanceStatus {}@{}", spaceId, table, space.getStorage().getId());
 
-                                    SQLQuery statusQuery = new SQLQuery("select (" +
+                                    SQLQuery statusQuery = new SQLQuery("select /*maintenance_hint m499#spaceId("+spaceId+")*/ (" +
                                             "select row_to_json( status ) " +
                                             "   from (" +
                                             "          select 'SpaceStatus' as type, " +
@@ -325,7 +325,7 @@ public class JDBCMaintainer extends JDBCClients{
                             }).compose(
                                 f -> {
                                     SQLQuery updateDBStatus = (force == false ?
-                                            new SQLQuery("UPDATE xyz_config.db_status SET maintenance_status=" +
+                                            new SQLQuery("UPDATE /*maintenance_hint m499#connectorId("+connectorId+")*/ xyz_config.db_status SET maintenance_status=" +
                                                     " CASE" +
                                                     "  WHEN maintenance_status IS NULL THEN" +
                                                     "       jsonb_set('{}'::jsonb || '{\"AUTO_INDEXING\":{\"maintenanceRunning\" : []}}', '{AUTO_INDEXING,maintenanceRunning}',  #{maintenanceJobId}::jsonb || '[]'::jsonb)" +
@@ -351,7 +351,7 @@ public class JDBCMaintainer extends JDBCClients{
                             ).compose( f -> {
                                 logger.info("{}: Start Indexing.. AutoIndexing={}", connectorId, autoIndexing);
 
-                                SQLQuery triggerIndexing = new SQLQuery("SELECT xyz_create_idxs(#{schema}, #{limit}, #{offset}, #{mode}, #{user})")
+                                SQLQuery triggerIndexing = new SQLQuery("SELECT  /*maintenance_hint m499#connectorId("+connectorId+")*/ xyz_create_idxs(#{schema}, #{limit}, #{offset}, #{mode}, #{user})")
                                         .withNamedParameter("schema", dbSettings.getSchema())
                                         .withNamedParameter("limit", 100)
                                         .withNamedParameter("offset", 0)
@@ -366,7 +366,7 @@ public class JDBCMaintainer extends JDBCClients{
                                 }
                             ).compose( f -> {
 
-                                SQLQuery updateDBStatus = new SQLQuery("UPDATE xyz_config.db_status SET maintenance_status =  "+
+                                SQLQuery updateDBStatus = new SQLQuery("UPDATE /*maintenance_hint m499#connectorId("+connectorId+")*/ xyz_config.db_status SET maintenance_status =  "+
                                         "jsonb_set( jsonb_set(maintenance_status,'{AUTO_INDEXING,maintainedAt}'::text[], #{maintenanceJobId}::jsonb),'{AUTO_INDEXING,maintenanceRunning}'," +
                                         "   COALESCE((select jsonb_agg(jsonb_array_elements) from jsonb_array_elements(maintenance_status->'AUTO_INDEXING'->'maintenanceRunning')" +
                                         "           where jsonb_array_elements != #{maintenanceJobId}::jsonb), '[]'::jsonb)" +
@@ -400,7 +400,7 @@ public class JDBCMaintainer extends JDBCClients{
                                 if(dbSettings.isEnabledHashSpaceId())
                                     table = Hasher.getHash(spaceId);
 
-                                SQLQuery updateIDXEntry = new SQLQuery("UPDATE " + IDX_STATUS_TABLE_FQN
+                                SQLQuery updateIDXEntry = new SQLQuery("UPDATE /*maintenance_hint m499#spaceId("+spaceId+")*/" + IDX_STATUS_TABLE_FQN
                                         + " SET idx_creation_finished = null "
                                         + " WHERE schem = #{schema} AND spaceid = #{spaceId}")
                                         .withNamedParameter("schema", dbSettings.getSchema())
@@ -418,7 +418,7 @@ public class JDBCMaintainer extends JDBCClients{
                                     table = Hasher.getHash(spaceId);
 
                                 logger.info("[{}]: Maintain Space {}@{}", spaceId, table, space.getStorage().getId());
-                                SQLQuery maintainSpace = new SQLQuery("select xyz_maintain_idxs_for_space(#{schema}, #{spaceId})")
+                                SQLQuery maintainSpace = new SQLQuery("select /*maintenance_hint m499#spaceId("+spaceId+")*/ xyz_maintain_idxs_for_space(#{schema}, #{spaceId})")
                                         .withNamedParameter("schema", dbSettings.getSchema())
                                         .withNamedParameter("spaceId", table);
                                 SQLQuery.substituteAndUseDollarSyntax(maintainSpace);
@@ -446,7 +446,7 @@ public class JDBCMaintainer extends JDBCClients{
                                table = Hasher.getHash(spaceId);
                            logger.info("[{}]: Purge old versions {}@{}", spaceId, table, space.getStorage().getId());
 
-                           SQLQuery q = new SQLQuery("SELECT xyz_advanced_delete_changesets(#{schema}, #{table}, #{partitionSize}, #{versionsToKeep}, #{minTagVersion}, #{pw})")
+                           SQLQuery q = new SQLQuery("SELECT /*maintenance_hint m499#spaceId("+spaceId+")*/ xyz_advanced_delete_changesets(#{schema}, #{table}, #{partitionSize}, #{versionsToKeep}, #{minTagVersion}, #{pw})")
                                    .withNamedParameter("schema", dbSettings.getSchema())
                                    .withNamedParameter("table", table)
                                    .withNamedParameter("partitionSize", PARTITION_SIZE)

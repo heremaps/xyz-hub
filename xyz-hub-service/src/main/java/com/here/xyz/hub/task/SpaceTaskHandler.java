@@ -573,40 +573,43 @@ public class SpaceTaskHandler {
     if (task.resolvedExtensions != null)
       storageParams.putAll(task.resolvedExtensions);
 
-    final ModifySpaceEvent event = new ModifySpaceEvent()
-        .withOperation(op)
-        .withSpaceDefinition(space)
-        .withStreamId(task.getMarker().getName())
-        .withParams(storageParams)
-        .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
-        .withSpace(space.getId());
+    if (entry.isModified) {
+      final ModifySpaceEvent event = new ModifySpaceEvent()
+              .withOperation(op)
+              .withSpaceDefinition(space)
+              .withStreamId(task.getMarker().getName())
+              .withParams(storageParams)
+              .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
+              .withSpace(space.getId());
 
-    ModifySpaceQuery query = new ModifySpaceQuery(event, task.context, ApiResponseType.EMPTY);
-    query.space = space;
-    event.setSpace(space.getId());
+      ModifySpaceQuery query = new ModifySpaceQuery(event, task.context, ApiResponseType.EMPTY);
+      query.space = space;
+      event.setSpace(space.getId());
 
-    C1<ModifySpaceQuery> onEventProcessed = (t) -> {
-      //Currently it's not supported that the connector changes the space modification operation
-      if (query.manipulatedOp != null && query.manipulatedOp != op) {
-        throw new HttpException(BAD_GATEWAY, "Connector error.");
-      }
-      if ((task.isCreate() || task.isUpdate()) && query.manipulatedSpaceDefinition != null) {
-        //Treat the manipulated space definition as a partial update.
-        Map<String,Object> newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition).getMap();
-        Map<String,Object> resultClone = entry.result.asMap();
-        final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(resultClone, newInput, null, true);
-        if (difference != null) {
-          entry.isModified = true;
-          Patcher.patch(resultClone, difference);
-          entry.result = DatabindCodec.mapper().readValue(Json.encode(resultClone), Space.class);
+      C1<ModifySpaceQuery> onEventProcessed = (t) -> {
+        //Currently it's not supported that the connector changes the space modification operation
+        if (query.manipulatedOp != null && query.manipulatedOp != op) {
+          throw new HttpException(BAD_GATEWAY, "Connector error.");
         }
-      }
+        if ((task.isCreate() || task.isUpdate()) && query.manipulatedSpaceDefinition != null) {
+          //Treat the manipulated space definition as a partial update.
+          Map<String,Object> newInput = JsonObject.mapFrom(query.manipulatedSpaceDefinition).getMap();
+          Map<String,Object> resultClone = entry.result.asMap();
+          final Difference difference = Patcher.calculateDifferenceOfPartialUpdate(resultClone, newInput, null, true);
+          if (difference != null) {
+            entry.isModified = true;
+            Patcher.patch(resultClone, difference);
+            entry.result = DatabindCodec.mapper().readValue(Json.encode(resultClone), Space.class);
+          }
+        }
 
-      callback.call(task);
-    };
-
-    //Send "ModifySpaceEvent" to (all) the connector(s) to do some setup, update or clean up.
-    query.execute(onEventProcessed, (t, e) -> callback.exception(e));
+        callback.call(task);
+      };
+      //Send "ModifySpaceEvent" to (all) the connector(s) to do some setup, update or clean up.
+      query.execute(onEventProcessed, (t, e) -> callback.exception(e));
+      return;
+    }
+    callback.call(task);
   }
 
   public static void postProcess(ConditionalOperation task, Callback<ConditionalOperation> callback) {

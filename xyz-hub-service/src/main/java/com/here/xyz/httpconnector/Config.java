@@ -83,10 +83,6 @@ public class Config {
    */
   public int JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES;
   /**
-   * RDS maximum allowed imports in parallel
-   */
-  public Long JOB_DYNAMO_EXP_IN_DAYS;
-  /**
    * DB Pool size per client
    */
   public Integer JOB_DB_POOL_SIZE_PER_CLIENT;

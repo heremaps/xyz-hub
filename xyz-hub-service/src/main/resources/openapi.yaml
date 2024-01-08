@@ -43,24 +43,10 @@ paths:
             Additional space filter which compares the space's contentUpdatedAt timestamp with the one
             specified in the query, resulting in a subset of spaces.
 
-
-            The usage of a comma (,) separating the timestamps, represents
-            an OR operation.
-
-
             The format should follow the specification below
               * ?contentUpdatedAt=timestamp
 
-            While in the following example
-              * ?contentUpdatedAt=timestamp_1,timestamp_2
-
-
-            The resulting spaces list will contain all contentUpdatedAt having timestamp_1 OR timestamp_2
-
-
             The available operators are:
-              - "=" - equals
-              - "!=" - not equals
               - ">=" or "=gte=" - greater than or equals
               - "<=" or "=lte=" - less than or equals
               - ">" or "=gt=" - greater than
@@ -315,8 +301,9 @@ paths:
     get:
       tags:
         - Manage Changesets
-      summary: Get ChangesetStatistics
+      summary: Get ChangesetStatistics (deprecated)
       description: >-
+        NOTE: This endpoint is <b>deprecated</b>. Use <code>/spaces/{spaceId}/statistics</code> instead to gather information about the min / max version of a space.<br /><br />
         Returns statistics about changesets.
       operationId: getChangesetStatistics
       parameters:
@@ -1235,7 +1222,7 @@ paths:
   '/spaces/{spaceId}/job/{jobId}':
     get:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Get job
       description: Retrieve job
       operationId: getJob
@@ -1255,7 +1242,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Update Job
       operationId: patchJob
       parameters:
@@ -1276,7 +1263,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Delete job
       description: Delete job
       operationId: deleteJob
@@ -1298,7 +1285,7 @@ paths:
   '/spaces/{spaceId}/job/{jobId}/execute':
     post:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Run Command
       description: Run Command on Job
       operationId: postExecute
@@ -3391,7 +3378,7 @@ components:
         extends:
           $ref: '#/components/schemas/Extension'
         client:
-          $ref: '#/components/schemas/SpaceClient'
+          $ref: '#/components/schemas/SpaceClientInfo'
         packages:
           description: List of packages that this space belongs to.
           items:
@@ -3491,12 +3478,12 @@ components:
       example:
         title: My Demo Space
         description: Description as markdown
-    SpaceClient:
+    SpaceClientInfo:
       type: object
       additionalProperties:
         type: object
       description: >-
-        An arbitrary client configuration with hints or settings for the client,
+        An arbitrary object holding some hints or settings for the client,
         for example rendering instructions.
       example:
         key: value
@@ -3580,6 +3567,24 @@ components:
                 type: string
             estimated:
               $ref: '#/components/schemas/Estimated'
+        minVersion:
+          type: object
+          description: The version number of the oldest available version of the features within the space.
+          properties:
+            value:
+              type: integer
+              format: "int64"
+            estimated:
+              $ref: '#/components/schemas/Estimated'
+        maxVersion:
+          type: object
+          description: The version number of the newest available version of the features within the space.
+          properties:
+            value:
+              type: integer
+              format: "int64"
+            estimated:
+              $ref: '#/components/schemas/Estimated'
         properties:
           type: object
           description: The properties of the features of the space.
@@ -3621,6 +3626,12 @@ components:
         contentUpdatedAt:
           value: 1692368695049
           estimated: true
+        minVersion:
+          value: 0
+          estimated: false
+        maxVersion:
+          value: 27
+          estimated: false
         dataSize:
           value: 108364
           estimated: true
@@ -3740,29 +3751,47 @@ components:
           description: "The additional parameters of the subscription config"
     Job:
       type: object
-      description: Job
+      description: >-
+        A job which can be executed by the XYZ Job API.
+        There are different kinds of tasks to be executed by a job depending on its specified
+        source and target dataset-descriptions.
       properties:
         type:
           description: >-
-            The unique identifier of the import type
-          example: "Import"
+            The type of the job (deprecated)
+          example: Import
           type: string
         id:
           description: >-
-            id
-          example: "ZMlfeaN8B8"
+            The unique identifier of the job.
+            NOTE: The id will always be generated by the service. It can not be defined by the client.
+          example: ZMlfeaN8B8
           type: string
         description:
           description: >-
-            description
-          example: 1234
+            A human readable description of the purpose of the job
+          example: This job imports some GeoJSON data to my space
           type: string
-        csvFormat:
-          description: >-
-            csvFormat
-          example: JSON_WKB
-          type: string
+        source:
+          $ref: '#/components/schemas/DatasetDescription'
+        target:
+          $ref: '#/components/schemas/DatasetDescription'
       example:
-        type: "Import"
-        description: "Job Description"
-        csvFormat: "JSON_WKB"
+        type: Import
+        description: This job imports some GeoJSON data to my space
+        source:
+          type: Files
+        target:
+          type: Space
+          id: sdkeuh7
+    DatasetDescription:
+      type: object
+      properties:
+        type:
+          description: The type of the dataset
+          example: Space
+          type: string
+          enum:
+            - Space
+            - Spaces
+            - Files

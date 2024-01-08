@@ -55,7 +55,7 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
   @Override
   public Future<Void> init() {
     if (dynamoClient.isLocal()) {
-      dynamoClient.createTable(connectors.getTableName(), "id:S,owner:S", "id", "owner", null);
+      dynamoClient.createTable(connectors.getTableName(), "id:S,owner:S", "id", List.of(new IndexDefinition("owner")), null);
     }
 
     return Future.succeededFuture();
