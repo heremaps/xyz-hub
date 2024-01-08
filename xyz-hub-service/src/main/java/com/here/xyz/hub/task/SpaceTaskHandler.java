@@ -570,7 +570,7 @@ public class SpaceTaskHandler {
       return;
     }
 
-    if (task.modifyOp.dryRun && task.getEvent().getVersion().compareTo("0.7.0") < 0) {
+    if (task.modifyOp.dryRun && task.getEvent().getVersion().compareTo(DRY_RUN_SUPPORT_VERSION) < 0) {
       callback.call(task);
       return;
     }
