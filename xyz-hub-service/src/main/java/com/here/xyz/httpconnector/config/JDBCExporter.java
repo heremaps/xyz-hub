@@ -76,7 +76,7 @@ public class JDBCExporter extends JDBCClients {
               ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId") : false;
       String targetSpaceId = job.getTarget().getKey();
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
-      return new SQLQuery(
+      SQLQuery copyQuery = new SQLQuery(
         "WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */ "
             + "(INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version) "
             + "SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version "
@@ -110,8 +110,8 @@ public class JDBCExporter extends JDBCClients {
           .withQueryFragment("jobId", job.getId())
           .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
           .withVariable("versionSequenceName", tableName + "_version_seq")
-          .withQueryFragment("contentQuery", buildCopyContentQuery(job, schema, enableHashedSpaceId))
-          .substitute();
+          .withQueryFragment("contentQuery", buildCopyContentQuery(job, schema, enableHashedSpaceId));
+      return copyQuery.substituteAndUseDollarSyntax(copyQuery);
     }
 
   private static SQLQuery buildCopyContentQuery(Export job, String schema, boolean enableHashedSpaceId) throws SQLException {
@@ -137,7 +137,6 @@ public class JDBCExporter extends JDBCClients {
     catch (Exception e) {
       throw new SQLException(e);
     }
-    contentQuery = contentQuery.substituteAndUseDollarSyntax(contentQuery);
     return contentQuery;
   }
 
