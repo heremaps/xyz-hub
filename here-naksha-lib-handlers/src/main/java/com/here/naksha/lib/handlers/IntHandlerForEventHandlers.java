@@ -19,12 +19,15 @@
 package com.here.naksha.lib.handlers;
 
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.exceptions.StorageNotFoundException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.storage.IStorage;
+import java.util.Optional;
 import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHandler> {
@@ -35,18 +38,43 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
 
   @Override
   protected @NotNull Result validateFeature(EventHandler eventHandler) {
+    return classNameError(eventHandler)
+        .or(() -> defaultStorageHandlerError(eventHandler))
+        .orElse(new SuccessResult());
+  }
+
+  private Optional<Result> classNameError(EventHandler eventHandler) {
     if (eventHandler.getClassName() == null || eventHandler.getClassName().isEmpty()) {
-      return new ErrorResult(XyzError.ILLEGAL_ARGUMENT, "Mandatory parameter className missing!");
+      return Optional.of(new ErrorResult(XyzError.ILLEGAL_ARGUMENT, "Mandatory parameter className missing!"));
     }
+    return Optional.empty();
+  }
+
+  private Optional<ErrorResult> defaultStorageHandlerError(EventHandler eventHandler) {
     if (eventHandler.getClassName().equals(DefaultStorageHandler.class.getName())) {
       final Object storageId = eventHandler.getProperties().get(EventHandlerProperties.STORAGE_ID);
       if (storageId == null || storageId.toString().isEmpty()) {
-        return new ErrorResult(
+        return Optional.of(new ErrorResult(
             XyzError.ILLEGAL_ARGUMENT,
-            "Mandatory properties parameter %s missing!".formatted(EventHandlerProperties.STORAGE_ID));
+            "Mandatory properties parameter %s missing!".formatted(EventHandlerProperties.STORAGE_ID))
+        );
+      } else {
+        return invalidStorageError(storageId.toString());
       }
-      // TODO MCPODS-6574 check if storageId is valid
     }
-    return new SuccessResult();
+    return Optional.empty();
+  }
+
+  private Optional<ErrorResult> invalidStorageError(String storageId) {
+    try {
+      nakshaHub.getStorageById(storageId);
+      return Optional.empty();
+    } catch (Exception e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof StorageNotFoundException snfe) {
+        return Optional.of(snfe.toErrorResult());
+      }
+      throw e;
+    }
   }
 }
