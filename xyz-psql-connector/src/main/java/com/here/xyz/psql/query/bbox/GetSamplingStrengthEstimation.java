@@ -29,10 +29,11 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.bbox.GetSamplingStrengthEstimation.SamplingStrengthEstimation;
+import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.psql.tools.DhString;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -125,7 +126,7 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
 
   @Override
   public SamplingStrengthEstimation handle(ResultSet rs) throws SQLException {
-    FeatureCollection collection = dbHandler.legacyDefaultFeatureResultSetHandler(rs);
+    FeatureCollection collection = new FeatureResultSetHandler(false, false).handle(rs);
     Feature estimateFtr = null;
     try {
       estimateFtr = collection.getFeatures().get(0);

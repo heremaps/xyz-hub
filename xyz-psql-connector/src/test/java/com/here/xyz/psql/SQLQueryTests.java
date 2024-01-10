@@ -19,9 +19,10 @@
 
 package com.here.xyz.psql;
 
-import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
+
+import com.here.xyz.util.db.SQLQuery;
+import org.junit.Test;
 
 public class SQLQueryTests {
 

@@ -428,6 +428,7 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
     response.statusCode(OK.code());
   }
 
+  @Deprecated
   @Test
   public void createSpaceUsingExistingConnectorMapping() {
     cleanUpId = "abc:test";

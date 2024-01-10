@@ -17,11 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.datasource;
+package com.here.xyz.util.db.datasource;
 
+import com.mchange.v2.c3p0.PooledDataSource;
 import javax.sql.DataSource;
 
-public class StaticDataSources extends DataSourceProvider {
+public class StaticDataSources extends DataSourceProvider implements AutoCloseable {
 
   private final DataSource reader;
   private final DataSource writer;
@@ -43,5 +44,13 @@ public class StaticDataSources extends DataSourceProvider {
   @Override
   public DataSource getWriter() {
     return writer;
+  }
+
+  @Override
+  public void close() throws Exception {
+    if (writer instanceof PooledDataSource writer)
+      writer.close();
+    if (reader instanceof PooledDataSource reader && reader != writer)
+      reader.close();
   }
 }

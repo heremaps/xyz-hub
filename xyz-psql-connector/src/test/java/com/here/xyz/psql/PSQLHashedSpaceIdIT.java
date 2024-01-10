@@ -83,11 +83,11 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
             .withConnectorParams(connectorParams)
             .withTransaction(true)
             .withInsertFeatures(features);
-    invokeLambda(mfevent.serialize());
+    invokeLambda(mfevent);
 
     /** Needed to trigger update on pg_stat */
     try (
-            final Connection connection = LAMBDA.dataSource.getConnection();
+            final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection();
             final Statement stmt = connection.createStatement();
             final ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_name='" + hashedSpaceId + "'");
     ) {
@@ -108,10 +108,10 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
             .withTransaction(true)
             .withInsertFeatures(features);
 
-    invokeLambda(mfevent.serialize());
+    invokeLambda(mfevent);
 
     /** Needed to trigger update on pg_stat */
-    try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+    try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
       Statement stmt = connection.createStatement();
       stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='" + hashedSpaceId + "';");
       stmt.execute("ANALYZE \"" + hashedSpaceId + "\";");
@@ -120,7 +120,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     //Triggers dbMaintenance
     invokeLambdaFromFile("/events/HealthCheckWithEnableHashedSpaceIdEvent.json");
 
-    try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+    try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
       Statement stmt = connection.createStatement();
       // check for the index status
       try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + IDX_STATUS_TABLE_FQN + " where spaceid = '" + hashedSpaceId + "';")) {
@@ -131,11 +131,10 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
       // check for the indexes itself
       try (ResultSet rs = stmt.executeQuery("SELECT * FROM pg_indexes WHERE tablename = '" + hashedSpaceId + "';")) {
-        final Set<String> indexes = new HashSet<String>() {{
+        final Set<String> indexes = new HashSet<>() {{
           add("idx_" + hashedSpaceId + "_createdAt");
           add("idx_" + hashedSpaceId + "_geo");
           add("idx_" + hashedSpaceId + "_serial");
-          add("idx_" + hashedSpaceId + "_tags");
           add("idx_" + hashedSpaceId + "_updatedAt");
         }};
 

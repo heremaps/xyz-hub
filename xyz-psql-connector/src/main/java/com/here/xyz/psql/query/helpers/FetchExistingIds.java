@@ -21,8 +21,8 @@ package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;

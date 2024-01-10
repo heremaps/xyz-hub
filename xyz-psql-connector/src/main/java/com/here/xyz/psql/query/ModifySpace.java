@@ -28,10 +28,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.psql.DatabaseMaintainer;
+import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -39,23 +43,26 @@ import java.util.List;
 import java.util.Map;
 import org.json.JSONObject;
 
-public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
+public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
     /**
      * Main schema for xyz-relevant configurations.
      */
     public static final String XYZ_CONFIG_SCHEMA = "xyz_config";
-
     public static final String IDX_STATUS_TABLE = "xyz_idxs_status";
-
     public static final String IDX_STATUS_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + IDX_STATUS_TABLE;
-
     public static final String SPACE_META_TABLE = "space_meta";
     public static final String SPACE_META_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + SPACE_META_TABLE;
     public static final String I_SEQUENCE_SUFFIX = "_i_seq";
+    private Operation operation;
+    private String spaceId;
+    private DatabaseMaintainer dbMaintainer;
+
     public ModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
         super(event);
         setUseReadReplica(false);
+        operation = event.getOperation();
+        spaceId = event.getSpace();
     }
 
     @Override
@@ -80,7 +87,20 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
     }
 
     @Override
-    public XyzResponse handle(ResultSet rs) throws SQLException {
+    public SuccessResponse write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+        SuccessResponse response = super.write(dataSourceProvider);
+        if (operation != Operation.DELETE)
+            getDbMaintainer().maintainSpace(ConnectorRuntime.getInstance().getStreamId(), getSchema(), spaceId);
+        return response;
+    }
+
+    @Override
+    protected SuccessResponse handleWrite(int rowCount) throws ErrorResponseException {
+        return new SuccessResponse().withStatus("OK");
+    }
+
+    @Override
+    public SuccessResponse handle(ResultSet rs) throws SQLException {
         return null;
     }
 
@@ -92,7 +112,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
         if (!isExtendedSpace(event))
             return new JSONObject().put("extends", (Object) null);
 
-        Map<String, String> extendedTables = new HashMap<String, String>() {{
+        Map<String, String> extendedTables = new HashMap<>() {{
            put(EXTENDED_TABLE, getExtendedTable(event));
            if (is2LevelExtendedSpace(event))
                put(INTERMEDIATE_TABLE, getIntermediateTable(event));
@@ -257,5 +277,18 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
                 this.searchableProperties = new HashMap<>();
             }
         }
+    }
+
+    public DatabaseMaintainer getDbMaintainer() {
+        return dbMaintainer;
+    }
+
+    public void setDbMaintainer(DatabaseMaintainer dbMaintainer) {
+        this.dbMaintainer = dbMaintainer;
+    }
+
+    public ModifySpace withDbMaintainer(DatabaseMaintainer dbMaintainer) {
+        setDbMaintainer(dbMaintainer);
+        return this;
     }
 }

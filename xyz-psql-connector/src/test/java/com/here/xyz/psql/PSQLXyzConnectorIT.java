@@ -19,14 +19,18 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.DatabaseHandler.ECPS_PHRASE;
 import static org.junit.Assert.assertEquals;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.psql.config.DatabaseSettings;
-import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.config.ConnectorParameters;
+import com.here.xyz.psql.tools.ECPSTool;
+import com.here.xyz.util.db.DatabaseSettings;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 @SuppressWarnings("unused")
@@ -38,14 +42,18 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     parametersToEncrypt.put(DatabaseSettings.PSQL_HOST, "example.com");
     parametersToEncrypt.put(DatabaseSettings.PSQL_PORT, "1234");
     parametersToEncrypt.put(DatabaseSettings.PSQL_PASSWORD, "1234password");
-    connectorParams.put("ecps", PSQLConfig.encryptECPS(new ObjectMapper().writeValueAsString(parametersToEncrypt), "testing"));
+    connectorParams.put("ecps", ECPSTool.encrypt("testing", new ObjectMapper().writeValueAsString(parametersToEncrypt)));
 
     HealthCheckEvent event = new HealthCheckEvent()
         .withConnectorParams(connectorParams);
 
-    PSQLConfig config = new PSQLConfig(event, GS_CONTEXT);
-    assertEquals(config.getDatabaseSettings().getHost(), "example.com");
-    assertEquals(config.getDatabaseSettings().getPort(), 1234);
-    assertEquals(config.getDatabaseSettings().getPassword(), "1234password");
+    String phrase = ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE);
+    DatabaseSettings dbSettings = new DatabaseSettings(getClass().getSimpleName(),
+        ECPSTool.decryptToMap(phrase, XyzSerializable.fromMap(connectorParams, ConnectorParameters.class).getEcps()));
+
+    ConnectorParameters connectorParameters = XyzSerializable.fromMap(event.getConnectorParams(), ConnectorParameters.class);
+    assertEquals(dbSettings.getHost(), "example.com");
+    assertEquals(dbSettings.getPort(), 1234);
+    assertEquals(dbSettings.getPassword(), "1234password");
   }
 }

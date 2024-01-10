@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.7.21-SNAPSHOT</version>
+  <version>3.7.22-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -50,6 +50,7 @@
     <module>xyz-models</module>
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
+    <module>xyz-util</module>
   </modules>
 
   <scm>
@@ -223,6 +224,11 @@
         <artifactId>xyz-psql-connector</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-util</artifactId>
+        <version>${project.version}</version>
+      </dependency>
 
       <!-- Vertx -->
       <dependency>
@@ -273,16 +279,6 @@
       <dependency>
         <artifactId>vertx-redis-client</artifactId>
         <groupId>io.vertx</groupId>
-        <version>${vertx-version}</version>
-      </dependency>
-      <dependency>
-        <artifactId>vertx-jdbc-client</artifactId>
-        <groupId>io.vertx</groupId>
-        <version>${vertx-version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.vertx</groupId>
-        <artifactId>vertx-pg-client</artifactId>
         <version>${vertx-version}</version>
       </dependency>
 

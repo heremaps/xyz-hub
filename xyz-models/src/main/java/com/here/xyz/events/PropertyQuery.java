@@ -79,5 +79,37 @@ public class PropertyQuery {
     return this;
   }
 
-  public enum QueryOperation {EQUALS, NOT_EQUALS, LESS_THAN, GREATER_THAN, LESS_THAN_OR_EQUALS, GREATER_THAN_OR_EQUALS, CONTAINS }
+  public enum QueryOperation {
+    EQUALS,
+    NOT_EQUALS,
+    LESS_THAN,
+    GREATER_THAN,
+    LESS_THAN_OR_EQUALS,
+    GREATER_THAN_OR_EQUALS,
+    CONTAINS;
+
+    public static String getOperation(QueryOperation op) {
+      if (op == null)
+        throw new NullPointerException("op is required");
+
+      switch (op) {
+        case EQUALS:
+          return "=";
+        case NOT_EQUALS:
+          return "<>";
+        case LESS_THAN:
+          return "<";
+        case GREATER_THAN:
+          return ">";
+        case LESS_THAN_OR_EQUALS:
+          return "<=";
+        case GREATER_THAN_OR_EQUALS:
+          return ">=";
+        case CONTAINS:
+          return "@>";
+      }
+
+      return "";
+    }
+  }
 }
