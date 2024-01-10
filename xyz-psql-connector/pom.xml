@@ -100,7 +100,8 @@
             </transformer>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
           </transformers>
-          <finalName>xyz-psql-connector</finalName>
+          <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+          <finalName>${project.artifactId}-${project.version}</finalName>
           <filters>
             <filter>
               <artifact>*:*</artifact>
