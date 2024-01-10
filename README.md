@@ -39,7 +39,7 @@ Naksha uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospati
 
 * Java 17+
 * Gradle 7.2+
-* Postgres 10+ with PostGIS 2.5+
+* Postgres 14+ with PostGIS 2.5+
 
 # Getting started
 
@@ -49,6 +49,34 @@ Clone and install the project using:
 git clone https://github.com/xeus2001/xyz-hub.git
 cd xyz-hub
 gradle clean build
+```
+
+### Containerized Postgres & running with extensions
+
+Naksha relies strongly on Postgres - you need running instance if you want to run Naksha locally.
+Supported Postgres version is 14+ (the newer the better).
+Apart from bare Postgres, Naksha needs [PostGIS]() extension which is mandatory. Apart from that, optional, but highly recommended extensions that are supported include: `pg_hint_plan` and `pg_stat_statements`.
+
+You can use standalone instance installed directly on your host machine but there's also a docker image that hosts Postgres 16 with all the extensions mentioned above already installed. You can find its definition in [this Dockerfile](here-naksha-app-service/src/test/psql_container/Dockerfile).
+
+To use the containerized Postgres with your locally runnning Naksha:
+1) Navigate to [Dockerfile directory](here-naksha-app-service/src/test/psql_container):
+   ```
+   cd here-naksha-app-service/src/test/psql_container
+   ```
+2) Build the image:
+   ```
+   docker build --no-cache -t <IMAGE_ID> . 
+   ```
+3) Run the container (supplied options omit all auth - use it only locally, tweak if needed):
+   ```
+   docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_INITDB_ARGS="--auth-host=trust --auth-local=trust" -e POSTGRES_HOST_AUTH_METHOD=trust <IMAGE_ID>
+   ```
+4) Now your database should be available on `localhost` with port `5432` - you can start Naksha the same way as described in [Run App](#run-app) section.
+
+5) \[optional extension run\] Now you can run naksha jar and include [example config with additional extensions enabled](here-naksha-app-service/src/main/resources/test-config-with-extensions.json) like so:
+```
+java -jar build/libs/naksha-2.0.6-all.jar test-config-with-extensions 'jdbc:postgresql://localhost:5432/postgres?user=postgres&password=pswd&schema=naksha&app=naksha_local&id=naksha_admin_db'
 ```
 
 ### Run App
@@ -85,6 +113,7 @@ Then use a web browser to connect to `localhost:8080`, an OK message should be d
 ### OpenAPI specification
 
 Once application is UP, the OpenAPI specification is accessible at `http(s)://{host}:{port}/hub/swagger/index.html`, by default at [http://localhost:8080/hub/swagger/index.html](http://localhost:8080/hub/swagger/index.html)
+
 
 ### Configuration
 

@@ -42,8 +42,4 @@ public abstract class ApiTest {
   public NakshaTestWebClient getNakshaClient() {
     return nakshaClient;
   }
-
-  public NakshaApp getNakshaApp() {
-    return ApiTestMaintainer.nakshaApp();
-  }
 }

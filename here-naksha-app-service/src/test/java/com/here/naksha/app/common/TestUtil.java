@@ -20,6 +20,7 @@ package com.here.naksha.app.common;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.here.naksha.app.init.TestPsqlStorageConfigs;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
@@ -44,7 +45,7 @@ public class TestUtil {
   public static String loadFileOrFail(final @NotNull String rootPath, final @NotNull String fileName) {
     try {
       String json = new String(Files.readAllBytes(Paths.get(rootPath + fileName)));
-      final PsqlStorageConfig dataDbConfig = TestNakshaAppInitializer.dataDbConfig;
+      final PsqlStorageConfig dataDbConfig = TestPsqlStorageConfigs.dataDbConfig;
       json = json.replace("${dataDb.host}", dataDbConfig.host());
       json = json.replace("${dataDb.port}", Integer.toString(dataDbConfig.port()));
       json = json.replace("${dataDb.db}", dataDbConfig.db());
@@ -52,7 +53,7 @@ public class TestUtil {
       json = json.replace("${dataDb.schema}", dataDbConfig.schema());
       json = json.replace("${dataDb.user}", dataDbConfig.user());
       json = json.replace("${dataDb.password}", dataDbConfig.password());
-      final PsqlStorageConfig adminDbConfig = TestNakshaAppInitializer.adminDbConfig;
+      final PsqlStorageConfig adminDbConfig = TestPsqlStorageConfigs.adminDbConfig;
       json = json.replace("${adminDb.host}", adminDbConfig.host());
       json = json.replace("${adminDb.port}", Integer.toString(adminDbConfig.port()));
       json = json.replace("${adminDb.db}", adminDbConfig.db());

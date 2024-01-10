@@ -18,6 +18,7 @@ env:
   SERVICE_JAR_DIR: ${{ github.workspace }}/build/libs
   CODEDEPLOY_DIR: ${{ github.workspace }}/deployment/codedeploy
   GITHUB_CODEDEPLOY_ARTIFACT_NAME: codedeploy-artifact
+  NAKSHA_LOCAL_TEST_CONTEXT: LOCAL_STANDALONE
 
 jobs:
   main:
@@ -28,7 +29,7 @@ jobs:
       codedeploy-artifact-version: ${{ steps.save-artifact-version.outputs.version }}
     services:
       postgres:
-        image: postgis/postgis # Postgres with PostGIS extension
+        image: postgis/postgis
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_USER: postgres

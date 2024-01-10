@@ -197,8 +197,8 @@ public class NakshaHub implements INaksha {
       final List<String> cfgIdList = (configId != null) ? List.of(configId, DEF_CFG_ID) : List.of(DEF_CFG_ID);
       final Result rdResult = admin.execute(readFeaturesByIdsRequest(NakshaAdminCollection.CONFIGS, cfgIdList));
       if (rdResult instanceof ErrorResult er) {
-        throw unchecked(new Exception(
-            "Unable to read custom/default config from Admin DB. " + er.toString(), er.exception));
+        throw unchecked(
+            new Exception("Unable to read custom/default config from Admin DB. " + er, er.exception));
       } else {
         try {
           List<NakshaHubConfig> nakshaHubConfigs =
@@ -217,8 +217,7 @@ public class NakshaHub implements INaksha {
             return defDbCfg; // return default config from DB
           }
         } catch (NoCursor | NoSuchElementException er) {
-          throw unchecked(new Exception(
-              "Unable to read custom/default config from Admin DB - ResultCursor has no data"));
+          logger.info("No custom/default config found in Admin DB.");
         }
       }
 
