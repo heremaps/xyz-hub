@@ -87,7 +87,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                     .withId("foo")
                     .withSearchableProperties(searchableProperties)
             );
-        ErrorResponse error = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        ErrorResponse error = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent));
         assertEquals(XyzError.ILLEGAL_ARGUMENT, error.getError());
         assertEquals("On-Demand-Indexing - Maximum permissible: 4 searchable properties per space!", error.getErrorMessage());
 
@@ -103,8 +103,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                     .withSearchableProperties(searchableProperties)
             );
 
-        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
-        assertEquals("OK",response.getStatus());
+        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent));
+        assertEquals("OK", response.getStatus());
 
         //Increase to 5 allowed Indices
         connectorParams.put(PSQLAbstractIT.ON_DEMAND_IDX_LIMIT, 5);
@@ -121,17 +121,16 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                     .withSearchableProperties(searchableProperties)
             );
 
-        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             // Default System Indices
-            List<String> systemIndices = new ArrayList<String>(){{
+            List<String> systemIndices = new ArrayList<>(){{
                 add("createdAt");
                 add("updatedAt");
                 add("serial");
                 add("geo");
-                add("tags");
             }};
 
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
@@ -164,7 +163,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 //Table gets created also without features
                 .withSpaceDefinition(new Space().withId("foo"));
 
-        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
+        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent));
         assertEquals("OK",response.getStatus());
 
         //Update space, add searchable properties
@@ -184,18 +183,17 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withSearchableProperties(searchableProperties)
             );
 
-        response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
+        response = deserializeResponse(invokeLambda(modifySpaceEvent));
         assertEquals("OK", response.getStatus());
 
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             // Default System Indices
             List<String> systemIndices = new ArrayList<>(Arrays.asList(
                 "createdAt",
                 "updatedAt",
                 "serial",
                 "geo",
-                "tags",
                 "viz",
                 "idnew",
                 "version",
@@ -235,7 +233,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withSpace("foo")
                 .withConnectorParams(connectorParams);
         // =========== Invoke GetStatisticsEvent ==========
-        StatisticsResponse resp = XyzSerializable.deserialize(invokeLambda(statisticsEvent.serialize()));
+        StatisticsResponse resp = XyzSerializable.deserialize(invokeLambda(statisticsEvent));
         assertEquals(StatisticsResponse.PropertiesStatistics.Searchable.ALL, resp.getProperties().getSearchable());
 
         List<StatisticsResponse.PropertyStatistics> propStatistics = resp.getProperties().getValue();
@@ -255,7 +253,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             //Table gets created also without features
             .withSpaceDefinition(new Space().withId("foo"));
 
-        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
+        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent));
         assertEquals("OK",response.getStatus());
 
         //Update space, add searchable properties
@@ -278,10 +276,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         .withSearchableProperties(searchableProperties)
                 );
 
-        response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
+        response = deserializeResponse(invokeLambda(modifySpaceEvent));
         assertEquals("OK",response.getStatus());
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("select xyz_maintain_idxs_for_space('public', 'foo');");
 
@@ -341,10 +339,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withInsertFeatures(FeatureGenerator.get11kFeatureCollection().getFeatures())
                 .withConnectorParams(connectorParams);
 
-        invokeLambda(mfevent.serialize());
+        invokeLambda(mfevent);
 
         // Needed to trigger update on pg_stat
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid='foo';");
             stmt.execute("ANALYZE \"foo\";");
@@ -357,7 +355,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 .withSpace("foo")
                 .withConnectorParams(connectorParams);
         // =========== Invoke GetStatisticsEvent ==========
-        String stringResponse = invokeLambda(statisticsEvent.serialize());
+        String stringResponse = invokeLambda(statisticsEvent);
         StatisticsResponse response = deserializeResponse(stringResponse);
 
         assertNotNull(response);
@@ -390,12 +388,12 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 );
 
         // =========== Invoke ModifySpaceEvent ==========
-        invokeLambda(modifySpaceEvent.serialize());
+        invokeLambda(modifySpaceEvent);
 
         // =========== Invoke HealthCheck - Triggers dbMaintenance (with index-deletion) ==========
         invokeLambdaFromFile("/events/HealthCheckEventWithAutoIndexing.json");
 
-        stringResponse = invokeLambda(statisticsEvent.serialize());
+        stringResponse = invokeLambda(statisticsEvent);
         response = XyzSerializable.deserialize(stringResponse);
         assertNotNull(response);
 

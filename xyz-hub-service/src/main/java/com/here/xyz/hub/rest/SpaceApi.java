@@ -87,12 +87,13 @@ public class SpaceApi extends SpaceBasedApi {
     JsonObject input;
     try {
       input = context.body().asJsonObject();
-    } catch (DecodeException e) {
+    }
+    catch (DecodeException e) {
       context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
       return;
     }
 
-    ConnectorMapping defaultConnectorMapping = ConnectorMapping.of(Service.configuration.DEFAULT_CONNECTOR_MAPPING_STRATEGY);
+    ConnectorMapping defaultConnectorMapping = Service.configuration.DEFAULT_CONNECTOR_MAPPING_STRATEGY;
     ConnectorMapping connectorMapping = ConnectorMapping.of(ApiParam.Query.getString(context, Query.CONNECTOR_MAPPING, defaultConnectorMapping.name()), defaultConnectorMapping);
     boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true, connectorMapping, dryRun);

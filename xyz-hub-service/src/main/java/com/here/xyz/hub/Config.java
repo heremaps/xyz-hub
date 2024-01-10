@@ -1,4 +1,25 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.hub;
+
+import static com.here.xyz.hub.task.SpaceTask.ConnectorMapping.RANDOM;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -95,9 +116,8 @@ public class Config {
 
   public String getDefaultStorageId(String region) {
     List<String> storageIds = getDefaultStorageIds(region);
-    if (storageIds == null) {
+    if (storageIds == null)
       storageIds = defaultStorageIds;
-    }
 
     return storageIds == null ? null : storageIds.get((int) (Math.random() * storageIds.size()));
   }
@@ -112,9 +132,9 @@ public class Config {
       String protocol = XYZ_HUB_REDIS_AUTH_TOKEN != null ? "rediss" : "redis";
       int port = XYZ_HUB_REDIS_PORT != 0 ? XYZ_HUB_REDIS_PORT : 6379;
       return protocol + "://" + XYZ_HUB_REDIS_HOST + ":" + port;
-    } else {
-      return XYZ_HUB_REDIS_URI;
     }
+    else
+      return XYZ_HUB_REDIS_URI;
   }
 
   /**
@@ -124,9 +144,8 @@ public class Config {
   private List<String> hubRemoteServiceUrls;
 
   public List<String> getHubRemoteServiceUrls() {
-    if (hubRemoteServiceUrls == null) {
+    if (hubRemoteServiceUrls == null)
       hubRemoteServiceUrls = XYZ_HUB_REMOTE_SERVICE_URLS == null ? null : Arrays.asList(XYZ_HUB_REMOTE_SERVICE_URLS.split(";"));
-    }
     return hubRemoteServiceUrls;
   }
 
@@ -148,12 +167,10 @@ public class Config {
   public String getJwtPubKey() {
     String jwtPubKey = JWT_PUB_KEY;
     if (jwtPubKey != null) {
-      if (!jwtPubKey.startsWith("-----")) {
+      if (!jwtPubKey.startsWith("-----"))
         jwtPubKey = "-----BEGIN PUBLIC KEY-----\n" + jwtPubKey;
-      }
-      if (!jwtPubKey.endsWith("-----")) {
+      if (!jwtPubKey.endsWith("-----"))
         jwtPubKey = jwtPubKey + "\n-----END PUBLIC KEY-----";
-      }
     }
     return jwtPubKey;
   }
@@ -350,11 +367,6 @@ public class Config {
   public String VERTICLES_CLASS_NAMES;
 
   /**
-   * The default ECPS phrase. (Mainly for testing purposes)
-   */
-  public String DEFAULT_ECPS_PHRASE;
-
-  /**
    * The topic ARN for Space modification notifications. If no value is provided no notifications will be sent.
    */
   public String MSE_NOTIFICATION_TOPIC;
@@ -406,7 +418,9 @@ public class Config {
   /**
    * List of fields, separated by comma, which are optional on feature's namespace property.
    */
+  @Deprecated
   public List<String> FEATURE_NAMESPACE_OPTIONAL_FIELDS = Collections.emptyList();
+  @Deprecated
   private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
 
   /**
@@ -419,12 +433,12 @@ public class Config {
    */
   public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
 
+  @Deprecated
   public boolean containsFeatureNamespaceOptionalField(String field) {
-    if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null) {
-      FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP = new HashMap<String, Object>() {{
+    if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null)
+      FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP = new HashMap<>() {{
         FEATURE_NAMESPACE_OPTIONAL_FIELDS.forEach(k -> put(k, null));
       }};
-    }
 
     return FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP.containsKey(field);
   }
@@ -440,7 +454,7 @@ public class Config {
   public boolean USE_AUTHOR_FROM_HEADER = false;
 
   /**
-   * Endpoint which includes Maintenance and JOB-API.
+   * Endpoint which points to the HTTP connector.
    */
   public String HTTP_CONNECTOR_ENDPOINT;
 
@@ -495,9 +509,8 @@ public class Config {
   public Map<String, Object> XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING;
 
   public List<String> getDefaultStorageIds(String region) {
-    if (XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING == null) {
+    if (XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING == null)
       return null;
-    }
     return (List<String>) XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING.get(region);
   }
 
@@ -509,5 +522,5 @@ public class Config {
   /**
    * When creating space, the default strategy is used if not informed on the request
    */
-  public String DEFAULT_CONNECTOR_MAPPING_STRATEGY = ConnectorMapping.RANDOM.name();
+  public ConnectorMapping DEFAULT_CONNECTOR_MAPPING_STRATEGY = RANDOM;
 }

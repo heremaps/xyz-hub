@@ -59,7 +59,7 @@ public class PSQLLoadFeatures extends PSQLAbstractIT {
                     new Feature().withId("F1").withProperties(new Properties().withXyzNamespace(xyzNamespace)),
                     new Feature().withId("F2").withProperties(new Properties().withXyzNamespace(xyzNamespace))
             ));
-    invokeLambda(mfe.serialize());
+    invokeLambda(mfe);
   }
 
   @Test
@@ -73,7 +73,7 @@ public class PSQLLoadFeatures extends PSQLAbstractIT {
           put("F2", "0");
         }});
 
-    FeatureCollection loadedFeatures = deserializeResponse(invokeLambda(event.serialize()));
+    FeatureCollection loadedFeatures = deserializeResponse(invokeLambda(event));
     assertEquals(2, loadedFeatures.getFeatures().size());
     assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F1".equals(f.getId())));
     assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F2".equals(f.getId())));

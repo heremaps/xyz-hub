@@ -38,10 +38,8 @@ import org.apache.logging.log4j.Logger;
  */
 @SuppressWarnings("unused")
 public class SimulatedContext implements Context, LambdaLogger {
-
   private static final Logger logger = LogManager.getLogger();
-
-  private final Map<String, String> environmentVariables;
+  private final Map<String, String> environmentVariableOverrides;
   private String getLogStreamName;
   private String logGroupName;
   private String awsRequestId;
@@ -49,39 +47,38 @@ public class SimulatedContext implements Context, LambdaLogger {
   private String functionVersion;
   private String invokedFunctionArn;
 
-  public SimulatedContext(String functionName, Map<String, String> environmentVariables) {
-    this.environmentVariables = environmentVariables;
+  public SimulatedContext(String functionName, Map<String, String> environmentVariableOverrides) {
+    this.environmentVariableOverrides = environmentVariableOverrides;
     this.functionName = functionName;
   }
 
   /**
-   * Returns the mocked environment variable.
+   * Returns environment variable. (mocked if applicable)
    */
-  public String getEnv(String name) {
-    return environmentVariables.get(name);
+  public final String getEnv(String variableName) {
+    if (environmentVariableOverrides != null && environmentVariableOverrides.containsKey(variableName))
+      return environmentVariableOverrides.get(variableName);
+    return System.getenv(variableName);
   }
 
   @Override
   public String getAwsRequestId() {
-    if (awsRequestId == null) {
+    if (awsRequestId == null)
       awsRequestId = RandomStringUtils.random(10);
-    }
     return awsRequestId;
   }
 
   @Override
   public String getLogGroupName() {
-    if (logGroupName == null) {
+    if (logGroupName == null)
       logGroupName = "embedded";
-    }
     return logGroupName;
   }
 
   @Override
   public String getLogStreamName() {
-    if (getLogStreamName == null) {
+    if (getLogStreamName == null)
       getLogStreamName = RandomStringUtils.random(10);
-    }
     return getLogStreamName;
   }
 
@@ -92,17 +89,15 @@ public class SimulatedContext implements Context, LambdaLogger {
 
   @Override
   public String getFunctionVersion() {
-    if (functionVersion == null) {
+    if (functionVersion == null)
       functionVersion = "1.0";
-    }
     return functionVersion;
   }
 
   @Override
   public String getInvokedFunctionArn() {
-    if (invokedFunctionArn == null) {
+    if (invokedFunctionArn == null)
       invokedFunctionArn = "arn:embedded";
-    }
     return invokedFunctionArn;
   }
 

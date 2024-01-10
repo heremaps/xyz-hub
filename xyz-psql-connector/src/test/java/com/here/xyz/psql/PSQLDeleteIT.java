@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class PSQLDeleteIT extends PSQLAbstractIT {
@@ -60,7 +59,7 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
             .withSpace("foo")
             .withDeleteFeatures(idsMap);
 
-        String deleteResponse = invokeLambda(deleteEvent.toString());
+        String deleteResponse = invokeLambda(deleteEvent);
         assertNoErrorInResponse(deleteResponse);
         LOGGER.info("Modify features tested successfully");
     }

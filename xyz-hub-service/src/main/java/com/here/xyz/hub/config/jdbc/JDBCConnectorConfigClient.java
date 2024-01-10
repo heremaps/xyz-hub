@@ -19,22 +19,19 @@
 
 package com.here.xyz.hub.config.jdbc;
 
-import static com.here.xyz.hub.config.jdbc.JDBCConfig.CONNECTOR_TABLE;
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.SCHEMA;
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.configListParser;
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.configParser;
 
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
-import io.vertx.ext.sql.SQLClient;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -47,118 +44,81 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
   private static final Logger logger = LogManager.getLogger();
 
   private static JDBCConnectorConfigClient instance;
-  private final SQLClient client;
-
-  private JDBCConnectorConfigClient() {
-    this.client = JDBCConfig.getClient();
-  }
+  private static final String CONNECTOR_TABLE = "xyz_storage";
+  private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, CONNECTOR_TABLE, Service.configuration);
 
   public static JDBCConnectorConfigClient getInstance() {
-    if (instance == null) {
+    if (instance == null)
       instance = new JDBCConnectorConfigClient();
-    }
     return instance;
   }
 
   @Override
-  public Future<Void> init() {
-    return JDBCConfig.init();
-  }
-
-  @Override
-  protected void getConnector(final Marker marker, final String connectorId, final Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE id = #{connectorId}")
+  protected Future<Connector> getConnector(final Marker marker, final String connectorId) {
+    final SQLQuery query = client.getQuery("SELECT config FROM ${schema}.${table} WHERE id = #{connectorId}")
         .withNamedParameter("connectorId", connectorId);
-    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        final Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
-        if (config.isPresent()) {
-          final Connector connector = Json.decodeValue(config.get(), Connector.class);
-          logger.debug(marker, "storageId[{}]: Loaded connector from the database.", connectorId);
-          handler.handle(Future.succeededFuture(connector));
-        } else {
-          logger.debug(marker, "storageId[{}]: This configuration does not exist", connectorId);
-          handler.handle(Future.failedFuture("The connector config not found for storageId: " + connectorId));
-        }
-      } else {
-        logger.debug(marker, "storageId[{}]: Failed to load configuration, reason: ", connectorId, out.cause());
-        handler.handle(Future.failedFuture(out.cause()));
-      }
-    });
+
+    return client.run(query, configParser(Connector.class))
+        .compose(connector -> {
+          if (connector == null) {
+            logger.debug(marker, "The connector {} does not exist", connectorId);
+            return Future.failedFuture("The connector config not found for storageId: " + connectorId);
+          }
+          return Future.succeededFuture(connector);
+        })
+        .onSuccess(connector -> logger.debug(marker, "Loaded connector {} from the database.", connectorId))
+        .onFailure(t -> logger.debug(marker, "Failed to load connector {}", connectorId, t));
   }
 
   @Override
-  protected void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE owner = #{ownerId}")
+  protected Future<List<Connector>> getConnectorsByOwner(Marker marker, String ownerId) {
+    final SQLQuery query = client.getQuery("SELECT config FROM ${schema}.${table} WHERE owner = #{ownerId}")
         .withNamedParameter("ownerId", ownerId);
-    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        final Stream<String> config = out.result().getRows().stream().map(r -> r.getString("config"));
-        List<Connector> result = new ArrayList<>();
-        config.forEach(c -> {
-          if (c != null) {
-            final Connector connector = Json.decodeValue(c, Connector.class);
-            result.add(connector);
-            logger.debug(marker, "ownerId[{}]: Loaded connectors from the database.", ownerId);
-          }
-        });
-        handler.handle(Future.succeededFuture(result));
 
-      } else {
-        logger.debug(marker, "ownerId[{}]: Failed to load configurations, reason: ", ownerId, out.cause());
-        handler.handle(Future.failedFuture(out.cause()));
-      }
-    });
+    return client.run(query, configListParser(Connector.class))
+        .onSuccess(connectors -> {
+          logger.debug(marker, "Loaded connectors for owner {} from the database.", ownerId);
+        })
+        .onFailure(t -> logger.debug(marker, "ownerId[{}]: Failed to load configurations, reason: ", ownerId, t));
   }
 
   @Override
   protected void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("INSERT INTO " + CONNECTOR_TABLE + " (id, owner, config) VALUES (#{connectorId}, #{owner}, cast(#{connectorJson} as JSONB)) " +
+    final SQLQuery query = client.getQuery("INSERT INTO ${schema}.${table} (id, owner, config) VALUES (#{connectorId}, #{owner}, cast(#{connectorJson} as JSONB)) " +
         "ON CONFLICT (id) DO " +
         "UPDATE SET id = #{connectorId}, owner = #{owner}, config = cast(#{connectorJson} as JSONB)")
         .withNamedParameter("connectorId", connector.id)
         .withNamedParameter("owner", connector.owner)
-        .withNamedParameter("connectorJson", Json.encode(connector));
-    updateWithParams(connector, query, handler);
+        .withNamedParameter("connectorJson", Json.encode(connector)); //TODO: Use XyzSerializable with static view
+    client.write(query).map(connector).andThen(handler);
   }
 
   @Override
   protected void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + CONNECTOR_TABLE + " WHERE id = #{connectorId}")
+    final SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE id = #{connectorId}")
         .withNamedParameter("connectorId", connectorId);
-    get(marker, connectorId, ar -> {
-      if (ar.succeeded()) {
-        updateWithParams(ar.result(), query, handler);
-      } else {
-        logger.error(ar.cause());
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
-  }
 
-  private void updateWithParams(Connector modifiedObject, SQLQuery query, Handler<AsyncResult<Connector>> handler) {
-    client.updateWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        handler.handle(Future.succeededFuture(modifiedObject));
-      } else {
-        handler.handle(Future.failedFuture(out.cause()));
-      }
-    });
+    getConnector(marker, connectorId)
+        .compose(connector -> client.write(query).map(connector))
+        .onFailure(t -> logger.error(t))
+        .andThen(handler);
   }
 
   @Override
   protected void getAllConnectors(Marker marker, Handler<AsyncResult<List<Connector>>> handler) {
-    client.query("SELECT config FROM " + CONNECTOR_TABLE, out -> {
-      if (out.succeeded()) {
-        List<Connector> configs = out.result().getRows().stream()
-            .map(r -> r.getString("config"))
-            .map(json -> Json.decodeValue(json, Connector.class))
-            .collect(Collectors.toList());
-        handler.handle(Future.succeededFuture(configs));
+    client.run(client.getQuery("SELECT config FROM ${schema}.${table}"), configListParser(Connector.class)).andThen(handler);
+  }
 
-      } else {
-        handler.handle(Future.failedFuture(out.cause()));
-      }
-    });
+  @Override
+  public Future<Void> init() {
+    return client.init()
+        .compose(v -> initTable());
+  }
+
+  private Future<Void> initTable() {
+    return client.write(client.getQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} "
+            + "(id TEXT primary key, owner TEXT, config JSONB)"))
+        .onFailure(e -> logger.error("Can not create table {}!", CONNECTOR_TABLE, e))
+        .mapEmpty();
   }
 }

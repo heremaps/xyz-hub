@@ -25,10 +25,9 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.PSQLXyzConnector;
-import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.tools.DhString;
+import com.here.xyz.psql.tools.ECPSTool;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -43,7 +42,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   protected static final String HANDLE_ENCRYPTION_PHRASE = "findFeaturesSort";
   private static String pg_hint_plan = "/*+ Set(seq_page_cost 100.0) IndexOnlyScan( ht1 ) */";
   private static String PropertyDoesNotExistIndikator = "#zJfCzPCz#";
-  private long limit;
+  protected long limit;
   private long start;
 
   private boolean isOrderByEvent;
@@ -53,8 +52,22 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   public IterateFeatures(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
     limit = event.getLimit();
-    isOrderByEvent = PSQLXyzConnector.isOrderByEvent(event);
+    isOrderByEvent = isOrderByEvent(event);
     tmpEvent = event;
+  }
+
+  /**
+   * @deprecated Kept for backwards compatibility. Will be removed after refactoring.
+   */
+  @Deprecated
+  public static boolean isOrderByEvent(IterateFeaturesEvent event) {
+    return event.getSort() != null || hasPropertyQuery(event) || event.getPart() != null || event.getHandle() != null
+        && event.getHandle().startsWith(HPREFIX);
+  }
+
+  private static boolean hasPropertyQuery(IterateFeaturesEvent event) {
+    return event.getPropertiesQuery() != null && !event.getPropertiesQuery().isEmpty()
+        && event.getPropertiesQuery().stream().anyMatch(pql -> !pql.isEmpty());
   }
 
   @Override
@@ -420,12 +433,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   private static String chrE( String s ) { return s.replace('+','-').replace('/','_').replace('=','.'); }
 
   protected static String createHandle(IterateFeaturesEvent event, String jsonData ) throws Exception {
-    return HPREFIX + chrE(encrypt(addEventValuesToHandle(event, jsonData), HANDLE_ENCRYPTION_PHRASE));
-  }
-
-  @SuppressWarnings("unused")
-  private static String encrypt(String plaintext, String phrase) throws Exception {
-    return PSQLConfig.encryptECPS( plaintext, phrase );
+    String plaintext = addEventValuesToHandle(event, jsonData);
+    return HPREFIX + chrE(ECPSTool.encrypt(HANDLE_ENCRYPTION_PHRASE, plaintext));
   }
 
 }

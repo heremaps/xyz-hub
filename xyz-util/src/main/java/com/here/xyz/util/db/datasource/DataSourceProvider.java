@@ -17,11 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.datasource;
+package com.here.xyz.util.db.datasource;
 
 import javax.sql.DataSource;
 
-public abstract class DataSourceProvider {
+public abstract class DataSourceProvider implements AutoCloseable {
 
   static DataSourceProvider defaultProvider;
 

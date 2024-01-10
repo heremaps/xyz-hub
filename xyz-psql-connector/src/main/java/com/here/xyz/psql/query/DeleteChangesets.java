@@ -24,9 +24,10 @@ import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -39,8 +40,8 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   }
 
   @Override
-  public int write() throws SQLException, ErrorResponseException {
-    long headVersion = new GetHeadVersion<>(event).run();
+  public SuccessResponse write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    long headVersion = new GetHeadVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
     if(event.getMinTagVersion() != null && event.getMinTagVersion() < event.getRequestedMinVersion())
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Tag for version " + event.getMinTagVersion() +" exists!");
     if (event.getRequestedMinVersion() > headVersion)
@@ -48,7 +49,14 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
               + " as it would also delete the HEAD (" + headVersion
               + ") version. Minimum version which may specified as new minimum version is HEAD.");
 
-    return super.write();
+    return super.write(dataSourceProvider);
+  }
+
+  @Override
+  protected SuccessResponse handleWrite(int rowCount) throws ErrorResponseException {
+    if (rowCount == 0)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Version < '"+event.getRequestedMinVersion()+"' is already deleted!");
+    return new SuccessResponse();
   }
 
   @Override

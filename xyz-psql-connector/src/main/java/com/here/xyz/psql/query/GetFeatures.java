@@ -31,8 +31,9 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -182,7 +183,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery build1LevelBaseQuery(E event) {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    
+
     boolean useInnerLimit = true;
     if( event instanceof IterateFeaturesEvent )
      useInnerLimit = false;
@@ -237,7 +238,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    return (R) dbHandler.legacyDefaultFeatureResultSetHandler(rs);
+    return (R) new FeatureResultSetHandler(false, false, this instanceof IterateFeatures itf ? itf.limit : -1).handle(rs);
   }
 
   public static SQLQuery buildSelectionFragment(ContextAwareEvent event) {

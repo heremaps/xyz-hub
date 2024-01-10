@@ -31,13 +31,12 @@ import com.here.xyz.events.GetFeaturesByTileEvent.ResponseType;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.PSQLXyzConnector;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.factory.TweaksSQL;
+import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
@@ -58,7 +57,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     if (event.getBbox().widthInDegree(false) >= (360d / 4d) || event.getBbox().heightInDegree() >= (180d / 4d)) //Is it a "big" query?
       //Check if Properties are indexed
-      checkCanSearchFor(event, PSQLXyzConnector.getInstance());
+      checkCanSearchFor(event, getDataSourceProvider());
 
     SQLQuery query = super.buildQuery(event);
 
@@ -79,8 +78,8 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
     if (rs.next())
       br.setBytes(rs.getBytes(1));
 
-    if (br.getBytes() != null && br.getBytes().length > DatabaseHandler.MAX_RESULT_CHARS)
-      throw new SQLException(DhString.format("Maximum bytes limit (%d) reached", DatabaseHandler.MAX_RESULT_CHARS));
+    if (br.getBytes() != null && br.getBytes().length > FeatureResultSetHandler.MAX_RESULT_CHARS)
+      throw new SQLException(DhString.format("Maximum bytes limit (%d) reached", FeatureResultSetHandler.MAX_RESULT_CHARS));
 
     return br;
   }

@@ -19,6 +19,9 @@
 
 package com.here.xyz.httpconnector.task;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCMaintainer;
 import com.here.xyz.hub.Core;
@@ -30,26 +33,23 @@ import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
-import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
-
 public class MaintenanceHandler {
 
 
     private static final Logger logger = LogManager.getLogger();
 
     public static Future<ConnectorStatus> getConnectorStatus(String connectorId) {
-        return JDBCMaintainer.getConnectorStatus(connectorId);
+        return JDBCMaintainer.getInstance().getConnectorStatus(connectorId);
     }
 
     public static Future<SpaceStatus> getMaintenanceStatusOfSpace(String spaceId) {
-        return JDBCMaintainer.getMaintenanceStatusOfSpace(spaceId);
+        return JDBCMaintainer.getInstance().getMaintenanceStatusOfSpace(spaceId);
     }
 
     public static Future<ConnectorStatus> initializeOrUpdateDatabase(String connectorId, boolean force) {
         if(force){
             logger.info("Start database initialization for connector: {} ", connectorId);
-            return JDBCMaintainer.initializeOrUpdateDatabase(connectorId);
+            return JDBCMaintainer.getInstance().initializeOrUpdateDatabase(connectorId);
         }else {
             return getConnectorStatus(connectorId)
                     .compose(connectorStatus -> {
@@ -59,7 +59,7 @@ public class MaintenanceHandler {
                             return Future.succeededFuture(connectorStatus);
                         } else {
                             logger.info("Start database initialization for connector: {} ", connectorId);
-                            return JDBCMaintainer.initializeOrUpdateDatabase(connectorId);
+                            return JDBCMaintainer.getInstance().initializeOrUpdateDatabase(connectorId);
                         }
                     });
         }
@@ -71,14 +71,14 @@ public class MaintenanceHandler {
                     .compose(spaceStatus -> {
                         if (spaceStatus != null && spaceStatus.isIdxCreationFinished() != null && !spaceStatus.isIdxCreationFinished())
                             return Future.failedFuture(new HttpException(CONFLICT, "Index creation is currently running!"));
-                        return JDBCMaintainer.maintainSpace(spaceId);
+                        return JDBCMaintainer.getInstance().maintainSpace(spaceId);
                     });
         }
-        return JDBCMaintainer.maintainSpace(spaceId);
+        return JDBCMaintainer.getInstance().maintainSpace(spaceId);
     }
 
     public static Future<Void> purgeOldVersions(String spaceId, Long minTagVersion) {
-        return JDBCMaintainer.purgeOldVersions(spaceId, minTagVersion);
+        return JDBCMaintainer.getInstance().purgeOldVersions(spaceId, minTagVersion);
     }
 
     public static Future<Void> maintainIndices(String connectorId, boolean autoIndexing) {
@@ -91,7 +91,7 @@ public class MaintenanceHandler {
                         if (DatabaseMaintainer.XYZ_EXT_VERSION > connectorStatus.getScriptVersions().get("ext")
                                 || DatabaseMaintainer.H3_CORE_VERSION > connectorStatus.getScriptVersions().get("h3")) {
                             logger.info("Database needs an update: {}", connectorId);
-                            return JDBCMaintainer.initializeOrUpdateDatabase(connectorId)
+                            return JDBCMaintainer.getInstance().initializeOrUpdateDatabase(connectorId)
                                     .map(f -> connectorStatus);
                         }
                         return Future.succeededFuture(connectorStatus);
@@ -120,7 +120,7 @@ public class MaintenanceHandler {
                         }
                     }
                     logger.info("Start maintain indices for connector: {}", connectorId);
-                    return JDBCMaintainer.maintainIndices(connectorId, autoIndexing, force);
+                    return JDBCMaintainer.getInstance().maintainIndices(connectorId, autoIndexing, force);
                 });
     }
 }

@@ -24,9 +24,9 @@ import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.helpers.versioning.SetVersion.SetVersionInput;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 

@@ -169,6 +169,8 @@ public class HubWebClient {
           .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
           .send()
           .compose(res -> {
+              if (res.statusCode() != HttpResponseStatus.OK.code())
+                return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Connector with ID " + connectorId + " was not found."));
               try {
                   Connector connector = DatabindCodec.mapper().convertValue(res.bodyAsJsonObject(), Connector.class);
                   return Future.succeededFuture(connector);
