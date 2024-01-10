@@ -389,7 +389,7 @@ public class SpaceTaskHandler {
     }
 
     if (task.modifyOp.dryRun) {
-      task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
+      task.responseSpaces = Collections.singletonList(task.isDelete() ? entry.head : entry.result);
       callback.call(task);
       return;
     }
