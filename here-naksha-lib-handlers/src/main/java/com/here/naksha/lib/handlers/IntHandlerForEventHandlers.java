@@ -26,9 +26,9 @@ import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
-import com.here.naksha.lib.core.storage.IStorage;
-import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHandler> {
 
@@ -38,43 +38,74 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
 
   @Override
   protected @NotNull Result validateFeature(EventHandler eventHandler) {
-    return classNameError(eventHandler)
-        .or(() -> defaultStorageHandlerError(eventHandler))
-        .orElse(new SuccessResult());
-  }
-
-  private Optional<Result> classNameError(EventHandler eventHandler) {
-    if (eventHandler.getClassName() == null || eventHandler.getClassName().isEmpty()) {
-      return Optional.of(new ErrorResult(XyzError.ILLEGAL_ARGUMENT, "Mandatory parameter className missing!"));
+    ErrorResult classNameError = classNameValidationError(eventHandler);
+    if (classNameError != null) {
+      return classNameError;
     }
-    return Optional.empty();
-  }
-
-  private Optional<ErrorResult> defaultStorageHandlerError(EventHandler eventHandler) {
-    if (eventHandler.getClassName().equals(DefaultStorageHandler.class.getName())) {
-      final Object storageId = eventHandler.getProperties().get(EventHandlerProperties.STORAGE_ID);
-      if (storageId == null || storageId.toString().isEmpty()) {
-        return Optional.of(new ErrorResult(
-            XyzError.ILLEGAL_ARGUMENT,
-            "Mandatory properties parameter %s missing!".formatted(EventHandlerProperties.STORAGE_ID))
-        );
-      } else {
-        return invalidStorageError(storageId.toString());
+    if (isDefaultStorageHandler(eventHandler)) {
+      ErrorResult storageError = storageValidationError(eventHandler);
+      if (storageError != null) {
+        return storageError;
       }
     }
-    return Optional.empty();
+    return new SuccessResult();
   }
 
-  private Optional<ErrorResult> invalidStorageError(String storageId) {
+  private boolean isDefaultStorageHandler(@NotNull EventHandler eventHandler) {
+    return DefaultStorageHandler.class.getName().equals(eventHandler.getClassName());
+  }
+
+  /**
+   * Verifies whether event handler contains required `className` property
+   *
+   * @param eventHandler
+   * @return ErrorResult or null if event handler is valid
+   */
+  private @Nullable ErrorResult classNameValidationError(EventHandler eventHandler) {
+    if (eventHandler.getClassName() == null || eventHandler.getClassName().isEmpty()) {
+      return new ErrorResult(XyzError.ILLEGAL_ARGUMENT, "Mandatory parameter className missing!");
+    }
+    return null;
+  }
+
+  /**
+   * Verifies whether storageId defined for this handler is valid
+   *
+   * @param eventHandler
+   * @return ErrorResult or null if event handler is valid
+   */
+  private @Nullable ErrorResult storageValidationError(@NotNull EventHandler eventHandler) {
+    Object storageIdProp = eventHandler.getProperties().get(EventHandlerProperties.STORAGE_ID);
+    if (storageIdProp == null) {
+      return new ErrorResult(
+          XyzError.ILLEGAL_ARGUMENT,
+          "Mandatory properties parameter %s missing!".formatted(EventHandlerProperties.STORAGE_ID));
+    }
+    String storageId = storageIdProp.toString();
+    if (StringUtils.isBlank(storageId)) {
+      return new ErrorResult(
+          XyzError.ILLEGAL_ARGUMENT,
+          "Mandatory parameter %s can't be empty/blank!".formatted(EventHandlerProperties.STORAGE_ID));
+    }
+    return missingStorageError(storageId);
+  }
+
+  /**
+   * Verifies whether supplied storageId points at existing storage
+   *
+   * @param storageId
+   * @return ErrorResult or null if storage exists
+   */
+  private @Nullable ErrorResult missingStorageError(@NotNull String storageId) {
     try {
       nakshaHub.getStorageById(storageId);
-      return Optional.empty();
     } catch (Exception e) {
       Throwable cause = e.getCause();
       if (cause instanceof StorageNotFoundException snfe) {
-        return Optional.of(snfe.toErrorResult());
+        return snfe.toErrorResult();
       }
       throw e;
     }
+    return null;
   }
 }

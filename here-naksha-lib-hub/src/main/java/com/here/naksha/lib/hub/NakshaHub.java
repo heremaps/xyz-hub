@@ -46,9 +46,7 @@ import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.util.List;
-import java.util.MissingResourceException;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -277,7 +275,7 @@ public class NakshaHub implements INaksha {
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
       Storage storage = readFeatureFromResult(result, Storage.class);
-      if(storage == null){
+      if (storage == null) {
         throw unchecked(new StorageNotFoundException(storageId));
       }
       return storageInstance(storage);

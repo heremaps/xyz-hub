@@ -1,14 +1,15 @@
 {
-  "id": "this-surely-does-not-exists",
+  "id": "test-update-handler",
   "type": "EventHandler",
-  "title": "test Handler that does not exist",
-  "description": "Description",
+  "title": "Test Handler",
+  "description": "For unit testing",
   "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
   "active": true,
+  "extensionId": null,
   "properties": {
     "storageId": "event_handler_api_test_storage",
     "collection": {
-      "maxAge": 3
+      "maxAge": 2
     }
   }
 }

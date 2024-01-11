@@ -7,7 +7,7 @@
   "active": true,
   "extensionId": null,
   "properties": {
-    "storageId": "um-mod-dev",
+    "storageId": "event_handler_api_test_storage",
     "collection": {
       "maxAge": 2
     }
