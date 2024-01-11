@@ -1,0 +1,5 @@
+{
+  "id": "tc-105-test-handler",
+  "type": "EventHandler",
+  "className": "com.here.random.client.NotExistingHandler"
+}

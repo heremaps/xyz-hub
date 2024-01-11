@@ -1,0 +1,14 @@
+{
+  "id": "tc-105-test-handler",
+  "type": "EventHandler",
+  "title": "Test Handler",
+  "description": "For unit testing",
+  "className": "com.here.random.client.NotExistingHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "collection": {
+      "maxAge": 2
+    }
+  }
+}

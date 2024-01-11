@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "IllegalArgument",
+  "errorMessage": "Mandatory parameter storageId can't be empty/blank!"
+}

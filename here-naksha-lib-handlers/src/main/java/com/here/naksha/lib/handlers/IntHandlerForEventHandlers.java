@@ -99,12 +99,8 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
   private @Nullable ErrorResult missingStorageError(@NotNull String storageId) {
     try {
       nakshaHub.getStorageById(storageId);
-    } catch (Exception e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof StorageNotFoundException snfe) {
-        return snfe.toErrorResult();
-      }
-      throw e;
+    } catch (StorageNotFoundException snfe) {
+      return snfe.toErrorResult();
     }
     return null;
   }

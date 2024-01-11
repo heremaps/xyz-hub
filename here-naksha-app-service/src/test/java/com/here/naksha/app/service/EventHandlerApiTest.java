@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
 
 class EventHandlerApiTest extends ApiTest {
 
-  private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
+  private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient(60); // TODO: remove 60
 
   EventHandlerApiTest() {
     super(nakshaClient);
@@ -108,6 +108,54 @@ class EventHandlerApiTest extends ApiTest {
         .hasStatus(400)
         .hasStreamIdHeader(streamId)
         .hasJsonBody(expectedBodyPart, "Expecting failure response");
+  }
+
+  @Test
+  void tc0103_testCreateDefaultHandlerWithoutStorageProperty() throws URISyntaxException, IOException, InterruptedException {
+    // Given: a default handler without storageId property defined
+    final String streamId = UUID.randomUUID().toString();
+    final String createJson = loadFileOrFail("EventHandlerApi/TC0103_createDefaultHandlerNoStorageProp/create_event_handler.json");
+
+    // When: trying to create such handler
+    final HttpResponse<String> response = nakshaClient.post("hub/handlers", createJson, streamId);
+
+    // Then: creating fails due to validation error
+    assertThat(response)
+        .hasStatus(400)
+        .hasJsonBodyFromFile("EventHandlerApi/TC0103_createDefaultHandlerNoStorageProp/error_response.json")
+        .hasStreamIdHeader(streamId);
+  }
+
+  @Test
+  void tc0104_testCreateDefaultHandlerWithMissingStorage() throws URISyntaxException, IOException, InterruptedException {
+    // Given: a default handler without storageId property defined
+    final String streamId = UUID.randomUUID().toString();
+    final String createJson = loadFileOrFail("EventHandlerApi/TC0104_createDefaultHandlerMissingStorage/create_event_handler.json");
+
+    // When: trying to create such handler
+    final HttpResponse<String> response = nakshaClient.post("hub/handlers", createJson, streamId);
+
+    // Then: creating fails due to not-found storage
+    assertThat(response)
+        .hasStatus(404)
+        .hasJsonBodyFromFile("EventHandlerApi/TC0104_createDefaultHandlerMissingStorage/not_found_response.json")
+        .hasStreamIdHeader(streamId);
+  }
+
+  @Test
+  void tc0105_testCreateRandomHandlerWithoutStorageProperty() throws URISyntaxException, IOException, InterruptedException {
+    // Given: a default handler without storageId property defined
+    final String streamId = UUID.randomUUID().toString();
+    final String createJson = loadFileOrFail("EventHandlerApi/TC0105_createRandomHandlerNoStorageProp/create_event_handler.json");
+
+    // When: trying to create such handler
+    final HttpResponse<String> response = nakshaClient.post("hub/handlers", createJson, streamId);
+
+    // Then: creating fails due to validation error
+    assertThat(response)
+        .hasStatus(200)
+        .hasJsonBodyFromFile("EventHandlerApi/TC0105_createRandomHandlerNoStorageProp/response.json")
+        .hasStreamIdHeader(streamId);
   }
 
   @Test

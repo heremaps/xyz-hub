@@ -1,0 +1,15 @@
+{
+  "id": "tc-103-test-handler",
+  "type": "EventHandler",
+  "title": "Test Handler",
+  "description": "For unit testing",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "storageId": "",
+    "collection": {
+      "maxAge": 2
+    }
+  }
+}
