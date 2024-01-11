@@ -66,7 +66,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
@@ -269,7 +269,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(this::resolveRefConnector)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
-          .then(this::loadObject)
+          .then(this::loadReferenceFeature)
           .then(this::verifyResourceExists)
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
@@ -333,36 +333,32 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
 
     @SuppressWarnings("serial")
-    private void loadObject(final GeometryQuery gq, final Callback<GeometryQuery> c) {
-      if (gq.getEvent().getGeometry() != null || gq.getEvent().getH3Index() != null) {
-        c.call(this);
+    private void loadReferenceFeature(final GeometryQuery query,
+        final Callback<GeometryQuery> callback) {
+      if (query.getEvent().getGeometry() != null || query.getEvent().getH3Index() != null) {
+        callback.call(this);
         return;
       }
 
-      final LoadFeaturesEvent event = new LoadFeaturesEvent()
+      final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
           .withStreamId(getMarker().getName())
           .withSpace(refSpaceId)
-          .withParams(this.refSpace.getStorage().getParams())
-          .withIdsMap(new HashMap<String, String>() {{
-            put(refFeatureId, null);
-          }});
+          .withParams(refSpace.getStorage().getParams())
+          .withIds(Collections.singletonList(refFeatureId));
 
       try {
-        getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(c, event, r), refSpace);
+        getRpcClient(refConnector).execute(getMarker(), event,
+            response -> processGetRefFeatureResponse(callback, response), refSpace);
       }
       catch (Exception e) {
-        logger.warn(gq.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
-        c.exception(e);
+        logger.warn(query.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
+        callback.exception(e);
       }
     }
 
-    void processLoadEvent(Callback<GeometryQuery> callback, LoadFeaturesEvent event, AsyncResult<XyzResponse> r) {
+    void processGetRefFeatureResponse(Callback<GeometryQuery> callback, AsyncResult<XyzResponse> r) {
       if (r.failed()) {
-        if (r.cause() instanceof Exception) {
-          callback.exception(r.cause());
-        } else {
-          callback.exception(new Exception(r.cause()));
-        }
+        callback.exception(r.cause() instanceof Exception ? r.cause() : new Exception(r.cause()));
         return;
       }
 
@@ -375,12 +371,12 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         final FeatureCollection collection = (FeatureCollection) response;
         final List<Feature> features = collection.getFeatures();
 
-        if (features.size() == 1) {
-          this.getEvent().setGeometry(features.get(0).getGeometry());
-        }
+        if (features.size() == 1)
+          getEvent().setGeometry(features.get(0).getGeometry());
 
         callback.call(this);
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         callback.exception(e);
       }
     }
