@@ -27,4 +27,7 @@ public class POpType extends OpType {
   public static final POpType GTE = defIgnoreCase(POpType.class, "gte");
   public static final POpType LT = defIgnoreCase(POpType.class, "lt");
   public static final POpType LTE = defIgnoreCase(POpType.class, "lte");
+  public static final POpType NULL = defIgnoreCase(POpType.class, "null");
+  public static final POpType NOT_NULL = defIgnoreCase(POpType.class, "notNull");
+  public static final POpType CONTAINS = defIgnoreCase(POpType.class, "contains");
 }

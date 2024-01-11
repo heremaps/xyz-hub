@@ -21,12 +21,15 @@ package com.here.naksha.lib.core.models.storage;
 import static com.here.naksha.lib.core.models.storage.OpType.AND;
 import static com.here.naksha.lib.core.models.storage.OpType.NOT;
 import static com.here.naksha.lib.core.models.storage.OpType.OR;
+import static com.here.naksha.lib.core.models.storage.POpType.CONTAINS;
 import static com.here.naksha.lib.core.models.storage.POpType.EQ;
 import static com.here.naksha.lib.core.models.storage.POpType.EXISTS;
 import static com.here.naksha.lib.core.models.storage.POpType.GT;
 import static com.here.naksha.lib.core.models.storage.POpType.GTE;
 import static com.here.naksha.lib.core.models.storage.POpType.LT;
 import static com.here.naksha.lib.core.models.storage.POpType.LTE;
+import static com.here.naksha.lib.core.models.storage.POpType.NOT_NULL;
+import static com.here.naksha.lib.core.models.storage.POpType.NULL;
 import static com.here.naksha.lib.core.models.storage.POpType.STARTS_WITH;
 
 import org.jetbrains.annotations.NotNull;
@@ -110,5 +113,62 @@ public class POp extends Op<POp> {
 
   public static @NotNull POp lte(@NotNull PRef propertyRef, @NotNull Number value) {
     return new POp(LTE, propertyRef, value);
+  }
+
+  public static @NotNull POp isNull(@NotNull PRef propertyRef) {
+    return new POp(NULL, propertyRef, null);
+  }
+
+  public static @NotNull POp isNotNull(@NotNull PRef propertyRef) {
+    return new POp(NOT_NULL, propertyRef, null);
+  }
+
+  /**
+   * If your property is array then provided value also has to be an array.
+   * <pre>{@code ["value"]}</pre> <br>
+   * If your property is object then provided value also has to be an object.
+   * <pre>{@code {"prop":"value"}}</pre> <br>
+   * If your property is primitive value then provided value also has to be primitive.
+   * <pre>{@code "value"}</pre> <br>
+   * Only top level values search are supported. For json:
+   * <pre>{@code
+   * {
+   *   "type": "Feature",
+   *   "properties": {
+   *     "reference": [
+   *       {
+   *         "id": "106003684",
+   *         "prop":{"a":1},
+   *       }
+   *     ]
+   *   }
+   * }
+   * }</pre>
+   * <br>
+   * You can query by:
+   * <pre>{@code
+   *   [{"id":"106003684"}]
+   *   and
+   *   [{"prop":{"a":1}}]
+   * }</pre>
+   * <br>
+   * But querying by sub properties won't work:
+   * <pre>{@code {"a":1} }</pre>
+   *
+   * Also have in mind that provided {@link PRef} doesn't contain array properties in the middle of path.
+   * Array property is allowed only as last element of path.
+   * This is correct:
+   * <pre>{@code properties -> reference}</pre><br>
+   *
+   * This is not correct:
+   * <pre>{@code properties -> reference -> id}</pre>
+   * beacause `reference` is an array
+   *
+   * @param propertyRef
+   * @param value
+   * @return
+   */
+  public static @NotNull POp contains(@NotNull PRef propertyRef, @NotNull Object value) {
+    return new POp(CONTAINS, propertyRef, value);
   }
 }

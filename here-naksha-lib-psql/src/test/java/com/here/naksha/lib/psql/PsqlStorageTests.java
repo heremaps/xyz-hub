@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createBBoxEnvelope;
 import static com.spatial4j.core.io.GeohashUtils.encodeLatLon;
 import static java.lang.String.format;
@@ -27,11 +28,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.coordinates.LineStringCoordinates;
@@ -52,26 +56,35 @@ import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.ForwardCursor;
 import com.here.naksha.lib.core.models.storage.MutableCursor;
+import com.here.naksha.lib.core.models.storage.NonIndexedPRef;
 import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SOp;
 import com.here.naksha.lib.core.models.storage.SeekableCursor;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
 import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.util.json.JsonMap;
+import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.operation.buffer.BufferOp;
+
+import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
+
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -880,6 +893,84 @@ public class PsqlStorageTests extends PsqlTests {
       assertFalse(cursor.hasNext());
     }
   }
+
+
+  @Test
+  @Order(112)
+  @EnabledIf("runTest")
+  void notIndexedPropertyRead() throws NoCursor, IOException {
+    assertNotNull(storage);
+    assertNotNull(session);
+
+    WriteFeatures<String, StringCodec, ?> request = new WriteFeatures<>(new StringCodecFactory(), collectionId());
+
+    // given
+    final String jsonReference = "{\"id\":\"32167\",\"properties\":{\"weight\":60,\"length\":null,\"color\":\"red\",\"ids\":[0,1,9],\"subJson\":{\"b\":1},\"references\":[{\"id\":\"urn:here::here:Topology:106003684\",\"type\":\"Topology\",\"prop\":{\"a\":1}}]}}";
+    ObjectReader reader = Json.get().reader();
+    request.add(EWriteOp.CREATE, jsonReference);
+    try (final MutableCursor<String, StringCodec> cursor =
+        session.execute(request).mutableCursor(new StringCodecFactory())) {
+      assertTrue(cursor.next());
+    } finally {
+      session.commit(true);
+    }
+
+    Consumer<ReadFeatures> expect = readFeaturesReq -> {
+      try (final MutableCursor<String, StringCodec> cursor =
+               session.execute(readFeaturesReq).mutableCursor(new StringCodecFactory())) {
+        cursor.next();
+        assertEquals("32167", cursor.getId());
+        assertFalse(cursor.hasNext());
+      } catch (NoCursor e) {
+        throw unchecked(e);
+      }
+    };
+
+
+    // when - search for int value
+    ReadFeatures readFeatures = new ReadFeatures(collectionId());
+    POp weightSearch = POp.eq(new NonIndexedPRef("properties", "weight"), 60);
+    readFeatures.setPropertyOp(weightSearch);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search not null value
+    POp exSearch = POp.isNotNull(new NonIndexedPRef("properties", "color"));
+    readFeatures.setPropertyOp(exSearch);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search null value
+    POp nullSearch = POp.isNull(new NonIndexedPRef("properties", "length"));
+    readFeatures.setPropertyOp(nullSearch);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search array contains
+    POp arraySearch = POp.contains(new NonIndexedPRef("properties", "ids"), 9);
+    readFeatures.setPropertyOp(arraySearch);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search by json object
+    POp jsonSearch2 = POp.contains(new NonIndexedPRef("properties", "references"), "[{\"id\":\"urn:here::here:Topology:106003684\"}]");
+    readFeatures.setPropertyOp(jsonSearch2);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search by json object
+    POp jsonSearch3 = POp.contains(new NonIndexedPRef("properties", "references"), reader.readValue("[{\"prop\":{\"a\":1}}]", JsonNode.class));
+    readFeatures.setPropertyOp(jsonSearch3);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search by json object
+    POp jsonSearch4 = POp.contains(new NonIndexedPRef("properties", "subJson"), reader.readValue("{\"b\":1}", JsonNode.class));
+    readFeatures.setPropertyOp(jsonSearch3);
+    // then
+    expect.accept(readFeatures);
+  }
+
 
   @Test
   @Order(120)
