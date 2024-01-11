@@ -249,10 +249,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public Space refSpace;
     private Connector refConnector;
 
-    public GeometryQuery(GetFeaturesByGeometryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
-      this(event, context, apiResponseTypeType, skipCache, null, null);
-    }
-
     public GeometryQuery(GetFeaturesByGeometryEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache,
         String refSpaceId, String refFeatureId) {
       super(event, context, apiResponseTypeType, skipCache);
@@ -473,25 +469,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     }
   }
 
-  public static class LoadFeaturesQuery extends FeatureTask<LoadFeaturesEvent, LoadFeaturesQuery> {
-
-    public LoadFeaturesQuery(LoadFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
-      super(event, context, apiResponseTypeType, skipCache);
-    }
-
-    public TaskPipeline<LoadFeaturesQuery> createPipeline() {
-      return TaskPipeline.create(this)
-          .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
-          .then(Authorization::authorizeComposite)
-          .then(FeatureAuthorization::authorize)
-          .then(FeatureTaskHandler::readCache)
-          .then(FeatureTaskHandler::invoke)
-          .then(FeatureTaskHandler::convertResponse)
-          .then(FeatureTaskHandler::writeCache);
-    }
-  }
-
   public static class IterateQuery extends ReadQuery<IterateFeaturesEvent, IterateQuery> {
 
     public IterateQuery(IterateFeaturesEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
@@ -677,34 +654,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       super.cleanup(task, callback);
       modifyOp = null;
       callback.call(task);
-    }
-  }
-
-  /**
-   * Minimal version of Conditional Operation used on admin events endpoint.
-   * Contains some limitations because doesn't implement the full pipeline.
-   * If you want to use the full conditional operation pipeline, you should request
-   * through Features API.
-   * Known limitations:
-   * - Cannot perform validation of existing resources per operation type
-   */
-  public static class ModifyFeaturesTask extends FeatureTask<ModifyFeaturesEvent, ModifyFeaturesTask> {
-
-    public ModifyFeaturesTask(ModifyFeaturesEvent event, RoutingContext context, ApiResponseType responseType, boolean skipCache) {
-      super(event, context, responseType, skipCache);
-    }
-
-    @Override
-    public TaskPipeline<ModifyFeaturesTask> createPipeline() {
-      return TaskPipeline.create(this)
-          .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
-          .then(FeatureTaskHandler::checkPreconditions)
-          .then(FeatureTaskHandler::injectSpaceParams)
-          .then(Authorization::authorizeComposite)
-          .then(FeatureAuthorization::authorize)
-          .then(FeatureTaskHandler::enforceUsageQuotas)
-          .then(FeatureTaskHandler::invoke);
     }
   }
 }
