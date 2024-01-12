@@ -46,7 +46,7 @@ public class ResultHelper {
    */
   public static <R extends XyzFeature> List<R> readFeaturesFromResult(Result result, Class<R> featureType)
       throws NoCursor, NoSuchElementException {
-    return readFeaturesFromResult(result, featureType, Long.MAX_VALUE);
+    return readFeaturesFromResult(result, featureType, 0, Long.MAX_VALUE);
   }
 
   /**
@@ -55,24 +55,30 @@ public class ResultHelper {
    *
    * @param result      the Result which is to be read
    * @param featureType the type of feature to be extracted from result
+   * @param offset      the offset position (0-based index) in a list from where features to be extracted
    * @param limit       the max number of features to be extracted
    * @param <R>         type of feature
    * @return list of features extracted from ReadResult
    */
-  public static <R extends XyzFeature> List<R> readFeaturesFromResult(Result result, Class<R> featureType, long limit)
-      throws NoCursor, NoSuchElementException {
+  public static <R extends XyzFeature> List<R> readFeaturesFromResult(
+      Result result, Class<R> featureType, long offset, long limit) throws NoCursor, NoSuchElementException {
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> resultCursor = result.getXyzFeatureCursor()) {
       if (!resultCursor.hasNext()) {
         throw new NoSuchElementException("Result Cursor is empty");
       }
       List<R> features = new ArrayList<>();
+      int pos = 0;
       int cnt = 0;
-      while (resultCursor.hasNext() && cnt++ < limit) {
+      while (resultCursor.hasNext() && cnt < limit) {
         if (!resultCursor.next()) {
           throw new RuntimeException("Unexpected invalid result");
         }
+        if (pos++ < offset) {
+          continue; // skip initial records till we reach to desired offset
+        }
         try {
           features.add(featureType.cast(resultCursor.getFeature()));
+          cnt++;
         } catch (ClassCastException | NullPointerException e) {
           throw new RuntimeException(e);
         }

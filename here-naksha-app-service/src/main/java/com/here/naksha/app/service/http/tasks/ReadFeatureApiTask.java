@@ -23,6 +23,7 @@ import static com.here.naksha.app.service.http.apis.ApiParams.*;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.apis.ApiParams;
 import com.here.naksha.app.service.http.apis.ApiUtil;
+import com.here.naksha.app.service.models.IterateHandle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
@@ -51,7 +52,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     GET_BY_IDS,
     GET_BY_BBOX,
     GET_BY_TILE,
-    SEARCH
+    SEARCH,
+    ITERATE
   }
 
   public ReadFeatureApiTask(
@@ -85,6 +87,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
         case GET_BY_BBOX -> executeFeaturesByBBox();
         case GET_BY_TILE -> executeFeaturesByTile();
         case SEARCH -> executeSearch();
+        case ITERATE -> executeIterate();
         default -> executeUnsupported();
       };
     } catch (XyzErrorException ex) {
@@ -213,5 +216,38 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final Result result = executeReadRequestFromSpaceStorage(rdRequest);
     // transform Result to Http FeatureCollection response, restricted by given feature limit
     return transformReadResultToXyzCollectionResponse(result, XyzFeature.class, limit);
+  }
+
+  private @NotNull XyzResponse executeIterate() {
+    // Parse and validate Path parameters
+    final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
+
+    // Parse and validate Query parameters
+    final QueryParameterList queryParams = (routingContext.request().query() != null)
+        ? new QueryParameterList(routingContext.request().query())
+        : null;
+    // Note : subsequent steps need to support queryParams being null
+
+    // extract limit parameter
+    long offset = 0;
+    long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
+    // extract handle parameter
+    IterateHandle handle = ApiParams.extractQueryParamAsIterateHandle(queryParams, HANDLE);
+    // create new "handle" if not already provided, or overwrite parameters based on "handle"
+    if (handle == null) {
+      handle = new IterateHandle().withLimit(limit);
+    }
+    offset = handle.getOffset();
+    limit = handle.getLimit();
+    limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
+
+    // Prepare read request based on parameters supplied
+    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId);
+
+    // Forward request to NH Space Storage reader instance
+    final Result result = executeReadRequestFromSpaceStorage(rdRequest);
+    // transform Result to Http FeatureCollection response,
+    // restricted by given feature limit and by adding "handle" attribute to support subsequent iteration
+    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class, offset, limit, handle);
   }
 }

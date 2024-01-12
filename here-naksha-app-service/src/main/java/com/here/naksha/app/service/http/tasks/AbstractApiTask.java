@@ -28,6 +28,7 @@ import static java.util.Collections.emptyList;
 
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.app.service.models.IterateHandle;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
@@ -145,6 +146,15 @@ public abstract class AbstractApiTask<T extends XyzResponse>
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
       final @Nullable Result rdResult, final @NotNull Class<R> type, final long maxLimit) {
+    return transformReadResultToXyzCollectionResponse(rdResult, type, 0, maxLimit, null);
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
+      final @Nullable Result rdResult,
+      final @NotNull Class<R> type,
+      final long offset,
+      final long maxLimit,
+      final @Nullable IterateHandle handle) {
     if (rdResult == null) {
       // return empty collection
       logger.warn("Unexpected null result, returning empty collection.");
@@ -156,22 +166,33 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       return verticle.sendErrorResponse(routingContext, er.reason, er.message);
     } else {
       try {
-        List<R> features = readFeaturesFromResult(rdResult, type, maxLimit);
+        final List<R> features = readFeaturesFromResult(rdResult, type, offset, maxLimit);
         if (Objects.equals(type, Storage.class)) {
           for (R feature : features) {
             removePasswordFromProps(feature.getProperties());
           }
         }
+        // Populate handle (if provided), with the values ready for next iteration
+        final String handleStr = getIterateHandleAsString(features.size(), offset, maxLimit, handle);
         return verticle.sendXyzResponse(
             routingContext,
             HttpResponseType.FEATURE_COLLECTION,
-            new XyzFeatureCollection().withFeatures(features));
+            new XyzFeatureCollection().withFeatures(features).withNextPageToken(handleStr));
       } catch (NoCursor | NoSuchElementException emptyException) {
         logger.info("No data found in ResultCursor, returning empty collection");
         return verticle.sendXyzResponse(
             routingContext, HttpResponseType.FEATURE_COLLECTION, emptyFeatureCollection());
       }
     }
+  }
+
+  private static String getIterateHandleAsString(
+      long featuresFound, long crtOffset, long maxLimit, final @Nullable IterateHandle handle) {
+    // nothing to populate if handle is not provided OR if we don't have more features to iterate
+    if (handle == null || featuresFound < maxLimit) return null;
+    handle.setOffset(crtOffset + featuresFound); // set offset for next iteration
+    handle.setLimit(maxLimit);
+    return handle.base64EncodedSerializedJson();
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzCollectionResponse(

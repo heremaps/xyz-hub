@@ -749,6 +749,48 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/hub/spaces/{spaceId}/iterate':
+    get:
+      tags:
+        - Read Features
+      summary: Iterate features in the space
+      description: >-
+        Iterates all of the features in the space. If there are more
+        features which could be loaded, the response FeatureCollection contains
+        the root attribute _handle_. The value of this attribute can
+        be passed as a query parameter for the following request in order to
+        continue the iteration from the marked position.
+        
+
+        Note - The features in the response are not ordered (due to perf overhead),
+        and so features may repeat across pages.
+        If this limitation affects you, please discuss with Naksha team.
+      operationId: iterateFeatures
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Handle'
+      responses:
+        '200':
+          $ref: '#/components/responses/IterateResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
 components:
   securitySchemes:
     AccessToken:
@@ -794,6 +836,12 @@ components:
       in: path
       description: The unique identifier of a feature in the space.
       required: true
+      schema:
+        type: string
+    Handle:
+      name: handle
+      in: query
+      description: The handle to continue the iteration.
       schema:
         type: string
     Limit:
@@ -1262,6 +1310,35 @@ components:
                   id: BfiimUxHjj
                   spaceId: roadtopology
                   featureType: Topology
+    IterateResponse:
+      description: A FeatureCollection with handle response.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollectionIterable'
+          example:
+            type: FeatureCollection
+            nextPageToken: eyJsaW1pdCI6MSwib2Zmc2V0IjozfQ==
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - 8.68872
+                    - 50.0561
+                    - 292.94377758
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    createdAt: 1517504700726
+                    updatedAt: 1517504700726
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
     StorageResponse:
       description: The space.
       content:
@@ -1463,6 +1540,15 @@ components:
               description: Features included in the collection.
               items:
                 $ref: '#/components/schemas/Feature'
+    FeatureCollectionIterable:
+      description: A FeatureCollection GeoJSON object, with handle to support iterate operation.
+      allOf:
+        - $ref: '#/components/schemas/FeatureCollection'
+        - type: object
+          properties:
+            nextPageToken:
+              type: string
+              description: The handle of the next batch.
     FeatureCollectionModification:
       allOf:
         - $ref: '#/components/schemas/FeatureCollection'
@@ -1744,7 +1830,6 @@ components:
           description: A value greater than zero implies that the collection shall be treated as deleted and represents the UTC Epoch timestamp in
             milliseconds when the deletion has been done.
           type: number
-
     XyzNamespace:
       type: object
       description: The XYZ namespace object managed by Naksha service

@@ -1,0 +1,34 @@
+{
+  "type": "FeatureCollection",
+  "nextPageToken": "eyJsaW1pdCI6Miwib2Zmc2V0Ijo0fQ==",
+  "features": [
+    {
+      "id": "feature_3",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "50",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "feature_4",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three", "four" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    }
+  ]
+}

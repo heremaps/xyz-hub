@@ -181,4 +181,10 @@ public class ResponseAssertions {
     return this;
   }
 
+  public ResponseAssertions hasNoNextPageToken() {
+    if (collectionResponse==null) collectionResponse = parseJson(subject.body(), XyzFeatureCollection.class);
+    assertNull(collectionResponse.getNextPageToken(), "No nextPageToken was expected");
+    return this;
+  }
+
 }

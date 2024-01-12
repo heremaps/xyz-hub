@@ -18,6 +18,7 @@
  */
 package com.here.naksha.app.service.http.apis;
 
+import com.here.naksha.app.service.models.IterateHandle;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.payload.events.QueryParameter;
@@ -25,6 +26,7 @@ import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.util.ValueList;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,6 +47,7 @@ public final class ApiParams {
   public static String LIMIT = "limit";
   public static String TILE_TYPE = "type";
   public static String TILE_ID = "tileId";
+  public static String HANDLE = "handle";
 
   public static long DEF_FEATURE_LIMIT = 30_000;
   public static long DEF_ADMIN_FEATURE_LIMIT = 1_000;
@@ -135,5 +138,21 @@ public final class ApiParams {
   public static @Nullable String extractParamAsString(
       final @Nullable QueryParameterList queryParams, final @NotNull String apiParamType) {
     return (queryParams != null) ? queryParams.getValueAsString(apiParamType) : null;
+  }
+
+  public static @Nullable IterateHandle extractQueryParamAsIterateHandle(
+      final @Nullable QueryParameterList queryParams, final @NotNull String apiParamName) {
+    final String handleStr = extractParamAsString(queryParams, apiParamName);
+    IterateHandle handle = null;
+    if (!StringUtils.isEmpty(handleStr)) {
+      try {
+        handle = IterateHandle.base64DecodedDeserializedJson(handleStr);
+      } catch (Exception ex) {
+        throw new XyzErrorException(
+            XyzError.ILLEGAL_ARGUMENT,
+            "Unable to use value " + handleStr + " for parameter " + apiParamName + ". " + ex.getMessage());
+      }
+    }
+    return handle;
   }
 }
