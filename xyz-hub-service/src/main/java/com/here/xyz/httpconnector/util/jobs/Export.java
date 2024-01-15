@@ -394,11 +394,11 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public ExportStatistic getStatistic() {
-        return getTotalStatistic();
+        return this.statistic;
     }
 
     @JsonIgnore
-    private ExportStatistic getTotalStatistic() {
+    public ExportStatistic getTotalStatistic() {
         if (this.statistic == null)
             return null;
 
