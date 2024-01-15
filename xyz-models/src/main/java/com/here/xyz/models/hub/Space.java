@@ -229,7 +229,7 @@ public class Space {
   /**
    * When set to false, no operation can be performed on space's sub-resources such as read or write features. Default is true.
    */
-  @JsonInclude(Include.NON_DEFAULT)
+  @JsonInclude(value = Include.CUSTOM, valueFilter = IncludeFalse.class)
   @JsonView({Internal.class, Static.class})
   private boolean active = true;
 
@@ -801,6 +801,13 @@ public class Space {
     public Extension withSpaceId(final String spaceId) {
       setSpaceId(spaceId);
       return this;
+    }
+  }
+
+  private static class IncludeFalse {
+    @Override
+    public boolean equals(Object obj) {
+      return obj == null || (obj instanceof Boolean && obj.equals(true));
     }
   }
 }
