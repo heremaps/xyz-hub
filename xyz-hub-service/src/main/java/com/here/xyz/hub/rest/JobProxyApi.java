@@ -18,10 +18,10 @@
  */
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
@@ -30,8 +30,6 @@ import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
-import com.here.xyz.hub.auth.XyzHubActionMatrix;
-import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -48,7 +46,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JobProxyApi extends Api{
     private static final Logger logger = LogManager.getLogger();
-    private static int JOB_API_TIMEOUT = 29_000;
+    private static final int JOB_API_TIMEOUT = 29_000;
 
     public JobProxyApi(RouterBuilder rb) {
         rb.getRoute("postJob").setDoValidation(false).addHandler(this::postJob);
@@ -63,13 +61,16 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         try {
             Job job = HApiParam.HQuery.getJobInput(context);
-            JobAuthorization.authorizeManageSpacesRights(context,spaceId)
+          Authorization.authorizeManageSpacesRights(context, spaceId)
                     .onSuccess(auth -> {
                         Service.spaceConfigClient.get(Api.Context.getMarker(context), spaceId)
                                 .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Error fetching space!", t)))
                                 .compose(headSpace -> {
                                     if (headSpace == null)
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "The space ID does not exist!"));
+                                    if (!headSpace.isActive())
+                                        return Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED,
+                                            "The method is not allowed, because the resource \"" + spaceId + "\" is not active."));
                                     if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
 
@@ -97,7 +98,7 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
 
-        JobAuthorization.authorizeManageSpacesRights(context,spaceId)
+      Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
                     Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId)
                         .timeout(JOB_API_TIMEOUT)
@@ -136,7 +137,7 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
 
-        JobAuthorization.authorizeManageSpacesRights(context,spaceId)
+      Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
                     Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId)
                             .timeout(JOB_API_TIMEOUT)
@@ -152,7 +153,7 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         Job.Status status = HApiParam.HQuery.getJobStatus(context);
 
-        JobAuthorization.authorizeManageSpacesRights(context,spaceId)
+      Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
                     Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs?targetSpaceId="+spaceId+(status != null ? "&status="+status : ""))
                             .timeout(JOB_API_TIMEOUT)
@@ -170,7 +171,7 @@ public class JobProxyApi extends Api{
         boolean deleteData = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.DELETE_DATA, false);
         boolean force = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.FORCE, false);
 
-        JobAuthorization.authorizeManageSpacesRights(context,spaceId)
+      Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
                     Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId)
                             .timeout(JOB_API_TIMEOUT)
@@ -205,7 +206,7 @@ public class JobProxyApi extends Api{
         String command = ApiParam.Query.getString(context, HApiParam.HQuery.H_COMMAND, null);
         int urlCount = ApiParam.Query.getInteger(context, HApiParam.HQuery.URL_COUNT, 1);
 
-        JobAuthorization.authorizeManageSpacesRights(context,spaceId)
+        Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
                     Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId)
                             .timeout(JOB_API_TIMEOUT)
@@ -272,17 +273,17 @@ public class JobProxyApi extends Api{
                     this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
                     return;
                 }
-            }catch (DecodeException e) {}
+            } catch (DecodeException e) {}
 
             try{
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()),
                         Json.decodeValue(DatabindCodec.mapper().writerWithView(Job.Public.class).writeValueAsString(res.bodyAsJson(Job.class))));
                 return;
-            }catch (Exception e){}
+            } catch (Exception e){}
             try{
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                 return;
-            }catch (Exception e){}
+            } catch (Exception e){}
         }
 
         this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));
@@ -299,7 +300,7 @@ public class JobProxyApi extends Api{
               logger.error(Api.Context.getMarker(context), "Error in Job-Proxy during response serialization.", e);
             }
 
-            try{
+            try {
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                 return;
             }catch (Exception e){
@@ -313,24 +314,9 @@ public class JobProxyApi extends Api{
     private Boolean checkSpaceId(HttpResponse<Buffer> res, String spaceId) throws DecodeException{
         Job job = res.bodyAsJson(Job.class);
 
-        if(job == null || job.getTargetSpaceId() == null)
+        if (job == null || job.getTargetSpaceId() == null)
             throw new DecodeException("");
 
-        if(!job.getTargetSpaceId().equalsIgnoreCase(spaceId))
-            return false;
-        return true;
-    }
-
-    public static class JobAuthorization extends Authorization {
-        public static Future<Void> authorizeManageSpacesRights(RoutingContext context, String spaceId) {
-            final XyzHubActionMatrix requestRights = new XyzHubActionMatrix()
-                    .manageSpaces(new XyzHubAttributeMap().withValue(SPACE, spaceId));
-            try {
-                evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
-                return Future.succeededFuture();
-            } catch (HttpException e) {
-                return Future.failedFuture(e);
-            }
-        }
+      return job.getTargetSpaceId().equalsIgnoreCase(spaceId);
     }
 }

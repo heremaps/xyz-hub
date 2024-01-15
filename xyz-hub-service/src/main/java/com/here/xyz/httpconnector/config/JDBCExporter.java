@@ -105,7 +105,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             + "), "
             + "del_data AS "
             + "(DELETE FROM ${schema}.${table} "
-            + "  WHERE ${{targetVersioningEnabled}}"
+            + "  WHERE not ${{targetVersioningEnabled}}"
             + "    AND id IN (SELECT id FROM ins_data)"
             + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
             + "  RETURNING id, version "

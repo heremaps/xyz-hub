@@ -764,6 +764,16 @@ public class FeatureTaskHandler {
     return f;
   }
 
+  public static <T extends FeatureTask> void checkSpaceIsActive(T task, Callback<T> callback) {
+    if (!task.space.isActive()) {
+      callback.exception(new HttpException(METHOD_NOT_ALLOWED,
+          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is not active."));
+      return;
+    }
+
+    callback.call(task);
+  }
+
   private static class RpcContextHolder {
     RpcContext rpcContext;
   }
@@ -1578,7 +1588,7 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
-    if (task.space.isReadOnly() && (task instanceof ConditionalOperation ))
+    if (task.space.isReadOnly() && (task instanceof ConditionalOperation))
       throw new HttpException(METHOD_NOT_ALLOWED,
           "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
     callback.call(task);

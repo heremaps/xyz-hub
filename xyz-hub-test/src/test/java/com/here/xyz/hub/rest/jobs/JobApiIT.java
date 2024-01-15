@@ -18,6 +18,7 @@
  */
 package com.here.xyz.hub.rest.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -26,6 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -82,7 +84,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         /** Create empty test space */
         createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId1, scope), "psql", null);
 
-//TestSpace2        
+//TestSpace2
         /** Create test space with content */
         createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId2, scope), "psql", null);
         addFeatures(getScopedSpaceId(testSpaceId2, scope), "/xyz/hub/mixedGeometryTypes.json", 11);
@@ -144,7 +146,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                         .withProperties(new Properties().with("group", "deltaonly")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
-        
+
         deleteFeature(getScopedSpaceId(testSpaceId3Ext,scope), "id003");  // feature in base got deleted in delta
 
 /* */
@@ -340,6 +342,11 @@ public class JobApiIT extends TestSpaceWithFeature {
             */
             job = loadJob(spaceId, jobId);
             status = job.getStatus();
+            if (failStatus == failed && status == failed) {
+                System.out.println("Error type: " + job.getErrorType());
+                System.out.println("Error description: " + job.getErrorDescription());
+                assertNull(job.getErrorDescription());
+            }
             assertNotEquals(status, failStatus);
 
             System.out.println("Current Status of Job["+jobId+"]: "+status);
@@ -370,7 +377,7 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         abortJob(job, spaceId);
 
-        while(!status.equals(Job.Status.failed)){
+        while(!status.equals(failed)){
             job = loadJob(spaceId, jobId);
             status = job.getStatus();
             System.out.println("Current Status of Job["+jobId+"]: "+status);

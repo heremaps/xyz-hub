@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.7.22-SNAPSHOT</version>
+  <version>3.8.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -425,7 +425,7 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
-        <version>3.12.0</version>
+        <version>3.13.0</version>
       </dependency>
 
       <!-- Cache -->

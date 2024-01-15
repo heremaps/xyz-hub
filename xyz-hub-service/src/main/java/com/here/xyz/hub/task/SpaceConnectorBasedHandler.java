@@ -19,13 +19,17 @@
 
 package com.here.xyz.hub.task;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
+
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.hub.config.ConnectorConfigClient;
-import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
@@ -37,16 +41,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-
 public class SpaceConnectorBasedHandler {
   private static final Logger logger = LogManager.getLogger();
 
   public static <T extends Event<T>, R extends XyzResponse<R>> Future<R> execute(Marker marker, Function<Space, Future<Space>> authorizationFunction, Event<T> e) {
-    return SpaceConfigClient.getInstance().get(marker, e.getSpace())
-      .compose(space -> space == null
-          ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
-          : Future.succeededFuture(space))
+    return getAndValidateSpace(marker, e.getSpace())
       .compose(authorizationFunction)
       .compose(space -> injectEventParameters(marker, e, space))
       .compose(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
@@ -99,8 +98,18 @@ public class SpaceConnectorBasedHandler {
                     : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
             )
             .compose(r -> {
-                /** Return min tag of this space */
+                /* Return min tag of this space */
                 return Future.succeededFuture((r.isPresent() ? r.getAsLong() : null));
             });
+  }
+
+  public static Future<Space> getAndValidateSpace(Marker marker, String spaceId) {
+    return SpaceConfigClient.getInstance().get(marker, spaceId)
+        .compose(space -> space == null
+            ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + spaceId + "' does not exist!"))
+            : Future.succeededFuture(space))
+        .compose(space -> !space.isActive()
+            ? Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED, "The method is not allowed, because the resource \"" + spaceId + "\" is not active."))
+            : Future.succeededFuture(space));
   }
 }
