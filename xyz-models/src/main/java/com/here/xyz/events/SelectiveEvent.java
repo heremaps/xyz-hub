@@ -19,6 +19,7 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
@@ -28,6 +29,8 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
   private String ref;
   private long minVersion;
   private String author;
+  @JsonIgnore
+  private Ref parsedRef;
 
   @SuppressWarnings("unused")
   public List<String> getSelection() {
@@ -58,6 +61,13 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     return (T) this;
   }
 
+  public Ref getParsedRef() {
+    if (parsedRef == null)
+      parsedRef = new Ref(getRef());
+
+    return parsedRef;
+  }
+
   public static class Ref {
     public static final String HEAD = "HEAD";
     public static final String ALL_VERSIONS = "*";
@@ -73,10 +83,20 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
       else
         try {
           version = Long.parseLong(ref);
+          if (version < 0)
+            throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
         }
         catch (NumberFormatException e) {
           throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
         }
+    }
+
+    public long getVersion() {
+      if (!isSingleVersion())
+        throw new NumberFormatException("Ref is not depicting a single version.");
+      if (isHead())
+        throw new NumberFormatException("Version number of alias HEAD is not known for this ref.");
+      return version;
     }
 
     public boolean isHead() {
@@ -93,10 +113,12 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
 
     @Override
     public String toString() {
-      if (version < 0 && !head)
+      if (version < 0 && !head && !allVersions)
         throw new IllegalArgumentException("Not a valid ref");
       if (head)
         return HEAD;
+      if (allVersions)
+        return ALL_VERSIONS;
       return String.valueOf(version);
     }
 
