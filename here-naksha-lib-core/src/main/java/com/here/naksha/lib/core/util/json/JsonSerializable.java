@@ -40,7 +40,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** All objects being serializable should implement this interface. */
+/**
+ * All objects being serializable should implement this interface.
+ */
 @SuppressWarnings({"unchecked", "UnusedReturnValue"})
 public interface JsonSerializable {
 
@@ -48,7 +50,7 @@ public interface JsonSerializable {
    * Format a string using the {@link Formatter}.
    *
    * @param format The format string.
-   * @param args The arguments.
+   * @param args   The arguments.
    * @return The formatted string.
    */
   static @NotNull String format(@NotNull String format, Object... args) {
@@ -145,7 +147,7 @@ public interface JsonSerializable {
   /**
    * Creates a deep clone of the given object by serialization and then deserialization.
    *
-   * @param object the object to clone.
+   * @param object   the object to clone.
    * @param <OBJECT> the object-type.
    * @return the clone.
    */
@@ -201,6 +203,7 @@ public interface JsonSerializable {
 
   /**
    * Implementation of {@link Object#toString()} for all classes that simply want to serialize to JSON.
+   *
    * @param object The object that should be serialized.
    * @return The serialize (JSON).
    */
@@ -232,9 +235,9 @@ public interface JsonSerializable {
    * Convert the given object into the target object. This normally returns a copy, but there is no
    * guarantee how much is copied.
    *
-   * @param object the object to convert.
+   * @param object      the object to convert.
    * @param targetClass the class of the target-type.
-   * @param <TARGET> the target-type.
+   * @param <TARGET>    the target-type.
    * @return the new instance converted.
    */
   static <TARGET extends JsonObject, OBJECT extends JsonObject> @NotNull TARGET convert(

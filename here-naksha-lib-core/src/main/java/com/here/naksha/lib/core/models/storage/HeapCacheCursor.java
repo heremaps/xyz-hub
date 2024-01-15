@@ -65,6 +65,17 @@ public class HeapCacheCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>
     }
   }
 
+  public HeapCacheCursor(
+      @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory,
+      @NotNull List<CODEC> result,
+      @Nullable Map<String, Integer> originalFeaturesOrder) {
+    super(codecFactory);
+    this.originalCursor = null;
+    this.originalFeaturesOrder = originalFeaturesOrder;
+    this.position = BEFORE_FIRST_POSITION;
+    this.inMemoryData = new ArrayList<>(result);
+  }
+
   @Override
   public boolean restoreInputOrder() {
     if (originalFeaturesOrder == null) {
@@ -216,6 +227,11 @@ public class HeapCacheCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>
 
   public @Nullable ForwardCursor<?, ?> getOriginalCursor() {
     return originalCursor;
+  }
+
+  @Override
+  public List<CODEC> asList() {
+    return (List<CODEC>) inMemoryData;
   }
 
   private boolean loadPosition(ForwardCursor<FEATURE, CODEC>.@NotNull Row row, long positionToLoad) {

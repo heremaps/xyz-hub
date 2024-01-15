@@ -346,6 +346,25 @@ project(":here-naksha-lib-psql") {
     setOverallCoverage(0.0) // only increasing allowed!
 }
 
+project(":here-naksha-lib-view") {
+    description = "Naksha View Library"
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+        withJavadocJar()
+        withSourcesJar()
+    }
+    dependencies {
+        api(project(":here-naksha-lib-core"))
+
+        implementation(commons_lang3)
+        testImplementation(mockito)
+        testImplementation(project(":here-naksha-lib-psql"))
+        testImplementation(vividsolutions_jts_core)
+    }
+    setOverallCoverage(0.0) // only increasing allowed!
+}
+
 /*
 project(":here-naksha-lib-extension") {
     description = "Naksha Extension Library"

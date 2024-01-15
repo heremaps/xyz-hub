@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -86,4 +87,6 @@ public abstract class SeekableCursor<FEATURE, CODEC extends FeatureCodec<FEATURE
    * @return {@code true}, if the cursor is on a valid result; {@code false} otherwise.
    */
   public abstract boolean absolute(long position);
+
+  public abstract List<CODEC> asList();
 }

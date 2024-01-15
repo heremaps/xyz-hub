@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Typed;
+import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -48,5 +49,9 @@ public abstract class Request<SELF extends Request<SELF>> implements Typed {
   @SuppressWarnings("unchecked")
   protected final @NotNull SELF self() {
     return (SELF) this;
+  }
+
+  protected Request<SELF> shallowClone() {
+    throw new NotImplementedException("Override shallowClone in your use case.");
   }
 }

@@ -166,4 +166,17 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
     this.propertyOp = propertyOp;
     return this;
   }
+
+  @Override
+  public ReadFeatures shallowClone() {
+    ReadFeatures clone = new ReadFeatures();
+    clone.setPropertyOp(this.getPropertyOp());
+    clone.setCollections(this.getCollections());
+    clone.setSpatialOp(this.getSpatialOp());
+    clone.limit = this.limit;
+    clone.returnDeleted = this.returnDeleted;
+    clone.returnAllVersions = this.returnAllVersions;
+    clone.fetchSize = this.fetchSize;
+    return clone;
+  }
 }
