@@ -63,8 +63,8 @@ public class StatusHandler extends JdbcBasedHandler {
         })
         .compose(rdsStatus -> {
           String dbClusterIdentifier = getDBClusterIdentifier(dbSettings);
-          if (dbClusterIdentifier == null && dbSettings.getHost().indexOf("localhost") != -1)
-            logger.error("{} - configured ECPS does not use a clusterConfig! {}", dbSettings.getId(), dbSettings.getHost());
+          if (dbClusterIdentifier == null)
+            logger.warn("{} - configured ECPS does not use a clusterConfig! {}", dbSettings.getId(), dbSettings.getHost());
           else {
             //Collect cloudwatch metrics for db
             rdsStatus.addCloudWatchDBWriterMetrics(CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier, AwsCWClient.Role.WRITER));

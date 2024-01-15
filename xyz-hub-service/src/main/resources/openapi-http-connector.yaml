@@ -2,7 +2,7 @@ openapi: 3.0.2
 info:
   title: HERE HTTP-PSQL Connector
   description: |-
-    HERE HTTP-PSQL Connector is a PSQL-Connector which provides a REST API to access data and maintain database related stuff. With the included Job API it is possible to perfrom Jobs (import/export..) on datasets.
+    HERE HTTP-PSQL Connector is a PSQL-Connector which provides a REST API to access data and maintain database related stuff. With the included Job API it is possible to perform Jobs (import/export..) on datasets.
   contact: {}
   version: 1.0.0
 servers:
@@ -708,7 +708,7 @@ components:
       properties:
         type:
           description: The type of the dataset
-          example: Space
+          example: Files
           type: string
     FilesDataset:
       allOf:
@@ -873,8 +873,8 @@ components:
         - type: object
           properties:
             filters:
-              $ref: '#/components/schemas/SpaceFilters'
-    SpaceFilters:
+              $ref: '#/components/schemas/Filters'
+    Filters:
       type: object
       description: An object to describe filters to be applied when reading data from a space
       properties:
@@ -916,8 +916,8 @@ components:
         spatialFilter:
           $ref: '#/components/schemas/SpatialFilter'
         context:
-          $ref: '#/components/schemas/SpaceContext'
-    SpaceContext:
+          $ref: '#/components/schemas/Context'
+    Context:
       type: string
       enum:
         - DEFAULT

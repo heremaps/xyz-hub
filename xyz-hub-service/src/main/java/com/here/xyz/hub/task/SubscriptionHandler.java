@@ -116,14 +116,14 @@ public class SubscriptionHandler {
           final Future<Void> spaceFuture = SpaceConfigClient.getInstance().get(marker, subscription.getSource())
               .compose(space -> increaseVersionsToKeepIfNecessary(marker, space))
               .recover(t -> {
-                logger.info(marker, "spaceFuture for increasing version failed with cause: " + t.getMessage());
+                logger.warn(marker, "spaceFuture for increasing version failed with cause: " + t.getMessage(), t);
                 return Future.failedFuture(
                     "Unable to increase versionsToKeep value on space " + subscription.getSource() + " during subscription registration.");
               });
           final Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, subscription.getId(), subscription.getSource())
               .compose(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
               .recover(t -> {
-                logger.info("tagFuture for tag creation failed with cause: " + t.getMessage());
+                logger.warn("tagFuture for tag creation failed with cause: " + t.getMessage(), t);
                 return Future.failedFuture(
                     "Unable to store tag for space " + subscription.getSource() + " during subscription registration.");
               });
