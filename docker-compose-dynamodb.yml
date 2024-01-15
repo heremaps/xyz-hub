@@ -71,15 +71,14 @@ services:
             - QUERY_CONFIG_ENABLED=true
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
     aws-localstack:
-        image: "localstack/localstack:2.2.0"
+        image: "localstack/localstack:3.0.2"
         container_name: "aws-localstack"
         hostname: localstack
         ports:
             - "4563-4599:4563-4599"
         environment:
-            - SERVICES="s3,cloudwatch"
             - PERSISTENCE=0
-            - DEBUG=0
+            - DEBUG=1
             - AWS_ACCESS_KEY_ID=localstack
             - AWS_SECRET_ACCESS_KEY=localstack
             - AWS_DEFAULT_REGION=eu-west-1
