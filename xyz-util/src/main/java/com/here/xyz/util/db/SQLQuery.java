@@ -19,8 +19,12 @@
 
 package com.here.xyz.util.db;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_FAILED_ATTEMPT;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
@@ -28,6 +32,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,8 +41,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -48,13 +55,17 @@ import org.apache.logging.log4j.Logger;
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
+@JsonInclude(NON_DEFAULT)
 public class SQLQuery {
+
   private static final Logger logger = LogManager.getLogger();
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
+  public static final String QUERY_ID = "queryId";
   private String statement = "";
+  @JsonProperty
   private List<Object> parameters = new ArrayList<>();
   private Map<String, Object> namedParameters;
   private Map<String, String> variables;
@@ -64,7 +75,10 @@ public class SQLQuery {
   private int maximumRetries;
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
   private PreparedStatement preparedStatement;
-  private String queryId;
+  private volatile String queryId;
+  private Map<String, String> labels = new HashMap<>();
+  private static List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
+  private boolean labelsEnabled = true;
 
   public SQLQuery(String text) {
     if (text != null)
@@ -114,13 +128,49 @@ public class SQLQuery {
    * Use method {@link #substitute()} prior to this method to retrieve to substitute all placeholders of this query.
    * @return
    */
+  @JsonProperty
   public String text() {
     return statement;
   }
 
   @Override
   public String toString() {
-    return text();
+    return serializeForLogging();
+  }
+
+  /**
+   * NOTE: This implementation does not always produce an actually executable SQL query.
+   *  It's only used for logging purposes.
+   * @return A representation of the query text with all parameters being replaced by
+   *  their string-representation.
+   */
+  private String replaceUnnamedParametersForLogging() {
+    if (parameters() == null || parameters().size() == 0)
+      return text();
+    String text = text();
+    for (Object paramValue : parameters()) {
+      Pattern p = Pattern.compile("\\?");
+      text = text.replaceFirst(p.pattern(), paramValueToLoggingRepresentation(paramValue));
+    }
+    return text;
+  }
+
+  private String paramValueToLoggingRepresentation(Object paramValue) {
+    if (paramValue == null)
+      return "NULL";
+    if (paramValue instanceof String)
+      return "'" + paramValue + "'";
+    if (paramValue instanceof Long)
+      return paramValue + "::BIGINT";
+    if (paramValue instanceof Number)
+      return paramValue.toString();
+    if (paramValue instanceof Boolean)
+      return paramValue + "::BOOLEAN";
+    if (paramValue instanceof Object[] arrayValue)
+      return "{" + Arrays.stream(arrayValue)
+          .map(elementValue -> paramValueToLoggingRepresentation(elementValue))
+          .collect(Collectors.joining(",")) + "}";
+    return paramValue.toString();
   }
 
   @Override
@@ -162,10 +212,17 @@ public class SQLQuery {
   }
 
   public synchronized SQLQuery substitute() {
+    initQueryId();
     replaceVars();
     replaceFragments();
     replaceNamedParameters(!isAsync());
+    injectLabels();
     return this;
+  }
+
+  private void initQueryId() {
+    if (getQueryId() == null)
+      setQueryId(UUID.randomUUID().toString());
   }
 
   public PreparedStatement prepareStatement(Connection connection) throws SQLException {
@@ -459,6 +516,11 @@ public class SQLQuery {
     this.async = async;
   }
 
+  private String serializeForLogging() {
+    initQueryId();
+    return XyzSerializable.serialize(this);
+  }
+
   public SQLQuery withAsync(boolean async) {
     setAsync(async);
     return this;
@@ -502,18 +564,77 @@ public class SQLQuery {
   }
 
   public String getQueryId() {
-    if (queryId == null)
-      setQueryId(UUID.randomUUID().toString());
     return queryId;
   }
 
   public void setQueryId(String queryId) {
     this.queryId = queryId;
+    withLabel(QUERY_ID, queryId);
   }
 
   public SQLQuery withQueryId(String queryId) {
     setQueryId(queryId);
     return this;
+  }
+
+  public SQLQuery withLabel(String labelIdentifier, String labelValue) {
+    if (labelIdentifier.contains("*/") || labelValue.contains("*/"))
+      throw new IllegalArgumentException("The char-sequence \"*/\" is not allowed in SQLQuery labels.");
+    labels.put(labelIdentifier, labelValue);
+    return this;
+  }
+
+  public boolean isLabelsEnabled() {
+    return labelsEnabled;
+  }
+
+  public void setLabelsEnabled(boolean labelsEnabled) {
+    this.labelsEnabled = labelsEnabled;
+  }
+
+  public SQLQuery withLabelsEnabled(boolean labelsEnabled) {
+    setLabelsEnabled(labelsEnabled);
+    return this;
+  }
+
+  private void injectLabels() {
+    if (isLabelsEnabled() && !labels.isEmpty())
+      statement = "/*labels(" + XyzSerializable.serialize(labels) + ")*/ " + statement;
+  }
+
+  public void cancel(long timeout) throws SQLException {
+    kill(QUERY_ID, getQueryId(), timeout);
+  }
+
+  public static void cancelByLabel(String labelIdentifier, String labelValue, long timeout)
+      throws SQLException {
+    kill(labelIdentifier, labelValue, timeout);
+  }
+
+  public void kill() throws SQLException {
+    kill(QUERY_ID, getQueryId(), 0);
+  }
+
+  public static void killByLabel(String labelIdentifier, String labelValue) throws SQLException {
+    kill(labelIdentifier, labelValue, 0);
+  }
+
+  private static void kill(String labelIdentifier, String labelValue, long timeout)
+      throws SQLException {
+    SQLQuery labelMatching = new SQLQuery("substring(query, "
+        + "strpos(query, '/*labels(') + 9, "
+        + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
+        .withNamedParameter("labelIdentifier", labelIdentifier)
+        .withNamedParameter("labelValue", labelValue);
+
+    for (ExecutionContext execution : executions)
+      new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+          + "WHERE state = 'active' "
+          + "AND ${{labelMatching}} "
+          + "AND pid != pg_backend_pid()")
+          .withQueryFragment("labelMatching", labelMatching)
+          .withNamedParameter("labelValue", labelValue)
+          .run(execution.dataSourceProvider, execution.useReplica);
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
@@ -539,12 +660,12 @@ public class SQLQuery {
 
   public <R> R run(DataSourceProvider dataSourceProvider, ResultSetHandler<R> handler, boolean useReplica) throws SQLException {
     return (R) execute(dataSourceProvider, useReplica, handler, ExecutionOperation.QUERY,
-        new ExecutionContext(getTimeout(), getMaximumRetries()));
+        new ExecutionContext(getTimeout(), getMaximumRetries(), dataSourceProvider, useReplica));
   }
 
   public int write(DataSourceProvider dataSourceProvider) throws SQLException {
     return (int) execute(dataSourceProvider, false, null, ExecutionOperation.UPDATE,
-        new ExecutionContext(getTimeout(), getMaximumRetries()));
+        new ExecutionContext(getTimeout(), getMaximumRetries(), dataSourceProvider, false));
   }
 
   private enum ExecutionOperation {
@@ -554,7 +675,7 @@ public class SQLQuery {
 
   private Object execute(DataSourceProvider dataSourceProvider, boolean useReplica, ResultSetHandler<?> handler,
       ExecutionOperation operation, ExecutionContext executionContext) throws SQLException {
-    //TODO: Add proper query logging including full structure, types and parameters
+    logger.info("Executing SQLQuery {}", this);
     String queryText = substitute().text();
     List<Object> queryParameters = parameters();
 
@@ -576,7 +697,11 @@ public class SQLQuery {
     executionContext.attemptExecution();
     final QueryRunner runner = new QueryRunner(dataSource, statementConfig);
     try {
-      logger.debug("{} executeQuery: {} - Parameters: {}", getQueryId(), this, queryParameters);
+      logger.info("Sending query to database {} {}, substituted query-text: {}",
+          useReplica ? "reader" : "writer",
+          dataSourceProvider instanceof PooledDataSources pooledDataSources
+              ? pooledDataSources.getDatabaseSettings().getId() : "unknown",
+          replaceUnnamedParametersForLogging());
       return switch (operation) {
         case QUERY -> runner.query(queryText, handler, queryParameters.toArray());
         case UPDATE -> runner.update(queryText, queryParameters.toArray());
@@ -607,7 +732,7 @@ public class SQLQuery {
     }
   }
 
-  private class ExecutionContext {
+  protected class ExecutionContext {
     private int queryTimeout;
     private int remainingQueryTimeout;
     private int executionAttempts;
@@ -615,10 +740,16 @@ public class SQLQuery {
     private long startTime;
     private long lastAttemptTime;
     private List<Exception> retriedExceptions;
+    private DataSourceProvider dataSourceProvider;
+    private boolean useReplica;
 
-    public ExecutionContext(int queryTimeout, int maximumRetries) {
+    public ExecutionContext(int queryTimeout, int maximumRetries,
+        DataSourceProvider dataSourceProvider, boolean useReplica) {
       this.queryTimeout = remainingQueryTimeout = queryTimeout;
       this.maximumRetries = maximumRetries;
+      this.dataSourceProvider = dataSourceProvider;
+      this.useReplica = useReplica;
+      executions.add(this);
     }
 
     public void consumeTime(int usedTime) {
@@ -659,7 +790,12 @@ public class SQLQuery {
           57P01 - admin_shutdown
            */
           sqlEx.getSQLState().equalsIgnoreCase("57014")
-              || sqlEx.getSQLState().equalsIgnoreCase("57P01")
+              /*
+              NOTE: "admin_shutdown" (57P01) also is used when some admin user kills the backend
+              using pg_terminate_backend. So this SQL state is not treated as recoverable,
+              since anyway in serverless v2 it's not applicable during scaling anymore.
+               */
+              //|| sqlEx.getSQLState().equalsIgnoreCase("57P01")
               || sqlEx.getSQLState().equalsIgnoreCase("08003")
               || sqlEx.getSQLState().equalsIgnoreCase("08006")
       )) {
@@ -698,6 +834,17 @@ public class SQLQuery {
 
       public ExecutionContext getExecutionContext() {
         return ExecutionContext.this;
+      }
+
+      @Override
+      public synchronized Throwable getCause() {
+        Throwable cause = super.getCause();
+        if (cause != null)
+          return cause;
+        else {
+          List<Exception> retriedExceptions = getExecutionContext().retriedExceptions;
+          return retriedExceptions.isEmpty() ? null : retriedExceptions.get(retriedExceptions.size() - 1);
+        }
       }
     }
   }
