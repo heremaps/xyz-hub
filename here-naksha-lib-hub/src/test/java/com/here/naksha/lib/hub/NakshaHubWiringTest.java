@@ -60,7 +60,7 @@ import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.handlers.AuthorizationEventHandler;
 import com.here.naksha.lib.handlers.DefaultStorageHandler;
-import com.here.naksha.lib.handlers.IntHandlerForStorages;
+import com.here.naksha.lib.handlers.internal.IntHandlerForStorages;
 import com.here.naksha.lib.hub.mock.MockResult;
 import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHAdminStorageReader;

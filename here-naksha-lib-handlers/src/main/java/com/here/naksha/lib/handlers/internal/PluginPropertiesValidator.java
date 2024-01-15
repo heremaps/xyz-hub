@@ -16,27 +16,23 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.handlers;
+package com.here.naksha.lib.handlers.internal;
 
-import com.here.naksha.lib.core.IEvent;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.naksha.Plugin;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.Result;
-import org.jetbrains.annotations.NotNull;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
 
-public class IntHandlerForConfigs extends AbstractEventHandler {
+final class PluginPropertiesValidator {
 
-  public IntHandlerForConfigs(final @NotNull INaksha hub) {
-    super(hub);
-  }
+  private PluginPropertiesValidator() {}
 
-  /**
-   * The method invoked by the event-pipeline to process Config specific read/write operations
-   *
-   * @param event the event to process.
-   * @return the result.
-   */
-  @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
-    return notImplemented(event);
+  static Result pluginValidation(Plugin plugin) {
+    if (plugin.getClassName() == null || plugin.getClassName().isEmpty()) {
+      return new ErrorResult(
+          XyzError.ILLEGAL_ARGUMENT, "Mandatory parameter '" + Plugin.CLASS_NAME + "' missing!");
+    }
+    return new SuccessResult();
   }
 }

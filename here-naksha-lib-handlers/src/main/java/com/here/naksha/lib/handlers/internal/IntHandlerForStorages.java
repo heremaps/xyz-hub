@@ -16,15 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.handlers;
+package com.here.naksha.lib.handlers.internal;
+
+import static com.here.naksha.lib.handlers.internal.PluginPropertiesValidator.pluginValidation;
 
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.naksha.Space;
+import com.here.naksha.lib.core.models.naksha.Storage;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.Result;
 import org.jetbrains.annotations.NotNull;
 
-public class IntHandlerForSpaces extends AdminFeatureEventHandler<Space> {
+public class IntHandlerForStorages extends AdminFeatureEventHandler<Storage> {
 
-  public IntHandlerForSpaces(final @NotNull INaksha hub) {
-    super(hub, Space.class);
+  public IntHandlerForStorages(final @NotNull INaksha hub) {
+    super(hub, Storage.class);
+  }
+
+  @Override
+  protected @NotNull Result validateFeature(Storage storage) {
+    Result basicValidation = super.validateFeature(storage);
+    if (basicValidation instanceof ErrorResult) {
+      return basicValidation;
+    }
+    return pluginValidation(storage);
   }
 }

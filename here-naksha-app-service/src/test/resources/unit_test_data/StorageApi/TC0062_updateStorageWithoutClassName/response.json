@@ -1,5 +1,5 @@
 {
   "type": "ErrorResponse",
   "error": "IllegalArgument",
-  "errorMessage": "Mandatory parameter className missing!"
+  "errorMessage": "Mandatory parameter 'className' missing!"
 }

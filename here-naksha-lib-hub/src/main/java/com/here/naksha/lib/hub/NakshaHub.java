@@ -28,6 +28,7 @@ import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.exceptions.StorageNotFoundException;
 import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -46,7 +47,6 @@ import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -274,8 +274,10 @@ public class NakshaHub implements INaksha {
         throw unchecked(new Exception(
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
-      final Storage storage = Objects.requireNonNull(
-          readFeatureFromResult(result, Storage.class), "No storage found with id: " + storageId);
+      Storage storage = readFeatureFromResult(result, Storage.class);
+      if (storage == null) {
+        throw unchecked(new StorageNotFoundException(storageId));
+      }
       return storageInstance(storage);
     }
   }

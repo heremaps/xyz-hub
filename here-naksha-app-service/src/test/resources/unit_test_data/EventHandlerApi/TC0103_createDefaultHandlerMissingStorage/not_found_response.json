@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "NotFound",
+  "errorMessage": "Could not find storage with id: this-was-not-created-before"
+}

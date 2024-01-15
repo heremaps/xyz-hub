@@ -1,12 +1,12 @@
 {
-  "id": "test-handler",
+  "id": "test-update-handler",
   "type": "EventHandler",
   "title": "Updated Test Handler",
   "description": "Updated description of test-handler",
   "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
   "active": true,
   "properties": {
-    "storageId": "um-mod-dev",
+    "storageId": "event_handler_api_test_storage",
     "collection": {
       "maxAge": 3
     }

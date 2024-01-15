@@ -16,27 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.handlers;
+package com.here.naksha.lib.handlers.internal;
 
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.handlers.AbstractEventHandler;
 import org.jetbrains.annotations.NotNull;
 
-public class IntHandlerForStorages extends AdminFeatureEventHandler<Storage> {
+public class IntHandlerForSubscriptions extends AbstractEventHandler {
 
-  public IntHandlerForStorages(final @NotNull INaksha hub) {
-    super(hub, Storage.class);
+  public IntHandlerForSubscriptions(final @NotNull INaksha hub) {
+    super(hub);
   }
 
+  /**
+   * The method invoked by the event-pipeline to process Subscription specific read/write operations
+   *
+   * @param event the event to process.
+   * @return the result.
+   */
   @Override
-  protected @NotNull Result validateFeature(Storage storage) {
-    if (storage.getClassName() == null || storage.getClassName().isEmpty()) {
-      return new ErrorResult(XyzError.ILLEGAL_ARGUMENT, "Mandatory parameter className missing!");
-    }
-    return new SuccessResult();
+  public @NotNull Result processEvent(@NotNull IEvent event) {
+    return notImplemented(event);
   }
 }

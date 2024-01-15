@@ -1,13 +1,12 @@
 {
   "id": "no-name-handler",
   "type": "EventHandler",
-  "title": "Test Handler",
   "description": "For unit testing",
-  "className": "",
+  "className": "some_class",
   "active": true,
   "extensionId": null,
   "properties": {
-    "storageId": "um-mod-dev",
+    "storageId": "event_handler_api_test_storage",
     "collection": {
       "maxAge": 2
     }

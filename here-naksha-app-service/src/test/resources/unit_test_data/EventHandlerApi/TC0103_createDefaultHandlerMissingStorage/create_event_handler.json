@@ -1,5 +1,5 @@
 {
-  "id": "tc_140_event_handler_2",
+  "id": "tc-104-test-handler",
   "type": "EventHandler",
   "title": "Test Handler",
   "description": "For unit testing",
@@ -7,7 +7,7 @@
   "active": true,
   "extensionId": null,
   "properties": {
-    "storageId": "event_handler_api_test_storage",
+    "storageId": "this-was-not-created-before",
     "collection": {
       "maxAge": 2
     }

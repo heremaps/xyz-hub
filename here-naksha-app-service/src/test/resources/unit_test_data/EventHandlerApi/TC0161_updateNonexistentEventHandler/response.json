@@ -1,5 +1,5 @@
 {
   "type": "ErrorResponse",
   "error": "NotFound",
-  "errorMessage": "Operation failed, no feature with the id 'non-existent-test-handler' exists"
+  "errorMessage": "Operation failed, no feature with the id 'this-surely-does-not-exists' exists"
 }

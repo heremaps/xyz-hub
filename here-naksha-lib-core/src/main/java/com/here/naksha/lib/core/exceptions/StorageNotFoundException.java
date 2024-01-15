@@ -16,27 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.handlers;
+package com.here.naksha.lib.core.exceptions;
 
-import com.here.naksha.lib.core.IEvent;
-import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.XyzError;
 import org.jetbrains.annotations.NotNull;
 
-public class IntHandlerForExtensions extends AbstractEventHandler {
+public class StorageNotFoundException extends StorageException {
 
-  public IntHandlerForExtensions(final @NotNull INaksha hub) {
-    super(hub);
-  }
-
-  /**
-   * The method invoked by the event-pipeline to process Extension specific read/write operations
-   *
-   * @param event the event to process.
-   * @return the result.
-   */
-  @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
-    return notImplemented(event);
+  public StorageNotFoundException(@NotNull String storageId) {
+    super(XyzError.NOT_FOUND, "Could not find storage with id: " + storageId);
   }
 }

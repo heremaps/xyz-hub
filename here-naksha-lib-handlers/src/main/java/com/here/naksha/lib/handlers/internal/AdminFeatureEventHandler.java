@@ -16,12 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.handlers;
+package com.here.naksha.lib.handlers.internal;
+
+import static com.here.naksha.lib.handlers.internal.NakshaFeaturePropertiesValidator.nakshaFeatureValidation;
 
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
 import com.here.naksha.lib.core.models.storage.Request;
@@ -31,6 +33,7 @@ import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.handlers.AbstractEventHandler;
 import com.here.naksha.lib.psql.PsqlStorage;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -41,7 +44,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <FEATURE> type of admin resource handled by this handler
  */
-abstract class AdminFeatureEventHandler<FEATURE extends XyzFeature> extends AbstractEventHandler {
+abstract class AdminFeatureEventHandler<FEATURE extends NakshaFeature> extends AbstractEventHandler {
 
   private static final Logger logger = LoggerFactory.getLogger(AdminFeatureEventHandler.class);
 
@@ -100,7 +103,7 @@ abstract class AdminFeatureEventHandler<FEATURE extends XyzFeature> extends Abst
    * @return validation result, success by default
    */
   protected @NotNull Result validateFeature(FEATURE feature) {
-    return new SuccessResult();
+    return nakshaFeatureValidation(feature);
   }
 
   private @NotNull Result validateWriteRequest(final @NotNull WriteXyzFeatures wr) {

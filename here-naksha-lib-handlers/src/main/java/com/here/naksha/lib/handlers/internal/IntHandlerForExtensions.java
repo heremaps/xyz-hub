@@ -16,21 +16,22 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.handlers;
+package com.here.naksha.lib.handlers.internal;
 
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.handlers.AbstractEventHandler;
 import org.jetbrains.annotations.NotNull;
 
-public class IntHandlerForSubscriptions extends AbstractEventHandler {
+public class IntHandlerForExtensions extends AbstractEventHandler {
 
-  public IntHandlerForSubscriptions(final @NotNull INaksha hub) {
+  public IntHandlerForExtensions(final @NotNull INaksha hub) {
     super(hub);
   }
 
   /**
-   * The method invoked by the event-pipeline to process Subscription specific read/write operations
+   * The method invoked by the event-pipeline to process Extension specific read/write operations
    *
    * @param event the event to process.
    * @return the result.
