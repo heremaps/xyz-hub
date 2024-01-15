@@ -280,7 +280,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       } else if (POpType.OR == op) {
         op_literal = " OR";
       } else {
-        op_literal = " NOT";
+        op_literal = "";
+        sql.add(" NOT");
       }
       boolean first = true;
       sql.add('(');

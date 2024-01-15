@@ -19,6 +19,11 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.storage.POp.and;
+import static com.here.naksha.lib.core.models.storage.POp.eq;
+import static com.here.naksha.lib.core.models.storage.POp.exists;
+import static com.here.naksha.lib.core.models.storage.POp.not;
+import static com.here.naksha.lib.core.models.storage.PRef.id;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createBBoxEnvelope;
 import static com.spatial4j.core.io.GeohashUtils.encodeLatLon;
 import static java.lang.String.format;
@@ -160,7 +165,7 @@ public class PsqlStorageTests extends PsqlTests {
     assertNotNull(storage);
     assertNotNull(session);
     ReadFeatures readFeatures = new ReadFeatures(collectionId());
-    readFeatures.setPropertyOp(POp.eq(PRef.id(), SINGLE_FEATURE_ID));
+    readFeatures.setPropertyOp(eq(id(), SINGLE_FEATURE_ID));
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
         session.execute(readFeatures).getXyzFeatureCursor()) {
       assertTrue(cursor.hasNext());
@@ -736,8 +741,8 @@ public class PsqlStorageTests extends PsqlTests {
     assertNotNull(session);
     final ReadFeatures request = new ReadFeatures(collectionId());
     request.setPropertyOp(POp.or(
-        POp.exists(PRef.tag("@:firstName:" + fg.firstNames[0])),
-        POp.exists(PRef.tag("@:firstName:" + fg.firstNames[1]))));
+        exists(PRef.tag("@:firstName:" + fg.firstNames[0])),
+        exists(PRef.tag("@:firstName:" + fg.firstNames[1]))));
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
         session.execute(request).getXyzFeatureCursor()) {
       // We expect that at least one feature was found!
@@ -929,8 +934,23 @@ public class PsqlStorageTests extends PsqlTests {
 
     // when - search for int value
     ReadFeatures readFeatures = new ReadFeatures(collectionId());
-    POp weightSearch = POp.eq(new NonIndexedPRef("properties", "weight"), 60);
+    POp weightSearch = eq(new NonIndexedPRef("properties", "weight"), 60);
     readFeatures.setPropertyOp(weightSearch);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search 'not'
+    readFeatures.setPropertyOp(not(eq(new NonIndexedPRef("properties", "weight"), 59)));
+    // then
+    expect.accept(readFeatures);
+
+    // when - search 'exists'
+    readFeatures.setPropertyOp(exists(new NonIndexedPRef("properties", "weight")));
+    // then
+    expect.accept(readFeatures);
+
+    // when - search 'not exists'
+    readFeatures.setPropertyOp(and(not(exists(new NonIndexedPRef("properties", "weight2"))), eq(id(), "32167")));
     // then
     expect.accept(readFeatures);
 
