@@ -45,7 +45,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   private static JDBCConnectorConfigClient instance;
   private static final String CONNECTOR_TABLE = "xyz_storage";
-  private static final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, CONNECTOR_TABLE, Service.configuration);
+  private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, CONNECTOR_TABLE, Service.configuration);
 
   public static JDBCConnectorConfigClient getInstance() {
     if (instance == null)

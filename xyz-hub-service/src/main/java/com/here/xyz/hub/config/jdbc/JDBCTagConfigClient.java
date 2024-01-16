@@ -39,7 +39,7 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   private static JDBCTagConfigClient instance;
   private static final String TAG_TABLE = "xyz_tags";
-  private static final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, TAG_TABLE, Service.configuration);
+  private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, TAG_TABLE, Service.configuration);
 
   public static TagConfigClient getInstance() {
     if (instance == null)
