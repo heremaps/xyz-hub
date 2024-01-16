@@ -204,6 +204,8 @@ public class HubWebClient {
           .send()
           .compose(response -> {
             try {
+                if(response.statusCode() == 404)
+                    return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Space with ID " + spaceId + " was not found."));
               return Future.succeededFuture(deserializeResponse(response, Space.class));
             }
             catch (Exception e) {
