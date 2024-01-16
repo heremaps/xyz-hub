@@ -41,7 +41,7 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
   private static final Logger logger = LogManager.getLogger();
   private static JDBCSubscriptionConfigClient instance;
   private static final String SUBSCRIPTION_TABLE = "xyz_subscription";
-  private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, SUBSCRIPTION_TABLE, Service.configuration);
+  private static final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, SUBSCRIPTION_TABLE, Service.configuration);
 
   public static JDBCSubscriptionConfigClient getInstance() {
     if (instance == null)

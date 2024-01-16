@@ -47,7 +47,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   private static final Logger logger = LogManager.getLogger();
   private static JDBCSpaceConfigClient instance;
   private static final String SPACE_TABLE = "xyz_space";
-  private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, SPACE_TABLE, Service.configuration);
+  private static final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, SPACE_TABLE, Service.configuration);
 
   public static class Provider extends SpaceConfigClient.Provider {
     @Override
