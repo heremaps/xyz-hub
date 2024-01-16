@@ -28,6 +28,7 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.factory.MaintenanceSQL;
@@ -40,6 +41,8 @@ import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.Future;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import javax.naming.NoPermissionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -104,6 +107,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
 
   public Future<SpaceStatus> getMaintenanceStatusOfSpace(String spaceId) {
       return HubWebClient.getSpace(spaceId)
+              .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
               //Load space-config
               .compose(space -> {
                   if(space.getStorage() == null)
@@ -351,8 +355,9 @@ public class JDBCMaintainer extends JdbcBasedHandler {
     }
 
     public Future<Void> maintainSpace(String spaceId) {
+        //Load space-config
         return HubWebClient.getSpace(spaceId)
-                //Load space-config
+                .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
                 .compose(space -> {
                     //Load JDBC Client
                     return getClient(space.getStorage().getId())
@@ -385,6 +390,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
 
     public Future<Void> purgeOldVersions(String spaceId, Long minTagVersion) {
        return HubWebClient.getSpace(spaceId)
+               .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
                //Load space-config
                .compose(space -> {
                    if(space.getStorage() == null)
@@ -409,5 +415,20 @@ public class JDBCMaintainer extends JdbcBasedHandler {
                          return client.run(q);
                        });
         });
+    }
+
+    private Future<Space> injectEnableHashedSpaceIdIntoParams(Space space) {
+        return HubWebClient.getConnectorConfig(space.getStorage().getId())
+                .compose(connector -> {
+                    boolean enableHashedSpaceId = connector.params.containsKey("enableHashedSpaceId")
+                            ? (boolean) connector.params.get("enableHashedSpaceId") : false;
+
+                    Map<String, Object> params = space.getStorage().getParams() == null ?
+                            new HashMap<>() : space.getStorage().getParams() ;
+                    params.putIfAbsent("enableHashedSpaceId", enableHashedSpaceId);
+                    space.getStorage().setParams(params);
+
+                    return Future.succeededFuture(space);
+                });
     }
 }
