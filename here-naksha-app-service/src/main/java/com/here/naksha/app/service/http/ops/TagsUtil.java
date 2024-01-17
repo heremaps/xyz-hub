@@ -16,16 +16,13 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.app.service.http.apis;
+package com.here.naksha.app.service.http.ops;
 
 import static com.here.naksha.app.service.http.apis.ApiParams.TAGS;
-import static com.here.naksha.app.service.http.apis.ApiParams.TILE_TYPE_QUADKEY;
 import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.*;
-import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.COMMA;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.payload.events.QueryDelimiter;
 import com.here.naksha.lib.core.models.payload.events.QueryParameter;
@@ -33,36 +30,18 @@ import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
-import com.here.naksha.lib.core.models.storage.SOp;
 import com.here.naksha.lib.core.util.ValueList;
-import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.vividsolutions.jts.geom.Geometry;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class ApiUtil {
+public class TagsUtil {
+  private static final int NONE = 0;
+  private static final int OR = 1;
+  private static final int AND = 2;
 
-  private static final int NONE = 0, OR = 1, AND = 2;
-
-  public static @NotNull SOp buildOperationForTile(final @NotNull String tileType, final @NotNull String tileId) {
-    try {
-      if (!tileType.equals(TILE_TYPE_QUADKEY)) {
-        throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Tile type " + tileType + " not supported");
-      }
-      final Geometry geo =
-          WebMercatorTile.forQuadkey(tileId).getAsPolygon().getGeometry();
-      return SOp.intersects(geo);
-    } catch (IllegalArgumentException ex) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, ex.getMessage());
-    }
-  }
-
-  public static @NotNull SOp buildOperationForBBox(
-      final double west, final double south, final double east, final double north) {
-    return SOp.intersects(RequestHelper.createBBoxEnvelope(west, south, east, north));
-  }
+  private TagsUtil() {}
 
   /**
    * Function builds Property Operation (POp) based on "tags" supplied as API query parameter.
@@ -199,8 +178,11 @@ public class ApiUtil {
       tagParams = tagParams.next();
     }
 
-    final POp[] allTagOpArr = globalOpList.toArray(POp[]::new);
-    return (allTagOpArr.length > 1) ? POp.or(allTagOpArr) : allTagOpArr[0];
+    // return single operation or OR list (in case of multiple operations)
+    if (globalOpList.size() > 1) {
+      return POp.or(globalOpList.toArray(POp[]::new));
+    }
+    return globalOpList.get(0);
   }
 
   private static @NotNull List<String> addTagToList(final @Nullable List<String> tagList, final @NotNull String tag) {

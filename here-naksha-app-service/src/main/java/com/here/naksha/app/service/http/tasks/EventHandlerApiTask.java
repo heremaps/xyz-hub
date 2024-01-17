@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -80,9 +81,14 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
         default -> executeUnsupported();
       };
     } catch (Exception ex) {
-      // unexpected exception
-      return verticle.sendErrorResponse(
-          routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
+      if (ex instanceof XyzErrorException xyz) {
+        logger.warn("Known exception while processing request. ", ex);
+        return verticle.sendErrorResponse(routingContext, xyz.xyzError, xyz.getMessage());
+      } else {
+        logger.error("Unexpected error while processing request. ", ex);
+        return verticle.sendErrorResponse(
+            routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
+      }
     }
   }
 

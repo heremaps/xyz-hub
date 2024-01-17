@@ -18,12 +18,10 @@
  */
 package com.here.naksha.lib.core.events;
 
-import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.AMPERSAND;
-import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.COLON;
-import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.END;
-import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.EXCLAMATION_MARK;
-import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.PLUS;
+import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.*;
+import static com.here.naksha.lib.core.models.payload.events.QueryOperation.*;
 import static com.here.naksha.lib.core.models.payload.events.QueryParameterType.STRING;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -31,17 +29,203 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.naksha.lib.core.common.assertions.QueryParameterAssertion;
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.models.payload.events.QueryDelimiter;
 import com.here.naksha.lib.core.models.payload.events.QueryOperation;
 import com.here.naksha.lib.core.models.payload.events.QueryParameter;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterDecoder;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
+
+import java.net.URLEncoder;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
 public class QueryParameterListTest {
+
+  public static String urlEncoded(String text) {
+    return URLEncoder.encode(text, UTF_8);
+  }
+
+  @Test
+  void testPropertySearchParamsExtraction() {
+    final QueryParameterList params = new QueryParameterList(
+            urlEncoded("p.@ns:com:here:mom:meta.prop_1")+"="+urlEncoded("@value:1")+",'12345'"
+            + "&p.prop_2!=value_2,value_22"
+            + "&p.prop_3=.null,value_33"
+            + "&p.prop_4!=.null,value_44"
+            + "&p.prop_5>=5,55"
+            + "&p.prop_6<=6,66"
+            + "&p.prop_7>7,77"
+            + "&p.prop_8<8,88"
+            + "&p.array_1@>"+urlEncoded("@element_1")+",element_2"
+            + "&p.prop_10=gte=555,5555"
+            + "&p.prop_11=lte=666,6666"
+            + "&p.prop_12=gt=777,7777"
+            + "&p.prop_13=lt=888,8888"
+            + "&p.array_2=cs="+urlEncoded("@element_3")+",element_4"
+    );
+    assertNotNull(params);
+    assertEquals(14, params.size());
+    assertEquals(14, params.keySize());
+
+    // check first param "p.@ns:com:here:mom:meta.prop_1=@value:1,value_11"
+    QueryParameterAssertion.assertThat(params.get(0))
+            .hasKey("p.@ns:com:here:mom:meta.prop_1")
+            .hasOperation(EQUALS)
+            .hasValueSize(2)
+            .hasValues("@value:1","12345")
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+            ;
+
+    // check second param "p.prop_2!=value_2,value_22"
+    QueryParameterAssertion.assertThat(params.get(1))
+            .hasKey("p.prop_2")
+            .hasOperation(NOT_EQUALS)
+            .hasValueSize(2)
+            .hasValues("value_2","value_22")
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check third param "p.prop_3=.null,value_33"
+    QueryParameterAssertion.assertThat(params.get(2))
+            .hasKey("p.prop_3")
+            .hasOperation(EQUALS)
+            .hasValueSize(2)
+            .hasValues(".null","value_33")
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check forth param "p.prop_4!=.null,value_44"
+    QueryParameterAssertion.assertThat(params.get(3))
+            .hasKey("p.prop_4")
+            .hasOperation(NOT_EQUALS)
+            .hasValueSize(2)
+            .hasValues(".null","value_44")
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check fifth param "p.prop_5>=5,55"
+    QueryParameterAssertion.assertThat(params.get(4))
+            .hasKey("p.prop_5")
+            .hasOperation(GREATER_THAN_OR_EQUALS)
+            .hasValueSize(2)
+            .hasValues(5L,55L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check sixth param "p.prop_6<=6,66"
+    QueryParameterAssertion.assertThat(params.get(5))
+            .hasKey("p.prop_6")
+            .hasOperation(LESS_THAN_OR_EQUALS)
+            .hasValueSize(2)
+            .hasValues(6L,66L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check seventh param "p.prop_7>7,77"
+    QueryParameterAssertion.assertThat(params.get(6))
+            .hasKey("p.prop_7")
+            .hasOperation(GREATER_THAN)
+            .hasValueSize(2)
+            .hasValues(7L,77L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check eighth param "p.prop_8<8,88"
+    QueryParameterAssertion.assertThat(params.get(7))
+            .hasKey("p.prop_8")
+            .hasOperation(LESS_THAN)
+            .hasValueSize(2)
+            .hasValues(8L,88L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check ninth param "p.array_1@>@element_1,element_2"
+    QueryParameterAssertion.assertThat(params.get(8))
+            .hasKey("p.array_1")
+            .hasOperation(CONTAINS)
+            .hasValueSize(2)
+            .hasValues("@element_1","element_2")
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check tenth param "p.prop_10=gte=555,5555"
+    QueryParameterAssertion.assertThat(params.get(9))
+            .hasKey("p.prop_10")
+            .hasOperation(GREATER_THAN_OR_EQUALS)
+            .hasValueSize(2)
+            .hasValues(555L,5555L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check eleventh param "p.prop_11=lte=666,6666"
+    QueryParameterAssertion.assertThat(params.get(10))
+            .hasKey("p.prop_11")
+            .hasOperation(LESS_THAN_OR_EQUALS)
+            .hasValueSize(2)
+            .hasValues(666L,6666L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check twelfth param "p.prop_12=gt=777,7777"
+    QueryParameterAssertion.assertThat(params.get(11))
+            .hasKey("p.prop_12")
+            .hasOperation(GREATER_THAN)
+            .hasValueSize(2)
+            .hasValues(777L,7777L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check thirteenth param "p.prop_13=lt=888,8888"
+    QueryParameterAssertion.assertThat(params.get(12))
+            .hasKey("p.prop_13")
+            .hasOperation(LESS_THAN)
+            .hasValueSize(2)
+            .hasValues(888L,8888L)
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, AMPERSAND)
+    ;
+
+    // check fourteenth param "p.array_2=cs=@element_3,element_4"
+    QueryParameterAssertion.assertThat(params.get(13))
+            .hasKey("p.array_2")
+            .hasOperation(CONTAINS)
+            .hasValueSize(2)
+            .hasValues("@element_3","element_4")
+            .hasValueDelimiterSize(2)
+            .hasValueDelimiters(COMMA, END)
+    ;
+  }
+
+  @Test
+  void testPropertySearchParamsExtractionWithInvalidOperation() {
+    final QueryParameterList params = new QueryParameterList(
+            "p.prop_1?value_1,value_11"
+    );
+    assertNotNull(params);
+    assertEquals(1, params.size());
+    assertEquals(1, params.keySize());
+
+    QueryParameterAssertion.assertThat(params.get(0))
+            .hasKey("p.prop_1")
+            .hasOperation(NONE)
+            .hasValueSize(0)
+            .hasValueDelimiterSize(0);
+  }
 
   @Test
   public void paramWithNumericValue() throws Exception {

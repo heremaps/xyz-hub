@@ -23,7 +23,8 @@ plugins {
     // Don't apply for all projects, we individually only apply where Kotlin is used.
     kotlin("jvm") version "1.8.21" apply false
     // overall code coverage
-    jacoco
+    //jacoco
+    id("jacoco-report-aggregation")
 }
 
 group = "com.here.naksha"

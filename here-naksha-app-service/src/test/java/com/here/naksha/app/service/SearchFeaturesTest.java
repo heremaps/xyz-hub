@@ -47,8 +47,8 @@ class SearchFeaturesTest extends ApiTest {
 
   @Test
   void tc1000_testSearchFeatures() throws URISyntaxException, InterruptedException, JSONException, IOException {
-    // Test API : GET /hub/spaces/{spaceId}/tile/{type}/{tileId}
-    // Validate features getting returned for given Tile and given single tag value
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Validate features getting returned for given Tag filter parameters
     // Given: search query
     final String tagsQueryParam = "tags=one+four";
     final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1000_search/search_response.json");
@@ -102,4 +102,87 @@ class SearchFeaturesTest extends ApiTest {
         .hasStreamIdHeader(streamId)
         .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
   }
+
+  @Test
+  void tc1003_testSearchWithTagsAndProp() throws URISyntaxException, InterruptedException, JSONException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Validate features getting returned for given Tag and Property search conditions
+
+    // Given: search query
+    final String tagsQueryParam = "tags=one+four";
+    final String propQueryParam = "p.speedLimit='60'";
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1003_searchWithTagsAndProp/search_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By Tile request is submitted to NakshaHub
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + tagsQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc1004_testSearchWithTagsMatchAndPropDoesNot() throws URISyntaxException, InterruptedException, JSONException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Validate No features returned when Tag filter matches but Property filters don't
+
+    // Given: search query
+    final String tagsQueryParam = "tags=one+four";
+    final String propQueryParam = "p.speedLimit='70'";
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1004_searchWithTagsMatchAndPropDoesNot/search_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By Tile request is submitted to NakshaHub
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + tagsQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc1005_testSearchWithOnlyPropFilter() throws URISyntaxException, InterruptedException, JSONException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Validate features returned matches with Property filter (even when Tags filter not supplied)
+
+    // Given: search query
+    final String propQueryParam = "p.speedLimit='70'";
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1005_searchWithOnlyPropFilter/search_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By Tile request is submitted to NakshaHub
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc1006_testSearchWithoutFilters() throws URISyntaxException, InterruptedException, JSONException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Validate API returns error when neither Tags nor Property filters provided
+
+    // Given: search query
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1006_searchWithoutFilters/search_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By Tile request is submitted to NakshaHub
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search", streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(400)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+
 }

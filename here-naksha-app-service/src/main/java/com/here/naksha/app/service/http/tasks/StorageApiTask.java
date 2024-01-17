@@ -87,12 +87,15 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
         case UPDATE_STORAGE -> executeUpdateStorage();
         default -> executeUnsupported();
       };
-    } catch (XyzErrorException ex) {
-      return verticle.sendErrorResponse(routingContext, ex.xyzError, ex.getMessage());
     } catch (Exception ex) {
-      // unexpected exception
-      return verticle.sendErrorResponse(
-          routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
+      if (ex instanceof XyzErrorException xyz) {
+        logger.warn("Known exception while processing request. ", ex);
+        return verticle.sendErrorResponse(routingContext, xyz.xyzError, xyz.getMessage());
+      } else {
+        logger.error("Unexpected error while processing request. ", ex);
+        return verticle.sendErrorResponse(
+            routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
+      }
     }
   }
 

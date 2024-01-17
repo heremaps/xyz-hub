@@ -666,6 +666,7 @@ paths:
         - $ref: '#/components/parameters/South'
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/PropertiesQuery'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -736,6 +737,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/PropertiesQuery'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -864,6 +866,73 @@ components:
         format: double
         minimum: -90
         maximum: 90
+    PrefixId:
+      name: prefixId
+      in: query
+      description: If set all feature IDs are prefixed with the provided string.
+      required: false
+      schema:
+        type: string
+    PropertiesQuery:
+      name: params
+      in: query
+      description: >
+        Additional feature filters which compare the feature's property value with the one
+        specified in the query, resulting in a subset of features.
+
+
+        The usage of multiple property names represents an AND operation.
+        The usage of a comma (,) separating the properties values, represents
+        an OR operation.
+
+
+        Properties initiated with 'f.' are used to access values which are added by default in the
+        stored feature. The possible values are: 'f.id', 'f.createdAt' and 'f.updatedAt'.
+
+
+        Properties initiated with 'p.' are used to access values in the stored feature which are
+        under the 'properties' property. Use it as a shorthand accessor for 'properties' values.
+
+
+        The format should follow the specification below
+          * ?p.property_name_1=property_value_1&f.special_property_name_1=special_property_value_1
+
+
+        For example, the above query, the Features are filtered by
+        'property' AND 'special property' equals to their respective values.
+
+
+        While in the following example
+          * ?p.property_name_1=value_1,value_2
+
+
+        The resulting Features list contains all elements having value_1 OR value_2.
+
+
+        Additionally, to the operators used in the examples above, the query can be written,
+        with the same semantic, by using the long operators: "=gte=", "=lte=", "=gt=", "=lt=" and "=cs=".
+        The following queries yield the same result:
+          * ?p.property_name_1>=10
+          * ?p.property_name_1=gte=10
+
+
+        The available operators are:
+          - "=" - equals
+          - "!=" - not equals
+          - "=.null" - is null
+          - "!=.null" - is not null
+          - ">=" or "=gte=" - greater than or equals
+          - "<=" or "=lte=" - less than or equals
+          - ">" or "=gt=" - greater than
+          - "<" or "=lt=" - less than
+          - "@>" or "=cs=" - Array contains
+      explode: true
+      schema:
+        type: object
+        example:
+          p.some_property: '.null'
+        additionalProperties:
+          type: string
     RemoveTags:
       name: removeTags
       in: query
@@ -887,13 +956,6 @@ components:
         type: array
         items:
           type: string
-    PrefixId:
-      name: prefixId
-      in: query
-      description: If set all feature IDs are prefixed with the provided string.
-      required: false
-      schema:
-        type: string
     South:
       name: south
       in: query

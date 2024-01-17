@@ -405,4 +405,381 @@ class ReadFeaturesByBBoxTest extends ApiTest {
         .hasStreamIdHeader(streamId)
         .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
   }
+
+  @Test
+  void tc0716_testBBox2WithSearchOnStringEqualNumberEqual() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (String equals, Number equals)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.speedLimit='70'&p.length=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0716_BBox2_PropStrEqualNumEqual/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0717_testBBox2WithSearchOnStringNotEqualNumberNotEqual() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (String Not equals, Number Not equals)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.speedLimit!='70'&p.length!=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0717_BBox2_PropStrNotEqualNumNotEqual/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0718_testBBox2WithSearchOnFieldNullNumberEqual() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Field Missing, Number Equals)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.direction=.null&p.length=10";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0718_BBox2_PropFieldNullNumEqual/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0719_testBBox2WithSearchOnFieldNotNullNumberGreater() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Field Not Null, Number greater)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.direction!=.null&p.length=gt=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0719_BBox2_PropFieldNotNullNumGreater/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0720_testBBox2WithSearchOnNumberGTE() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Number greater than or equal to)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.length=gte=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0720_BBox2_PropNumGTE/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0721_testBBox2WithSearchOnNumberLTE() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Number lesser than or equal to)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.length=lte=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0721_BBox2_PropNumLTE/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0722_testBBox2WithSearchOnNumberGT() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Number greater than)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.length=gt=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0722_BBox2_PropNumGT/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0723_testBBox2WithSearchOnNumberLT() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Number lesser than)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.length=lt=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0723_BBox2_PropNumLT/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0724_testBBox2WithSearchOnArrayContains() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Array "contains")
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.references=cs=%s,%s".formatted(
+            urlEncoded("{\"id\":\"urn:here::here:Topology:1\"}"),
+            urlEncoded("{\"id\":\"urn:here::here:Topology:2\"}")
+    );
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0724_BBox2_PropArrayContains/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0725_testBBox2WithSearchOnObjectContains() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Object "contains")
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "%s=cs=%s".formatted(
+            urlEncoded("p.@ns:com:here:mom:meta"),
+            urlEncoded("{\"sourceId\":\"Task_2\"}")
+    );
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0725_BBox2_PropObjectContains/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0726_testBBox2WithSearchUsingInvalidDelimiter() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate graceful error returned when BBox parameters are valid
+    // but property search parameters has invalid delimiter
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String tagsQueryParam = "tags=%s,%s".formatted(
+            urlEncoded("@ThRee"),
+            urlEncoded("@Four")
+    );
+    final String propQueryParam = "p.length=gte=10+0.5"; // invalid delimiter +
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0726_BBox2_PropInvalidDelimiter/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + tagsQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(400)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0727_testBBox2WithSearchUsingInvalidStringOperation() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate graceful error returned when BBox parameters are valid
+    // but property search parameters has invalid operation on String value
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String tagsQueryParam = "tags=%s,%s".formatted(
+            urlEncoded("@ThRee"),
+            urlEncoded("@Four")
+    );
+    final String propQueryParam = "p.speedLimit=gte='60'"; // invalid operation =gte= on String
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0727_BBox2_PropInvalidStringOperation/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + tagsQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(400)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0728_testBBox2WithPropWithTags() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with all the given filter parameters
+    // (i.e. BBox co-ordinates, Tags search, Prop search)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String tagsQueryParam = "tags=%s,%s".formatted(
+            urlEncoded("@ThRee"),
+            urlEncoded("@Four")
+    );
+    final String propQueryParam = "p.length=gt=10.5";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0728_BBox2_Prop_Tags/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + tagsQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0729_testBBox2WithPropNoMatch() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate NO features returned when BBox coordinates and Tags filters are matching
+    // but given property search filter doesn't match any features
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String tagsQueryParam = "tags=%s,%s".formatted(
+            urlEncoded("@ThRee"),
+            urlEncoded("@Four")
+    );
+    final String propQueryParam = "p.length=gt=12"; // No features should match this condition
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0729_BBox2_PropNoMatch/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + tagsQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc0730_testBBox2WithPropBoolEqual() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox and Search conditions (Boolean equals)
+
+    // Given: Features By BBox request (against configured space)
+    final String bboxQueryParam = "west=8.6476&south=50.1175&east=8.6729&north=50.1248";
+    final String propQueryParam = "p.isBidirectional=true";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBox/TC0730_BBox2_PropBoolEqual/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient
+            .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam + "&" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+
+
+
+
+
 }

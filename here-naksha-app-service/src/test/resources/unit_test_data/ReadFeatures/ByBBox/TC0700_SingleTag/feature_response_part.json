@@ -76,8 +76,31 @@
       "type": "Feature",
       "properties": {
         "speedLimit": "60",
+        "length": 10,
+        "isBidirectional": true,
         "@ns:com:here:xyz": {
           "tags": [ "one", "two", "three", "four", "five", "six" ]
+        },
+        "references": [
+          {
+            "id": "urn:here::here:Topology:1",
+            "spaceId": "roadtopology",
+            "featureType": "Topology"
+          },
+          {
+            "id": "urn:here::here:Topology:2",
+            "spaceId": "roadtopology",
+            "featureType": "Topology"
+          }
+        ],
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
         }
       },
       "geometry": {

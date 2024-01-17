@@ -20,7 +20,9 @@ package com.here.naksha.lib.core.models.storage;
 
 import static com.here.naksha.lib.core.util.StringCache.string;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -44,14 +46,40 @@ public class PRef {
     return this;
   }
 
-  static final PRef ID = new PRef("id");
-  static final PRef APP_ID = new PRef("properties", "@ns:com:here:xyz", "app_id");
-  static final PRef AUTHOR = new PRef("properties", "@ns:com:here:xyz", "author");
-  static final PRef UUID = new PRef("properties", "@ns:com:here:xyz", "uuid");
-  static final PRef MRID = new PRef("properties", "@ns:com:here:xyz", "mrid");
-  static final PRef GRID = new PRef("properties", "@ns:com:here:xyz", "qrid");
-  static final PRef TXN = new PRef("properties", "@ns:com:here:xyz", "txn");
-  static final PRef TXN_NEXT = new PRef("properties", "@ns:com:here:xyz", "txn_next");
+  public static final String[] ID_PROP_PATH = new String[] {"id"};
+  public static final String[] APP_ID_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "app_id"};
+  public static final String[] AUTHOR_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "author"};
+  public static final String[] UUID_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "uuid"};
+  public static final String[] MRID_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "mrid"};
+  public static final String[] GRID_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "qrid"};
+  public static final String[] TXN_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "txn"};
+  public static final String[] TXN_NEXT_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "txn_next"};
+  public static final String[] TAGS_PROP_PATH = new String[] {"properties", "@ns:com:here:xyz", "tags"};
+
+  static final PRef ID = new PRef(ID_PROP_PATH);
+  static final PRef APP_ID = new PRef(APP_ID_PROP_PATH);
+  static final PRef AUTHOR = new PRef(AUTHOR_PROP_PATH);
+  static final PRef UUID = new PRef(UUID_PROP_PATH);
+  static final PRef MRID = new PRef(MRID_PROP_PATH);
+  static final PRef GRID = new PRef(GRID_PROP_PATH);
+  static final PRef TXN = new PRef(TXN_PROP_PATH);
+  static final PRef TXN_NEXT = new PRef(TXN_NEXT_PROP_PATH);
+  static final PRef TAGS = new PRef(TAGS_PROP_PATH);
+
+  // Mapping of JSON Prop path to PRef object
+  public static final Map<String[], PRef> PATH_TO_PREF_MAPPING = new HashMap<>() {};
+
+  static {
+    PATH_TO_PREF_MAPPING.put(ID_PROP_PATH, ID);
+    PATH_TO_PREF_MAPPING.put(APP_ID_PROP_PATH, APP_ID);
+    PATH_TO_PREF_MAPPING.put(AUTHOR_PROP_PATH, AUTHOR);
+    PATH_TO_PREF_MAPPING.put(UUID_PROP_PATH, UUID);
+    PATH_TO_PREF_MAPPING.put(MRID_PROP_PATH, MRID);
+    PATH_TO_PREF_MAPPING.put(GRID_PROP_PATH, GRID);
+    PATH_TO_PREF_MAPPING.put(TXN_PROP_PATH, TXN);
+    PATH_TO_PREF_MAPPING.put(TXN_NEXT_PROP_PATH, TXN_NEXT);
+    PATH_TO_PREF_MAPPING.put(TAGS_PROP_PATH, TAGS);
+  }
 
   private @Nullable String tagName;
 
@@ -138,7 +166,7 @@ public class PRef {
   public static @NotNull PRef tag(@NotNull CharSequence name) {
     final String tagName = string(name);
     assert tagName != null;
-    return new PRef("properties", "@ns:com:here:xyz", "tags").withTagName(tagName);
+    return new PRef(TAGS_PROP_PATH).withTagName(tagName);
   }
 
   /**

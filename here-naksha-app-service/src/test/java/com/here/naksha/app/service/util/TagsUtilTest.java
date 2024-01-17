@@ -28,23 +28,23 @@ import static org.junit.jupiter.api.Named.named;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.here.naksha.app.common.assertions.POpAssertion;
-import com.here.naksha.app.service.http.apis.ApiUtil;
+import com.here.naksha.app.service.http.ops.TagsUtil;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.payload.events.QueryParameterDecoder;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.OpType;
 import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.POpType;
+
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assertions;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class ApiUtilTest {
+class TagsUtilTest {
 
   @Test
   void testBuildOperationForTagsQueryParam() {
@@ -54,7 +54,7 @@ class ApiUtilTest {
         + "&tags=six,seven,eight+nine"
         + "&tags=ten+eleven,twelve,thirteen"
         + "&tags=fourteen");
-    final POp op = ApiUtil.buildOperationForTagsQueryParam(params);
+    final POp op = TagsUtil.buildOperationForTagsQueryParam(params);
     assertThatOperation(op).hasType(OpType.OR);
     final List<POp> orList = op.children();
 
@@ -108,7 +108,7 @@ class ApiUtilTest {
   @MethodSource("simpleTagsSample")
   void shouldParseSimpleTags(String queryString, Consumer<POpAssertion> assertion) {
     QueryParameterList queryParameters = new QueryParameterList(queryString);
-    POp op = ApiUtil.buildOperationForTagsQueryParam(queryParameters);
+    POp op = TagsUtil.buildOperationForTagsQueryParam(queryParameters);
     assertion.accept(new POpAssertion(op));
   }
 
@@ -119,7 +119,7 @@ class ApiUtilTest {
     final QueryParameterList params = new QueryParameterList(queryWithSurroundingDelimiters);
 
     // Then
-    assertThrows(XyzErrorException.class, () -> ApiUtil.buildOperationForTagsQueryParam(params));
+    assertThrows(XyzErrorException.class, () -> TagsUtil.buildOperationForTagsQueryParam(params));
   }
 
   private static Stream<Arguments> simpleTagsSample() {

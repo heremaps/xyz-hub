@@ -1,13 +1,11 @@
 package com.here.naksha.app.common.assertions;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import com.here.naksha.lib.core.models.storage.*;
 
-import com.here.naksha.lib.core.models.storage.OpType;
-import com.here.naksha.lib.core.models.storage.POp;
-import com.here.naksha.lib.core.models.storage.POpType;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public record POpAssertion(POp subject) {
 
@@ -28,6 +26,35 @@ public record POpAssertion(POp subject) {
   public POpAssertion hasTagName(String expectedTagName) {
     assertNotNull(subject.getPropertyRef());
     assertEquals(expectedTagName, subject.getPropertyRef().getTagName());
+    return this;
+  }
+
+  public POpAssertion hasPRef(boolean indexed) {
+    final PRef pref = subject.getPropertyRef();
+    assertNotNull(pref);
+    assertTrue( indexed ? !(pref instanceof NonIndexedPRef) : pref instanceof NonIndexedPRef);
+    return this;
+  }
+
+  public POpAssertion hasPRefWithPath(String[] path) {
+    hasPRef(true);
+    assertArrayEquals(path, subject.getPropertyRef().getPath().toArray());
+    return this;
+  }
+
+  public POpAssertion hasNonIndexedPRefWithPath(String[] path) {
+    hasPRef(false);
+    assertArrayEquals(path, subject.getPropertyRef().getPath().toArray());
+    return this;
+  }
+
+  public POpAssertion hasValue(Number value) {
+    assertEquals(value, subject.getValue());
+    return this;
+  }
+
+  public POpAssertion hasValue(String value) {
+    assertEquals(value, subject.getValue());
     return this;
   }
 

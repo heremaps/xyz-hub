@@ -92,13 +92,15 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
         case DELETE_BY_ID -> executeDeleteFeature();
         default -> executeUnsupported();
       };
-    } catch (XyzErrorException ex) {
-      return verticle.sendErrorResponse(routingContext, ex.xyzError, ex.getMessage());
     } catch (Exception ex) {
-      // unexpected exception
-      logger.error("Exception processing Http request. ", ex);
-      return verticle.sendErrorResponse(
-          routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
+      if (ex instanceof XyzErrorException xyz) {
+        logger.warn("Known exception while processing request. ", ex);
+        return verticle.sendErrorResponse(routingContext, xyz.xyzError, xyz.getMessage());
+      } else {
+        logger.error("Unexpected error while processing request. ", ex);
+        return verticle.sendErrorResponse(
+            routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
+      }
     }
   }
 

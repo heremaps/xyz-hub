@@ -199,7 +199,7 @@ public final class QueryOperation {
       if (delimiterString.length() > 0) {
         opsByDelimiters.put(delimiterString, op);
       }
-      maxLength.set(key.length());
+      maxLength.set(Math.max(maxLength.get(), key.length()));
       return op;
     } finally {
       mutex.unlock();
