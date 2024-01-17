@@ -27,9 +27,7 @@ import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
-import com.here.xyz.hub.config.ConnectorConfigClient;
-import com.here.xyz.hub.config.SpaceConfigClient;
-import com.here.xyz.hub.config.TagConfigClient;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
@@ -48,7 +46,7 @@ public class SpaceConnectorBasedHandler {
     return getAndValidateSpace(marker, e.getSpace())
       .compose(authorizationFunction)
       .compose(space -> injectEventParameters(marker, e, space))
-      .compose(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
+      .compose(space -> Service.connectorConfigClient.get(marker, space.getStorage().getId()))
       .map(RpcClient::getInstanceFor)
       .recover(t -> t instanceof HttpException
           ? Future.failedFuture(t)
@@ -95,7 +93,7 @@ public class SpaceConnectorBasedHandler {
   }
 
   private static Future<Long> getMinTag(Marker marker, String space){
-      return TagConfigClient.getInstance().getTags(marker,space)
+      return Service.tagConfigClient.getTags(marker,space)
             .compose(r -> r == null ? Future.succeededFuture(null)
                     : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
             )
@@ -106,7 +104,7 @@ public class SpaceConnectorBasedHandler {
   }
 
   public static Future<Space> getAndValidateSpace(Marker marker, String spaceId) {
-    return SpaceConfigClient.getInstance().get(marker, spaceId)
+    return Service.spaceConfigClient.get(marker, spaceId)
         .compose(space -> space == null
             ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + spaceId + "' does not exist!"))
             : Future.succeededFuture(space))
