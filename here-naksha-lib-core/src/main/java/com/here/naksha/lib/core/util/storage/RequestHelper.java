@@ -120,6 +120,23 @@ public class RequestHelper {
   }
 
   /**
+   * Helper method to create WriteFeatures request for updating multiple features.
+   *
+   * @param collectionName name of the storage collection
+   * @param features       feature object array to be updated
+   * @param <FEATURE>      any object extending XyzFeature
+   * @return WriteFeatures request that can be used against IStorage methods
+   */
+  public static @NotNull <FEATURE extends XyzFeature> WriteXyzFeatures updateFeaturesRequest(
+      final @NotNull String collectionName, final @NotNull List<FEATURE> features) {
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionName);
+    for (FEATURE feature : features) {
+      request.update(feature);
+    }
+    return request;
+  }
+
+  /**
    * Helper method to create WriteFeatures request for upserting multiple features.
    *
    * @param collectionName name of the storage collection

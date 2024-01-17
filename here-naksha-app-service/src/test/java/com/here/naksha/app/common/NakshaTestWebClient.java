@@ -90,6 +90,17 @@ public class NakshaTestWebClient {
     return sendOnce(putRequest);
   }
 
+  public HttpResponse<String> patch(String subPath, String jsonBody, String streamId)
+          throws URISyntaxException, IOException, InterruptedException {
+    HttpRequest patchRequest = requestBuilder()
+            .uri(nakshaPath(subPath))
+            .method("PATCH",BodyPublishers.ofString(jsonBody))
+            .header("Content-Type", "application/json")
+            .header(HDR_STREAM_ID, streamId)
+            .build();
+    return sendOnce(patchRequest);
+  }
+
   public HttpResponse<String> delete(String subPath, String streamId)
       throws URISyntaxException, IOException, InterruptedException {
     HttpRequest deleteRequest = requestBuilder()

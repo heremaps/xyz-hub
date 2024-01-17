@@ -31,9 +31,9 @@ import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
-import java.io.IOException;
 import java.util.Map;
 
+import static com.here.naksha.lib.core.util.diff.PatcherUtils.removeAllRemoveOp;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings({"rawtypes", "ConstantConditions"})
@@ -102,12 +102,9 @@ class PatcherTest {
     assertTrue(((MapDiff) nestedArrayDiff34.get(2)).get("willBeDeletedProperty") instanceof RemoveOp);
 
     // Modify the whole difference to get rid of all RemoveOp
-    mapDiff34.remove("firstToBeDeleted");
-    nestedMapDiff34.remove("willBeDeleted");
-    ((MapDiff) nestedArrayDiff34.get(2)).remove("willBeDeletedProperty");
-    nestedArrayDiff34.remove(3);
+    Difference newDiff34 = removeAllRemoveOp(mapDiff34);
+    final JsonObject patchedf3 = Patcher.patch(f3,newDiff34);
 
-    final JsonObject patchedf3 = Patcher.patch(f3,mapDiff34);
     assertNotNull(patchedf3);
 
     final JsonObject expectedPatchedf3 =
@@ -162,16 +159,8 @@ class PatcherTest {
     final Difference diff36 = Patcher.getDifference(f3, f6);
     assertNotNull(diff36);
     // Simulate REST API behaviour, ignore all RemoveOp type of Difference
-    final MapDiff mapDiff36 = (MapDiff) diff36;
-    assertTrue(mapDiff36.get("foo") instanceof RemoveOp);
-    mapDiff36.remove("foo");
-    assertTrue(mapDiff36.get("willBeUpdated") instanceof RemoveOp);
-    mapDiff36.remove("willBeUpdated");
-    assertTrue(mapDiff36.get("firstToBeDeleted") instanceof RemoveOp);
-    mapDiff36.remove("firstToBeDeleted");
-    assertTrue(mapDiff36.get("map") instanceof RemoveOp);
-    mapDiff36.remove("map");
-    final JsonObject patchedf3Tof6 = Patcher.patch(f3, diff36);
+    final Difference diff36NoRemove = removeAllRemoveOp(diff36);
+    final JsonObject patchedf3Tof6 = Patcher.patch(f3, diff36NoRemove);
 
     final JsonObject expectedPatchedf3 =
             JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_3_patched_with_6_no_remove_op.json"), JsonObject.class);
@@ -187,7 +176,7 @@ class PatcherTest {
   }
 
   @Test
-  void testIgnoreAll() throws IOException {
+  void testIgnoreAll() {
     final XyzFeature f1 =
         JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_1.json"), XyzFeature.class);
     assertNotNull(f1);

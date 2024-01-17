@@ -45,6 +45,7 @@ public class WriteFeatureApi extends Api {
     rb.operation("putFeature").handler(this::updateFeature);
     rb.operation("deleteFeatures").handler(this::deleteFeatures);
     rb.operation("deleteFeature").handler(this::deleteFeature);
+    rb.operation("patchFeature").handler(this::patchFeature);
   }
 
   @Override
@@ -68,6 +69,10 @@ public class WriteFeatureApi extends Api {
 
   private void deleteFeature(final @NotNull RoutingContext routingContext) {
     startWriteFeatureApiTask(DELETE_BY_ID, routingContext);
+  }
+
+  private void patchFeature(final @NotNull RoutingContext routingContext) {
+    startWriteFeatureApiTask(PATCH_BY_ID, routingContext);
   }
 
   private void startWriteFeatureApiTask(WriteFeatureApiReqType reqType, RoutingContext routingContext) {

@@ -621,6 +621,44 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+    patch:
+      tags:
+        - Write Features
+      summary: Patch feature with specified ID in the space
+      description: >
+        This method allows to patch one feature in the storage associated (directly or via event handler) with the space.
+        If the feature with that ID does not exist, HTTP code 404 is returned.
+        If UUID is specified and matches the current UUID stored in Naksha, the feature will be updated.
+        If the UUID does not match, HTTP code 409 will be returned.
+      operationId: patchFeature
+      parameters:
+        - $ref: '#/components/parameters/AddTags'
+        - $ref: '#/components/parameters/RemoveTags'
+      requestBody:
+        $ref: '#/components/requestBodies/FeatureRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
     delete:
       tags:
         - Write Features

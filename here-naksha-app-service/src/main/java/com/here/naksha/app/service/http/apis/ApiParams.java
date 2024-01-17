@@ -124,6 +124,16 @@ public final class ApiParams {
     }
   }
 
+  public static void validateFeatureId(
+      final @NotNull RoutingContext routingContext, final @NotNull String idFromRequest) {
+    final String featureId = ApiParams.extractMandatoryPathParam(routingContext, FEATURE_ID);
+    if (!featureId.equals(idFromRequest)) {
+      throw new XyzErrorException(
+          XyzError.ILLEGAL_ARGUMENT,
+          "URI path parameter featureId is not the same as id in feature request body.");
+    }
+  }
+
   public static QueryParameterList queryParamsFromRequest(final @NotNull RoutingContext routingContext) {
     return (routingContext.request().query() != null)
         ? new QueryParameterList(routingContext.request().query())
