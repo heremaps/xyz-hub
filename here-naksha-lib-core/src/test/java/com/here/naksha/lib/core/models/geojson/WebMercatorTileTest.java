@@ -146,4 +146,36 @@ public class WebMercatorTileTest {
           "Mismatch in Z ordinate for co-ordinate at index position " + i);
     }
   }
+
+  @Test
+  public void testExtendedGeometryWithMargin() {
+    final String tileId = "120203302030322200";
+    final int margin = 20;
+    final double[][] expectedCoordinates = new double[][] {
+            {8.657119274139404, 50.12315079403522, Double.NaN},
+            {8.657119274139404, 50.12416882809549, Double.NaN},
+            {8.65870714187622, 50.12416882809549, Double.NaN},
+            {8.65870714187622, 50.12315079403522, Double.NaN},
+            {8.657119274139404, 50.12315079403522, Double.NaN},
+    };
+    final Geometry geo = WebMercatorTile.forQuadkey(tileId).getExtendedBBoxAsPolygon(margin).getGeometry();
+    final Coordinate[] coordinates = geo.getCoordinates();
+    assertNotNull(coordinates);
+    assertEquals(expectedCoordinates.length, coordinates.length, "Mismatch in number of coordinates.");
+    // match each XYZ co-ordinate
+    for (int i = 0; i < expectedCoordinates.length; i++) {
+      assertEquals(
+              expectedCoordinates[i][0],
+              coordinates[i].getOrdinate(Coordinate.X),
+              "Mismatch in X ordinate for co-ordinate at index position " + i);
+      assertEquals(
+              expectedCoordinates[i][1],
+              coordinates[i].getOrdinate(Coordinate.Y),
+              "Mismatch in Y ordinate for co-ordinate at index position " + i);
+      assertEquals(
+              expectedCoordinates[i][2],
+              coordinates[i].getOrdinate(Coordinate.Z),
+              "Mismatch in Z ordinate for co-ordinate at index position " + i);
+    }
+  }
 }

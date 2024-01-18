@@ -32,16 +32,18 @@ public class SpatialUtil {
 
   private SpatialUtil() {}
 
-  public static @NotNull SOp buildOperationForTile(final @NotNull String tileType, final @NotNull String tileId) {
+  public static @NotNull SOp buildOperationForTile(
+      final @NotNull String tileType, final @NotNull String tileId, final int margin) {
     try {
       if (!TILE_TYPE_QUADKEY.equals(tileType)) {
         throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Tile type " + tileType + " not supported");
       }
-      final Geometry geo =
-          WebMercatorTile.forQuadkey(tileId).getAsPolygon().getGeometry();
+      final Geometry geo = WebMercatorTile.forQuadkey(tileId)
+          .getExtendedBBoxAsPolygon(margin)
+          .getGeometry();
       return SOp.intersects(geo);
-    } catch (IllegalArgumentException ex) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, ex.getMessage());
+    } catch (Exception ex) {
+      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Error interpreting tile input: " + ex.getMessage());
     }
   }
 

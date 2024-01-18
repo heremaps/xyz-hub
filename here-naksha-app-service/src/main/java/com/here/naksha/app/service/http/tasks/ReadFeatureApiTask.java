@@ -50,6 +50,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
   // predefined set of query param keys other than property-search params
   private static final Set<String> BBOX_NON_PROP_PARAMS = Set.of(WEST, NORTH, EAST, SOUTH, LIMIT, TAGS);
   private static final Set<String> SEARCH_NON_PROP_PARAMS = Set.of(LIMIT, TAGS);
+  private static final Set<String> TILE_NON_PROP_PARAMS = Set.of(LIMIT, MARGIN, TAGS);
 
   public enum ReadFeatureApiReqType {
     GET_BY_ID,
@@ -182,15 +183,18 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // Parse and validate Query parameters
     final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
     // NOTE : queryParams can be null, but that is acceptable. We will move on with default values.
+    final long margin = ApiParams.extractQueryParamAsLong(queryParams, MARGIN, false);
+    ApiParams.validateParamRange(MARGIN, margin, 0, Integer.MAX_VALUE);
     long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
     // validate values
     limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
 
     // Prepare read request based on parameters supplied
-    final SOp geoOp = SpatialUtil.buildOperationForTile(tileType, tileId);
+    final SOp geoOp = SpatialUtil.buildOperationForTile(tileType, tileId, (int) margin);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
+    final POp propSearchOp = PropertyUtil.buildOperationForPropertySearchParams(queryParams, TILE_NON_PROP_PARAMS);
     final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(geoOp);
-    if (tagsOp != null) rdRequest.setPropertyOp(tagsOp);
+    RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 
     // Forward request to NH Space Storage reader instance
     final Result result = executeReadRequestFromSpaceStorage(rdRequest);

@@ -28,6 +28,20 @@
         "type":"Point",
         "coordinates":[ 8.65723, 50.1234, 0.0 ]
       }
+    },
+    {
+      "id": "my-custom-id-800-8",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "80",
+        "@ns:com:here:xyz": {
+          "tags": [ "non-matching-tag", "@ThRee", "same-tags-as-7-but-within-tile-margin-20" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.65713, 50.1234, 0.0 ]
+      }
     }
   ]
 }
