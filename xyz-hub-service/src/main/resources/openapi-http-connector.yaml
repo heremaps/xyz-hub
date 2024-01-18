@@ -966,7 +966,7 @@ components:
           type: "string"
           enum:
             - "START"
-            - "ABORT"
+            - "CANCEL"
             - "RESUME"
         state:
           type: "string"
