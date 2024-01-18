@@ -682,10 +682,18 @@ components:
           example: This job imports some GeoJSON data to my space
           type: string
         source:
+          description: >-
+            A description of the resource out of which to read the data for the processing of the job. 
+            Depending on the resource type there are different options which could be defined.
+            E.g. From where to read the input data and how to filter it
           oneOf:
             - $ref: '#/components/schemas/SourceSpaceDataset'
             - $ref: '#/components/schemas/SourceFilesDataset'
         target:
+          description: >-
+            A description of the resource into which to write / store the processed data.
+            Depending on the resource type are different options which could be defined.
+            E.g. which format to use, how to group the data or how to chunk output files
           oneOf:
             - $ref: '#/components/schemas/TargetFilesDataset'
             - $ref: '#/components/schemas/SpaceDataset'
@@ -697,6 +705,9 @@ components:
         target:
           type: Files
     DatasetDescription:
+      description: >-
+        A description of the resource which can be used as source or target of a job.
+        Depending on the resource type there are different options which could be defined.
       type: object
       discriminator:
         propertyName: type
@@ -714,6 +725,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/DatasetDescription'
         - type: object
+          description: The files dataset depicts a set of files which can be adressed by the user for uploading / downloading data.
           properties:
             type:
               description: The type is "Files"
@@ -725,6 +737,9 @@ components:
       allOf:
         - $ref: '#/components/schemas/FilesDataset'
         - type: object
+          description: >-
+            The source files dataset depicts a set of files which can be adressed by the user for uploading data.
+            The options in "inputSettings" can be used to specify the input format the job should expect etc.
           properties:
             inputSettings:
               $ref: '#/components/schemas/FileInputSettings'
@@ -732,6 +747,9 @@ components:
       allOf:
         - $ref: '#/components/schemas/FilesDataset'
         - type: object
+          description: >-
+            The target files dataset depicts a set of files which can be adressed by the user for downloading data.
+            The options in "outputSettings" can be used to specify the desired output format the job should produce etc.
           properties:
             outputSettings:
               $ref: '#/components/schemas/FileOutputSettings'
@@ -739,6 +757,9 @@ components:
       type: object
       properties:
         format:
+          description: >-
+            The input format of the files as it should be expected by the job.
+            Depending on the format type, there are different options which could be specified.
           oneOf:
             - $ref: '#/components/schemas/GeoJsonFormat'
             - $ref: '#/components/schemas/GeoParquetFormat'
@@ -746,6 +767,9 @@ components:
       type: object
       properties:
         format:
+          description: >-
+            The output format of the files as it should be expected by the job.
+            Depending on the format type, there are different options which could be specified.
           oneOf:
             - $ref: '#/components/schemas/GeoJsonFormat'
             - $ref: '#/components/schemas/GeoParquetFormat'
@@ -755,6 +779,9 @@ components:
             - $ref: '#/components/schemas/FeatureKeyPartitioning'
     OutputPartitioning:
       type: object
+      description: >-
+        A specification about how to partition the resulting output data.
+        Depending on the partitioning type, there are different options which could be specified.
       discriminator:
         propertyName: type
         mapping:
@@ -764,8 +791,8 @@ components:
         - type
       properties:
         type:
-          description: The type of the file format
-          example: GeoJson
+          description: The partitioning type
+          example: Tiles
           type: string
     TilePartitioning:
       allOf:
@@ -804,7 +831,7 @@ components:
             key:
               type: string
               description: >
-                A dot separated string to be used as JSON path
+                A dot separated string to be used as JSON path to the property which should be used as partitioning key.
               example: mySubObject.myValue
     FileFormat:
       type: object
@@ -824,6 +851,9 @@ components:
       allOf:
         - $ref: '#/components/schemas/FileFormat'
         - type: object
+          description: >-
+            Describes that the file format is a multi-line GeoJSON.
+            That means that each line of the file contains a valid GeoJSON feature or FeatureCollection (depending on the "entityTypePerLine" setting)
           properties:
             type:
               description: The type is "GeoJson"
@@ -832,12 +862,19 @@ components:
               enum:
                 - GeoJson
             entityTypePerLine:
+              description: >-
+                Describes the entity type of each line in the multi-line GeoJSON file.
+                If used as a format for output files for a job in combination with output partitioning, then choosing the "FeatureCollection"
+                results in an aggregation of the features of one partition into one feature collection.
               type: string
               enum:
                 - Feature
                 - FeatureCollection
               example: Feature
             multiLineStandard:
+              description: >-
+                Describes which line-separator should be used. "NEW_LINE" is the default and depicts a simple new-line char while
+                RFC7464 relates to https://datatracker.ietf.org/doc/html/rfc7464
               type: string
               enum:
                 - RFC7464
@@ -847,6 +884,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/FileFormat'
         - type: object
+          description: Describes that the file format is geo parquet.
           properties:
             type:
               description: The type is "GeoParquet"
@@ -858,6 +896,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/DatasetDescription'
         - type: object
+          description: Describes that the data should be read from or written to an XYZ space
           properties:
             type:
               description: The type is "Space"
@@ -871,6 +910,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/SpaceDataset'
         - type: object
+          description: Describes that the data should be read from an XYZ space
           properties:
             filters:
               $ref: '#/components/schemas/Filters'
@@ -919,6 +959,20 @@ components:
           $ref: '#/components/schemas/Context'
     Context:
       type: string
+      description: >-
+        Only applicable for composite spaces.
+        Defines the part of the composite space on which to perform the read-action.
+        Feature modifications will always only be written into the extension.
+        
+        - DEFAULT: The default setting which will be used when no context is defined.
+        Specifies that, when reading, the data from the composite space components (extended space & extension)
+        should be merged together in the way that features from the extension are overlaying the according features
+        of the extended space.
+        
+        - EXTENSION: Specifies that, when reading, only the data of the extension should be returned.
+        
+        - SUPER: Specifies that, when reading, only the data of the extended space should be returned.
+        The action will be performed as if it has been executed on the extended space.
       enum:
         - DEFAULT
         - EXTENSION
@@ -960,9 +1014,18 @@ components:
               - 1622531941945
     JobStatus:
       type: "object"
-      description: "The runtime status of a job contains information about the job's execution and its results"
+      description: >-
+        The runtime status of a job contains information about the job's execution.
       properties:
         desiredAction:
+          description: >-
+            Description of possible actions:
+            
+            - START (Request to start the job execution. Only applicable for jobs which do not start automatically, because they're in state NOT_READY. See description of "state".)
+            
+            - CANCEL (Request to cancel the job execution. This will stop the execution of all tasks of the job. Later the job can be resumed using the RESUME action.)
+            
+            - RESUME (Only applicable to jobs in states CANCELLED or FAILED and being "resumable" - See: state FAILED. Requests to start the execution again. The system will try to continue the execution from the point at which it previously stopped.)
           type: "string"
           enum:
             - "START"
@@ -970,28 +1033,52 @@ components:
             - "RESUME"
         state:
           type: "string"
+          description: >-
+            Description of possible states:
+
+            - NOT_READY (The job is not ready to be started yet as not all pre-conditions are met. E.g. that could be the input data was not provided by the user yet.)
+
+            - SUBMITTED (The job is ready for execution, but was not started yet.)
+
+            - PENDING (The system is trying to start the job, but it is still waiting for free execution resources.)
+
+            - RUNNING (The job execution is currently in progress.)
+
+            - CANCELLING (The job got the signal that it should be cancelled and is currently in the progress of cancelling all its internal steps and performing the clean up work.)
+
+            - CANCELLED (Terminal state. The job was cancelled. That could be done by the request of the job owner, or because the system had to cancel the job. A job can be resumed if its "resumable" flag is true. See: desiredAction: RESUME)
+
+            - FAILED (Terminal state. The job failed, because one of its internal steps failed. A job can be resumed if its "resumable" flag is true. See: desiredAction: RESUME)
+
+            - RESUMING (The job got the signal to resume execution after it was previously cancelled or has failed. The job currently is preparing to start the execution again.)
+
+            - SUCCEEDED (The job is completed. All its work has been done and all outputs are ready.)
           enum:
             - "NOT_READY"
             - "SUBMITTED"
             - "PENDING"
-            - "RESUMING"
             - "RUNNING"
             - "CANCELLING"
             - "CANCELLED"
             - "FAILED"
+            - "RESUMING"
             - "SUCCEEDED"
         lastUpdatedAt:
+          description: A timestamp in milliseconds of when the job's status was updated the last time.
           type: "integer"
           format: "int64"
         startedAt:
+          description: A timestamp in milliseconds of when the job was started.
           type: "integer"
           format: "int64"
         estimatedProgress:
+          description: An estimation of the progress of the job. This is a value between 0 .. 1 where 0 means 0% and 1 means 100%.
           type: "number"
           format: "float"
           minimum: 0
           maximum: 1
         estimatedEndTime:
+          description: A timestamp in milliseconds of when the job most probably will complete its execution. This is a rough estimation and the actual value could differ.
           type: "integer"
           format: "int64"
       example:
