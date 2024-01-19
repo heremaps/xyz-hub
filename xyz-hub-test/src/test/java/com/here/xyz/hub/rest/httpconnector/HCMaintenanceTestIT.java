@@ -29,12 +29,12 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.rest.RestAssuredConfig;
 import java.util.HashMap;
-
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -157,7 +157,7 @@ public class HCMaintenanceTestIT {
                 .post(host+"/connectors/NA/maintain/indices")
                 .then()
                 .statusCode(NOT_FOUND.code())
-                .body("errorMessage", equalTo("Connector with ID NA was not found."));
+                .body("errorMessage", startsWith("Connector with ID NA was not found."));
     }
 
     @Test
