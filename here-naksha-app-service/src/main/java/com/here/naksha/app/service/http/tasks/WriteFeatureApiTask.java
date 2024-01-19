@@ -93,10 +93,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     // Custom execute logic to process input API request based on reqType
     try {
       return switch (this.reqType) {
-          // TODO : POST API needs to act as UPSERT for UI wiring due to backward compatibility.
-          //  It may need to be readjusted, once we better understand difference
-          //  (if there is anything other than PATCH, which is already known)
-        case CREATE_FEATURES -> executeUpsertFeatures();
+        case CREATE_FEATURES -> executeCreateOrPatchFeatures();
         case UPSERT_FEATURES -> executeUpsertFeatures();
         case UPDATE_BY_ID -> executeUpdateFeature();
         case DELETE_FEATURES -> executeDeleteFeatures();
@@ -116,7 +113,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     }
   }
 
-  private @NotNull XyzResponse executeCreateFeatures() throws Exception {
+  private @NotNull XyzResponse executeCreateOrPatchFeatures() throws Exception {
     // Deserialize input request
     final FeatureCollectionRequest collectionRequest = featuresFromRequestBody();
     final List<XyzFeature> features = (List<XyzFeature>) collectionRequest.getFeatures();
@@ -127,24 +124,10 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     // Parse API parameters
     final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
     final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
-    final String prefixId = extractParamAsString(queryParams, PREFIX_ID);
     final List<String> addTags = extractParamAsStringList(queryParams, ADD_TAGS);
     final List<String> removeTags = extractParamAsStringList(queryParams, REMOVE_TAGS);
 
-    // as applicable, modify features based on parameters supplied
-    for (final XyzFeature feature : features) {
-      feature.setIdPrefix(prefixId);
-      addTagsToFeature(feature, addTags);
-      removeTagsFromFeature(feature, removeTags);
-    }
-
-    final WriteXyzFeatures wrRequest = RequestHelper.createFeaturesRequest(spaceId, features);
-
-    // Forward request to NH Space Storage writer instance
-    try (Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest)) {
-      // transform WriteResult to Http FeatureCollection response
-      return transformWriteResultToXyzCollectionResponse(wrResult, XyzFeature.class, false);
-    }
+    return attemptFeaturesPatching(spaceId, features, HttpResponseType.FEATURE_COLLECTION, addTags, removeTags, 0);
   }
 
   private @NotNull XyzResponse executeUpsertFeatures() throws Exception {

@@ -81,14 +81,11 @@ class CreateFeatureTest extends ApiTest {
         .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match")
         .hasInsertedCountMatchingWithFeaturesInRequest(bodyJson)
         .hasInsertedIdsMatchingFeatureIds(null)
-        .hasUuids()
-    ;
+        .hasUuids();
   }
 
   @Test
   void tc0301_testCreateFeaturesWithGivenIds() throws Exception {
-    // NOTE : This test depends on setup done as part of tc0300_testCreateFeaturesWithNewIds
-
     // Test API : POST /hub/spaces/{spaceId}/features
     // Validate features getting created successfully with the given Ids
     String streamId;
@@ -183,8 +180,6 @@ class CreateFeatureTest extends ApiTest {
 
   @Test
   void tc0304_testCreateFeaturesWithRemoveTags() throws Exception {
-    // NOTE : This test depends on setup done as part of tc0300_testCreateFeaturesWithNewIds
-
     // Test API : POST /hub/spaces/{spaceId}/features
     // Validate features getting created successfully with the given removeTags param
     String streamId;
@@ -217,12 +212,9 @@ class CreateFeatureTest extends ApiTest {
 
   @Test
   void tc0305_testCreateFeaturesWithDupIds() throws Exception {
-    // NOTE : This test depends on setup done as part of tc0300_testCreateFeaturesWithNewIds
-
     // Test API : POST /hub/spaces/{spaceId}/features
     // Validate request is successful, when features with the same ID submitted again (replacing existing features)
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: New Features in place
@@ -232,14 +224,17 @@ class CreateFeatureTest extends ApiTest {
     assertEquals(200, response.statusCode(), "ResCode mismatch");
 
     // When: Create Features request is submitted with the same Ids
-    final String expectedBodyPart = loadFileOrFail("CreateFeatures/TC0305_createFeaturesWithDupIds/feature_response_part.json");
-    response = getNakshaClient().post("hub/spaces/" + SPACE_ID + "/features", bodyJson, streamId);
+    final String request = loadFileOrFail("CreateFeatures/TC0305_createFeaturesWithDupIds/request.json");
+    response = getNakshaClient().post("hub/spaces/" + SPACE_ID + "/features", request, streamId);
 
     // Then: Perform assertions
+    final String expectedBodyPart = loadFileOrFail("CreateFeatures/TC0305_createFeaturesWithDupIds/feature_response_part.json");
     assertThat(response)
         .hasStatus(200)
         .hasStreamIdHeader(streamId)
-        .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match");
+        .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match")
+            .hasMatchingInsertedCount(2)
+            .hasInsertedIdsMatchingFeatureIds(null);
   }
 
   @Test
@@ -269,12 +264,9 @@ class CreateFeatureTest extends ApiTest {
 
   @Test
   void tc0308_testCreateFeaturesWithNoSpace() throws Exception {
-    // NOTE : This test depends on setup done as part of tc0300_testCreateFeaturesWithNewIds
-
     // Test API : POST /hub/spaces/{spaceId}/features
     // Validate request gets failed if we attempt creating features on missing space
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Create Features request (against missing space)
@@ -312,17 +304,19 @@ class CreateFeatureTest extends ApiTest {
     final XyzProperties newPropsOldUuid = feature.getProperties();
     final XyzProperties newPropsOutdatedUuid = newPropsOldUuid.deepClone();
     final XyzProperties nullUuidProps = new XyzProperties();
-    // Old UUID
+    // Correct UUID
     newPropsOldUuid.put("speedLimit", "30");
-    // New UUID
+    newPropsOldUuid.put("newProperty", "was patched in");
+    newPropsOldUuid.remove("existingProperty");
+    // Now correct but will be wrong UUID
     newPropsOutdatedUuid.put("speedLimit", "120");
     // Null UUID
     nullUuidProps.put("uuid", null);
-    nullUuidProps.put("overriden", "yesyesyes");
+    nullUuidProps.put("patchedWithNullUUID", "yesyesyes");
 
     // Execute request, correct UUID, should success
     feature.setProperties(newPropsOldUuid);
-    final HttpResponse<String> responseUpdateSuccess = getNakshaClient()
+    final HttpResponse<String> responsePatchSuccess = getNakshaClient()
         .post(
             "hub/spaces/" + SPACE_ID + "/features",
             """
@@ -333,14 +327,11 @@ class CreateFeatureTest extends ApiTest {
             streamId);
 
     // Perform first assertions
-    assertEquals(200, responseUpdateSuccess.statusCode(), "ResCode mismatch");
-    assertEquals(streamId, getHeader(responseUpdateSuccess, HDR_STREAM_ID), "StreamId mismatch");
-    final XyzFeatureCollection responseFeatureCollection =
-        parseJson(responseUpdateSuccess.body(), XyzFeatureCollection.class);
-    Assertions.assertNotNull(responseFeatureCollection);
-    final XyzFeature updatedFeature =
-        responseFeatureCollection.getFeatures().get(0);
-    Assertions.assertEquals("30", updatedFeature.getProperties().get("speedLimit"));
+    final String firstResponse = loadFileOrFail("CreateFeatures/TC0309_createFeaturesWithUuid/first_response.json");
+    assertThat(responsePatchSuccess)
+            .hasStreamIdHeader(getHeader(responsePatchSuccess, HDR_STREAM_ID))
+            .hasStatus(200)
+            .hasJsonBody(firstResponse);
 
     // Execute request, outdated UUID, should fail
     feature.setProperties(newPropsOutdatedUuid);
@@ -359,7 +350,7 @@ class CreateFeatureTest extends ApiTest {
 
     // Execute request, null UUID, should success with overriding
     feature.setProperties(nullUuidProps);
-    final HttpResponse<String> responseOverriding = getNakshaClient()
+    final HttpResponse<String> responseSuccessNoUuidGiven = getNakshaClient()
         .post(
             "hub/spaces/" + SPACE_ID + "/features",
             """
@@ -370,13 +361,10 @@ class CreateFeatureTest extends ApiTest {
             streamId);
 
     // Perform third assertions
-    assertEquals(200, responseOverriding.statusCode(), "ResCode mismatch");
-    final XyzFeatureCollection featureCollection = parseJson(responseOverriding.body(), XyzFeatureCollection.class);
-    Assertions.assertNotNull(featureCollection);
-    final XyzFeature overridenFeature = featureCollection.getFeatures().get(0);
-    Assertions.assertEquals("yesyesyes", overridenFeature.getProperties().get("overriden"));
-    // Old properties like speedLimit should no longer be available
-    // The feature has been completely overwritten by the PUT request with null UUID
-    Assertions.assertFalse(overridenFeature.getProperties().containsKey("speedLimit"));
+    final String thirdResponse = loadFileOrFail("CreateFeatures/TC0309_createFeaturesWithUuid/third_response.json");
+    assertThat(responseSuccessNoUuidGiven)
+            .hasStreamIdHeader(getHeader(responsePatchSuccess, HDR_STREAM_ID))
+            .hasStatus(200)
+            .hasJsonBody(thirdResponse);
   }
 }

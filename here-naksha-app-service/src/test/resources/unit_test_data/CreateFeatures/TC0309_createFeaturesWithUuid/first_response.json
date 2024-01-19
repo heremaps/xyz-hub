@@ -5,13 +5,15 @@
       "id": "my-custom-id-309-1",
       "type": "Feature",
       "properties": {
-        "speedLimit": "60",
-        "existingProperty": true
+        "speedLimit": "30",
+        "existingProperty": true,
+        "newProperty": "was patched in"
       },
       "geometry": {
         "type":"Point",
         "coordinates":[ 8.68872, 50.0561, 292.94377758]
       }
     }
-  ]
+  ],
+  "updated": ["my-custom-id-309-1"]
 }

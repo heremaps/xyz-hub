@@ -1,13 +1,11 @@
 {
   "type": "FeatureCollection",
-  "updated": ["my-custom-id-305-1", "my-custom-id-305-2"],
   "features": [
     {
       "id": "my-custom-id-305-1",
       "type": "Feature",
       "properties": {
         "speedLimit": "30",
-        "existingProperty": "must not be deleted after POST",
         "patched": "this new property is added"
       },
       "geometry": {
@@ -20,7 +18,6 @@
       "type": "Feature",
       "properties": {
         "speedLimit": "80",
-        "existingProperty": "must not be deleted after POST",
         "patched": "this new property is added"
       },
       "geometry": {

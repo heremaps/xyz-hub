@@ -445,15 +445,15 @@ paths:
     post:
       tags:
         - Write Features
-      summary: Create new features or modify existing features in the space
+      summary: Create new features or patch existing features in the space
       description: >
-        This method allows to upsert features in the storage associated (directly or via event handler) with the space.
-        If a feature does not exist yet, it is created, if it is already available, it will be updated.
-        For each existing feature, if UUID is not provided OR if provided UUID matches with what is stored in Naksha, the feature will be updated. 
+        This method allows to create or patch features in the storage associated (directly or via event handler) with the space.
+        If a feature does not exist yet, it is created, if it is already available, it will be patched.
+        For each existing feature, if UUID is not provided OR if provided UUID matches with what is stored in Naksha, the feature will be patched. 
         Recommendation is to always provide correct UUID to avoid inconsistency due to concurrency.     
         In the JSON feature content, UUID is a string located at "properties -> @ns:com:here:xyz -> uuid".
         If the UUID does not match, HTTP code 409 will be returned.
-        It ensures an atomic operation, so either all features will be updated or none (in case of failure).
+        It ensures an atomic operation, so either all features will be created and/or patched, or nothing will be persisted (in case of failure).
       operationId: postFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'

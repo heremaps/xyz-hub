@@ -64,6 +64,9 @@ public class MockContextLoaderHandler extends AbstractEventHandler {
     logger.info("Handler received request {}", request.getClass().getSimpleName());
 
     try {
+      // Send back empty result, to bypass the read phase of the POST REST API
+      if (request instanceof ReadFeatures) return new SuccessResult();
+
       final WriteFeatures<?, ?, ?> writeRequest = HandlerUtil.checkInstanceOf(
           request, WriteFeatures.class, "Unsupported request type for validation");
 
