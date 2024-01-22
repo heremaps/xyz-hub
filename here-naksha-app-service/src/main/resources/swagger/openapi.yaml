@@ -135,7 +135,9 @@ paths:
       tags:
         - Manage Storages
       summary: Updates a Storage with specific id
-      description: Updates already existing storage.
+      description: >
+        Updates already existing storage. 
+        IMPORTANT: Please make sure to check whether passwords in the JSON body are all correct.
       operationId: putStorage
       requestBody:
         $ref: '#/components/requestBodies/StorageRequest'

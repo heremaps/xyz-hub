@@ -1,5 +1,10 @@
 {
     "id": "tc_0001_test_storage",
     "type": "Storage",
-    "className": "com.here.naksha.lib.psql.PsqlStorage"
+    "className": "com.here.naksha.lib.psql.PsqlStorage",
+    "properties": {
+        "dbConfig": {
+            "password": "xxxxxx"
+        }
+    }
 }

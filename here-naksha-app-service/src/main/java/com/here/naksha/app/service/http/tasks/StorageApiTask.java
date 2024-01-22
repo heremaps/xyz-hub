@@ -18,9 +18,6 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.STORAGE_ID;
-import static com.here.naksha.lib.core.NakshaAdminCollection.STORAGES;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.apis.ApiParams;
@@ -42,6 +39,10 @@ import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static com.here.naksha.app.service.http.apis.ApiParams.STORAGE_ID;
+import static com.here.naksha.app.service.http.ops.PasswordMaskingUtil.removePasswordFromProps;
+import static com.here.naksha.lib.core.NakshaAdminCollection.STORAGES;
 
 public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
 
@@ -102,7 +103,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
   private @NotNull XyzResponse executeGetStorages() {
     final ReadFeatures request = new ReadFeatures(STORAGES);
     try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
-      return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
+      return transformReadResultToXyzCollectionResponse(
+          rdResult, Storage.class, f -> removePasswordFromProps(f.getProperties()));
     }
   }
 
@@ -110,7 +112,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     final String storageId = ApiParams.extractMandatoryPathParam(routingContext, STORAGE_ID);
     final ReadFeatures request = new ReadFeatures(STORAGES).withPropertyOp(POp.eq(PRef.id(), storageId));
     try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
-      return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
+      return transformReadResultToXyzFeatureResponse(
+          rdResult, Storage.class, f -> removePasswordFromProps(f.getProperties()));
     }
   }
 
@@ -118,7 +121,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     final Storage newStorage = storageFromRequestBody();
     final WriteXyzFeatures wrRequest = RequestHelper.createFeatureRequest(STORAGES, newStorage, false);
     try (Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest)) {
-      return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
+      return transformWriteResultToXyzFeatureResponse(
+          wrResult, Storage.class, f -> removePasswordFromProps(f.getProperties()));
     }
   }
 
@@ -131,7 +135,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     } else {
       final WriteXyzFeatures updateStorageReq = RequestHelper.updateFeatureRequest(STORAGES, storageFromBody);
       try (Result updateStorageResult = executeWriteRequestFromSpaceStorage(updateStorageReq)) {
-        return transformWriteResultToXyzFeatureResponse(updateStorageResult, Storage.class);
+        return transformWriteResultToXyzFeatureResponse(
+            updateStorageResult, Storage.class, f -> removePasswordFromProps(f.getProperties()));
       }
     }
   }

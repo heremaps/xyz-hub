@@ -33,10 +33,10 @@ import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.lambdas.P1;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
-import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
@@ -57,8 +57,6 @@ public abstract class AbstractApiTask<T extends XyzResponse>
   private static final Logger logger = LoggerFactory.getLogger(AbstractApiTask.class);
   protected final @NotNull RoutingContext routingContext;
   protected final @NotNull NakshaHttpVerticle verticle;
-
-  private static final String JSON_KEY_PASSWORD = "password";
 
   /**
    * Creates a new task.
@@ -88,34 +86,41 @@ public abstract class AbstractApiTask<T extends XyzResponse>
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzFeatureResponse(
       final @NotNull Result rdResult, final @NotNull Class<R> type) {
-    return transformResultToXyzFeatureResponse(rdResult, type, NOT_FOUND_ON_NO_ELEMENTS);
+    return transformResultToXyzFeatureResponse(rdResult, type, NOT_FOUND_ON_NO_ELEMENTS, null);
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzFeatureResponse(
+      final @NotNull Result rdResult, final @NotNull Class<R> type, @Nullable P1<XyzFeature> postProcessing) {
+    return transformResultToXyzFeatureResponse(rdResult, type, NOT_FOUND_ON_NO_ELEMENTS, postProcessing);
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzFeatureResponse(
       final @Nullable Result wrResult, final @NotNull Class<R> type) {
-    return transformResultToXyzFeatureResponse(wrResult, type, FAIL_ON_NO_ELEMENTS);
+    return transformResultToXyzFeatureResponse(wrResult, type, FAIL_ON_NO_ELEMENTS, null);
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzFeatureResponse(
+      final @Nullable Result wrResult, final @NotNull Class<R> type, @Nullable P1<XyzFeature> postProcessing) {
+    return transformResultToXyzFeatureResponse(wrResult, type, FAIL_ON_NO_ELEMENTS, postProcessing);
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformDeleteResultToXyzFeatureResponse(
       final @Nullable Result wrResult, final @NotNull Class<R> type) {
-    return transformResultToXyzFeatureResponse(wrResult, type, NOT_FOUND_ON_NO_ELEMENTS);
+    return transformResultToXyzFeatureResponse(wrResult, type, NOT_FOUND_ON_NO_ELEMENTS, null);
   }
 
-  private XyzResponse handleNoElements(NoElementsStrategy noElementsStrategy) {
+  protected XyzResponse handleNoElements(NoElementsStrategy noElementsStrategy) {
     return verticle.sendErrorResponse(routingContext, noElementsStrategy.xyzError, noElementsStrategy.message);
   }
 
-  private <R extends XyzFeature> @NotNull XyzResponse transformResultToXyzFeatureResponse(
+  protected <R extends XyzFeature> @NotNull XyzResponse transformResultToXyzFeatureResponse(
       final @Nullable Result result,
       final @NotNull Class<R> type,
-      final @NotNull NoElementsStrategy noElementsStrategy) {
-    if (result == null) {
-      logger.error("Unexpected null result!");
-      return verticle.sendErrorResponse(routingContext, XyzError.EXCEPTION, "Unexpected null result!");
-    } else if (result instanceof ErrorResult er) {
-      // In case of error, convert result to ErrorResponse
-      logger.error("Received error result {}", er);
-      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+      final @NotNull NoElementsStrategy noElementsStrategy,
+      final @Nullable P1<XyzFeature> postProcessing) {
+    final XyzResponse validatedErrorResponse = validateErrorResult(result);
+    if (validatedErrorResponse != null) {
+      return validatedErrorResponse;
     } else {
       try {
         R feature = readFeatureFromResult(result, type);
@@ -126,9 +131,7 @@ public abstract class AbstractApiTask<T extends XyzResponse>
               "No feature found for id "
                   + result.getXyzFeatureCursor().getId());
         }
-        if (Objects.equals(type, Storage.class)) {
-          removePasswordFromProps(feature.getProperties());
-        }
+        if (postProcessing != null) postProcessing.call(feature);
         final List<R> featureList = new ArrayList<>();
         featureList.add(feature);
         final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(featureList);
@@ -140,13 +143,21 @@ public abstract class AbstractApiTask<T extends XyzResponse>
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
+      final @Nullable Result rdResult,
+      final @NotNull Class<R> type,
+      final @Nullable P1<XyzFeature> postProcessing) {
+    return transformReadResultToXyzCollectionResponse(
+        rdResult, type, 0, DEF_ADMIN_FEATURE_LIMIT, null, postProcessing);
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
       final @Nullable Result rdResult, final @NotNull Class<R> type) {
     return transformReadResultToXyzCollectionResponse(rdResult, type, DEF_ADMIN_FEATURE_LIMIT);
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
       final @Nullable Result rdResult, final @NotNull Class<R> type, final long maxLimit) {
-    return transformReadResultToXyzCollectionResponse(rdResult, type, 0, maxLimit, null);
+    return transformReadResultToXyzCollectionResponse(rdResult, type, 0, maxLimit, null, null);
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
@@ -155,21 +166,25 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       final long offset,
       final long maxLimit,
       final @Nullable IterateHandle handle) {
-    if (rdResult == null) {
-      // return empty collection
-      logger.warn("Unexpected null result, returning empty collection.");
-      return verticle.sendXyzResponse(
-          routingContext, HttpResponseType.FEATURE_COLLECTION, new XyzFeatureCollection());
-    } else if (rdResult instanceof ErrorResult er) {
-      // In case of error, convert result to ErrorResponse
-      logger.error("Received error result {}", er);
-      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    return transformReadResultToXyzCollectionResponse(rdResult, type, offset, maxLimit, handle, null);
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
+      final @Nullable Result rdResult,
+      final @NotNull Class<R> type,
+      final long offset,
+      final long maxLimit,
+      final @Nullable IterateHandle handle,
+      final @Nullable P1<XyzFeature> postProcessing) {
+    final XyzResponse validatedErrorResponse = validateErrorResultEmptyCollection(rdResult);
+    if (validatedErrorResponse != null) {
+      return validatedErrorResponse;
     } else {
       try {
         final List<R> features = readFeaturesFromResult(rdResult, type, offset, maxLimit);
-        if (Objects.equals(type, Storage.class)) {
-          for (R feature : features) {
-            removePasswordFromProps(feature.getProperties());
+        if (postProcessing != null) {
+          for (XyzFeature feature : features) {
+            postProcessing.call(feature);
           }
         }
         // Populate handle (if provided), with the values ready for next iteration
@@ -197,14 +212,9 @@ public abstract class AbstractApiTask<T extends XyzResponse>
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzCollectionResponse(
       final @Nullable Result wrResult, final @NotNull Class<R> type, final boolean isDeleteOperation) {
-    if (wrResult == null) {
-      // unexpected null response
-      logger.error("Received null result!");
-      return verticle.sendErrorResponse(routingContext, XyzError.EXCEPTION, "Unexpected null result!");
-    } else if (wrResult instanceof ErrorResult er) {
-      // In case of error, convert result to ErrorResponse
-      logger.error("Received error result {}", er);
-      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    final XyzResponse validatedErrorResponse = validateErrorResult(wrResult);
+    if (validatedErrorResponse != null) {
+      return validatedErrorResponse;
     } else {
       try {
         final Map<EExecutedOp, List<R>> featureMap = readFeaturesGroupedByOp(wrResult, type);
@@ -215,17 +225,6 @@ public abstract class AbstractApiTask<T extends XyzResponse>
         List<XyzFeature> violations = null;
         if (wrResult instanceof ContextXyzFeatureResult cr) {
           violations = cr.getViolations();
-        }
-        if (Objects.equals(type, Storage.class)) {
-          for (R feature : insertedFeatures) {
-            removePasswordFromProps(feature.getProperties());
-          }
-          for (R feature : updatedFeatures) {
-            removePasswordFromProps(feature.getProperties());
-          }
-          for (R feature : deletedFeatures) {
-            removePasswordFromProps(feature.getProperties());
-          }
         }
         return verticle.sendXyzResponse(
             routingContext,
@@ -259,24 +258,34 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     }
   }
 
-  private XyzFeatureCollection emptyFeatureCollection() {
+  XyzFeatureCollection emptyFeatureCollection() {
     return new XyzFeatureCollection().withFeatures(emptyList());
   }
 
-  private void removePasswordFromProps(Map<String, Object> propertiesAsMap) {
-    for (Iterator<Map.Entry<String, Object>> it = propertiesAsMap.entrySet().iterator(); it.hasNext(); ) {
-      Map.Entry<String, Object> entry = it.next();
-      if (Objects.equals(entry.getKey(), JSON_KEY_PASSWORD)) {
-        it.remove();
-      } else if (entry.getValue() instanceof Map) {
-        // recursive call to the nested json property
-        removePasswordFromProps((Map<String, Object>) entry.getValue());
-      } else if (entry.getValue() instanceof ArrayList array) {
-        // recursive call to the nested array json
-        for (Object arrayEntry : array) {
-          removePasswordFromProps((Map<String, Object>) arrayEntry);
-        }
-      }
+  protected @Nullable XyzResponse validateErrorResultEmptyCollection(final @Nullable Result result) {
+    if (result == null) {
+      // return empty collection
+      logger.warn("Unexpected null result, returning empty collection.");
+      return verticle.sendXyzResponse(
+          routingContext, HttpResponseType.FEATURE_COLLECTION, new XyzFeatureCollection());
+    } else if (result instanceof ErrorResult er) {
+      // In case of error, convert result to ErrorResponse
+      logger.error("Received error result {}", er);
+      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
     }
+    return null;
+  }
+
+  protected @Nullable XyzResponse validateErrorResult(final @Nullable Result result) {
+    if (result == null) {
+      // return empty collection
+      logger.error("Unexpected null result!");
+      return verticle.sendErrorResponse(routingContext, XyzError.EXCEPTION, "Unexpected null result!");
+    } else if (result instanceof ErrorResult er) {
+      // In case of error, convert result to ErrorResponse
+      logger.error("Received error result {}", er);
+      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    }
+    return null;
   }
 }

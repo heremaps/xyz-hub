@@ -10,6 +10,7 @@
       "port": 5432,
       "db": "postgres",
       "user": "postgres",
+      "password": "xxxxxx",
       "schema": "naksha_moderation_dev",
       "minPoolSize": 5,
       "maxPoolSize": 50
