@@ -51,7 +51,7 @@ public class PropertyUtil {
 
   /**
    * Function builds Property Operation (POp) based on property key:value pairs supplied as API query parameter.
-   * We iterate through all the parameters, exclude the keys that match with provided excludeKeys,
+   * We iterate through all the parameters, exclude the keys that doesn't start with prefix "p." or "f." or "properties.",
    * and interpret the others by identifying the desired operation.
    * <p>
    * Multiple parameter keys result into AND list.
@@ -66,22 +66,18 @@ public class PropertyUtil {
    * </p>
    *
    * @param queryParams API query parameter from where property search params need to be extracted
-   * @param excludeKeys Set of param keys to be excluded (i.e. not part of property search)
    * @return POp property operation that can be used as part of {@link ReadRequest}
    */
-  public static @Nullable POp buildOperationForPropertySearchParams(
-      final @Nullable QueryParameterList queryParams, final @Nullable Set<String> excludeKeys) {
+  public static @Nullable POp buildOperationForPropertySearchParams(final @Nullable QueryParameterList queryParams) {
     if (queryParams == null) return null;
     // global initialization
     final List<POp> globalOpList = new ArrayList<>();
     // iterate through each parameter
     for (final QueryParameter param : queryParams) {
-      // is this key to be excluded?
-      if (excludeKeys != null && excludeKeys.contains(param.key())) continue;
       // prepare property search operation
       final POp crtOp = preparePropertySearchOperation(param);
       // add current search operation to global list
-      globalOpList.add(crtOp);
+      if (crtOp != null) globalOpList.add(crtOp);
     }
 
     if (globalOpList.isEmpty()) return null;
@@ -92,7 +88,7 @@ public class PropertyUtil {
     return globalOpList.get(0);
   }
 
-  private static @NotNull String[] expandKeyToRealJsonPath(final @NotNull String key) {
+  private static @Nullable String[] expandKeyToRealJsonPath(final @NotNull String key) {
     final StringBuilder str = new StringBuilder();
     if (key.startsWith(SHORT_PROP_PREFIX)) {
       str.append(FULL_PROP_PREFIX).append(key.substring(SHORT_PROP_PREFIX.length()));
@@ -100,13 +96,15 @@ public class PropertyUtil {
       str.append("id");
     } else if (key.startsWith(SHORT_XYZ_PROP_PREFIX)) {
       str.append(FULL_XYZ_PROP_PREFIX).append(key.substring(SHORT_XYZ_PROP_PREFIX.length()));
-    } else {
+    } else if (key.startsWith(FULL_PROP_PREFIX)) {
       str.append(key);
+    } else {
+      return null; // excluding non-supported prop-search key
     }
     return str.toString().split("\\.");
   }
 
-  private static @NotNull POp preparePropertySearchOperation(final @NotNull QueryParameter param) {
+  private static @Nullable POp preparePropertySearchOperation(final @NotNull QueryParameter param) {
     // extract param key, operation, values, delimiters
     final String propKey = param.key();
     final QueryOperation operation = param.op();
@@ -118,6 +116,7 @@ public class PropertyUtil {
 
     // expand key if needed (e.g. p.prop_1 should be properties.prop_1)
     final String[] propPath = expandKeyToRealJsonPath(propKey);
+    if (propPath == null) return null;
 
     // iterate through all given values for a key
     int delimIdx = 0;

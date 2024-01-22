@@ -50,7 +50,7 @@ public class PropertyUtilTest {
         final Set<String> excludedKeys = Set.of("west","tags");
 
 
-        final POp op = PropertyUtil.buildOperationForPropertySearchParams(params, excludedKeys);
+        final POp op = PropertyUtil.buildOperationForPropertySearchParams(params);
         assertThatOperation(op).hasType(OpType.AND);
 
         final List<POp> opList = op.children();
@@ -199,7 +199,7 @@ public class PropertyUtilTest {
     void testKnownException(String queryString, Class<? extends Throwable> exceptionType) {
         assertThrowsExactly(exceptionType, () -> {
             final QueryParameterList queryParameters = new QueryParameterList(queryString);
-            PropertyUtil.buildOperationForPropertySearchParams(queryParameters, null);
+            PropertyUtil.buildOperationForPropertySearchParams(queryParameters);
         });
     }
 
