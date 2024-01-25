@@ -578,6 +578,7 @@ paths:
         - $ref: '#/components/parameters/ConflictResolution'
         - $ref: '#/components/parameters/Transactional'
         - $ref: '#/components/parameters/PrefixId'
+        - $ref: '#/components/parameters/Context'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationListRequest'
       responses:

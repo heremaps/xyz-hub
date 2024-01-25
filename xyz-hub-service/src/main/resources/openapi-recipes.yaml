@@ -23,6 +23,7 @@ recipes:
   - name: no-extension
     exclude:
       - paths.'/spaces/{spaceId}/features'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/features/{featureId}'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/features/{featureId}'.delete.parameters.$ref~=^.*Context$
