@@ -134,6 +134,7 @@ public abstract class WriteRequest<
     codec.setOp(DELETE);
     codec.setId(id);
     codec.setUuid(uuid);
+    codec.isDecoded = true;
     features.add(codec);
     return self();
   }
@@ -147,6 +148,7 @@ public abstract class WriteRequest<
     codec.setOp(PURGE);
     codec.setId(id);
     codec.setUuid(uuid);
+    codec.isDecoded = true;
     features.add(codec);
     return self();
   }

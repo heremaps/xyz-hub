@@ -537,6 +537,33 @@ public class PsqlStorageTests extends PsqlTests {
   @Test
   @Order(64)
   @EnabledIf("runTest")
+  void singleFeatureDeleteById() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
+    final XyzFeature feature = new XyzFeature("TO_DEL_BY_ID");
+    request.add(EWriteOp.CREATE, feature);
+
+    // when
+    try(final Result result = session.execute(request)) {
+      final WriteXyzFeatures delRequest = new WriteXyzFeatures(collectionId());
+      delRequest.delete("TO_DEL_BY_ID", null);
+      try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+               session.execute(delRequest).getXyzFeatureCursor()) {
+        assertTrue(cursor.next());
+        assertSame(EExecutedOp.DELETED, cursor.getOp());
+        assertEquals("TO_DEL_BY_ID", cursor.getId());
+        assertFalse(cursor.hasNext());
+      } finally {
+        session.commit(true);
+      }
+    }
+  }
+
+  @Test
+  @Order(64)
+  @EnabledIf("runTest")
   void singleFeatureDelete() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
