@@ -43,7 +43,6 @@ import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
-import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -708,7 +707,7 @@ public class SpaceTaskHandler {
     public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
       if (task.isDelete()) {
         String spaceId = task.responseSpaces.get(0).getId();
-        TagConfigClient.getInstance().deleteTagsForSpace(task.getMarker(), spaceId)
+        Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
             .onSuccess(a-> callback.call(task))
             .onFailure(a->{
               logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, a);

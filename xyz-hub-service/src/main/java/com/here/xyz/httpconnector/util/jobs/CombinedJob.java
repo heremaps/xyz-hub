@@ -205,18 +205,23 @@ public class CombinedJob extends Job<CombinedJob> {
       setExecutedAt(Core.currentTimeMillis() / 1000L);
       new Thread(() -> {
         Future<Void> executedFuture = Future.succeededFuture();
-        while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal())) {
-          executedFuture = reloadChildren()
-              .compose(reloadedChildren -> {
-                children = reloadedChildren;
-                return store();
-              })
-              .compose(v -> checkForNonSucceededChildren());
+        do {
+          try {
+            executedFuture = reloadChildren()
+                .compose(reloadedChildren -> {
+                  children = reloadedChildren;
+                  return store();
+                })
+                .compose(v -> checkForNonSucceededChildren());
+          }
+          catch (Exception e) {
+            logger.error("Exception during CombinedJob state polling.", e);
+          }
           try {
             Thread.sleep(1000);
           }
           catch (InterruptedException ignored) {}
-        }
+        } while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal()));
         executedFuture
             .compose(v -> checkForNonSucceededChildren())
             .compose(v -> {

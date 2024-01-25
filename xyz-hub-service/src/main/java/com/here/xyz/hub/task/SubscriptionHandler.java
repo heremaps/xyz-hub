@@ -26,8 +26,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.config.SpaceConfigClient;
-import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
@@ -113,14 +111,14 @@ public class SubscriptionHandler {
 
     return Service.subscriptionConfigClient.store(marker, subscription)
         .compose(v -> {
-          final Future<Void> spaceFuture = SpaceConfigClient.getInstance().get(marker, subscription.getSource())
+          final Future<Void> spaceFuture = Service.spaceConfigClient.get(marker, subscription.getSource())
               .compose(space -> increaseVersionsToKeepIfNecessary(marker, space))
               .recover(t -> {
                 logger.warn(marker, "spaceFuture for increasing version failed with cause: " + t.getMessage(), t);
                 return Future.failedFuture(
                     "Unable to increase versionsToKeep value on space " + subscription.getSource() + " during subscription registration.");
               });
-          final Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, subscription.getId(), subscription.getSource())
+          final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, subscription.getId(), subscription.getSource())
               .compose(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
               .recover(t -> {
                 logger.warn("tagFuture for tag creation failed with cause: " + t.getMessage(), t);
@@ -140,7 +138,7 @@ public class SubscriptionHandler {
 
   private static Future<Void> increaseVersionsToKeepIfNecessary(Marker marker, Space space) {
     return space != null && space.getVersionsToKeep() == 1 ?
-        SpaceConfigClient.getInstance().store(marker, (com.here.xyz.hub.connectors.models.Space) space.withVersionsToKeep(2)) :
+        Service.spaceConfigClient.store(marker, (com.here.xyz.hub.connectors.models.Space) space.withVersionsToKeep(2)) :
         Future.succeededFuture();
   }
 

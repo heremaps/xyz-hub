@@ -155,7 +155,7 @@ public class FeatureApi extends SpaceBasedApi {
     final ConflictResolution conflictResolution = ConflictResolution.of(Query.getString(context, Query.CONFLICT_RESOLUTION, "error"));
     boolean transactional = Query.getBoolean(context, Query.TRANSACTIONAL, true);
 
-    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists, ifNotExists, transactional, conflictResolution);
+    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists, ifNotExists, transactional, conflictResolution, true);
   }
 
   /**
@@ -205,14 +205,20 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates and executes a ModifyFeatureOp
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
-      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
+      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr, boolean useSpaceContext ) 
+  {
     try {
-      if (checkModificationOnSuper(context, getSpaceContext(context)))
-        return;
-      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, DEFAULT);
-    } catch (HttpException e) {
-      sendErrorResponse(context, e);
-    }
+        if (checkModificationOnSuper(context, getSpaceContext(context)))
+          return;
+        executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, useSpaceContext ? getSpaceContext(context) : DEFAULT);
+      } catch (HttpException e) {
+        sendErrorResponse(context, e);
+      } 
+  }       
+
+  private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
+      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
+     executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, false);
   }
 
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,

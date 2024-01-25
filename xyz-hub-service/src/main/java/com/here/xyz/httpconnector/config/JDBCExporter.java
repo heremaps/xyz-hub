@@ -122,8 +122,7 @@ public class JDBCExporter extends JdbcBasedHandler {
           .withQueryFragment("jobId", job.getId())
           .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
           .withVariable("versionSequenceName", tableName + "_version_seq")
-          .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId))
-          .substitute();
+          .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
     }
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {

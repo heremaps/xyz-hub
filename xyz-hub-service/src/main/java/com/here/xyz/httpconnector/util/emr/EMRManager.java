@@ -30,6 +30,7 @@ import com.amazonaws.services.emrserverless.model.JobRunState;
 import com.amazonaws.services.emrserverless.model.SparkSubmit;
 import com.amazonaws.services.emrserverless.model.StartJobRunRequest;
 import com.amazonaws.services.emrserverless.model.StartJobRunResult;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.util.di.ImplementationProvider;
 
 import java.util.List;
@@ -39,7 +40,7 @@ public class EMRManager {
 
     public EMRManager() {
         emrClient = (AWSEMRServerlessClient) AWSEMRServerlessClient.builder().standard()
-            .withRegion(Regions.EU_WEST_1)
+            .withRegion(Regions.fromName(CService.configuration.JOBS_REGION))
             .build();
     }
     public static EMRManager getInstance() {

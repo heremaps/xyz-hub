@@ -161,7 +161,7 @@ public class SQLQuery {
     return parameters;
   }
 
-  public SQLQuery substitute() {
+  public synchronized SQLQuery substitute() {
     replaceVars();
     replaceFragments();
     replaceNamedParameters(!isAsync());

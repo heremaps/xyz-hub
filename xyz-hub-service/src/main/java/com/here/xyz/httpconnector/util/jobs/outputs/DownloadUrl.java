@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package com.here.xyz.httpconnector.util.jobs.outputs;
 
 import java.net.URL;
 
-public class DownloadUrl extends Output {
+public class DownloadUrl extends Output<DownloadUrl> {
   private URL url;
   private long byteSize;
 

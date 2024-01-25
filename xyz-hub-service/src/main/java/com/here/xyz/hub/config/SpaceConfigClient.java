@@ -62,10 +62,12 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public static abstract class Provider implements ImplementationProvider {
+    private static SpaceConfigClient client;
     public Provider() {}
     protected abstract SpaceConfigClient getInstance();
     private static SpaceConfigClient provideInstance() {
-      SpaceConfigClient client =  ImplementationProvider.loadProvider(Provider.class).getInstance();
+      if(client == null)
+        client = ImplementationProvider.loadProvider(Provider.class).getInstance();
       return client;
     }
   }

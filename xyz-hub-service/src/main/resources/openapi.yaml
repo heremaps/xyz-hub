@@ -6,7 +6,7 @@ info:
   contact: {}
   version: 1.0.0
 servers:
-  - url: http://localhost:8080/hub
+  - url: /hub
 security:
   - AccessToken: []
   - Bearer: []
@@ -578,6 +578,7 @@ paths:
         - $ref: '#/components/parameters/ConflictResolution'
         - $ref: '#/components/parameters/Transactional'
         - $ref: '#/components/parameters/PrefixId'
+        - $ref: '#/components/parameters/Context'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationListRequest'
       responses:
