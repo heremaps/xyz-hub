@@ -27,7 +27,6 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
 import static com.here.xyz.psql.QueryRunner.SCHEMA;
 import static com.here.xyz.psql.QueryRunner.TABLE;
-import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
 import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_CONFLICT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -69,55 +68,26 @@ public class DatabaseWriter {
     }
 
     private static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-      return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, version, operation, jsondata, geo) "
-          + "VALUES("
-          + "#{id}, "
-          + "#{version}, "
-          + "#{operation}, "
-          + "#{jsondata}::jsonb, "
-          + "${{geo}}"
-          + ")"), dbHandler, event);
+      return setTableParams(new SQLQuery("SELECT xyz_simple_insert(#{id}, #{version}, #{operation}, #{author}, #{jsondata}::jsonb, #{geo}, "
+          + "#{schema}, #{table})"), dbHandler, event);
     }
 
     private static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-        return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
-            + "version = #{version}, "
-            + "operation = #{operation}, "
-            + "jsondata = #{jsondata}::jsonb, "
-            + "geo = (${{geo}}) "
-            + "WHERE id = #{id} ${{conflictCheck}}"), dbHandler, event)
-            .withQueryFragment("conflictCheck", buildConflictCheckFragment(event));
-    }
-
-    private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-        return setTableVariables(writeQuery
-            .withQueryFragment("geoWith", "WITH in_params AS (SELECT #{geo} as geo)")
-            .withQueryFragment("geo", "CASE WHEN (SELECT geo FROM in_params)::geometry IS NULL THEN NULL ELSE "
-                + "ST_Force3D(ST_GeomFromWKB((SELECT geo FROM in_params)::BYTEA, 4326)) END"), dbHandler, event);
-    }
-
-    private static SQLQuery setTableVariables(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-      return writeQuery
-          .withVariable(SCHEMA, dbHandler.getDatabaseSettings().getSchema())
-          .withVariable(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event));
+        return setTableParams(new SQLQuery("SELECT xyz_simple_update(#{id}, #{version}, #{operation}, #{author}, #{jsondata}::jsonb, "
+            + "#{geo}, #{schema}, #{table}, #{concurrencyCheck}, #{baseVersion})"), dbHandler, event)
+            .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled());
     }
 
     private static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-        SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE id = #{id} ${{conflictCheck}}")
-            .withQueryFragment("conflictCheck", buildConflictCheckFragment(event));
-
-        return setTableVariables(
-            query,
-            dbHandler,
-            event);
+        return setTableParams(new SQLQuery("SELECT xyz_simple_delete(#{id}, #{schema}, #{table}, #{concurrencyCheck}, #{baseVersion})")
+            , dbHandler, event)
+            .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled());
     }
 
-    private static SQLQuery buildConflictCheckFragment(ModifyFeaturesEvent event) {
-      return new SQLQuery(event.isConflictDetectionEnabled()
-          ? " AND (CASE WHEN #{baseVersion}::BIGINT IS NULL THEN "
-          + "next_version = #{MAX_BIGINT} ELSE version = #{baseVersion} END)"
-          : "")
-          .withNamedParameter("MAX_BIGINT", MAX_BIGINT);
+    private static SQLQuery setTableParams(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+        return writeQuery
+            .withNamedParameter(SCHEMA, dbHandler.getDatabaseSettings().getSchema())
+            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
 
     public enum ModificationType {
@@ -164,7 +134,7 @@ public class DatabaseWriter {
             //Remove the version from the JSON data, because it should not be written into the "jsondata" column.
             feature.getProperties().getXyzNamespace().setVersion(-1);
 
-            if (event.getVersionsToKeep() <= 1)
+            if (event.getVersionsToKeep() == 1)
               feature.getProperties().getXyzNamespace().setAuthor(null);
 
             json = feature.serialize(Static.class);
@@ -200,6 +170,8 @@ public class DatabaseWriter {
             if (event.isConflictDetectionEnabled())
               //TODO: Check if we should not throw an exception in the case of a missing baseVersion
               query.setNamedParameter("baseVersion", deletion.getValue() != null ? Long.parseLong(deletion.getValue()) : null);
+            else
+              query.setNamedParameter("baseVersion", -1);
         }
     }
 
@@ -227,8 +199,8 @@ public class DatabaseWriter {
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
-            .withNamedParameter("operation", (action == DELETE || !getDeletedFlagFromFeature(feature) ? action
-                : action == INSERT ? INSERT_HIDE_COMPOSITE : UPDATE_HIDE_COMPOSITE).shortValue)
+            .withNamedParameter("operation", resolveOperation(action, feature).shortValue)
+            .withNamedParameter("author", getAuthorFromFeature(feature))
             .withNamedParameter("jsondata", featureToPGobject(event, feature, version))
             .withNamedParameter("baseVersion", baseVersion);
 
@@ -243,14 +215,17 @@ public class DatabaseWriter {
     }
 
     private static boolean getDeletedFlagFromFeature(Feature f) {
-      //noinspection SimplifiableConditionalExpression
-      return f.getProperties() == null ? false :
-            f.getProperties().getXyzNamespace() == null ? false :
-            f.getProperties().getXyzNamespace().isDeleted();
+        return f.getProperties() == null ? false :
+            f.getProperties().getXyzNamespace() == null ? false : f.getProperties().getXyzNamespace().isDeleted();
+    }
+
+    private static String getAuthorFromFeature(Feature f) {
+        return f.getProperties() == null ? null :
+            f.getProperties().getXyzNamespace() == null ? null : f.getProperties().getXyzNamespace().getAuthor();
     }
 
     protected static void modifyFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, ModificationType action,
-        FeatureCollection collection, List<FeatureCollection.ModificationFailure> fails, List inputData, Connection connection,
+        FeatureCollection responseCollection, List<FeatureCollection.ModificationFailure> fails, List inputData, Connection connection,
         long version) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
@@ -273,7 +248,7 @@ public class DatabaseWriter {
 
                     if (transactional || ps.execute() || ps.getUpdateCount() != 0) {
                         if (action != DELETE)
-                            collection.getFeatures().add((Feature) inputDatum);
+                            responseCollection.getFeatures().add((Feature) inputDatum);
                     }
                     else
                         throw new WriteFeatureException(getFailedRowErrorMsg(action, event));
@@ -282,11 +257,11 @@ public class DatabaseWriter {
                     if (transactional)
                         throw e;
 
-                    if (e instanceof SQLException && "42P01".equalsIgnoreCase(((SQLException) e).getSQLState()))
+                    if (e instanceof SQLException sqlException && "42P01".equalsIgnoreCase(sqlException.getSQLState()))
                         throw (SQLException) e;
 
                     fails.add(new FeatureCollection.ModificationFailure().withId(getIdFromInput(action, inputDatum))
-                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : getGeneralErrorMsg(action)));
+                        .withMessage(e instanceof WriteFeatureException ? e.getMessage() : getFailedRowErrorMsg(action, event)));
                     logException(e, action, event);
                 }
             }
@@ -412,18 +387,16 @@ public class DatabaseWriter {
                 logger.debug("{} batch execution [{}]: {} ", getStreamId(), type, batchStmt);
 
                 batchStmt.setQueryTimeout(DatabaseHandler.calculateTimeout());
-                batchStmtResult = batchStmt.executeBatch();
-                if (event.getVersionsToKeep() <= 1)
-                    DatabaseWriter.fillFailList(batchStmtResult, fails, idList, event, type);
+                batchStmt.executeBatch();
             }
         }
         catch (Exception e) {
-            if (e instanceof SQLException && ((SQLException)e).getSQLState() != null
-                && ((SQLException) e).getSQLState().equalsIgnoreCase("42P01"))
+            if (e instanceof SQLException sqlException && sqlException.getSQLState() != null
+                && sqlException.getSQLState().equalsIgnoreCase("42P01"))
                 //Re-throw, as a missing table will be handled by DatabaseHandler.
                 throw e;
 
-            if (e instanceof SQLException && XYZ_CONFLICT.errorCode.equals(((SQLException) e).getSQLState()))
+            if (e instanceof SQLException sqlException && XYZ_CONFLICT.errorCode.equals(sqlException.getSQLState()))
                 logger.info("{} Conflict during transactional write operation", getStreamId(), e);
             else
                 logger.warn("{} Unexpected error during transactional write operation", getStreamId(), e);

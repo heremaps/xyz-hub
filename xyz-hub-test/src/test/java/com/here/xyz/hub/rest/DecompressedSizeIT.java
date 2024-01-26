@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 
 import org.junit.AfterClass;
@@ -43,26 +42,26 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
 
   @Test
   public void testHeaderOutputSizeReporting() {
-    given().
-        accept(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        when().
-        get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022").
-        then().
-        header("X-Decompressed-Input-Size", "0").
-        header("X-Decompressed-Output-Size", "493");
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022")
+        .then()
+        .header("X-Decompressed-Input-Size", "0")
+        .header("X-Decompressed-Output-Size", "493");
   }
 
   @Test
   public void testHeaderInputSizeReporting() {
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body("{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\"}]}").
-        when().
-        put(getSpacesPath() + "/x-psql-test/features").
-        then().
-        header("X-Decompressed-Input-Size", "63").
-        header("X-Decompressed-Output-Size", "310");
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\"}]}")
+        .when()
+        .put(getSpacesPath() + "/x-psql-test/features")
+        .then()
+        .header("X-Decompressed-Input-Size", "63")
+        .header("X-Decompressed-Output-Size", "310");
   }
 }

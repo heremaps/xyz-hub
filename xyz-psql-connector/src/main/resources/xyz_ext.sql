@@ -50,7 +50,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 	boolean,
 	boolean,
         boolean);
-		
+
 --
 ------ SAMPLE QUERIES ----
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 184
+ select 185
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2944,6 +2944,133 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, baseVersion BIGINT)
+    RETURNS INTEGER AS
+$BODY$
+    DECLARE
+        updated_rows INTEGER;
+    BEGIN
+        updated_rows = xyz_simple_update(id, version, operation, author, jsondata, geo, schema, tableName, concurrencyCheck, baseVersion);
+        IF updated_rows = 0 THEN
+            updated_rows = xyz_simple_insert(id, version, operation, author, jsondata, geo, schema, tableName);
+        ELSE
+            IF concurrencyCheck THEN
+                RAISE EXCEPTION 'Conflict while trying to insert feature with ID % in version %.', id, version
+                    USING HINT = 'Feature was already inserted in the meantime.',
+                        ERRCODE = 'XYZ49';
+            END IF;
+        END IF;
+        RETURN updated_rows;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_simple_update(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, baseVersion BIGINT)
+    RETURNS INTEGER AS
+$BODY$
+    DECLARE
+        updated_rows INTEGER;
+    BEGIN
+        EXECUTE
+            format('UPDATE %I.%I SET version = %L, operation = %L, author = %L, jsondata = %L, geo = %L WHERE id = %L'
+                       || xyz_simple_conflictCheck(concurrencyCheck, baseVersion),
+                schema, tableName, version, operation, author, jsondata, xyz_geoFromWkb(geo), id);
+
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+        IF concurrencyCheck THEN
+            IF updated_rows != 1 THEN
+                RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                    USING HINT = 'Base version ' || CASE WHEN baseVersion IS NULL THEN '' ELSE baseVersion::TEXT END || ' is not matching the current HEAD version.',
+                        ERRCODE = 'XYZ49';
+            END IF;
+        ELSE
+            IF updated_rows != 1 THEN
+                -- This can only happen if the feature was deleted in the meantime
+                RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                    USING HINT = 'Feature was deleted in the meantime.',
+                        ERRCODE = 'XYZ49';
+            END IF;
+        END IF;
+
+        RETURN updated_rows;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_simple_insert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT)
+    RETURNS INTEGER AS
+$BODY$
+    DECLARE
+        updated_rows INTEGER;
+    BEGIN
+        EXECUTE
+            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
+                   schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+        RETURN updated_rows;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_simple_delete(id TEXT, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, baseVersion BIGINT)
+    RETURNS INTEGER AS
+$BODY$
+    DECLARE
+        updated_rows INTEGER;
+    BEGIN
+        EXECUTE
+            format('DELETE FROM %I.%I WHERE id = %L'
+                       || xyz_simple_conflictCheck(concurrencyCheck, baseVersion),
+                   schema, tableName, id);
+
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+        IF concurrencyCheck AND updated_rows != 1 THEN
+            RAISE EXCEPTION 'Conflict while trying to % feature with ID %.', operation_2_human_readable('D'), id
+                USING HINT = 'Base version ' || CASE WHEN baseVersion IS NULL THEN '' ELSE baseVersion::TEXT END || ' is not matching the current HEAD version.',
+                    ERRCODE = 'XYZ49';
+        END IF;
+
+        RETURN updated_rows;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_simple_conflictCheck(concurrencyCheck BOOLEAN, baseVersion BIGINT)
+    RETURNS TEXT AS
+$BODY$
+    BEGIN
+        RETURN CASE WHEN NOT concurrencyCheck
+            THEN
+                ''
+            ELSE
+                CASE WHEN baseVersion IS NULL
+                    THEN
+                        format(' AND next_version = %L', max_bigint())
+                    ELSE
+                        format(' AND version = %L', baseVersion)
+                    END
+            END;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_geoFromWkb(geo GEOMETRY)
+    RETURNS GEOMETRY AS
+$BODY$
+    BEGIN
+        RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END;
+    END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'load_feature_version_input') THEN
@@ -3697,8 +3824,7 @@ begin
     foreach tile in array tile_list
     loop
         begin
-				
-            return query execute 
+            return query execute
 						 format(
                 'SELECT %2$L, xx.* '
                 ||' from( '
@@ -3709,7 +3835,7 @@ begin
                 ||'    where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
                 ||'   ) oo '
                 ||') xx ', sql_with_jsondata_geo, tile);
-        
+
 				    if not found AND includeEmpty then
                tile_id := tile;
 							 jsondata := null;
@@ -3896,7 +4022,7 @@ begin
 	 hddata as ( select array_agg( coalesce( to_regclass( format('%I.%I',c.relnamespace::regnamespace::text, c.relname::text || '_head') ), c.oid::regclass ) ) as headtbl
                  from pg_class c, (select unnest(tbls) as tbl)
                  r	where c.oid = r.tbl
-			   ),	
+			   ),
     indata as  ( select r.tbl, greatest( c.reltuples::bigint, 1) as reltuples from pg_class c , (select unnest( headtbl ) as tbl from hddata ) r	where c.oid = r.tbl ),
 	iindata as ( select tbl, x.reltuples, x.reltuples::float/max(x.reltuples) over () as rweight, sum(x.reltuples) over () as total from indata x ),
     qkdata as

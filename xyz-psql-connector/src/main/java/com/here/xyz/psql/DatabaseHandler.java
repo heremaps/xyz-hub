@@ -285,8 +285,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
             } catch (Exception e) {
                 /** No time left for processing */
-                if(e instanceof SQLException && ((SQLException)e).getSQLState() !=null
-                        &&((SQLException)e).getSQLState().equalsIgnoreCase("54000")) {
+                if(e instanceof SQLException sqlException && sqlException.getSQLState() !=null
+                        && sqlException.getSQLState().equalsIgnoreCase("54000")) {
                     throw e;
                 }
 
@@ -307,8 +307,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 if (event.getTransaction()) {
                     connection.rollback();
 
-                    if (e instanceof SQLException && ((SQLException)e).getSQLState() != null
-                            && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
+                    if (e instanceof SQLException sqlException && sqlException.getSQLState() != null
+                            && sqlException.getSQLState().equalsIgnoreCase("42P01"))
                         ;//Table does not exist yet - create it!
                     else {
 
@@ -317,17 +317,18 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                         Map<String, Object> errorDetails = new HashMap<>();
 
-                        if(e instanceof BatchUpdateException || fails.size() >=1 ){
+                        if (e instanceof BatchUpdateException || fails.size() >= 1) {
                             //23505 = Object already exists
-                            if(e instanceof BatchUpdateException && !((BatchUpdateException) e).getSQLState().equalsIgnoreCase("23505"))
+                            if (e instanceof BatchUpdateException bue && !bue.getSQLState().equalsIgnoreCase("23505"))
                                 throw e;
 
                             errorDetails.put("FailedList", fails);
                             return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
-                        }else {
+                        }
+                        else {
                             errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
-                                    (e instanceof SQLException && ((SQLException)e).getSQLState() != null)
-                                            ? "SQL-state: "+((SQLException) e).getSQLState() : "Unexpected Error occurred");
+                                    (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
+                                            ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
                             return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
                         }
                     }
