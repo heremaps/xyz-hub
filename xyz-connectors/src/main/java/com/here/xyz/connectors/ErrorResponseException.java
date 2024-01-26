@@ -21,8 +21,8 @@ package com.here.xyz.connectors;
 
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzError;
 
 /**
  * An exception, which will cause the connector to respond with an ErrorResponse object.
@@ -34,6 +34,11 @@ public class ErrorResponseException extends Exception {
   public ErrorResponseException(XyzError xyzError, String errorMessage) {
     super(errorMessage);
     createErrorResponse(xyzError, errorMessage);
+  }
+
+  public ErrorResponseException(ErrorResponse errorResponse) {
+    super(errorResponse.getErrorMessage());
+    this.errorResponse = errorResponse;
   }
 
   public ErrorResponseException(Exception cause) {
