@@ -42,6 +42,15 @@ public class WriteFeatures<
    * Creates a new empty feature write request.
    *
    * @param codecFactory The codec factory to use when creating new feature codecs.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  protected WriteFeatures(@NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) {
+    super(codecFactory);
+  }
+  /**
+   * Creates a new empty feature write request.
+   *
+   * @param codecFactory The codec factory to use when creating new feature codecs.
    * @param collectionId The identifier of the collection to write into.
    */
   @AvailableSince(NakshaVersion.v2_0_7)

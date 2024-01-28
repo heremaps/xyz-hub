@@ -19,10 +19,11 @@
 package com.here.naksha.lib.view;
 
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.exceptions.StorageLockException;
+import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
-import org.apache.commons.lang3.NotImplementedException;
+import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,13 +31,31 @@ import org.jetbrains.annotations.Nullable;
  * It writes same value to all storages, the result must not be combined, to let clients know if operation succeeded in
  * each storage or not.
  */
-// FIXME it's abstract only to not implement all IReadSession methods at the moment
-public abstract class ViewWriteSession extends ViewReadSession implements IWriteSession {
+public class ViewWriteSession extends ViewReadSession implements IWriteSession {
+
+  IWriteSession session;
+  ViewLayer writeLayer;
+  final NakshaContext context;
+  final boolean useMaster;
 
   public ViewWriteSession(@NotNull View viewRef, @Nullable NakshaContext context, boolean useMaster) {
     super(viewRef, context, useMaster);
+    this.context = context;
+    this.useMaster = useMaster;
   }
 
+  public ViewWriteSession withWriteLayer(ViewLayer viewLayer) {
+    if (this.session != null)
+      throw new RuntimeException("Write session initiated with " + this.writeLayer.getCollectionId());
+    this.writeLayer = viewLayer;
+    return this;
+  }
+
+  public ViewWriteSession init() {
+    if (writeLayer == null) writeLayer = viewRef.getViewCollection().getTopPriorityLayer();
+    this.session = writeLayer.getStorage().newWriteSession(context, useMaster);
+    return this;
+  }
   /**
    * Executes write on one (top by default storage).
    *
@@ -45,6 +64,45 @@ public abstract class ViewWriteSession extends ViewReadSession implements IWrite
    */
   @Override
   public @NotNull Result execute(@NotNull WriteRequest<?, ?, ?> writeRequest) {
-    throw new NotImplementedException();
+    if (!(writeRequest instanceof WriteFeatures)) {
+      throw new UnsupportedOperationException("Only WriteFeatures are supported.");
+    }
+    getSession();
+    ((WriteFeatures) writeRequest).setCollectionId(writeLayer.getCollectionId());
+    return this.session.execute(writeRequest);
+  }
+
+  @Override
+  public @NotNull IStorageLock lockFeature(
+      @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
+      throws StorageLockException {
+    return getSession().lockFeature(collectionId, featureId, timeout, timeUnit);
+  }
+
+  @Override
+  public @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit)
+      throws StorageLockException {
+    return getSession().lockStorage(lockId, timeout, timeUnit);
+  }
+
+  @Override
+  public void commit(boolean autoCloseCursors) {
+    getSession().commit(autoCloseCursors);
+  }
+
+  @Override
+  public void rollback(boolean autoCloseCursors) {
+    getSession().rollback(true);
+  }
+
+  @Override
+  public void close(boolean autoCloseCursors) {
+    super.close();
+    getSession().close();
+  }
+
+  private IWriteSession getSession() {
+    if (this.session == null) init();
+    return this.session;
   }
 }

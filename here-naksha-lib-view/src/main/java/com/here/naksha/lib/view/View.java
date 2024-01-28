@@ -45,7 +45,7 @@ public class View implements IView {
 
   @Override
   public @NotNull ViewWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
-    throw new NotImplementedException();
+    return new ViewWriteSession(this, context, useMaster);
   }
 
   @Override

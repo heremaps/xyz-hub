@@ -19,6 +19,7 @@
 package com.here.naksha.lib.view;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.EExecutedOp;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import java.util.ArrayList;
@@ -33,6 +34,18 @@ public class Sample {
       XyzFeatureCodec codec = codecFactory.newInstance();
       codec.setFeature(new XyzFeature("id" + i));
       codec.decodeParts(true);
+      returnList.add(codec);
+    }
+    return returnList;
+  }
+  public static List<XyzFeatureCodec> sampleXyzWriteResponse(int size, EExecutedOp op) {
+    XyzFeatureCodecFactory codecFactory = XyzFeatureCodecFactory.get();
+    List<XyzFeatureCodec> returnList = new ArrayList<>();
+    for (int i = 0; i < size; i++) {
+      XyzFeatureCodec codec = codecFactory.newInstance();
+      codec.setFeature(new XyzFeature("id" + i));
+      codec.decodeParts(true);
+      codec.setOp(op);
       returnList.add(codec);
     }
     return returnList;

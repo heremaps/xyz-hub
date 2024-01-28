@@ -76,7 +76,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class ViewReadSession implements IReadSession {
 
-  private final View viewRef;
+  protected final View viewRef;
 
   protected ParallelQueryExecutor parallelQueryExecutor;
 

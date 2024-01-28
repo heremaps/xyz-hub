@@ -25,8 +25,6 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.ForwardCursor;
-import com.here.naksha.lib.core.models.storage.POp;
-import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.SOp;
 import com.here.naksha.lib.core.models.storage.SeekableCursor;
@@ -69,28 +67,11 @@ import static org.mockito.Mockito.mock;
  */
 @SuppressWarnings("unused")
 @TestMethodOrder(OrderAnnotation.class)
-class PsqlViewTests {
+class PsqlViewTests extends PsqlTests {
 
   static final Logger log = LoggerFactory.getLogger(PsqlViewTests.class);
 
-  /**
-   * The test database, if any is available.
-   */
-  @SuppressWarnings("unused")
-  static final @NotNull PsqlStorageConfig config =
-      configFromFileOrEnv("test_psql_db.url", "NAKSHA_TEST_PSQL_DB_URL", "naksha_view_test_schema");
-
-  /**
-   * Prevents that the test drops the schema at the start.
-   */
-  static final boolean DROP_INITIALLY = true;
-
-  /**
-   * If the test drop the database at the end (false by default, to verify results).
-   */
-  static final boolean DROP_FINALLY = false;
-
-  final boolean runTest() {
+  final boolean enabled() {
     return true;
   }
 
@@ -102,71 +83,9 @@ class PsqlViewTests {
     return runTest() && DROP_FINALLY;
   }
 
-  static final String TEST_APP_ID = "test_app";
-  static final String TEST_AUTHOR = "test_author";
   static final String COLLECTION_0 = "test_view0";
   static final String COLLECTION_1 = "test_view1";
   static final String COLLECTION_2 = "test_view2";
-
-  static @Nullable PsqlStorage storage;
-  static @Nullable NakshaContext nakshaContext;
-  static @Nullable PsqlWriteSession session;
-
-  @BeforeAll
-  static void beforeTest() {
-    NakshaContext.currentContext().setAuthor("PsqlStorageTest");
-    NakshaContext.currentContext().setAppId("naksha-lib-view-unit-tests");
-    nakshaContext = new NakshaContext().withAppId(TEST_APP_ID).withAuthor(TEST_AUTHOR);
-  }
-
-  /**
-   * The test-schema to use, can be overridden to switch the schema.
-   */
-  @NotNull
-  String schema() {
-    assertNotNull(schema);
-    return schema;
-  }
-
-  private String schema;
-
-  @Test
-  @Order(10)
-  @EnabledIf("runTest")
-  void createStorage() {
-    storage = new PsqlStorage(config);
-    schema = storage.getSchema();
-    if (!schema.equals(schema())) {
-      storage.setSchema(schema());
-    }
-    // Enable this code line to get debug output from the database!
-    // storage.setLogLevel(EPsqlLogLevel.DEBUG);
-  }
-
-  @Test
-  @Order(11)
-  @EnabledIf("dropInitially")
-  void dropSchemaIfExists() {
-    assertNotNull(storage);
-    storage.dropSchema();
-  }
-
-  @Test
-  @Order(13)
-  @EnabledIf("runTest")
-  void initStorage() {
-    assertNotNull(storage);
-    storage.initStorage(new Params().pg_hint_plan(false).pg_stat_statements(false));
-  }
-
-  @Test
-  @Order(20)
-  @EnabledIf("runTest")
-  void startWriteSession() {
-    assertNotNull(storage);
-    session = storage.newWriteSession(nakshaContext, true);
-    assertNotNull(session);
-  }
 
   @Test
   @Order(30)
@@ -351,40 +270,6 @@ class PsqlViewTests {
     assertEquals(1, features.size());
     assertEquals(11d, features.get(0).getGeometry().getCoordinate().x);
     session.commit(true);
-  }
-
-  @Test
-  @Order(9999)
-  @EnabledIf("dropFinally")
-  void dropSchemaFinally() {
-    assertNotNull(storage);
-    storage.dropSchema();
-  }
-
-  @EnabledIf("runTest")
-  @AfterAll
-  static void afterTest() {
-    if (session != null) {
-      try {
-        session.close();
-      } catch (Exception e) {
-        log.atError()
-            .setMessage("Failed to close write-session")
-            .setCause(e)
-            .log();
-      } finally {
-        session = null;
-      }
-    }
-    if (storage != null) {
-      try {
-        storage.close();
-      } catch (Exception e) {
-        log.atError().setMessage("Failed to close storage").setCause(e).log();
-      } finally {
-        storage = null;
-      }
-    }
   }
 
   private List<XyzFeatureCodec> queryView(View view, ReadFeatures request) throws NoCursor {

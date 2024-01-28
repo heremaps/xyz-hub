@@ -18,47 +18,35 @@
  */
 package com.here.naksha.lib.view;
 
+import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.exceptions.UncheckedException;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.storage.IStorage;
+import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.core.util.storage.RequestHelper;
+import com.here.naksha.lib.view.concurrent.ParallelQueryExecutor;
+import com.here.naksha.lib.view.merge.MergeByStoragePriority;
+import com.here.naksha.lib.view.missing.IgnoreMissingResolver;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
+import java.util.List;
+import java.util.concurrent.TimeoutException;
+
 import static com.here.naksha.lib.core.models.storage.POp.eq;
 import static com.here.naksha.lib.core.models.storage.POp.or;
 import static com.here.naksha.lib.core.models.storage.PRef.app_id;
 import static com.here.naksha.lib.core.models.storage.PRef.id;
 import static com.here.naksha.lib.view.Sample.sampleXyzResponse;
+import static com.here.naksha.lib.view.Sample.sampleXyzWriteResponse;
 import static java.util.Collections.emptyList;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.exceptions.NoCursor;
-import com.here.naksha.lib.core.exceptions.UncheckedException;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.storage.EWriteOp;
-import com.here.naksha.lib.core.models.storage.ForwardCursor;
-import com.here.naksha.lib.core.models.storage.MutableCursor;
-import com.here.naksha.lib.core.models.storage.POp;
-import com.here.naksha.lib.core.models.storage.PRef;
-import com.here.naksha.lib.core.models.storage.ReadFeatures;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.SuccessResult;
-import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
-import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
-import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
-import com.here.naksha.lib.core.storage.IReadSession;
-import com.here.naksha.lib.core.storage.IStorage;
-
-import java.util.List;
-
-import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.here.naksha.lib.view.merge.MergeByStoragePriority;
-import com.here.naksha.lib.view.missing.IgnoreMissingResolver;
-import org.junit.jupiter.api.Test;
+import static org.mockito.Mockito.*;
 
 public class ViewTest {
 
@@ -100,28 +88,29 @@ public class ViewTest {
     assertEquals(3, allFeatures.size());
     assertTrue(allFeatures.containsAll(results));
   }
-
+  @Test
   void testWriteApiNotation() throws NoCursor {
+    IStorage storage = mock(IStorage.class);
+    IWriteSession session=mock(IWriteSession.class);
 
-    ViewLayer topologiesDS = new ViewLayer(mock(IStorage.class), "topologies");
-    ViewLayer buildingsDS = new ViewLayer(mock(IStorage.class), "buildings");
-    ViewLayer topologiesCS = new ViewLayer(mock(IStorage.class), "topologies");
-
-
-    ViewLayerCollection viewLayerCollection = new ViewLayerCollection("myCollection", topologiesDS, buildingsDS, topologiesCS);
-
+    ViewLayer topologiesDS = new ViewLayer(storage, "topologies");
+    ViewLayerCollection viewLayerCollection = new ViewLayerCollection("myCollection", topologiesDS);
     View view = new View(viewLayerCollection);
+    when(storage.newWriteSession(nc, true)).thenReturn(session);
 
-    // to discuss if same context is valid to use across all storages
-    ViewWriteSession writeSession = view.newWriteSession(nc, true);
-
-    final WriteXyzFeatures request = new WriteXyzFeatures("topologies");
-    final XyzFeature feature = new XyzFeature("feature_id_1");
+    final LayerWriteFeatureRequest request = new LayerWriteFeatureRequest();
+    final XyzFeature feature = new XyzFeature("id0");
     request.add(EWriteOp.CREATE, feature);
 
-    try (MutableCursor<XyzFeature, XyzFeatureCodec> cursor =
-             writeSession.execute(request).getXyzMutableCursor()) {
+    when(session.execute(request)).thenReturn(new MockResult<>(sampleXyzWriteResponse(1,EExecutedOp.CREATED)));
+    ViewWriteSession writeSession = view.newWriteSession(nc, true);
+
+    try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+                 writeSession.execute(request).getXyzFeatureCursor()) {
+      assertTrue (cursor.hasNext());
       cursor.next();
+      assertEquals(feature.getId(),cursor.getFeature().getId());
+      assertEquals(cursor.getOp(),EExecutedOp.CREATED);
     } finally {
       writeSession.commit(true);
     }
@@ -183,6 +172,35 @@ public class ViewTest {
       assertTrue(cursor.next());
     }
     verify(readSession, times(2)).execute(any());
+  }
+  @Test
+  void testTimeoutExceptionInOneOfTheThreads() {
+    IStorage topologiesStorage = mock(IStorage.class);
+    IStorage buildingsStorage = mock(IStorage.class);
+    ViewLayer topologiesDS = new ViewLayer(topologiesStorage, "topologies");
+    ViewLayer buildingsDS = new ViewLayer(buildingsStorage, "buildings");
+
+    // given
+    IReadSession topoReadSession = mock(IReadSession.class);
+    IReadSession buildReadSession = mock(IReadSession.class);
+
+    when(topoReadSession.execute(any())).thenThrow(new RuntimeException(new TimeoutException()));
+    when(buildReadSession.execute(any())).thenReturn(new MockResult<>(sampleXyzResponse(1)));
+
+    when(topologiesStorage.newReadSession(nc, false)).thenReturn(buildReadSession);
+    when(buildingsStorage.newReadSession(nc, false)).thenReturn(topoReadSession);
+
+    ViewLayerCollection viewLayerCollection = new ViewLayerCollection("myCollection", topologiesDS, buildingsDS);
+    View view = new View(viewLayerCollection);
+
+    try{
+      view.newReadSession(nc, false).execute(new ReadFeatures());
+    }catch (Exception ex){
+      assertTrue(ex instanceof UncheckedException);
+      assertTrue(ex.getMessage().contains("TimeoutException"));
+    }
+    verify(topoReadSession, times(1)).execute(any());
+    verify(buildReadSession, times(1)).execute(any());
   }
 
 }

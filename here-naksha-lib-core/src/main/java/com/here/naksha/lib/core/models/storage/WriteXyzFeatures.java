@@ -39,4 +39,8 @@ public class WriteXyzFeatures extends WriteFeatures<XyzFeature, XyzFeatureCodec,
   public WriteXyzFeatures(@NotNull String collectionId, final @NotNull List<@NotNull XyzFeatureCodec> features) {
     super(getFactory(XyzFeatureCodecFactory.class), collectionId, features);
   }
+
+  protected WriteXyzFeatures() {
+    super(getFactory(XyzFeatureCodecFactory.class));
+  }
 }
