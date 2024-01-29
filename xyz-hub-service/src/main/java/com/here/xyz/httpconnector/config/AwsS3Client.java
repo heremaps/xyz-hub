@@ -33,8 +33,8 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.httpconnector.CService;
 import java.net.URL;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 
 /**
@@ -92,18 +92,26 @@ public class AwsS3Client {
     }
 
     public void copyFolder(String bucketName, String sourceFolderPath, String targetFolderPath) {
-        for (String objectPath : scanFolder(bucketName, sourceFolderPath)) {
+        for (S3ObjectSummary summary : scanFolder(bucketName, sourceFolderPath)) {
+            String objectPath = summary.getKey();
             String targetObjectPath = objectPath.replace(sourceFolderPath, targetFolderPath);
             client.copyObject(bucketName, objectPath, bucketName, targetObjectPath);
         }
     }
 
-    public List<String> scanFolder(String bucketName, String folderPath) {
+    public List<S3ObjectSummary> scanFolder(String bucketName, String folderPath) {
         ListObjectsRequest listObjects = new ListObjectsRequest()
             .withPrefix(folderPath)
             .withBucketName(bucketName);
+
         ObjectListing objectListing = client.listObjects(listObjects);
-        return objectListing.getObjectSummaries().stream().map(os -> os.getKey()).collect(Collectors.toList());
+        List<S3ObjectSummary> summaries = new LinkedList<>(objectListing.getObjectSummaries());
+        while (objectListing.isTruncated()) {
+            objectListing = client.listNextBatchOfObjects(objectListing);
+            summaries.addAll(objectListing.getObjectSummaries());
+        }
+
+        return summaries;
     }
 
     public boolean isLocal() {
