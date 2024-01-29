@@ -36,7 +36,10 @@ import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
+import com.here.xyz.httpconnector.util.jobs.Export.Filters;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
+import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
+import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
@@ -90,7 +93,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             + "(INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version) "
             + "SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version "
             + "FROM "
-            + "  (${{contentQuery}}) idata "
+            + "  (${{contentQuery}} AND next_version = #{MAX_BIGINT} ) idata "
             + "  LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint()) "
             + "  RETURNING id, version "
             + "), "
@@ -119,19 +122,59 @@ public class JDBCExporter extends JdbcBasedHandler {
           .withQueryFragment("jobId", job.getId())
           .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
           .withVariable("versionSequenceName", tableName + "_version_seq")
+          .withNamedParameter("MAX_BIGINT", GetFeatures.MAX_BIGINT)
           .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
     }
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {
+
+    String propertyFilter = null;
+    Export.SpatialFilter spatialFilter = null;
+////// get filters from source space
+    if( job.getSource() != null && job.getSource() instanceof Space )
+    { Filters f = ((Space) job.getSource()).getFilters();
+      propertyFilter = ( f == null ? null : f.getPropertyFilter() );
+      spatialFilter = ( f == null ? null : f.getSpatialFilter() );
+    }
+////// if filters not provided by source space the get filter from job (legacy behaviour)
+    if( propertyFilter == null )
+     propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
+
+    if( spatialFilter == null )
+     spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
+//////
+
     GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
         .withSpace(job.getSource().getKey())
         .withParams(job.getParams())
         .withContext(EXTENSION)
         .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", enableHashedSpaceId));
 
+//      if (targetVersion != null)
+//           event.setRef(targetVersion);
+
+      if (propertyFilter != null) {
+          PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
+          event.setPropertiesQuery(propertyQueryLists);
+      }
+
+      if (spatialFilter != null) {
+          event.setGeometry(spatialFilter.getGeometry());
+          event.setRadius(spatialFilter.getRadius());
+          event.setClip(spatialFilter.isClipped());
+      }
+
+
     SQLQuery contentQuery;
     try {
-      GetFeatures queryRunner = new SearchForFeatures(event);
+
+      GetFeatures queryRunner;
+
+      if (spatialFilter == null)
+        queryRunner = new SearchForFeatures(event);
+      else
+        queryRunner = new GetFeaturesByGeometry(event);
+
       queryRunner.setDataSourceProvider(client.getDataSourceProvider());
       contentQuery = queryRunner._buildQuery(event)
           .withQueryFragment("limit", "")
@@ -141,6 +184,18 @@ public class JDBCExporter extends JdbcBasedHandler {
     catch (Exception e) {
       throw new SQLException(e);
     }
+
+    if (spatialFilter != null && spatialFilter.isClipped()) 
+    { SQLQuery geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
+               geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
+               geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
+
+      contentQuery.setQueryFragment("geo", geoFragment);
+    }
+
+    //Remove Limit
+    contentQuery.setQueryFragment("limit", "");
+
     return contentQuery;
   }
 
@@ -160,7 +215,9 @@ public class JDBCExporter extends JdbcBasedHandler {
     public Future<ExportStatistic> executeCopy(Export job) {
       Promise<Export.ExportStatistic> promise = Promise.promise();
       List<Future> exportFutures = new ArrayList<>();
-      return HubWebClient.getSpace(job.getTarget().getKey())
+
+      String spaceId = job.getTarget().getKey();
+      return HubWebClient.getSpace( spaceId )
           .compose(space -> HubWebClient.getConnectorConfig(space.getStorage().getId())
               .compose(connector -> getClient(connector.id)
                   .compose(client -> {
@@ -177,6 +234,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                     .map(statistics))
           );
     }
+
     //Space-Copy End
 
     public Future<ExportStatistic> executeExport(Export job, String s3Bucket, String s3Path, String s3Region) {
