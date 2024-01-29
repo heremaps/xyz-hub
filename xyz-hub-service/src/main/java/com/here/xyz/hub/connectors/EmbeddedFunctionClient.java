@@ -20,7 +20,6 @@
 package com.here.xyz.hub.connectors;
 
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
-import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.connectors.runtime.SimulatedContext;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -96,9 +95,6 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
         className = ((Connector.RemoteFunctionConfig.Embedded) remoteFunction).className;
         final Class<?> mainClass = Class.forName(className);
         final RequestStreamHandler reqHandler = (RequestStreamHandler) mainClass.newInstance();
-        if (reqHandler instanceof AbstractConnectorHandler) {
-          ((AbstractConnectorHandler) reqHandler).setEmbedded(true);
-        }
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         reqHandler.handleRequest(new ByteArrayInputStream(fc.bytes), output,
             new EmbeddedContext(fc.marker, remoteFunction.id,
@@ -131,8 +127,8 @@ public class EmbeddedFunctionClient extends RemoteFunctionClient {
     private static final Logger logger = LogManager.getLogger();
     private final Marker marker;
 
-    public EmbeddedContext(Marker marker, String functionName, Map<String, String> environmentVariables) {
-      super(functionName, environmentVariables);
+    public EmbeddedContext(Marker marker, String functionName, Map<String, String> environmentVariableOverrides) {
+      super(functionName, environmentVariableOverrides);
       this.marker = marker;
     }
 

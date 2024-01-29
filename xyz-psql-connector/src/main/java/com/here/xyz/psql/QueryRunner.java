@@ -20,14 +20,20 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.datasource.DataSourceProvider;
+import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.util.db.DatabaseSettings;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This class provides the utility to run a single database query which is described by an incoming object
- * and which returns an some specified other object.
+ * and which returns some other object of specified type.
  * It has the internal capability to build & run the necessary {@link SQLQuery} and translate
  * the resulting {@link ResultSet} into the specified response object.
  * @param <E> The incoming object type, describing the query
@@ -35,45 +41,88 @@ import org.apache.commons.dbutils.ResultSetHandler;
  */
 public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
 
+  private static final Logger logger = LogManager.getLogger();
   protected static final String SCHEMA = "schema";
   protected static final String TABLE = "table";
-
-  private final SQLQuery query;
+  private static final int MIN_REMAINING_TIME_FOR_RESULT_HANDLING = 2;
+  private SQLQuery query;
   private boolean useReadReplica;
-  protected PSQLXyzConnector dbHandler;
+  private DataSourceProvider dataSourceProvider;
+
+  /*
+  NOTE:
+  This field must stay private for performance reasons.
+  The input may not be kept during execution of the query to keep the memory footprint low. This field will be cleared right after
+  #buildQuery(E) has been called.
+  The input may only be used during the building of the query and should not be stored on any instances of subclasses.
+  If some parts of the event data are needed after the execution (e.g. in the result handling), parts of it can be
+  stored on instances of subclasses.
+   */
+  private E input;
 
   public QueryRunner(E input) throws SQLException, ErrorResponseException {
-    query = buildQuery(input);
+    this.input = input;
   }
 
-  public R run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    return dbHandler.executeQueryWithRetry(prepareQuery(), this, useReadReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter());
+  private static int calculateTimeout() throws SQLException {
+    final ConnectorRuntime runtime = ConnectorRuntime.getInstance();
+    int timeout = runtime.getRemainingTime() / 1000 - MIN_REMAINING_TIME_FOR_RESULT_HANDLING;
+    if (timeout <= 0) {
+      logger.warn("{} Not enough time left to execute query: {}s", runtime.getStreamId(), timeout);
+      throw new SQLException("No time left to execute query.", "54000");
+    }
+    return timeout;
   }
 
-  public R run() throws SQLException, ErrorResponseException {
-    if (dbHandler == null)
-      dbHandler = PSQLXyzConnector.getInstance(); //TODO: Remove that workaround once refactoring is complete
-    return run(dbHandler.getDataSourceProvider());
+  protected R run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    return prepareQuery().run(dataSourceProvider, this, isUseReadReplica());
   }
 
-  public int write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    return dbHandler.executeUpdateWithRetry(prepareQuery(), dataSourceProvider.getWriter());
+  public final R run() throws SQLException, ErrorResponseException {
+    return run(getDataSourceProvider());
   }
 
-  public int write() throws SQLException, ErrorResponseException {
-    if (dbHandler == null)
-      dbHandler = PSQLXyzConnector.getInstance(); //TODO: Remove that workaround once refactoring is complete
-    return write(dbHandler.getDataSourceProvider());
+  protected R write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    return handleWrite(prepareQuery().write(dataSourceProvider));
   }
 
-  private SQLQuery prepareQuery() {
-    return query.substitute();
+  public final R write() throws SQLException, ErrorResponseException {
+    return write(getDataSourceProvider());
+  }
+
+  private SQLQuery prepareQuery() throws SQLException, ErrorResponseException {
+    if (query == null)
+      query = buildQuery(input);
+    return query
+        .withQueryId(ConnectorRuntime.getInstance().getStreamId())
+        .withTimeout(calculateTimeout())
+        .withMaximumRetries(2);
   }
 
   protected abstract SQLQuery buildQuery(E input) throws SQLException, ErrorResponseException;
 
   @Override
   public abstract R handle(ResultSet rs) throws SQLException;
+
+  protected R handleWrite(int rowCount) throws ErrorResponseException {
+    return null;
+  }
+
+  public DataSourceProvider getDataSourceProvider() {
+    if (dataSourceProvider == null)
+      //Fail quickly in this case
+      throw new NullPointerException("No dataSourceProvider was defined for this QueryRunner.");
+    return dataSourceProvider;
+  }
+
+  public void setDataSourceProvider(DataSourceProvider dataSourceProvider) {
+    this.dataSourceProvider = dataSourceProvider;
+  }
+
+  public <T extends QueryRunner<E, R>> T withDataSourceProvider(DataSourceProvider dataSourceProvider) {
+    setDataSourceProvider(dataSourceProvider);
+    return (T) this;
+  }
 
   public boolean isUseReadReplica() {
     return useReadReplica;
@@ -83,13 +132,18 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
     this.useReadReplica = useReadReplica;
   }
 
-  protected String getSchema() {
-    return dbHandler.config.getDatabaseSettings().getSchema();
+  public QueryRunner withUseReadReplica(boolean useReadReplica) {
+    setUseReadReplica(useReadReplica);
+    return this;
   }
 
-  //TODO: Remove temporary BWC method once refactoring is complete
-  @Deprecated
-  public void setDbHandler(PSQLXyzConnector dbHandler) {
-    this.dbHandler = dbHandler;
+  private DatabaseSettings getDbSettings() {
+    if (getDataSourceProvider() instanceof PooledDataSources sourceProvider)
+      return sourceProvider.getDatabaseSettings();
+    throw new IllegalStateException("The DataSourceProvider does not provide database settings.");
+  }
+
+  protected String getSchema() {
+    return getDbSettings().getSchema();
   }
 }

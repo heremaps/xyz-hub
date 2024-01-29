@@ -19,19 +19,17 @@
 
 package com.here.xyz.hub.config.jdbc;
 
-import static com.here.xyz.hub.config.jdbc.JDBCConfig.SCHEMA;
-import static com.here.xyz.hub.config.jdbc.JDBCConfig.TAG_TABLE;
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.SCHEMA;
 
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
-import io.vertx.core.json.JsonArray;
-import io.vertx.ext.sql.SQLClient;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -40,52 +38,37 @@ public class JDBCTagConfigClient extends TagConfigClient {
   private static final Logger logger = LogManager.getLogger();
 
   private static JDBCTagConfigClient instance;
-  SQLClient client;
-
-  private JDBCTagConfigClient() {
-    this.client = JDBCConfig.getClient();
-  }
+  private static final String TAG_TABLE = "xyz_tags";
+  private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, TAG_TABLE, Service.configuration);
 
   public static TagConfigClient getInstance() {
-    if (instance == null) {
+    if (instance == null)
       instance = new JDBCTagConfigClient();
-    }
     return instance;
   }
 
   @Override
   public Future<Tag> getTag(Marker marker, String id, String spaceId) {
-    Promise<Tag> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT id, space, version FROM ${schema}.${table} WHERE id = #{tagId} AND space = #{spaceId}")
+    SQLQuery query = client.getQuery("SELECT id, space, version FROM ${schema}.${table} "
+            + "WHERE id = #{tagId} AND space = #{spaceId}")
         .withNamedParameter("tagId", id)
         .withNamedParameter("spaceId", spaceId);
 
-    setVars(query);
-    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        Optional<Tag> tag = out.result().getRows().stream().map(r->new Tag()
-                .withId(r.getString("id"))
-                .withSpaceId(r.getString("space"))
-                .withVersion(r.getLong("version"))
-        ).findFirst();
-        if (tag.isPresent()) {
-          p.complete(tag.get());
-        }
-        else
-          p.complete();
-      }
-      else
-        p.fail(out.cause());
-    });
-    return p.future();
+    return client.run(query, rs -> rs.next() ? resultSetToTag(rs) : null);
+  }
+
+  private static Tag resultSetToTag(ResultSet rs) throws SQLException {
+    return new Tag()
+        .withId(rs.getString("id"))
+        .withSpaceId(rs.getString("space"))
+        .withVersion(rs.getLong("version"));
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String tagId, List<String> spaceIds) { //FIXME: Failing with test testListSpacesFilterByTagId()
-    SQLQuery query = new SQLQuery("WHERE id = #{tagId} AND space IN (#{spaceIds})")
+  public Future<List<Tag>> getTags(Marker marker, String tagId, List<String> spaceIds) {
+    return _getTags(marker, new SQLQuery("WHERE id = #{tagId} AND space = ANY(#{spaceIds})")
         .withNamedParameter("tagId", tagId)
-        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0]));
-    return _getTags(marker, query);
+        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0])));
   }
 
   @Override
@@ -95,9 +78,8 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, List<String> spaceIds) {
-    SQLQuery query = new SQLQuery("WHERE space IN (#{spaceIds})")
-        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0]));
-    return _getTags(marker, query);
+    return _getTags(marker, new SQLQuery("WHERE space = ANY(#{spaceIds})")
+        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0])));
   }
 
   @Override
@@ -107,64 +89,61 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<List<Tag>> getAllTags(Marker marker) {
-    return _getTags(marker, null);
+    return _getTags(marker, new SQLQuery(""));
   }
 
   private Future<List<Tag>> _getTags(Marker marker, SQLQuery whereClause) {
-    Promise<List<Tag>> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT id, space, version FROM ${schema}.${table} ${{whereClause}}");
-    if (whereClause == null)
-      query.setQueryFragment("whereClause", "");
-    else
-      query.setQueryFragment("whereClause", whereClause);
+    SQLQuery query = client.getQuery("SELECT id, space, version FROM ${schema}.${table} ${{whereClause}}")
+        .withQueryFragment("whereClause", whereClause);
 
-    setVars(query);
-    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        List<Tag> tag = out.result().getRows().stream().map(r->new Tag()
-            .withId(r.getString("id"))
-            .withSpaceId(r.getString("space"))
-            .withVersion(r.getLong("version"))
-        ).collect(Collectors.toList());
-        p.complete(tag);
-      }
-      else
-        p.fail(out.cause());
+    return client.run(query, rs -> {
+      List<Tag> tags = new ArrayList<>();
+      while (rs.next())
+        tags.add(resultSetToTag(rs));
+      return tags;
     });
-    return p.future();
   }
 
   @Override
   public Future<Void> storeTag(Marker marker, Tag tag) {
-    final SQLQuery query = new SQLQuery("INSERT INTO ${schema}.${table} (id, space, version) VALUES (#{tagId}, #{spaceId}, #{version}) " +
-        "ON CONFLICT (id,space) DO " +
-        "UPDATE SET id = #{tagId}, space = #{spaceId}, version = #{version}")
+    final SQLQuery query = client.getQuery("INSERT INTO ${schema}.${table} "
+            + "(id, space, version) VALUES (#{tagId}, #{spaceId}, #{version}) "
+            + "ON CONFLICT (id,space) DO "
+            + "UPDATE SET id = #{tagId}, space = #{spaceId}, version = #{version}")
         .withNamedParameter("tagId", tag.getId())
         .withNamedParameter("spaceId", tag.getSpaceId())
         .withNamedParameter("version", tag.getVersion());
-    return JDBCConfig.updateWithParams(setVars(query));
+
+    return client.write(query).mapEmpty();
   }
 
   @Override
   public Future<Tag> deleteTag(Marker marker, String id, String spaceId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE id = #{tagId} AND space = #{spaceId}")
+    final SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE id = #{tagId} AND space = #{spaceId}")
         .withNamedParameter("tagId", id)
         .withNamedParameter("spaceId", spaceId);
-    return getTag(marker, id, spaceId).compose(tag -> JDBCConfig.updateWithParams(setVars(query)).map(tag));
+
+    return getTag(marker, id, spaceId).compose(tag -> client.write(query).map(v -> tag));
   }
 
   @Override
   public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE space = #{spaceId}")
+    final SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE space = #{spaceId}")
         .withNamedParameter("spaceId", spaceId);
     return getTags(marker, spaceId)
-        .compose(tags -> JDBCConfig.updateWithParams(setVars(query))
-        .map(tags));
+        .compose(tags -> client.write(query).map(tags));
   }
 
-  private SQLQuery setVars(SQLQuery q) {
-    return q
-        .withVariable("schema", SCHEMA)
-        .withVariable("table", TAG_TABLE);
+  @Override
+  public Future<Void> init() {
+    return client.init()
+        .compose(v -> initTable());
+  }
+
+  private Future<Void> initTable() {
+    return client.write(client.getQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} "
+            + "(id TEXT, space TEXT, version BIGINT, PRIMARY KEY(id, space))"))
+        .onFailure(e -> logger.error("Can not create table {}!", TAG_TABLE, e))
+        .mapEmpty();
   }
 }

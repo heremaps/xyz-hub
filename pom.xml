@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2023 HERE Europe B.V.
+  ~ Copyright (C) 2017-2024 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.7.10-SNAPSHOT</version>
+  <version>3.8.8-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -50,6 +50,7 @@
     <module>xyz-models</module>
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
+    <module>xyz-util</module>
   </modules>
 
   <scm>
@@ -91,8 +92,8 @@
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
     <vertx-version>4.4.4</vertx-version>
-    <geo-tools-version>19.1</geo-tools-version>
-    <jts-version>1.14.0</jts-version>
+    <geo-tools-version>30.1</geo-tools-version>
+    <jts-version>1.19.0</jts-version>
     <jackson-version>2.15.2</jackson-version>
     <lambda-core-version>1.2.1</lambda-core-version>
     <log4j-version>2.17.1</log4j-version>
@@ -223,6 +224,11 @@
         <artifactId>xyz-psql-connector</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-util</artifactId>
+        <version>${project.version}</version>
+      </dependency>
 
       <!-- Vertx -->
       <dependency>
@@ -273,16 +279,6 @@
       <dependency>
         <artifactId>vertx-redis-client</artifactId>
         <groupId>io.vertx</groupId>
-        <version>${vertx-version}</version>
-      </dependency>
-      <dependency>
-        <artifactId>vertx-jdbc-client</artifactId>
-        <groupId>io.vertx</groupId>
-        <version>${vertx-version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.vertx</groupId>
-        <artifactId>vertx-pg-client</artifactId>
         <version>${vertx-version}</version>
       </dependency>
 
@@ -429,7 +425,7 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
-        <version>3.12.0</version>
+        <version>3.13.0</version>
       </dependency>
 
       <!-- Cache -->
@@ -442,16 +438,21 @@
       <!--  Geo -->
       <dependency>
         <artifactId>jts-core</artifactId>
-        <groupId>com.vividsolutions</groupId>
+        <groupId>org.locationtech.jts</groupId>
         <version>${jts-version}</version>
       </dependency>
       <dependency>
         <artifactId>jts-io</artifactId>
-        <groupId>com.vividsolutions</groupId>
+        <groupId>org.locationtech.jts</groupId>
         <version>${jts-version}</version>
       </dependency>
       <dependency>
         <artifactId>gt-api</artifactId>
+        <groupId>org.geotools</groupId>
+        <version>${geo-tools-version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>gt-main</artifactId>
         <groupId>org.geotools</groupId>
         <version>${geo-tools-version}</version>
       </dependency>
@@ -556,6 +557,16 @@
         <groupId>com.mchange</groupId>
         <artifactId>c3p0</artifactId>
         <version>0.9.5.5</version>
+      </dependency>
+      <dependency>
+        <artifactId>mapbox-vector-tile</artifactId>
+        <groupId>com.wdtinc</groupId>
+        <version>3.1.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.ongres.scram</groupId>
+        <artifactId>client</artifactId>
+        <version>2.1</version>
       </dependency>
 
     </dependencies>

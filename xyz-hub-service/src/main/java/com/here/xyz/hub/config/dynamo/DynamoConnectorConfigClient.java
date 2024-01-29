@@ -55,69 +55,60 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
   @Override
   public Future<Void> init() {
     if (dynamoClient.isLocal()) {
-      dynamoClient.createTable(connectors.getTableName(), "id:S,owner:S", "id", "owner", null);
+      dynamoClient.createTable(connectors.getTableName(), "id:S,owner:S", "id", List.of(new IndexDefinition("owner")), null);
     }
 
     return Future.succeededFuture();
   }
 
   @Override
-  protected void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    DynamoClient.dynamoWorkers.executeBlocking(
+  protected Future<Connector> getConnector(Marker marker, String connectorId) {
+    return DynamoClient.dynamoWorkers.executeBlocking(
         future -> {
           try {
-            logger.debug(marker, "Getting connectorId {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
+            logger.debug(marker, "Getting connector {} from Dynamo Table {}", connectorId, dynamoClient.tableName);
             final Item item = connectors.getItem("id", connectorId);
-            future.complete(item);
+            future.complete(item != null ? Json.decodeValue(item.toJSON(), Connector.class) : null);
           }
           catch (Exception e) {
             future.fail(e);
           }
+        }
+    ).compose(
+        connector -> {
+          if (connector == null) {
+            logger.debug(marker, "This connector {} does not exist", connectorId);
+            return Future.failedFuture(new RuntimeException("The connector was not found for connector ID: " + connectorId));
+          }
+          return Future.succeededFuture((Connector) connector);
         },
-        ar -> {
-          if (ar.failed()) {
-            logger.error(marker, "Error getting connector with ID {}", connectorId, ar.cause());
-            handler.handle(Future.failedFuture(new RuntimeException("Error getting connector with ID " + connectorId, ar.cause())));
-          }
-          else {
-            Item item = (Item) ar.result();
-            if (item == null) {
-              logger.debug(marker, "connector ID [{}]: This configuration does not exist", connectorId);
-              handler.handle(Future.failedFuture(new RuntimeException("The connector config was not found for connector ID: " + connectorId)));
-              return;
-            }
-
-            final Connector connector = Json.decodeValue(item.toJSON(), Connector.class);
-            handler.handle(Future.succeededFuture(connector));
-          }
+        t -> {
+          logger.error(marker, "Error getting connector with ID {}", connectorId, t);
+          return Future.failedFuture(new RuntimeException("Error getting connector with ID " + connectorId, t));
         }
     );
   }
 
   @Override
-  protected void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
-    DynamoClient.dynamoWorkers.executeBlocking(
+  protected Future<List<Connector>> getConnectorsByOwner(Marker marker, String ownerId) {
+    return DynamoClient.dynamoWorkers.executeBlocking(
         future -> {
           try {
             logger.debug(marker, "Getting connectors by owner {} from Dynamo Table {}", ownerId, dynamoClient.tableName);
             final PageIterable<Item, QueryOutcome> items = connectors.getIndex("owner-index").query(new QuerySpec().withHashKey("owner", ownerId)).pages();
-            future.complete(items);
+            List<Connector> result = new ArrayList<>();
+            items.forEach(page -> page.forEach(item -> result.add(Json.decodeValue(item.toJSON(), Connector.class))));
+            future.complete(result);
           }
           catch (Exception e) {
             future.fail(e);
           }
-        },
-        ar -> {
-          if (ar.failed()) {
-            logger.error(marker, "Error getting connectors for owner {}", ownerId, ar.cause());
-            handler.handle(Future.failedFuture("Error getting connectors for owner " + ownerId));
-          }
-          else {
-            PageIterable<Item, QueryOutcome> items = (PageIterable<Item, QueryOutcome>) ar.result();
-            List<Connector> result = new ArrayList<>();
-            items.forEach(page -> page.forEach(item -> result.add(Json.decodeValue(item.toJSON(), Connector.class))));
-            handler.handle(Future.succeededFuture(result));
-          }
+        }
+    ).compose(
+        connectors -> Future.succeededFuture((List<Connector>) connectors),
+        t -> {
+          logger.error(marker, "Error getting connectors for owner {}", ownerId, t);
+          return Future.failedFuture("Error getting connectors for owner " + ownerId);
         }
     );
   }

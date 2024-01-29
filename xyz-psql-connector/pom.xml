@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2023 HERE Europe B.V.
+  ~ Copyright (C) 2017-2024 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.7.10-SNAPSHOT</version>
+    <version>3.8.8-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -218,6 +218,10 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-connectors</artifactId>
     </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-util</artifactId>
+    </dependency>
 
     <!--  Logging libraries -->
     <dependency>
@@ -247,7 +251,7 @@
       <artifactId>commons-dbutils</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.vividsolutions</groupId>
+      <groupId>org.locationtech.jts</groupId>
       <artifactId>jts-core</artifactId>
     </dependency>
     <dependency>
@@ -268,6 +272,7 @@
       <artifactId>c3p0</artifactId>
     </dependency>
 
+    <!-- PSQL JDBC driver -->
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>

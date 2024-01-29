@@ -20,29 +20,26 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.QueryRunner.SCHEMA;
 import static com.here.xyz.psql.QueryRunner.TABLE;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQueries;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
-import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
-import com.here.xyz.psql.config.DatabaseSettings;
-import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
@@ -53,270 +50,102 @@ import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.TableExists;
 import com.here.xyz.psql.query.helpers.TableExists.Table;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
-import com.here.xyz.psql.tools.DhString;
+import com.here.xyz.psql.tools.ECPSTool;
 import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
-import com.mchange.v2.c3p0.ComboPooledDataSource;
-import com.mchange.v2.c3p0.PooledDataSource;
+import com.here.xyz.util.db.DatabaseSettings;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.CachedPooledDataSources;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.sql.DataSource;
-import org.apache.commons.dbutils.QueryRunner;
-import org.apache.commons.dbutils.ResultSetHandler;
-import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class DatabaseHandler extends StorageConnector {
-    private static final Logger logger = LogManager.getLogger();
-    private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
 
+    public static final String ECPS_PHRASE = "ECPS_PHRASE";
+    private static final Logger logger = LogManager.getLogger();
+    private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
+
+    public static final String HEAD_TABLE_SUFFIX = "_head";
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
      * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
      * outside.
      **/
-    private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
-    public static final String HEAD_TABLE_SUFFIX = "_head";
+    static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
 
     public static final long PARTITION_SIZE = 100_000;
 
     /**
-     * The data source connections factory.
-     */
-    private static Map<String, PSQLConfig> dbInstanceMap = new ConcurrentHashMap<>();
-
-    /**
      * Current event.
      */
     private Event event;
-    /**
-     * The config for the current event.
-     */
-    protected static PSQLConfig config;
-    /**
-     * The write data source for the current event.
-     */
-    protected DataSource dataSource;
-    /**
-     * The read data source for the current event.
-     */
-    protected DataSource readDataSource;
+
     /**
      * The dbMaintainer for the current event.
      */
-    protected DatabaseMaintainer dbMaintainer;
+    public DatabaseMaintainer dbMaintainer;
 
     private boolean retryAttempted;
 
     void reset() {
-        // clear the map and free resources for GC
-        for ( String connectorId : dbInstanceMap.keySet()) {
-            removeDbInstanceFromMap(connectorId);
-        }
-        dbInstanceMap.clear();
+        //Clear the data sources cache
+        CachedPooledDataSources.invalidateCache();
     }
+
+    protected DataSourceProvider dataSourceProvider;
+    protected DatabaseSettings dbSettings;
 
     @Override
     protected void initialize(Event event) {
-        synchronized (dbInstanceMap) {
-            this.event = event;
-            config = new PSQLConfig(event, context);
-            String connectorId = traceItem.getConnectorId();
+        this.event = event;
+        String connectorId = traceItem.getConnectorId();
+        ConnectorParameters connectorParams = ConnectorParameters.fromEvent(event);
 
-            if (connectorId == null) {
-                logger.warn("{} ConnectorId is missing as param in the Connector-Config! {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
-                connectorId = config.getConfigValuesAsString();
-            }
+        //Decrypt the ECPS into an instance of DatabaseSettings
+        dbSettings = new DatabaseSettings(connectorId,
+            ECPSTool.decryptToMap(ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()));
 
-            if (dbInstanceMap.get(connectorId) != null) {
-                /** Check if db-params has changed*/
-                if (!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(config.getConfigValuesAsString())) {
-                    logger.info("{} Config has changed -> remove dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
-                    removeDbInstanceFromMap(connectorId);
-                } else {
-                    logger.debug("{} Config already loaded -> load dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
-                }
-            }
+        //Set some additional DB settings
+        dbSettings
+            .withApplicationName(ConnectorRuntime.getInstance().getApplicationName());
 
-            if (dbInstanceMap.get(connectorId) == null) {
-
-                /** Init dataSource, readDataSource ..*/
-                logger.info("{} Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
-                final ComboPooledDataSource source = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(), config.applicationName(), false);
-
-                Map<String, String> m = new HashMap<>();
-                m.put(C3P0EXT_CONFIG_SCHEMA, config.getDatabaseSettings().getSchema());
-                source.setExtensions(m);
-                config.addDataSource(source);
-
-                if (config.getDatabaseSettings().getReplicaHost() != null) {
-                    final ComboPooledDataSource replicaDataSource = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(), config.applicationName(), true);
-                    replicaDataSource.setExtensions(m);
-                    config.addReadDataSource(replicaDataSource);
-                }
-                dbInstanceMap.put(connectorId, config);
-            }
-
-            retryAttempted = false;
-            dataSource = dbInstanceMap.get(connectorId).getDataSource();
-            readDataSource = dbInstanceMap.get(connectorId).getReadDataSource();
-            dbMaintainer = new DatabaseMaintainer(dataSource, config);
-            //Always use the writer in case of event.preferPrimaryDataSource == true
-            if (event.getPreferPrimaryDataSource() != null && event.getPreferPrimaryDataSource() == Boolean.TRUE)
-                this.readDataSource = this.dataSource;
-        }
+        dataSourceProvider = new CachedPooledDataSources(dbSettings);
+        retryAttempted = false;
+        dbMaintainer = new DatabaseMaintainer(dataSourceProvider, dbSettings, connectorParams,
+            ConnectorRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
+        DataSourceProvider.setDefaultProvider(dataSourceProvider);
     }
 
-    private void removeDbInstanceFromMap(String connectorId){
-        synchronized (dbInstanceMap) {
-            try {
-                ((PooledDataSource) (dbInstanceMap.get(connectorId).getDataSource())).close();
-            } catch (SQLException e) {
-                logger.warn("Error while closing connections: ", e);
-            }
-            dbInstanceMap.remove(connectorId);
-        }
+    protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {
+        return runner.withDataSourceProvider(dataSourceProvider).run();
     }
 
-    private static ComboPooledDataSource getComboPooledDataSource(DatabaseSettings dbSettings, ConnectorParameters connectorParameters, String applicationName, boolean useReplica) {
-        String jdbcUrl = DhString.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",
-            dbSettings.getHost(useReplica), dbSettings.getPort(), dbSettings.getDb(), applicationName);
-
-        ComboPooledDataSource pooledDataSource = getComboPooledDataSource(jdbcUrl, dbSettings.getUser(useReplica), dbSettings.getPassword(), connectorParameters.getDbMinPoolSize(),
-            connectorParameters.getDbMaxPoolSize(), connectorParameters.getDbInitialPoolSize(),
-            connectorParameters.getDbAcquireRetryAttempts(), connectorParameters.getDbAcquireIncrement(),
-            connectorParameters.getDbCheckoutTimeout() * 1000,
-            connectorParameters.getDbMaxIdleTime() != null ? connectorParameters.getDbMaxIdleTime() : 0,
-            connectorParameters.isDbTestConnectionOnCheckout());
-
-        pooledDataSource.setConnectionCustomizerClassName(DatabaseHandler.XyzConnectionCustomizer.class.getName());
-
-        return pooledDataSource;
-    }
-
-    private static ComboPooledDataSource getComboPooledDataSource(String jdbcUrl, String user, String password,
-        int minPoolSize, int maxPoolSize, int initialPoolSize, int acquireRetryAttempts, int acquireIncrement, int checkoutTimeout,
-        int maxIdleTime, boolean testConnectionOnCheckout) {
-
-        final ComboPooledDataSource cpds = new ComboPooledDataSource();
-        cpds.setJdbcUrl(jdbcUrl);
-        cpds.setUser(user);
-        cpds.setPassword(password);
-        cpds.setInitialPoolSize(initialPoolSize);
-        cpds.setMinPoolSize(minPoolSize);
-        cpds.setMaxPoolSize(maxPoolSize);
-        cpds.setAcquireRetryAttempts(acquireRetryAttempts);
-        cpds.setAcquireIncrement(acquireIncrement);
-        cpds.setCheckoutTimeout(checkoutTimeout);
-        cpds.setMaxIdleTime(maxIdleTime);
-        cpds.setTestConnectionOnCheckout(testConnectionOnCheckout);
-
-        return cpds;
-    }
-
-    //TODO: Move into QueryRunner top level class
-    public <T> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
-        try {
-            return executeQuery(query, handler, dataSource);
-        }
-        catch (Exception e) {
-            try {
-                if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.info("{} Retry Query permitted.", traceItem);
-                    return executeQuery(query, handler, dataSource);
-                }
-            }
-            catch (Exception e1) {
-                if(retryCausedOnServerlessDB(e1)) {
-                    logger.info("{} Retry Query permitted.", traceItem);
-                    return executeQuery(query, handler, dataSource);
-                }
-                throw e;
-            }
-            throw e;
-        }
+    protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R write(T runner) throws SQLException, ErrorResponseException {
+        return runner.withDataSourceProvider(dataSourceProvider).write();
     }
 
     /**
-     * Executes the given query and returns the processed by the handler result using the provided dataSource.
+     * @deprecated No retries are necessary anymore as table creation is not done lazily anymore
      */
-    private <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler, DataSource dataSource) throws SQLException {
-        final long start = System.currentTimeMillis();
-        try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
-            final List<Object> queryParameters = query.parameters();
-            logger.debug("{} executeQuery: {} - Parameter: {}", traceItem, query.text(), queryParameters);
-            return run.query(query.text(), handler, queryParameters.toArray());
-        }
-        finally {
-            final long end = System.currentTimeMillis();
-            final String dataSourceURL = dataSource instanceof ComboPooledDataSource ? ((ComboPooledDataSource) dataSource).getJdbcUrl() : "n/a";
-            logger.info("{} query time: {}ms, event: {}, dataSource: {}", traceItem, (end - start), event.getClass().getSimpleName(), dataSourceURL);
-        }
-    }
-
-    //TODO: Move into QueryRunner top level class
-    protected int executeUpdateWithRetry(SQLQuery query, DataSource dataSource) throws SQLException {
-        try {
-            return executeUpdate(query, dataSource);
-        } catch (Exception e) {
-            try {
-                if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-                    logger.info("{} Retry Update permitted.", ConnectorRuntime.getInstance().getStreamId());
-                    return executeUpdate(query, dataSource);
-                }
-            } catch (Exception e1) {
-                if (retryCausedOnServerlessDB(e)) {
-                    logger.info("{} Retry Update permitted.", ConnectorRuntime.getInstance().getStreamId());
-                    return executeUpdate(query, dataSource);
-                }
-                throw e;
-            }
-            throw e;
-        }
-    }
-
-    /**
-     * Executes the given update or delete query and returns the number of deleted or updated records.
-     *
-     * @param query the update or delete query.
-     * @return the amount of updated or deleted records.
-     * @throws SQLException if any error occurred.
-     */
-    private int executeUpdate(SQLQuery query, DataSource dataSource) throws SQLException {
-        final long start = System.currentTimeMillis();
-        try {
-            final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
-            final List<Object> queryParameters = query.parameters();
-            logger.debug("{} executeUpdate: {} - Parameter: {}", ConnectorRuntime.getInstance().getStreamId(), query.text(), queryParameters);
-            return run.update(query.text(), queryParameters.toArray());
-        } finally {
-            final long end = System.currentTimeMillis();
-            logger.info("{} query time: {}ms", ConnectorRuntime.getInstance().getStreamId(), (end - start));
-        }
-    }
-
+    @Deprecated
     private boolean retryCausedOnServerlessDB(Exception e) {
         /** If a timeout comes directly after the invocation it could rely
          * on serverless aurora scaling. Then we should retry again.
@@ -346,18 +175,11 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
-        if (event.getSpaceDefinition() != null && event.getOperation() == Operation.CREATE) {
+        if (event.getSpaceDefinition() != null && event.getOperation() == CREATE)
             //Create Space Table
             ensureSpace();
-        }
 
-        new ModifySpace(event).write();
-
-        if (event.getOperation() != Operation.DELETE)
-            dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), event.getSpace());
-
-        //If we reach this point we are okay!
-        return new SuccessResponse().withStatus("OK");
+        return write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
     }
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
@@ -379,8 +201,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (isForExtendingSpace(event) && event.getContext() == DEFAULT) {
             if (!deletes.isEmpty()) {
                 //Transform the incoming deletes into upserts with deleted flag for features which exist in the extended layer (base)
-                List<String> existingIdsInBase = new FetchExistingIds(
-                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event), originalDeletes)).run();
+                List<String> existingIdsInBase = run(new FetchExistingIds(
+                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event), originalDeletes)));
 
                 for (String featureId : originalDeletes) {
                   if (existingIdsInBase.contains(featureId)) {
@@ -418,7 +240,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           /** Include Old states */
           if (includeOldStates) {
             List<String> idsToFetch = getAllIds(inserts, updates, upserts, deletes);
-            List<Feature> existingFeatures = new FetchExistingFeatures(new FetchExistingFeaturesInput(event, idsToFetch)).run();
+            List<Feature> existingFeatures = run(new FetchExistingFeatures(new FetchExistingFeaturesInput(event, idsToFetch)));
             if (existingFeatures != null) {
               collection.setOldFeatures(existingFeatures);
             }
@@ -427,23 +249,21 @@ public abstract class DatabaseHandler extends StorageConnector {
           /** Include Upserts */
           if (!upserts.isEmpty()) {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            List<String> existingIds = new FetchExistingIds(new FetchIdsInput(XyzEventBasedQueryRunner.readTableFromEvent(event),
-                upsertIds)).run();
+            List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(XyzEventBasedQueryRunner.readTableFromEvent(event),
+                upsertIds)));
             upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
           }
 
-          version = new GetNextVersion<>(event).run();
+          version = run(new GetNextVersion<>(event));
         }
         catch (Exception e) {
-          if (!retryAttempted) {
-            canRetryAttempt();
+          if (!retryAttempted)
             return executeModifyFeatures(event);
-          }
           else
               throw e;
         }
 
-        try (final Connection connection = dataSource.getConnection()) {
+        try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
 
             boolean previousAutoCommitState = connection.getAutoCommit();
             connection.setAutoCommit(!event.getTransaction());
@@ -518,8 +338,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         connection.setAutoCommit(previousAutoCommitState);
                         connection.close();
                     }
-                    /** Retry */
-                    canRetryAttempt();
+                    //Retry
                     return executeModifyFeatures(event);
                 }
             }
@@ -586,14 +405,6 @@ public abstract class DatabaseHandler extends StorageConnector {
       return ids;
     }
 
-    private boolean canRetryAttempt() {
-        if (retryAttempted || !isRemainingTimeSufficient(ConnectorRuntime.getInstance().getRemainingTime() / 1000))
-            return false;
-        retryAttempted = true;
-//        logger.info("{} Retry the execution.", traceItem);
-        return true;
-    }
-
     private static boolean _advisory(String key, Connection connection, boolean lock, boolean block) throws SQLException
     {
      boolean cStateFlag = connection.getAutoCommit();
@@ -622,7 +433,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         final String tableName = XyzEventBasedQueryRunner.readTableFromEvent(event);
 
-        try (final Connection connection = dataSource.getConnection()) {
+        try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
             advisoryLock( tableName, connection );
             boolean cStateFlag = connection.getAutoCommit();
             try {
@@ -642,8 +453,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 logger.error("{} Failed to create table '{}' for space id: '{}': {}", traceItem, tableName, event.getSpace(), e);
                 connection.rollback();
                 //Check if the table was created in the meantime, by another instance.
-                boolean tableExists = new TableExists(new Table(config.getDatabaseSettings().getSchema(),
-                    XyzEventBasedQueryRunner.readTableFromEvent(event))).run();
+                boolean tableExists = run(new TableExists(new Table(getDatabaseSettings().getSchema(),
+                    XyzEventBasedQueryRunner.readTableFromEvent(event))));
                 if (tableExists)
                     return;
                 throw new SQLException("Missing table \"" + tableName + "\" and creation failed: " + e.getMessage(), e);
@@ -722,37 +533,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         //Add new way of using different storage-type for columns
         alterColumnStorage(stmt, schema, table);
 
-        String query;
-
-        if (withIndices) {
-            createVersioningIndices(stmt, schema, table);
-
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
-            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_tags"), schema, table);
-
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING gist ((geo))";
-            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_geo"), schema, table);
-
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((i))";
-            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_serial"), schema, table);
-
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), id)";
-            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_updatedAt"), schema, table);
-
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), id)";
-            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_createdAt"), schema, table);
-
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree (left(md5('' || i), 5))";
-            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_viz"), schema, table);
-        }
-    }
-
-    private void doReplacementsAndAdd(Statement stmt, SQLQuery q, String schema, String table) throws SQLException {
-        stmt.addBatch(q.withVariable(SCHEMA, schema).withVariable(TABLE, table).substitute().text());
+        if (withIndices)
+            createIndices(stmt, schema, table);
     }
 
     private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
-        String schema = config.getDatabaseSettings().getSchema();
+        String schema = getDatabaseSettings().getSchema();
         String table = XyzEventBasedQueryRunner.readTableFromEvent(event);
 
         createSpaceTableStatement(stmt, schema, table, true, null);
@@ -772,178 +558,31 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withVariable("columnName", columnName);
     }
 
-    private static void createVersioningIndices(Statement stmt, String schema, String table) throws SQLException {
-        stmt.addBatch(buildCreateIndexQuery(schema, table, "id", "BTREE", "idx_" + table + "_idnew").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, "version", "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, "next_version", "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, "operation", "BTREE").substitute().text());
-        stmt.addBatch(buildCreateIndexQuery(schema, table, "author", "BTREE").substitute().text());
+    private static void createIndices(Statement stmt, String schema, String table) throws SQLException {
+        for (SQLQuery indexCreationQuery : buildSpaceTableIndexQueries(schema, table))
+            stmt.addBatch(indexCreationQuery.substitute().text());
     }
 
-    static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
-      return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method);
-    }
-
-    static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method, boolean withNulls) {
-        return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method, withNulls ? null : columnName + " IS NOT NULL");
-    }
-
-    static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method) {
-        return buildCreateIndexQuery(schema, table, columnNames, method, null);
-    }
-
-    private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method, String predicate) {
-        return buildCreateIndexQuery(schema, table, columnNames, method, "idx_" + table + "_"
-            + columnNames.stream().map(colName -> colName.replace("_", "")).collect(Collectors.joining()), predicate);
-    }
-
-    static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method, String indexName) {
-        return buildCreateIndexQuery(schema, table, Arrays.asList(columnName), method, indexName, null);
-    }
-
-    private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNamesOrExpressions, String method,
-        String indexName, String predicate) {
-        return new SQLQuery("CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING " + method
-            + " (" + String.join(", ", columnNamesOrExpressions) + ") ${{predicate}}")
-            .withVariable(SCHEMA, schema)
-            .withVariable(TABLE, table)
-            .withVariable("indexName", indexName)
-            .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "");
-    }
-
-/** #################################### Resultset Handlers #################################### */
-    /**
-     * The default handler for the most results.
-     *
-     * @param rs the result set.
-     * @return the generated feature collection from the result set.
-     * @throws SQLException when any unexpected error happened.
-     */
-
-    public static final long MAX_RESULT_CHARS = 100 * 1024 *1024;
-
-    private FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom, boolean useColumnNames) throws SQLException {
-        String nextIOffset = "";
-        String nextDataset = null;
-
-        StringBuilder sb = new StringBuilder();
-        String prefix = "[";
-        sb.append(prefix);
-        int numFeatures = 0;
-
-        while (rs.next() && MAX_RESULT_CHARS > sb.length()) {
-            String geom = getGeoFromResultSet(rs, useColumnNames);
-            if (skipNullGeom && geom == null)
-                continue;
-            sb.append(getJsondataFromResultSet(rs, useColumnNames));
-            sb.setLength(sb.length() - 1);
-            sb.append(",\"geometry\":");
-            sb.append(geom == null ? "null" : geom);
-            sb.append("}");
-            sb.append(",");
-
-            if (event instanceof IterateFeaturesEvent) {
-                numFeatures++;
-                nextIOffset = rs.getString(3);
-                if (rs.getMetaData().getColumnCount() >= 5)
-                    nextDataset = rs.getString("dataset");
-            }
-        }
-
-        if (sb.length() > prefix.length()) {
-            sb.setLength(sb.length() - 1);
-        }
-        sb.append("]");
-
-        final FeatureCollection featureCollection = new FeatureCollection();
-        featureCollection._setFeatures(sb.toString());
-
-        if (sb.length() > MAX_RESULT_CHARS) throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
-
-        if (event instanceof IterateFeaturesEvent && numFeatures > 0 && numFeatures == ((SearchForFeaturesEvent) event).getLimit() ) {
-          String nextHandle = (nextDataset != null ? nextDataset + "_" : "") + nextIOffset;
-          featureCollection.setHandle(nextHandle);
-          featureCollection.setNextPageToken(nextHandle);
-        }
-
-        return featureCollection;
-    }
-
-    private String getGeoFromResultSet(ResultSet rs, boolean useColumnName) throws SQLException {
-        return useColumnName ? rs.getString("geo") : rs.getString(2);
-    }
-
-    private String getJsondataFromResultSet(ResultSet rs, boolean useColumnName) throws SQLException {
-        return useColumnName ? rs.getString("jsondata") : rs.getString(1);
-    }
-
-    /**
-     * @deprecated Please solely use an instance of {@link QueryRunner} from now on, to run db tasks.
-     * The QR will also care about handling the specific db response.
-     */
-    @Deprecated
-    public FeatureCollection legacyDefaultFeatureResultSetHandler(ResultSet rs) throws SQLException
-    { return _defaultFeatureResultSetHandler(rs,false, false); }
-
-    public FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
-    { return _defaultFeatureResultSetHandler(rs,false, true); }
-
-    public FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
-    { return _defaultFeatureResultSetHandler(rs,true, true); }
-
-    protected int calculateTimeout() throws SQLException{
+    static int calculateTimeout() throws SQLException{
         int remainingSeconds = ConnectorRuntime.getInstance().getRemainingTime() / 1000;
 
-        if(!isRemainingTimeSufficient(remainingSeconds)) {
+        if (!isRemainingTimeSufficient(remainingSeconds))
             throw new SQLException("No time left to execute query.","54000");
-        }
 
         int timeout = remainingSeconds - 2;
-
-        logger.debug("{} New timeout for query set to '{}'", traceItem, timeout);
+        logger.debug("{} New timeout for query set to '{}'", ConnectorRuntime.getInstance().getStreamId(), timeout);
         return timeout;
     }
 
-    private boolean isRemainingTimeSufficient(int remainingSeconds){
-        if(remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
-            logger.warn("{} No time left to execute query '{}' s", traceItem, remainingSeconds);
+    private static boolean isRemainingTimeSufficient(int remainingSeconds) {
+        if (remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
+            logger.warn("{} Not enough time left to execute query: {}s", ConnectorRuntime.getInstance().getStreamId(), remainingSeconds);
             return false;
         }
         return true;
     }
 
-    public PSQLConfig getConfig() {
-        return config;
-    }
-
-    public static void setConfig(PSQLConfig config) {
-        DatabaseHandler.config = config;
-    }
-
-    private static int getStatementTimeoutSeconds() {
-        return config.getConnectorParams().getStatementTimeoutSeconds();
-    }
-
-    public String getStreamId() {
-        return streamId;
-    }
-
-    public static class XyzConnectionCustomizer extends AbstractConnectionCustomizer { // handle initialization per db connection
-        private String getSchema(String parentDataSourceIdentityToken) {
-            return (String) extensionsForToken(parentDataSourceIdentityToken).get(C3P0EXT_CONFIG_SCHEMA);
-        }
-
-        public void onAcquire(Connection c, String pdsIdt) {
-            String schema = getSchema(pdsIdt);  // config.schema();
-            QueryRunner runner = new QueryRunner();
-            try {
-                runner.execute(c, "SET enable_seqscan = off;");
-                runner.execute(c, "SET statement_timeout = " + (getStatementTimeoutSeconds() * 1000) + " ;");
-                runner.execute(c, "SET search_path=" + schema + ",h3,public,topology;");
-            } catch (SQLException e) {
-                logger.error("Failed to initialize connection " + c + " [" + pdsIdt + "] : {}", e);
-            }
-        }
+    public DatabaseSettings getDatabaseSettings() {
+        return dbSettings;
     }
 }

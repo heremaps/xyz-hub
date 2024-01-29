@@ -27,11 +27,12 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.versioning.GetMinAvailableVersion;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -58,13 +59,13 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   }
 
   @Override
-  public XyzResponse run() throws SQLException, ErrorResponseException {
-    long min = new GetMinAvailableVersion<>(event).run();
+  public XyzResponse run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    long min = new GetMinAvailableVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
 
     if (start < min)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Min Version=" + min);
 
-    return super.run();
+    return super.run(dataSourceProvider);
   }
 
   @Override

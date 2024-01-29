@@ -20,8 +20,8 @@
 package com.here.xyz.connectors.runtime;
 
 public abstract class ConnectorRuntime {
-
   private static ConnectorRuntime instance;
+  private static final ThreadLocal<ConnectorRuntime> threadLocalInstanceHolder = new ThreadLocal<>();
 
   public abstract int getRemainingTime();
   public abstract String getApplicationName();
@@ -40,11 +40,17 @@ public abstract class ConnectorRuntime {
   public abstract String getStreamId();
 
   public static ConnectorRuntime getInstance() {
-    return instance;
+    if (instance != null)
+      return instance;
+    //NOTE: Running locally there can be multiple instances of a connector running at the same time. See #setInstance(ConnectorRuntime)
+    return threadLocalInstanceHolder.get();
   }
 
   static void setInstance(ConnectorRuntime instance) {
-    ConnectorRuntime.instance = instance;
+    //NOTE: Running locally there can be multiple instances of a connector running at the same time.
+    if (instance.isRunningLocally())
+      ConnectorRuntime.threadLocalInstanceHolder.set(instance);
+    else
+      ConnectorRuntime.instance = instance;
   }
-
 }

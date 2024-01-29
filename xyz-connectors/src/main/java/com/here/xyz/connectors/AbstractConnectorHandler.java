@@ -73,12 +73,12 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The event-type-suffix for response notifications.
    */
   @SuppressWarnings("WeakerAccess")
-  public static final String RESPONSE = ".response";
+  protected static final String RESPONSE = ".response";
 
   /**
    * The event-type-suffix for request notifications.
    */
-  static final String REQUEST = ".request";
+  protected static final String REQUEST = ".request";
 
   /**
    * The relocation client
@@ -104,6 +104,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * Environment variable for setting the custom event decryptor. Currently only KMS, PRIVATE_KEY, or DUMMY is supported
    */
+  @Deprecated
   public static final String ENV_DECRYPTOR = "EVENT_DECRYPTOR";
 
   /**
@@ -115,13 +116,13 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The maximal response size in bytes that can be sent back without relocating the response.
    */
   @SuppressWarnings("WeakerAccess")
-  public static int RELOCATION_THRESHOLD_SIZE = 6 * 1024 * 1024;
+  private static int RELOCATION_THRESHOLD_SIZE = 6 * 1024 * 1024;
 
   /**
    * The maximal size of uncompressed bytes. Exceeding that limit leads to the response getting gzipped.
    */
   @SuppressWarnings("WeakerAccess")
-  public static int GZIP_THRESHOLD_SIZE = 1024 * 1024; // 1MB
+  private static int GZIP_THRESHOLD_SIZE = 1024 * 1024; // 1MB
 
   /**
    * The stream-id that should be added to every log output.
@@ -132,7 +133,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * Can be used for writing Log-Entries (streamId + connectorId). The connectorId should get configured in the
    * Connector Parameters of the Connector Config.
    */
-  public TraceItem traceItem;
+  protected TraceItem traceItem;
 
   /**
    * Start timestamp for logging.
@@ -147,17 +148,15 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * {@link EventDecryptor} used for decrypting the parameters.
    */
-  final protected EventDecryptor eventDecryptor;
+  protected final EventDecryptor eventDecryptor;
 
   /**
    * The max uncompressed response size in bytes read from connector params or environment variables
    */
-  protected long maxUncompressedResponseSize = Long.MAX_VALUE;
+  private long maxUncompressedResponseSize = Long.MAX_VALUE;
 
   private static final String DEFAULT_STORAGE_REGION_MAPPING = "DEFAULT_STORAGE_REGION_MAPPING";
   private static final Map<String, Set<String>> allowedEventTypes;
-
-  protected Context context;
 
   static {
     try {
@@ -173,7 +172,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * Default constructor that sets the correct decryptor based on the {@see ENV_DECRYPTOR} environment variable.
    */
-  public AbstractConnectorHandler() {
+  protected AbstractConnectorHandler() {
     Decryptors decryptor = Decryptors.DUMMY;
     if (System.getenv(ENV_DECRYPTOR) != null) {
       try {
@@ -191,18 +190,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * @return the number of milliseconds that have passed since the request started (for time measuring inside the lambda).
    */
   @SuppressWarnings("WeakerAccess")
-  protected long ms() {
+  private long ms() {
     return System.currentTimeMillis() - start;
-  }
-
-  /**
-   * Informs the connector that it is running in embedded mode.
-   *
-   * @param embedded true, if the lambda is running in embedded mode.
-   */
-  @SuppressWarnings("unused")
-  public void setEmbedded(boolean embedded) {
-    this.embedded = embedded;
   }
 
   /**
@@ -219,7 +208,6 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
   public void handleRequest(InputStream input, OutputStream output, Context context, String streamId) {
     try {
-      this.context = context;
       start = System.currentTimeMillis();
       Typed dataOut;
       String ifNoneMatch = null;
@@ -276,7 +264,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * @param input the input stream
    * @return the event
    */
-  Event readEvent(InputStream input) throws ErrorResponseException {
+  private Event readEvent(InputStream input) throws ErrorResponseException {
     String streamPreview = null;
     try {
       input = Payload.prepareInputStream(input);
@@ -305,13 +293,12 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    *
    * If the serialized object is too large it will be relocated and a RelocatedEvent will be written instead.
    */
-  void writeDataOut(OutputStream output, Typed dataOut, String ifNoneMatch) {
+  private void writeDataOut(OutputStream output, Typed dataOut, String ifNoneMatch) {
     try {
       byte[] bytes = dataOut == null ? null : dataOut.toByteArray();
 
-      if (bytes == null) {
+      if (bytes == null)
         return;
-      }
 
       logger.debug("{} Writing data out for response with type: {}", traceItem, dataOut.getClass().getSimpleName());
 
@@ -324,12 +311,13 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
             .toByteArray();
       }
 
+      final boolean runningLocally = ConnectorRuntime.getInstance().isRunningLocally();
       if (dataOut instanceof BinaryResponse) {
         //NOTE: BinaryResponses contain an ETag automatically, nothing to calculate here
         String etag = ((BinaryResponse) dataOut).getEtag();
         if (XyzResponse.etagMatches(ifNoneMatch, etag))
           bytes = new NotModifiedResponse().withEtag(etag).toByteArray();
-        else if (!embedded && bytes.length > GZIP_THRESHOLD_SIZE)
+        else if (!runningLocally && bytes.length > GZIP_THRESHOLD_SIZE)
           bytes = Payload.compress(bytes);
       }
       else {
@@ -341,7 +329,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
           //Handle compression and ETag injection
           byte[] etagBytes = ETAG_STRING.replace("_", etag.replace("\"", "\\\"")).getBytes();
           try (ByteArrayOutputStream os = new ByteArrayOutputStream(bytes.length - 1 + etagBytes.length)) {
-            OutputStream targetOs = (!embedded && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
+            OutputStream targetOs = (!runningLocally && bytes.length > GZIP_THRESHOLD_SIZE ? Payload.gzip(os) : os);
             targetOs.write(bytes, 0, bytes.length - 1);
             targetOs.write(etagBytes);
             os.close();
@@ -352,9 +340,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       }
 
       //Relocate
-      if (!embedded && bytes.length > RELOCATION_THRESHOLD_SIZE) {
+      if (!runningLocally && bytes.length > RELOCATION_THRESHOLD_SIZE)
         bytes = relocationClient.relocate(streamId, Payload.isGzipped(bytes) ? bytes : Payload.compress(bytes));
-      }
 
       //Write result
       output.write(bytes);

@@ -34,6 +34,7 @@ import com.here.xyz.httpconnector.util.jobs.datasets.Spaces;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.Api.ValidationException;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
@@ -203,26 +204,37 @@ public class CombinedJob extends Job<CombinedJob> {
     if (executing.compareAndSet(false, true)) {
       setExecutedAt(Core.currentTimeMillis() / 1000L);
       new Thread(() -> {
-        while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal())) {
-          reloadChildren()
-              .compose(reloadedChildren -> {
-                children = reloadedChildren;
-                return store();
-              })
-              .compose(v -> checkForNonSucceededChildren());
+        Future<Void> executedFuture = Future.succeededFuture();
+        do {
+          try {
+            executedFuture = reloadChildren()
+                .compose(reloadedChildren -> {
+                  children = reloadedChildren;
+                  return store();
+                })
+                .compose(v -> checkForNonSucceededChildren());
+          }
+          catch (Exception e) {
+            logger.error("Exception during CombinedJob state polling.", e);
+          }
           try {
             Thread.sleep(1000);
           }
           catch (InterruptedException ignored) {}
-        }
-        checkForNonSucceededChildren()
+        } while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal()));
+        executedFuture
+            .compose(v -> checkForNonSucceededChildren())
             .compose(v -> {
               Future<Void> f = Future.succeededFuture();
               if (!getStatus().isFinal())
                 //Everything is processed
                 f = updateJobStatus(this, executed).mapEmpty();
-              logger.info("job[{}] CombinedJob execution completed with status {}!", getId(), getStatus());
               return f;
+            })
+            .onComplete(ar -> {
+              if (ar.failed())
+                logger.error("job[{}] Execution failed:", getId(), ar.cause());
+              logger.info("job[{}] CombinedJob execution completed with status {}!", getId(), getStatus());
             });
       }).start();
     }

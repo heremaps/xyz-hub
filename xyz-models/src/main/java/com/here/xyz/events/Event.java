@@ -78,7 +78,7 @@ public abstract class Event<T extends Event> extends Payload {
   @JsonView(ExcludeFromHash.class)
   private String ifNoneMatch;
   @JsonView(ExcludeFromHash.class)
-  private Boolean preferPrimaryDataSource;
+  private boolean preferPrimaryDataSource;
   @JsonView(ExcludeFromHash.class)
   private Map<String, Object> params;
   private TrustedParams trustedParams;
@@ -310,17 +310,17 @@ public abstract class Event<T extends Event> extends Payload {
    * @return if the primary data source is preferred
    */
   @SuppressWarnings("unused")
-  public Boolean getPreferPrimaryDataSource() {
+  public boolean getPreferPrimaryDataSource() {
     return this.preferPrimaryDataSource;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setPreferPrimaryDataSource(Boolean preferPrimaryDataSource) {
+  public void setPreferPrimaryDataSource(boolean preferPrimaryDataSource) {
     this.preferPrimaryDataSource = preferPrimaryDataSource;
   }
 
   @SuppressWarnings("unused")
-  public T withPreferPrimaryDataSource(Boolean preferPrimaryDataSource) {
+  public T withPreferPrimaryDataSource(boolean preferPrimaryDataSource) {
     setPreferPrimaryDataSource(preferPrimaryDataSource);
     //noinspection unchecked
     return (T) this;

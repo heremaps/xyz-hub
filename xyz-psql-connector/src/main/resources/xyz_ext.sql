@@ -1812,7 +1812,7 @@ $BODY$
 		SELECT * into idx_name
 			FROM xyz_index_name_for_property(spaceid, propkey, source);
 
-		/** TODO: CREATE INDEX CONCURRENTLY - make use of dblink "%s" ' */
+		/** TODO: CREATE INDEX CONCURRENTLY - Use asyncify()! */
 		EXECUTE format('CREATE INDEX "%s" '
 				||'ON %s."%s" '
 				||'((jsondata->''properties''->''%s''))',
@@ -2347,11 +2347,11 @@ begin
 
  if ctx_extend then
   return query select * from xyz_statistic_space_v1( schema, spaceid );
- else 
+ else
   return query select * from xyz_statistic_space_v2( schema, spaceid );
  end if;
- 
-end; 
+
+end;
 $body$
 language plpgsql volatile;
 
@@ -2943,7 +2943,7 @@ $BODY$
 
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
-            EXECUTE xyz_create_history_partition(schema, tableName, floor(version / partitionSize) + 1, partitionSize);
+            EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
@@ -4015,7 +4015,7 @@ declare
 	sum_rtup bigint := 0;
 begin
 
-    with 
+    with
      indata as ( select c.relnamespace::regnamespace::text as s, c.relname::text as t from pg_class c where c.oid = tbl ),
      iindata as
      ( select row_number() over () as idx, r.* from
@@ -4025,7 +4025,7 @@ begin
 		 into tbllist;
 
 -- always check if analyse is needed for tables involved
-    for atbl in 
+    for atbl in
       select tl from unnest( tbllist ) tl
 	loop
        select c.reltuples::bigint from pg_class c where oid = tbl
@@ -4037,7 +4037,7 @@ begin
          select c.reltuples::bigint from pg_class c where oid = atbl
             into rtup;
        end if;
- 
+
        sum_rtup = sum_rtup + rtup;
 
 	end loop;
@@ -4045,7 +4045,7 @@ begin
     if esitmated_count is null or esitmated_count = 0 THEN
 		 esitmated_count = sum_rtup;
     end if;
-		
+
     if esitmated_count < start_parallelization_threshold THEN
         return query select ARRAY[''];
         return; -- exit function

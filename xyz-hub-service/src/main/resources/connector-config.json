@@ -7,6 +7,10 @@
   "DB_ACQUIRE_RETRY_ATTEMPTS" : 10,
   "DB_CHECKOUT_TIMEOUT" : 10,
 
+  "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
+  "STORAGE_DB_USER": "postgres",
+  "STORAGE_DB_PASSWORD": "password",
+
   "MAX_CONCURRENT_MAINTENANCE_TASKS" : 1 ,
   "MISSING_MAINTENANCE_WARNING_IN_HR" : 12,
 
@@ -29,7 +33,6 @@
   "JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS" : 10,
   "JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES" : 10,
 
-  "JOB_DYNAMO_EXP_IN_DAYS" : 10,
   "JOB_SUPPORTED_RDS" : ["psql:0","c1:0"],
   "HUB_ENDPOINT" : "http://localhost:8080/hub"
 }

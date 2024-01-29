@@ -6,7 +6,7 @@ info:
   contact: {}
   version: 1.0.0
 servers:
-  - url: http://localhost:8080/hub
+  - url: /hub
 security:
   - AccessToken: []
   - Bearer: []
@@ -43,24 +43,10 @@ paths:
             Additional space filter which compares the space's contentUpdatedAt timestamp with the one
             specified in the query, resulting in a subset of spaces.
 
-
-            The usage of a comma (,) separating the timestamps, represents
-            an OR operation.
-
-
             The format should follow the specification below
               * ?contentUpdatedAt=timestamp
 
-            While in the following example
-              * ?contentUpdatedAt=timestamp_1,timestamp_2
-
-
-            The resulting spaces list will contain all contentUpdatedAt having timestamp_1 OR timestamp_2
-
-
             The available operators are:
-              - "=" - equals
-              - "!=" - not equals
               - ">=" or "=gte=" - greater than or equals
               - "<=" or "=lte=" - less than or equals
               - ">" or "=gt=" - greater than
@@ -315,8 +301,9 @@ paths:
     get:
       tags:
         - Manage Changesets
-      summary: Get ChangesetStatistics
+      summary: Get ChangesetStatistics (deprecated)
       description: >-
+        NOTE: This endpoint is <b>deprecated</b>. Use <code>/spaces/{spaceId}/statistics</code> instead to gather information about the min / max version of a space.<br /><br />
         Returns statistics about changesets.
       operationId: getChangesetStatistics
       parameters:
@@ -591,6 +578,7 @@ paths:
         - $ref: '#/components/parameters/ConflictResolution'
         - $ref: '#/components/parameters/Transactional'
         - $ref: '#/components/parameters/PrefixId'
+        - $ref: '#/components/parameters/Context'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionOrFeatureModificationListRequest'
       responses:
@@ -3580,6 +3568,24 @@ components:
                 type: string
             estimated:
               $ref: '#/components/schemas/Estimated'
+        minVersion:
+          type: object
+          description: The version number of the oldest available version of the features within the space.
+          properties:
+            value:
+              type: integer
+              format: "int64"
+            estimated:
+              $ref: '#/components/schemas/Estimated'
+        maxVersion:
+          type: object
+          description: The version number of the newest available version of the features within the space.
+          properties:
+            value:
+              type: integer
+              format: "int64"
+            estimated:
+              $ref: '#/components/schemas/Estimated'
         properties:
           type: object
           description: The properties of the features of the space.
@@ -3621,6 +3627,12 @@ components:
         contentUpdatedAt:
           value: 1692368695049
           estimated: true
+        minVersion:
+          value: 0
+          estimated: false
+        maxVersion:
+          value: 27
+          estimated: false
         dataSize:
           value: 108364
           estimated: true

@@ -19,8 +19,12 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.*;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
+import static com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV.CsvColumns.JSON_DATA;
+import static com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV.CsvColumns.WKB;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.CHANGES;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.FULL_OPTIMIZED;
@@ -50,14 +54,24 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.google.common.collect.ImmutableList;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCExporter;
-import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.emr.EMRManager;
+import com.here.xyz.httpconnector.util.emr.config.EmrConfig;
+import com.here.xyz.httpconnector.util.emr.config.Step.ConvertToGeoparquet;
+import com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV;
+import com.here.xyz.httpconnector.util.emr.config.Step.ReplaceWkbWithGeo;
+import com.here.xyz.httpconnector.util.emr.config.Step.WriteGeoparquet;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
+import com.here.xyz.httpconnector.util.jobs.datasets.FileOutputSettings;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -66,11 +80,16 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -102,6 +121,9 @@ public class Export extends JDBCBasedJob<Export> {
 
     @JsonView({Public.class})
     private String superId;
+
+    @JsonIgnore
+    private Export superJob;
 
     @JsonView({Public.class})
     private ExportTarget exportTarget;
@@ -141,12 +163,18 @@ public class Export extends JDBCBasedJob<Export> {
     private String triggerId;
 
     @JsonIgnore
-    private AtomicBoolean emrJobExecuting = new AtomicBoolean();
+    private AtomicReference<Future<Void>> emrJobExecutionFuture = new AtomicReference<>();
     public String emrJobId;
     @JsonIgnore
     private EMRManager emrManager;
     private boolean emrTransformation;
     private String emrType;
+
+    @JsonView({Static.class})
+    private String s3Key;
+    private static final long UNKNOWN_MAX_SPACE_VERSION = -42;
+    @JsonView(Internal.class)
+    private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
     private static String PARAM_PERSIST_EXPORT = "persistExport";
@@ -187,7 +215,7 @@ public class Export extends JDBCBasedJob<Export> {
                 Map ext = readParamExtends();
 
                 if (readPersistExport())
-                    setExp(-1l);
+                    setKeepUntil(-1);
 
                 if (ext != null) {
                     boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
@@ -197,7 +225,8 @@ public class Export extends JDBCBasedJob<Export> {
                         //L2 Composite
                         superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
 
-                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
+                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly
+                        && !(getTarget() instanceof Files files && files.getOutputSettings().getFormat() instanceof GeoParquet)) {
                         //Enabled by default
                         params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
                     }
@@ -207,18 +236,19 @@ public class Export extends JDBCBasedJob<Export> {
                         logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
                     }
 
-                    if (csvFormat.equals(GEOJSON) || context == EXTENSION || context == SUPER)
+                    if (GEOJSON.equals(csvFormat) || context == EXTENSION || context == SUPER)
                         params.remove(PARAM_COMPOSITE_MODE);
                 }else{
                     //Only make sense in case of extended space
                     params.remove(PARAM_COMPOSITE_MODE);
                 }
 
-                if (readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
+                if (readParamCompositeMode() == FULL_OPTIMIZED && exportTarget != null && DOWNLOAD.equals(exportTarget.type)) {
                     //Override Target-Format to PARTITIONED_JSON_WKB
                     csvFormat = PARTITIONED_JSON_WKB;
-                    if (getTarget() instanceof FileBasedTarget<?> fbt)
-                        fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
+                    //if (getTarget() instanceof FileBasedTarget<?> fbt)
+                    //    fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
+                    //TODO: Also set the new format & partitioning if type is Files
                     if (targetLevel == null)
                         targetLevel = 12;
                 }
@@ -226,13 +256,20 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                SpaceContext ctx = (   job.readParamContext() == EXTENSION   
-                                    || job.readParamCompositeMode() == CHANGES 
-                                    || job.readParamCompositeMode() == FULL_OPTIMIZED 
+                SpaceContext ctx = (   job.readParamContext() == EXTENSION
+                                    || job.readParamCompositeMode() == CHANGES
+                                    || job.readParamCompositeMode() == FULL_OPTIMIZED
                                     ? EXTENSION : null
                                    );
-                                   
-                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx );
+
+                String superSpaceId = extractSuperSpaceId();
+                return HubWebClient.getSpaceStatistics(superSpaceId != null ? superSpaceId : job.getTargetSpaceId(), ctx)
+                    .compose(statistics -> {
+                        setMaxSpaceVersion(statistics.getMaxVersion().getValue());
+                        return superSpaceId == null
+                            ? Future.succeededFuture(statistics)
+                            : HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx);
+                    });
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer
@@ -357,11 +394,11 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public ExportStatistic getStatistic() {
-        return getTotalStatistic();
+        return this.statistic;
     }
 
     @JsonIgnore
-    private ExportStatistic getTotalStatistic() {
+    public ExportStatistic getTotalStatistic() {
         if (this.statistic == null)
             return null;
 
@@ -382,6 +419,21 @@ public class Export extends JDBCBasedJob<Export> {
         return this.superId;
     }
 
+    @JsonIgnore
+    public Export getSuperJob() {
+        return superJob;
+    }
+
+    @JsonIgnore
+    public void setSuperJob(Export superJob) {
+        this.superJob = superJob;
+    }
+
+    public Export withSuperJob(Export superJob) {
+        setSuperJob(superJob);
+        return this;
+    }
+
     public void setStatistic(ExportStatistic statistic) {
         this.statistic = statistic;
     }
@@ -400,10 +452,17 @@ public class Export extends JDBCBasedJob<Export> {
         }
     }
 
+    @JsonView({Public.class})
     public Map<String,ExportObject> getSuperExportObjects() {
-        if(superExportObjects == null)
-            superExportObjects = new HashMap<>();
-        return superExportObjects;
+        if (CService.jobS3Client == null) //If being used as a model on the client side
+            return this.superExportObjects == null ? Collections.emptyMap() : this.superExportObjects;
+
+        Map<String, ExportObject> superExportObjects = null;
+
+        if (getSuperId() != null && !readPersistExport())
+            superExportObjects = getSuperJob() != null ? getSuperJob().getExportObjects() : null;
+
+        return superExportObjects == null ? Collections.emptyMap() : superExportObjects;
     }
 
     public void setSuperExportObjects(Map<String, ExportObject> superExportObjects) {
@@ -414,27 +473,37 @@ public class Export extends JDBCBasedJob<Export> {
     public List<ExportObject> getExportObjectsAsList() {
         List<ExportObject> exportObjectList = new ArrayList<>();
 
-        if (superExportObjects != null)
-            exportObjectList.addAll(superExportObjects.values());
-        if (exportObjects != null)
-            exportObjectList.addAll(exportObjects.values());
+        if (getSuperExportObjects() != null)
+            exportObjectList.addAll(getSuperExportObjects().values());
+        if (getExportObjects() != null)
+            exportObjectList.addAll(getExportObjects().values());
 
         return exportObjectList;
     }
 
+    @JsonView({Public.class})
     public Map<String,ExportObject> getExportObjects() {
-        if(exportObjects == null)
-            exportObjects = new HashMap<>();
-        return exportObjects;
+        if (CService.jobS3Client == null) //If being used as a model on the client side
+            return exportObjects == null ? Collections.emptyMap() : exportObjects;
+        if (exportObjects != null && !exportObjects.isEmpty())
+            return exportObjects;
+
+        Map<String, ExportObject> exportObjects = null;
+
+        if (getSuperId() != null && readPersistExport())
+            return getSuperJob() != null ? getSuperJob().getExportObjects() : Collections.emptyMap();
+        else if (getS3Key() != null) {
+            if (getStatus() == finalized)
+                exportObjects = CService.jobS3Client.scanExportPathCached(getS3Key());
+            else
+                exportObjects = CService.jobS3Client.scanExportPath(getS3Key());
+        }
+
+        return exportObjects == null ? Collections.emptyMap() : exportObjects;
     }
 
     public void setExportObjects(Map<String, ExportObject> exportObjects) {
         this.exportObjects = exportObjects;
-    }
-
-    public Export withExportObjects(Map<String, ExportObject> exportObjects) {
-        setExportObjects(exportObjects);
-        return this;
     }
 
     /**
@@ -468,13 +537,25 @@ public class Export extends JDBCBasedJob<Export> {
     public void setTarget(DatasetDescription target) {
         super.setTarget(target);
         //Keep BWC
-        if (target instanceof Files files) {
+        if (target instanceof FileBasedTarget fbt) {
+            final FileOutputSettings os = fbt.getOutputSettings();
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
-            setCsvFormat(files.getOutputSettings().getFormat());
-            setTargetLevel(files.getOutputSettings().getTileLevel());
-            setClipped(files.getOutputSettings().isClipped());
-            setMaxTilesPerFile(files.getOutputSettings().getMaxTilesPerFile());
-            setPartitionKey(files.getOutputSettings().getPartitionKey());
+            //setCsvFormat(fbt.getOutputSettings().getFormat());
+            if (getCsvFormat() == null) {
+                if (os.getFormat() instanceof GeoJson)
+                    setCsvFormat(GEOJSON);
+                else if (os.getFormat() instanceof GeoParquet) {
+                    setCsvFormat(JSON_WKB);
+                    setEmrTransformation(true);
+                    setEmrType("geoparquet");
+                }
+                else if (os.getFormat() instanceof Csv csv)
+                    setCsvFormat(csv.toBWCFormat());
+            }
+            setTargetLevel(os.getTileLevel());
+            setClipped(os.isClipped());
+            setMaxTilesPerFile(os.getMaxTilesPerFile());
+            setPartitionKey(os.getPartitionKey());
         }
     }
 
@@ -676,14 +757,17 @@ public class Export extends JDBCBasedJob<Export> {
             return this;
         }
 
-        public void addRows(long rows){
+        public ExportStatistic addRows(long rows){
             rowsUploaded += rows;
+            return this;
         }
-        public void addBytes(long bytes){
+        public ExportStatistic addBytes(long bytes){
             bytesUploaded += bytes;
+            return this;
         }
-        public void addFiles(long files){
+        public ExportStatistic addFiles(long files){
             filesUploaded += files;
+            return this;
         }
     }
 
@@ -747,7 +831,7 @@ public class Export extends JDBCBasedJob<Export> {
         private int radius;
 
         @JsonView({Public.class})
-        private boolean clipped;
+        private boolean clip;
 
         public Geometry getGeometry() {
             return geometry;
@@ -775,15 +859,39 @@ public class Export extends JDBCBasedJob<Export> {
             return this;
         }
 
+        /**
+         * @deprecated Use {@link #isClip()} instead.
+         */
+        @Deprecated
         public boolean isClipped() {
-            return clipped;
+            return isClip();
         }
 
+        /**
+         * @deprecated Use {@link #setClip(boolean)} instead.
+         */
+        @Deprecated
         public void setClipped(boolean clipped) {
-            this.clipped = clipped;
+            setClip(clipped);
         }
 
+        /**
+         * @deprecated Use {@link #withClip(boolean)} instead.
+         */
+        @Deprecated
         public SpatialFilter withClipped(final boolean clipped) {
+            return withClip(clipped);
+        }
+
+        public boolean isClip() {
+            return clip;
+        }
+
+        public void setClip(boolean clipped) {
+            this.clip = clipped;
+        }
+
+        public SpatialFilter withClip(final boolean clipped) {
             setClipped(clipped);
             return this;
         }
@@ -795,6 +903,9 @@ public class Export extends JDBCBasedJob<Export> {
 
         @JsonView({Public.class})
         private SpatialFilter spatialFilter;
+
+        @JsonView({Public.class, Static.class})
+        private SpaceContext context = DEFAULT;
 
         public String getPropertyFilter() {
             return propertyFilter;
@@ -819,6 +930,19 @@ public class Export extends JDBCBasedJob<Export> {
 
         public Filters withSpatialFilter(SpatialFilter spatialFilter) {
             setSpatialFilter(spatialFilter);
+            return this;
+        }
+
+        public SpaceContext getContext() {
+            return context;
+        }
+
+        public void setContext(SpaceContext context) {
+            this.context = context;
+        }
+
+        public Filters withContext(SpaceContext context) {
+            setContext(context);
             return this;
         }
     }
@@ -846,20 +970,27 @@ public class Export extends JDBCBasedJob<Export> {
         return updateJobStatus(this, prepared);
     }
 
-    public Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat format){
+    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat format){
         return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
                 .compose(jobs -> {
                     Export existingJob = null;
 
-                    for (Job jobCandidate :jobs) {
-                        if(jobCandidate instanceof Import)
+                    //Sort the candidates in reverse order by updated TS to get the oldest candidate
+                    final List<Job> sortedJobs = jobs
+                        .stream()
+                        .sorted(Comparator.comparingLong(job -> job.getUpdatedAt()))
+                        .collect(Collectors.toList());
+                    for (Job jobCandidate : sortedJobs) {
+                        if (!(jobCandidate instanceof Export exportCandidate))
                             continue;
 
                         //exp=-1 => persistent
                         //hash must fit
                         logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if((jobCandidate.getExp() != null && jobCandidate.getExp() == -1) && ((Export)jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
-                            //try to find a finalized one - doesn't matter if its the origin export
+                        if (jobCandidate.getKeepUntil() < 0
+                            && exportCandidate.getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))
+                            && exportCandidate.getMaxSpaceVersion() == getMaxSpaceVersion()) {
+                            //try to find a finalized one - doesn't matter if it's the original export
                             if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
                                 logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
                                 existingJob = (Export) jobCandidate;
@@ -889,7 +1020,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //Export is available - use it and skip jdbc-export
                         logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
                         setSuperId(existingJob.getId());
-                        setExportObjects(existingJob.getExportObjects());
+                        setSuperJob(existingJob);
                         setStatistic(existingJob.getStatistic());
 
                         return updateJobStatus(this, finalized);
@@ -945,10 +1076,14 @@ public class Export extends JDBCBasedJob<Export> {
                         .compose(newBaseExport -> {
                             logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
                             setSuperId(newBaseExport.getId());
+                            setSuperJob((Export) newBaseExport);
 
                             return updateJobStatus(this,queued);
                         })
-                        .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
+                        .onFailure(t -> {
+                            logger.error(t);
+                            setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
+                        });
                 }
                 else if (existingJob.getStatus() == failed) {
                     logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), superSpaceId);
@@ -959,7 +1094,7 @@ public class Export extends JDBCBasedJob<Export> {
                     if (superId == null)
                         setSuperId(existingJob.getId());
 
-                    setSuperExportObjects(existingJob.getExportObjects());
+                    setSuperJob(existingJob);
                     setSuperStatistic(existingJob.getStatistic());
 
                     return updateJobStatus(this, prepared);
@@ -985,13 +1120,13 @@ public class Export extends JDBCBasedJob<Export> {
 
         setExecutedAt(Core.currentTimeMillis() / 1000L);
 
-        JDBCExporter.executeExport(this, JDBCImporter.getDefaultSchema(getTargetConnector()), CService.configuration.JOBS_S3_BUCKET,
+        JDBCExporter.getInstance().executeExport(this, CService.configuration.JOBS_S3_BUCKET,
                 CService.jobS3Client.getS3Path(this), CService.configuration.JOBS_REGION)
             .onSuccess(statistic -> {
                     //Everything is processed
                     logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
                     addStatistic(statistic);
-                    scanAndRegisterExportObjects(this, "");
+                    setS3Key(CService.jobS3Client.getS3Path(this));
                     updateJobStatus(this, executed);
                 }
             )
@@ -1004,15 +1139,6 @@ public class Export extends JDBCBasedJob<Export> {
                     setJobFailed(this, null, Job.ERROR_TYPE_EXECUTION_FAILED);
                 }}
             );
-    }
-
-    protected void scanAndRegisterExportObjects(Job j, String emrSuffix) {
-        Export export = ((Export) j); //TODO: Use this instance once scheduler is fixed
-
-        //Add file statistics and downloadLinks
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(
-            CService.jobS3Client.getS3Path(j, false) + emrSuffix);
-        export.setExportObjects(exportObjects);
     }
 
     private static class EMRConfig {
@@ -1061,6 +1187,32 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
+    public String getS3Key() {
+        return s3Key == null || s3Key.endsWith("/") ? s3Key : (s3Key + "/");
+    }
+
+    public void setS3Key(String s3Key) {
+        this.s3Key = s3Key;
+    }
+
+    public Export withS3Key(String s3Key) {
+        setS3Key(s3Key);
+        return this;
+    }
+
+    public long getMaxSpaceVersion() {
+        return maxSpaceVersion;
+    }
+
+    public void setMaxSpaceVersion(long maxSpaceVersion) {
+        this.maxSpaceVersion = maxSpaceVersion;
+    }
+
+    public Export withMaxSpaceVersion(long maxSpaceVersion) {
+        setMaxSpaceVersion(maxSpaceVersion);
+        return this;
+    }
+
     @Deprecated
     public String getEmrJobId() {
         return emrJobId;
@@ -1080,15 +1232,21 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     @Override
-    public void finalizeJob() {
+    public Future<Void> finalizeJob() {
+        return finalizeJob(true);
+    }
+
+    protected Future<Void> finalizeJob(boolean finalizeAfterCompletion) {
         if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
-            updateJobStatus(this, finalizing)
+            final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
+            String sourceS3Url = sourceS3UrlWithoutSlash + "/";
+            String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+            return updateJobStatus(this, finalizing)
                 .compose(job -> {
                     //Start EMR Job, return jobId
-                    String sourceS3Url = getS3UrlForPath(CService.jobS3Client.getS3Path(job));
                     List<String> scriptParams = new ArrayList<>();
                     scriptParams.add(sourceS3Url);
-                    scriptParams.add(sourceS3Url + EMRConfig.S3_PATH_SUFFIX);
+                    scriptParams.add(targetS3Url);
                     scriptParams.add("--type=" + getEmrType());
                     if (readParamCompositeMode() == FULL_OPTIMIZED)
                         scriptParams.add("--delta");
@@ -1098,25 +1256,46 @@ public class Export extends JDBCBasedJob<Export> {
                     this.emrJobId = emrJobId;
                     return Future.succeededFuture(emrJobId);
                 })
-                .onSuccess(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId))
                 .onFailure(err -> {
                     logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
                     setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
-                });
+                })
+                .compose(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId, finalizeAfterCompletion));
         }
+        else if (finalizeAfterCompletion)
+            return super.finalizeJob();
         else
-            super.finalizeJob();
+            return Future.succeededFuture();
+    }
+
+    private String buildEmrJsonConfig(String inputDirectory, String outputDirectory) {
+        FileFormat targetFormat = ((FileBasedTarget) getTarget()).getOutputSettings().getFormat();
+        if (targetFormat instanceof GeoParquet) {
+            return new EmrConfig().withSteps(ImmutableList.of(
+                new ReadFeaturesCSV().withInputDirectory(inputDirectory).withColumns(ImmutableList.of(
+                    JSON_DATA, WKB
+                )),
+                new ReplaceWkbWithGeo(),
+                new ConvertToGeoparquet(),
+                new WriteGeoparquet().withOutputDirectory(outputDirectory)
+            )).serialize();
+        }
+        else if (targetFormat instanceof Csv) {
+
+        }
+        throw new IllegalArgumentException("Unsupported file format: " + targetFormat);
     }
 
     private static String getS3UrlForPath(String path) {
         return "s3://" + CService.configuration.JOBS_S3_BUCKET + "/" + path;
     }
 
-    private void startEmrJobStatePolling(String applicationId, String emrJobId) {
-        if (emrJobExecuting.compareAndSet(false, true)) {
+    private Future<Void> startEmrJobStatePolling(String applicationId, String emrJobId, boolean finalizeAfterCompletion) {
+        final Promise<Void> promise = Promise.promise();
+        if (emrJobExecutionFuture.compareAndSet(null, promise.future())) {
             new Thread(() -> {
                 setUpdatedAt(Core.currentTimeMillis() / 1000l);
-                while (emrJobExecuting.get()) {
+                while (emrJobExecutionFuture.get() != null) {
                     JobRunState jobState = null;
                     try {
                         jobState = getEmrManager().getExecutionSummary(applicationId, emrJobId);
@@ -1128,24 +1307,27 @@ public class Export extends JDBCBasedJob<Export> {
                     switch (jobState) {
                         case SUCCESS:
                             logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
-                            scanAndRegisterExportObjects(this, EMRConfig.S3_PATH_SUFFIX);
+                            setS3Key(CService.jobS3Client.getS3Path(this) + EMRConfig.S3_PATH_SUFFIX);
                             //Update this job's state finally to "finalized"
-                            updateJobStatus(this, finalized);
+                            if (finalizeAfterCompletion)
+                                updateJobStatus(this, finalized);
                             //Stop this thread
-                            emrJobExecuting.set(false);
+                            completePollingThread(promise);
                             break;
                         case FAILED:
                         case CANCELLED:
                             logger.warn("job[{}] EMR transformation {} ended with state \"{}\"", getId(), emrJobId, jobState);
-                            setJobFailed(this, "EMR job " + emrJobId + " ended with state \"" + jobState + "\"", "EMR_JOB_FAILED");
+                            final String errorMessage = "EMR job " + emrJobId + " ended with state \"" + jobState + "\"";
+                            setJobFailed(this, errorMessage, "EMR_JOB_FAILED");
                             //Stop this thread
-                            emrJobExecuting.set(false);
+                            failPollingThread(promise, errorMessage);
                     }
                     //Check if last state update is too long (>60s) ago (timeout or other issue with EMR job)
                     if (getUpdatedAt() < Core.currentTimeMillis() / 1000l - 60) {
-                        setJobFailed(this, "No state update from EMR job " + emrJobId + " since more than 60 seconds", "EMR_JOB_TIMEOUT");
+                        final String errorMessage = "No state update from EMR job " + emrJobId + " since more than 60 seconds";
+                        setJobFailed(this, errorMessage, "EMR_JOB_TIMEOUT");
                         //Stop this thread
-                        emrJobExecuting.set(false);
+                        failPollingThread(promise, errorMessage);
                     }
 
                     try {
@@ -1154,7 +1336,22 @@ public class Export extends JDBCBasedJob<Export> {
                     catch (InterruptedException ignore) {}
                 }
             }).start();
+            return emrJobExecutionFuture.get();
         }
+        else
+            //Return the future of the other process which is actually performing the polling
+            //TODO: Throw some kind of ConcurrencyException instead?
+            return emrJobExecutionFuture.get();
+    }
+
+    private void completePollingThread(Promise<Void> promise) {
+        emrJobExecutionFuture.set(null);
+        promise.complete();
+    }
+
+    private void failPollingThread(Promise<Void> promise, String errorMessage) {
+        emrJobExecutionFuture.set(null);
+        promise.fail(errorMessage);
     }
 
     @JsonIgnore

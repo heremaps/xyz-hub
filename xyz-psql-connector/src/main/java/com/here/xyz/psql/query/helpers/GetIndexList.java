@@ -23,9 +23,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.datasource.DataSourceProvider;
 import com.here.xyz.psql.query.ModifySpace;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -54,9 +54,12 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
 
   @Override
   protected SQLQuery buildQuery(String tableName) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
-        + " WHERE spaceid = #{table} AND count >= #{threshold}")
+    return new SQLQuery("SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
+        + " WHERE spaceid = #{table} "
+        + "  AND (select coalesce( (count->'value')::bigint, 0 ) from xyz_statistic_space(#{schema},#{table}, false)) >= #{threshold} "
+        )
         .withNamedParameter(TABLE, tableName)
+        .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter("threshold", BIG_SPACE_THRESHOLD);
   }
 

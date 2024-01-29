@@ -187,7 +187,11 @@ public class ApiParam {
 
     static final String REGION = "region";
 
+    //TODO: Remove that query parameter from the public API. It should not be addressable by the user. If needed for testing, we should rather use Unit tests and/or mocks instead.
+    @Deprecated
     static final String CONNECTOR_MAPPING = "connectorMapping";
+
+    static final String DRY_RUN = "dryRun";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);

@@ -216,7 +216,7 @@ public class Space {
    * A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
    * value is a boolean flag telling whether the property should be searchable or not. Also nested properties can be referenced by
    * specifying a path with dots (e.g. "my.prop"). Setting the value to {@code false} the property won't be made searchable at all. (even if
-   * some auto-indexing algorithm would chose the property to be searchable)
+   * some auto-indexing algorithm would choose the property to be searchable)
    */
   @JsonInclude(Include.NON_EMPTY)
   @JsonView({Public.class, Static.class})
@@ -225,6 +225,13 @@ public class Space {
   @JsonInclude(Include.NON_EMPTY)
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
+
+  /**
+   * When set to false, no operation can be performed on space's sub-resources such as read or write features. Default is true.
+   */
+  @JsonInclude(value = Include.CUSTOM, valueFilter = IncludeFalse.class)
+  @JsonView({Internal.class, Static.class})
+  private boolean active = true;
 
   public String getId() {
     return id;
@@ -551,6 +558,19 @@ public class Space {
     return this;
   }
 
+  public boolean isActive() {
+    return active;
+  }
+
+  public void setActive(final boolean active) {
+    this.active = active;
+  }
+
+  public Space withActive(final boolean active) {
+    setActive(active);
+    return this;
+  }
+
   /**
    * Used as a JsonView on a {@link Space} to indicate that a property should be part of a response which was requested to contain
    * connector information.
@@ -781,6 +801,13 @@ public class Space {
     public Extension withSpaceId(final String spaceId) {
       setSpaceId(spaceId);
       return this;
+    }
+  }
+
+  private static class IncludeFalse {
+    @Override
+    public boolean equals(Object obj) {
+      return obj == null || (obj instanceof Boolean && obj.equals(true));
     }
   }
 }

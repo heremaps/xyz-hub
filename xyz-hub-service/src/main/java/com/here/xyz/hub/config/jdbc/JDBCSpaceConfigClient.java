@@ -20,39 +20,34 @@
 package com.here.xyz.hub.config.jdbc;
 
 import static com.here.xyz.hub.Service.configuration;
-import static com.here.xyz.hub.config.jdbc.JDBCConfig.SPACE_TABLE;
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.SCHEMA;
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.configListParser;
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.configParser;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.jackson.DatabindCodec;
-import io.vertx.ext.sql.SQLClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 /**
  * A client for reading and editing xyz space and connector definitions.
  */
 public class JDBCSpaceConfigClient extends SpaceConfigClient {
-
+  private static final Logger logger = LogManager.getLogger();
   private static JDBCSpaceConfigClient instance;
-  private final SQLClient client;
-
-  private JDBCSpaceConfigClient() {
-    client = JDBCConfig.getClient();
-  }
+  private static final String SPACE_TABLE = "xyz_space";
+  private final JDBCConfigClient client = new JDBCConfigClient(SCHEMA, SPACE_TABLE, Service.configuration);
 
   public static class Provider extends SpaceConfigClient.Provider {
     @Override
@@ -69,139 +64,102 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public Future<Void> init() {
-    return JDBCConfig.init();
+    return client.init()
+        .compose(v -> initTable());
+  }
+
+  private Future<Void> initTable() {
+    return client.write(client.getQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} "
+            + "(id TEXT primary key, owner TEXT, cid TEXT, config JSONB, region TEXT)"))
+        .onFailure(e -> logger.error("Can not create table {}!", SPACE_TABLE, e))
+        .mapEmpty();
   }
 
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
-    Promise<Space> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT config FROM " + SPACE_TABLE + " WHERE id = #{spaceId}")
+    SQLQuery query = client.getQuery("SELECT config FROM ${schema}.${table} WHERE id = #{spaceId}")
         .withNamedParameter("spaceId", spaceId);
-    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
-        if (config.isPresent()) {
-          Map<String, Object> spaceData = Json.decodeValue(config.get(), Map.class);
-          //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
-          if (spaceData.get("versionsToKeep") == null)
-            spaceData.put("versionsToKeep", 0);
-          final Space space = DatabindCodec.mapper().convertValue(spaceData, Space.class);
-          p.complete(space);
-        }
-        else
-          p.complete();
-      }
-      else
-        p.fail(out.cause());
-    });
-    return p.future();
+
+    return client.run(query, configParser(Space.class));
   }
 
   @Override
   protected Future<Void> storeSpace(Marker marker, Space space) {
-    SQLQuery query;
-    //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
     final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
-    if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
-      itemData.remove("versionsToKeep");
-    query = new SQLQuery(
-        "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config, region) VALUES (#{spaceId}, #{owner}, #{cid}, cast(#{spaceJson} as JSONB), #{region}) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config, region = excluded.region")
+    SQLQuery query = client.getQuery(
+        "INSERT INTO ${schema}.${table} (id, owner, cid, config, region) VALUES (#{spaceId}, #{owner}, #{cid}, cast(#{spaceJson} as JSONB), #{region}) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config, region = excluded.region")
         .withNamedParameter("spaceId", space.getId())
         .withNamedParameter("owner", space.getOwner())
         .withNamedParameter("cid", space.getCid())
         .withNamedParameter("spaceJson", XyzSerializable.serialize(itemData, Static.class))
         .withNamedParameter("region", space.getRegion());
-    return JDBCConfig.updateWithParams(query).mapEmpty();
+    return client.write(query).mapEmpty();
   }
 
   @Override
   protected Future<Space> deleteSpace(Marker marker, String spaceId) {
-    SQLQuery query = new SQLQuery("DELETE FROM " + SPACE_TABLE + " WHERE id = #{spaceId}")
+    SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE id = #{spaceId}")
         .withNamedParameter("spaceId", spaceId);
-    return get(marker, spaceId).compose(space -> JDBCConfig.updateWithParams(query).map(space));
+    return get(marker, spaceId).compose(space -> client.write(query).map(space));
   }
 
   @Override
   protected Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+    //TODO: Use SQLQuery with named parameters
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
-    String baseQuery = "SELECT config FROM " + SPACE_TABLE;
+    String baseQuery = "SELECT config FROM ${schema}.${table}";
     List<String> authorizationWhereClauses = generateWhereClausesFor(authorizedCondition);
-    if (!authorizationWhereClauses.isEmpty()) {
+    if (!authorizationWhereClauses.isEmpty())
       authorizationWhereClauses.add("config->'shared' = 'true'");
-    }
 
     List<String> selectionWhereClauses = generateWhereClausesFor(selectedCondition);
-    if (!selectedCondition.shared && selectionWhereClauses.isEmpty()) {
+    if (!selectedCondition.shared && selectionWhereClauses.isEmpty())
       selectionWhereClauses.add("config->'shared' != 'true'");
-    }
 
-    if (!authorizationWhereClauses.isEmpty()) {
-      whereConjunctions.add("(" + StringUtils.join(authorizationWhereClauses, " OR ") + ")");
-    }
-    if (!selectionWhereClauses.isEmpty()) {
-      whereConjunctions.add("(" + StringUtils.join(selectionWhereClauses, " OR ") + ")");
-    }
+    if (!authorizationWhereClauses.isEmpty())
+      whereConjunctions.add("(" + String.join(" OR ", authorizationWhereClauses) + ")");
+    if (!selectionWhereClauses.isEmpty())
+      whereConjunctions.add("(" + String.join(" OR ", selectionWhereClauses) + ")");
 
     if (propsQuery != null) {
       propsQuery.forEach(conjunctions -> {
         List<String> contentUpdatedAtConjunctions = new ArrayList<>();
         conjunctions.forEach(conj -> {
             conj.getValues().forEach(v -> {
-              contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ SQLQuery.getOperation(conj.getOperation()) + "'" +v + "' )");
+              contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ QueryOperation.getOperation(conj.getOperation()) + "'" +v + "' )");
             });
         });
-        whereConjunctions.add(StringUtils.join(contentUpdatedAtConjunctions, " OR "));
+        whereConjunctions.add(String.join(" OR ", contentUpdatedAtConjunctions));
       });
     }
 
-    if (selectedCondition.region != null) {
+    if (selectedCondition.region != null)
       whereConjunctions.add("region = '" + selectedCondition.region + "'");
-    }
 
-    if (selectedCondition.prefix != null) {
+    if (selectedCondition.prefix != null)
       whereConjunctions.add("id like '" + selectedCondition.prefix + "%'");
-    }
 
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :
-        " WHERE " + StringUtils.join(whereConjunctions, " AND "));
+        " WHERE " + String.join(" AND ", whereConjunctions));
 
-    return querySpaces(query);
+    return client.run(client.getQuery(query), configListParser(Space.class));
   }
 
   private List<String> generateWhereClausesFor(SpaceAuthorizationCondition condition) {
     List<String> whereClauses = new ArrayList<>();
-    if (condition.spaceIds != null && !condition.spaceIds.isEmpty()) {
-      whereClauses.add("id IN ('" + StringUtils.join(condition.spaceIds, "','") + "')");
-    }
+    if (condition.spaceIds != null && !condition.spaceIds.isEmpty())
+      whereClauses.add("id IN ('" + String.join("','", condition.spaceIds) + "')");
+
     if (condition.ownerIds != null && !condition.ownerIds.isEmpty()) {
       String negator = "";
-      if (condition instanceof SpaceSelectionCondition && ((SpaceSelectionCondition) condition).negateOwnerIds) {
+      if (condition instanceof SpaceSelectionCondition && ((SpaceSelectionCondition) condition).negateOwnerIds)
         negator = "NOT ";
-      }
-      whereClauses.add("owner " + negator + "IN ('" + StringUtils.join(condition.ownerIds, "','") + "')");
+      whereClauses.add("owner " + negator + "IN ('" + String.join("','", condition.ownerIds) + "')");
     }
-    if (condition.packages != null && !condition.packages.isEmpty()) {
-      whereClauses.add("config->'packages' ??| array['" + StringUtils.join(condition.packages, "','") + "']");
-    }
+    if (condition.packages != null && !condition.packages.isEmpty())
+      whereClauses.add("config->'packages' ??| array['" + String.join("','", condition.packages) + "']");
     return whereClauses;
-  }
-
-
-  private Future<List<Space>> querySpaces(String query) {
-    Promise<List<Space>> p = Promise.promise();
-    client.query(query, out -> {
-      if (out.succeeded()) {
-        List<Space> configs = out.result().getRows().stream()
-            .map(r -> r.getString("config"))
-            .map(json -> Json.decodeValue(json, Space.class))
-            .collect(Collectors.toList());
-        p.complete(configs);
-      }
-      else
-        p.fail(out.cause());
-    });
-    return p.future();
   }
 }

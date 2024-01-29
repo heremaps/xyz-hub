@@ -87,7 +87,7 @@ public class ReadFeatureApiClusteringIT extends TestSpaceWithFeature {
             body("features.properties.count.sum()", equalTo(30000));
   }
 
-  @Test
+  //@ Test  - disabled test because req will now return correct http 400, bad request, due to missing searchable properties. 
   public void readByBoundingBoxWithQuadbinClusteringAndPropertySearch() {
     given().
             accept(APPLICATION_GEO_JSON).

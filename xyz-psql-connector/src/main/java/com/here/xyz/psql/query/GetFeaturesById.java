@@ -22,7 +22,7 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 
 public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCollection> {

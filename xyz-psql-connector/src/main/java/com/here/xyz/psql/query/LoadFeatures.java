@@ -22,7 +22,7 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;

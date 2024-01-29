@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,6 @@ import static com.here.xyz.hub.util.geo.GeoTools.WGS84_EPSG;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.vividsolutions.jts.geom.Envelope;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.PrecisionModel;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.VectorTile.Tile;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;
@@ -39,10 +36,13 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerBuild;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerParams;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 import java.util.List;
+import org.geotools.api.geometry.MismatchedDimensionException;
+import org.geotools.api.referencing.operation.MathTransform;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.geometry.jts.JTS;
-import org.opengis.geometry.MismatchedDimensionException;
-import org.opengis.referencing.operation.MathTransform;
-import org.opengis.referencing.operation.TransformException;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.PrecisionModel;
 
 /**
  * A helper class to build a pixel based MapBox Vector Tiles.
@@ -89,12 +89,12 @@ public abstract class MvtTileBuilder implements IUserDataConverter, IGeometryFil
         if (featureGeometry == null) {
           continue;
         }
-        final com.vividsolutions.jts.geom.Geometry wgs84Geometry = featureGeometry.getJTSGeometry();
+        final org.locationtech.jts.geom.Geometry wgs84Geometry = featureGeometry.getJTSGeometry();
         if (wgs84Geometry == null) {
           continue;
         }
 
-        com.vividsolutions.jts.geom.Geometry targetGeometry;
+        org.locationtech.jts.geom.Geometry targetGeometry;
         try {
           targetGeometry = JTS.transform(wgs84Geometry, mathTransform);
         } catch (MismatchedDimensionException | TransformException e) {
@@ -182,7 +182,7 @@ public abstract class MvtTileBuilder implements IUserDataConverter, IGeometryFil
   }
 
   @Override
-  public boolean accept(com.vividsolutions.jts.geom.Geometry geometry) {
+  public boolean accept(org.locationtech.jts.geom.Geometry geometry) {
     return true;
   }
 

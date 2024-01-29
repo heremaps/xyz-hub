@@ -20,11 +20,12 @@
 package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.Event;
 import com.here.xyz.events.GetStorageStatisticsEvent;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
   protected SQLQuery buildQuery(GetStorageStatisticsEvent event) {
     List<String> tableNames = new ArrayList<>(event.getSpaceIds().size() * 2);
     event.getSpaceIds().forEach(spaceId -> {
-      String tableName = resolveTableName(spaceId);
+      String tableName = resolveTableName(event, spaceId);
       tableNames.add(tableName);
     });
     return new SQLQuery( "SELECT relname                                                AS " + TABLE_NAME + ","
@@ -70,10 +71,10 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
                                                       .collect(Collectors.joining(",")) + "])");
   }
 
-  private String resolveTableName(String spaceId) {
+  private String resolveTableName(Event event, String spaceId) {
     if (tableName2SpaceId == null)
       tableName2SpaceId = new HashMap<>();
-    String tableName = XyzEventBasedQueryRunner.getTableNameForSpaceId(spaceId);
+    String tableName = XyzEventBasedQueryRunner.getTableNameForSpaceId(event, spaceId);
     if (!spaceId.equals(tableName))
       tableName2SpaceId.put(tableName, spaceId);
     return tableName;

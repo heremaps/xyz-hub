@@ -19,6 +19,7 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Export.PARAM_CONTEXT;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.collecting_trigger_status;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
@@ -55,7 +56,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -115,11 +116,13 @@ public abstract class Job<T extends Job> extends Payload {
     private long finalizedAt = -1;
 
     /**
-     * The expiration timestamp.
+     * The timestamp (in milliseconds) of when this job will expire.
+     * When a job expires, it will be deleted from the system. Also, all the stored data associated with it will be deleted and will not
+     * be accessible after that date.
+     * Set this value to -1 to keep a job and its data forever.
      */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonView({Public.class})
-    private Long exp;
+    private long keepUntil = System.currentTimeMillis() + 14 * 24 * 60 * 60_000; //Default is 2 weeks
 
     /**
      * The job ID
@@ -162,7 +165,7 @@ public abstract class Job<T extends Job> extends Payload {
     private String targetConnector;
 
     @JsonView({Internal.class})
-    private Long spaceVersion;
+    private long spaceVersion;
 
     @JsonView({Internal.class})
     private String author;
@@ -620,21 +623,21 @@ public abstract class Job<T extends Job> extends Payload {
         return (T) this;
     }
 
-    public void finalizeJob() {
+    public Future<Void> finalizeJob() {
         logger.info("job[{}] is finalized!", id);
-        updateJobStatus(this, finalized);
+        return updateJobStatus(this, finalized).mapEmpty();
     }
 
-    public Long getExp() {
-        return exp;
+    public long getKeepUntil() {
+        return keepUntil;
     }
 
-    public void setExp(final Long exp) {
-        this.exp = exp;
+    public void setKeepUntil(long keepUntil) {
+        this.keepUntil = keepUntil;
     }
 
-    public T withExp(final Long exp) {
-        setExp(exp);
+    public T withKeepUntil(long keepUntil) {
+        setKeepUntil(keepUntil);
         return (T) this;
     }
 
@@ -664,11 +667,11 @@ public abstract class Job<T extends Job> extends Payload {
         return (T) this;
     }
 
-    public Long getSpaceVersion() {
+    public long getSpaceVersion() {
         return spaceVersion;
     }
 
-    public void setSpaceVersion(final Long spaceVersion) {
+    public void setSpaceVersion(final long spaceVersion) {
         this.spaceVersion = spaceVersion;
     }
 
@@ -759,8 +762,11 @@ public abstract class Job<T extends Job> extends Payload {
         //Keep BWC
         if (source instanceof DatasetDescription.Space space) {
             setTargetSpaceId(space.getId());
-            if (this instanceof Export export)
+            if (this instanceof Export export) {
                 export.setFilters(space.getFilters());
+                if (export.getFilters() != null)
+                    addParam(PARAM_CONTEXT, export.getFilters().getContext());
+            }
         }
     }
 
@@ -838,7 +844,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     protected Future<Job> isProcessingOnRDSPossible() {
-        return JDBCClients.getRDSStatus(getTargetConnector())
+        return StatusHandler.getInstance().getRDSStatus(getTargetConnector())
             .compose(rdsStatus -> {
 
                 if (rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {
@@ -874,7 +880,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     public abstract void execute();
 
-    public static class Public {}
+    public static class Public extends XyzSerializable.Public {} //TODO: User XyzSerializable.Public everywhere directly
 
     public static class Static implements SerializationView {}
 
@@ -924,16 +930,6 @@ public abstract class Job<T extends Job> extends Payload {
         put(aborted, CANCELLED);
         put(failed, FAILED);
     }};
-
-    public static class ValidationException extends Exception {
-        public ValidationException(String message) {
-            super(message);
-        }
-
-        public ValidationException(String message, Exception cause) {
-            super(message, cause);
-        }
-    }
 
     public static class ProcessingNotPossibleException extends Exception {
 

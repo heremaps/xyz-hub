@@ -27,11 +27,11 @@ import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.psql.PSQLXyzConnector;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.GetIndexList;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,8 +52,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     super(event);
   }
 
-  public static void checkCanSearchFor(SearchForFeaturesEvent event, PSQLXyzConnector dbHandler) throws ErrorResponseException {
-    if (!canSearchFor(XyzEventBasedQueryRunner.readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
+  //TODO: Make protected & non-static to be able to simply access the dataSourceProvider of this QR
+  public static void checkCanSearchFor(SearchForFeaturesEvent event, DataSourceProvider dataSourceProvider) throws ErrorResponseException {
+    if (!canSearchFor(event, dataSourceProvider))
       throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this space.");
   }
@@ -95,10 +96,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return skeys;
   }
 
-  private static boolean canSearchFor(String tableName, PropertiesQuery query, PSQLXyzConnector dbHandler) {
-    if (query == null) {
+  private static boolean canSearchFor(SearchForFeaturesEvent event, DataSourceProvider dataSourceProvider) {
+    String tableName = XyzEventBasedQueryRunner.readTableFromEvent(event);
+    PropertiesQuery query = event.getPropertiesQuery();
+
+    if (query == null)
       return true;
-    }
 
     try {
       List<String> keys = query.stream().flatMap(List::stream)
@@ -121,7 +124,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           return true;
 
         /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
-        List<String> indices = new GetIndexList(tableName).run(dbHandler.getDataSourceProvider());
+        List<String> indices = new GetIndexList(tableName).run(dataSourceProvider);
 
         /** The table has not many records - Indices are not required */
         if (indices == null) {
@@ -142,8 +145,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
       if(idx_check == keys.size())
         return true;
 
-      return new GetIndexList(tableName).run(dbHandler.getDataSourceProvider()) == null;
-    } catch (Exception e) {
+      return new GetIndexList(tableName).run(dataSourceProvider) == null;
+    }
+    catch (Exception e) {
       // In all cases, when something with the check went wrong, allow the search
       return true;
     }
@@ -200,7 +204,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           else {
             predicateQuery = new SQLQuery("${{keyPath}} ${{operation}} ${{value}}")
                 .withQueryFragment("keyPath", keyPath)
-                .withQueryFragment("operation", SQLQuery.getOperation(op))
+                .withQueryFragment("operation", QueryOperation.getOperation(op))
                 .withQueryFragment("value", value == null ? "" : value);
             namedParams.put(paramName, v);
           }

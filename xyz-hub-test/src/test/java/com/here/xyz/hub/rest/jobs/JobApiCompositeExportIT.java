@@ -18,6 +18,17 @@
  */
 package com.here.xyz.hub.rest.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.HttpException;
@@ -26,21 +37,13 @@ import com.here.xyz.hub.rest.TestWithSpaceCleanup;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-
-import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.*;
-import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
-import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
-import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
-import static org.junit.Assert.*;
 
 public class JobApiCompositeExportIT extends JobApiIT{
     protected String testExportJobId = "x-test-composite-export-job";
@@ -394,7 +397,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         Job spawendJob = loadJob(testSpaceId1, job.getId()+ "_missing_base");
         assertEquals(JSON_WKB, spawendJob.getCsvFormat());
-        assertEquals(Long.valueOf(-1), spawendJob.getExp());
+        assertEquals(-1, spawendJob.getKeepUntil());
     }
 
     @Test

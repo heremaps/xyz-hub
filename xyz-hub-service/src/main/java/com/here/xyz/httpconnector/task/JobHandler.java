@@ -74,6 +74,7 @@ public class JobHandler {
     }
 
     public static Future<Job> postJob(Job job, Marker marker) {
+      logger.info(marker, "Incoming new job payload via POST:\n{}", job.serialize());
         return CService.jobConfigClient.get(marker, job.getId())
             .compose(loadedJob -> {
                 if (loadedJob != null)

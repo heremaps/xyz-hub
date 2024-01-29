@@ -25,7 +25,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_F
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -63,7 +63,7 @@ public class ExportQueue extends JobQueue {
                         case aborted:
                             //Abort has happened on other node
                             removeJob(job);
-                            JDBCClients.abortJobsByJobId(job);
+                            StatusHandler.getInstance().abortJob(job);
                             break;
                         case waiting:
                             updateJobStatus(currentJob, Job.Status.queued);
@@ -79,7 +79,9 @@ public class ExportQueue extends JobQueue {
                         case executed:
                             updateJobStatus(currentJob, Job.Status.executing_trigger)
                                 .onSuccess(f -> {
-                                    if (currentJob instanceof Export export && export.getExportTarget().getType() == VML
+                                    if (currentJob instanceof Export export
+                                            && export.getExportTarget() != null
+                                            && export.getExportTarget().getType() == VML
                                             && export.getStatistic() != null
                                             && export.getStatistic().getFilesUploaded() > 0
                                             && export.getStatistic().getBytesUploaded() > 0

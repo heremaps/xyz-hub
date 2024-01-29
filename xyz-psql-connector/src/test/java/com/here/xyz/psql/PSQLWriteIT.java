@@ -27,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.Event;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -88,7 +89,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         String updateRequest = mfevent.serialize();
         updateRequest = updateRequest.replaceAll("Tesla", "Honda");
-        String updateResponse = invokeLambda(updateRequest);
+        String updateResponse = invokeLambda(XyzSerializable.deserialize(updateRequest, Event.class));
 
         assertUpdate(updateRequest, updateResponse, true);
         LOGGER.info("Update feature tested successfully");
@@ -113,7 +114,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
                 .withConflictDetectionEnabled(true)
                 .withUpdateFeatures(featureCollection.getFeatures());
 
-        String updateResponse = invokeLambda(mfevent.serialize());
+        String updateResponse = invokeLambda(mfevent);
 
         assertUpdate(mfevent.serialize(), updateResponse, true);
         LOGGER.info("Update feature tested successfully");
@@ -136,7 +137,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
                 .withConflictDetectionEnabled(true)
                 .withDeleteFeatures(new HashMap<String,String>(){{ put(deleteId, null);}});
 
-        String deleteResponse = invokeLambda(mfevent.serialize());
+        String deleteResponse = invokeLambda(mfevent);
         featureCollection = XyzSerializable.deserialize(deleteResponse);
         assertNotNull(featureCollection.getFeatures());
         assertEquals(0, featureCollection.getFeatures().size());
@@ -179,7 +180,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         String updateRequest = mfevent.serialize();
         updateRequest = updateRequest.replaceAll("Tesla", "Honda");
-        String updateResponse = invokeLambda(updateRequest);
+        String updateResponse = invokeLambda(XyzSerializable.deserialize(updateRequest, Event.class));
 
         assertUpdate(updateRequest, updateResponse, false);
         LOGGER.info("Update feature tested successfully");
@@ -261,7 +262,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
             feature.getProperties().put("test", "updated");
         });
         updateEvent.setUpdateFeatures(inserted.getFeatures());
-        String updateFeaturesResponse = invokeLambda(updateEvent.toString());
+        String updateFeaturesResponse = invokeLambda(updateEvent);
         assertNoErrorInResponse(updateFeaturesResponse);
 
         List features = with(updateFeaturesResponse).get("features");
@@ -286,7 +287,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         ids.forEach(id -> idsMap.put(id, null));
         deleteEvent.setDeleteFeatures(idsMap);
 
-        String deleteResponse = invokeLambda(deleteEvent.toString());
+        String deleteResponse = invokeLambda(deleteEvent);
         assertNoErrorInResponse(deleteResponse);
         existingFeatures = with(deleteResponse).get("oldFeatures");
         if (includeOldStates) {

@@ -81,9 +81,13 @@ public class FeatureQueryApi extends SpaceBasedApi {
    * Retrieves the statistics about a space.
    */
   private void getStatistics(final RoutingContext context) {
-    new GetStatistics(new GetStatisticsEvent().withContext(getSpaceContext(context)), context, ApiResponseType.STATISTICS_RESPONSE,
-        Query.getBoolean(context, SKIP_CACHE, false))
-        .execute(this::sendResponse, this::sendErrorResponse);
+    try {
+      new GetStatistics(new GetStatisticsEvent().withContext(getSpaceContext(context)), context, ApiResponseType.STATISTICS_RESPONSE,
+              Query.getBoolean(context, SKIP_CACHE, false))
+              .execute(this::sendResponse, this::sendErrorResponse);
+    } catch (HttpException e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   /**

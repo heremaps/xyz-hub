@@ -2,13 +2,13 @@ openapi: 3.0.2
 info:
   title: HERE HTTP-PSQL Connector
   description: |-
-    HERE HTTP-PSQL Connector is a PSQL-Connector which provides a REST API to access data and maintain database related stuff. With the included Job API it is possible to perfrom Jobs (import/export..) on datasets.
+    HERE HTTP-PSQL Connector is a PSQL-Connector which provides a REST API to access data and maintain database related stuff. With the included Job API it is possible to perform Jobs (import/export..) on datasets.
   contact: {}
   version: 1.0.0
 servers:
   - url: /
 tags:
-  - name: HTTP-Conncector
+  - name: HTTP-Connector
     description: Endpoint for Events
   - name: Connector-Maintenance
     description: Initialize or maintain underlying databases
@@ -581,6 +581,7 @@ components:
       content:
         application/json:
           schema:
+            type: array
             items:
               $ref: '#/components/schemas/Job'
     HealthResponse:
@@ -681,28 +682,319 @@ components:
           example: This job imports some GeoJSON data to my space
           type: string
         source:
-          $ref: '#/components/schemas/DatasetDescription'
+          description: >-
+            A description of the resource out of which to read the data for the processing of the job. 
+            Depending on the resource type there are different options which could be defined.
+            E.g. From where to read the input data and how to filter it
+          oneOf:
+            - $ref: '#/components/schemas/SourceSpaceDataset'
+            - $ref: '#/components/schemas/SourceFilesDataset'
         target:
-          $ref: '#/components/schemas/DatasetDescription'
+          description: >-
+            A description of the resource into which to write / store the processed data.
+            Depending on the resource type are different options which could be defined.
+            E.g. which format to use, how to group the data or how to chunk output files
+          oneOf:
+            - $ref: '#/components/schemas/TargetFilesDataset'
+            - $ref: '#/components/schemas/SpaceDataset'
       example:
-        type: Import
-        description: This job imports some GeoJSON data to my space
+        description: This job exports some data from my space into GeoJSON files
         source:
-          type: Files
-        target:
           type: Space
           id: sdkeuh7
+        target:
+          type: Files
     DatasetDescription:
+      description: >-
+        A description of the resource which can be used as source or target of a job.
+        Depending on the resource type there are different options which could be defined.
       type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          Files: '#/components/schemas/FilesDataset'
+          Space: '#/components/schemas/SpaceDataset'
+      required:
+        - type
       properties:
         type:
           description: The type of the dataset
-          example: Space
+          example: Files
           type: string
-          enum:
-            - Space
-            - Spaces
-            - Files
+    FilesDataset:
+      allOf:
+        - $ref: '#/components/schemas/DatasetDescription'
+        - type: object
+          description: The files dataset depicts a set of files which can be adressed by the user for uploading / downloading data.
+          properties:
+            type:
+              description: The type is "Files"
+              example: Files
+              type: string
+              enum:
+                - Files
+    SourceFilesDataset:
+      allOf:
+        - $ref: '#/components/schemas/FilesDataset'
+        - type: object
+          description: >-
+            The source files dataset depicts a set of files which can be adressed by the user for uploading data.
+            The options in "inputSettings" can be used to specify the input format the job should expect etc.
+          properties:
+            inputSettings:
+              $ref: '#/components/schemas/FileInputSettings'
+    TargetFilesDataset:
+      allOf:
+        - $ref: '#/components/schemas/FilesDataset'
+        - type: object
+          description: >-
+            The target files dataset depicts a set of files which can be adressed by the user for downloading data.
+            The options in "outputSettings" can be used to specify the desired output format the job should produce etc.
+          properties:
+            outputSettings:
+              $ref: '#/components/schemas/FileOutputSettings'
+    FileInputSettings:
+      type: object
+      properties:
+        format:
+          description: >-
+            The input format of the files as it should be expected by the job.
+            Depending on the format type, there are different options which could be specified.
+          oneOf:
+            - $ref: '#/components/schemas/GeoJsonFormat'
+            - $ref: '#/components/schemas/GeoParquetFormat'
+    FileOutputSettings:
+      type: object
+      properties:
+        format:
+          description: >-
+            The output format of the files as it should be expected by the job.
+            Depending on the format type, there are different options which could be specified.
+          oneOf:
+            - $ref: '#/components/schemas/GeoJsonFormat'
+            - $ref: '#/components/schemas/GeoParquetFormat'
+        partitioning:
+          oneOf:
+            - $ref: '#/components/schemas/TilePartitioning'
+            - $ref: '#/components/schemas/FeatureKeyPartitioning'
+    OutputPartitioning:
+      type: object
+      description: >-
+        A specification about how to partition the resulting output data.
+        Depending on the partitioning type, there are different options which could be specified.
+      discriminator:
+        propertyName: type
+        mapping:
+          Tiles: '#/components/schemas/TilePartitioning'
+          FeatureKey: '#/components/schemas/FeatureKeyPartitioning'
+      required:
+        - type
+      properties:
+        type:
+          description: The partitioning type
+          example: Tiles
+          type: string
+    TilePartitioning:
+      allOf:
+        - $ref: '#/components/schemas/OutputPartitioning'
+        - type: object
+          properties:
+            type:
+              description: The type is "Tiles"
+              example: Tiles
+              type: string
+              enum:
+                - Tiles
+            level:
+              type: integer
+              description: The tile level on which to apply the partitioning.
+              minimum: 10
+              maximum: 16
+              example: 12
+            clip:
+              type: boolean
+              description: Whether to clip the contained geometries to the boundaries of the tile
+              example: true
+    FeatureKeyPartitioning:
+      allOf:
+        - $ref: '#/components/schemas/OutputPartitioning'
+        - type: object
+          required:
+            - key
+          properties:
+            type:
+              description: The type is "FeatureKey"
+              example: FeatureKey
+              type: string
+              enum:
+                - FeatureKey
+            key:
+              type: string
+              description: >
+                A dot separated string to be used as JSON path to the property which should be used as partitioning key.
+              example: mySubObject.myValue
+    FileFormat:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          GeoJson: '#/components/schemas/GeoJsonFormat'
+          GeoParquet: '#/components/schemas/GeoParquetFormat'
+      required:
+        - type
+      properties:
+        type:
+          description: The type of the file format
+          example: GeoJson
+          type: string
+    GeoJsonFormat:
+      allOf:
+        - $ref: '#/components/schemas/FileFormat'
+        - type: object
+          description: >-
+            Describes that the file format is a multi-line GeoJSON.
+            That means that each line of the file contains a valid GeoJSON feature or FeatureCollection (depending on the "entityTypePerLine" setting)
+          properties:
+            type:
+              description: The type is "GeoJson"
+              example: GeoJson
+              type: string
+              enum:
+                - GeoJson
+            entityTypePerLine:
+              description: >-
+                Describes the entity type of each line in the multi-line GeoJSON file.
+                If used as a format for output files for a job in combination with output partitioning, then choosing the "FeatureCollection"
+                results in an aggregation of the features of one partition into one feature collection.
+              type: string
+              enum:
+                - Feature
+                - FeatureCollection
+              example: Feature
+            multiLineStandard:
+              description: >-
+                Describes which line-separator should be used. "NEW_LINE" is the default and depicts a simple new-line char while
+                RFC7464 relates to https://datatracker.ietf.org/doc/html/rfc7464
+              type: string
+              enum:
+                - RFC7464
+                - NEW_LINE
+              example: NEW_LINE
+    GeoParquetFormat:
+      allOf:
+        - $ref: '#/components/schemas/FileFormat'
+        - type: object
+          description: Describes that the file format is geo parquet.
+          properties:
+            type:
+              description: The type is "GeoParquet"
+              example: GeoParquet
+              type: string
+              enum:
+                - GeoParquet
+    SpaceDataset:
+      allOf:
+        - $ref: '#/components/schemas/DatasetDescription'
+        - type: object
+          description: Describes that the data should be read from or written to an XYZ space
+          properties:
+            type:
+              description: The type is "Space"
+              example: Space
+              type: string
+              enum:
+                - Space
+            id:
+              type: string
+    SourceSpaceDataset:
+      allOf:
+        - $ref: '#/components/schemas/SpaceDataset'
+        - type: object
+          description: Describes that the data should be read from an XYZ space
+          properties:
+            filters:
+              $ref: '#/components/schemas/Filters'
+    Filters:
+      type: object
+      description: An object to describe filters to be applied when reading data from a space
+      properties:
+        propertyFilter:
+          type: string
+          description: >
+            The format should follow the specification below
+              * p.property_name_1=property_value_1&f.special_property_name_1=special_property_value_1
+  
+  
+            For example, the above query, the Features are filtered by
+            'property' AND 'special property' equals to their respective values.
+  
+  
+            While in the following example
+              * p.property_name_1=value_1,value_2
+  
+  
+            The resulting Features list contains all elements having value_1 OR value_2.
+  
+  
+            Additionally, to the operators used in the examples above, the query can be written,
+            with the same semantic, by using the long operators: "=gte=", "=lte=", "=gt=", "=lt=" and "=cs=".
+            The following queries yield the same result:
+              * p.property_name_1>=10
+              * p.property_name_1=gte=10
+  
+  
+            The available operators are:
+              - "=" - equals
+              - "!=" - not equals
+              - "=.null" - is null
+              - "!=.null" - is not null
+              - ">=" or "=gte=" - greater than or equals
+              - "<=" or "=lte=" - less than or equals
+              - ">" or "=gt=" - greater than
+              - "<" or "=lt=" - less than
+              - "@>" or "=cs=" - Array contains
+        spatialFilter:
+          $ref: '#/components/schemas/SpatialFilter'
+        context:
+          $ref: '#/components/schemas/Context'
+    Context:
+      type: string
+      description: >-
+        Only applicable for composite spaces.
+        Defines the part of the composite space on which to perform the read-action.
+        Feature modifications will always only be written into the extension.
+        
+        - DEFAULT: The default setting which will be used when no context is defined.
+        Specifies that, when reading, the data from the composite space components (extended space & extension)
+        should be merged together in the way that features from the extension are overlaying the according features
+        of the extended space.
+        
+        - EXTENSION: Specifies that, when reading, only the data of the extension should be returned.
+        
+        - SUPER: Specifies that, when reading, only the data of the extended space should be returned.
+        The action will be performed as if it has been executed on the extended space.
+      enum:
+        - DEFAULT
+        - EXTENSION
+        - SUPER
+    SpatialFilter:
+      type: object
+      description: A geometrical object to be used as a filter when reading data from a space
+      properties:
+        radius:
+          type: integer
+          description: The radius around the filter-geometry in meters
+        clip:
+          type: boolean
+          description: Whether to clip the matching geometries to the boundaries of the filter-geometry
+        geometry:
+          oneOf:
+            - $ref: '#/components/schemas/Point'
+            - $ref: '#/components/schemas/Polygon'
+            - $ref: '#/components/schemas/LineString'
+            - $ref: '#/components/schemas/MultiLineString'
+            - $ref: '#/components/schemas/MultiPoint'
+            - $ref: '#/components/schemas/MultiPolygon'
     ConnectorStatus:
       type: object
       description: A data holder for the status of a Connector
@@ -722,38 +1014,71 @@ components:
               - 1622531941945
     JobStatus:
       type: "object"
-      description: "The runtime status of a job contains information about the job's execution and its results"
+      description: >-
+        The runtime status of a job contains information about the job's execution.
       properties:
         desiredAction:
+          description: >-
+            Description of possible actions:
+            
+            - START (Request to start the job execution. Only applicable for jobs which do not start automatically, because they're in state NOT_READY. See description of "state".)
+            
+            - CANCEL (Request to cancel the job execution. This will stop the execution of all tasks of the job. Later the job can be resumed using the RESUME action.)
+            
+            - RESUME (Only applicable to jobs in states CANCELLED or FAILED and being "resumable" - See: state FAILED. Requests to start the execution again. The system will try to continue the execution from the point at which it previously stopped.)
           type: "string"
           enum:
             - "START"
-            - "ABORT"
+            - "CANCEL"
             - "RESUME"
         state:
           type: "string"
+          description: >-
+            Description of possible states:
+
+            - NOT_READY (The job is not ready to be started yet as not all pre-conditions are met. E.g. that could be the input data was not provided by the user yet.)
+
+            - SUBMITTED (The job is ready for execution, but was not started yet.)
+
+            - PENDING (The system is trying to start the job, but it is still waiting for free execution resources.)
+
+            - RUNNING (The job execution is currently in progress.)
+
+            - CANCELLING (The job got the signal that it should be cancelled and is currently in the progress of cancelling all its internal steps and performing the clean up work.)
+
+            - CANCELLED (Terminal state. The job was cancelled. That could be done by the request of the job owner, or because the system had to cancel the job. A job can be resumed if its "resumable" flag is true. See: desiredAction: RESUME)
+
+            - FAILED (Terminal state. The job failed, because one of its internal steps failed. A job can be resumed if its "resumable" flag is true. See: desiredAction: RESUME)
+
+            - RESUMING (The job got the signal to resume execution after it was previously cancelled or has failed. The job currently is preparing to start the execution again.)
+
+            - SUCCEEDED (The job is completed. All its work has been done and all outputs are ready.)
           enum:
             - "NOT_READY"
             - "SUBMITTED"
             - "PENDING"
-            - "RESUMING"
             - "RUNNING"
             - "CANCELLING"
             - "CANCELLED"
             - "FAILED"
+            - "RESUMING"
             - "SUCCEEDED"
         lastUpdatedAt:
+          description: A timestamp in milliseconds of when the job's status was updated the last time.
           type: "integer"
           format: "int64"
         startedAt:
+          description: A timestamp in milliseconds of when the job was started.
           type: "integer"
           format: "int64"
         estimatedProgress:
+          description: An estimation of the progress of the job. This is a value between 0 .. 1 where 0 means 0% and 1 means 100%.
           type: "number"
           format: "float"
           minimum: 0
           maximum: 1
         estimatedEndTime:
+          description: A timestamp in milliseconds of when the job most probably will complete its execution. This is a rough estimation and the actual value could differ.
           type: "integer"
           format: "int64"
       example:
@@ -762,3 +1087,165 @@ components:
         startedAt: 123456789,
         estimatedProgress: 0.5
         estimatedEndTime: 123456789
+    GeoJSON:
+      type: object
+      description: The base type for all possible GeoJSON objects.
+      required:
+        - type
+      properties:
+        type:
+          type: string
+        bbox:
+          type: array
+          description: Describes the coordinate range of the GeoJSON object.
+          items:
+            type: number
+      discriminator:
+        propertyName: type
+        mapping:
+          Geometry: '#/components/schemas/Geometry'
+      additionalProperties: true
+    Geometry:
+      allOf:
+        - $ref: '#/components/schemas/GeoJSON'
+        - type: object
+          description: A Geometry object represents points, curves, and surfaces in coordinate space.
+          discriminator:
+            propertyName: type
+            mapping:
+              MultiPoint: '#/components/schemas/MultiPoint'
+              MultiLineString: '#/components/schemas/MultiLineString'
+              LineString: '#/components/schemas/LineString'
+              MultiPolygon: '#/components/schemas/MultiPolygon'
+              Point: '#/components/schemas/Point'
+              Polygon: '#/components/schemas/Polygon'
+    LineString:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A LineString geometry.
+          properties:
+            type:
+              description: The type is "LineString"
+              example: LineString
+              type: string
+              enum:
+                - LineString
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: number
+                maxItems: 3
+                minItems: 2
+              minItems: 2
+    MultiLineString:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiLineString geometry.
+          properties:
+            type:
+              description: The type is "MultiLineString"
+              example: MultiLineString
+              type: string
+              enum:
+                - MultiLineString
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+                  maxItems: 3
+                  minItems: 2
+                minItems: 2
+    MultiPoint:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiPoint geometry.
+          properties:
+            type:
+              description: The type is "MultiPoint"
+              example: MultiPoint
+              type: string
+              enum:
+                - MultiPoint
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: number
+                maxItems: 3
+                minItems: 2
+    MultiPolygon:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiPolygon geometry.
+          properties:
+            type:
+              description: The type is "MultiPolygon"
+              example: MultiPolygon
+              type: string
+              enum:
+                - MultiPolygon
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: number
+                    maxItems: 3
+                    minItems: 2
+                  minItems: 4
+    Point:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A Point geometry.
+          properties:
+            type:
+              description: The type is "Point"
+              example: Point
+              type: string
+              enum:
+                - Point
+            coordinates:
+              type: array
+              items:
+                type: number
+              maxItems: 3
+              minItems: 2
+    Polygon:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A Polygon geometry.
+          properties:
+            type:
+              description: The type is "Polygon"
+              example: Polygon
+              type: string
+              enum:
+                - Polygon
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+                  maxItems: 3
+                  minItems: 2
+                minItems: 4

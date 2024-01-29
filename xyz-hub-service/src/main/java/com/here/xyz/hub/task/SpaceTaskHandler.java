@@ -33,6 +33,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.amazonaws.util.CollectionUtils;
+import com.here.xyz.Payload;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
@@ -42,7 +43,6 @@ import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
-import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -90,6 +90,7 @@ public class SpaceTaskHandler {
 
   private static final Logger logger = LogManager.getLogger();
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
+  private static final String DRY_RUN_SUPPORT_VERSION = "0.7.0";
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
     Service.spaceConfigClient.getSelected(task.getMarker(),
@@ -386,6 +387,12 @@ public class SpaceTaskHandler {
       return;
     }
 
+    if (task.modifyOp.dryRun) {
+      task.responseSpaces = Collections.singletonList(task.isDelete() ? entry.head : entry.result);
+      callback.call(task);
+      return;
+    }
+
     if (entry.input != null && entry.result == null)
       Service.spaceConfigClient
           .delete(task.getMarker(), entry.head.getId())
@@ -503,6 +510,12 @@ public class SpaceTaskHandler {
           return;
         }
 
+        if (!StringUtils.equalsIgnoreCase(space.getRegion(), extendedSpace.getRegion())) {
+          callback.exception(new HttpException(BAD_REQUEST, "Unable to extend a layer from another region. The current space's region is " + space.getRegion() + " and the extende "
+              + space.getExtension().getSpaceId() + " because it does not exist."));
+          return;
+        }
+
         ConnectorRef extendedConnector = extendedSpace.getStorage();
         if (task.isCreate()) {
           //Override the storage config by copying it from the extended space
@@ -556,6 +569,11 @@ public class SpaceTaskHandler {
       return;
     }
 
+    if (task.modifyOp.dryRun && task.getEvent().getVersion().compareTo(DRY_RUN_SUPPORT_VERSION) < 0) {
+      callback.call(task);
+      return;
+    }
+
     Operation op = task.isCreate() ? Operation.CREATE : task.isUpdate() ? Operation.UPDATE : Operation.DELETE;
     Entry<Space> entry = task.modifyOp.entries.get(0);
 
@@ -580,7 +598,8 @@ public class SpaceTaskHandler {
               .withStreamId(task.getMarker().getName())
               .withParams(storageParams)
               .withIfNoneMatch(task.context.request().headers().get("If-None-Match"))
-              .withSpace(space.getId());
+              .withSpace(space.getId())
+              .withDryRun(task.modifyOp.dryRun);
 
       ModifySpaceQuery query = new ModifySpaceQuery(event, task.context, ApiResponseType.EMPTY);
       query.space = space;
@@ -686,9 +705,9 @@ public class SpaceTaskHandler {
   }
 
     public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-      if(task.isDelete()) {
+      if (task.isDelete()) {
         String spaceId = task.responseSpaces.get(0).getId();
-        TagConfigClient.getInstance().deleteTagsForSpace(task.getMarker(), spaceId)
+        Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
             .onSuccess(a-> callback.call(task))
             .onFailure(a->{
               logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, a);
@@ -699,4 +718,13 @@ public class SpaceTaskHandler {
         callback.call(task);
       }
     }
+
+  static void invokeConditionally(final ModifySpaceQuery task, final Callback<ModifySpaceQuery> callback) {
+    if (task.getEvent().isDryRun() && Payload.compareVersions(task.storage.getRemoteFunction().protocolVersion, DRY_RUN_SUPPORT_VERSION) < 0) {
+      callback.call(task);
+    }
+    else {
+      FeatureTaskHandler.invoke(task, callback);
+    }
+  }
 }

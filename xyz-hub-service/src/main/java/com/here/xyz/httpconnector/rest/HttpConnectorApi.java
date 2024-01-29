@@ -19,10 +19,12 @@
 
 package com.here.xyz.httpconnector.rest;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.httpconnector.PsqlHttpConnectorVerticle;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.connectors.EmbeddedFunctionClient;
+import com.here.xyz.hub.connectors.EmbeddedFunctionClient.EmbeddedContext;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Reporter;
@@ -33,14 +35,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-
 public class HttpConnectorApi extends Api {
   private AbstractConnectorHandler connector;
 
   public HttpConnectorApi(RouterBuilder rb, AbstractConnectorHandler connector) {
     this.connector = connector;
-    this.connector.setEmbedded(true);
     rb.operation("postEvent").handler(this::postEvent);
     rb.operation("getHealthCheck").handler(this::getHealthCheck);
   }
@@ -64,8 +63,8 @@ public class HttpConnectorApi extends Api {
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    EmbeddedFunctionClient.EmbeddedContext embeddedContext
-            = new EmbeddedFunctionClient.EmbeddedContext(Context.getMarker(context), "psql", PsqlHttpConnectorVerticle.getEnvMap());
+    EmbeddedContext embeddedContext = new EmbeddedContext(Context.getMarker(context),"psql",
+        PsqlHttpConnectorVerticle.getEnvMap());
     connector.handleRequest(inputStream, os, embeddedContext, streamId);
     this.sendResponse(context, OK, os);
   }

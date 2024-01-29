@@ -62,10 +62,12 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public static abstract class Provider implements ImplementationProvider {
+    private static SpaceConfigClient client;
     public Provider() {}
     protected abstract SpaceConfigClient getInstance();
     private static SpaceConfigClient provideInstance() {
-      SpaceConfigClient client =  ImplementationProvider.loadProvider(Provider.class).getInstance();
+      if(client == null)
+        client = ImplementationProvider.loadProvider(Provider.class).getInstance();
       return client;
     }
   }
@@ -176,6 +178,7 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public static class SpaceAuthorizationCondition {
+    public boolean anonymous;
     public Set<String> spaceIds;
     public Set<String> ownerIds;
     public Set<String> packages;

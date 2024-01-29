@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,12 +25,14 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
-import static com.here.xyz.psql.DatabaseWriter.XyzSqlErrors.XYZ_CONFLICT;
 import static com.here.xyz.psql.QueryRunner.SCHEMA;
 import static com.here.xyz.psql.QueryRunner.TABLE;
 import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
+import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_CONFLICT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable.Static;
+import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -38,8 +40,8 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.io.WKBWriter;
+import com.here.xyz.util.db.DatabaseSettings;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -49,19 +51,21 @@ import java.util.List;
 import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.io.WKBWriter;
 import org.postgresql.util.PGobject;
 
 public class DatabaseWriter {
 
-    private static SQLQuery buildMultiModalInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+    private static SQLQuery buildMultiModalInsertStmtQuery(DatabaseSettings dbSettings, ModifyFeaturesEvent event) {
         return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
             + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
-            .withNamedParameter(SCHEMA, dbHandler.config.getDatabaseSettings().getSchema())
+            .withNamedParameter(SCHEMA, dbSettings.getSchema())
             .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled())
             .withNamedParameter("partitionSize", PARTITION_SIZE)
             .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
-            .withNamedParameter("pw", dbHandler.getConfig().getDatabaseSettings().getPassword());
+            .withNamedParameter("pw", dbSettings.getPassword());
     }
 
     private static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
@@ -94,7 +98,7 @@ public class DatabaseWriter {
 
     private static SQLQuery setTableVariables(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
       return writeQuery
-          .withVariable(SCHEMA, dbHandler.config.getDatabaseSettings().getSchema())
+          .withVariable(SCHEMA, dbHandler.getDatabaseSettings().getSchema())
           .withVariable(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
 
@@ -114,25 +118,6 @@ public class DatabaseWriter {
           + "next_version = #{MAX_BIGINT} ELSE version = #{baseVersion} END)"
           : "")
           .withNamedParameter("MAX_BIGINT", MAX_BIGINT);
-    }
-
-    public enum XyzSqlErrors {
-
-        XYZ_CONFLICT("XYZ49", "xyz_conflict"),
-        XYZ_UNEXPECTED_ERROR("XYZ50", "xyz_unexpected_error");
-
-        public final String errorCode;
-        public final String errorName;
-
-        XyzSqlErrors(String errorCode, String errorName) {
-            this.errorCode = errorCode;
-            this.errorName = errorName;
-        }
-
-        @Override
-        public String toString() {
-            return errorName;
-        }
     }
 
     public enum ModificationType {
@@ -182,7 +167,7 @@ public class DatabaseWriter {
             if (event.getVersionsToKeep() <= 1)
               feature.getProperties().getXyzNamespace().setAuthor(null);
 
-            json = feature.serialize();
+            json = feature.serialize(Static.class);
         }
         finally {
             feature.setGeometry(geometry);
@@ -284,7 +269,7 @@ public class DatabaseWriter {
                         idList.add(getIdFromInput(action, inputDatum));
                     }
                     else
-                        ps.setQueryTimeout(dbh.calculateTimeout());
+                        ps.setQueryTimeout(DatabaseHandler.calculateTimeout());
 
                     if (transactional || ps.execute() || ps.getUpdateCount() != 0) {
                         if (action != DELETE)
@@ -302,7 +287,7 @@ public class DatabaseWriter {
 
                     fails.add(new FeatureCollection.ModificationFailure().withId(getIdFromInput(action, inputDatum))
                         .withMessage(e instanceof WriteFeatureException ? e.getMessage() : getGeneralErrorMsg(action)));
-                    logException(e, action, dbh, event);
+                    logException(e, action, event);
                 }
             }
 
@@ -310,7 +295,7 @@ public class DatabaseWriter {
                 executeBatchesAndCheckOnFailures(dbh, idList, modificationQuery.prepareStatement(connection), fails, event, action);
 
                 if (action != INSERT && fails.size() > 0) { //Not necessary in INSERT case as no conflict check is performed there
-                    logException(null, action, dbh, event);
+                    logException(null, action, event);
                     throw new SQLException(getGeneralErrorMsg(action));
                 }
             }
@@ -358,7 +343,7 @@ public class DatabaseWriter {
     private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action) {
         //If versioning is activated for the space, always only perform inserts
         if (event.getVersionsToKeep() > 1)
-            return buildMultiModalInsertStmtQuery(dbHandler, event);
+            return buildMultiModalInsertStmtQuery(dbHandler.getDatabaseSettings(), event);
         switch (action) {
             case INSERT:
                 return buildInsertStmtQuery(dbHandler, event);
@@ -400,7 +385,7 @@ public class DatabaseWriter {
         }
     }
 
-    private static void logException(Exception e, ModificationType action, DatabaseHandler dbHandler, ModifyFeaturesEvent event){
+    private static void logException(Exception e, ModificationType action, ModifyFeaturesEvent event){
         String table = XyzEventBasedQueryRunner.readTableFromEvent(event);
         String message = e != null && e.getMessage() != null && e.getMessage().contains("does not exist")
             //If table doesn't exist yet
@@ -408,9 +393,13 @@ public class DatabaseWriter {
             : "{} Failed to perform {} on table {}";
 
         if (e instanceof SQLException && XYZ_CONFLICT.errorCode.equals(((SQLException) e).getSQLState()))
-            logger.info(message, dbHandler.traceItem, action.name(), table, e);
+            logger.info(message, getStreamId(), action.name(), table, e);
         else
-            logger.warn(message, dbHandler.traceItem, action.name(), table, e);
+            logger.warn(message, getStreamId(), action.name(), table, e);
+    }
+
+    private static String getStreamId() {
+        return ConnectorRuntime.getInstance().getStreamId();
     }
 
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
@@ -420,9 +409,9 @@ public class DatabaseWriter {
 
         try {
             if (idList.size() > 0) {
-                logger.debug("{} batch execution [{}]: {} ", dbh.traceItem, type, batchStmt);
+                logger.debug("{} batch execution [{}]: {} ", getStreamId(), type, batchStmt);
 
-                batchStmt.setQueryTimeout(dbh.calculateTimeout());
+                batchStmt.setQueryTimeout(DatabaseHandler.calculateTimeout());
                 batchStmtResult = batchStmt.executeBatch();
                 if (event.getVersionsToKeep() <= 1)
                     DatabaseWriter.fillFailList(batchStmtResult, fails, idList, event, type);
@@ -435,9 +424,9 @@ public class DatabaseWriter {
                 throw e;
 
             if (e instanceof SQLException && XYZ_CONFLICT.errorCode.equals(((SQLException) e).getSQLState()))
-                logger.info("{} Conflict during transactional write operation", dbh.traceItem, e);
+                logger.info("{} Conflict during transactional write operation", getStreamId(), e);
             else
-                logger.warn("{} Unexpected error during transactional write operation", dbh.traceItem, e);
+                logger.warn("{} Unexpected error during transactional write operation", getStreamId(), e);
 
             //If there was some error inside the multimodal insert query, fail the transaction
             int[] res = new int[idList.size()];

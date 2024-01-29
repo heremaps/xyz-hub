@@ -19,65 +19,57 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.connectors.AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 @SuppressWarnings("unused")
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
-  static Map<String, Object> connectorParams = new HashMap<String,Object>(){{
-    put(PSQLAbstractIT.CONNECTOR_ID, "test-connector");
-  }};
-
-  @BeforeClass
-  public static void init() throws Exception { initEnv(connectorParams); }
-
   @Before
   public void prepare() throws Exception {
-    invokeDeleteTestSpace(connectorParams);
-    invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
+    invokeDeleteTestSpace();
+    invokeCreateTestSpace(TEST_SPACE_ID);
     invokeLambdaFromFile("/events/InsertFeaturesEventTransactional.json");
   }
 
   @After
-  public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
+  public void shutdown() throws Exception {
+    invokeDeleteTestSpace();
+  }
 
   @Test
   public void testMaxConnectorResponseSize() throws Exception {
     final IterateFeaturesEvent iter = new IterateFeaturesEvent()
-        .withSpace("foo")
-        .withConnectorParams(connectorParams);
+        .withSpace(TEST_SPACE_ID);
 
-    connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024);
-    Typed result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    Typed result = XyzSerializable.deserialize(invokeLambda(iter
+        .withConnectorParams(Collections.singletonMap(MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024))));
     assertTrue(result instanceof FeatureCollection);
 
-    connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 512);
-    result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    result = XyzSerializable.deserialize(invokeLambda(iter
+        .withConnectorParams(Collections.singletonMap(MAX_UNCOMPRESSED_RESPONSE_SIZE, 512))));
     assertTrue(result instanceof ErrorResponse);
     assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
 
-    connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1);
-    result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    result = XyzSerializable.deserialize(invokeLambda(iter
+        .withConnectorParams(Collections.singletonMap(MAX_UNCOMPRESSED_RESPONSE_SIZE, 1))));
     assertTrue(result instanceof ErrorResponse);
     assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
 
-    connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 0);
-    result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    result = XyzSerializable.deserialize(invokeLambda(iter
+        .withConnectorParams(Collections.singletonMap(MAX_UNCOMPRESSED_RESPONSE_SIZE, 0))));
     assertTrue(result instanceof FeatureCollection);
   }
 }

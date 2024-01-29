@@ -29,11 +29,10 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.psql.PSQLXyzConnector;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -68,7 +67,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
       }
       case QUAD: {
         setUseReadReplica(true);
-        query = buildQuadbinClusteringQuery(event, PSQLXyzConnector.getInstance());
+        query = buildQuadbinClusteringQuery(event);
 
         if (isMvtRequested)
           return buildMvtEncapsuledQuery(XyzEventBasedQueryRunner.readTableFromEvent(event), (GetFeaturesByTileEvent) event, query);
@@ -89,26 +88,24 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
   /**
    * Check if request parameters are valid. In case of invalidity throw an Exception
    */
-  private static void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, PSQLXyzConnector dbHandler) throws ErrorResponseException
-  {
-    if( countMode != null )
-     switch( countMode.toLowerCase() )
-     { case COUNTMODE_REAL : case COUNTMODE_ESTIMATED: case COUNTMODE_MIXED: case COUNTMODE_BOOL : break;
+  private void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event) throws ErrorResponseException {
+    if (countMode != null)
+     switch (countMode.toLowerCase()) {
+       case COUNTMODE_REAL : case COUNTMODE_ESTIMATED: case COUNTMODE_MIXED: case COUNTMODE_BOOL : break;
        default:
-        throw new ErrorResponseException(ILLEGAL_ARGUMENT,
-             "Invalid request parameters. Unknown clustering.countmode="+countMode+". Available are: ["+ COUNTMODE_REAL
-            +","+ COUNTMODE_ESTIMATED +","+ COUNTMODE_MIXED +","+ COUNTMODE_BOOL +"]!");
+         throw new ErrorResponseException(ILLEGAL_ARGUMENT,
+             "Invalid request parameters. Unknown clustering.countmode=" + countMode + ". Available are: [" + COUNTMODE_REAL + ","
+                 + COUNTMODE_ESTIMATED + "," + COUNTMODE_MIXED + "," + COUNTMODE_BOOL + "]!");
      }
 
-    if(relResolution > 5)
+    if (relResolution > 5)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT,
-          "Invalid request parameters. clustering.relativeResolution="+relResolution+" to high. 5 is maximum!");
+          "Invalid request parameters. clustering.relativeResolution=" + relResolution + " to high. 5 is maximum!");
 
-    if(event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1)
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT,
-          "Invalid request parameters. Only one Property is allowed");
+    if (event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1)
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid request parameters. Only one Property is allowed");
 
-    checkCanSearchFor(event, dbHandler);
+    checkCanSearchFor(event, getDataSourceProvider());
   }
 
   /***************************************** CLUSTERING ******************************************************/
@@ -266,7 +263,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     return query;
   }
 
-  public SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event, PSQLXyzConnector dbHandler)
+  public SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event)
       throws ErrorResponseException {
 
     final Map<String, Object> clusteringParams = event.getClusteringParams();
@@ -277,7 +274,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     final boolean noBuffer = (boolean) clusteringParams.getOrDefault(QUADBIN_NOBUFFER,false);
 
 
-    checkQuadbinInput(countMode, relResolution, event, dbHandler);
+    checkQuadbinInput(countMode, relResolution, event);
     BBox bbox = event.getBbox();
         boolean isTileRequest = (event instanceof GetFeaturesByTileEvent) && ((GetFeaturesByTileEvent) event).getMargin() == 0,
                 clippedOnBbox = (!isTileRequest && event.getClip());

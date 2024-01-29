@@ -47,7 +47,7 @@ public class EvalConnector extends AbstractConnectorHandler {
     if (event == null)
       return error("Nothing to eval. Event is null");
 
-    if (event instanceof HealthCheckEvent || event instanceof ModifySpaceEvent && ((ModifySpaceEvent) event).getOperation() == Operation.DELETE)
+    if (event instanceof HealthCheckEvent || event instanceof ModifySpaceEvent mse && mse.getOperation() == Operation.DELETE)
       return new SuccessResponse().withStatus("OK");
 
     final String code = getCodeToEval(event);
@@ -57,12 +57,12 @@ public class EvalConnector extends AbstractConnectorHandler {
     SimpleScriptContext ctx = new SimpleScriptContext();
     Bindings engineScope = ctx.getBindings(ScriptContext.ENGINE_SCOPE);
     engineScope.put("streamId", streamId);
-    engineScope.put("traceItem", traceItem);
     engineScope.put("event", event);
 
     try {
       engine.eval(code, ctx);
-    } catch (ScriptException e) {
+    }
+    catch (ScriptException e) {
       return new ErrorResponse().withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage(e.getCause().getMessage());
     }
 
@@ -87,16 +87,11 @@ public class EvalConnector extends AbstractConnectorHandler {
         code = (String) event.getConnectorParams().get("code");
       else if (event.getConnectorParams().containsKey("file"))
         code = IOUtils.toString(EvalConnector.class.getResourceAsStream((String) event.getConnectorParams().get("file")));
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       logger.error("Error retrieving the code from event.", e);
     }
 
     return code;
-  }
-
-  public static void main(String[] args) throws Exception {
-    EvalConnector connector = new EvalConnector();
-    connector.initialize(null);
-    connector.processEvent(null);
   }
 }

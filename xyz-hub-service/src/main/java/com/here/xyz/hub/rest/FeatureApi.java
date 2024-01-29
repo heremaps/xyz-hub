@@ -96,26 +96,30 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   private void getFeatures(final RoutingContext context, ApiResponseType apiResponseType) {
-    final List<String> ids = apiResponseType == ApiResponseType.FEATURE_COLLECTION
-        ? Query.queryParam(Query.FEATURE_ID, context)
-        : Collections.singletonList(context.pathParam(Path.FEATURE_ID));
+    try {
+      final List<String> ids = apiResponseType == ApiResponseType.FEATURE_COLLECTION
+              ? Query.queryParam(Query.FEATURE_ID, context)
+              : Collections.singletonList(context.pathParam(Path.FEATURE_ID));
 
-    final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
-    final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
-    final SpaceContext spaceContext = getSpaceContext(context);
-    final String version = Query.getString(context, Query.VERSION, null);
-    final String author = Query.getString(context, Query.AUTHOR, null);
+      final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
+      final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
+      final SpaceContext spaceContext = getSpaceContext(context);
+      final String version = Query.getString(context, Query.VERSION, null);
+      final String author = Query.getString(context, Query.AUTHOR, null);
 
-    final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
-        .withIds(ids)
-        .withSelection(Query.getSelection(context))
-        .withForce2D(force2D)
-        .withRef(version)
-        .withContext(spaceContext)
-        .withAuthor(author);
+      final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
+              .withIds(ids)
+              .withSelection(Query.getSelection(context))
+              .withForce2D(force2D)
+              .withRef(version)
+              .withContext(spaceContext)
+              .withAuthor(author);
 
-    new IdsQuery(event, context, apiResponseType, skipCache)
-        .execute(this::sendResponse, this::sendErrorResponse);
+      new IdsQuery(event, context, apiResponseType, skipCache)
+              .execute(this::sendResponse, this::sendErrorResponse);
+    } catch (HttpException e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   /**
@@ -151,41 +155,49 @@ public class FeatureApi extends SpaceBasedApi {
     final ConflictResolution conflictResolution = ConflictResolution.of(Query.getString(context, Query.CONFLICT_RESOLUTION, "error"));
     boolean transactional = Query.getBoolean(context, Query.TRANSACTIONAL, true);
 
-    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists, ifNotExists, transactional, conflictResolution);
+    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists, ifNotExists, transactional, conflictResolution, true);
   }
 
   /**
    * Deletes a feature by ID.
    */
   private void deleteFeature(final RoutingContext context) {
-    Map<String, Object> featureModification = Collections.singletonMap("featureIds",
-        Collections.singletonList(context.pathParam(Path.FEATURE_ID)));
-    final SpaceContext spaceContext = getSpaceContext(context);
-    executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR,
-        Collections.singletonList(featureModification), spaceContext);
+    try {
+      Map<String, Object> featureModification = Collections.singletonMap("featureIds",
+              Collections.singletonList(context.pathParam(Path.FEATURE_ID)));
+      final SpaceContext spaceContext = getSpaceContext(context);
+      executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR,
+              Collections.singletonList(featureModification), spaceContext);
+    } catch (HttpException e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   /**
    * Delete features by IDs or by tags.
    */
   private void deleteFeatures(final RoutingContext context) {
-    final Set<String> featureIds = new HashSet<>(Query.queryParam(Query.FEATURE_ID, context));
-    final TagsQuery tags = Query.getTags(context);
-    final String accept = context.request().getHeader(ACCEPT);
-    final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
-        ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
-    final SpaceContext spaceContext = getSpaceContext(context);
+    try {
+      final Set<String> featureIds = new HashSet<>(Query.queryParam(Query.FEATURE_ID, context));
+      final TagsQuery tags = Query.getTags(context);
+      final String accept = context.request().getHeader(ACCEPT);
+      final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
+              ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
+      final SpaceContext spaceContext = getSpaceContext(context);
 
-    //Delete features by IDs
-    if (!featureIds.isEmpty()) {
-      Map<String, Object> featureModification = Collections.singletonMap("featureIds", new ArrayList<>(featureIds));
+      //Delete features by IDs
+      if (!featureIds.isEmpty()) {
+        Map<String, Object> featureModification = Collections.singletonMap("featureIds", new ArrayList<>(featureIds));
 
-      executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
-          ConflictResolution.ERROR, Collections.singletonList(featureModification), spaceContext);
-    }
-    else {
-      context.fail(
-          new HttpException(HttpResponseStatus.BAD_REQUEST, "At least one identifier should be provided as a query parameter."));
+        executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
+                ConflictResolution.ERROR, Collections.singletonList(featureModification), spaceContext);
+      }
+      else {
+        context.fail(
+                new HttpException(HttpResponseStatus.BAD_REQUEST, "At least one identifier should be provided as a query parameter."));
+      }
+    } catch (HttpException e) {
+      sendErrorResponse(context, e);
     }
   }
 
@@ -193,10 +205,20 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates and executes a ModifyFeatureOp
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
+      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr, boolean useSpaceContext ) 
+  {
+    try {
+        if (checkModificationOnSuper(context, getSpaceContext(context)))
+          return;
+        executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, useSpaceContext ? getSpaceContext(context) : DEFAULT);
+      } catch (HttpException e) {
+        sendErrorResponse(context, e);
+      } 
+  }       
+
+  private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
-    if (checkModificationOnSuper(context, getSpaceContext(context)))
-      return;
-    executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, DEFAULT);
+     executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, false);
   }
 
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
