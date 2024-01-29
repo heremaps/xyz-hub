@@ -130,28 +130,50 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         Feature existing = insertRequestCollection.getFeatures().get(0);
         existing.getProperties().getXyzNamespace().setVersion(existing.getProperties().getXyzNamespace().getVersion());;
         mfevent.setDeleteFeatures(Collections.emptyMap());
-//        // =========== INSERT EXISTING FEATURE ==========
-//        //Stream
-//        mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
-//        mfevent.setTransaction(false);
-//        response = invokeLambda(mfevent.serialize());
-//        responseCollection = XyzSerializable.deserialize(response);
-//        assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
-//        assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
-//        assertEquals(0,responseCollection.getFeatures().size());
-//        assertNull(responseCollection.getUpdated());
-//        assertNull(responseCollection.getInserted());
-//        assertNull(responseCollection.getDeleted());
-//
-//        //Transactional
-//        mfevent.setTransaction(true);
-//        response = invokeLambda(mfevent.serialize());
-//
-//        errorResponse = XyzSerializable.deserialize(response);
-//        assertEquals(XyzError.CONFLICT, errorResponse.getError());
-//        failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
-//        assertEquals(0, failedList.size());
-//        assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
+
+        // =========== INSERT EXISTING FEATURE ==========
+        //Stream
+        mfevent.setInsertFeatures(Collections.singletonList(existing));
+        mfevent.setTransaction(false);
+        response = invokeLambda(mfevent);
+        responseCollection = XyzSerializable.deserialize(response);
+        if (withConflictDetection) {
+            assertNotNull(responseCollection.getFailed());
+            assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
+            assertEquals(DatabaseWriter.INSERT_ERROR_CONCURRENCY, responseCollection.getFailed().get(0).getMessage());
+            assertNull(responseCollection.getInserted());
+            assertEquals(0, responseCollection.getFeatures().size());
+        }
+        else {
+            assertNull(responseCollection.getFailed());
+            assertNotNull(responseCollection.getInserted());
+            assertEquals(existing.getId(), responseCollection.getInserted().get(0));
+            assertEquals(1, responseCollection.getFeatures().size());
+            assertEquals(existing.getId(), responseCollection.getFeatures().get(0).getId());
+        }
+        assertNull(responseCollection.getUpdated());
+        assertNull(responseCollection.getDeleted());
+
+        //Transactional
+        mfevent.setTransaction(true);
+        response = invokeLambda(mfevent);
+
+        try {
+            responseCollection = deserializeResponse(response);
+            assertFalse(withConflictDetection);
+            assertNull(responseCollection.getFailed());
+            assertNotNull(responseCollection.getInserted());
+            assertEquals(existing.getId(), responseCollection.getFeatures().get(0).getId());
+        }
+        catch (ErrorResponseException e) {
+            assertTrue(withConflictDetection);
+            ErrorResponse errorResponse = e.getErrorResponse();
+
+            assertEquals(XyzError.CONFLICT, errorResponse.getError());
+            List<Map<String, String>> failedList = (List) errorResponse.getErrorDetails().get("FailedList");
+            assertEquals(1, failedList.size());
+            assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
+        }
 
         // =========== UPDATE NOT EXISTING FEATURE ==========
         //Stream

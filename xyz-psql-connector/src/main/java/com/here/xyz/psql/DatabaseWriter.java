@@ -68,26 +68,31 @@ public class DatabaseWriter {
     }
 
     private static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-      return setTableParams(new SQLQuery("SELECT xyz_simple_insert(#{id}, #{version}, #{operation}, #{author}, #{jsondata}::jsonb, #{geo}, "
-          + "#{schema}, #{table})"), dbHandler, event);
+        /*
+        As a workaround for duplicate features perform an "upsert" to make sure that
+        no two inserts are happening during a race condition.
+        TODO: Remove this workaround once the merge-implementation (LFE) was moved out of the service into the connector / DB
+         */
+        //id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN
+        return setCommonParams(new SQLQuery("SELECT xyz_simple_upsert(#{id}, #{version}, #{operation}, #{author}, #{jsondata}::jsonb, "
+            + "#{geo}, #{schema}, #{table}, #{concurrencyCheck})"), dbHandler, event);
     }
 
     private static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-        return setTableParams(new SQLQuery("SELECT xyz_simple_update(#{id}, #{version}, #{operation}, #{author}, #{jsondata}::jsonb, "
-            + "#{geo}, #{schema}, #{table}, #{concurrencyCheck}, #{baseVersion})"), dbHandler, event)
-            .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled());
+        return setCommonParams(new SQLQuery("SELECT xyz_simple_update(#{id}, #{version}, #{operation}, #{author}, #{jsondata}::jsonb, "
+            + "#{geo}, #{schema}, #{table}, #{concurrencyCheck}, #{baseVersion})"), dbHandler, event);
     }
 
     private static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-        return setTableParams(new SQLQuery("SELECT xyz_simple_delete(#{id}, #{schema}, #{table}, #{concurrencyCheck}, #{baseVersion})")
-            , dbHandler, event)
-            .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled());
+        return setCommonParams(new SQLQuery("SELECT xyz_simple_delete(#{id}, #{schema}, #{table}, #{concurrencyCheck}, "
+            + "#{baseVersion})"), dbHandler, event);
     }
 
-    private static SQLQuery setTableParams(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+    private static SQLQuery setCommonParams(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
         return writeQuery
             .withNamedParameter(SCHEMA, dbHandler.getDatabaseSettings().getSchema())
-            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event));
+            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
+            .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled());
     }
 
     public enum ModificationType {
@@ -113,15 +118,16 @@ public class DatabaseWriter {
     private static final Logger logger = LogManager.getLogger();
 
     private static final String UPDATE_ERROR_GENERAL = "Update has failed";
-    public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL+" - Object does not exist";
-    public static final String UPDATE_ERROR_CONCURRENCY = UPDATE_ERROR_GENERAL+" - Object does not exist or concurrent modification";
-    private static final String UPDATE_ERROR_ID_MISSING = UPDATE_ERROR_GENERAL+" - Feature Id is missing";
+    public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL + " - Object does not exist";
+    public static final String UPDATE_ERROR_CONCURRENCY = UPDATE_ERROR_GENERAL + " - Object does not exist or concurrent modification";
+    private static final String UPDATE_ERROR_ID_MISSING = UPDATE_ERROR_GENERAL + " - Feature Id is missing";
 
     private static final String DELETE_ERROR_GENERAL = "Delete has failed";
-    public static final String DELETE_ERROR_NOT_EXISTS = DELETE_ERROR_GENERAL+" - Object does not exist";
-    public static final String DELETE_ERROR_CONCURRENCY = DELETE_ERROR_GENERAL+" - Object does not exist or concurrent modification";
+    private static final String DELETE_ERROR_NOT_EXISTS = DELETE_ERROR_GENERAL + " - Object does not exist";
+    public static final String DELETE_ERROR_CONCURRENCY = DELETE_ERROR_GENERAL + " - Object does not exist or concurrent modification";
 
     public static final String INSERT_ERROR_GENERAL = "Insert has failed";
+    public static final String INSERT_ERROR_CONCURRENCY = INSERT_ERROR_GENERAL + " - Feature was already inserted in the meantime";
 
     protected static final String TRANSACTION_ERROR_GENERAL = "Transaction has failed";
 
@@ -269,7 +275,7 @@ public class DatabaseWriter {
             if (transactional) {
                 executeBatchesAndCheckOnFailures(dbh, idList, modificationQuery.prepareStatement(connection), fails, event, action);
 
-                if (action != INSERT && fails.size() > 0) { //Not necessary in INSERT case as no conflict check is performed there
+                if (fails.size() > 0) {
                     logException(null, action, event);
                     throw new SQLException(getGeneralErrorMsg(action));
                 }
@@ -283,7 +289,7 @@ public class DatabaseWriter {
     private static String getFailedRowErrorMsg(ModificationType action, ModifyFeaturesEvent event) {
         switch (action) {
             case INSERT:
-                return getGeneralErrorMsg(action);
+                return event.isConflictDetectionEnabled() ? INSERT_ERROR_CONCURRENCY : getGeneralErrorMsg(action);
             case UPDATE:
                 return event.isConflictDetectionEnabled() ? UPDATE_ERROR_CONCURRENCY : UPDATE_ERROR_NOT_EXISTS;
             case DELETE:
