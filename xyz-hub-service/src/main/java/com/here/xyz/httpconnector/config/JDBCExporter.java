@@ -235,18 +235,6 @@ public class JDBCExporter extends JdbcBasedHandler {
           );
     }
 
-/* test mockup using existing export call * /
-    public Future<ExportStatistic> _executeExport(Export job, String s3Bucket, String s3Path, String s3Region)
-    { 
-/ * 
-      DatasetDescription s = new DatasetDescription.Space().withFilters(job.getFilters()).withId( "export-x-psql-job-space2-ext" );
-      job.setSource( s );
-      job.setTarget(new DatasetDescription.Space().withId("cptarget001"));
-* /
-      return executeCopy(job); 
-    }
-*/
-
     //Space-Copy End
 
     public Future<ExportStatistic> executeExport(Export job, String s3Bucket, String s3Path, String s3Region) {
