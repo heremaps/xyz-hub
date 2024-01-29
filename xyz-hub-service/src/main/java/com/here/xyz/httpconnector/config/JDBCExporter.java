@@ -93,7 +93,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             + "(INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version) "
             + "SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version "
             + "FROM "
-            + "  (${{contentQuery}}) idata "
+            + "  (${{contentQuery}} AND next_version = #{MAX_BIGINT} ) idata "
             + "  LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint()) "
             + "  RETURNING id, version "
             + "), "
@@ -122,6 +122,7 @@ public class JDBCExporter extends JdbcBasedHandler {
           .withQueryFragment("jobId", job.getId())
           .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
           .withVariable("versionSequenceName", tableName + "_version_seq")
+          .withNamedParameter("MAX_BIGINT", GetFeatures.MAX_BIGINT)
           .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
     }
 
