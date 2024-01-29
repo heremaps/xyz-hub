@@ -2874,6 +2874,15 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_isHideOperation(operation CHAR) RETURNS BOOLEAN AS
+$BODY$
+BEGIN
+    RETURN operation = 'H' OR operation = 'J';
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT, baseVersion BIGINT)
     RETURNS INTEGER AS
 $BODY$
@@ -2944,13 +2953,13 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, baseVersion BIGINT)
+CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
         updated_rows INTEGER;
     BEGIN
-        updated_rows = xyz_simple_update(id, version, operation, author, jsondata, geo, schema, tableName, concurrencyCheck, baseVersion);
+        updated_rows = xyz_simple_update(id, version, CASE WHEN xyz_isHideOperation(operation) THEN 'J' ELSE 'U' END, author, jsondata, geo, schema, tableName, false, NULL, false);
         IF updated_rows = 0 THEN
             updated_rows = xyz_simple_insert(id, version, operation, author, jsondata, geo, schema, tableName);
         ELSE
@@ -2969,6 +2978,18 @@ LANGUAGE plpgsql VOLATILE;
 CREATE OR REPLACE FUNCTION xyz_simple_update(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, baseVersion BIGINT)
     RETURNS INTEGER AS
 $BODY$
+BEGIN
+    RETURN xyz_simple_update(id, version, operation, author,
+                             jsondata, geo, schema, tableName,
+                             concurrencyCheck, baseVersion, true);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_simple_update(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, baseVersion BIGINT, raiseErrors BOOLEAN)
+    RETURNS INTEGER AS
+$BODY$
     DECLARE
         updated_rows INTEGER;
     BEGIN
@@ -2979,18 +3000,20 @@ $BODY$
 
         GET DIAGNOSTICS updated_rows = ROW_COUNT;
 
-        IF concurrencyCheck THEN
-            IF updated_rows != 1 THEN
-                RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
-                    USING HINT = 'Base version ' || CASE WHEN baseVersion IS NULL THEN '' ELSE baseVersion::TEXT END || ' is not matching the current HEAD version.',
-                        ERRCODE = 'XYZ49';
-            END IF;
-        ELSE
-            IF updated_rows != 1 THEN
-                -- This can only happen if the feature was deleted in the meantime
-                RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
-                    USING HINT = 'Feature was deleted in the meantime.',
-                        ERRCODE = 'XYZ49';
+        IF raiseErrors THEN
+            IF concurrencyCheck THEN
+                IF updated_rows != 1 THEN
+                    RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Base version ' || CASE WHEN baseVersion IS NULL THEN '' ELSE baseVersion::TEXT END || ' is not matching the current HEAD version.',
+                            ERRCODE = 'XYZ49';
+                END IF;
+            ELSE
+                IF updated_rows != 1 THEN
+                    -- This can only happen if the feature was deleted in the meantime
+                    RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
+                        USING HINT = 'Feature was deleted in the meantime.',
+                            ERRCODE = 'XYZ49';
+                END IF;
             END IF;
         END IF;
 
