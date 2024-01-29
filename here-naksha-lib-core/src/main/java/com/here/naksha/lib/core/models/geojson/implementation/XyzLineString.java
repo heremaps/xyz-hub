@@ -44,7 +44,7 @@ public class XyzLineString extends XyzGeometryItem {
     return this;
   }
 
-  public com.vividsolutions.jts.geom.LineString convertToJTSGeometry() {
+  public org.locationtech.jts.geom.LineString convertToJTSGeometry() {
     return JTSHelper.toLineString(this.coordinates);
   }
 

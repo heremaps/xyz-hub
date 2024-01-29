@@ -30,13 +30,13 @@ import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.*;
-import com.vividsolutions.jts.geom.Geometry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.locationtech.jts.geom.Geometry;
 
 @AvailableSince(NakshaVersion.v2_0_7)
 public class RequestHelper {

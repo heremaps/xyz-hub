@@ -24,11 +24,11 @@ import static com.here.naksha.lib.core.models.storage.OpType.OR;
 import static com.here.naksha.lib.core.models.storage.SOpType.INTERSECTS;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.operation.buffer.BufferOp;
-import com.vividsolutions.jts.operation.buffer.BufferParameters;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.operation.buffer.BufferOp;
+import org.locationtech.jts.operation.buffer.BufferParameters;
 
 /**
  * Spatial operations always executed against the geometry.
@@ -85,7 +85,7 @@ public class SOp extends Op<SOp> {
 
   /**
    * Transforms input geometry by adding buffer to it and creates operation that tests for an intersection of buffered_geometry and feature.geometry.
-   * If you need custom joinStyle or other buffer parameter {@link com.vividsolutions.jts.operation.buffer.BufferParameters}
+   * If you need custom joinStyle or other buffer parameter {@link org.locationtech.jts.operation.buffer.BufferParameters}
    * use {@link #intersects(Geometry)} and create your own buffer by using {@link BufferOp#bufferOp(Geometry, double, BufferParameters)}
    *
    * @param geometry
@@ -98,7 +98,7 @@ public class SOp extends Op<SOp> {
 
   /**
    * Transforms input geometry by adding buffer to it and creates operation that tests for an intersection of buffered_geometry and feature.geometry.
-   * If you need custom joinStyle or other buffer parameter {@link com.vividsolutions.jts.operation.buffer.BufferParameters}
+   * If you need custom joinStyle or other buffer parameter {@link org.locationtech.jts.operation.buffer.BufferParameters}
    * use {@link #intersects(Geometry)} and create your own buffer by using {@link BufferOp#bufferOp(Geometry, double, BufferParameters)}
    *
    * @param geometry

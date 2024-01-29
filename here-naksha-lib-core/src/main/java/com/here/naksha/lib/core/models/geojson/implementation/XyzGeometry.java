@@ -41,7 +41,7 @@ public abstract class XyzGeometry implements Typed {
   private BBox bbox;
 
   @JsonIgnore
-  private com.vividsolutions.jts.geom.Geometry geomCache;
+  private org.locationtech.jts.geom.Geometry geomCache;
 
   /**
    * Convert a JTS geometry into a {@link XyzGeometry Geo JSON geometry}.
@@ -51,7 +51,7 @@ public abstract class XyzGeometry implements Typed {
    * @return the Geo JSON geometry or null, if conversion is not possible or results in null.
    */
   @SuppressWarnings({"unchecked", "unused"})
-  public static <T extends XyzGeometry> T convertJTSGeometry(com.vividsolutions.jts.geom.Geometry jtsGeometry) {
+  public static <T extends XyzGeometry> T convertJTSGeometry(org.locationtech.jts.geom.Geometry jtsGeometry) {
     if (jtsGeometry == null) {
       return null;
     }
@@ -291,7 +291,7 @@ public abstract class XyzGeometry implements Typed {
 
   @JsonIgnore
   @SuppressWarnings("WeakerAccess")
-  public com.vividsolutions.jts.geom.Geometry getJTSGeometry() {
+  public org.locationtech.jts.geom.Geometry getJTSGeometry() {
     if (geomCache == null) {
       geomCache = convertToJTSGeometry();
     }
@@ -302,7 +302,7 @@ public abstract class XyzGeometry implements Typed {
   // TODO: Please fix the "isExterior" parameter that is currently unused (either use it or remove
   // it)
 
-  protected abstract com.vividsolutions.jts.geom.Geometry convertToJTSGeometry();
+  protected abstract org.locationtech.jts.geom.Geometry convertToJTSGeometry();
 
   public abstract BBox calculateBBox();
 

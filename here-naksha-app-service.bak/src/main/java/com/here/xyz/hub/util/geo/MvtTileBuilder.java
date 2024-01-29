@@ -24,9 +24,9 @@ import static com.here.xyz.hub.util.geo.GeoTools.WGS84_EPSG;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
-import com.vividsolutions.jts.geom.Envelope;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.PrecisionModel;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.PrecisionModel;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.VectorTile.Tile;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;
@@ -87,12 +87,12 @@ public abstract class MvtTileBuilder implements IUserDataConverter, IGeometryFil
         if (featureGeometry == null) {
           continue;
         }
-        final com.vividsolutions.jts.geom.Geometry wgs84Geometry = featureGeometry.getJTSGeometry();
+        final org.locationtech.jts.geom.Geometry wgs84Geometry = featureGeometry.getJTSGeometry();
         if (wgs84Geometry == null) {
           continue;
         }
 
-        com.vividsolutions.jts.geom.Geometry targetGeometry;
+        org.locationtech.jts.geom.Geometry targetGeometry;
         try {
           targetGeometry = JTS.transform(wgs84Geometry, mathTransform);
         } catch (MismatchedDimensionException | TransformException e) {
@@ -185,7 +185,7 @@ public abstract class MvtTileBuilder implements IUserDataConverter, IGeometryFil
   }
 
   @Override
-  public boolean accept(com.vividsolutions.jts.geom.Geometry geometry) {
+  public boolean accept(org.locationtech.jts.geom.Geometry geometry) {
     return true;
   }
 

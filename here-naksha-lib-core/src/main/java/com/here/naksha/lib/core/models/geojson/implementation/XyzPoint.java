@@ -59,7 +59,7 @@ public class XyzPoint extends XyzGeometryItem {
   }
 
   @JsonIgnore
-  public com.vividsolutions.jts.geom.Point convertToJTSGeometry() {
+  public org.locationtech.jts.geom.Point convertToJTSGeometry() {
     return JTSHelper.toPoint(this.coordinates);
   }
 

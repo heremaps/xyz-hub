@@ -25,8 +25,8 @@ import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.storage.SOp;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.vividsolutions.jts.geom.Geometry;
 import org.jetbrains.annotations.NotNull;
+import org.locationtech.jts.geom.Geometry;
 
 public class SpatialUtil {
 

@@ -25,8 +25,8 @@ import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.xy;
 import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.y;
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
 import org.junit.jupiter.api.Test;
 
 public class WebMercatorTileTest {

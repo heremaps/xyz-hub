@@ -44,7 +44,7 @@ public class XyzMultiPoint extends XyzGeometryItem {
     return this;
   }
 
-  public com.vividsolutions.jts.geom.MultiPoint convertToJTSGeometry() {
+  public org.locationtech.jts.geom.MultiPoint convertToJTSGeometry() {
     return JTSHelper.toMultiPoint(this.coordinates);
   }
 

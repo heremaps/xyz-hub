@@ -18,11 +18,11 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import com.vividsolutions.jts.geom.Geometry;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * A simple cursor that allows to read the results forward only. This class comes with most of the needed default methods.

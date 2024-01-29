@@ -39,7 +39,7 @@ public class JTSConverterTest {
     XyzFeature feature = new ObjectMapper().readValue(featureText, XyzFeature.class);
 
     XyzGeometry sourceGeometry = feature.getGeometry();
-    com.vividsolutions.jts.geom.Geometry jtsGeometry = JTSHelper.toGeometry(sourceGeometry);
+    org.locationtech.jts.geom.Geometry jtsGeometry = JTSHelper.toGeometry(sourceGeometry);
     XyzGeometry targetGeometry = JTSHelper.fromGeometry(jtsGeometry);
 
     assertNotNull(targetGeometry);

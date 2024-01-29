@@ -77,10 +77,10 @@ import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.json.JsonMap;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.Point;
-import com.vividsolutions.jts.operation.buffer.BufferOp;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.operation.buffer.BufferOp;
 
 import java.io.IOException;
 import java.sql.PreparedStatement;

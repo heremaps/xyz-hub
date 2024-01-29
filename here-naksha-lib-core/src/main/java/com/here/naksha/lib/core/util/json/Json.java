@@ -21,9 +21,9 @@ package com.here.naksha.lib.core.util.json;
 import static com.fasterxml.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
 import static com.fasterxml.jackson.databind.MapperFeature.SORT_CREATOR_PROPERTIES_FIRST;
 import static com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY;
-import static com.vividsolutions.jts.io.ByteOrderValues.BIG_ENDIAN;
-import static com.vividsolutions.jts.io.ByteOrderValues.LITTLE_ENDIAN;
 import static java.nio.ByteOrder.nativeOrder;
+import static org.locationtech.jts.io.ByteOrderValues.BIG_ENDIAN;
+import static org.locationtech.jts.io.ByteOrderValues.LITTLE_ENDIAN;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -40,10 +40,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.core.view.ViewSerialize;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.PrecisionModel;
-import com.vividsolutions.jts.io.WKBReader;
-import com.vividsolutions.jts.io.WKBWriter;
 import java.lang.ref.WeakReference;
 import java.nio.ByteOrder;
 import java.util.Formatter;
@@ -51,6 +47,10 @@ import java.util.HashMap;
 import java.util.Locale;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.PrecisionModel;
+import org.locationtech.jts.io.WKBReader;
+import org.locationtech.jts.io.WKBWriter;
 
 /**
  * Thread local JSON handling. To be used like:

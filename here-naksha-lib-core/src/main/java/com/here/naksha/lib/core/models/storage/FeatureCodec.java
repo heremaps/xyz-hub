@@ -22,11 +22,11 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.StringCache.string;
 
 import com.here.naksha.lib.core.util.json.Json;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.io.ParseException;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.ParseException;
 
 /**
  * A codec that is able to encode a feature from its parts and to decode a feature into its parts. The implementation is not thread safe.

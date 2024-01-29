@@ -85,13 +85,13 @@ public class XyzGeometryCollection extends XyzGeometry {
   }
 
   @Override
-  protected com.vividsolutions.jts.geom.GeometryCollection convertToJTSGeometry() {
+  protected org.locationtech.jts.geom.GeometryCollection convertToJTSGeometry() {
     if (this.geometries == null || this.geometries.size() == 0) {
       return null;
     }
 
-    com.vividsolutions.jts.geom.Geometry[] jtsGeometries =
-        new com.vividsolutions.jts.geom.Geometry[this.geometries.size()];
+    org.locationtech.jts.geom.Geometry[] jtsGeometries =
+        new org.locationtech.jts.geom.Geometry[this.geometries.size()];
     for (int i = 0; i < jtsGeometries.length; i++) {
       jtsGeometries[i] = this.geometries.get(i).getJTSGeometry();
     }

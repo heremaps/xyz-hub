@@ -24,7 +24,7 @@ import com.here.naksha.lib.core.models.storage.ForwardCursor;
 import com.here.naksha.lib.core.models.storage.XyzCodecFactory;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
-import com.vividsolutions.jts.geom.Geometry;
+import org.locationtech.jts.geom.Geometry;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;

@@ -45,7 +45,7 @@ public class XyzMultiLineString extends XyzGeometryItem {
   }
 
   @Override
-  protected com.vividsolutions.jts.geom.MultiLineString convertToJTSGeometry() {
+  protected org.locationtech.jts.geom.MultiLineString convertToJTSGeometry() {
     return JTSHelper.toMultiLineString(getCoordinates());
   }
 

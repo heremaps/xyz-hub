@@ -45,7 +45,7 @@ public class XyzPolygon extends XyzGeometryItem {
   }
 
   @Override
-  protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
+  protected org.locationtech.jts.geom.Geometry convertToJTSGeometry() {
     return JTSHelper.toPolygon(this.coordinates);
   }
 
