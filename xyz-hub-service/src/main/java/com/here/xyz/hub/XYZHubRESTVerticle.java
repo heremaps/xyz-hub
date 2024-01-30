@@ -44,7 +44,6 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
@@ -138,7 +137,6 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       new AdminApi(vertx, router, jwtHandler);
 
       //OpenAPI resources
-      router.route(HttpMethod.GET, "/openapi").handler(ctx -> ctx.reroute("/hub/static/openapi/contract.yaml"));
       router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
         final HttpServerResponse res = routingContext.response();
         res.putHeader("content-type", "application/yaml");
