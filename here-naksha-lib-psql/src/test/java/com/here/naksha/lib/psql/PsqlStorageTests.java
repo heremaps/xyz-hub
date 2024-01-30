@@ -25,6 +25,8 @@ import static com.here.naksha.lib.core.models.storage.POp.exists;
 import static com.here.naksha.lib.core.models.storage.POp.not;
 import static com.here.naksha.lib.core.models.storage.PRef.id;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createBBoxEnvelope;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.deleteFeatureByIdRequest;
 import static com.spatial4j.core.io.GeohashUtils.encodeLatLon;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
@@ -68,6 +70,7 @@ import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SOp;
 import com.here.naksha.lib.core.models.storage.SeekableCursor;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
 import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
@@ -715,6 +718,58 @@ public class PsqlStorageTests extends PsqlTests {
 
       // then
       assertFalse(rs.next());
+    }
+  }
+
+  @Test
+  @Order(67)
+  @EnabledIf("runTest")
+  void autoPurgeCheck() throws SQLException, NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // given
+    final WriteXyzCollections request = new WriteXyzCollections();
+    String collectionWithAutoPurge = collectionId() + "_ap";
+    XyzCollection collection = new XyzCollection(collectionWithAutoPurge, partition(), false, true);
+    collection.enableAutoPurge();
+    request.add(EWriteOp.CREATE, collection);
+
+    // when
+    try (final ForwardCursor<XyzCollection, XyzCollectionCodec> cursor =
+             session.execute(request).getXyzCollectionCursor()) {
+      assertTrue(cursor.next());
+      assertTrue(cursor.getFeature().isAutoPurge());
+    } finally {
+      session.commit(true);
+    }
+
+    // CREATE feature
+    final XyzFeature featureToDel = new XyzFeature(SINGLE_FEATURE_ID);
+    try(final Result result = session.execute(createFeatureRequest(collectionWithAutoPurge, featureToDel))) {
+      assertTrue(result instanceof SuccessResult);
+    } finally {
+      session.commit(true);
+    }
+
+    // DELETE feature
+    try(final Result result = session.execute(deleteFeatureByIdRequest(collectionWithAutoPurge, featureToDel.getId()))) {
+      assertTrue(result instanceof SuccessResult);
+    } finally {
+      session.commit(true);
+    }
+
+    // THEN should not exist in _del table (because auto-purge is ON)
+    try (final PsqlReadSession session = storage.newReadSession(nakshaContext, true)) {
+      ResultSet rs = getFeatureFromTable(session, collectionWithAutoPurge + "_del", SINGLE_FEATURE_ID);
+      // then
+      assertFalse(rs.next());
+    }
+
+    // but it should exist in _hst table
+    try (final PsqlReadSession session = storage.newReadSession(nakshaContext, true)) {
+      ResultSet rs = getFeatureFromTable(session, collectionWithAutoPurge + "_hst", SINGLE_FEATURE_ID);
+      // then
+      assertTrue(rs.next());
     }
   }
 

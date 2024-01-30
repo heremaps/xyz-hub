@@ -18,6 +18,10 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.app.service.http.apis.ApiParams.STORAGE_ID;
+import static com.here.naksha.app.service.http.ops.PasswordMaskingUtil.removePasswordFromProps;
+import static com.here.naksha.lib.core.NakshaAdminCollection.STORAGES;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.apis.ApiParams;
@@ -39,10 +43,6 @@ import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static com.here.naksha.app.service.http.apis.ApiParams.STORAGE_ID;
-import static com.here.naksha.app.service.http.ops.PasswordMaskingUtil.removePasswordFromProps;
-import static com.here.naksha.lib.core.NakshaAdminCollection.STORAGES;
 
 public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
 

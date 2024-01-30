@@ -491,6 +491,31 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RETURN false;
 END $$;
 
+-- This is a function that caches the state for this session.
+CREATE OR REPLACE FUNCTION nk_get_collection_auto_purge(_collection_id text) RETURNS bool LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+    cache_key text = nk_key(_collection_id, 'apurge');
+    cache_value text;
+    auto_purge bool = false;
+    feature jsonb;
+BEGIN
+    cache_value = nk_get_config(cache_key);
+    IF cache_value = 'true' THEN
+        RETURN true;
+    END IF;
+    IF cache_value = 'false' THEN
+        RETURN false;
+    END IF;
+    SELECT obj_description(oid)::jsonb FROM pg_class
+    WHERE relnamespace = nk_const_schema_oid() AND relname::text = _collection_id INTO feature;
+    IF jsonb_is(feature->'autoPurge', 'boolean') THEN
+        auto_purge = (feature->'autoPurge')::bool;
+    END IF;
+    PERFORM nk_set_config(cache_key, auto_purge::text, true);
+    RETURN auto_purge;
+EXCEPTION WHEN OTHERS THEN RETURN false;
+END $$;
+
 CREATE OR REPLACE FUNCTION nk_get_collection_id_from_table_name(_tg_table_name text) RETURNS text LANGUAGE 'plpgsql'IMMUTABLE AS $$ BEGIN
   IF _tg_table_name ~ '.*_p[0-9][0-9]$' THEN
     RETURN substr(_tg_table_name,1,length(_tg_table_name)-4);
@@ -888,11 +913,13 @@ BEGIN
   -- We need anyway to create a copy for the deletion table (it will have txn_next=0).
   OLD.i = nextval('"'||TG_TABLE_SCHEMA||'"."'||collection_id||'_i_seq"');
   OLD.jsondata = nk_set_xyz_namespace_delete(collection_id, OLD.i, OLD.jsondata);
-  sql = format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_del', collection_id));
-  --RAISE NOTICE '%', sql;
-  EXECUTE sql USING OLD.jsondata, OLD.geo, OLD.i;
-  -- We keep the uid for the nk_write_features to fix the namespace.
-  PERFORM nk_set_config(nk_const_del_uid(), OLD.i::text, true);
+  IF NOT nk_get_collection_auto_purge(collection_id) THEN
+    sql = format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_del', collection_id));
+    --RAISE NOTICE '%', sql;
+    EXECUTE sql USING OLD.jsondata, OLD.geo, OLD.i;
+    -- We keep the uid for the nk_write_features to fix the namespace.
+    PERFORM nk_set_config(nk_const_del_uid(), OLD.i::text, true);
+  END IF;
 
   -- If the history is enabled, we copy the deletion table entry as well into history, but with txn_next=txn.
   -- Notice: Therefore, we have two writes into history table for a DELETE, which compensates for the one we safe

@@ -51,6 +51,9 @@ public class XyzCollection extends NakshaFeature {
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final String DISABLE_HISTORY = "disableHistory";
 
+  @AvailableSince(NakshaVersion.v2_0_11)
+  public static final String AUTO_PURGE = "autoPurge";
+
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final String MIN_AGE = "minAge";
 
@@ -112,6 +115,14 @@ public class XyzCollection extends NakshaFeature {
   @JsonProperty(DISABLE_HISTORY)
   @JsonInclude(Include.NON_EMPTY)
   private boolean disableHistory;
+
+  /**
+   * Toggle if the auto-purge is enabled.
+   */
+  @AvailableSince(NakshaVersion.v2_0_11)
+  @JsonProperty(AUTO_PURGE)
+  @JsonInclude(Include.NON_EMPTY)
+  private boolean autoPurge;
 
   /**
    * Returns {@code true} if this collection is partitioned.
@@ -242,6 +253,43 @@ public class XyzCollection extends NakshaFeature {
   @JsonIgnore
   public void disableHistory() {
     disableHistory = true;
+  }
+
+  /**
+   * Returns true if the auto-purge is currently enabled; false otherwise.
+   * Auto-purge decides whether features will be written to _del table on DELETE operation (auto-purge: false) or not (auto-purge: true).
+   *
+   * @return true if the auto-purge is currently enabled; false otherwise.
+   */
+  @JsonIgnore
+  public boolean isAutoPurge() {
+    return autoPurge;
+  }
+
+  /**
+   * Enable or disable the auto-purge (inserts to _del).
+   *
+   * @param autoPurge true to enable the auto-purge; false to disable it.
+   */
+  @JsonIgnore
+  public void setAutoPurge(boolean autoPurge) {
+    this.autoPurge = autoPurge;
+  }
+
+  /**
+   * Enable auto-purge.
+   */
+  @JsonIgnore
+  public void enableAutoPurge() {
+    autoPurge = true;
+  }
+
+  /**
+   * Disable auto-purge.
+   */
+  @JsonIgnore
+  public void disableAutoPurge() {
+    autoPurge = false;
   }
 
   /**
