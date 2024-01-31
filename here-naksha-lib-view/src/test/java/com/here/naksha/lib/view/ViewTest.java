@@ -18,8 +18,11 @@
  */
 package com.here.naksha.lib.view;
 
+import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.SimpleTask;
 import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.exceptions.TooManyTasks;
 import com.here.naksha.lib.core.exceptions.UncheckedException;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.storage.*;
@@ -27,14 +30,19 @@ import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
+import com.here.naksha.lib.view.concurrent.LayerReadRequest;
 import com.here.naksha.lib.view.concurrent.ParallelQueryExecutor;
 import com.here.naksha.lib.view.merge.MergeByStoragePriority;
 import com.here.naksha.lib.view.missing.IgnoreMissingResolver;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
+import org.mockito.MockedConstruction;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
 import static com.here.naksha.lib.core.models.storage.POp.eq;
@@ -88,10 +96,11 @@ public class ViewTest {
     assertEquals(3, allFeatures.size());
     assertTrue(allFeatures.containsAll(results));
   }
+
   @Test
   void testWriteApiNotation() throws NoCursor {
     IStorage storage = mock(IStorage.class);
-    IWriteSession session=mock(IWriteSession.class);
+    IWriteSession session = mock(IWriteSession.class);
 
     ViewLayer topologiesDS = new ViewLayer(storage, "topologies");
     ViewLayerCollection viewLayerCollection = new ViewLayerCollection("myCollection", topologiesDS);
@@ -102,15 +111,42 @@ public class ViewTest {
     final XyzFeature feature = new XyzFeature("id0");
     request.add(EWriteOp.CREATE, feature);
 
-    when(session.execute(request)).thenReturn(new MockResult<>(sampleXyzWriteResponse(1,EExecutedOp.CREATED)));
+    when(session.execute(request)).thenReturn(new MockResult<>(sampleXyzWriteResponse(1, EExecutedOp.CREATED)));
     ViewWriteSession writeSession = view.newWriteSession(nc, true);
 
     try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-                 writeSession.execute(request).getXyzFeatureCursor()) {
-      assertTrue (cursor.hasNext());
+        writeSession.execute(request).getXyzFeatureCursor()) {
+      assertTrue(cursor.hasNext());
       cursor.next();
-      assertEquals(feature.getId(),cursor.getFeature().getId());
-      assertEquals(cursor.getOp(),EExecutedOp.CREATED);
+      assertEquals(feature.getId(), cursor.getFeature().getId());
+      assertEquals(cursor.getOp(), EExecutedOp.CREATED);
+    } finally {
+      writeSession.commit(true);
+    }
+  }
+
+  @Test
+  void testDeleteApiNotation() throws NoCursor {
+    IStorage storage = mock(IStorage.class);
+    IWriteSession session = mock(IWriteSession.class);
+
+    ViewLayer topologiesDS = new ViewLayer(storage, "topologies");
+    ViewLayerCollection viewLayerCollection = new ViewLayerCollection("myCollection", topologiesDS);
+    View view = new View(viewLayerCollection);
+    when(storage.newWriteSession(nc, true)).thenReturn(session);
+
+    final LayerWriteFeatureRequest request = new LayerWriteFeatureRequest();
+    final XyzFeature feature = new XyzFeature("id0");
+    request.add(EWriteOp.DELETE, feature);
+
+    when(session.execute(request)).thenReturn(new MockResult<>(sampleXyzWriteResponse(1, EExecutedOp.DELETED)));
+    ViewWriteSession writeSession = view.newWriteSession(nc, true);
+
+    try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+        writeSession.execute(request).getXyzFeatureCursor()) {
+      assertTrue(cursor.next());
+      assertEquals(feature.getId(), cursor.getId());
+      assertEquals(cursor.getOp(), EExecutedOp.DELETED);
     } finally {
       writeSession.commit(true);
     }
@@ -158,7 +194,7 @@ public class ViewTest {
 
     // when only by id
     ReadFeatures request1 = RequestHelper.readFeaturesByIdsRequest(TOPO, List.of("1"));
-    try(ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = view.newReadSession(nc, false).execute(request1).getXyzFeatureCursor()) {
+    try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = view.newReadSession(nc, false).execute(request1).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
     }
     // then
@@ -168,11 +204,12 @@ public class ViewTest {
     clearInvocations(readSession);
     ReadFeatures request2 = new ReadFeatures();
     request2.setPropertyOp(or(eq(id(), 1), eq(app_id(), "app")));
-    try(ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = view.newReadSession(nc, false).execute(request2).getXyzFeatureCursor()) {
+    try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = view.newReadSession(nc, false).execute(request2).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
     }
     verify(readSession, times(2)).execute(any());
   }
+
   @Test
   void testTimeoutExceptionInOneOfTheThreads() {
     IStorage topologiesStorage = mock(IStorage.class);
@@ -193,14 +230,54 @@ public class ViewTest {
     ViewLayerCollection viewLayerCollection = new ViewLayerCollection("myCollection", topologiesDS, buildingsDS);
     View view = new View(viewLayerCollection);
 
-    try{
-      view.newReadSession(nc, false).execute(new ReadFeatures());
-    }catch (Exception ex){
-      assertTrue(ex instanceof UncheckedException);
-      assertTrue(ex.getMessage().contains("TimeoutException"));
-    }
+    Throwable exception = assertThrows(UncheckedException.class, () -> view.newReadSession(nc, false).execute(new ReadFeatures()));
+    assertTrue(exception.getMessage().contains("TimeoutException"));
     verify(topoReadSession, times(1)).execute(any());
     verify(buildReadSession, times(1)).execute(any());
+  }
+
+  @Test
+  void shouldThrowTooManyTasksException() {
+    IStorage mockStorage = mock(IStorage.class);
+    int limit = AbstractTask.limit.intValue();
+    ViewLayer[] layerDS = new ViewLayer[limit + 10];
+    //Create ThreadFactory Limit + 10 layers
+    for (int ind = 0; ind < layerDS.length; ind++) {
+      layerDS[ind] = new ViewLayer(mockStorage, "collection" + ind);
+    }
+    ViewLayerCollection viewLayerCollection = new ViewLayerCollection("myCollection", layerDS);
+    View view = new View(viewLayerCollection);
+
+    List<SimpleTask> tasks = new ArrayList<>();
+    try (MockedConstruction<ParallelQueryExecutor> queryExecutor = mockConstruction(ParallelQueryExecutor.class, (mock, context) -> {
+      when(mock.queryInParallel(any(), any())).thenAnswer(new Answer<Object>() {
+        @Override
+        public Object answer(InvocationOnMock invocation) throws Throwable {
+          List<LayerReadRequest> requests = invocation.getArgument(0);
+          for (LayerReadRequest layerReadRequest : requests) {
+            SimpleTask singleTask = new SimpleTask<>();
+            tasks.add(singleTask);
+            singleTask.start(() -> {
+              Thread.sleep(1000);
+              return null;
+            });
+          }
+          return Collections.emptyMap();
+        }
+      });
+    })) {
+
+      ViewReadSession viewReadSession = view.newReadSession(nc, false);
+      Throwable ex = assertThrows(TooManyTasks.class, () -> viewReadSession.execute(new ReadFeatures()));
+      assertTrue(ex.getMessage().contains("Maximum number of concurrent tasks"));
+    }
+    //Interrupt sleeping threads in this group to end.
+    Optional<SimpleTask> activeTask = tasks.stream().filter(thread -> thread.getThread() != null).findFirst();
+    if (activeTask.isPresent()) {
+      ThreadGroup threadGroup = activeTask.get().getThread().getThreadGroup();
+      threadGroup.interrupt();
+      assertEquals(limit, threadGroup.activeCount());
+    }
   }
 
 }
