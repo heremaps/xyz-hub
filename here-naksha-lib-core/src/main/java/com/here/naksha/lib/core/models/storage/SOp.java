@@ -24,11 +24,10 @@ import static com.here.naksha.lib.core.models.storage.OpType.OR;
 import static com.here.naksha.lib.core.models.storage.SOpType.INTERSECTS;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
+import com.here.naksha.lib.core.models.storage.transformation.GeometryTransformation;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.operation.buffer.BufferOp;
-import org.locationtech.jts.operation.buffer.BufferParameters;
 
 /**
  * Spatial operations always executed against the geometry.
@@ -38,17 +37,24 @@ public class SOp extends Op<SOp> {
   SOp(@NotNull OpType op, @NotNull SOp... children) {
     super(op, children);
     this.geometry = null;
+    this.transformation = null;
   }
 
-  SOp(@NotNull OpType op, @Nullable Geometry geometry) {
+  SOp(@NotNull OpType op, @Nullable Geometry geometry, @Nullable GeometryTransformation transformation) {
     super(op);
     this.geometry = geometry;
+    this.transformation = transformation;
   }
 
   private final @Nullable Geometry geometry;
+  private final @Nullable GeometryTransformation transformation;
 
   public @Nullable Geometry getGeometry() {
     return geometry;
+  }
+
+  public @Nullable GeometryTransformation getTransformation() {
+    return transformation;
   }
 
   public static @NotNull SOp and(@NotNull SOp... children) {
@@ -80,32 +86,44 @@ public class SOp extends Op<SOp> {
    * @return The operation describing this.
    */
   public static @NotNull SOp intersects(@NotNull Geometry geometry) {
-    return new SOp(INTERSECTS, geometry);
+    return new SOp(INTERSECTS, geometry, null);
   }
 
   /**
-   * Transforms input geometry by adding buffer to it and creates operation that tests for an intersection of buffered_geometry and feature.geometry.
-   * If you need custom joinStyle or other buffer parameter {@link org.locationtech.jts.operation.buffer.BufferParameters}
-   * use {@link #intersects(Geometry)} and create your own buffer by using {@link BufferOp#bufferOp(Geometry, double, BufferParameters)}
+   * Transforms input geometry by adding transformation to it and creates operation that tests for an intersection of transformed feature.geometry.
+   * Example:
+   * <pre>
+   * {@code
+   *  SOp.intersects(geoPoint, bufferInMeters(150000.0))
+   *  SOp.intersects(geoPoint, bufferInRadius(0.04))
+   * }
+   * </pre>
    *
    * @param geometry
-   * @param buffer
+   * @param geometryTransformation
    * @return
    */
-  public static @NotNull SOp intersectsWithBuffer(@NotNull Geometry geometry, double buffer) {
-    return intersects(BufferOp.bufferOp(geometry, buffer));
+  public static @NotNull SOp intersects(
+      @NotNull Geometry geometry, @NotNull GeometryTransformation geometryTransformation) {
+    return new SOp(INTERSECTS, geometry, geometryTransformation);
   }
 
   /**
-   * Transforms input geometry by adding buffer to it and creates operation that tests for an intersection of buffered_geometry and feature.geometry.
-   * If you need custom joinStyle or other buffer parameter {@link org.locationtech.jts.operation.buffer.BufferParameters}
-   * use {@link #intersects(Geometry)} and create your own buffer by using {@link BufferOp#bufferOp(Geometry, double, BufferParameters)}
+   * Transforms input geometry by adding transformation to it and creates operation that tests for an intersection of transformed feature.geometry.
+   * Example:
+   * <pre>
+   * {@code
+   *  SOp.intersects(xyzPoint, bufferInMeters(150000.0))
+   *  SOp.intersects(xyzPoint, bufferInRadius(0.04))
+   * }
+   * </pre>
    *
    * @param geometry
-   * @param buffer
+   * @param geometryTransformation
    * @return
    */
-  public static @NotNull SOp intersectsWithBuffer(@NotNull XyzGeometry geometry, double buffer) {
-    return intersectsWithBuffer(geometry.getJTSGeometry(), buffer);
+  public static @NotNull SOp intersects(
+      @NotNull XyzGeometry geometry, @NotNull GeometryTransformation geometryTransformation) {
+    return intersects(geometry.getJTSGeometry(), geometryTransformation);
   }
 }

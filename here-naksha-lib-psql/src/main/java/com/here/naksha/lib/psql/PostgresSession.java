@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.psql.sql.SqlGeometryTransformationResolver.addTransformation;
 import static java.util.Comparator.comparing;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -247,7 +248,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       if (geometry == null) {
         throw new IllegalArgumentException("Missing geometry");
       }
-      sql.add(" ST_Intersects(geo, ST_Force3D(?))");
+      SQL variableTransformed = addTransformation(spatialOp.getTransformation(), "ST_Force3D(?)");
+      sql.add(" ST_Intersects(geo, ").add(variableTransformed).add(")");
       try (final Json jp = Json.get()) {
         final byte[] wkb = jp.wkbWriter.write(geometry);
         wkbs.add(wkb);

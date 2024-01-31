@@ -24,6 +24,8 @@ import static com.here.naksha.lib.core.models.storage.POp.eq;
 import static com.here.naksha.lib.core.models.storage.POp.exists;
 import static com.here.naksha.lib.core.models.storage.POp.not;
 import static com.here.naksha.lib.core.models.storage.PRef.id;
+import static com.here.naksha.lib.core.models.storage.transformation.BufferTransformation.bufferInMeters;
+import static com.here.naksha.lib.core.models.storage.transformation.BufferTransformation.bufferInRadius;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createBBoxEnvelope;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.deleteFeatureByIdRequest;
@@ -45,6 +47,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.LineStringCoordinates;
 import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
@@ -77,13 +80,15 @@ import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.util.json.Json;
-import com.here.naksha.lib.core.util.json.JsonMap;
-import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.operation.buffer.BufferOp;
+import com.spatial4j.core.context.jts.JtsSpatialContext;
+import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.distance.GeodesicSphereDistCalc;
+import com.spatial4j.core.shape.jts.JtsPoint;
 
 import java.io.IOException;
 import java.sql.PreparedStatement;
@@ -237,24 +242,52 @@ public class PsqlStorageTests extends PsqlTests {
   @Test
   @Order(52)
   @EnabledIf("runTest")
-  void readyWithBuffer() throws NoCursor {
+  void readWithBuffer() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
 
     XyzPoint xyzPoint = new XyzPoint(4.0d, 5.0d);
 
     ReadFeatures readFeatures = new ReadFeatures(collectionId());
-    readFeatures.setSpatialOp(SOp.intersectsWithBuffer(xyzPoint, 1.0));
+    readFeatures.setSpatialOp(SOp.intersects(xyzPoint, bufferInRadius(1.0)));
 
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
         session.execute(readFeatures).getXyzFeatureCursor()) {
       assertFalse(cursor.hasNext());
     }
 
-    readFeatures.setSpatialOp(SOp.intersectsWithBuffer(xyzPoint, 2.0));
+    readFeatures.setSpatialOp(SOp.intersects(xyzPoint, bufferInRadius(2.0)));
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
         session.execute(readFeatures).getXyzFeatureCursor()) {
       assertTrue(cursor.hasNext());
+    }
+  }
+
+  @Test
+  @Order(52)
+  @EnabledIf("runTest")
+  void readWithBufferInMeters() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+
+    XyzPoint xyzPoint = new XyzPoint(4.0d, 5.0d);
+
+    ReadFeatures readFeatures = new ReadFeatures(collectionId());
+    readFeatures.setSpatialOp(SOp.intersects(xyzPoint, bufferInMeters(150000.0)));
+
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(readFeatures).getXyzFeatureCursor()) {
+      assertFalse(cursor.hasNext());
+    }
+
+    readFeatures.setSpatialOp(SOp.intersects(xyzPoint, bufferInMeters(160000.0)));
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(readFeatures).getXyzFeatureCursor()) {
+      assertTrue(cursor.next());
+      double distanceInRadius = xyzPoint.getJTSGeometry().distance(cursor.getGeometry());
+      // this is very inaccurate method to calculate meters, but it's enough for test purpose
+      double distanceInMeters = distanceInRadius * DistanceUtils.DEG_TO_KM * 1000;
+      assertTrue(150000.0 < distanceInMeters && distanceInMeters < 160000.0, "Real: " + distanceInMeters);
     }
   }
 
