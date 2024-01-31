@@ -140,7 +140,7 @@ public class PsqlStorageTests extends PsqlTests {
     feature.xyz().addTag(SINGLE_FEATURE_INITIAL_TAG, false);
     request.add(EWriteOp.CREATE, feature);
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       final EExecutedOp op = cursor.getOp();
       assertSame(EExecutedOp.CREATED, op);
@@ -175,7 +175,7 @@ public class PsqlStorageTests extends PsqlTests {
     ReadFeatures readFeatures = new ReadFeatures(collectionId());
     readFeatures.setPropertyOp(eq(id(), SINGLE_FEATURE_ID));
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(readFeatures).getXyzFeatureCursor()) {
+             session.execute(readFeatures).getXyzFeatureCursor()) {
       assertTrue(cursor.hasNext());
       assertTrue(cursor.next());
       final EExecutedOp op = cursor.getOp();
@@ -231,7 +231,7 @@ public class PsqlStorageTests extends PsqlTests {
     readFeatures.setSpatialOp(SOp.intersects(envelopeBbox));
 
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(readFeatures).getXyzFeatureCursor()) {
+             session.execute(readFeatures).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       // then
       assertEquals(SINGLE_FEATURE_ID, cursor.getFeature().getId());
@@ -252,13 +252,13 @@ public class PsqlStorageTests extends PsqlTests {
     readFeatures.setSpatialOp(SOp.intersects(xyzPoint, bufferInRadius(1.0)));
 
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(readFeatures).getXyzFeatureCursor()) {
+             session.execute(readFeatures).getXyzFeatureCursor()) {
       assertFalse(cursor.hasNext());
     }
 
     readFeatures.setSpatialOp(SOp.intersects(xyzPoint, bufferInRadius(2.0)));
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(readFeatures).getXyzFeatureCursor()) {
+             session.execute(readFeatures).getXyzFeatureCursor()) {
       assertTrue(cursor.hasNext());
     }
   }
@@ -308,7 +308,7 @@ public class PsqlStorageTests extends PsqlTests {
     request.add(EWriteOp.PUT, featureToUpdate);
     // when
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       cursor.next();
 
       // then
@@ -354,7 +354,7 @@ public class PsqlStorageTests extends PsqlTests {
     request.add(EWriteOp.UPDATE, featureToUpdate);
     // when
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       cursor.next();
 
       // then
@@ -393,7 +393,7 @@ public class PsqlStorageTests extends PsqlTests {
 
     // when
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       cursor.next();
       final XyzFeature feature = cursor.getFeature();
       XyzNamespace xyz = feature.xyz();
@@ -441,6 +441,89 @@ public class PsqlStorageTests extends PsqlTests {
   }
 
   @Test
+  @Order(56)
+  @EnabledIf("runTest")
+  void singleFeatureGetAllVersions() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // given
+    /**
+     * data inserted in {@link #singleFeatureCreate()} test and updated by {@link #singleFeatureUpdate()}.
+     */
+    final ReadFeatures request = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
+    request.withReturnAllVersions(true);
+
+    // when
+    try (final MutableCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(request).getXyzMutableCursor()) {
+      cursor.next();
+      XyzFeature ver1 = cursor.getFeature();
+      cursor.next();
+      XyzFeature ver2 = cursor.getFeature();
+      cursor.next();
+      XyzFeature ver3 = cursor.getFeature();
+      assertFalse(cursor.hasNext());
+      assertEquals(ver1.getId(), ver2.getId());
+      assertEquals(ver1.getId(), ver3.getId());
+      assertNotEquals(ver1.getProperties().getXyzNamespace().getTxn(), ver2.getProperties().getXyzNamespace().getTxn());
+    }
+  }
+
+  @Test
+  @Order(56)
+  @EnabledIf("runTest")
+  void singleFeatureGetSpecificVersionRead() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // given
+    /**
+     * data inserted in {@link #singleFeatureCreate()} test and updated by {@link #singleFeatureUpdate()}.
+     */
+    final ReadFeatures requestForTxn = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
+    requestForTxn.withReturnAllVersions(true);
+    Long txnOfMiddleVersion;
+    // when
+    try (final MutableCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(requestForTxn).getXyzMutableCursor()) {
+      cursor.next();
+      cursor.next();
+      cursor.next();
+      txnOfMiddleVersion = cursor.getFeature().getProperties().getXyzNamespace().getTxn();
+    }
+
+
+    final ReadFeatures request = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
+    request.withReturnAllVersions(true);
+    request.setPropertyOp(POp.eq(PRef.txn(), txnOfMiddleVersion));
+
+    String puuid;
+    // when
+    try (final MutableCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(request).getXyzMutableCursor()) {
+      cursor.next();
+      XyzNamespace xyzNamespace = cursor.getFeature().getProperties().getXyzNamespace();
+      puuid = xyzNamespace.getPuuid();
+
+      assertEquals(txnOfMiddleVersion, xyzNamespace.getTxn());
+      assertFalse(cursor.hasNext());
+
+    }
+
+    // get previous version by uuid = puuid
+    final ReadFeatures requestForPreviousVersion = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
+    requestForPreviousVersion.withReturnAllVersions(true);
+    requestForPreviousVersion.setPropertyOp(POp.eq(PRef.uuid(), puuid));
+    try (final MutableCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(requestForPreviousVersion).getXyzMutableCursor()) {
+      cursor.next();
+      XyzNamespace xyzNamespace = cursor.getFeature().getProperties().getXyzNamespace();
+      assertEquals(puuid,  xyzNamespace.getUuid());
+      assertTrue( txnOfMiddleVersion >  xyzNamespace.getTxn());
+      assertFalse(cursor.hasNext());
+    }
+  }
+
+  @Test
   @Order(57)
   @EnabledIf("runTest")
   void singleFeaturePutWithSameId() throws NoCursor {
@@ -451,7 +534,7 @@ public class PsqlStorageTests extends PsqlTests {
     feature.setGeometry(new XyzPoint(5.0d, 6.0d, 2.0d));
     request.add(EWriteOp.PUT, feature);
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       // should change to operation update as row already exists.
       assertSame(EExecutedOp.UPDATED, cursor.getOp());
@@ -486,7 +569,7 @@ public class PsqlStorageTests extends PsqlTests {
     // make sure feature hasn't been updated (has old geometry).
     final ReadFeatures readRequest = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       assertEquals(
           new Coordinate(5d, 6d, 2d),
@@ -608,7 +691,7 @@ public class PsqlStorageTests extends PsqlTests {
     feature.setGeometry(new XyzPoint(5.0d, 6.0d, 2.0d));
     request.add(EWriteOp.DELETE, feature);
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       final EExecutedOp op = cursor.getOp();
       assertSame(EExecutedOp.DELETED, op);
@@ -647,7 +730,7 @@ public class PsqlStorageTests extends PsqlTests {
      */
     final ReadFeatures request = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       assertFalse(cursor.hasNext());
     }
     // also: direct query to feature table should return nothing.
@@ -724,7 +807,7 @@ public class PsqlStorageTests extends PsqlTests {
 
     // when
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       cursor.next();
 
       // then
@@ -825,7 +908,7 @@ public class PsqlStorageTests extends PsqlTests {
       i++;
     }
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       for (int j = 0; j < i; j++) {
         assertTrue(cursor.next());
         final EExecutedOp op = cursor.getOp();
@@ -859,7 +942,7 @@ public class PsqlStorageTests extends PsqlTests {
         exists(PRef.tag("@:firstName:" + fg.firstNames[0])),
         exists(PRef.tag("@:firstName:" + fg.firstNames[1]))));
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       // We expect that at least one feature was found!
       assertTrue(cursor.hasNext());
       while (cursor.hasNext()) {
@@ -881,7 +964,7 @@ public class PsqlStorageTests extends PsqlTests {
         assertNotNull(tags);
         assertTrue(tags.size() > 0);
         assertTrue(tags.contains("@:firstName:" + fg.firstNames[0])
-            || tags.contains("@:firstName:" + fg.firstNames[1]));
+                   || tags.contains("@:firstName:" + fg.firstNames[1]));
       }
     } finally {
       session.commit(true);
@@ -897,7 +980,7 @@ public class PsqlStorageTests extends PsqlTests {
     final ReadFeatures request = new ReadFeatures(collectionId());
     request.limit = null;
     try (final SeekableCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzSeekableCursor()) {
+             session.execute(request).getXyzSeekableCursor()) {
 
       // commit closes original cursor, but as we have all rows cached SeekableCursor should work as normal.
       session.commit(true);
@@ -993,7 +1076,7 @@ public class PsqlStorageTests extends PsqlTests {
     feature.setGeometry(lineString);
     request.add(EWriteOp.CREATE, feature);
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
     } finally {
       session.commit(true);
@@ -1006,7 +1089,7 @@ public class PsqlStorageTests extends PsqlTests {
     readFeatures.setSpatialOp(SOp.intersects(envelopeBbox));
 
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        session.execute(readFeatures).getXyzFeatureCursor()) {
+             session.execute(readFeatures).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       // then
       assertEquals("otherFeature", cursor.getFeature().getId());
@@ -1029,7 +1112,7 @@ public class PsqlStorageTests extends PsqlTests {
     ObjectReader reader = Json.get().reader();
     request.add(EWriteOp.CREATE, jsonReference);
     try (final MutableCursor<String, StringCodec> cursor =
-        session.execute(request).mutableCursor(new StringCodecFactory())) {
+             session.execute(request).mutableCursor(new StringCodecFactory())) {
       assertTrue(cursor.next());
     } finally {
       session.commit(true);
@@ -1118,7 +1201,7 @@ public class PsqlStorageTests extends PsqlTests {
     final WriteXyzCollections deleteRequest = new WriteXyzCollections();
     deleteRequest.add(EWriteOp.DELETE, deleteCollection);
     try (final ForwardCursor<XyzCollection, XyzCollectionCodec> cursor =
-        session.execute(deleteRequest).getXyzCollectionCursor()) {
+             session.execute(deleteRequest).getXyzCollectionCursor()) {
       assertTrue(cursor.next());
       session.commit(true);
 
@@ -1132,7 +1215,7 @@ public class PsqlStorageTests extends PsqlTests {
       final WriteXyzCollections purgeRequest = new WriteXyzCollections();
       deleteRequest.add(EWriteOp.PURGE, deleteCollection);
       try (final ForwardCursor<XyzCollection, XyzCollectionCodec> cursorPurge =
-          session.execute(deleteRequest).getXyzCollectionCursor()) {
+               session.execute(deleteRequest).getXyzCollectionCursor()) {
         session.commit(true);
       }
 

@@ -67,6 +67,17 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
   @AvailableSince(NakshaVersion.v2_0_7)
   private boolean returnAllVersions;
 
+  @AvailableSince(NakshaVersion.v2_0_11)
+  public @NotNull ReadFeatures withReturnAllVersions(boolean returnAllVersions) {
+    this.returnAllVersions = returnAllVersions;
+    return this;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_11)
+  public boolean isReturnAllVersions() {
+    return returnAllVersions;
+  }
+
   @AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull List<@NotNull String> getCollections() {
     return collections;
