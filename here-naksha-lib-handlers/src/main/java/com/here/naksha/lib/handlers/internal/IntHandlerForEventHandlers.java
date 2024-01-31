@@ -23,9 +23,7 @@ import com.here.naksha.lib.core.exceptions.StorageNotFoundException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.handlers.DefaultStorageHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -37,11 +35,12 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
   }
 
   @Override
-  protected @NotNull Result validateFeature(EventHandler eventHandler) {
-    Result basicValidation = super.validateFeature(eventHandler);
+  protected @NotNull Result validateFeature(XyzFeatureCodec codec) {
+    Result basicValidation = super.validateFeature(codec);
     if (basicValidation instanceof ErrorResult) {
       return basicValidation;
     }
+    final EventHandler eventHandler = (EventHandler) codec.getFeature();
     Result pluginValidation = PluginPropertiesValidator.pluginValidation(eventHandler);
     if (pluginValidation instanceof ErrorResult) {
       return pluginValidation;

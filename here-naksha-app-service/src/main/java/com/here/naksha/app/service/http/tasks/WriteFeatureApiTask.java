@@ -269,7 +269,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
             er.reason, er.message, "Received error result while reading features in storage: {}", er);
       }
       try {
-        featuresToPatchFromStorage = readFeaturesFromResult(result, XyzFeature.class, 0, DEF_FEATURE_LIMIT);
+        featuresToPatchFromStorage = readFeaturesFromResult(result, XyzFeature.class);
       } catch (NoCursor | NoSuchElementException emptyException) {
         if (responseType.equals(HttpResponseType.FEATURE)) {
           // If this is patching only 1 feature (PATCH by ID), return not found

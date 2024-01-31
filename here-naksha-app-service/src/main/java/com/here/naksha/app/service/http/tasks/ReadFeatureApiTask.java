@@ -201,9 +201,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
 
     // Parse and validate Query parameters
-    final QueryParameterList queryParams = (routingContext.request().query() != null)
-        ? new QueryParameterList(routingContext.request().query())
-        : null;
+    final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
     if (queryParams == null || queryParams.size() <= 0) {
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing mandatory query parameters");
@@ -233,9 +231,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
 
     // Parse and validate Query parameters
-    final QueryParameterList queryParams = (routingContext.request().query() != null)
-        ? new QueryParameterList(routingContext.request().query())
-        : null;
+    final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
+
     // Note : subsequent steps need to support queryParams being null
 
     // extract limit parameter

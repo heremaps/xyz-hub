@@ -18,10 +18,7 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.CREATE_STORAGE;
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.GET_ALL_STORAGES;
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.GET_STORAGE_BY_ID;
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.UPDATE_STORAGE;
+import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.*;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.StorageApiTask;
@@ -43,6 +40,7 @@ public class StorageApi extends Api {
     rb.operation("getStorageById").handler(this::getStorageById);
     rb.operation("postStorage").handler(this::createStorage);
     rb.operation("putStorage").handler(this::updateStorage);
+    rb.operation("deleteStorage").handler(this::deleteStorage);
   }
 
   @Override
@@ -62,6 +60,10 @@ public class StorageApi extends Api {
 
   private void updateStorage(final @NotNull RoutingContext routingContext) {
     startStorageApiTask(UPDATE_STORAGE, routingContext);
+  }
+
+  private void deleteStorage(final @NotNull RoutingContext routingContext) {
+    startStorageApiTask(DELETE_STORAGE, routingContext);
   }
 
   private void startStorageApiTask(StorageApiReqType reqType, RoutingContext routingContext) {

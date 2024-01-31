@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "Conflict",
+  "errorMessage": "The storage is still in use by these event handlers: [storage-delete-blocking-handler]"
+}

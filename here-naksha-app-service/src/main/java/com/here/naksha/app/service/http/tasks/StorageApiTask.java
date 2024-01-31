@@ -86,6 +86,7 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
         case GET_STORAGE_BY_ID -> executeGetStorageById();
         case CREATE_STORAGE -> executeCreateStorage();
         case UPDATE_STORAGE -> executeUpdateStorage();
+        case DELETE_STORAGE -> executeDeleteStorage();
         default -> executeUnsupported();
       };
     } catch (Exception ex) {
@@ -138,6 +139,15 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
         return transformWriteResultToXyzFeatureResponse(
             updateStorageResult, Storage.class, f -> removePasswordFromProps(f.getProperties()));
       }
+    }
+  }
+
+  private @NotNull XyzResponse executeDeleteStorage() {
+    final String storageId = ApiParams.extractMandatoryPathParam(routingContext, STORAGE_ID);
+    final WriteXyzFeatures wrRequest = RequestHelper.deleteFeatureByIdRequest(STORAGES, storageId);
+    try (Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest)) {
+      return transformDeleteResultToXyzFeatureResponse(
+          wrResult, Storage.class, f -> removePasswordFromProps(f.getProperties()));
     }
   }
 

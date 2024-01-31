@@ -179,7 +179,7 @@ public class RequestHelper {
   public static @NotNull WriteXyzFeatures deleteFeatureByIdRequest(
       final @NotNull String collectionName, final @NotNull String id) {
     final WriteXyzFeatures request = new WriteXyzFeatures(collectionName);
-    return request.delete(new XyzFeature(id));
+    return request.delete(id, null);
   }
 
   /**
