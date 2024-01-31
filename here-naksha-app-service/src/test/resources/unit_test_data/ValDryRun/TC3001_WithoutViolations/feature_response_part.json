@@ -9,7 +9,7 @@
         "coordinates": [8.68872, 50.0561, 292.94377758]
       },
       "properties": {
-        "@ns:com:here:delta": {
+        "@ns:com:here:mom:delta": {
           "changeState": "UPDATED",
           "reviewState": "UNPUBLISHED",
           "changeCounter": 0,
@@ -34,7 +34,7 @@
         "coordinates": [8.68872, 50.0561, 292.94377758]
       },
       "properties": {
-        "@ns:com:here:delta": {
+        "@ns:com:here:mom:delta": {
           "changeState": "UPDATED",
           "reviewState": "UNPUBLISHED",
           "changeCounter": 0,

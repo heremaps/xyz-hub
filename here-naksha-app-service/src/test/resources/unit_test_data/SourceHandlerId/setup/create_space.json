@@ -1,0 +1,16 @@
+{
+  "id": "source_id_handler_test_space",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "source_id_test_handler",
+    "source_id_default_test_handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "source_id_handler_collection",
+      "type": "NakshaCollection"
+    }
+  }
+}

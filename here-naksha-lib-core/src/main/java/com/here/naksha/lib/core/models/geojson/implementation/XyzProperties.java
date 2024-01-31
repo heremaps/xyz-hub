@@ -54,13 +54,13 @@ public class XyzProperties extends JsonObject {
    * Properties used for the base layer (used in consistent store).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static final String HERE_META_NS = "@ns:com:here:meta";
+  public static final String HERE_META_NS = "@ns:com:here:mom:meta";
 
   /**
    * Properties used for the delta layer (only within the moderation sub-process).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static final String HERE_DELTA_NS = "@ns:com:here:delta";
+  public static final String HERE_DELTA_NS = "@ns:com:here:mom:delta";
 
   public XyzProperties() {}
 

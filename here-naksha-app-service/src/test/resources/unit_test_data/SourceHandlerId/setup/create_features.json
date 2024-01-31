@@ -1,0 +1,44 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "tc_2002_feature_1",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "10",
+        "@ns:com:here:xyz": {
+          "tags": [ "one","xyz_source_id_task_2" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "tc_2002_feature_2",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "40",
+        "@ns:com:here:xyz": {
+          "tags": [ "three", "four","xyz_source_id_task_4" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "tc_2002_feature_3",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    }
+  ]
+}

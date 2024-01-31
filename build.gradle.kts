@@ -455,6 +455,8 @@ project(":here-naksha-lib-handlers") {
 
         implementation(commons_lang3)
         implementation(commons_dbutils)
+
+        setOverallCoverage(0.0)
     }
 }
 

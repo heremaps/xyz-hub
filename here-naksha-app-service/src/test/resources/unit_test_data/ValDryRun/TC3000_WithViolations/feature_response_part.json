@@ -9,7 +9,7 @@
         "coordinates": [8.68872, 50.0561, 292.94377758]
       },
       "properties": {
-        "@ns:com:here:delta": {
+        "@ns:com:here:mom:delta": {
           "changeState": "UPDATED",
           "reviewState": "AUTO_REVIEW_DEFERRED",
           "changeCounter": 0,
@@ -34,7 +34,7 @@
         "coordinates": [9.68872, 51.0561, 293.94377758]
       },
       "properties": {
-        "@ns:com:here:delta": {
+        "@ns:com:here:mom:delta": {
           "changeState": "UPDATED",
           "reviewState": "AUTO_REVIEW_DEFERRED",
           "changeCounter": 0,
@@ -58,7 +58,7 @@
         "coordinates": [10.68872, 52.0561, 294.94377758]
       },
       "properties": {
-        "@ns:com:here:delta": {
+        "@ns:com:here:mom:delta": {
           "changeState": "UPDATED",
           "reviewState": "AUTO_REVIEW_DEFERRED",
           "changeCounter": 0,

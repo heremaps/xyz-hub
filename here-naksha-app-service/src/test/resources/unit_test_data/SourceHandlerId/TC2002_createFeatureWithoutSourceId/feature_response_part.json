@@ -1,0 +1,34 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "my-custom-id-2002-2",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "tags": [
+            "existing_normalized_tag",
+            "xyz_source_id_task_2"
+          ]
+        },
+        "speedLimit": "50",
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        }
+      }
+    }
+  ]
+}

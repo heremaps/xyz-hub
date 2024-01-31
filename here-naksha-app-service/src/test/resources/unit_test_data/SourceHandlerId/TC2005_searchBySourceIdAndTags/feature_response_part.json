@@ -1,0 +1,27 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "tc_2002_feature_2",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.6123,
+          50.1234,
+          0.0
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "tags": [
+            "three",
+            "four",
+            "xyz_source_id_task_4"
+          ]
+        },
+        "speedLimit": "40"
+      }
+    }
+  ]
+}
