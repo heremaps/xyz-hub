@@ -142,4 +142,9 @@ public class EventHandler extends Plugin<IEventHandler, EventHandler> {
   public void setActive(boolean active) {
     this.active = active;
   }
+
+  @Override
+  public @NotNull String toString() {
+    return "EventHandler{" + "id='" + getId() + '\'' + "className='" + className + '\'' + '}';
+  }
 }

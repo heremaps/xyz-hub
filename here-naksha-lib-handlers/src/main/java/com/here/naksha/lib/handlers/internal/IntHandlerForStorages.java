@@ -28,11 +28,18 @@ import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.EWriteOp;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
+import com.here.naksha.lib.handlers.DefaultStorageHandlerProperties;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
@@ -69,8 +76,8 @@ public class IntHandlerForStorages extends AdminFeatureEventHandler<Storage> {
       storageId = codec.getFeature().getId();
     }
     // Scan through all handlers with JSON property "properties.storageId" = <storage-id-to-be-deleted>
-    final PRef pRef =
-        RequestHelper.pRefFromPropPath(new String[] {XyzFeature.PROPERTIES, EventHandlerProperties.STORAGE_ID});
+    final PRef pRef = RequestHelper.pRefFromPropPath(
+        new String[] {XyzFeature.PROPERTIES, DefaultStorageHandlerProperties.STORAGE_ID});
     final POp activeHandlersPOp = POp.eq(pRef, storageId);
     final ReadFeatures readActiveHandlersRequest =
         new ReadFeatures(EVENT_HANDLERS).withPropertyOp(activeHandlersPOp);

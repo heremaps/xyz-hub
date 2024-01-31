@@ -22,9 +22,9 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.exceptions.StorageNotFoundException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.handlers.DefaultStorageHandler;
+import com.here.naksha.lib.handlers.DefaultStorageHandlerProperties;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -60,17 +60,18 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
   }
 
   private @NotNull Result storageValidationError(@NotNull EventHandler eventHandler) {
-    Object storageIdProp = eventHandler.getProperties().get(EventHandlerProperties.STORAGE_ID);
+    Object storageIdProp = eventHandler.getProperties().get(DefaultStorageHandlerProperties.STORAGE_ID);
     if (storageIdProp == null) {
       return new ErrorResult(
           XyzError.ILLEGAL_ARGUMENT,
-          "Mandatory properties parameter %s missing!".formatted(EventHandlerProperties.STORAGE_ID));
+          "Mandatory properties parameter %s missing!".formatted(DefaultStorageHandlerProperties.STORAGE_ID));
     }
     String storageId = storageIdProp.toString();
     if (StringUtils.isBlank(storageId)) {
       return new ErrorResult(
           XyzError.ILLEGAL_ARGUMENT,
-          "Mandatory parameter %s can't be empty/blank!".formatted(EventHandlerProperties.STORAGE_ID));
+          "Mandatory parameter %s can't be empty/blank!"
+              .formatted(DefaultStorageHandlerProperties.STORAGE_ID));
     }
     return storageExistenceValidation(storageId);
   }

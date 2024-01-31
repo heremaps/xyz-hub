@@ -18,22 +18,31 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
+import static com.here.naksha.app.common.CommonApiTestSetup.createHandler;
+import static com.here.naksha.app.common.CommonApiTestSetup.createSpace;
+import static com.here.naksha.app.common.CommonApiTestSetup.createStorage;
+import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.TestUtil.parseJson;
+import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.naksha.app.common.ApiTest;
+import com.here.naksha.app.common.CommonApiTestSetup;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.naksha.Space;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class SpaceApiTest extends ApiTest {
 
@@ -189,5 +198,100 @@ class SpaceApiTest extends ApiTest {
         .hasStatus(400)
         .hasStreamIdHeader(streamId)
         .hasJsonBody(expectedErrorResponse);
+  }
+
+  @ParameterizedTest
+  @MethodSource("autoDeleteSpaceVariants")
+  void tc0280_testDeleteSpace(AutoDeleteSpaceVariant spaceVariant) throws Exception {
+    // Test API : DELETE /hub/spaces/{spaceId}
+    // Given: expected response
+    final String expectedDeleteResponse = loadFileOrFail(spaceVariant.variantDir + "/delete_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // And: created space, handler and space
+    setupSpaceAndRelatedResources(getNakshaClient(), spaceVariant.variantDir);
+
+    // When: deleting space
+    final HttpResponse<String> deleteResponse = getNakshaClient().delete("hub/spaces/" + spaceVariant.spaceId, streamId);
+
+    // Then: space was successfully deleted
+    assertThat(deleteResponse)
+        .hasStatus(200)
+        .hasStreamIdHeader(streamId)
+        .hasJsonBody(expectedDeleteResponse);
+
+    // And: space is not available anymore
+    final HttpResponse<String> getResponse = getNakshaClient().get("hub/spaces/" + spaceVariant.spaceId, streamId);
+    assertThat(getResponse)
+        .hasStatus(404);
+  }
+
+  @Test
+  void tc0281_testDeleteSpaceRemovesCollection() throws Exception {
+    // Given: test files
+    final String createFeatures = loadFileOrFail("SpaceApi/TC0281_deleteSpaceAndCollection/create_features.json");
+    final String expectedGetFromBSuccess = loadFileOrFail("SpaceApi/TC0281_deleteSpaceAndCollection/get_from_b_success.json");
+    final String expectedDeleteAResponse = loadFileOrFail("SpaceApi/TC0281_deleteSpaceAndCollection/delete_a_response.json");
+    final String getFromBFailure = loadFileOrFail("SpaceApi/TC0281_deleteSpaceAndCollection/get_from_b_failure.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // And: Created common storage
+    createStorage(getNakshaClient(), "SpaceApi/TC0281_deleteSpaceAndCollection/create_storage.json");
+
+    // And: Created space A & handler - that auto-creates and auto-deletes collection
+    createHandler(getNakshaClient(), "SpaceApi/TC0281_deleteSpaceAndCollection/create_handler_a.json");
+    createSpace(getNakshaClient(), "SpaceApi/TC0281_deleteSpaceAndCollection/create_space_a.json");
+
+    // And: Created space B & handler - that does not auto-create collection
+    createHandler(getNakshaClient(), "SpaceApi/TC0281_deleteSpaceAndCollection/create_handler_b.json");
+    createSpace(getNakshaClient(), "SpaceApi/TC0281_deleteSpaceAndCollection/create_space_b.json");
+
+    // And: Added sample feature to space A so the collection would be created
+    HttpResponse<String> createFeaturesResp = getNakshaClient().post("hub/spaces/tc_281_space_a/features", createFeatures, streamId);
+    assertThat(createFeaturesResp).hasStatus(200);
+
+    // When: Successfully fetching feature via space B (to demonstrate this should work when collection exists)
+    HttpResponse<String> getFeaturesBeforeDeletion = getNakshaClient().get("hub/spaces/tc_281_space_b/features/tc_281_feature", streamId);
+    assertThat(getFeaturesBeforeDeletion)
+        .hasStatus(200)
+        .hasStreamIdHeader(streamId)
+        .hasJsonBody(expectedGetFromBSuccess);
+
+    // And: Removing space A (to also remove the collection via auto-delete)
+    HttpResponse<String> deleteSpaceAResp = getNakshaClient().delete("hub/spaces/tc_281_space_a", streamId);
+    assertThat(deleteSpaceAResp)
+        .hasStatus(200)
+        .hasStreamIdHeader(streamId)
+        .hasJsonBody(expectedDeleteAResponse);
+
+    // And: fetching feature via space B again
+    HttpResponse<String> getFeaturesAfterDeletion = getNakshaClient().get("hub/spaces/tc_281_space_b/features/tc_281_feature", streamId);
+
+    // Then: we get 404 - the collection does not exist, hence it was removed by deleting space A
+    assertThat(getFeaturesAfterDeletion)
+        .hasStatus(404)
+        .hasStreamIdHeader(streamId)
+        .hasJsonBody(getFromBFailure);
+  }
+
+  private static Stream<Named<AutoDeleteSpaceVariant>> autoDeleteSpaceVariants() {
+    return Stream.of(
+        Named.named("Space with enable 'autoDelete'", new AutoDeleteSpaceVariant(
+            "tc_280_space_auto_delete_on",
+            "SpaceApi/TC0280_deleteSpace/autoDeleteEnabled"
+        )),
+        Named.named("Space with disabled 'autoDelete'", new AutoDeleteSpaceVariant(
+            "tc_280_space_auto_delete_off",
+            "SpaceApi/TC0280_deleteSpace/autoDeleteDisabled"
+        )),
+        Named.named("Space with undefined 'autoDelete'", new AutoDeleteSpaceVariant(
+            "tc_280_space_undefined_auto_delete",
+            "SpaceApi/TC0280_deleteSpace/autoDeleteUndefined"
+        ))
+    );
+  }
+
+  record AutoDeleteSpaceVariant(String spaceId, String variantDir) {
+
   }
 }

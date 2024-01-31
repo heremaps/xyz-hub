@@ -1,0 +1,15 @@
+{
+  "id": "tc_281_space_a",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "tc_281_handler_a"
+  ],
+  "properties": {
+    "collection": {
+      "id": "um-mod-dev:tc_281",
+      "type": "NakshaCollection"
+    }
+  }
+}

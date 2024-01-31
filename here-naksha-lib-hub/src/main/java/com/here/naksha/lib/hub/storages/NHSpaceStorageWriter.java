@@ -21,21 +21,24 @@ package com.here.naksha.lib.hub.storages;
 import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
-import com.here.naksha.lib.core.models.naksha.NakshaFeature;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
+import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.models.storage.WriteCollections;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.hub.EventPipelineFactory;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -76,15 +79,17 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
   }
 
   private @NotNull Result executeWriteCollections(final @NotNull WriteCollections wc) {
-    final List<String> collectionIds = new ArrayList<>();
-    for (final Object obj : wc.features) {
-      if (obj instanceof NakshaFeature feature) {
-        collectionIds.add(feature.getId());
-      }
-    }
-    logger.info("WriteCollections Request for {}, against Admin storage.", collectionIds);
-    try (final IWriteSession admin = nakshaHub.getAdminStorage().newWriteSession(context, useMaster)) {
-      return admin.execute(wc);
+    String spaceId = singleCollectionIdFrom(wc);
+    return executeWriteCollections(wc, spaceId);
+  }
+
+  private @NotNull Result executeWriteCollections(final @NotNull WriteCollections wc, final @NotNull String spaceId) {
+    if (virtualSpaces.containsKey(spaceId)) {
+      logger.info("WriteCollections Request for {}, against Admin storage.", spaceId);
+      return executeWriteToAdminSpaces(wc, spaceId);
+    } else {
+      logger.info("WriteCollections Request for {}, against Custom storage.", spaceId);
+      return executeWriteToCustomSpaces(wc, spaceId);
     }
   }
 
@@ -92,30 +97,64 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
     final String spaceId = wf.getCollectionId();
     logger.info("WriteFeatures Request against spaceId={}", spaceId);
     addSpaceIdToStreamInfo(spaceId);
-    if (virtualSpaces.containsKey(spaceId)) {
+    if (isDeleteSpaceRequest(wf, spaceId)) {
+      return executeDeleteSpace(wf);
+    } else if (virtualSpaces.containsKey(spaceId)) {
       // Request is to write to Naksha Admin space
-      return executeWriteFeaturesToAdminSpaces(wf);
+      return executeWriteToAdminSpaces(wf, spaceId);
     } else {
       // Request is to write to Custom space
-      return executeWriteFeaturesToCustomSpaces(wf);
+      return executeWriteToCustomSpaces(wf, spaceId);
     }
   }
 
-  private @NotNull Result executeWriteFeaturesToAdminSpaces(final @NotNull WriteFeatures<?, ?, ?> wf) {
+  private @NotNull Result executeWriteToAdminSpaces(
+      final @NotNull WriteRequest<?, ?, ?> wr, @NotNull String spaceId) {
     // Run pipeline against virtual space
-    final String spaceId = wf.getCollectionId();
     final EventPipeline pipeline = pipelineFactory.eventPipeline();
     final Result result = setupEventPipelineForAdminVirtualSpace(spaceId, pipeline);
-    if (!(result instanceof SuccessResult)) return result;
-    return pipeline.sendEvent(wf);
+    if (!(result instanceof SuccessResult)) {
+      return result;
+    }
+    return pipeline.sendEvent(wr);
   }
 
-  private @NotNull Result executeWriteFeaturesToCustomSpaces(final @NotNull WriteFeatures<?, ?, ?> wf) {
-    final String spaceId = wf.getCollectionId();
+  private @NotNull Result executeWriteToCustomSpaces(
+      final @NotNull WriteRequest<?, ?, ?> wr, @NotNull String spaceId) {
     final EventPipeline eventPipeline = pipelineFactory.eventPipeline();
     final Result result = setupEventPipelineForSpaceId(spaceId, eventPipeline);
-    if (!(result instanceof SuccessResult)) return result;
-    return eventPipeline.sendEvent(wf);
+    if (!(result instanceof SuccessResult)) {
+      return result;
+    }
+    return eventPipeline.sendEvent(wr);
+  }
+
+  private boolean isDeleteSpaceRequest(@NotNull WriteFeatures<?, ?, ?> wf, @NotNull String spaceId) {
+    return NakshaAdminCollection.SPACES.equals(spaceId)
+        && wf.features.size() == 1
+        && EWriteOp.DELETE.toString().equals(wf.features.get(0).getOp());
+  }
+
+  private @NotNull Result executeDeleteSpace(@NotNull WriteFeatures<?, ?, ?> deleteSpaceEntryReq) {
+    String spaceId = deleteSpaceEntryReq.features.get(0).getId();
+    WriteXyzCollections deleteCollectionReq = new WriteXyzCollections().purge(new XyzCollection(spaceId));
+    Result deleteSpaceRes = executeWriteCollections(deleteCollectionReq, spaceId);
+    if (deleteSpaceRes instanceof SuccessResult) {
+      return executeWriteToAdminSpaces(deleteSpaceEntryReq, deleteSpaceEntryReq.getCollectionId());
+    } else {
+      return deleteSpaceRes;
+    }
+  }
+
+  private String singleCollectionIdFrom(WriteCollections<?, ?, ?> wc) {
+    if (wc.features.size() != 1) {
+      throw new IllegalArgumentException("Currently supporting WriteCollections for single collection only, got "
+          + wc.features.size() + " instead");
+    }
+    return Objects.requireNonNull(
+            wc.features.get(0).getFeature(),
+            "Got empty (null) feature inside codec when processing WriteCollections")
+        .getId();
   }
 
   /**

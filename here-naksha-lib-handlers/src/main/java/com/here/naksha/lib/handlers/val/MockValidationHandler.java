@@ -18,17 +18,21 @@
  */
 package com.here.naksha.lib.handlers.val;
 
-import static com.here.naksha.lib.handlers.util.MockUtil.*;
+import static com.here.naksha.lib.handlers.util.MockUtil.parseJson;
+import static com.here.naksha.lib.handlers.util.MockUtil.parseJsonFile;
+import static com.here.naksha.lib.handlers.util.MockUtil.toJson;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzReference;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
 import com.here.naksha.lib.core.models.naksha.EventTarget;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ContextWriteFeatures;
+import com.here.naksha.lib.core.models.storage.Request;
+import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.handlers.AbstractEventHandler;
 import com.here.naksha.lib.handlers.util.HandlerUtil;
@@ -45,7 +49,7 @@ public class MockValidationHandler extends AbstractEventHandler {
   private static final Logger logger = LoggerFactory.getLogger(MockValidationHandler.class);
   protected @NotNull EventHandler eventHandler;
   protected @NotNull EventTarget<?> eventTarget;
-  protected @NotNull EventHandlerProperties properties;
+  protected @NotNull XyzProperties properties;
 
   private static final String MOCK_VIOLATIONS_FILE = "mock_data/dry_run_violations.json";
   private static final TypeReference<List<XyzFeature>> LIST_FEATURE_TYPE_REF = new TypeReference<>() {};
@@ -59,7 +63,7 @@ public class MockValidationHandler extends AbstractEventHandler {
     super(hub);
     this.eventHandler = eventHandler;
     this.eventTarget = eventTarget;
-    this.properties = JsonSerializable.convert(eventHandler.getProperties(), EventHandlerProperties.class);
+    this.properties = JsonSerializable.convert(eventHandler.getProperties(), XyzProperties.class);
   }
 
   /**
@@ -94,7 +98,9 @@ public class MockValidationHandler extends AbstractEventHandler {
     // Generation violations if odd number of features supplied, otherwise not
     final boolean generateViolation = (cwf.features.size() % 2) > 0;
 
-    if (!generateViolation) return null;
+    if (!generateViolation) {
+      return null;
+    }
 
     // TODO : Write validation logic.
 

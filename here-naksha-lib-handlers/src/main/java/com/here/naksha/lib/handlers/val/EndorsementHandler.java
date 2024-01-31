@@ -21,10 +21,10 @@ package com.here.naksha.lib.handlers.val;
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzReference;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.EReviewState;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
 import com.here.naksha.lib.core.models.naksha.EventTarget;
 import com.here.naksha.lib.core.models.storage.ContextWriteFeatures;
 import com.here.naksha.lib.core.models.storage.Request;
@@ -43,7 +43,7 @@ public class EndorsementHandler extends AbstractEventHandler {
   private static final Logger logger = LoggerFactory.getLogger(EndorsementHandler.class);
   protected @NotNull EventHandler eventHandler;
   protected @NotNull EventTarget<?> eventTarget;
-  protected @NotNull EventHandlerProperties properties;
+  protected @NotNull XyzProperties properties;
 
   public EndorsementHandler(
       final @NotNull EventHandler eventHandler,
@@ -52,7 +52,7 @@ public class EndorsementHandler extends AbstractEventHandler {
     super(hub);
     this.eventHandler = eventHandler;
     this.eventTarget = eventTarget;
-    this.properties = JsonSerializable.convert(eventHandler.getProperties(), EventHandlerProperties.class);
+    this.properties = JsonSerializable.convert(eventHandler.getProperties(), XyzProperties.class);
   }
 
   /**
@@ -93,10 +93,14 @@ public class EndorsementHandler extends AbstractEventHandler {
   protected void updateFeatureDeltaStateIfMatchesViolations(
       final @NotNull XyzFeature feature, final @Nullable List<XyzFeature> violations) {
     HandlerUtil.setDeltaReviewState(feature, EReviewState.UNPUBLISHED);
-    if (violations == null) return;
+    if (violations == null) {
+      return;
+    }
     for (final XyzFeature violation : violations) {
       final List<XyzReference> references = violation.getProperties().getReferences();
-      if (references == null) continue;
+      if (references == null) {
+        continue;
+      }
       for (final XyzReference reference : references) {
         if (feature.getId().equals(reference.getId())) {
           HandlerUtil.setDeltaReviewState(feature, EReviewState.AUTO_REVIEW_DEFERRED);

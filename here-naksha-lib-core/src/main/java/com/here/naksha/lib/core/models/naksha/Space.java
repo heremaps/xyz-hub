@@ -27,6 +27,7 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Copyright;
 import com.here.naksha.lib.core.models.License;
 import com.here.naksha.lib.core.models.Typed;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.indexing.Constraint;
@@ -85,15 +86,6 @@ public final class Space extends EventTarget<Space> implements Typed {
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty
   private @NotNull String name;
-
-  /**
-   * The collection into which to place the features. The {@link #getId() id} reflects the unique identifier under which the space is
-   * referred externally, the collection refers to the storage internally and is only understood by the storage connector. If the client
-   * does not explicitly set the collection name, then it will be set to the same as the space identifier.
-   */
-  @JsonProperty
-  @JsonInclude(Include.NON_NULL)
-  private String collectionId;
 
   /**
    * If set to true, every authenticated user can read the features in the space.
@@ -175,16 +167,12 @@ public final class Space extends EventTarget<Space> implements Typed {
    * @return the collection identifier.
    */
   public @NotNull String getCollectionId() {
-    return collectionId != null ? collectionId : getId();
-  }
-
-  public void setCollectionId(final @Nullable String collection) {
-    this.collectionId = collection;
-  }
-
-  public @NotNull Space withCollection(final @Nullable String collectionId) {
-    setCollectionId(collectionId);
-    return this;
+    String collectionIdFromProps = null;
+    Object collectionProps = getProperties().get(SpaceProperties.XYZ_COLLECTION);
+    if (collectionProps != null) {
+      collectionIdFromProps = ((Map) collectionProps).get(XyzFeature.ID).toString();
+    }
+    return collectionIdFromProps != null ? collectionIdFromProps : getId();
   }
 
   public boolean isShared() {

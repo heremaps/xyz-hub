@@ -1,0 +1,15 @@
+{
+  "id": "tc_280_space_undefined_auto_delete",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "tc_280_handler_undefined_auto_delete"
+  ],
+  "properties": {
+    "collection": {
+      "id": "um-mod-dev:tc_280",
+      "type": "NakshaCollection"
+    }
+  }
+}

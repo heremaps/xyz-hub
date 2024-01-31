@@ -20,11 +20,23 @@ package com.here.naksha.lib.handlers.internal;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.naksha.Space;
+import com.here.naksha.lib.core.models.storage.EWriteOp;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForSpaces extends AdminFeatureEventHandler<Space> {
 
   public IntHandlerForSpaces(final @NotNull INaksha hub) {
     super(hub, Space.class);
+  }
+
+  @Override
+  protected @NotNull Result validateFeature(@NotNull XyzFeatureCodec featureCodec) {
+    if (EWriteOp.DELETE.toString().equals(featureCodec.getOp())) {
+      return new SuccessResult();
+    }
+    return super.validateFeature(featureCodec);
   }
 }

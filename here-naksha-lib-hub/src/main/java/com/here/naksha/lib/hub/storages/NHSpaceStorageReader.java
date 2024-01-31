@@ -44,7 +44,11 @@ import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.util.StreamInfo;
 import com.here.naksha.lib.handlers.AuthorizationEventHandler;
 import com.here.naksha.lib.hub.EventPipelineFactory;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -57,13 +61,21 @@ public class NHSpaceStorageReader implements IReadSession {
   private static final int DEFAULT_FETCH_SIZE = 1_000;
   private static final Logger logger = LoggerFactory.getLogger(NHSpaceStorageReader.class);
 
-  /** Singleton instance of NakshaHub storage implementation */
+  /**
+   * Singleton instance of NakshaHub storage implementation
+   */
   protected final @NotNull INaksha nakshaHub;
-  /** Runtime NakshaContext which is to be associated with read operations */
+  /**
+   * Runtime NakshaContext which is to be associated with read operations
+   */
   protected final @NotNull NakshaContext context;
-  /** Flag to indicate whether it has to connect to master storage instance or not */
+  /**
+   * Flag to indicate whether it has to connect to master storage instance or not
+   */
   protected final boolean useMaster;
-  /** List of Admin virtual spaces with relevant event handlers required to support event processing */
+  /**
+   * List of Admin virtual spaces with relevant event handlers required to support event processing
+   */
   protected final @NotNull Map<String, List<IEventHandler>> virtualSpaces;
 
   protected final @NotNull EventPipelineFactory pipelineFactory;
@@ -217,7 +229,9 @@ public class NHSpaceStorageReader implements IReadSession {
     final String spaceId = rf.getCollections().get(0);
     final EventPipeline pipeline = pipelineFactory.eventPipeline();
     final Result result = setupEventPipelineForAdminVirtualSpace(spaceId, pipeline);
-    if (!(result instanceof SuccessResult)) return result;
+    if (!(result instanceof SuccessResult)) {
+      return result;
+    }
     return pipeline.sendEvent(rf);
   }
 
@@ -245,7 +259,9 @@ public class NHSpaceStorageReader implements IReadSession {
     final String spaceId = rf.getCollections().get(0);
     final EventPipeline eventPipeline = pipelineFactory.eventPipeline();
     final Result result = setupEventPipelineForSpaceId(spaceId, eventPipeline);
-    if (!(result instanceof SuccessResult)) return result;
+    if (!(result instanceof SuccessResult)) {
+      return result;
+    }
     return eventPipeline.sendEvent(rf);
   }
 
@@ -345,6 +361,8 @@ public class NHSpaceStorageReader implements IReadSession {
 
   protected void addSpaceIdToStreamInfo(final @Nullable String spaceId) {
     final StreamInfo streamInfo = context.getStreamInfo();
-    if (streamInfo != null) streamInfo.setSpaceIdIfMissing(spaceId);
+    if (streamInfo != null) {
+      streamInfo.setSpaceIdIfMissing(spaceId);
+    }
   }
 }

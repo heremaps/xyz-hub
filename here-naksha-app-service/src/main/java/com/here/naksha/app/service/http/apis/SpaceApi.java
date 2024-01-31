@@ -19,6 +19,7 @@
 package com.here.naksha.app.service.http.apis;
 
 import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.CREATE_SPACE;
+import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.DELETE_SPACE;
 import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.GET_ALL_SPACES;
 import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.GET_SPACE_BY_ID;
 import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.UPDATE_SPACE;
@@ -47,6 +48,7 @@ public class SpaceApi extends Api {
     rb.operation("putSpace").handler(this::updateSpace);
     rb.operation("getSpaces").handler(this::getSpaces);
     rb.operation("getSpaceById").handler(this::getSpaceById);
+    rb.operation("deleteSpace").handler(this::deleteSpace);
   }
 
   @Override
@@ -66,6 +68,10 @@ public class SpaceApi extends Api {
 
   private void updateSpace(final @NotNull RoutingContext routingContext) {
     startSpaceApiTask(UPDATE_SPACE, routingContext);
+  }
+
+  private void deleteSpace(@NotNull RoutingContext routingContext) {
+    startSpaceApiTask(DELETE_SPACE, routingContext);
   }
 
   private void startSpaceApiTask(SpaceApiReqType reqType, RoutingContext routingContext) {

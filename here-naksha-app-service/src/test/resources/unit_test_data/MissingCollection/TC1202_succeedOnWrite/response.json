@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "tc_1202_feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      },
+      "properties": {
+        "speedLimit": "60"
+      }
+    }
+  ],
+  "inserted": [
+    "tc_1202_feature"
+  ]
+}

@@ -19,15 +19,16 @@
 package com.here.naksha.app.service.http.tasks;
 
 import static com.here.naksha.app.service.http.apis.ApiParams.SPACE_ID;
+import static com.here.naksha.app.service.http.apis.ApiParams.extractMandatoryPathParam;
 import static com.here.naksha.lib.core.NakshaAdminCollection.SPACES;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
-import com.here.naksha.app.service.http.apis.ApiParams;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.storage.POp;
@@ -37,9 +38,12 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
+import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.RoutingContext;
+import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,6 +89,7 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
         case UPDATE_SPACE -> executeUpdateSpace();
         case GET_ALL_SPACES -> executeGetSpaces();
         case GET_SPACE_BY_ID -> executeGetSpaceById();
+        case DELETE_SPACE -> executeDeleteSpace();
         default -> executeUnsupported();
       };
     } catch (Exception ex) {
@@ -99,6 +104,14 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
     }
   }
 
+  private XyzResponse executeDeleteSpace() {
+    final String spaceId = extractMandatoryPathParam(routingContext, SPACE_ID);
+    final WriteXyzFeatures wr = new WriteXyzFeatures(SPACES).delete(spaceId, null);
+    try (Result wrResult = executeWriteRequestFromSpaceStorage(wr)) {
+      return transformDeleteResultToXyzFeatureResponse(wrResult, XyzFeature.class);
+    }
+  }
+
   private @NotNull XyzResponse executeCreateSpace() throws JsonProcessingException {
     final Space newSpace = spaceFromRequestBody();
     final WriteXyzFeatures wrRequest = RequestHelper.createFeatureRequest(SPACES, newSpace, false);
@@ -108,7 +121,7 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   }
 
   private @NotNull XyzResponse executeUpdateSpace() throws JsonProcessingException {
-    final String spaceIdFromPath = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
+    final String spaceIdFromPath = extractMandatoryPathParam(routingContext, SPACE_ID);
     final Space spaceFromBody = spaceFromRequestBody();
     if (!spaceFromBody.getId().equals(spaceIdFromPath)) {
       return verticle.sendErrorResponse(
@@ -129,10 +142,19 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   }
 
   private @NotNull XyzResponse executeGetSpaceById() {
-    final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
+    final String spaceId = extractMandatoryPathParam(routingContext, SPACE_ID);
     final ReadFeatures request = new ReadFeatures(SPACES).withPropertyOp(POp.eq(PRef.id(), spaceId));
     try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
       return transformReadResultToXyzFeatureResponse(rdResult, Space.class);
+    }
+  }
+
+  private @Nullable Space maybePersistedSpace(String spaceId) {
+    final ReadFeatures getSpace = new ReadFeatures(SPACES).withPropertyOp(POp.eq(PRef.id(), spaceId));
+    try (Result rr = executeReadRequestFromSpaceStorage(getSpace)) {
+      return ResultHelper.readFeatureFromResult(rr, Space.class);
+    } catch (NoSuchElementException e) {
+      return null;
     }
   }
 

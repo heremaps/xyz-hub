@@ -10,6 +10,8 @@
     "storageId": "event_handler_api_test_storage",
     "collection": {
       "maxAge": 2
-    }
+    },
+    "autoCreateCollection": true,
+    "autoDeleteCollection": false
   }
 }

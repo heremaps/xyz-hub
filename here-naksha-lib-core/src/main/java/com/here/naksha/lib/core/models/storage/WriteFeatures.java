@@ -39,6 +39,13 @@ public class WriteFeatures<
     extends WriteRequest<FEATURE, CODEC, SELF> {
 
   /**
+   * The identifier of the collection to write into.
+   */
+  @JsonProperty
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private @NotNull String collectionId;
+
+  /**
    * Creates a new empty feature write request.
    *
    * @param codecFactory The codec factory to use when creating new feature codecs.
@@ -103,11 +110,4 @@ public class WriteFeatures<
     this.collectionId = collectionId;
     return self();
   }
-
-  /**
-   * The identifier of the collection to write into.
-   */
-  @JsonProperty
-  @AvailableSince(NakshaVersion.v2_0_7)
-  private @NotNull String collectionId;
 }

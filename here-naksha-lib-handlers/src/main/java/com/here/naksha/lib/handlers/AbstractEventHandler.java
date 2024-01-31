@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.Request;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.util.StreamInfo;
 import org.jetbrains.annotations.NotNull;
@@ -42,9 +43,13 @@ public abstract class AbstractEventHandler implements IEventHandler {
   }
 
   protected @NotNull Result notImplemented(@NotNull IEvent event) {
+    return notImplemented(event.getRequest());
+  }
+
+  protected @NotNull Result notImplemented(@NotNull Request processedRequest) {
     return new ErrorResult(
         XyzError.NOT_IMPLEMENTED,
-        "Event processing of " + event.getRequest().getClass().getSimpleName() + " in "
+        "Event processing of " + processedRequest.getClass().getSimpleName() + " in "
             + this.getClass().getSimpleName() + " is not supported");
   }
 

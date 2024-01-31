@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "NotFound",
+  "errorMessage": "Could not find and auto-create collections: um-mod-dev:auto_create_off"
+}

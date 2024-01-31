@@ -36,7 +36,14 @@ import org.slf4j.LoggerFactory;
 
 public class NakshaTestWebClient {
 
+  private static final boolean ALLOW_DEBUG_SPECIFIC_TIMEOUT = true;
+
   private static final Logger logger = LoggerFactory.getLogger(NakshaTestWebClient.class);
+
+  private static final long DEBUG_SOCKET_TIMEOUT_SEC = 300;
+
+  private static final long DEFAULT_NON_DEBUG_SOCKET_TIMEOUT_SEC = 5;
+
   private final String NAKSHA_HTTP_URI;
   private final Duration SOCKET_TIMEOUT;
   private final HttpClient httpClient;
@@ -55,7 +62,7 @@ public class NakshaTestWebClient {
   }
 
   public NakshaTestWebClient() {
-    this(5);
+    this(chooseSocketTimeout());
   }
 
   public HttpResponse<String> get(String subPath, String streamId)
@@ -123,5 +130,12 @@ public class NakshaTestWebClient {
 
   private URI nakshaPath(String subPath) throws URISyntaxException {
     return new URI(NAKSHA_HTTP_URI + subPath);
+  }
+
+  private static long chooseSocketTimeout(){
+    if(ALLOW_DEBUG_SPECIFIC_TIMEOUT && DebugDiscoverUtil.isAppRunningOnDebug()){
+      return DEBUG_SOCKET_TIMEOUT_SEC;
+    }
+    return DEFAULT_NON_DEBUG_SOCKET_TIMEOUT_SEC;
   }
 }

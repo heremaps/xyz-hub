@@ -20,30 +20,44 @@ package com.here.naksha.lib.handlers;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createWriteCollectionsRequest;
+import static com.here.naksha.lib.handlers.DefaultStorageHandler.OperationAttempt.ATTEMPT_AFTER_COLLECTION_CREATION;
+import static com.here.naksha.lib.handlers.DefaultStorageHandler.OperationAttempt.ATTEMPT_AFTER_STORAGE_INITIALIZATION;
+import static com.here.naksha.lib.handlers.DefaultStorageHandler.OperationAttempt.FIRST_ATTEMPT;
+import static com.here.naksha.lib.psql.EPsqlState.COLLECTION_DOES_NOT_EXIST;
+import static com.here.naksha.lib.psql.EPsqlState.UNDEFINED_TABLE;
+import static java.lang.String.join;
 
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageNotInitialized;
+import com.here.naksha.lib.core.lambdas.F1;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
 import com.here.naksha.lib.core.models.naksha.EventTarget;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.naksha.SpaceProperties;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
+import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Request;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.WriteCollections;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.psql.EPsqlState;
+import com.here.naksha.lib.handlers.exceptions.MissingCollectionsException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Stream;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -52,9 +66,12 @@ import org.slf4j.LoggerFactory;
 public class DefaultStorageHandler extends AbstractEventHandler {
 
   private static final Logger logger = LoggerFactory.getLogger(DefaultStorageHandler.class);
+  private static final Set<String> MISSING_COLLECTION_SQL_ERROR_STATES =
+      Set.of(UNDEFINED_TABLE.toString(), COLLECTION_DOES_NOT_EXIST.toString());
+
   protected @NotNull EventHandler eventHandler;
   protected @NotNull EventTarget<?> eventTarget;
-  protected @NotNull EventHandlerProperties properties;
+  protected @NotNull DefaultStorageHandlerProperties properties;
 
   public DefaultStorageHandler(
       final @NotNull EventHandler eventHandler,
@@ -63,7 +80,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     super(hub);
     this.eventHandler = eventHandler;
     this.eventTarget = eventTarget;
-    this.properties = JsonSerializable.convert(eventHandler.getProperties(), EventHandlerProperties.class);
+    this.properties = JsonSerializable.convert(eventHandler.getProperties(), DefaultStorageHandlerProperties.class);
   }
 
   /**
@@ -91,7 +108,229 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     final IStorage storageImpl = nakshaHub().getStorageById(storageId);
     logger.info("Using storage implementation [{}]", storageImpl.getClass().getName());
 
-    // Find collectionId from EventHandler, from Space, whichever is available first
+    applyCustomCollectionId(request, fetchCustomCollectionId());
+    return forwardRequestToStorage(ctx, request, storageImpl, collectionIdsDefinedIn(request), FIRST_ATTEMPT);
+  }
+
+  private @NotNull Result forwardRequestToStorage(
+      final @NotNull NakshaContext ctx,
+      final @NotNull Request<?> request,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull OperationAttempt currentAttempt) {
+    if (request instanceof ReadFeatures rf) {
+      return forwardReadFeatures(ctx, storageImpl, collectionIds, rf, currentAttempt);
+    } else if (request instanceof WriteFeatures<?, ?, ?> wf) {
+      return forwardWriteFeatures(ctx, storageImpl, collectionIds, wf, currentAttempt);
+    } else if (request instanceof WriteCollections<?, ?, ?> wc) {
+      return forwardWriteCollections(ctx, storageImpl, collectionIds, wc, currentAttempt);
+    } else {
+      return notImplemented(request);
+    }
+  }
+
+  private @NotNull Result forwardReadFeatures(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull ReadFeatures rf,
+      final @NotNull OperationAttempt currentAttempt) {
+    logger.info("Processing ReadFeatures against {}", collectionIds);
+    try (final IReadSession reader = storageImpl.newReadSession(ctx, false)) {
+      return reader.execute(rf);
+    } catch (RuntimeException re) {
+      return reattemptFeatureRequest(ctx, storageImpl, collectionIds, rf, currentAttempt, re);
+    }
+  }
+
+  private @NotNull Result forwardWriteFeatures(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull WriteFeatures<?, ?, ?> wf,
+      final OperationAttempt operationAttempt) {
+    logger.info("Processing WriteFeatures against {}", collectionIds);
+    return forwardWriteRequest(
+        ctx,
+        storageImpl,
+        wf,
+        re -> reattemptFeatureRequest(ctx, storageImpl, collectionIds, wf, operationAttempt, re));
+  }
+
+  private @NotNull Result forwardWriteCollections(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull WriteCollections<?, ?, ?> wc,
+      final OperationAttempt operationAttempt) {
+    logger.info("Processing WriteCollections against {}", collectionIds);
+    if (isPurgeCollectionRequest(wc)) {
+      if (properties.getAutoDeleteCollection()) {
+        return forwardWriteRequest(
+            ctx,
+            storageImpl,
+            wc,
+            re -> reattemptCollectionRequest(ctx, storageImpl, collectionIds, wc, operationAttempt, re));
+      } else {
+        logger.info(
+            "Received delete collection request but autoDelete is not enabled, returning success without any action");
+        return new SuccessResult();
+      }
+    } else {
+      logger.info(
+          "Handling WriteCollections only with single collection deletion, returning success without any action");
+      return new SuccessResult();
+    }
+  }
+
+  private boolean isPurgeCollectionRequest(@NotNull WriteCollections<?, ?, ?> wc) {
+    return wc.features.size() == 1
+        && EWriteOp.PURGE.toString().equals(wc.features.get(0).getOp());
+  }
+
+  private @NotNull Result forwardWriteRequest(
+      @NotNull NakshaContext ctx,
+      @NotNull IStorage storageImpl,
+      @NotNull WriteRequest<?, ?, ?> wr,
+      @NotNull F1<Result, RuntimeException> reattempt) {
+    try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
+      final Result result = writer.execute(wr);
+      if (result instanceof SuccessResult) {
+        writer.commit(true);
+      } else {
+        logger.warn("Failed executing {}, expected success but got: {}", wr.getClass(), result);
+        writer.rollback(true);
+      }
+      return result;
+    } catch (RuntimeException re) {
+      return reattempt.call(re);
+    }
+  }
+
+  private @NotNull Result reattemptFeatureRequest(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull Request<?> request,
+      final @NotNull OperationAttempt previousAttempt,
+      final @NotNull RuntimeException re) {
+    return switch (previousAttempt) {
+      case FIRST_ATTEMPT -> reattemptFeatureRequestForTheFirstTime(ctx, storageImpl, collectionIds, request, re);
+      case ATTEMPT_AFTER_STORAGE_INITIALIZATION -> reattemptAfterStorageInitialization(
+          ctx, storageImpl, collectionIds, request, re);
+      case ATTEMPT_AFTER_COLLECTION_CREATION -> throw re;
+    };
+  }
+
+  private @NotNull Result reattemptCollectionRequest(
+      NakshaContext ctx,
+      IStorage storageImpl,
+      List<String> collectionIds,
+      WriteCollections<?, ?, ?> wc,
+      OperationAttempt previousAttempt,
+      RuntimeException re) {
+    if (previousAttempt == FIRST_ATTEMPT && re instanceof StorageNotInitialized) {
+      return retryDueToUninitializedStorage(ctx, storageImpl, collectionIds, wc);
+    }
+    logger.warn(
+        "No further reattempt strategy available for WriteCollections request (collectionIds: {}, previous attempt: {}. Rethrowing original exception",
+        join(", ", collectionIds),
+        previousAttempt);
+    throw re;
+  }
+
+  private @NotNull Result reattemptFeatureRequestForTheFirstTime(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull Request<?> request,
+      final @NotNull RuntimeException re) {
+    if (re instanceof StorageNotInitialized) {
+      return retryDueToUninitializedStorage(ctx, storageImpl, collectionIds, request);
+    } else if (indicatesMissingCollection(re)) {
+      try {
+        return retryDueToMissingCollection(ctx, storageImpl, collectionIds, request);
+      } catch (MissingCollectionsException mce) {
+        logger.info("Retrying due to missing collection failed", mce);
+        return mce.toErrorResult();
+      }
+    } else {
+      throw re;
+    }
+  }
+
+  private @NotNull Result reattemptAfterStorageInitialization(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull Request<?> request,
+      final @NotNull RuntimeException re) {
+    if (indicatesMissingCollection(re)) {
+      try {
+        return retryDueToMissingCollection(ctx, storageImpl, collectionIds, request);
+      } catch (MissingCollectionsException mce) {
+        logger.info("Retrying due to missing collection failed", mce);
+        return mce.toErrorResult();
+      }
+    } else {
+      throw re;
+    }
+  }
+
+  private boolean indicatesMissingCollection(RuntimeException re) {
+    if (re.getCause() instanceof SQLException sqe) {
+      return MISSING_COLLECTION_SQL_ERROR_STATES.contains(sqe.getSQLState());
+    }
+    return false;
+  }
+
+  @NotNull
+  private Result retryDueToUninitializedStorage(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull Request<?> request) {
+    logger.info("Initializing Storage before reattempting write request.");
+    storageImpl.initStorage();
+    logger.info("Storage initialized");
+    return forwardRequestToStorage(ctx, request, storageImpl, collectionIds, ATTEMPT_AFTER_STORAGE_INITIALIZATION);
+  }
+
+  private Result retryDueToMissingCollection(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @NotNull List<String> collectionIds,
+      final @NotNull Request<?> request) {
+    logger.warn("Collection not found for {}", collectionIds);
+    if (properties.getAutoCreateCollection()) {
+      logger.info(
+          "Collection auto creation is enabled, attempting to create collection specified in request: {}",
+          collectionIds);
+      createXyzCollections(ctx, storageImpl, collectionIds);
+      logger.info("Created collection {}, forwarding the request once again", collectionIds);
+      return forwardRequestToStorage(ctx, request, storageImpl, collectionIds, ATTEMPT_AFTER_COLLECTION_CREATION);
+    } else {
+      logger.warn(
+          "Collection auto creation is disabled, failing due to missing collection specified in request: {}",
+          collectionIds);
+      throw new MissingCollectionsException(collectionIds);
+    }
+  }
+
+  private void applyCustomCollectionId(Request<?> request, @Nullable String customCollectionId) {
+    if (customCollectionId == null) {
+      return;
+    }
+    if (request instanceof ReadFeatures rf) {
+      rf.setCollections(List.of(customCollectionId));
+    } else if (request instanceof WriteFeatures<?, ?, ?> wf) {
+      wf.setCollectionId(customCollectionId);
+    } else if (request instanceof WriteCollections<?, ?, ?> wc) {
+      collectionsFrom(wc).forEach(collection -> collection.setId(customCollectionId));
+    }
+  }
+
+  private @Nullable String fetchCustomCollectionId() {
     String customCollectionId = null;
     if (properties.getXyzCollection() != null) {
       customCollectionId = properties.getXyzCollection().getId();
@@ -104,140 +343,27 @@ public class DefaultStorageHandler extends AbstractEventHandler {
         logger.info("Using collectionId {} associated with Space", customCollectionId);
       }
     }
-
-    // Trigger respective read/write operation on respective IStorage implementation
-    return forwardRequestToStorage(event, ctx, request, storageImpl, customCollectionId);
+    return customCollectionId;
   }
 
-  private @NotNull Result forwardRequestToStorage(
-      final @NotNull IEvent event,
-      final @NotNull NakshaContext ctx,
-      final @NotNull Request<?> request,
-      final @NotNull IStorage storageImpl,
-      final @Nullable String customCollectionId) {
-    if (request instanceof ReadFeatures rf) {
-      return forwardReadFeaturesToStorage(ctx, storageImpl, customCollectionId, rf, false, false);
-    } else if (request instanceof WriteFeatures<?, ?, ?> wf) {
-      return forwardWriteFeaturesToStorage(ctx, storageImpl, customCollectionId, wf, false, false);
+  private List<String> collectionIdsDefinedIn(Request<?> request) {
+    if (request instanceof WriteFeatures<?, ?, ?> wf) {
+      return List.of(wf.getCollectionId());
+    } else if (request instanceof ReadFeatures rf) {
+      return rf.getCollections();
+    } else if (request instanceof WriteCollections<?, ?, ?> wc) {
+      return collectionsFrom(wc).map(XyzCollection::getId).toList();
     } else {
-      return notImplemented(event);
+      throw new IllegalArgumentException("Unsupported request type: " + request.getClass());
     }
   }
 
-  private @NotNull Result forwardReadFeaturesToStorage(
-      final @NotNull NakshaContext ctx,
-      final @NotNull IStorage storageImpl,
-      final @Nullable String customCollectionId,
-      final @NotNull ReadFeatures rf,
-      final boolean isReattemptOnStorage,
-      final boolean isReattemptOnCollection) {
-    // overwrite collectionId with custom one if available
-    if (customCollectionId != null) {
-      rf.setCollections(List.of(customCollectionId));
-    }
-    logger.info("Processing ReadFeatures against {}", rf.getCollections());
-    try (final IReadSession reader = storageImpl.newReadSession(ctx, false)) {
-      return reader.execute(rf);
-    } catch (RuntimeException re) {
-      return reattemptReadFeaturesBasedOnException(
-          ctx, storageImpl, customCollectionId, rf, isReattemptOnStorage, isReattemptOnCollection, re);
-    }
-  }
-
-  @NotNull
-  private Result reattemptReadFeaturesBasedOnException(
-      final @NotNull NakshaContext ctx,
-      final @NotNull IStorage storageImpl,
-      final @Nullable String customCollectionId,
-      final @NotNull ReadFeatures rf,
-      final boolean isReattemptOnStorage,
-      final boolean isReattemptOnCollection,
-      final @NotNull RuntimeException re) {
-    if (!isReattemptOnStorage && re instanceof StorageNotInitialized) {
-      // Storage is not initialized yet
-      logger.info("Initializing Storage before reattempting read request.");
-      storageImpl.initStorage();
-      logger.info("Storage initialized");
-      return forwardReadFeaturesToStorage(
-          ctx, storageImpl, customCollectionId, rf, true, isReattemptOnCollection);
-    } else if (!isReattemptOnCollection && re.getCause() instanceof SQLException sqe) {
-      // if it was "table not found" exception, then creation collection and reattempt the request
-      if (EPsqlState.UNDEFINED_TABLE.toString().equals(sqe.getSQLState())) {
-        logger.warn(
-            "Collection not found for {}, so we will attempt collection creation and then reattempt read request.",
-            rf.getCollections());
-        createXyzCollections(ctx, storageImpl, rf.getCollections());
-        return forwardReadFeaturesToStorage(
-            ctx, storageImpl, customCollectionId, rf, isReattemptOnStorage, true);
-      } else {
-        throw re;
-      }
-    } else {
-      throw re;
-    }
-  }
-
-  private @NotNull Result forwardWriteFeaturesToStorage(
-      final @NotNull NakshaContext ctx,
-      final @NotNull IStorage storageImpl,
-      final @Nullable String customCollectionId,
-      final @NotNull WriteFeatures<?, ?, ?> wf,
-      final boolean isReattemptOnStorage,
-      final boolean isReattemptOnCollection) {
-    // overwrite collectionId with custom one if available
-    if (customCollectionId != null) {
-      wf.setCollectionId(customCollectionId);
-    }
-    logger.info("Processing WriteFeatures against {}", wf.getCollectionId());
-    try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
-      final Result result = writer.execute(wf);
-      if (result instanceof SuccessResult) {
-        writer.commit(true);
-      } else {
-        logger.warn(
-            "Failed writing features to collection {}, expected success but got: {}",
-            wf.getCollectionId(),
-            result);
-        writer.rollback(true);
-      }
-      return result;
-    } catch (RuntimeException re) {
-      return reattemptWriteFeaturesBasedOnException(
-          ctx, storageImpl, customCollectionId, wf, isReattemptOnStorage, isReattemptOnCollection, re);
-    }
-  }
-
-  @NotNull
-  private Result reattemptWriteFeaturesBasedOnException(
-      final @NotNull NakshaContext ctx,
-      final @NotNull IStorage storageImpl,
-      final @Nullable String customCollectionId,
-      final @NotNull WriteFeatures<?, ?, ?> wf,
-      final boolean isReattemptOnStorage,
-      final boolean isReattemptOnCollection,
-      final @NotNull RuntimeException re) {
-    if (!isReattemptOnStorage && re instanceof StorageNotInitialized) {
-      // Storage is not initialized yet
-      logger.info("Initializing Storage before reattempting write request.");
-      storageImpl.initStorage();
-      logger.info("Storage initialized");
-      return forwardWriteFeaturesToStorage(
-          ctx, storageImpl, customCollectionId, wf, true, isReattemptOnCollection);
-    } else if (!isReattemptOnCollection && re.getCause() instanceof SQLException sqe) {
-      // if it was "table not found" exception, then creation collection and reattempt the request
-      if (EPsqlState.COLLECTION_DOES_NOT_EXIST.toString().equals(sqe.getSQLState())) { // N0002
-        logger.warn(
-            "Collection not found for {}, so we will attempt collection creation and then reattempt write request.",
-            wf.getCollectionId());
-        createXyzCollections(ctx, storageImpl, List.of(wf.getCollectionId()));
-        return forwardWriteFeaturesToStorage(
-            ctx, storageImpl, customCollectionId, wf, isReattemptOnStorage, true);
-      } else {
-        throw re;
-      }
-    } else {
-      throw re;
-    }
+  private @NotNull Stream<@NotNull XyzCollection> collectionsFrom(@NotNull WriteCollections<?, ?, ?> wc) {
+    return wc.features.stream()
+        .filter(XyzCollectionCodec.class::isInstance)
+        .map(XyzCollectionCodec.class::cast)
+        .map(XyzCollectionCodec::getFeature)
+        .filter(Objects::nonNull);
   }
 
   private void createXyzCollections(
@@ -257,5 +383,11 @@ public class DefaultStorageHandler extends AbstractEventHandler {
         throw unchecked(new Exception("Failed creating collection " + collectionIds));
       }
     }
+  }
+
+  enum OperationAttempt {
+    FIRST_ATTEMPT,
+    ATTEMPT_AFTER_STORAGE_INITIALIZATION,
+    ATTEMPT_AFTER_COLLECTION_CREATION
   }
 }

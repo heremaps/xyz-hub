@@ -152,6 +152,12 @@ public class JsonMap
     return findValue(value) != null;
   }
 
+  /*
+   * TODO:
+   * This method is used by XyzProperties::containsKey
+   * It fails for containsKey("collection")
+   * To be fixed
+   */
   @Override
   public boolean containsKey(@Nullable Object key) {
     if (!(key instanceof CharSequence)) {

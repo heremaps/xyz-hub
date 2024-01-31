@@ -1,0 +1,15 @@
+{
+  "id": "space_with_auto_create",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "handler_with_auto_create"
+  ],
+  "properties": {
+    "collection": {
+      "id": "um-mod-dev:um-mod-dev:auto_create_on",
+      "type": "NakshaCollection"
+    }
+  }
+}
