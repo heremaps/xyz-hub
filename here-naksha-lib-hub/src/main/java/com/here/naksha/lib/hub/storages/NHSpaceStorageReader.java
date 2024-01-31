@@ -44,10 +44,7 @@ import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.util.StreamInfo;
 import com.here.naksha.lib.handlers.AuthorizationEventHandler;
 import com.here.naksha.lib.hub.EventPipelineFactory;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -291,6 +288,11 @@ public class NHSpaceStorageReader implements IReadSession {
         }
       }
     }
+
+    // Ensure the order of the event handlers is preserved
+    final Space finalSpace = space;
+    eventHandlers.sort(
+        Comparator.comparingInt(o -> finalSpace.getEventHandlerIds().indexOf(o.getId())));
 
     // Instantiate IEventHandler (from EventHandler object), using NakshaHub and Space details
     final List<IEventHandler> handlerImpls = new ArrayList<>();
