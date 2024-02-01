@@ -14,20 +14,6 @@
                 "type":"Point",
                 "coordinates":[ 8.6123, 50.1234, 0.0 ]
             }
-        },
-        {
-            "id": "my-custom-id-2",
-            "type": "Feature",
-            "properties": {
-                "length": 10,
-                "@ns:com:here:xyz": {
-                    "tags": [ "tag-2", "tag-ref" ]
-                }
-            },
-            "geometry": {
-                "type":"Point",
-                "coordinates":[ 8.61235, 50.1234, 0.0 ]
-            }
         }
     ]
 }

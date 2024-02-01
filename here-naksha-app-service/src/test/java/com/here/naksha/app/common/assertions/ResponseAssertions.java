@@ -199,4 +199,18 @@ public class ResponseAssertions {
     return this;
   }
 
+  public ResponseAssertions hasFeatureCount(int count) {
+    if (collectionResponse==null) collectionResponse = parseJson(subject.body(), XyzFeatureCollection.class);
+    assertEquals(count, collectionResponse.getFeatures().size(), "Feature count in the response doesn't match");
+    return this;
+  }
+
+  public ResponseAssertions hasFeatureIdsAmongst(final @NotNull List<String> fIds) {
+    if (collectionResponse==null) collectionResponse = parseJson(subject.body(), XyzFeatureCollection.class);
+    for (final XyzFeature feature : collectionResponse.getFeatures()) {
+      assertTrue(fIds.contains(feature.getId()), "No matching feature found in response with given Id : "+ feature.getId());
+    }
+    return this;
+  }
+
 }

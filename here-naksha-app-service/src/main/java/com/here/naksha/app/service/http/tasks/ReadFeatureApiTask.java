@@ -58,7 +58,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     GET_BY_TILE,
     SEARCH,
     ITERATE,
-    GET_BY_RADIUS
+    GET_BY_RADIUS,
+    GET_BY_RADIUS_POST
   }
 
   public ReadFeatureApiTask(
@@ -93,6 +94,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
         case SEARCH -> executeSearch();
         case ITERATE -> executeIterate();
         case GET_BY_RADIUS -> executeFeaturesByRadius();
+        case GET_BY_RADIUS_POST -> executeFeaturesByRadiusPost();
         default -> executeUnsupported();
       };
     } catch (Exception ex) {
@@ -343,5 +345,35 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     }
 
     return feature.getGeometry();
+  }
+
+  private @NotNull XyzResponse executeFeaturesByRadiusPost() throws Exception {
+    // Parse and validate Path parameters
+    final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
+
+    // Parse and validate Query parameters
+    final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
+    // NOTE : queryParams can be null. Subsequent steps should respect the same.
+    final long radius = ApiParams.extractQueryParamAsLong(queryParams, RADIUS, false, 0);
+    long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
+    // validate values
+    limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
+    ApiParams.validateParamRange(RADIUS, radius, 0, Long.MAX_VALUE);
+
+    // Obtain reference geometry based on given coordinates or feature reference
+    final XyzGeometry refGeometry = parseRequestBodyAs(XyzGeometry.class);
+
+    // Prepare read request based on parameters supplied
+    final SOp radiusOp =
+        (radius > 0) ? SOp.intersects(refGeometry, bufferInMeters(radius)) : SOp.intersects(refGeometry);
+    final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
+    final POp propSearchOp = PropertyUtil.buildOperationForPropertySearchParams(queryParams);
+    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(radiusOp);
+    RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
+
+    // Forward request to NH Space Storage reader instance
+    final Result result = executeReadRequestFromSpaceStorage(rdRequest);
+    // transform Result to Http FeatureCollection response, restricted by given feature limit
+    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class, limit);
   }
 }

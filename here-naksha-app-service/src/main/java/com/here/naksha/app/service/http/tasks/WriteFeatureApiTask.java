@@ -39,9 +39,7 @@ import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.diff.Difference;
 import com.here.naksha.lib.core.util.diff.Patcher;
-import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,7 +113,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
 
   private @NotNull XyzResponse executeCreateOrPatchFeatures() throws Exception {
     // Deserialize input request
-    final FeatureCollectionRequest collectionRequest = featuresFromRequestBody();
+    final FeatureCollectionRequest collectionRequest = parseRequestBodyAs(FeatureCollectionRequest.class);
     final List<XyzFeature> features = (List<XyzFeature>) collectionRequest.getFeatures();
     if (features.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Can't create empty features");
@@ -132,7 +130,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
 
   private @NotNull XyzResponse executeUpsertFeatures() throws Exception {
     // Deserialize input request
-    final FeatureCollectionRequest collectionRequest = featuresFromRequestBody();
+    final FeatureCollectionRequest collectionRequest = parseRequestBodyAs(FeatureCollectionRequest.class);
     final List<XyzFeature> features = (List<XyzFeature>) collectionRequest.getFeatures();
     if (features.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Can't update empty features");
@@ -160,7 +158,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
 
   private @NotNull XyzResponse executeUpdateFeature() throws Exception {
     // Deserialize input request
-    final XyzFeature feature = singleFeatureFromRequestBody();
+    final XyzFeature feature = parseRequestBodyAs(XyzFeature.class);
 
     // Parse API parameters
     final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
@@ -223,7 +221,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
 
   private @NotNull XyzResponse executePatchFeatureById() throws JsonProcessingException {
 
-    final XyzFeature featureFromRequest = singleFeatureFromRequestBody();
+    final XyzFeature featureFromRequest = parseRequestBodyAs(XyzFeature.class);
 
     final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
     final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
@@ -408,24 +406,6 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
       XyzError xyzError, String httpResponseMsg, String internalLogMsg, Object... logArgs) {
     logger.error(internalLogMsg, logArgs);
     return verticle.sendErrorResponse(routingContext, xyzError, httpResponseMsg);
-  }
-
-  private @NotNull FeatureCollectionRequest featuresFromRequestBody() throws JsonProcessingException {
-    try (final Json json = Json.get()) {
-      final String bodyJson = routingContext.body().asString();
-      return json.reader(ViewDeserialize.User.class)
-          .forType(FeatureCollectionRequest.class)
-          .readValue(bodyJson);
-    }
-  }
-
-  private @NotNull XyzFeature singleFeatureFromRequestBody() throws JsonProcessingException {
-    try (final Json json = Json.get()) {
-      final String bodyJson = routingContext.body().asString();
-      return json.reader(ViewDeserialize.User.class)
-          .forType(XyzFeature.class)
-          .readValue(bodyJson);
-    }
   }
 
   private void addTagsToFeature(XyzFeature feature, List<String> addTags) {

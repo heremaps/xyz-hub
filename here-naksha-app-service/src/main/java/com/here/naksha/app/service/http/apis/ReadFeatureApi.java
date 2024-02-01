@@ -47,6 +47,7 @@ public class ReadFeatureApi extends Api {
     rb.operation("searchForFeatures").handler(this::searchFeatures);
     rb.operation("iterateFeatures").handler(this::iterateFeatures);
     rb.operation("getFeaturesBySpatial").handler(this::getFeaturesBySpatial);
+    rb.operation("getFeaturesBySpatialPost").handler(this::getFeaturesBySpatialPost);
   }
 
   @Override
@@ -78,6 +79,10 @@ public class ReadFeatureApi extends Api {
 
   private void getFeaturesBySpatial(final @NotNull RoutingContext routingContext) {
     startReadFeatureApiTask(GET_BY_RADIUS, routingContext);
+  }
+
+  private void getFeaturesBySpatialPost(final @NotNull RoutingContext routingContext) {
+    startReadFeatureApiTask(GET_BY_RADIUS_POST, routingContext);
   }
 
   private void startReadFeatureApiTask(ReadFeatureApiReqType reqType, RoutingContext routingContext) {

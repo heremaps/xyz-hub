@@ -885,6 +885,42 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+    post:
+      tags:
+        - Read Features
+      summary: Get features which intersects the provided geometry.
+      description: |
+        List the features which are inside the specified radius, formed around the geometry provided as payload.
+      operationId: getFeaturesBySpatialPost
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/Radius'
+        - $ref: '#/components/parameters/TagList'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/PropertiesQuery'
+      requestBody:
+        $ref: '#/components/requestBodies/GeometryRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
   '/hub/spaces/{spaceId}/search':
     get:
       tags:
@@ -1299,6 +1335,12 @@ components:
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of Liverpool Football Club
+    GeometryRequest:
+      description: A geometry request.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/Geometry'
     StorageRequest:
       required: true
       content:

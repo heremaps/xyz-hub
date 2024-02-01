@@ -24,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -66,7 +67,7 @@ class ReadFeaturesByRadiusTest extends ApiTest {
     TC  3 - Point1, radius=5m, Prop-2 (should return features 2,3)
     TC  4 - Point1, radius=5m, Tag-1 (should return feature 1 only)
     TC  5 - Point1, radius=5m, Prop-1, Tag-3 (should return feature 3 only)
-    TC  6 - Point1, radius=5m, Limit-2 (should return features 1,2)
+    TC  6 - Point1, radius=5m, Limit-2 (should return 2 features from 1,2,3)
     TC  7 - RefSpace, RefFeature1, radius=5m, Tag-2 (should return feature 2 only)
     TC  8 - RefSpace, RefFeature1, radius=5m, Tag-3, Prop-1 (should return only feature 3)
     TC  9 - RefSpace, RefFeature2, radius=5m (should return no features)
@@ -150,16 +151,8 @@ class ReadFeaturesByRadiusTest extends ApiTest {
                     "ReadFeatures/ByRadius/TC05_withLatLonRadiusTagProp/feature_response_part.json",
                     200
             ),
-            standardTestSpec(
-                    "tc06_testGetByRadiusWithLatLonRadiusLimit",
-                    List.of(
-                            "lon=8.6123&lat=50.1234",
-                            "radius=5",
-                            "limit=2"
-                    ),
-                    "ReadFeatures/ByRadius/TC06_withLatLonRadiusLimit/feature_response_part.json",
-                    200
-            ),
+            // NOTE - tc06 is implemented as separate test
+            // to run custom assertion, as the response ordering is not guaranteed
             standardTestSpec(
                     "tc07_testGetByRadiusWithRefRadiusTag",
                     List.of(
@@ -291,6 +284,29 @@ class ReadFeaturesByRadiusTest extends ApiTest {
             .hasStatus(expectedResCode)
             .hasStreamIdHeader(streamId)
             .hasJsonBody(expectedBodyPart, "Response body doesn't match");
+  }
+
+  @Test
+  void tc06_testGetByRadiusWithLatLonRadiusLimit() throws Exception {
+      // Given: Request parameters
+      final List<String> queryParamList = List.of(
+                        "lon=8.6123&lat=50.1234",
+                        "radius=5",
+                        "limit=2"
+                );
+      final String urlQueryParams = String.join("&", queryParamList);
+      final String streamId = UUID.randomUUID().toString();
+
+      // When: Get Features By Radius request is submitted to NakshaHub
+      final HttpResponse<String> response = nakshaClient
+              .get("hub/spaces/" + SPACE_ID + "/spatial?" + urlQueryParams, streamId);
+
+      // Then: Perform custom assertions
+      assertThat(response)
+              .hasStatus(200)
+              .hasStreamIdHeader(streamId)
+              .hasFeatureCount(2)
+              .hasFeatureIdsAmongst(List.of("my-custom-id-1","my-custom-id-2","my-custom-id-3"));
   }
 
 }
