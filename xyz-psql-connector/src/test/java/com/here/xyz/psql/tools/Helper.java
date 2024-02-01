@@ -43,8 +43,8 @@ public class Helper {
 
     protected static <T extends XyzResponse> T deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
       XyzResponse response = XyzSerializable.deserialize(jsonResponse);
-      if (response instanceof ErrorResponse)
-        throw new ErrorResponseException(((ErrorResponse) response).getError(), ((ErrorResponse) response).getErrorMessage());
+      if (response instanceof ErrorResponse errorResponse)
+        throw new ErrorResponseException(errorResponse);
       return (T) response;
     }
 

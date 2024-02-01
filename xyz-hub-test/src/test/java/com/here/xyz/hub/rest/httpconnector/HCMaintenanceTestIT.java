@@ -29,11 +29,13 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.rest.RestAssuredConfig;
 import java.util.HashMap;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,6 +44,7 @@ public class HCMaintenanceTestIT {
     private static String defaultConnector;
     private static HashMap<String, String> authHeaders;
     private static final String testSpace = "x-psql-test";
+    private static final String testSpace2 = "x-psql-test-hashed";
 
     @BeforeClass
     public static void setupClass() throws Exception {
@@ -56,6 +59,25 @@ public class HCMaintenanceTestIT {
                 .post(host+"/connectors/"+defaultConnector+"/initialization")
                 .then()
                 .statusCode(OK.code());
+
+        cleanUp();
+    }
+
+    @AfterClass
+    public static void cleanUp() throws Exception {
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .headers(authHeaders)
+                .when()
+                .delete(RestAssuredConfig.config().fullHubUri +"/spaces/"+testSpace);
+
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .headers(authHeaders)
+                .when()
+                .delete(RestAssuredConfig.config().fullHubUri +"/spaces/"+testSpace2);
     }
 
     @Test
@@ -135,7 +157,7 @@ public class HCMaintenanceTestIT {
                 .post(host+"/connectors/NA/maintain/indices")
                 .then()
                 .statusCode(NOT_FOUND.code())
-                .body("errorMessage", equalTo("Connector with ID NA was not found."));
+                .body("errorMessage", startsWith("Connector with ID NA was not found."));
     }
 
     @Test
@@ -166,13 +188,6 @@ public class HCMaintenanceTestIT {
 
     @Test
     public void maintainSpace() {
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .headers(authHeaders)
-                .when()
-                .delete(RestAssuredConfig.config().fullHubUri +"/spaces/"+testSpace);
-
         given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
@@ -214,6 +229,47 @@ public class HCMaintenanceTestIT {
                 .get(host+"/maintain/spaces/"+testSpace)
                 .then()
                 .statusCode(OK.code())
+                .body("idxCreationFinished", equalTo(true))
+                .body("idxAvailable.size()", equalTo(12))
+                .body("idxManual.searchableProperties.foo", equalTo(true))
+                .body("idxManual.sortableProperties", nullValue());
+    }
+
+    @Test
+    public void testEnabledHashedSpace() {
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .headers(authHeaders)
+                .when()
+                .body("{\"id\": \""+testSpace2+"\",\"title\": \"test\", \"storage\": {" +
+                        "\"id\": \"psql_db2_hashed\" },\"searchableProperties\" : {\"foo\" :true}}")
+                .post(RestAssuredConfig.config().fullHubUri +"/spaces")
+                .then()
+                .statusCode(OK.code());
+
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .when()
+                .post(host+"/maintain/spaces/"+testSpace2+"/purge")
+                .then()
+                .statusCode(OK.code());
+
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .when()
+                .post(host+"/maintain/spaces/"+testSpace2+"?force=true")
+                .then()
+                .statusCode(OK.code());
+
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .when()
+                .get(host+"/maintain/spaces/"+testSpace2)
+                .then()
                 .body("idxCreationFinished", equalTo(true))
                 .body("idxAvailable.size()", equalTo(12))
                 .body("idxManual.searchableProperties.foo", equalTo(true))

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,19 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
+package com.here.xyz.util.db;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
-import com.here.xyz.util.db.SQLQuery;
 import org.junit.Test;
 
-public class SQLQueryTests {
+public class SQLQueryUnitTests {
 
   @Test
   public void testVariableInheritance() {
     SQLQuery q = new SQLQuery("${{someFragment}} ${someVariable}")
+        .withLabelsEnabled(false)
         .withVariable("someVariable", "someValue")
         .withQueryFragment("someFragment", "${someVariable} ==");
     assertEquals("\"someValue\" == \"someValue\"", q.substitute().text());
@@ -37,6 +38,7 @@ public class SQLQueryTests {
   @Test
   public void testParameterInheritance() {
     SQLQuery q = new SQLQuery("${{someFragment}} #{someParameter}")
+        .withLabelsEnabled(false)
         .withNamedParameter("someParameter", "someValue")
         .withQueryFragment("someFragment", "#{someParameter} ==");
     q.substitute();
@@ -49,6 +51,7 @@ public class SQLQueryTests {
   @Test
   public void testFragmentInheritance() {
     SQLQuery q = new SQLQuery("${{someInnerFragment}} ${{abc}}")
+        .withLabelsEnabled(false)
         .withQueryFragment("abc", "someValue")
         .withQueryFragment("someInnerFragment", new SQLQuery("${{abc}} =="));
     assertEquals("someValue == someValue", q.substitute().text());
@@ -57,9 +60,18 @@ public class SQLQueryTests {
   @Test
   public void testConflictingQueryFragmentNames() {
     SQLQuery q = new SQLQuery("${{fragmentA}} ${{fragmentB}}")
+        .withLabelsEnabled(false)
         .withQueryFragment("fragmentA", new SQLQuery("${{frag}}").withQueryFragment("frag", "Hello"))
         .withQueryFragment("fragmentB", new SQLQuery("${{frag}}").withQueryFragment("frag", "World"));
     assertEquals("Hello World", q.substitute().text());
   }
 
+  @Test
+  public void testConflictingParamNames() {
+    SQLQuery q = new SQLQuery("${fragmentA}} ${{fragmentB}}")
+        .withLabelsEnabled(false)
+        .withQueryFragment("fragmentA", new SQLQuery("#{myParam}").withNamedParameter("myParam", "Hello"))
+        .withQueryFragment("fragmentB", new SQLQuery("#{myParam}").withNamedParameter("myParam", "World"));
+    assertThrows(RuntimeException.class, () -> q.substitute());
+  }
 }

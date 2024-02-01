@@ -95,7 +95,8 @@ public class SpaceApi extends SpaceBasedApi {
 
     ConnectorMapping defaultConnectorMapping = Service.configuration.DEFAULT_CONNECTOR_MAPPING_STRATEGY;
     ConnectorMapping connectorMapping = ConnectorMapping.of(ApiParam.Query.getString(context, Query.CONNECTOR_MAPPING, defaultConnectorMapping.name()), defaultConnectorMapping);
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true, connectorMapping);
+    boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true, connectorMapping, dryRun);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, false)
         .execute(this::sendResponse, this::sendErrorResponse);
@@ -123,7 +124,8 @@ public class SpaceApi extends SpaceBasedApi {
       return;
     }
 
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true);
+    boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true, dryRun);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
         .execute(this::sendResponse, this::sendErrorResponse);
@@ -135,7 +137,8 @@ public class SpaceApi extends SpaceBasedApi {
    */
   public void deleteSpace(final RoutingContext context) {
     Map<String,Object> input = new JsonObject().put("id", context.pathParam(Path.SPACE_ID)).getMap();
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.DELETE, true);
+    boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.DELETE, true, dryRun);
 
     //Delete the space
     ApiResponseType responseType = APPLICATION_JSON.equals(context.request().getHeader(ACCEPT))

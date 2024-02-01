@@ -20,8 +20,6 @@ package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
@@ -52,7 +50,7 @@ import java.util.zip.ZipException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class JobS3Client extends AwsS3Client{
+public class JobS3Client extends AwsS3Client {
     private static final Logger logger = LogManager.getLogger();
 
     private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
@@ -100,12 +98,8 @@ public class JobS3Client extends AwsS3Client{
 
     public Map<String,ImportObject> scanImportPath(String prefix, String bucketName, Job.CSVFormat csvFormat){
         Map<String, ImportObject> importObjectList = new HashMap<>();
-        ListObjectsRequest listObjects = new ListObjectsRequest()
-                .withPrefix(prefix)
-                .withBucketName(bucketName);
 
-        ObjectListing objectListing = client.listObjects(listObjects);
-        for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+        for (S3ObjectSummary objectSummary : scanFolder(bucketName, prefix)) {
             /** localstack does not set the bucket name */
             if(objectSummary.getBucketName() == null)
                 objectSummary.setBucketName(bucketName);
@@ -113,6 +107,7 @@ public class JobS3Client extends AwsS3Client{
             ImportObject importObject = checkFile(objectSummary, objectMetadata, csvFormat);
             importObjectList.put(importObject.getFilename(), importObject );
         }
+
         return importObjectList;
     }
 
@@ -274,15 +269,10 @@ public class JobS3Client extends AwsS3Client{
     public Map<String,ExportObject> scanExportPath(String prefix) {
         String bucketName = CService.configuration.JOBS_S3_BUCKET;
         Map<String, ExportObject> exportObjects = new HashMap<>();
-        ListObjectsRequest listObjects = new ListObjectsRequest()
-            .withPrefix(prefix)
-            .withBucketName(bucketName);
 
-        ObjectListing objectListing = client.listObjects(listObjects);
-
-        for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+        for (S3ObjectSummary objectSummary : scanFolder(bucketName, prefix)) {
             //Skip empty files
-            if(objectSummary.getSize() == 0)
+            if (objectSummary.getSize() == 0)
                 continue;
 
             ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());

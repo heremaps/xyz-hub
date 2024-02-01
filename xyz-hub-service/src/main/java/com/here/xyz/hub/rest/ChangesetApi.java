@@ -27,7 +27,7 @@ import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.auth.ChangesetAuthorization;
+import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
@@ -59,8 +59,7 @@ public class ChangesetApi extends SpaceBasedApi {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, false);
       //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
-                      space -> ChangesetAuthorization.authorize(context, space).map(space),
-                      event)
+                      space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
               .onSuccess(result -> sendResponse(context,result))
               .onFailure(t -> this.sendErrorResponse(context, t));
 
@@ -77,8 +76,7 @@ public class ChangesetApi extends SpaceBasedApi {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, true);
       //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
-                      space -> ChangesetAuthorization.authorize(context, space).map(space),
-                      event)
+              space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
               .onSuccess(result -> sendResponse(context, result))
               .onFailure(t -> this.sendErrorResponse(context, t));
 
@@ -162,7 +160,7 @@ public class ChangesetApi extends SpaceBasedApi {
         throw new NumberFormatException();
 
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
-              space -> ChangesetAuthorization.authorize(context, space).map(space),
+              space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space),
               new DeleteChangesetsEvent()
                   .withSpace(spaceId)
                   .withRequestedMinVersion(minVersion))
@@ -183,7 +181,7 @@ public class ChangesetApi extends SpaceBasedApi {
 
   private void getChangesetStatistics(final RoutingContext context) {
     final Marker marker = Api.Context.getMarker(context);
-    final Function<Space, Future<Space>> changesetAuthorization = space -> ChangesetAuthorization.authorize(context, space).map(space);
+    final Function<Space, Future<Space>> changesetAuthorization = space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space);
     final String spaceId = context.pathParam(Path.SPACE_ID);
 
     getChangesetStatistics(marker, changesetAuthorization, spaceId)

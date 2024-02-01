@@ -64,6 +64,7 @@ import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
@@ -289,6 +290,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
     try{
       logger.info("{} Received ModifySpaceEvent", traceItem);
 
+      if (event.isDryRun())
+        return new SuccessResponse().withStatus("OK");
+
       this.validateModifySpaceEvent(event);
 
       return executeModifySpace(event);
@@ -457,11 +461,15 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
      case "22P02" : // specific handling in case to H3 clustering.property
      {
-      if( e.getMessage() == null || e.getMessage().indexOf("'H3'::text") == -1 ) break;
-
-      Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                                .withErrorMessage(DhString.format("clustering.property: string(%s) can not be converted to numeric",( m.find() ? m.group(1) : "" )));
+      if( e.getMessage() == null) {
+        break;
+      } else if (e.getMessage().contains("'H3'::text")) {
+        Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
+                .withErrorMessage(DhString.format("clustering.property: string(%s) can not be converted to numeric", (m.find() ? m.group(1) : "")));
+      } else {
+        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage(e.getMessage());
+      }
      }
 
      case "22P05" :

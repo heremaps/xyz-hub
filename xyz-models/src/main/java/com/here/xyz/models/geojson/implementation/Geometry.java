@@ -19,7 +19,10 @@
 
 package com.here.xyz.models.geojson.implementation;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -36,6 +39,7 @@ import java.util.List;
 })
 public abstract class Geometry implements Typed {
 
+  @JsonInclude(NON_EMPTY)
   private BBox bbox;
   private org.locationtech.jts.geom.Geometry geomCache;
 

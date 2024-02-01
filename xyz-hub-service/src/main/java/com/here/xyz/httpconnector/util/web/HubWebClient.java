@@ -18,6 +18,8 @@
  */
 package com.here.xyz.httpconnector.util.web;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -123,13 +125,13 @@ public class HubWebClient {
                 .sendJson(job)
                 .compose(res -> {
                     try {
-                        if(res.statusCode() == HttpResponseStatus.CONFLICT.code()) {
+                        if (res.statusCode() == HttpResponseStatus.CONFLICT.code())
                             //Job already present
                             return Future.succeededFuture(null);
-                        }else if(res.statusCode() != HttpResponseStatus.CREATED.code()) {
-                          String errMsg = "job[{}] Can't create super Job! Stream-Id: " + res.getHeader("Stream-Id");
+                        else if(res.statusCode() != HttpResponseStatus.CREATED.code()) {
+                          String errMsg = "job[{}] Can't create super Job! Up-stream ID: " + res.getHeader(STREAM_ID);
                           logger.error(errMsg);
-                            return Future.failedFuture(errMsg);
+                          return Future.failedFuture(errMsg);
                         }
 
                         JsonObject resp = res.bodyAsJsonObject();
@@ -153,7 +155,7 @@ public class HubWebClient {
                                 .compose(res -> {
                                         if (res.statusCode() != HttpResponseStatus.NO_CONTENT.code()
                                             && res.statusCode() != HttpResponseStatus.PRECONDITION_FAILED.code()) {
-                                            return Future.failedFuture("Cant start Job!");
+                                            return Future.failedFuture("Can't start Job! Up-stream ID: " + res.getHeader(STREAM_ID));
                                         }
                                         return Future.succeededFuture(job);
                                 });
@@ -170,17 +172,14 @@ public class HubWebClient {
           .send()
           .compose(res -> {
               if (res.statusCode() != HttpResponseStatus.OK.code())
-                return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Connector with ID " + connectorId + " was not found."));
+                return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Connector with ID " + connectorId + " was not found. Up-stream ID: " + res.getHeader(STREAM_ID)));
               try {
                   Connector connector = DatabindCodec.mapper().convertValue(res.bodyAsJsonObject(), Connector.class);
                   return Future.succeededFuture(connector);
               }
               catch (Exception e) {
-                  return Future.failedFuture("Can't get connector config!");
+                  return Future.failedFuture("Can't get connector config! Up-stream ID: " + res.getHeader(STREAM_ID));
               }
-          })
-          .onFailure(f -> {
-              Future.failedFuture("Can't get connector config!");
           });
     }
 
@@ -192,9 +191,8 @@ public class HubWebClient {
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                 .sendJsonObject(config)
                 .compose(res -> {
-                    if(res.statusCode() != HttpResponseStatus.OK.code()) {
-                        return Future.failedFuture("Cant patch Space!");
-                    }
+                    if (res.statusCode() != HttpResponseStatus.OK.code())
+                        return Future.failedFuture("Can't patch Space! Up-stream ID: " + res.getHeader(STREAM_ID));
                     return Future.succeededFuture();
                 });
     }
@@ -204,6 +202,8 @@ public class HubWebClient {
           .send()
           .compose(response -> {
             try {
+                if(response.statusCode() == 404)
+                    return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Space with ID " + spaceId + " was not found."));
               return Future.succeededFuture(deserializeResponse(response, Space.class));
             }
             catch (Exception e) {
@@ -231,16 +231,14 @@ public class HubWebClient {
                 .compose(res -> {
                     try {
                         Object response = XyzSerializable.deserialize(res.bodyAsString());
-                        if (response instanceof StatisticsResponse) {
-                            return Future.succeededFuture((StatisticsResponse)response);
-                        } else
-                            return Future.failedFuture("Cant get space statistics!");
-                    } catch (JsonProcessingException e) {
-                        return Future.failedFuture("Cant get space statistics!");
+                        if (response instanceof StatisticsResponse)
+                          return Future.succeededFuture((StatisticsResponse)response);
+                        else
+                          return Future.failedFuture("Can't get space statistics! Up-stream ID: " + res.getHeader(STREAM_ID));
                     }
-                })
-                .onFailure(f -> {
-                    Future.failedFuture("Cant get space statistics!");
+                    catch (JsonProcessingException e) {
+                        return Future.failedFuture("Can't get space statistics!");
+                    }
                 });
     }
 

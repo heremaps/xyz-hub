@@ -21,7 +21,6 @@ package com.here.xyz.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-
 import java.util.Map;
 
 /**
@@ -37,11 +36,13 @@ public class ErrorResponse extends XyzResponse<ErrorResponse> {
   private Map<String, Object> errorDetails;
 
   /**
-   * Returns the errorDetails which can contains additional detail information.
+   * Returns the errorDetails which can contain additional detail information.
    *
    * @return the errorDetails map.
    */
-  public Map<String, Object>  getErrorDetails(){return this.errorDetails;}
+  public Map<String, Object>  getErrorDetails() {
+    return this.errorDetails;
+  }
 
   /**
    * Set the errorDetails map to the provided value.

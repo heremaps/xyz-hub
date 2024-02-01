@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.SelectiveEvent.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
@@ -29,6 +30,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.events.SelectiveEvent.Ref;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
@@ -117,68 +119,65 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
-    if (!(event instanceof SelectiveEvent))
+    if (!(event instanceof SelectiveEvent selectiveEvent))
       return new SQLQuery("");
 
-    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
-    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    boolean versionIsStar = "*".equals(selectiveEvent.getRef());
-    boolean versionIsNotPresent = selectiveEvent.getRef() == null;
-    final SQLQuery minVersionFragment = buildMinVersionFragment(selectiveEvent);
-
-    final SQLQuery defaultClause = new SQLQuery(" ${{minVersion}} ${{nextVersion}} ")
-        .withQueryFragment("nextVersion", versionIsStar || versionsToKeep <= 1 ? "" : " AND next_version = #{MAX_BIGINT} ")
-        .withNamedParameter("MAX_BIGINT", MAX_BIGINT)
-        .withQueryFragment("minVersion", minVersionFragment);
-
-    if (versionsToKeep == 1 || versionIsNotPresent || versionIsStar)
-      return defaultClause;
-
-    //versionsToKeep > 1 AND contains a reference to a version or version is a valid version
-    return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}} ")
-        .withQueryFragment("minVersion", minVersionFragment)
-        .withNamedParameter("version", getVersionFromRef(selectiveEvent));
+    return new SQLQuery("${{versionComparison}} ${{nextVersion}} ${{minVersion}}")
+        .withQueryFragment("versionComparison", buildVersionComparison(selectiveEvent))
+        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
+        .withQueryFragment("nextVersion", buildNextVersionFragment(selectiveEvent));
   }
 
-  private SQLQuery buildBaseVersionCheckFragment() {
-    //Always assume HEAD version for base spaces
-    return new SQLQuery(" AND next_version = #{MAX_BIGINT}").withNamedParameter("MAX_BIGINT", MAX_BIGINT);
+  private SQLQuery buildVersionComparison(SelectiveEvent event) {
+    Ref ref = event.getParsedRef();
+    if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
+      return new SQLQuery("");
+
+    return new SQLQuery("AND version <= #{version}")
+        .withNamedParameter("version", ref.getVersion());
+  }
+
+  private SQLQuery buildNextVersionFragment(SelectiveEvent event) {
+    return buildNextVersionFragment(event.getParsedRef(), event.getVersionsToKeep() > 1,
+        "requestedVersion");
+  }
+
+  private SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+    if (!historyEnabled || ref.isAllVersions())
+      return new SQLQuery("");
+
+    return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
+        .withQueryFragment("op", ref.isHead() ? "=" : ">")
+        .withNamedParameter(versionParamName, ref.isHead() ? MAX_BIGINT : ref.getVersion());
+  }
+
+  private SQLQuery buildBaseVersionCheckFragment(String versionParamName) {
+    /*
+    Always assume HEAD version for base spaces and also assume history to be enabled,
+    because from the even we don't know whether it is enabled or not.
+     */
+    return buildNextVersionFragment(new Ref(HEAD), true, versionParamName);
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
-    long version = getVersionFromRef(event);
-    boolean isHead = version == MAX_BIGINT;
+    Ref ref = event.getParsedRef();
+    boolean isHeadOrStar = ref.isHead() || ref.isAllVersions();
+    long version = isHeadOrStar ? Long.MAX_VALUE : ref.getVersion();
     if (event.getVersionsToKeep() > 1)
       return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) - #{versionsToKeep} FROM ${schema}.${table})) <= #{version}")
           .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
           .withNamedParameter("minVersion", event.getMinVersion())
           .withNamedParameter("version", version);
-    return isHead ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) as HEAD FROM ${schema}.${table})")
+    return isHeadOrStar ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) as HEAD FROM ${schema}.${table})")
         .withNamedParameter("version", version);
   }
 
   private SQLQuery buildAuthorCheckFragment(E event) {
-    if (!(event instanceof SelectiveEvent))
-      return new SQLQuery("");
-
-    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
-    long v2k = DatabaseHandler.readVersionsToKeep(event);
-    boolean emptyAuthor = selectiveEvent.getAuthor() == null;
-
-    if (v2k < 1 || emptyAuthor)
+    if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getAuthor() == null)
       return new SQLQuery("");
 
     return new SQLQuery(" AND author = #{author}")
         .withNamedParameter("author", selectiveEvent.getAuthor());
-  }
-
-  private long getVersionFromRef(SelectiveEvent event) {
-    try {
-      return Long.parseLong(event.getRef());
-    }
-    catch (NumberFormatException e) {
-      return Long.MAX_VALUE;
-    }
   }
 
   private SQLQuery build1LevelBaseQuery(E event) {
@@ -193,7 +192,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} " + (useInnerLimit ? "${{limit}}" : ""))
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, false)) //NOTE: We know that the base space is not an extended one
-        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment());
+        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment("base1Version"));
   }
 
   private SQLQuery build2LevelBaseQuery(E event) {
@@ -203,7 +202,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if( event instanceof IterateFeaturesEvent )
      useInnerLimit = false;
 
-    SQLQuery versionCheckFragment = buildBaseVersionCheckFragment();
+    SQLQuery versionCheckFragment = buildBaseVersionCheckFragment("base2Version");
 
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
@@ -263,10 +262,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private static String buildOrderByFragment(ContextAwareEvent event) {
-    if (!(event instanceof SelectiveEvent)) return "";
-
-    SelectiveEvent selectiveEvent = (SelectiveEvent) event;
-    return "*".equals(selectiveEvent.getRef()) ? "ORDER BY version" : "";
+    if (!(event instanceof SelectiveEvent selectiveEvent))
+      return "";
+    return selectiveEvent.getParsedRef().isAllVersions() ? "ORDER BY version" : "";
   }
 
   protected SQLQuery buildGeoFragment(E event) {

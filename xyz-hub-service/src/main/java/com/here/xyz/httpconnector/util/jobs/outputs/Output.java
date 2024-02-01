@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,25 +19,38 @@
 
 package com.here.xyz.httpconnector.util.jobs.outputs;
 
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
+import java.util.HashMap;
+import java.util.Map;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DownloadUrl.class, name = "DownloadUrl")
 })
-public class Output implements Typed {
-  private String childId;
+public class Output<T extends Output> implements Typed {
+  @JsonAnySetter
+  private Map<String, String> metadata;
 
-  public String getChildId() {
-    return childId;
+  @JsonAnyGetter
+  public Map<String, String> getMetadata() {
+    return metadata;
   }
 
-  public void setChildId(String childId) {
-    this.childId = childId;
+  public void setMetadata(Map<String, String> metadata) {
+    this.metadata = metadata;
   }
 
-  public Output withChildId(String childId) {
-    setChildId(childId);
-    return this;
+  public T withMetadata(Map<String, String> metadata) {
+    setMetadata(metadata);
+    return (T) this;
+  }
+
+  public T withMetadata(String key, String value) {
+    if (getMetadata() == null)
+      setMetadata(new HashMap<>());
+    getMetadata().put(key, value);
+    return (T) this;
   }
 }

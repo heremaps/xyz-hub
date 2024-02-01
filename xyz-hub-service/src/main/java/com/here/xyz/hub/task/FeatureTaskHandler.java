@@ -55,6 +55,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.events.SelectiveEvent.Ref;
+import com.here.xyz.events.SelectiveEvent.Ref.InvalidRef;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
@@ -297,7 +298,7 @@ public class FeatureTaskHandler {
       }
 
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
-      if (task instanceof FeatureTask.ConditionalOperation ) {
+      if (task instanceof FeatureTask.ConditionalOperation) {
         long now = Core.currentTimeMillis();
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
           task.space.contentUpdatedAt = Core.currentTimeMillis();
@@ -762,6 +763,16 @@ public class FeatureTaskHandler {
     });
     nc.task.addCancellingHandler(unused -> rpcContextHolder.rpcContext.cancelRequest());
     return f;
+  }
+
+  public static <T extends FeatureTask> void checkSpaceIsActive(T task, Callback<T> callback) {
+    if (!task.space.isActive()) {
+      callback.exception(new HttpException(METHOD_NOT_ALLOWED,
+          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is not active."));
+      return;
+    }
+
+    callback.call(task);
   }
 
   private static class RpcContextHolder {
@@ -1460,14 +1471,14 @@ public class FeatureTaskHandler {
   }
 
   public static <X extends FeatureTask<?, X>> void checkImmutability(X task, Callback<X> callback) {
-    if (task.getEvent() instanceof SelectiveEvent) {
-      Ref ref = new Ref(((SelectiveEvent<?>) task.getEvent()).getRef());
+    if (task.getEvent() instanceof SelectiveEvent selectiveEvent) {
+      Ref ref = selectiveEvent.getParsedRef();
       if (ref.isSingleVersion()) {
         if (!ref.isHead())
           //If the ref is a single specified version which is not HEAD, the response is immutable
           task.readOnlyAccess = true;
         else if (task.space.isReadOnly() && task.space.getReadOnlyHeadVersion() > -1) {
-          ((SelectiveEvent) task.getEvent()).setRef(String.valueOf(task.space.getReadOnlyHeadVersion()));
+          selectiveEvent.setRef(String.valueOf(task.space.getReadOnlyHeadVersion()));
           task.readOnlyAccess = true;
         }
       }
@@ -1578,7 +1589,7 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
-    if (task.space.isReadOnly() && (task instanceof ConditionalOperation ))
+    if (task.space.isReadOnly() && (task instanceof ConditionalOperation))
       throw new HttpException(METHOD_NOT_ALLOWED,
           "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
     callback.call(task);
@@ -1827,21 +1838,19 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask> void validateReadFeaturesParams(final X task, final Callback<X> callback) {
-    if (task.getEvent() instanceof SelectiveEvent) {
-      String ref = ((SelectiveEvent) task.getEvent()).getRef();
-      if (ref != null && !isVersionValid(ref))
-        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for version: " + ref));
+    //TODO: Move this validation into the REST tier
+    if (task.getEvent() instanceof SelectiveEvent selectiveEvent) {
+      //Try to parse the provided ref
+      try {
+        selectiveEvent.getParsedRef();
+      }
+      catch (InvalidRef e) {
+        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for version: "
+            + selectiveEvent.getRef(), e));
+        return;
+      }
     }
 
     callback.call(task);
-  }
-
-  private static boolean isVersionValid(String version) {
-    try {
-      return "*".equals(version) || Integer.parseInt(version) >= 0;
-    }
-    catch (NumberFormatException e) {
-      return false;
-    }
   }
 }

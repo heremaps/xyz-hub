@@ -36,7 +36,7 @@
         "env": {
           "ECPS_PHRASE": "local"
         },
-        "protocolVersion": "0.6.0"
+        "protocolVersion": "0.7.0"
       }
     },
     "trusted": true,
@@ -78,7 +78,7 @@
         "id": "psql-http",
         "type": "Http",
         "url": "http://dummy",
-        "protocolVersion": "0.6.0",
+        "protocolVersion": "0.7.0",
         "metricsActive": true
       }
     },
@@ -122,7 +122,7 @@
         "env": {
           "ECPS_PHRASE": "local"
         },
-        "protocolVersion": "0.6.0"
+        "protocolVersion": "0.7.0"
       }
     },
     "trusted": true,
