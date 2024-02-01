@@ -841,6 +841,50 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/hub/spaces/{spaceId}/spatial':
+    get:
+      tags:
+        - Read Features
+      summary: Get features with radius search
+      description: |
+        List the features which are inside the specified radius.
+        The radius is formed around a given point coordinates latitude & longitude.
+        If lat/lon are not given then radius is formed around the entire geometry of an existing
+        feature referenced by given refSpaceId and refFeatureId.
+        
+        Either a combination of lat,lon (higher preference) or refSpaceId,refFeatureId is mandatory.
+      operationId: getFeaturesBySpatial
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/Latitude'
+        - $ref: '#/components/parameters/Longitude'
+        - $ref: '#/components/parameters/RefSpaceId'
+        - $ref: '#/components/parameters/RefFeatureId'
+        - $ref: '#/components/parameters/Radius'
+        - $ref: '#/components/parameters/TagList'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/PropertiesQuery'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
   '/hub/spaces/{spaceId}/search':
     get:
       tags:
@@ -963,6 +1007,15 @@ components:
       description: The handle to continue the iteration.
       schema:
         type: string
+    Latitude:
+      name: lat
+      in: query
+      description: >-
+        The latitude in WGS'84 decimal degree (-90 to +90) of the center Point.
+      schema:
+        type: number
+        minimum: -90
+        maximum: 90
     Limit:
       name: limit
       in: query
@@ -971,6 +1024,15 @@ components:
         Default is _30000_. Hard limit is _100000_.
       schema:
         type: integer
+    Longitude:
+      name: lon
+      in: query
+      description: >-
+        The longitude in WGS'84 decimal degree (-180 to +180) of the center Point.
+      schema:
+        type: number
+        minimum: -180
+        maximum: 180
     Margin:
       name: margin
       in: query
@@ -1059,6 +1121,31 @@ components:
           p.some_property: '.null'
         additionalProperties:
           type: string
+    Radius:
+      name: radius
+      in: query
+      description: >-
+        Radius in meters which defines the diameter of the search request.
+      schema:
+        type: integer
+    RefFeatureId:
+      name: refFeatureId
+      in: query
+      description: >-
+        The unique identifier of a feature in the referenced space.
+
+        The feature's geometry is used as a reference in the spatial search.
+      schema:
+        type: string
+    RefSpaceId:
+      name: refSpaceId
+      in: query
+      description: >-
+        The space where the feature, referenced by refFeatureId, is stored.
+
+        Required if refFeatureId is used.
+      schema:
+        type: string
     RemoveTags:
       name: removeTags
       in: query
