@@ -28,7 +28,6 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMP
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.events.SelectiveEvent.Ref;
 import com.here.xyz.psql.DatabaseHandler;
@@ -63,7 +62,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}${{id}}"
           + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}} ${{limit}})"
+          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}})"
           + " ${{unionAll}} "
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}} FROM"
           + "            ("
@@ -183,13 +182,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   private SQLQuery build1LevelBaseQuery(E event) {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
 
-    boolean useInnerLimit = true;
-    if( event instanceof IterateFeaturesEvent )
-     useInnerLimit = false;
-
     return new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} " + (useInnerLimit ? "${{limit}}" : ""))
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}}")
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, false)) //NOTE: We know that the base space is not an extended one
         .withQueryFragment("versionCheck", buildBaseVersionCheckFragment("base1Version"));
@@ -197,16 +192,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery build2LevelBaseQuery(E event) {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-
-    boolean useInnerLimit = true;
-    if( event instanceof IterateFeaturesEvent )
-     useInnerLimit = false;
-
     SQLQuery versionCheckFragment = buildBaseVersionCheckFragment("base2Version");
 
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}} " + (useInnerLimit ? "${{limit}}" : "") +") "
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}}) "
         + "UNION ALL"
         + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
         + "        ("
@@ -226,7 +216,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) {
-    if (v2k <= 1 && !isExtended) return new SQLQuery("");
+    if (v2k == 1 && !isExtended) return new SQLQuery("");
 
     String operationsParamName = "operationsToFilterOut" + (isExtended ? "Extended" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
     return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
