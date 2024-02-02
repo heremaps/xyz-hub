@@ -1,6 +1,6 @@
 package com.here.naksha.app.service.util;
 
-import com.here.naksha.app.service.http.ops.PropertyUtil;
+import com.here.naksha.app.service.http.ops.PropertySearchUtil;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.OpType;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Named.named;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
-public class PropertyUtilTest {
+public class PropertySearchUtilTest {
 
     @Test
     void testBuildOperationForPropertySearchParams() {
@@ -46,18 +46,19 @@ public class PropertyUtilTest {
                         + "&p.prop_12=gt=777,7777"
                         + "&p.prop_13=lt=888,8888"
                         + "&"+ urlEncoded("properties.@ns:com:here:xyz.tags") + "=cs=" + urlEncoded("{\"id\":\"123\"}") + ",element_4"
+                        + "&f.tags=cs=element_5"
         );
         final Set<String> excludedKeys = Set.of("west","tags");
 
 
-        final POp op = PropertyUtil.buildOperationForPropertySearchParams(params);
+        final POp op = PropertySearchUtil.buildOperationForPropertySearchParams(params);
         assertThatOperation(op).hasType(OpType.AND);
 
         final List<POp> opList = op.children();
 
-        // ensure there are total 14 operations
+        // ensure there are total 15 operations
         assertNotNull(opList, "Expected multiple AND operations");
-        assertEquals(14, opList.size(), "Expected total 14 AND operations");
+        assertEquals(15, opList.size(), "Expected total 15 AND operations");
 
         int innerOpsInd = 0;
         // validate operation 1
@@ -188,6 +189,10 @@ public class PropertyUtilTest {
                         second -> second.hasType(CONTAINS).hasPRefWithPath(TAGS_PROP_PATH).hasValue("element_4")
                 )
         ;
+        // validate operation 15
+        assertThatOperation(opList.get(innerOpsInd++))
+                .hasType(CONTAINS).hasPRefWithPath(TAGS_PROP_PATH).hasValue("element_5")
+        ;
     }
 
     private static Arguments propQuerySpec(String query, String assertionDesc) {
@@ -199,7 +204,7 @@ public class PropertyUtilTest {
     void testKnownException(String queryString, Class<? extends Throwable> exceptionType) {
         assertThrowsExactly(exceptionType, () -> {
             final QueryParameterList queryParameters = new QueryParameterList(queryString);
-            PropertyUtil.buildOperationForPropertySearchParams(queryParameters);
+            PropertySearchUtil.buildOperationForPropertySearchParams(queryParameters);
         });
     }
 

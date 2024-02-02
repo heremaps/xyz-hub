@@ -23,13 +23,15 @@ import static com.here.naksha.lib.core.models.storage.transformation.BufferTrans
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.apis.ApiParams;
-import com.here.naksha.app.service.http.ops.PropertyUtil;
+import com.here.naksha.app.service.http.ops.PropertySearchUtil;
+import com.here.naksha.app.service.http.ops.PropertySelectionUtil;
 import com.here.naksha.app.service.http.ops.SpatialUtil;
 import com.here.naksha.app.service.http.ops.TagsUtil;
 import com.here.naksha.app.service.models.IterateHandle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.lambdas.F1;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
@@ -41,8 +43,10 @@ import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.util.storage.ResultHelper;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
+import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.locationtech.jts.geom.Geometry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -157,6 +161,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final double east = ApiParams.extractQueryParamAsDouble(queryParams, EAST, true);
     final double south = ApiParams.extractQueryParamAsDouble(queryParams, SOUTH, true);
     long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
+    final Set<String> propPaths = PropertySelectionUtil.buildPropPathSetFromQueryParams(queryParams);
+    final boolean clip = ApiParams.extractQueryParamAsBoolean(queryParams, CLIP_GEO, false);
     // validate values
     limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
     ApiParams.validateParamRange(WEST, west, -180, 180);
@@ -165,16 +171,22 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     ApiParams.validateParamRange(SOUTH, south, -90, 90);
 
     // Prepare read request based on parameters supplied
-    final SOp bboxOp = SpatialUtil.buildOperationForBBox(west, south, east, north);
+    final Geometry bbox = RequestHelper.createBBoxEnvelope(west, south, east, north);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
-    final POp propSearchOp = PropertyUtil.buildOperationForPropertySearchParams(queryParams);
-    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(bboxOp);
+    final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
+    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(SOp.intersects(bbox));
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 
     // Forward request to NH Space Storage reader instance
     final Result result = executeReadRequestFromSpaceStorage(rdRequest);
     // transform Result to Http FeatureCollection response, restricted by given feature limit
-    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class, limit);
+    // we will also apply response preprocessing (like property selection and geometry clipping)
+    // if any of the options is enabled
+    final F1<XyzFeature, XyzFeature> preResponseProcessing = (propPaths == null && !clip)
+        ? null
+        : f -> standardReadFeaturesPreResponseProcessing(f, propPaths, clip, bbox);
+    return transformReadResultToXyzCollectionResponse(
+        result, XyzFeature.class, 0, limit, null, preResponseProcessing);
   }
 
   private @NotNull XyzResponse executeFeaturesByTile() {
@@ -195,7 +207,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // Prepare read request based on parameters supplied
     final SOp geoOp = SpatialUtil.buildOperationForTile(tileType, tileId, (int) margin);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
-    final POp propSearchOp = PropertyUtil.buildOperationForPropertySearchParams(queryParams);
+    final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
     final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(geoOp);
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 
@@ -221,7 +233,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
 
     // Prepare read request based on parameters supplied
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
-    final POp propSearchOp = PropertyUtil.buildOperationForPropertySearchParams(queryParams);
+    final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
     final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId);
     if (tagsOp == null && propSearchOp == null) {
       return verticle.sendErrorResponse(
@@ -295,7 +307,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final SOp radiusOp =
         (radius > 0) ? SOp.intersects(refGeometry, bufferInMeters(radius)) : SOp.intersects(refGeometry);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
-    final POp propSearchOp = PropertyUtil.buildOperationForPropertySearchParams(queryParams);
+    final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
     final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(radiusOp);
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 
@@ -367,7 +379,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final SOp radiusOp =
         (radius > 0) ? SOp.intersects(refGeometry, bufferInMeters(radius)) : SOp.intersects(refGeometry);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
-    final POp propSearchOp = PropertyUtil.buildOperationForPropertySearchParams(queryParams);
+    final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
     final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(radiusOp);
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 

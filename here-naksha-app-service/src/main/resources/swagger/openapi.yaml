@@ -13,7 +13,7 @@ servers:
 info:
   title: "Naskha Hub-API"
   description: "Naksha Hub-API is a REST API to provide simple access to geo data."
-  version: "2.0.11"
+  version: "2.0.12"
 
 security:
   - AccessToken: [ ]
@@ -780,8 +780,10 @@ paths:
         - $ref: '#/components/parameters/East'
         - $ref: '#/components/parameters/South'
         - $ref: '#/components/parameters/TagList'
+        - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesQuery'
+        - $ref: '#/components/parameters/PropertiesSelection'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -1018,6 +1020,15 @@ components:
         type: array
         items:
           type: string
+    Clip:
+      name: clip
+      in: query
+      description: >-
+        If set to _true_ the features' geometries are clipped to the geometry of
+        the tile, bounding box or input geometry. Default is _false_.
+      required: false
+      schema:
+        type: boolean
     East:
       name: east
       in: query
@@ -1156,6 +1167,19 @@ components:
         example:
           p.some_property: '.null'
         additionalProperties:
+          type: string
+    PropertiesSelection:
+      name: selection
+      in: query
+      description: |
+        A list of properties to be returned in the features result list. Multiple attributes can be
+        specified by using comma(,).
+
+        Example: ?selection=p.name,p.capacity,p.color,rootPropertyName
+      explode: false
+      schema:
+        type: array
+        items:
           type: string
     Radius:
       name: radius

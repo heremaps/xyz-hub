@@ -1,0 +1,64 @@
+{
+    "id": "000YofljPAC0bLYg",
+    "type": "Feature",
+    "addProp": "Root level additional property",
+    "properties": {
+        "status": "SUSPENDED",
+        "isoCountryCode": "VNM",
+        "@ns:com:here:utm": {
+            "priorityParams": {
+                "backup": {
+                    "dueBy": 2681207060668,
+                    "priority": 53
+                },
+                "derived": {
+                    "boost": 1.5
+                }
+            }
+        },
+        "options": [
+            {
+                "key": "VALID",
+                "value": [
+                    {
+                        "lang": "en",
+                        "text": "Accept"
+                    }
+                ]
+            },
+            {
+                "key": "INVALID",
+                "value": [
+                    {
+                        "lang": "en",
+                        "text": "Discard"
+                    }
+                ]
+            }
+        ],
+        "references": [
+            {
+                "ids": [
+                    "G72uGWl17uZJH0KU"
+                ],
+                "spaceId": "xY30cz1x"
+            }
+        ],
+        "@ns:com:here:xyz": {
+            "tags": [
+                "operation_add",
+                "source_openstreetmap"
+            ],
+            "uuid": "00000000-005d-4ddb-817a-210000000000",
+            "deleted": false
+        }
+    },
+    "geometry": {
+        "type": "Point",
+        "coordinates": [
+            106.07225695,
+            20.08925937,
+            0
+        ]
+    }
+}

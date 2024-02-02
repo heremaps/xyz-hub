@@ -77,14 +77,19 @@ public class ResponseAssertions {
   }
 
   public ResponseAssertions hasJsonBody(String expectedJsonBody) {
-    return hasJsonBody(expectedJsonBody, "Actual and expected json body don't match");
+    return hasJsonBody(expectedJsonBody, "Actual and expected json body don't match", false);
   }
 
   public ResponseAssertions hasJsonBody(String expectedJsonBody, String failureMessage) {
+    return hasJsonBody(expectedJsonBody, failureMessage, false);
+  }
+
+  public ResponseAssertions hasJsonBody(String expectedJsonBody, String failureMessage, boolean strictChecking) {
     String actualBody = subject.body();
     Assertions.assertNotNull(actualBody, "Response body is null");
     try {
-      JSONAssert.assertEquals(failureMessage, expectedJsonBody, actualBody, JSONCompareMode.LENIENT);
+      JSONAssert.assertEquals(failureMessage, expectedJsonBody, actualBody,
+              (strictChecking) ? JSONCompareMode.STRICT : JSONCompareMode.LENIENT);
     } catch (JSONException e) {
       Assertions.fail("Unable to parse response body", e);
     }

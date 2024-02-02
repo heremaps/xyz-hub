@@ -1,0 +1,37 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-700-9",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "50"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            5.630866303,
+            6.303472939,
+            0.0
+          ],
+          [
+            5.63092979,
+            6.301495703,
+            0.0
+          ],
+          [
+            5.631035602,
+            6.299623631,
+            0.0
+          ],
+          [
+            5.631480011,
+            6.296447405,
+            0.0
+          ]
+        ]
+      }
+    }
+  ]
+}

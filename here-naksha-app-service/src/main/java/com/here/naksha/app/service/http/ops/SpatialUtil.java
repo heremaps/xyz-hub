@@ -24,7 +24,6 @@ import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.storage.SOp;
-import com.here.naksha.lib.core.util.storage.RequestHelper;
 import org.jetbrains.annotations.NotNull;
 import org.locationtech.jts.geom.Geometry;
 
@@ -45,10 +44,5 @@ public class SpatialUtil {
     } catch (Exception ex) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Error interpreting tile input: " + ex.getMessage());
     }
-  }
-
-  public static @NotNull SOp buildOperationForBBox(
-      final double west, final double south, final double east, final double north) {
-    return SOp.intersects(RequestHelper.createBBoxEnvelope(west, south, east, north));
   }
 }

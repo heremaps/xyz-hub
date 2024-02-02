@@ -1,0 +1,120 @@
+{
+    "id": "000YofljPAC0bLYg",
+    "type": "Feature",
+    "addProp": "Root level additional property",
+    "properties": {
+        "status": "SUSPENDED",
+        "options": [
+            {
+                "key": "VALID",
+                "value": [
+                    {
+                        "lang": "en",
+                        "text": "Accept"
+                    }
+                ]
+            },
+            {
+                "key": "INVALID",
+                "value": [
+                    {
+                        "lang": "en",
+                        "text": "Discard"
+                    }
+                ]
+            }
+        ],
+        "headline": [
+            {
+                "lang": "en",
+                "text": "Need to check geometry"
+            }
+        ],
+        "priority": 53,
+        "taskType": "COLLECT",
+        "references": [
+            {
+                "ids": [
+                    "G72uGWl17uZJH0KU"
+                ],
+                "spaceId": "xY30cz1x"
+            }
+        ],
+        "description": [
+            {
+                "lang": "en",
+                "text": "Road is missing"
+            }
+        ],
+        "featureType": "MapTask",
+        "isoCountryCode": "VNM",
+        "@ns:com:here:utm": {
+            "tags": [
+                "tool_mapcreator_moderation_category_road_geometry_isocc_vnm_user_type_normal"
+            ],
+            "priorityParams": {
+                "backup": {
+                    "dueBy": 2681207060668,
+                    "category": 3,
+                    "priority": 53,
+                    "slaNormFactor": 432000001
+                },
+                "derived": {
+                    "dueBy": 2681207060668,
+                    "category": 3,
+                    "slaNormFactor": 432000001,
+                    "boost": 1.5
+                }
+            }
+        },
+        "@ns:com:here:xyz": {
+            "tags": [
+                "operation_add",
+                "taskproducer_gisde",
+                "source_openstreetmap",
+                "tasktype_geometry",
+                "tool_mapcreator_moderation",
+                "@sourceid_OTU_gisdeosmflow7c2bd2fc-299b-4842-b565-ce7f33b0d7d6_20230411",
+                "@secondaryid_7c2bd2fc-299b-4842-b565-ce7f33b0d7d6",
+                "isocc_vnm",
+                "@admin1_vnm",
+                "@admin2_",
+                "@admin3_ninh binh",
+                "@admin4_huyen kim son",
+                "@postalcode_08721",
+                "@adminlevels_vnm__ninh binh",
+                "calculated_priority",
+                "category_road_geometry",
+                "audience_internal",
+                "quadkey_1322101303303103",
+                "otm_maptask",
+                "utm_maptask",
+                "user_type_normal",
+                "skill_level_journeyman",
+                "priority_53",
+                "tool_mapcreator_moderation_category_road_geometry_isocc_vnm_user_type_normal",
+                "status_suspended"
+            ],
+            "uuid": "00000000-005d-4ddb-817a-210000000000",
+            "appId": null,
+            "puuid": "00000000-0028-4e89-8178-490000000000",
+            "rtcts": 1691590980580,
+            "rtuts": 1696421700930,
+            "space": "utm-e2e:maptask",
+            "action": "UPDATE",
+            "author": null,
+            "deleted": false,
+            "version": 2,
+            "createdAt": 1691590893457,
+            "updatedAt": 1696421700925
+        }
+    },
+    "geometry": {
+        "type": "Point",
+        "coordinates": [
+            106.07225695,
+            20.08925937,
+            0
+        ]
+    }
+}

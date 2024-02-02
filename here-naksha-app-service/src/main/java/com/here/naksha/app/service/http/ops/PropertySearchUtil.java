@@ -37,17 +37,17 @@ import java.util.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class PropertyUtil {
+public class PropertySearchUtil {
 
   private static final String NULL_PROP_VALUE = ".null";
 
   private static final String SHORT_PROP_PREFIX = "p.";
   private static final String FULL_PROP_PREFIX = XyzFeature.PROPERTIES + ".";
   private static final String SHORT_XYZ_PROP_PREFIX = "f.";
-  private static final String FULL_XYZ_PROP_PREFIX = XyzFeature.PROPERTIES + "." + XyzProperties.XYZ_NAMESPACE;
+  private static final String FULL_XYZ_PROP_PREFIX = FULL_PROP_PREFIX + XyzProperties.XYZ_NAMESPACE + ".";
   private static final String XYZ_PROP_ID = "f.id";
 
-  private PropertyUtil() {}
+  private PropertySearchUtil() {}
 
   /**
    * Function builds Property Operation (POp) based on property key:value pairs supplied as API query parameter.

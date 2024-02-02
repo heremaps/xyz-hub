@@ -54,6 +54,8 @@ public final class ApiParams {
   public static final String RADIUS = "radius";
   public static final String REF_SPACE_ID = "refSpaceId";
   public static final String REF_FEATURE_ID = "refFeatureId";
+  public static final String PROP_SELECTION = "selection";
+  public static final String CLIP_GEO = "clip";
 
   public static final long DEF_FEATURE_LIMIT = 30_000;
   public static final long DEF_ADMIN_FEATURE_LIMIT = 1_000;
@@ -72,20 +74,57 @@ public final class ApiParams {
     return value;
   }
 
+  public static @Nullable QueryParameter extractQueryParamForKey(
+      final @Nullable QueryParameterList queryParams, final @NotNull String key, final boolean isMandatory) {
+    if (queryParams == null) {
+      if (isMandatory) throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Query parameters missing");
+      else return null;
+    }
+    final QueryParameter queryParam = queryParams.get(key);
+    if (queryParam == null || queryParam.values().isEmpty()) {
+      if (isMandatory) throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Parameter " + key + " missing");
+      else return null;
+    }
+    return queryParam;
+  }
+
+  public static boolean extractQueryParamAsBoolean(
+      final @Nullable QueryParameterList queryParams, final @NotNull String key, final boolean isMandatory) {
+    return extractQueryParamAsBoolean(queryParams, key, isMandatory, false);
+  }
+
+  public static boolean extractQueryParamAsBoolean(
+      final @Nullable QueryParameterList queryParams,
+      final @NotNull String key,
+      final boolean isMandatory,
+      final boolean defVal) {
+    final QueryParameter queryParam = extractQueryParamForKey(queryParams, key, isMandatory);
+    if (queryParam == null && !isMandatory) {
+      return defVal;
+    }
+    final ValueList values = queryParam.values();
+    if (values.isBoolean(0)) {
+      return values.getBoolean(0, defVal);
+    } else if (values.isString(0)) {
+      return Boolean.parseBoolean(values.getString(0));
+    }
+    throw new XyzErrorException(
+        XyzError.ILLEGAL_ARGUMENT, "Invalid value " + values.get(0) + " for parameter " + key);
+  }
+
   public static double extractQueryParamAsDouble(
-      final @NotNull QueryParameterList queryParams, final @NotNull String key, final boolean isMandatory) {
+      final @Nullable QueryParameterList queryParams, final @NotNull String key, final boolean isMandatory) {
     return extractQueryParamAsDouble(queryParams, key, isMandatory, 0.0);
   }
 
   public static double extractQueryParamAsDouble(
-      final @NotNull QueryParameterList queryParams,
+      final @Nullable QueryParameterList queryParams,
       final @NotNull String key,
       final boolean isMandatory,
       final double defVal) {
-    final QueryParameter queryParam = queryParams.get(key);
-    if (queryParam == null || queryParam.values().isEmpty()) {
-      if (isMandatory) throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Parameter " + key + " missing");
-      else return defVal;
+    final QueryParameter queryParam = extractQueryParamForKey(queryParams, key, isMandatory);
+    if (queryParam == null && !isMandatory) {
+      return defVal;
     }
     final ValueList values = queryParam.values();
     if (values.isDouble(0)) {
@@ -108,14 +147,9 @@ public final class ApiParams {
       final @NotNull String key,
       final boolean isMandatory,
       final long defVal) {
-    if (queryParams == null) {
-      if (isMandatory) throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Query parameters missing");
-      else return defVal;
-    }
-    final QueryParameter queryParam = queryParams.get(key);
-    if (queryParam == null || queryParam.values().isEmpty()) {
-      if (isMandatory) throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Parameter " + key + " missing");
-      else return defVal;
+    final QueryParameter queryParam = extractQueryParamForKey(queryParams, key, isMandatory);
+    if (queryParam == null && !isMandatory) {
+      return defVal;
     }
     final ValueList values = queryParam.values();
     if (!values.isLong(0)) {
