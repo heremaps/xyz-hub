@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,50 +71,38 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           + ") limitQuery ${{limit}}")
           .withQueryFragment("notExistsIdComparison", buildIdComparisonFragment(event, "a.", versionCheckFragment))
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
-          .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION ? "" : "NOT");
+          .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION ? "" : "NOT")
+          .withQueryFragment("iColumnExtension", "") //NOTE: This can be overridden by implementing subclasses
+          .withQueryFragment("iOffsetExtension", "")
+          .withQueryFragment("baseQuery", !is2LevelExtendedSpace(event)
+              ? build1LevelBaseQuery(event) //1-level extension
+              : build2LevelBaseQuery(event)) //2-level extension
+          .withQueryFragment("iColumnBase", "") //NOTE: This can be overridden by implementing subclasses
+          .withQueryFragment("iOffsetBase", "") //NOTE: This can be overridden by implementing subclasses
+          .withQueryFragment("iColumnIntermediate", "") //NOTE: This can be overridden by implementing subclasses
+          .withQueryFragment("iOffsetIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
     }
     else {
       query = new SQLQuery(
           "SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}}"
               + "    FROM ${schema}.${table} ${{tableSample}}"
-              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
+              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}")
+          .withQueryFragment("orderBy", buildOrderByFragment(event)) //NOTE: This can be overridden by implementing subclasses
+          .withQueryFragment("offset", ""); //NOTE: This can be overridden by implementing subclasses
     }
 
-    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, useExtensionQuery));
-    query.withQueryFragment("versionCheck", versionCheckFragment);
-    query.withQueryFragment("authorCheck", buildAuthorCheckFragment(event));
-    query.setQueryFragment("selection", buildSelectionFragment(event));
-    query.setQueryFragment("geo", buildGeoFragment(event));
-
-    query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
-    query.setQueryFragment("tableSample", ""); //NOTE: This can be overridden by implementing subclasses
-    query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
-    query.setQueryFragment("id", ", id");
-
-    query.setVariable(SCHEMA, getSchema());
-    query.setVariable(TABLE, getDefaultTable(event));
-
-    if (useExtensionQuery) {
-      query.setQueryFragment("iColumnExtension", ""); //NOTE: This can be overridden by implementing subclasses
-      query.setQueryFragment("iOffsetExtension", "");
-
-      SQLQuery baseQuery = !is2LevelExtendedSpace(event)
-          ? build1LevelBaseQuery(event) //1-level extension
-          : build2LevelBaseQuery(event); //2-level extension
-
-      query.setQueryFragment("baseQuery", baseQuery);
-
-      query.setQueryFragment("iColumnBase", ""); //NOTE: This can be overridden by implementing subclasses
-      query.setQueryFragment("iOffsetBase", ""); //NOTE: This can be overridden by implementing subclasses
-      query.setQueryFragment("iColumnIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
-      query.setQueryFragment("iOffsetIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
-    }
-    else {
-      query.setQueryFragment("orderBy", buildOrderByFragment(event)); //NOTE: This can be overridden by implementing subclasses
-      query.setQueryFragment("offset", ""); //NOTE: This can be overridden by implementing subclasses
-    }
-
-    return query;
+    return query
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event))
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, useExtensionQuery))
+        .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("authorCheck", buildAuthorCheckFragment(event))
+        .withQueryFragment("selection", buildSelectionFragment(event))
+        .withQueryFragment("geo", buildGeoFragment(event))
+        .withQueryFragment("iColumn", "") //NOTE: This can be overridden by implementing subclasses
+        .withQueryFragment("tableSample", "") //NOTE: This can be overridden by implementing subclasses
+        .withQueryFragment("limit", "") //NOTE: This can be overridden by implementing subclasses
+        .withQueryFragment("id", ", id");
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
@@ -227,7 +215,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    return (R) new FeatureResultSetHandler(false, false, this instanceof IterateFeatures itf ? itf.limit : -1).handle(rs);
+    return (R) new FeatureResultSetHandler(this instanceof IterateFeatures itf ? itf.limit : -1).handle(rs);
   }
 
   public static SQLQuery buildSelectionFragment(ContextAwareEvent event) {

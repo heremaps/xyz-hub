@@ -91,7 +91,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     if (isMvtRequested)
       return (R) GetFeaturesByBBox.defaultBinaryResultSetHandler(rs);
     else {
-      FeatureCollection collection = new FeatureResultSetHandler(true, true).handle(rs);
+      FeatureCollection collection = new FeatureResultSetHandler().handle(rs);
       if (resultIsPartial)
         collection.setPartial(true);
       return (R) collection;
