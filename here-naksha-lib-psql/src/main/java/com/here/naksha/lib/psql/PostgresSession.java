@@ -340,17 +340,6 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       }
       throw new IllegalArgumentException("STARTS_WITH operator requires a string as value");
     }
-    if (op == POpType.CONTAINS) {
-      addJsonPath(sql, path, path.size());
-      sql.add(" @> ");
-      sql.add("?::jsonb");
-      if (value instanceof String) {
-        parameter.add(value);
-      } else {
-        parameter.add(toJsonb(value));
-      }
-      return;
-    }
     if (op == POpType.EQ && pref == PRef.txn()) {
       sql.add("(");
       addJsonPath(sql, path, path.size());
@@ -364,7 +353,6 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       sql.add(")");
       return;
     }
-
     addJsonPath(sql, path, path.size());
     if (op == POpType.EQ) {
       sql.add(" = ");
@@ -376,6 +364,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       sql.add(" < ");
     } else if (op == POpType.LTE) {
       sql.add(" <= ");
+    } else if (op == POpType.CONTAINS) {
+      sql.add(" @> ");
     } else {
       throw new IllegalArgumentException("Unknown operation: " + op);
     }
@@ -387,7 +377,12 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     try (final Json jp = Json.get()) {
       final PGobject jsonb = new PGobject();
       jsonb.setType("jsonb");
-      jsonb.setValue(jp.writer().writeValueAsString(value));
+      if (value instanceof String && Json.mightBeJson((String) value)) {
+        // it's already a json - .writeValueAsString would add double quoting
+        jsonb.setValue((String) value);
+      } else {
+        jsonb.setValue(jp.writer().writeValueAsString(value));
+      }
       return jsonb;
     } catch (SQLException | JsonProcessingException e) {
       throw unchecked(e);

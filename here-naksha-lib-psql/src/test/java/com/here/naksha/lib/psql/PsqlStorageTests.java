@@ -1108,7 +1108,7 @@ public class PsqlStorageTests extends PsqlTests {
     WriteFeatures<String, StringCodec, ?> request = new WriteFeatures<>(new StringCodecFactory(), collectionId());
 
     // given
-    final String jsonReference = "{\"id\":\"32167\",\"properties\":{\"weight\":60,\"length\":null,\"color\":\"red\",\"ids\":[0,1,9],\"subJson\":{\"b\":1},\"references\":[{\"id\":\"urn:here::here:Topology:106003684\",\"type\":\"Topology\",\"prop\":{\"a\":1}}]}}";
+    final String jsonReference = "{\"id\":\"32167\",\"properties\":{\"weight\":60,\"length\":null,\"color\":\"red\",\"ids\":[0,1,9],\"ids2\":[\"a\",\"b\",\"c\"],\"subJson\":{\"b\":1},\"references\":[{\"id\":\"urn:here::here:Topology:106003684\",\"type\":\"Topology\",\"prop\":{\"a\":1}}]}}";
     ObjectReader reader = Json.get().reader();
     request.add(EWriteOp.CREATE, jsonReference);
     try (final MutableCursor<String, StringCodec> cursor =
@@ -1167,6 +1167,12 @@ public class PsqlStorageTests extends PsqlTests {
     // when - search array contains
     POp arraySearch = POp.contains(new NonIndexedPRef("properties", "ids"), 9);
     readFeatures.setPropertyOp(arraySearch);
+    // then
+    expect.accept(readFeatures);
+
+    // when - search array contains string
+    POp arrayStringSearch = POp.contains(new NonIndexedPRef("properties", "ids2"), "a");
+    readFeatures.setPropertyOp(arrayStringSearch);
     // then
     expect.accept(readFeatures);
 

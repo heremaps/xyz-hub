@@ -145,17 +145,17 @@ public class POp extends Op<POp> {
    * }
    * }</pre>
    * <br>
-   * You can query by:
+   * You can query path ["properties","reference"] by direct children:
    * <pre>{@code
    *   [{"id":"106003684"}]
    *   and
    *   [{"prop":{"a":1}}]
    * }</pre>
    * <br>
-   * But querying by sub properties won't work:
+   * But querying by sub property that is not direct child won't work:
    * <pre>{@code {"a":1} }</pre>
    *
-   * Also have in mind that provided {@link PRef} doesn't contain array properties in the middle of path.
+   * Also have in mind that provided {@link PRef} can't contain array properties in the middle of path.
    * Array property is allowed only as last element of path.
    * This is correct:
    * <pre>{@code properties -> reference}</pre><br>

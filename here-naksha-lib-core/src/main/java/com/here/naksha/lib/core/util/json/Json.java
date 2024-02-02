@@ -373,4 +373,9 @@ public final class Json implements AutoCloseable {
     }
     return writer;
   }
+
+  public static boolean mightBeJson(String json) {
+    String trimmed = json.trim();
+    return (trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"));
+  }
 }
