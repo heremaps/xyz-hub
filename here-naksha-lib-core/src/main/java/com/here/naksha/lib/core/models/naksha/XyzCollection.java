@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
+import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -339,4 +340,38 @@ public class XyzCollection extends NakshaFeature {
   @JsonProperty(ESTIMATED_DELETED_FEATURED)
   @JsonInclude(Include.NON_EMPTY)
   private long estimatedDeletedFeatures;
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    XyzCollection that = (XyzCollection) o;
+    return minAge == that.minAge
+        && disableHistory == that.disableHistory
+        && autoPurge == that.autoPurge
+        && partition == that.partition
+        && pointsOnly == that.pointsOnly
+        && unlogged == that.unlogged
+        && partitionCount == that.partitionCount
+        && estimatedFeatureCount == that.estimatedFeatureCount
+        && estimatedDeletedFeatures == that.estimatedDeletedFeatures;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        minAge,
+        disableHistory,
+        autoPurge,
+        partition,
+        pointsOnly,
+        unlogged,
+        partitionCount,
+        estimatedFeatureCount,
+        estimatedDeletedFeatures);
+  }
 }

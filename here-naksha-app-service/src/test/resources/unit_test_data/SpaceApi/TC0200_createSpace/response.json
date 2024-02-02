@@ -9,7 +9,8 @@
   "properties": {
     "collection": {
       "id": "um-mod-dev:test",
-      "type": "NakshaCollection"
+      "type": "NakshaCollection",
+      "autoPurge": true
     }
   }
 }

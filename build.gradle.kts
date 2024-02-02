@@ -456,6 +456,7 @@ project(":here-naksha-lib-handlers") {
         implementation(commons_lang3)
         implementation(commons_dbutils)
 
+        testImplementation(mockito)
         setOverallCoverage(0.0)
     }
 }

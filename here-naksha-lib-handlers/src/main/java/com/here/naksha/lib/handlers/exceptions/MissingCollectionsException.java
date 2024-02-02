@@ -19,16 +19,15 @@
 package com.here.naksha.lib.handlers.exceptions;
 
 import static com.here.naksha.lib.core.models.XyzError.NOT_FOUND;
-import static java.lang.String.join;
 
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 public final class MissingCollectionsException extends RuntimeException {
 
-  public MissingCollectionsException(@NotNull List<@NotNull String> missingCollectionIds) {
-    super("Could not find and auto-create collections: " + join(", ", missingCollectionIds));
+  public MissingCollectionsException(@NotNull XyzCollection collection) {
+    super("Could not find and auto-create collection: " + collection.getId());
   }
 
   public ErrorResult toErrorResult() {

@@ -262,11 +262,15 @@ public class RequestHelper {
     return request;
   }
 
+  public static @NotNull WriteXyzCollections createWriteCollectionsRequest(final @NotNull XyzCollection collection) {
+    return createWriteCollectionsRequest(List.of(collection));
+  }
+
   public static @NotNull WriteXyzCollections createWriteCollectionsRequest(
-      final @NotNull List<@NotNull String> collectionNames) {
+      final @NotNull List<@NotNull XyzCollection> collections) {
     final WriteXyzCollections writeXyzCollections = new WriteXyzCollections();
-    for (final String collectionId : collectionNames) {
-      writeXyzCollections.add(EWriteOp.CREATE, new XyzCollection(collectionId));
+    for (final XyzCollection collection : collections) {
+      writeXyzCollections.add(EWriteOp.CREATE, collection);
     }
     return writeXyzCollections;
   }

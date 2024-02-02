@@ -962,7 +962,7 @@ paths:
         be passed as a query parameter for the following request in order to
         continue the iteration from the marked position.
         
-
+        
         Note - The features in the response are not ordered (due to perf overhead),
         and so features may repeat across pages.
         If this limitation affects you, please discuss with Naksha team.
@@ -1400,16 +1400,23 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/EventHandler'
-          examples:
-            response:
-              value:
-                id: "um-mod-dev"
-                type: "EventHandler"
-                title: "Storage Handler for UniMap Moderation Dev Storage"
-                description: "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage"
-                className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
-                properties:
-                  storageId: "ID"
+          example:
+            id: "sample_handler"
+            type: "EventHandler"
+            title: "Sample Handler"
+            description: "Well written handler description"
+            className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
+            active: true
+            properties:
+              storageId: "some_storage_id"
+              collection:
+                id: "custom_collection_id"
+                type: "NakshaCollection"
+                maxAge: 0
+                history: true
+                autoPurge: false
+              autoCreateCollection: true
+              autoDeleteCollection: true
     SpaceRequest:
       required: true
       content:
@@ -1429,6 +1436,9 @@ components:
                   collection:
                     id: "um-mod-dev:topology"
                     type: "NakshaCollection"
+                    maxAge: 0
+                    history: true
+                    autoPurge: false
   responses:
     EmptyResponse:
       description: >-
@@ -1716,16 +1726,23 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/EventHandler'
-          examples:
-            response:
-              value:
-                id: "um-mod-dev"
-                type: "EventHandler"
-                title: "Storage Handler for UniMap Moderation Dev Storage"
-                description: "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage"
-                className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
-                properties:
-                  storageId: "ID"
+          example:
+            id: "sample_handler"
+            type: "EventHandler"
+            title: "Sample Handler"
+            description: "Well written handler description"
+            className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
+            active: true
+            properties:
+              storageId: "some_storage_id"
+              collection:
+                id: "custom_collection_id"
+                type: "NakshaCollection"
+                maxAge: 0
+                history: true
+                autoPurge: false
+              autoCreateCollection: true
+              autoDeleteCollection: true
     HandlersResponse:
       description: The list of event handlers.
       content:
@@ -1737,13 +1754,22 @@ components:
           examples:
             response:
               value:
-                - id: "um-mod-dev"
-                  type: "EventHandler"
-                  title: "Storage Handler for UniMap Moderation Dev Storage"
-                  description: "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage"
-                  className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
-                  properties:
-                    storageId: "ID"
+              - id: "sample_handler"
+                type: "EventHandler"
+                title: "Sample Handler"
+                description: "Well written handler description"
+                className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
+                active: true
+                properties:
+                  storageId: "some_storage_id"
+                  collection:
+                    id: "custom_collection_id"
+                    type: "NakshaCollection"
+                    maxAge: 0
+                    history: true
+                    autoPurge: false
+                  autoCreateCollection: true
+                  autoDeleteCollection: true
     SpaceResponse:
       description: The space details.
       content:
@@ -1763,6 +1789,9 @@ components:
                   collection:
                     id: "um-mod-dev:topology"
                     type: "NakshaCollection"
+                    maxAge: 0
+                    history: true
+                    autoPurge: false
     SpacesResponse:
       description: The list of spaces.
       content:
@@ -1784,6 +1813,9 @@ components:
                     collection:
                       id: "um-mod-dev:topology"
                       type: "NakshaCollection"
+                      maxAge: 0
+                      history: true
+                      autoPurge: false
   schemas:
     Error:
       type: object
@@ -2105,15 +2137,20 @@ components:
             Set to 'true' by default.
           type: boolean
       example:
-        id: sample_handler
-        type: EventHandler
-        title: Sample Hanlder
-        description: Well written handler description
-        className: com.here.naksha.lib.handlers.DefaultStorageHandler
+        id: "sample_handler"
+        type: "EventHandler"
+        title: "Sample Handler"
+        description: "Well written handler description"
+        className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
         active: true
-        extensionId:
         properties:
-          storageId: missing_collection_test_storage
+          storageId: "some_storage_id"
+          collection:
+            id: "custom_collection_id"
+            type: "NakshaCollection"
+            maxAge: 0
+            history: true
+            autoPurge: false
           autoCreateCollection: true
           autoDeleteCollection: true
     Space:
@@ -2193,6 +2230,12 @@ components:
           description: A value greater than zero implies that the collection shall be treated as deleted and represents the UTC Epoch timestamp in
             milliseconds when the deletion has been done.
           type: number
+        autoPurge:
+          description: >
+            If set to false, all features that will be deleted from the collection will get their "shadow copy" stored in separate `_del` collection. 
+            If set to true, all features that will be deleted from this collection won't have their "shadowy copy" created at stored anywhere.
+            By default, it is set to `false`.
+          type: boolean
     XyzNamespace:
       type: object
       description: The XYZ namespace object managed by Naksha service

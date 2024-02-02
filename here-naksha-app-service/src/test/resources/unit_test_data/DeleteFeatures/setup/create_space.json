@@ -8,8 +8,9 @@
   ],
   "properties": {
     "collection": {
-      "id": "um-mod-dev:topology",
-      "type": "NakshaCollection"
+      "id": "um-mod-dev:delete_features_test",
+      "type": "NakshaCollection",
+      "autoPurge": true
     }
   }
 }

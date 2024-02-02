@@ -123,7 +123,7 @@ public class NakshaHub implements INaksha {
     nakshaContext.attachToCurrentThread();
     try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
       logger.info("WriteCollections Request for {}, against Admin storage.", NakshaAdminCollection.ALL);
-      try (final Result wrResult = admin.execute(createWriteCollectionsRequest(NakshaAdminCollection.ALL));
+      try (final Result wrResult = admin.execute(createAdminCollectionsRequest());
           final ForwardCursor<XyzCollection, XyzCollectionCodec> cursor =
               wrResult.getXyzCollectionCursor(); ) {
         while (cursor.hasNext() && cursor.next()) {
@@ -161,6 +161,12 @@ public class NakshaHub implements INaksha {
 
     // 4. fetch / add latest config
     return configSetup(nakshaContext, customCfg, configId);
+  }
+
+  private static WriteXyzCollections createAdminCollectionsRequest() {
+    final WriteXyzCollections writeXyzCollections = new WriteXyzCollections();
+    NakshaAdminCollection.ALL.stream().map(XyzCollection::new).forEach(writeXyzCollections::create);
+    return writeXyzCollections;
   }
 
   private @Nullable NakshaHubConfig configSetup(
