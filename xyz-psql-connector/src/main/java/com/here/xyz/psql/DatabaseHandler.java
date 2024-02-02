@@ -29,10 +29,12 @@ import static com.here.xyz.psql.QueryRunner.SCHEMA;
 import static com.here.xyz.psql.QueryRunner.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQueries;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -41,10 +43,9 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.query.ExtendedSpace;
+import com.here.xyz.psql.query.GetFeaturesById;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
-import com.here.xyz.psql.query.helpers.FetchExistingFeatures;
-import com.here.xyz.psql.query.helpers.FetchExistingFeatures.FetchExistingFeaturesInput;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.TableExists;
@@ -65,6 +66,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -240,7 +242,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           /** Include Old states */
           if (includeOldStates) {
             List<String> idsToFetch = getAllIds(inserts, updates, upserts, deletes);
-            List<Feature> existingFeatures = run(new FetchExistingFeatures(new FetchExistingFeaturesInput(event, idsToFetch)));
+            List<Feature> existingFeatures = loadExistingFeatures(event, idsToFetch);
             if (existingFeatures != null) {
               collection.setOldFeatures(existingFeatures);
             }
@@ -390,6 +392,25 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             return collection;
         }
+    }
+
+    private List<Feature> loadExistingFeatures(ModifyFeaturesEvent event, List<String> idsToFetch) throws SQLException,
+        ErrorResponseException {
+        GetFeaturesByIdEvent fetchEvent = new GetFeaturesByIdEvent()
+            .withSpace(event.getSpace())
+            .withContext(event.getContext())
+            .withStreamId(event.getStreamId())
+            .withParams(event.getParams())
+            .withConnectorParams(event.getConnectorParams())
+            .withIds(idsToFetch);
+
+      try {
+        return run(new GetFeaturesById(fetchEvent)).getFeatures();
+      }
+      catch (JsonProcessingException e) {
+        logger.error("Error while fetching existing features during feature modification.", e);
+        return Collections.emptyList();
+      }
     }
 
     private List<String> getAllIds(List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {

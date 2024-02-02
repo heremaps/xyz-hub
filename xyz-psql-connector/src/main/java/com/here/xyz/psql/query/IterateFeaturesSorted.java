@@ -189,7 +189,7 @@ public class IterateFeaturesSorted extends IterateFeatures {
     @Override
     public FeatureCollection handle(ResultSet rs) throws SQLException {
       //FIXME: Do not use FeatureCollection as response vehicle
-      FeatureCollection cl = new FeatureResultSetHandler(false, true, limit).handle(rs);
+      FeatureCollection cl = new FeatureResultSetHandler(limit).handle(rs);
       List<List<Object>> hdata;
       try {
         hdata = cl.getFeatures().get(0).getProperties().get("handles");
