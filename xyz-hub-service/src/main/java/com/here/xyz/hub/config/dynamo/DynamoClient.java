@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,12 +65,12 @@ public class DynamoClient {
 
 
   public static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
-  static AWSCredentialsProvider customCredentialsProvider;
+  private static AWSCredentialsProvider customCredentialsProvider;
 
-  public final AmazonDynamoDBAsync client;
+  final AmazonDynamoDBAsync client;
   public final String tableName;
   public final DynamoDB db;
-  final ARN arn;
+  private final ARN arn;
 
   public DynamoClient(String tableArn, String localstackEndpoint) {
     arn = new ARN(tableArn);
@@ -104,7 +104,7 @@ public class DynamoClient {
     tableName = new ARN(tableArn).getResourceWithoutType();
   }
 
-  public Table getTable() {
+  Table getTable() {
     return db.getTable(tableName);
   }
 
@@ -150,7 +150,7 @@ public class DynamoClient {
     return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
   }
 
-  public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
+  Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
     return DynamoClient.dynamoWorkers.executeBlocking(future -> {
       try {
         ExecuteStatementResult result = client.executeStatement(request);
@@ -166,6 +166,23 @@ public class DynamoClient {
         future.fail(e);
       }
     });
+  }
+
+  @FunctionalInterface
+  interface ThrowingSupplier<R> {
+    R supply() throws Exception;
+  }
+
+  public <R> Future<R> executeQueryAsync(ThrowingSupplier<R> commandExecution) {
+    return DynamoClient.dynamoWorkers.executeBlocking(
+        promise -> {
+          try {
+              promise.complete(commandExecution.supply());
+            }
+            catch (Exception e) {
+              promise.fail(e);
+            }
+        });
   }
 
   private GlobalSecondaryIndex createGSI(IndexDefinition indexDefinition) {

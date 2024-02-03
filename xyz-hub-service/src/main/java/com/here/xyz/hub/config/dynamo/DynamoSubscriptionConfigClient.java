@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,96 +61,61 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
 
     @Override
     protected Future<Subscription> getSubscription(Marker marker, String subscriptionId) {
-        return DynamoClient.dynamoWorkers.executeBlocking(
-                future -> {
-                    try {
-                        logger.debug(marker, "Getting subscriptionId {} from Dynamo Table {}", subscriptionId, dynamoClient.tableName);
-                        final Item item = subscriptions.getItem("id", subscriptionId);
-                        if(item == null) {
-                            future.complete();
-                        } else {
-                            final Subscription subscription = Json.decodeValue(item.toJSON(), Subscription.class);
-                            future.complete(subscription);
-                        }
-                    }
-                    catch (Exception e) {
-                        future.fail(e);
-                    }
-                }
-        );
+      return dynamoClient.executeQueryAsync(() -> {
+        logger.debug(marker, "Getting subscriptionId {} from Dynamo Table {}", subscriptionId, dynamoClient.tableName);
+        final Item item = subscriptions.getItem("id", subscriptionId);
+        if (item == null)
+          return null;
+        else
+          return Json.decodeValue(item.toJSON(), Subscription.class);
+      });
     }
 
     @Override
     protected Future<List<Subscription>> getSubscriptionsBySource(Marker marker, String source) {
-        return DynamoClient.dynamoWorkers.executeBlocking(
-                future -> {
-                    try {
-                        logger.debug(marker, "Getting subscription by source {} from Dynamo Table {}", source, dynamoClient.tableName);
-                        final PageIterable<Item, QueryOutcome> items = subscriptions.getIndex("source-index").query(new QuerySpec().withHashKey("source", source)).pages();
+      return dynamoClient.executeQueryAsync(() -> {
+        logger.debug(marker, "Getting subscription by source {} from Dynamo Table {}", source, dynamoClient.tableName);
+        final PageIterable<Item, QueryOutcome> items = subscriptions.getIndex("source-index").query(new QuerySpec().withHashKey("source", source)).pages();
 
-                        List<Subscription> result = new ArrayList<>();
-                        items.forEach(page -> page.forEach(item -> result.add(Json.decodeValue(item.toJSON(), Subscription.class))));
-                        future.complete(result);
-                    }
-                    catch (Exception e) {
-                        future.fail(e);
-                    }
-                }
-        );
+        List<Subscription> result = new ArrayList<>();
+        items.forEach(page -> page.forEach(item -> result.add(Json.decodeValue(item.toJSON(), Subscription.class))));
+        return result;
+      });
     }
 
     @Override
     protected Future<List<Subscription>> getAllSubscriptions(Marker marker) {
-        return DynamoClient.dynamoWorkers.executeBlocking( future -> {
-                try {
-                    final List<Subscription> result = new ArrayList<>();
-                    subscriptions.scan().pages().forEach(p -> p.forEach(i -> {
-                        final Subscription subscription = Json.decodeValue(i.toJSON(), Subscription.class);
-                        result.add(subscription);
-                    }));
-                    future.complete(result);
-                }
-                catch (Exception e) {
-                    future.fail(e);
-                }
-            }
-        );
+      return dynamoClient.executeQueryAsync(() -> {
+        final List<Subscription> result = new ArrayList<>();
+        subscriptions.scan().pages().forEach(p -> p.forEach(i -> {
+          final Subscription subscription = Json.decodeValue(i.toJSON(), Subscription.class);
+          result.add(subscription);
+        }));
+        return result;
+      });
     }
 
     @Override
     protected Future<Void> storeSubscription(Marker marker, Subscription subscription) {
+      return dynamoClient.executeQueryAsync(() -> {
         logger.debug(marker, "Storing subscription ID {} into Dynamo Table {}", subscription.getId(), dynamoClient.tableName);
-        return DynamoClient.dynamoWorkers.executeBlocking(
-                future -> {
-                    try {
-                        subscriptions.putItem(Item.fromJSON(Json.encode(subscription)));
-                        future.complete();
-                    }
-                    catch (Exception e) {
-                        future.fail(e);
-                    }
-                }
-        );
+        subscriptions.putItem(Item.fromJSON(Json.encode(subscription)));
+        return null;
+      });
     }
 
     @Override
     protected Future<Subscription> deleteSubscription(Marker marker, String subscriptionId) {
+      return dynamoClient.executeQueryAsync(() -> {
         logger.debug(marker, "Removing subscription with ID {} from Dynamo Table {}", subscriptionId, dynamoClient.tableName);
-        return DynamoClient.dynamoWorkers.executeBlocking(future -> {
-                    try {
-                        DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
-                                .withPrimaryKey("id", subscriptionId)
-                                .withReturnValues(ReturnValue.ALL_OLD);
-                        DeleteItemOutcome response = subscriptions.deleteItem(deleteItemSpec);
-                        if (response.getItem() != null)
-                            future.complete(Json.decodeValue(response.getItem().toJSON(), Subscription.class));
-                        else
-                            future.fail(new RuntimeException("The subscription config was not found for subscription ID: " + subscriptionId));
-                    }
-                    catch (Exception e) {
-                        future.fail(e);
-                    }
-                }
-        );
+        DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
+            .withPrimaryKey("id", subscriptionId)
+            .withReturnValues(ReturnValue.ALL_OLD);
+        DeleteItemOutcome response = subscriptions.deleteItem(deleteItemSpec);
+        if (response.getItem() != null)
+          return Json.decodeValue(response.getItem().toJSON(), Subscription.class);
+        else
+          throw new RuntimeException("The subscription config was not found for subscription ID: " + subscriptionId);
+      });
     }
 }
