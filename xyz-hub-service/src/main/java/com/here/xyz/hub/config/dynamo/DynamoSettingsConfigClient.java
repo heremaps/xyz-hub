@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,43 +43,32 @@ public class DynamoSettingsConfigClient extends SettingsConfigClient {
 
   @Override
   protected Future<Setting> getSetting(Marker marker, String settingId) {
-    logger.info(marker, "Getting setting with ID: {}", settingId);
-    return DynamoClient.dynamoWorkers.executeBlocking(p -> {
-      try {
-        Item settingItem = settings.getItem("id", settingId);
-        if (settingItem == null) {
-          logger.info(marker, "Getting setting with ID: {} returned null", settingId);
-          p.complete();
-        }
-        else {
-          Map<String, Object> itemData = settingItem.asMap();
-          final Setting setting = DatabindCodec.mapper().convertValue(itemData, Setting.class);
-          if (setting != null)
-            logger.info(marker, "Setting ID: {} has been decoded", settingId);
-          else
-            logger.info(marker, "Setting ID: {} has been decoded to null", settingId);
-          p.complete(setting);
-        }
+    return dynamoClient.executeQueryAsync(() -> {
+      logger.info(marker, "Getting setting with ID: {}", settingId);
+      Item settingItem = settings.getItem("id", settingId);
+      if (settingItem == null) {
+        logger.info(marker, "Getting setting with ID: {} returned null", settingId);
+        return null;
       }
-      catch (Exception e) {
-        p.fail(e);
+      else {
+        Map<String, Object> itemData = settingItem.asMap();
+        final Setting setting = DatabindCodec.mapper().convertValue(itemData, Setting.class);
+        if (setting != null)
+          logger.info(marker, "Setting ID: {} has been decoded", settingId);
+        else
+          logger.info(marker, "Setting ID: {} has been decoded to null", settingId);
+        return setting;
       }
     });
   }
 
   @Override
   protected Future<Setting> storeSetting(Marker marker, Setting setting) {
-    logger.debug(marker, "Storing setting ID {} into Dynamo Table {}", setting.id, dynamoClient.tableName);
-    return DynamoClient.dynamoWorkers.executeBlocking(
-        promise -> {
-          try {
-            settings.putItem(Item.fromJSON(Json.encode(setting)));
-            promise.complete(setting);
-          }
-          catch (Exception e) {
-            promise.fail(e);
-          }
-        });
+    return dynamoClient.executeQueryAsync(() -> {
+      logger.debug(marker, "Storing setting ID {} into Dynamo Table {}", setting.id, dynamoClient.tableName);
+      settings.putItem(Item.fromJSON(Json.encode(setting)));
+      return setting;
+    });
   }
 
   @Override
