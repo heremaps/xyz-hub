@@ -35,7 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public class SubscriptionApi extends Api {
+public class SubscriptionApi extends SpaceBasedApi {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -62,11 +62,10 @@ public class SubscriptionApi extends Api {
 
   private void getSubscription(final RoutingContext context) {
     try {
-      final Marker marker = Api.Context.getMarker(context);
-      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final String spaceId = getSpaceId(context);
       final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
 
-      getAndValidateSpace(marker, spaceId)
+      getAndValidateSpace(getMarker(context), spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
           .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
           .onSuccess(subscription -> sendResponse(context, OK, subscription))
@@ -78,10 +77,9 @@ public class SubscriptionApi extends Api {
 
   private void getSubscriptions(final RoutingContext context) {
     try {
-      final Marker marker = Api.Context.getMarker(context);
-      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final String spaceId = getSpaceId(context);
 
-      getAndValidateSpace(marker, spaceId)
+      getAndValidateSpace(getMarker(context), spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
           .compose(v -> SubscriptionHandler.getSubscriptions(context, spaceId))
           .onSuccess(subscription -> sendResponse(context, OK, subscription))
@@ -93,8 +91,8 @@ public class SubscriptionApi extends Api {
 
   private void postSubscription(final RoutingContext context) {
     try {
-      final Marker marker = Api.Context.getMarker(context);
-      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final Marker marker = getMarker(context);
+      final String spaceId = getSpaceId(context);
       final Subscription subscription = getSubscriptionInput(context);
       subscription.setSource(spaceId);
 
@@ -113,15 +111,14 @@ public class SubscriptionApi extends Api {
 
   private void putSubscription(final RoutingContext context) {
     try {
-      final Marker marker = Api.Context.getMarker(context);
-      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final String spaceId = getSpaceId(context);
       final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
       final Subscription subscription = getSubscriptionInput(context);
       subscription.setId(subscriptionId);
       subscription.setSource(spaceId);
       validateSubscriptionRequest(subscription);
 
-      getAndValidateSpace(marker, spaceId)
+      getAndValidateSpace(getMarker(context), spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
           .compose(v -> SubscriptionHandler.createOrReplaceSubscription(context, subscription))
           .onSuccess(s -> sendResponse(context, OK, s))
@@ -133,11 +130,10 @@ public class SubscriptionApi extends Api {
 
   private void deleteSubscription(final RoutingContext context) {
     try {
-      final Marker marker = Api.Context.getMarker(context);
-      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final String spaceId = getSpaceId(context);
       final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
 
-      getAndValidateSpace(marker, spaceId)
+      getAndValidateSpace(getMarker(context), spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
           .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
           .compose(subscription -> SubscriptionHandler.deleteSubscription(context, subscription))

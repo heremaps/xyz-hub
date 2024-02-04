@@ -90,7 +90,7 @@ public class AdminApi extends Api {
 
   private void onStorageStatistics(final RoutingContext context) {
     try {
-      Marker marker = Api.Context.getMarker(context);
+      Marker marker = getMarker(context);
       AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_STATISTICS);
       StorageStatisticsProvider.provideStorageStatistics(marker, Query.getLong(context, INCLUDE_CHANGES_SINCE, 0L))
           .onFailure(t -> sendErrorResponse(context, t))
@@ -147,7 +147,7 @@ public class AdminApi extends Api {
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix()
           .useAdminCapabilities(XyzHubAttributeMap.forIdValues(capability));
 
-      evaluateRights(Api.Context.getMarker(context), requestRights, tokenRights);
+      evaluateRights(getMarker(context), requestRights, tokenRights);
     }
   }
 }

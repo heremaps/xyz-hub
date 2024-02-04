@@ -58,7 +58,7 @@ public class ChangesetApi extends SpaceBasedApi {
     try {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, false);
       //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
-      SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
+      SpaceConnectorBasedHandler.execute(getMarker(context),
                       space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
               .onSuccess(result -> sendResponse(context,result))
               .onFailure(t -> this.sendErrorResponse(context, t));
@@ -75,7 +75,7 @@ public class ChangesetApi extends SpaceBasedApi {
     try {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, true);
       //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
-      SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
+      SpaceConnectorBasedHandler.execute(getMarker(context),
               space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
               .onSuccess(result -> sendResponse(context, result))
               .onFailure(t -> this.sendErrorResponse(context, t));
@@ -96,7 +96,6 @@ public class ChangesetApi extends SpaceBasedApi {
   }
 
   private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, final boolean useChangesetCollection) throws HttpException {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
     final String pageToken = Query.getString(context, Query.PAGE_TOKEN, null);
     final long limit = Query.getLong(context, Query.LIMIT, 10_000L);
 
@@ -114,7 +113,7 @@ public class ChangesetApi extends SpaceBasedApi {
     validateGetChangesetsQueryParams(startVersion, endVersion, useChangesetCollection);
 
     return new IterateChangesetsEvent()
-            .withSpace(spaceId)
+            .withSpace(getSpaceId(context))
             .withUseCollection(useChangesetCollection)
             .withStartVersion(startVersion)
             .withEndVersion(endVersion)
@@ -142,7 +141,7 @@ public class ChangesetApi extends SpaceBasedApi {
    * Delete changesets by version number
    */
   private void deleteChangesets(final RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
+    final String spaceId = getSpaceId(context);
     final PropertyQuery version = Query.getPropertyQuery(context.request().query(), "version", false);
 
     if (version == null || version.getValues().isEmpty()) {
@@ -159,14 +158,14 @@ public class ChangesetApi extends SpaceBasedApi {
       if (minVersion < 1)
         throw new NumberFormatException();
 
-      SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
+      SpaceConnectorBasedHandler.execute(getMarker(context),
               space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space),
               new DeleteChangesetsEvent()
                   .withSpace(spaceId)
                   .withRequestedMinVersion(minVersion))
           .onSuccess(result -> {
             this.sendResponse(context, HttpResponseStatus.NO_CONTENT, null);
-            Marker marker = Api.Context.getMarker(context);
+            Marker marker = getMarker(context);
             Service.spaceConfigClient.get(marker, spaceId)
                 .compose(space -> Service.spaceConfigClient.store(marker, space.withMinVersion(minVersion)))
                 .onSuccess(v -> logger.info(marker, "Updated minVersion for space {}", spaceId))
@@ -180,11 +179,9 @@ public class ChangesetApi extends SpaceBasedApi {
   }
 
   private void getChangesetStatistics(final RoutingContext context) {
-    final Marker marker = Api.Context.getMarker(context);
     final Function<Space, Future<Space>> changesetAuthorization = space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space);
-    final String spaceId = context.pathParam(Path.SPACE_ID);
 
-    getChangesetStatistics(marker, changesetAuthorization, spaceId)
+    getChangesetStatistics(getMarker(context), changesetAuthorization, getSpaceId(context))
         .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
         .onFailure(t -> sendErrorResponse(context, t));
   }

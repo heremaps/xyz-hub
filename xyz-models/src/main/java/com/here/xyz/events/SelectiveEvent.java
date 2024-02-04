@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.here.xyz.models.hub.Ref;
 import java.util.List;
 
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
@@ -66,67 +67,6 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
       parsedRef = new Ref(getRef());
 
     return parsedRef;
-  }
-
-  public static class Ref {
-    public static final String HEAD = "HEAD";
-    public static final String ALL_VERSIONS = "*";
-    private long version = -1;
-    private boolean head;
-    private boolean allVersions;
-
-    public Ref(String ref) {
-      if (ref == null || ref.isEmpty() || HEAD.equals(ref))
-        head = true;
-      else if (ALL_VERSIONS.equals(ref))
-        allVersions = true;
-      else
-        try {
-          version = Long.parseLong(ref);
-          if (version < 0)
-            throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
-        }
-        catch (NumberFormatException e) {
-          throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
-        }
-    }
-
-    public long getVersion() {
-      if (!isSingleVersion())
-        throw new NumberFormatException("Ref is not depicting a single version.");
-      if (isHead())
-        throw new NumberFormatException("Version number of alias HEAD is not known for this ref.");
-      return version;
-    }
-
-    public boolean isHead() {
-      return head;
-    }
-
-    public boolean isAllVersions() {
-      return allVersions;
-    }
-
-    public boolean isSingleVersion() {
-      return !isAllVersions();
-    }
-
-    @Override
-    public String toString() {
-      if (version < 0 && !head && !allVersions)
-        throw new IllegalArgumentException("Not a valid ref");
-      if (head)
-        return HEAD;
-      if (allVersions)
-        return ALL_VERSIONS;
-      return String.valueOf(version);
-    }
-
-    public static class InvalidRef extends IllegalArgumentException {
-      private InvalidRef(String message) {
-        super(message);
-      }
-    }
   }
 
   public long getMinVersion() {

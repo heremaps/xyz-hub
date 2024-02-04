@@ -47,22 +47,19 @@ public class TagApi extends SpaceBasedApi {
 
   // TODO auth
   private void createTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
-
     deserializeTag(context.body().asString())
-        .compose(tag -> createTag(Api.Context.getMarker(context), spaceId, tag.getId(), tag.getVersion()))
+        .compose(tag -> createTag(getMarker(context), getSpaceId(context), tag.getId(), tag.getVersion()))
         .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
   // TODO auth
   private void deleteTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
+    final String spaceId = getSpaceId(context);
     final String tagId = context.pathParam(Path.TAG_ID);
-    final Marker marker = Api.Context.getMarker(context);
 
-    getSpace(marker, spaceId)
-        .compose(s -> deleteTag(Api.Context.getMarker(context), spaceId, tagId))
+    getSpace(getMarker(context), spaceId)
+        .compose(s -> deleteTag(getMarker(context), spaceId, tagId))
         .compose(result -> result != null
             ? Future.succeededFuture(result)
             : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found")))
@@ -72,9 +69,9 @@ public class TagApi extends SpaceBasedApi {
 
   // TODO auth
   private void getTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
+    final String spaceId = getSpaceId(context);
     final String tagId = context.pathParam(Path.TAG_ID);
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = getMarker(context);
 
     getSpace(marker, spaceId)
         .compose(s -> Service.tagConfigClient.getTag(marker, tagId, spaceId))
@@ -87,9 +84,9 @@ public class TagApi extends SpaceBasedApi {
 
   // TODO auth
   private void updateTag(RoutingContext context) {
-    final String spaceId = context.pathParam(Path.SPACE_ID);
+    final String spaceId = getSpaceId(context);
     final String tagId = context.pathParam(Path.TAG_ID);
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = getMarker(context);
 
     final Future<Long> inputFuture = deserializeTag(context.body().asString())
         .map(Tag::getVersion)

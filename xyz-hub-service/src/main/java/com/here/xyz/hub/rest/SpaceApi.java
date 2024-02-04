@@ -27,7 +27,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
@@ -58,10 +57,7 @@ public class SpaceApi extends SpaceBasedApi {
    * Read a space.
    */
   public void getSpace(final RoutingContext context) {
-    new MatrixReadQuery(
-        context,
-        context.pathParam(ApiParam.Path.SPACE_ID)
-    ).execute(this::sendResponse, this::sendErrorResponse);
+    new MatrixReadQuery(context, getSpaceId(context)).execute(this::sendResponse, this::sendErrorResponse);
   }
 
   /**
@@ -113,12 +109,12 @@ public class SpaceApi extends SpaceBasedApi {
       context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
       return;
     }
-    String pathId = context.pathParam(Path.SPACE_ID);
+    String spaceId = getSpaceId(context);
 
     if (input.getString("id") == null) {
-      input.put("id", pathId);
+      input.put("id", spaceId);
     }
-    if (!input.getString("id").equals(pathId)) {
+    if (!input.getString("id").equals(spaceId)) {
       context.fail(
           new HttpException(BAD_REQUEST, "The resource ID in the body does not match the resource ID in the path."));
       return;
@@ -136,7 +132,7 @@ public class SpaceApi extends SpaceBasedApi {
    * Delete a space.
    */
   public void deleteSpace(final RoutingContext context) {
-    Map<String,Object> input = new JsonObject().put("id", context.pathParam(Path.SPACE_ID)).getMap();
+    Map<String,Object> input = new JsonObject().put("id", getSpaceId(context)).getMap();
     boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.DELETE, true, dryRun);
 
