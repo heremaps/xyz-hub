@@ -205,7 +205,7 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates and executes a ModifyFeatureOp
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
-      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr, boolean useSpaceContext ) 
+      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr, boolean useSpaceContext )
   {
     try {
         if (checkModificationOnSuper(context, getSpaceContext(context)))
@@ -213,8 +213,8 @@ public class FeatureApi extends SpaceBasedApi {
         executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, useSpaceContext ? getSpaceContext(context) : DEFAULT);
       } catch (HttpException e) {
         sendErrorResponse(context, e);
-      } 
-  }       
+      }
+  }
 
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr) {
@@ -246,7 +246,7 @@ public class FeatureApi extends SpaceBasedApi {
       task.author = Api.Context.getAuthor(context);
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
-      logger.warn(Api.Context.getMarker(context), e.getMessage(), e);
+      logger.warn(getMarker(context), e.getMessage(), e);
       context.fail(e);
     }
   }

@@ -21,7 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.SelectiveEvent.Ref.HEAD;
+import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
@@ -29,7 +29,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMP
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.SelectiveEvent;
-import com.here.xyz.events.SelectiveEvent.Ref;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;

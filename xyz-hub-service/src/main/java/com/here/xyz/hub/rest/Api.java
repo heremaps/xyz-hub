@@ -63,6 +63,7 @@ import com.here.xyz.responses.changesets.ChangesetCollection;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
@@ -143,6 +144,11 @@ public abstract class Api {
     return false;
   }
 
+  private void sendInternalServerError(RoutingContext context, Throwable t) {
+    logger.error("Handling as internal server error:", t);
+    sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Server error!", t));
+  }
+
   protected Handler<RoutingContext> handleErrors(ThrowingHandler<RoutingContext> handler) {
     return context -> {
       try {
@@ -152,14 +158,30 @@ public abstract class Api {
         sendErrorResponse(context, e);
       }
       catch (Exception e) {
-        logger.error("Handling as internal server error:", e);
-        sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Server error!", e));
+        sendInternalServerError(context, e);
       }
     };
   }
 
+  protected <R> Handler<RoutingContext> handle(ThrowingTask<R, RoutingContext> taskHandler) {
+    return handleErrors(context -> {
+      taskHandler.execute(context)
+          .onSuccess(response -> sendResponseWithXyzSerialization(context, OK, response))
+          .onFailure(t -> {
+            if (t instanceof HttpException httpException)
+              sendErrorResponse(context, httpException);
+            else
+              sendInternalServerError(context, t);
+          });
+    });
+  }
+
   public interface ThrowingHandler<E> {
     void handle(E event) throws Exception;
+  }
+
+  public interface ThrowingTask<R, E> {
+    Future<R> execute(E event) throws Exception;
   }
 
   /**
@@ -396,14 +418,14 @@ public abstract class Api {
         }
 
         //This is an exception sent by intention and nothing special, no need for stacktrace logging.
-        logger.warn(Context.getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
+        logger.warn(getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
         sendErrorResponse(context, httpException, error);
         return;
       }
     }
 
     //This is an exception that is not done by intention.
-    logger.error(Context.getMarker(context), "Unintentional Error:", e);
+    logger.error(getMarker(context), "Unintentional Error:", e);
     XYZHubRESTVerticle.sendErrorResponse(context, e);
   }
 
@@ -422,7 +444,7 @@ public abstract class Api {
         .setStatusCode(status.code())
         .setStatusMessage(status.reasonPhrase())
         .end(new ErrorResponse()
-            .withStreamId(Api.Context.getMarker(context).getName())
+            .withStreamId(getMarker(context).getName())
             .withError(error)
             .withErrorMessage(errorMessage).serialize());
   }
@@ -440,7 +462,7 @@ public abstract class Api {
         .setStatusCode(httpError.status.code())
         .setStatusMessage(httpError.status.reasonPhrase())
         .end(new ErrorResponse()
-            .withStreamId(Api.Context.getMarker(context).getName())
+            .withStreamId(getMarker(context).getName())
             .withErrorDetails(httpError.errorDetails)
             .withError(error)
             .withErrorMessage(httpError.getMessage()).serialize());
@@ -544,11 +566,12 @@ public abstract class Api {
 
     byte[] response;
     try {
-      if(o instanceof ByteArrayOutputStream)
-        response = ((ByteArrayOutputStream) o).toByteArray();
+      if (o instanceof ByteArrayOutputStream baos)
+        response = baos.toByteArray();
       else
         response = Json.encode(o).getBytes();
-    } catch (EncodeException e) {
+    }
+    catch (EncodeException e) {
       sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
       return;
     }
@@ -565,7 +588,10 @@ public abstract class Api {
 
     byte[] response;
     try {
-      response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o) : XyzSerializable.serialize(o, type)).getBytes();
+      if (o == null)
+        response = new byte[]{};
+      else
+        response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o) : XyzSerializable.serialize(o, type)).getBytes();
     }
     catch (EncodeException e) {
       sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
@@ -610,6 +636,10 @@ public abstract class Api {
       final ZlibWrapper wrapper = instance.determineWrapper(acceptEncoding);
       return wrapper == ZlibWrapper.GZIP || wrapper == ZlibWrapper.ZLIB;
     }
+  }
+
+  public static Marker getMarker(RoutingContext context) {
+    return Context.getMarker(context);
   }
 
   public static final class Context {

@@ -56,14 +56,12 @@ import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
-
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.io.IOException;
 import java.util.List;
-import org.apache.logging.log4j.Marker;
 
 public class FeatureQueryApi extends SpaceBasedApi {
 
@@ -229,12 +227,12 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withContext(spaceContext)
           .withRef(version);
 
-       
+
        if( event.getGeometry() != null && !( (event.getGeometry() instanceof Point) && event.getRadius() == 0 ) )
        { boolean bCrossDateLine = false;
-         try 
+         try
          { bCrossDateLine = GeoTools.geometryCrossesDateline(event.getGeometry(), event.getRadius()); }
-         catch (Exception e) 
+         catch (Exception e)
          { throw new HttpException(BAD_REQUEST,e.getMessage()); }
 
          if( bCrossDateLine )
@@ -504,7 +502,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
    * Parses the body of the request as a FeatureCollection or a Feature object and returns the features as a list.
    */
   private Geometry getBodyAsGeometry(final RoutingContext context) throws HttpException {
-    final Marker logMarker = Context.getMarker(context);
     try {
       final String text = context.body().asString();
       if (text == null) {

@@ -4,9 +4,10 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
+import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
-import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.responses.ErrorResponse;
 import io.vertx.ext.web.RoutingContext;
@@ -62,4 +63,8 @@ public abstract class SpaceBasedApi extends Api {
   }
 
   protected int getLimit(RoutingContext context) throws HttpException { return getLimit(context, DEFAULT_FEATURE_LIMIT ); }
+
+  protected final String getSpaceId(RoutingContext context) {
+    return context.pathParam(Path.SPACE_ID);
+  }
 }

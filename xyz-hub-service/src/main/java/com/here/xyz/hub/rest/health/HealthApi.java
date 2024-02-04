@@ -22,7 +22,6 @@ package com.here.xyz.hub.rest.health;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
-import com.google.common.base.Strings;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
@@ -131,7 +130,7 @@ public class HealthApi extends Api {
           .end(responseString);
     }
     catch (Exception e) {
-      logger.error(Context.getMarker(context), "Error while doing the health-check: ", e);
+      logger.error(getMarker(context), "Error while doing the health-check: ", e);
       context.response().setStatusCode(OK.code())
           .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
           .end(new JsonObject().put("status", new JsonObject().put("result", "WARNING")).encode());

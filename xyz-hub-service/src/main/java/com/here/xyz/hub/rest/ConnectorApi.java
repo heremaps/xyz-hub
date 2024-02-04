@@ -19,7 +19,10 @@
 
 package com.here.xyz.hub.rest;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.Authorization;
@@ -216,7 +219,7 @@ public class ConnectorApi extends Api {
     public static void authorizeManageConnectorsRights(RoutingContext context, String connectorId, Handler<AsyncResult<Void>> handler) {
       authorizeManageConnectorsRights(context, Collections.singletonList(connectorId), handler);
     }
-      
+
     public static void authorizeManageConnectorsRights(RoutingContext context, List<String> connectorIds, Handler<AsyncResult<Void>> handler) {
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
       List<CompletableFuture<Void>> futureList = connectorIds == null ? Collections.emptyList()
@@ -225,7 +228,7 @@ public class ConnectorApi extends Api {
       CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0]))
           .thenRun(() -> {
             try {
-              evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
+              evaluateRights(getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
               handler.handle(Future.succeededFuture());
             } catch (HttpException e) {
               handler.handle(Future.failedFuture(e));
