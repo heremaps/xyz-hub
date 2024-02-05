@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,6 +61,12 @@ public class XyzNamespace implements XyzSerializable {
    * A flag indicating the object should be treated as being deleted.
    */
   private boolean deleted;
+
+  /**
+   * A flag indicating the object is in a state of conflict.
+   * E.g., if the object resides within a branch that was attempted to be rebased or merged recently.
+   */
+  private boolean conflicting;
 
   /**
    * The space-version of the feature within the space's versions.
@@ -306,6 +312,19 @@ public class XyzNamespace implements XyzSerializable {
   @SuppressWarnings("unused")
   public XyzNamespace withDeleted(boolean deleted) {
     setDeleted(deleted);
+    return this;
+  }
+
+  public boolean isConflicting() {
+    return conflicting;
+  }
+
+  public void setConflicting(boolean conflicting) {
+    this.conflicting = conflicting;
+  }
+
+  public XyzNamespace withConflicting(boolean conflicting) {
+    setConflicting(conflicting);
     return this;
   }
 

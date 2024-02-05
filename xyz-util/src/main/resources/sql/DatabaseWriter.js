@@ -21,6 +21,7 @@ class DatabaseWriter {
 
   schema;
   table;
+  tableBaseVersion;
 
   /**
    * @type {boolean}
@@ -39,9 +40,10 @@ class DatabaseWriter {
    */
   resultParsers = {};
 
-  constructor(schema, table, batchMode = false) {
+  constructor(schema, table, tableBaseVersion, batchMode = false) {
     this.schema = schema;
     this.table = table;
+    this.tableBaseVersion = tableBaseVersion;
     this.batchMode = batchMode;
   }
 
@@ -195,18 +197,24 @@ class DatabaseWriter {
    * @param {function(FeatureModificationExecutionResult) : FeatureModificationExecutionResult} resultHandler
    * @returns {FeatureModificationExecutionResult}
    */
-  insertHistoryRow(inputFeature, version, operation, author, resultHandler) {
+  insertHistoryRow(inputFeature, existingFeature, version, operation, author, resultHandler) {
     //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
     //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT / WKB / BYTEA
+    //TODO: In case the update happens into the same table where the existing feature is coming from, the original createdAt TS has to be returned using "RETURNING - see: #upsertRow()
     this.enrichTimestamps(inputFeature, true);
     let sql = `INSERT INTO "${this.schema}"."${this.table}"
                       (id, version, operation, author, jsondata, geo)
                   VALUES ($1, $2, $3, $4,
                           CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
                               $5::JSONB - 'geometry'
-                          ELSE 
+                          ELSE
                               jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
-                                        (SELECT jsondata->'properties'->'${XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this.table}" WHERE id = $1 AND next_version = $2::BIGINT))
+                                      CASE WHEN $7::BIGINT > -1 THEN
+                                          to_jsonb($7::BIGINT)
+                                      ELSE
+                                          (SELECT jsondata->'properties'->'${XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this.table}" WHERE id = $1 AND next_version = $2::BIGINT)
+                                      END
+                              )
                           END,
                           CASE
                               WHEN $6::JSONB IS NULL THEN NULL
@@ -214,22 +222,27 @@ class DatabaseWriter {
 
     let method = "insertHistoryRow";
     if (!this.plans[method]) {
-      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB"]);
+      this.plans[method] = this._preparePlan(sql, ["TEXT", "BIGINT", "CHAR", "TEXT", "JSONB", "JSONB", "BIGINT"]);
       this.parameterSets[method] = [];
       this.resultParsers[method] = [];
     }
 
+    let createdAtFromExistingFeature = !existingFeature ? -1 : existingFeature.properties[XYZ_NS].createdAt;
     this.parameterSets[method].push([
       inputFeature.id,
       version,
       operation,
       author,
       inputFeature,
-      inputFeature.geometry
+      inputFeature.geometry,
+      createdAtFromExistingFeature
     ]);
     this.resultParsers[method].push(result => {
-      //FIXME: Extract written creation timestamp if applicable
-      return resultHandler(new FeatureModificationExecutionResult(inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation], inputFeature, version, author));
+      let executedAction = inputFeature.properties[XYZ_NS].deleted ? ExecutionAction.DELETED : ExecutionAction.fromOperation[operation];
+      if (executedAction == ExecutionAction.UPDATED && createdAtFromExistingFeature > -1)
+        //Inject createdAt
+        inputFeature.properties[XYZ_NS].createdAt = createdAtFromExistingFeature;
+      return resultHandler(new FeatureModificationExecutionResult(executedAction, inputFeature, version + this.tableBaseVersion, author));
     });
 
     if (!this.batchMode)

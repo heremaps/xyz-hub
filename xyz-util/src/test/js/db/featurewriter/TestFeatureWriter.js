@@ -25,14 +25,15 @@ const FeatureWriter = plv8.FeatureWriter;
 const DatabaseWriter = plv8.DatabaseWriter;
 
 
-global.queryContext = () => ({
-  schema: "public",
-  tables: ["composite-export-space", "composite-export-space-ext", "composite-export-space-ext-ext"],
-  context: "DEFAULT",
-  historyEnabled: false
-});
+global.queryContext = () => TestFeatureWriter.queryContext;
 
 class TestFeatureWriter {
+  static queryContext = {
+    schema: "public",
+    tables: ["composite-export-space", "composite-export-space-ext", "composite-export-space-ext-ext"],
+    context: "DEFAULT",
+    historyEnabled: false
+  };
 
   inputFeature = {
     "id": "id4",
@@ -64,6 +65,31 @@ class TestFeatureWriter {
     featureHooks: null
   }];
 
+  sqlQueryJson = {
+    "namedParameters" : {
+      "jsonInput" : "[{\"updateStrategy\":{\"onExists\":\"REPLACE\",\"onNotExists\":\"CREATE\",\"onVersionConflict\":\"MERGE\",\"onMergeConflict\":\"ERROR\"},\"featureData\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":\"f1\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[0.0,0.0,0.0]},\"properties\":{\"@ns:com:here:xyz\":{\"createdAt\":1755901967515,\"updatedAt\":1755901967698,\"version\":2},\"B\":\"valueB\"}}]},\"partialUpdates\":false}]",
+      "version" : 3,
+      "author" : "Test Author",
+      "returnResult" : false
+    },
+    "queryId" : "75b29e65-a04b-4da2-ac40-e8054a247dab",
+    "context" : {
+      "schema" : "public",
+      "historyEnabled" : true,
+      "tables" : [ "BMMerge", "BMMerge_0_2_2" ],
+      "tableBaseVersions" : [ 0, 2 ],
+      "baseVersion" : 1,
+      "batchMode" : true
+    },
+    "text" : "SELECT write_features(#{jsonInput}, 'Modifications', #{author}, #{returnResult}, #{version})"
+  }
+
+  runFromSqlQueryJson() {
+    TestFeatureWriter.queryContext = this.sqlQueryJson.context;
+    let result = FeatureWriter.writeFeatureModifications(JSON.parse(this.sqlQueryJson.namedParameters.modifications || this.sqlQueryJson.namedParameters.featureModificationList || this.sqlQueryJson.namedParameters.jsonInput), this.sqlQueryJson.namedParameters.author, this.sqlQueryJson.namedParameters.version);
+    console.log("Returned result from FeatureWriter: ", result);
+  }
+
   run() {
     let result = FeatureWriter.writeFeature(this.inputFeature, null, "REPLACE", "CREATE", null, null, false, null);
     console.log("Returned result from FeatureWriter: ", result);
@@ -71,4 +97,5 @@ class TestFeatureWriter {
 
 }
 
-new TestFeatureWriter().run();
+// new TestFeatureWriter().run();
+new TestFeatureWriter().runFromSqlQueryJson();

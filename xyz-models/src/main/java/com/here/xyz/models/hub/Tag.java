@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -177,6 +177,6 @@ public class Tag implements XyzSerializable {
 
   public static boolean isValidId(String tagId) {
     return !Strings.isNullOrEmpty(tagId) && !HEAD.equals(tagId) && !ALL_VERSIONS.equals(tagId)
-        && Pattern.matches("^[a-zA-Z][a-zA-Z0-9_-]{0,49}$", tagId);
+        && Pattern.matches("^[^0-9\s][^\s:]{0,49}$", tagId);
   }
 }

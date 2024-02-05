@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.config.dynamo;
 
+import static com.here.xyz.hub.Service.branchConfigClient;
 import static com.here.xyz.hub.Service.configuration;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.json.jackson.DatabindCodec.mapper;
@@ -49,6 +50,8 @@ import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
+
+import com.here.xyz.models.hub.Branch;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
@@ -147,7 +150,15 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
           logger.info(marker, "Space ID: {} has been decoded to null", spaceId);
         return space;
       }
-    });
+    })
+        //TODO: Do the following on SpaceConfigClient level rather than inside the specific Dynamo implementation
+        .compose(space -> space == null ? Future.succeededFuture(null): branchConfigClient.load(space.getId())
+        .compose(branches -> {
+          Map<String, Branch> spaceBranches = new HashMap<>();
+          space.setBranches(spaceBranches);
+          branches.forEach(branch -> spaceBranches.put(branch.getId(), branch));
+          return Future.succeededFuture(space);
+        }));
   }
 
   @Override

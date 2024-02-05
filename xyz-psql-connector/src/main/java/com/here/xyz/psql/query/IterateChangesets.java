@@ -113,23 +113,32 @@ public class IterateChangesets extends IterateFeatures<IterateChangesetsEvent, C
   }
 
   @Override
-  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName, long baseVersion) {
     //TODO: Check if this check could be pulled up, because when requesting history versions from a range, the next-version anyways should not play any role
     if (ref.isRange())
       return new SQLQuery("");
-    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName, baseVersion);
   }
 
+  //Enhances select clause by adding operation & author
   @Override
-  protected SQLQuery buildSelectClause(IterateChangesetsEvent event, int dataset) {
+  protected SQLQuery buildSelectClause(IterateChangesetsEvent event, int dataset, long baseVersion) {
     return new SQLQuery("${{selectClauseWithoutExtraFields}}, operation, author")
-        .withQueryFragment("selectClauseWithoutExtraFields", super.buildSelectClause(event, dataset));
+        .withQueryFragment("selectClauseWithoutExtraFields", super.buildSelectClause(event, dataset, baseVersion));
   }
 
+  //Enhances the limit by adding one extra feature that is loaded just for the sake of finding out whether there is another page (extra feature is not part of the response)
+  //TODO: Check if that mechanism for preventing the last empty page (edge case) can be prevented also for IterateFeatures by pulling this up
   @Override
   protected SQLQuery buildLimitFragment(IterateChangesetsEvent event) {
     //Query one more feature as requested, to be able to determine if we need to include a nextPageToken
     return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit() + 1);
+  }
+
+  //Ensures that *all* versions of a feature are returned, also the ones from base branches (even if normally these would be masked)
+  @Override
+  protected SQLQuery buildBranchCompositionFilter() {
+    return new SQLQuery("");
   }
 
   public ChangesetCollection handle(ResultSet rs) throws SQLException {

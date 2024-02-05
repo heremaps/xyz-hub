@@ -36,6 +36,7 @@ import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
@@ -46,6 +47,7 @@ import com.here.xyz.hub.Config;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
@@ -182,6 +184,11 @@ public class BlobConnector extends StorageConnector {
 
   @Override
   protected ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
+    return notImplemented(event);
+  }
+
+  @Override
+  protected ModifiedBranchResponse processModifyBranchEvent(ModifyBranchEvent event) throws ErrorResponseException {
     return notImplemented(event);
   }
 

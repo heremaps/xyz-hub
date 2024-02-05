@@ -29,6 +29,7 @@ import com.google.common.io.Files;
 import com.here.xyz.hub.auth.ExtendedJWTAuthHandler;
 import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.rest.BranchApi;
 import com.here.xyz.hub.rest.ChangesetApi;
 import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.FeatureApi;
@@ -133,6 +134,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       FeatureApi featureApi = new FeatureApi(rb);
       new FeatureQueryApi(rb);
       new SpaceApi(rb);
+      new BranchApi(rb);
       new ConnectorApi(rb);
       new SubscriptionApi(rb);
       new ChangesetApi(rb);

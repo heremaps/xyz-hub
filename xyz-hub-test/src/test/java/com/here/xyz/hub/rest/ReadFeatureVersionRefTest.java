@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,199 +30,186 @@ import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import io.restassured.response.ValidatableResponse;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
 
 public class ReadFeatureVersionRefTest extends TestSpaceWithFeature {
+
+  /*
+  TODO:
+
+  - Allow creating a branch on HEAD (should be even the default) <- resolve HEAD during its creation
+  - Check why a POST on an existing branch (without a change) responds with 204
+  - Allow to create tags on branches
+  - Do not allow to create a tag with the same name of an existing branch and vice versa
+   */
+
+  private void createBranch() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .body("""
+            {
+              "id": "branch1",
+              "baseRef": "2"
+            }
+            """)
+        .when()
+        .post(getSpacesPath()+ "/" + getSpaceId() + "/branches")
+        .then()
+        .statusCode(OK.code());
+  }
 
   private void createTag() {
     given()
         .contentType(APPLICATION_JSON)
-        .body("{\"id\":\"tag1\"}")
+        .body("""
+            {"id": "tag1"}
+            """)
         .when()
-        .post("/spaces/" + getSpaceId() + "/tags")
+        .post(getSpacesPath() + "/" + getSpaceId() + "/tags")
         .then()
-        .statusCode(200);
+        .statusCode(OK.code());
   }
-  @Before
+
+  @BeforeEach
   public void setup() {
     removeSpace(getSpaceId());
     createSpaceWithVersionsToKeep(getSpaceId(), 2);
     addFeature(getSpaceId(), new Feature().withId("F1").withProperties(new Properties().with("a", 1)).withGeometry(new Point().withCoordinates(new PointCoordinates(1, 1))));
     createTag();
     addFeature(getSpaceId(), new Feature().withId("F1").withProperties(new Properties().with("b", 2)).withGeometry(new Point().withCoordinates(new PointCoordinates(2, 2))));
+    createBranch();
   }
 
-  @After
+  @AfterEach
   public void tearDown() {
     removeSpace(getSpaceId());
   }
 
-  @Test
-  public void getFeatureByIdVersionRefNotFound() {
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD1", "head", "notExistingTag"})
+  public void getFeatureByIdInRefNegative(String ref) {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/features/F1?versionRef=HEAD1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/features/F1?versionRef=" + ref)
         .then()
-        .statusCode(BAD_REQUEST.code());
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/features/F1?versionRef=head")
-        .then()
-        .statusCode(BAD_REQUEST.code());
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/features/F1?versionRef=notExistingTag")
-        .then()
-        .statusCode(BAD_REQUEST.code());
+        .statusCode(NOT_FOUND.code());
   }
 
-  @Test
-  public void getFeaturesByIdsAndVersionRef() {
-    given()
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void getFeaturesByIdsInRef(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/features?id=F1&versionRef=tag1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/features?id=F1&versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("features.properties.a", hasItem(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/features?id=F1&versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("features.properties.a", hasItem(1))
-        .body("features.properties.b", hasItem(2));
+    checkBProperty(ref, response);
   }
 
-  @Test
-  public void getFeatureByIdAndVersionRef() {
-    given()
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void getFeatureByIdInRef(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/features/F1?versionRef=tag1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/features/F1?versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("properties.a", equalTo(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/features/F1?versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("properties.a", equalTo(1))
-        .body("properties.b", equalTo(2));
+    if (!"tag1".equals(ref))
+      response.body("properties.b", equalTo(2));
   }
 
-  @Test
-  public void getFeaturesByBboxAndVersionRef() {
-    given()
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void getFeaturesByBboxInRef(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/bbox?west=-10&north=10&east=10&south=-10&versionRef=tag1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/bbox?west=-10&north=10&east=10&south=-10&versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("features.properties.a", hasItem(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/bbox?west=-10&north=10&east=10&south=-10&versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("features.properties.a", hasItem(1))
-        .body("features.properties.b", hasItem(2));
+    checkBProperty(ref, response);
   }
 
-  @Test
-  public void getFeaturesByTileAndVersionRef() {
-    given()
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void getFeaturesByTileInRef(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tile/quadkey/1?versionRef=tag1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/tile/quadkey/1?versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("features.properties.a", hasItem(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/tile/quadkey/1?versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("features.properties.a", hasItem(1))
-        .body("features.properties.b", hasItem(2));
+    checkBProperty(ref, response);
   }
 
-  @Test
-  public void getFeaturesBySpatialAndVersionRef() {
-    given()
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void searchFeaturesSpatiallyInRef(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/spatial?lat=0&lon=0&radius=1000000&versionRef=tag1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/spatial?lat=0&lon=0&radius=1000000&versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("features.properties.a", hasItem(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/spatial?lat=0&lon=0&radius=1000000&versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("features.properties.a", hasItem(1))
-        .body("features.properties.b", hasItem(2));
+    checkBProperty(ref, response);
   }
 
-  @Test
-  public void postFeaturesBySpatialAndVersionRef() {
-    given()
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void searchFeaturesSpatiallyInRefWithPostedGeometry(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body("{\"type\":\"Point\",\"coordinates\":[0,0]}")
-        .post("/spaces/" + getSpaceId() + "/spatial?radius=1000000&versionRef=tag1")
+        .post(getSpacesPath() + "/" + getSpaceId() + "/spatial?radius=1000000&versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("features.properties.a", hasItem(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"type\":\"Point\",\"coordinates\":[0,0]}")
-        .post("/spaces/" + getSpaceId() + "/spatial?radius=1000000&versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("features.properties.a", hasItem(1))
-        .body("features.properties.b", hasItem(2));
+    checkBProperty(ref, response);
   }
 
-  @Test
-  public void getFeaturesBySearchAndVersionRef() {
-    given()
+
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void searchFeaturesInRef(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/search?versionRef=tag1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/search?versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("features.properties.a", hasItem(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/search?versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("features.properties.a", hasItem(1))
-        .body("features.properties.b", hasItem(2));
+    checkBProperty(ref, response);
   }
 
-  @Test
-  public void getFeaturesByIterateAndVersionRef() {
-    given()
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD", "branch1", "tag1"})
+  public void iterateFeaturesInRef(String ref) {
+    ValidatableResponse response = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/iterate?versionRef=tag1")
+        .get(getSpacesPath() + "/" + getSpaceId() + "/iterate?versionRef=" + ref)
         .then()
         .statusCode(OK.code())
         .body("features.properties.a", hasItem(1));
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + getSpaceId() + "/iterate?versionRef=HEAD")
-        .then()
-        .statusCode(OK.code())
-        .body("features.properties.a", hasItem(1))
-        .body("features.properties.b", hasItem(2));
+    checkBProperty(ref, response);
   }
+
+  private static void checkBProperty(String ref, ValidatableResponse response) {
+    if (!"tag1".equals(ref))
+      response.body("features.properties.b", hasItem(2));
+  }
+
 }

@@ -109,8 +109,8 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     }
 
     @Override
-    protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset) {
-      return overrideSelectClause(super.buildSelectClause(event, dataset), selectClauseOverride);
+    protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset, long baseVersion) {
+      return overrideSelectClause(super.buildSelectClause(event, dataset, baseVersion), selectClauseOverride);
     }
 
     @Override

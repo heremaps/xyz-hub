@@ -144,6 +144,12 @@ recipes:
         path: paths.'/spaces/{spaceId}'
         replace: paths.'/hub/spaces/{spaceId}'
       - type: key
+        path: paths.'/spaces/{spaceId}/branches'
+        replace: paths.'/hub/spaces/{spaceId}/branches'
+      - type: key
+        path: paths.'/spaces/{spaceId}/branches/{branchId}'
+        replace: paths.'/hub/spaces/{spaceId}/branches/{branchId}'
+      - type: key
         path: paths.'/spaces/{spaceId}/features'
         replace: paths.'/hub/spaces/{spaceId}/features'
       - type: key

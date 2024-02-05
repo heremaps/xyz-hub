@@ -34,6 +34,7 @@ import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyBranchEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
@@ -42,6 +43,7 @@ import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.responses.ModifiedBranchResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
@@ -157,6 +159,11 @@ public class InMemoryStorage extends StorageConnector {
 
   @Override
   protected ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
+    throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
+  }
+
+  @Override
+  protected ModifiedBranchResponse processModifyBranchEvent(ModifyBranchEvent event) throws ErrorResponseException {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 

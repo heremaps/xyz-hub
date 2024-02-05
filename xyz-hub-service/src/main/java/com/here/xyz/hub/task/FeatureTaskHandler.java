@@ -781,13 +781,13 @@ public class FeatureTaskHandler {
     TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
         .compose(tag -> {
           if (tag == null) {
-            return Future.failedFuture(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
+            return Future.failedFuture(new HttpException(NOT_FOUND, "Version ref not found: " + event.getRef().getTag()));
           }
 
           try {
             event.setRef(new Ref(tag.getVersion()));
           } catch (InvalidRef e) {
-            return Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid version ref: " + event.getRef().getTag()));
+            return Future.failedFuture(e);
           }
 
           return Future.succeededFuture(tag);
@@ -795,7 +795,7 @@ public class FeatureTaskHandler {
         .onSuccess(tag -> callback.call(task))
         .onFailure(t -> {
           logger.error(task.getMarker(), "Error while resolving version ref.", t);
-          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
+          callback.exception(t);
         });
   }
 
