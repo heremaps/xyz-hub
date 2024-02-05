@@ -26,11 +26,15 @@ import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.models.hub.Ref;
+import java.util.Collections;
+import java.util.List;
 
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Event<T> {
   private SpaceContext context = SpaceContext.DEFAULT;
   private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
+  private List<Ref> branchPath = Collections.emptyList();
+  private int nodeId = 0;
   private Ref ref = new Ref(HEAD);
   private String author;
   private long minVersion;
@@ -122,6 +126,36 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
 
   public T withMinVersion(long minVersion) {
     setMinVersion(minVersion);
+    return (T) this;
+  }
+
+  /**
+   * Provides the branching chain of base refs from the main branch (nodeId = 0) to the branch with the specified nodeId.
+   * @return The chain of base refs which makes the path from the main branch to the target branch
+   */
+  public List<Ref> getBranchPath() {
+    return branchPath;
+  }
+
+  public void setBranchPath(List<Ref> branchPath) {
+    this.branchPath = branchPath;
+  }
+
+  public T withBranchPath(List<Ref> branchPath) {
+    setBranchPath(branchPath);
+    return (T) this;
+  }
+
+  public int getNodeId() {
+    return nodeId;
+  }
+
+  public void setNodeId(int nodeId) {
+    this.nodeId = nodeId;
+  }
+
+  public T withNodeId(int nodeId) {
+    setNodeId(nodeId);
     return (T) this;
   }
 }

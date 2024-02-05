@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.config;
 
+import static com.here.xyz.util.service.aws.dynamo.DynamoClient.queryIndex;
+
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.ItemUtils;
 import com.amazonaws.services.dynamodbv2.document.Table;
@@ -469,15 +471,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
         .toList();
 
     executeBatchWriteRequest(Map.of(resourceKeyTable.getTableName(), writeRequests));
-  }
-
-  private List<Item> queryIndex(Table table, IndexDefinition index, String hashKeyValue) {
-    List<Item> items = new ArrayList<>();
-    table.getIndex(index.getName())
-        .query(index.getHashKey(), hashKeyValue)
-        .pages()
-        .forEach(page -> page.forEach(item -> items.add(item)));
-    return items;
   }
 
   @Override
