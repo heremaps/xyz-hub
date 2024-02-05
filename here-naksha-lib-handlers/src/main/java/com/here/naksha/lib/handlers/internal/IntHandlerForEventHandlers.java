@@ -102,7 +102,7 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
    */
   private @NotNull Result storageExistenceValidation(@NotNull String storageId) {
     try {
-      nakshaHub.getStorageById(storageId);
+      nakshaHub().getStorageById(storageId);
     } catch (StorageNotFoundException snfe) {
       return snfe.toErrorResult();
     }

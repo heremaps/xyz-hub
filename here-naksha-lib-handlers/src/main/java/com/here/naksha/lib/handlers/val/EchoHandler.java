@@ -18,6 +18,9 @@
  */
 package com.here.naksha.lib.handlers.val;
 
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.PROCESS;
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.SUCCEED_WITHOUT_PROCESSING;
+
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -50,6 +53,15 @@ public class EchoHandler extends AbstractEventHandler {
     this.properties = JsonSerializable.convert(eventHandler.getProperties(), XyzProperties.class);
   }
 
+  @Override
+  protected EventProcessingStrategy processingStrategyFor(IEvent event) {
+    final Request<?> request = event.getRequest();
+    if (request instanceof ContextWriteFeatures<?, ?, ?, ?, ?>) {
+      return PROCESS;
+    }
+    return SUCCEED_WITHOUT_PROCESSING;
+  }
+
   /**
    * The method invoked by the event-pipeline to process custom Storage specific read/write operations
    *
@@ -57,7 +69,7 @@ public class EchoHandler extends AbstractEventHandler {
    * @return the result.
    */
   @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
+  public @NotNull Result process(@NotNull IEvent event) {
     final Request<?> request = event.getRequest();
 
     logger.info("Handler received request {}", request.getClass().getSimpleName());

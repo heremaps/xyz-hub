@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.handlers.internal;
 
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.PROCESS;
+
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.storage.Result;
@@ -30,14 +32,13 @@ public class IntHandlerForSubscriptions extends AbstractEventHandler {
     super(hub);
   }
 
-  /**
-   * The method invoked by the event-pipeline to process Subscription specific read/write operations
-   *
-   * @param event the event to process.
-   * @return the result.
-   */
   @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
+  protected EventProcessingStrategy processingStrategyFor(IEvent event) {
+    return PROCESS;
+  }
+
+  @Override
+  protected @NotNull Result process(@NotNull IEvent event) {
     return notImplemented(event);
   }
 }

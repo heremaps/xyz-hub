@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.Request;
 import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.util.StreamInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,12 +35,26 @@ public abstract class AbstractEventHandler implements IEventHandler {
 
   protected final @NotNull INaksha nakshaHub;
 
-  public AbstractEventHandler(final @NotNull INaksha hub) {
+  protected AbstractEventHandler(final @NotNull INaksha hub) {
     this.nakshaHub = hub;
   }
 
-  public @NotNull INaksha nakshaHub() {
-    return this.nakshaHub;
+  protected final @NotNull INaksha nakshaHub() {
+    return nakshaHub;
+  }
+
+  protected abstract EventProcessingStrategy processingStrategyFor(IEvent event);
+
+  protected abstract @NotNull Result process(@NotNull IEvent event);
+
+  @Override
+  public final @NotNull Result processEvent(@NotNull IEvent event) {
+    return switch (processingStrategyFor(event)) {
+      case PROCESS -> process(event);
+      case SEND_UPSTREAM_WITHOUT_PROCESSING -> event.sendUpstream();
+      case SUCCEED_WITHOUT_PROCESSING -> new SuccessResult();
+      case NOT_IMPLEMENTED -> notImplemented(event);
+    };
   }
 
   protected @NotNull Result notImplemented(@NotNull IEvent event) {
@@ -58,5 +73,12 @@ public abstract class AbstractEventHandler implements IEventHandler {
     if (streamInfo != null) {
       streamInfo.setStorageIdIfMissing(storageId);
     }
+  }
+
+  public enum EventProcessingStrategy {
+    PROCESS,
+    SEND_UPSTREAM_WITHOUT_PROCESSING,
+    SUCCEED_WITHOUT_PROCESSING,
+    NOT_IMPLEMENTED
   }
 }

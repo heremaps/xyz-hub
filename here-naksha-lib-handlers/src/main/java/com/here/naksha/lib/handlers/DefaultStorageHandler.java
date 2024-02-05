@@ -20,6 +20,8 @@ package com.here.naksha.lib.handlers;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createWriteCollectionsRequest;
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.NOT_IMPLEMENTED;
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.PROCESS;
 import static com.here.naksha.lib.handlers.DefaultStorageHandler.OperationAttempt.ATTEMPT_AFTER_COLLECTION_CREATION;
 import static com.here.naksha.lib.handlers.DefaultStorageHandler.OperationAttempt.ATTEMPT_AFTER_STORAGE_INITIALIZATION;
 import static com.here.naksha.lib.handlers.DefaultStorageHandler.OperationAttempt.FIRST_ATTEMPT;
@@ -81,14 +83,19 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     this.properties = JsonSerializable.convert(eventHandler.getProperties(), DefaultStorageHandlerProperties.class);
   }
 
-  /**
-   * The method invoked by the event-pipeline to process custom Storage specific read/write operations
-   *
-   * @param event the event to process.
-   * @return the result.
-   */
   @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
+  protected EventProcessingStrategy processingStrategyFor(IEvent event) {
+    final Request<?> request = event.getRequest();
+    if (request instanceof ReadFeatures
+        || request instanceof WriteFeatures
+        || request instanceof WriteCollections) {
+      return PROCESS;
+    }
+    return NOT_IMPLEMENTED;
+  }
+
+  @Override
+  public @NotNull Result process(@NotNull IEvent event) {
     final NakshaContext ctx = NakshaContext.currentContext();
     final Request<?> request = event.getRequest();
 

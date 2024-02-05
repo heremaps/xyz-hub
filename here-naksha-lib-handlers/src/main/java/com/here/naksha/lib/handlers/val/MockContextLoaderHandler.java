@@ -18,6 +18,10 @@
  */
 package com.here.naksha.lib.handlers.val;
 
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.PROCESS;
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.SEND_UPSTREAM_WITHOUT_PROCESSING;
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.SUCCEED_WITHOUT_PROCESSING;
+
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
@@ -33,7 +37,6 @@ import com.here.naksha.lib.core.models.storage.FeatureCodec;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Request;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.handlers.AbstractEventHandler;
@@ -59,6 +62,18 @@ public class MockContextLoaderHandler extends AbstractEventHandler {
     this.properties = JsonSerializable.convert(eventHandler.getProperties(), XyzProperties.class);
   }
 
+  @Override
+  protected EventProcessingStrategy processingStrategyFor(IEvent event) {
+    final Request<?> request = event.getRequest();
+    if (request instanceof WriteFeatures<?, ?, ?>) {
+      return PROCESS;
+    }
+    if (request instanceof ReadFeatures) {
+      return SUCCEED_WITHOUT_PROCESSING;
+    }
+    return SEND_UPSTREAM_WITHOUT_PROCESSING;
+  }
+
   /**
    * The method invoked by the event-pipeline to process custom Storage specific read/write operations
    *
@@ -66,17 +81,12 @@ public class MockContextLoaderHandler extends AbstractEventHandler {
    * @return the result.
    */
   @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
+  public @NotNull Result process(@NotNull IEvent event) {
     final Request<?> request = event.getRequest();
 
     logger.info("Handler received request {}", request.getClass().getSimpleName());
 
     try {
-      // Send back empty result, to bypass the read phase of the POST REST API
-      if (request instanceof ReadFeatures) {
-        return new SuccessResult();
-      }
-
       final WriteFeatures<?, ?, ?> writeRequest = HandlerUtil.checkInstanceOf(
           request, WriteFeatures.class, "Unsupported request type for validation");
 

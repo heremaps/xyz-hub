@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.handlers.val;
 
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.PROCESS;
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.SEND_UPSTREAM_WITHOUT_PROCESSING;
 import static com.here.naksha.lib.handlers.util.MockUtil.parseJson;
 import static com.here.naksha.lib.handlers.util.MockUtil.parseJsonFile;
 import static com.here.naksha.lib.handlers.util.MockUtil.toJson;
@@ -66,6 +68,15 @@ public class MockValidationHandler extends AbstractEventHandler {
     this.properties = JsonSerializable.convert(eventHandler.getProperties(), XyzProperties.class);
   }
 
+  @Override
+  protected EventProcessingStrategy processingStrategyFor(IEvent event) {
+    final Request<?> request = event.getRequest();
+    if (request instanceof ContextWriteFeatures<?, ?, ?, ?, ?>) {
+      return PROCESS;
+    }
+    return SEND_UPSTREAM_WITHOUT_PROCESSING;
+  }
+
   /**
    * The method invoked by the event-pipeline to process custom Storage specific read/write operations
    *
@@ -73,7 +84,7 @@ public class MockValidationHandler extends AbstractEventHandler {
    * @return the result.
    */
   @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
+  public @NotNull Result process(@NotNull IEvent event) {
     final Request<?> request = event.getRequest();
 
     logger.info("Handler received request {}", request.getClass().getSimpleName());

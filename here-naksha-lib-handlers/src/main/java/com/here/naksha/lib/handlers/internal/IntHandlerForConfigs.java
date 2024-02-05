@@ -30,14 +30,13 @@ public class IntHandlerForConfigs extends AbstractEventHandler {
     super(hub);
   }
 
-  /**
-   * The method invoked by the event-pipeline to process Config specific read/write operations
-   *
-   * @param event the event to process.
-   * @return the result.
-   */
   @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
+  protected EventProcessingStrategy processingStrategyFor(IEvent event) {
+    return EventProcessingStrategy.PROCESS;
+  }
+
+  @Override
+  protected @NotNull Result process(@NotNull IEvent event) {
     return notImplemented(event);
   }
 }

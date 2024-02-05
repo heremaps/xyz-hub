@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.handlers;
 
+import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.SEND_UPSTREAM_WITHOUT_PROCESSING;
+
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
@@ -43,15 +45,14 @@ public class AuthorizationEventHandler extends AbstractEventHandler {
     this.eventHandlers = eventHandlers;
   }
 
-  /**
-   * The method invoked by the event-pipeline to apply authorization depending on the type of input request
-   *
-   * @param event the event to process.
-   * @return the result.
-   */
   @Override
-  public @NotNull Result processEvent(@NotNull IEvent event) {
-    // TODO : Apply authorization logic here (for now bypass as proxy)
-    return event.sendUpstream();
+  protected EventProcessingStrategy processingStrategyFor(IEvent event) {
+    return SEND_UPSTREAM_WITHOUT_PROCESSING;
+  }
+
+  @Override
+  protected @NotNull Result process(@NotNull IEvent event) {
+    // TODO : Apply authorization logic here (for now requests will be sent upstream - see EventProcessingStrategy)
+    return notImplemented(event);
   }
 }
