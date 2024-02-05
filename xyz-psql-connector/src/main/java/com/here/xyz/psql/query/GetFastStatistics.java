@@ -31,15 +31,20 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 public class GetFastStatistics extends GetStatistics {
 
+  private long baseVersion;
+
   public GetFastStatistics(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
     super(event);
+    if(event.getNodeId() > 0 && event.getBranchPath().size() > 0) {
+      this.baseVersion = event.getBranchPath().get(event.getBranchPath().size() - 1).getVersion();
+    }
   }
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
     return new SQLQuery("select table_size, table_count, is_estimated, min_version, max_version" +
             " FROM calculate_space_statistics(to_regclass(#{table}), to_regclass(#{extTable}), #{context});")
-            .withNamedParameter(TABLE, getSchema() +".\""+ getDefaultTable(event) +"_head\"")
+            .withNamedParameter(TABLE, getSchema() +".\""+ getBranchTable(event) +"_head\"")
             .withNamedParameter("extTable", getSchema() +".\""+ getExtendedTable(event) + "_head\"")
             .withNamedParameter("context", event.getContext().name());
   }
@@ -50,7 +55,7 @@ public class GetFastStatistics extends GetStatistics {
 
     Value<Long> tableSize =  new Value<>(rs.getLong("table_size")).withEstimated(true);
     Value<Long> count =  new Value<>(rs.getLong("table_count")).withEstimated(rs.getBoolean("is_estimated"));
-    Value<Long> maxVersion =  new Value<>(rs.getLong("max_version")).withEstimated(false);
+    Value<Long> maxVersion =  new Value<>(baseVersion + rs.getLong("max_version")).withEstimated(false);
     Value<Long> minVersion =  new Value<>(rs.getLong("min_version")).withEstimated(false);
 
     return new StatisticsResponse()

@@ -20,6 +20,7 @@
 package com.here.xyz.hub;
 
 import com.here.xyz.hub.cache.*;
+import com.here.xyz.hub.config.BranchConfigClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
@@ -125,6 +126,8 @@ public class Service extends Core {
    */
   public static SettingsConfigClient settingsConfigClient;
 
+  public static BranchConfigClient branchConfigClient;
+
   /**
    * A web client to access XYZ Hub nodes and other web resources.
    */
@@ -211,6 +214,7 @@ public class Service extends Core {
     subscriptionConfigClient = SubscriptionConfigClient.getInstance();
     tagConfigClient = TagConfigClient.getInstance();
     settingsConfigClient = SettingsConfigClient.getInstance();
+    branchConfigClient = BranchConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
         .setUserAgent(XYZ_HUB_USER_AGENT)
@@ -223,6 +227,7 @@ public class Service extends Core {
 
     return settingsConfigClient.init()
         .compose(v -> settingsConfigClient.insertLocalSettings())
+        .compose(v -> branchConfigClient.init())
         .compose(v -> spaceConfigClient.init())
         .compose(v -> connectorConfigClient.init())
         .compose(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))

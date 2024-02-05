@@ -71,6 +71,7 @@ import io.vertx.ext.web.validation.ParameterProcessorException;
 import io.vertx.ext.web.validation.impl.ParameterLocation;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -207,9 +208,15 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
    * Add support for cross-origin requests.
    */
   protected CorsHandler createCorsHandler() {
+    List<String> allowedHeaders = new ArrayList<>(allowHeaders.stream()
+        .map(CharSequence::toString)
+        .toList());
+    if (BaseConfig.instance.USE_AUTHOR_FROM_HEADER)
+      allowedHeaders.add(AUTHOR_HEADER);
+
     CorsHandler cors = CorsHandler.create(".*").allowCredentials(true);
     allowMethods.forEach(cors::allowedMethod);
-    allowHeaders.stream().map(String::valueOf).forEach(cors::allowedHeader);
+    allowedHeaders.stream().map(String::valueOf).forEach(cors::allowedHeader);
     exposeHeaders.stream().map(String::valueOf).forEach(cors::exposedHeader);
     return cors;
   }

@@ -27,6 +27,8 @@ tags:
     description: Read and write endpoints for changesets.
   - name: Manage Tags
     description: Read and write endpoints for tags.
+  - name: Manage Branches
+    description: Read and write endpoints for branches.
 paths:
   '/spaces':
     get:
@@ -199,6 +201,123 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/branches':
+    get:
+      tags:
+        - Manage Branches
+      summary: List Branches
+      description: >-
+        Lists the branches of the specified space.
+      operationId: getBranches
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchesResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+    post:
+      tags:
+        - Manage Branches
+      summary: Create a Branch
+      description: >-
+        Create a branch, which points to a version of the space or to a version of
+        another branch.
+      operationId: postBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/branches/{branchId}':
+    patch:
+      tags:
+        - Manage Branches
+      summary: Update a Branch
+      description: >-
+        Update the ID or the baseRef of a branch.
+        Changing the base reference of a branch performs a "rebase"-operation. Under some
+        circumstances such an operation can take a bit longer than usual, in that case a special
+        response will be sent which contains a token to check the status of the operation.
+
+        Depending on the content of the branch, there can be conflicts during a "rebase"-operation.
+        In that case the response will be a conflict-response which contains a description of the
+        occurred conflicts. These conflicts then have to be solved in order to continue with the
+        "rebase"-operation.
+      operationId: patchBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    post:
+      tags:
+        - Manage Branches
+      summary: Execute an operation on a Branch
+      description: >-
+        Execute an operation on the specified branch. Supported operation types are:
+
+
+        - Merge
+      operationId: execBranchOperation
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        $ref: '#/components/requestBodies/BranchOperationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Branches
+      summary: Delete a branch
+      description: >-
+        Deletes a branch.
+      operationId: deleteBranch
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/changesets':
     get:
       tags:
@@ -207,8 +326,8 @@ paths:
       description: |
         Retrieves a subset of existing Changesets from the space's history.
         The subset can be defined either by a "startVersion" and an "endVersion"
-        or by providing a version ref that references a version range
-        e.g., "5..6" or "0..HEAD"
+        or by providing a version ref that references a version range of
+        a specific branch: e.g., "main:5..6" or "myBranch:0..HEAD".
         
 
         The version range can be specified using the `versionRef` query-parameter as follows:
@@ -1772,6 +1891,13 @@ components:
       required: true
       schema:
         type: string
+    BranchId:
+      name: branchId
+      in: path
+      description: The unique identifier of the branch.
+      required: true
+      schema:
+        type: string
     StartVersion:
       name: startVersion
       in: query
@@ -1892,9 +2018,20 @@ components:
       in: query
       description: |
         The query parameter used to specify the target version reference when reading or writing features.
-        A reference describes a target tag or a version.
+        A reference describes a target tag or a branch and/or a version within that target branch.
         
-        Default is: `HEAD`
+        Default is: `main:HEAD`
+
+        <br>
+        Version references have the following syntax:
+
+        <br>
+        `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>] | [<tagName> (optional)]`
+
+        <br>
+        The "main"-branch is pointing to the space itself as it has been created in the first place.
+        Defining the branch as part of the reference only becomes necessary if further
+        branches have been created for the space, which should be addressed by the ref.
 
         <br>
         Depending on the use-case it can be necessary to specify a range of versions rather than
@@ -1903,7 +2040,7 @@ components:
 
         Where `<start>` is the start of the range (exclusive) and `<end>` is the end of the range
         (inclusive).
-
+        
         Another way of specifying a version range is using the star-symbol: `*`
 
         Using `*` refers to "all available versions" in the space or branch and is only
@@ -1911,15 +2048,23 @@ components:
 
         <br>
         Samples:
-          - `42` points to version 42
-          - `HEAD` points to the latest version
+          - `main:42` points to version 42 of the "main"-branch
           - `myTag` points to the version of the tag with ID "myTag"
-          - `0..HEAD` points to all available versions
+          - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
+          - `42` points to version 42 of the "main"-branch
+          - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
+          - `HEAD` points to the latest version of the "main"-branch
+          - `myBranch` points to the latest version of the branch with ID "myBranch"
+          - `myBranch:0..HEAD` points to all available versions of the branch with ID "myBranch"
+          - `0..HEAD` also points to all available versions of the "main"-branch
           - `*` also points to all versions (short form)
-          - `5..10` points to the versions in the interval `]5, 10]`
+          - `myBranch:*` also points to all versions of branch "myBranch" (short form)
+          - `main:5..10` points to the versions in the interval `]5, 10]` of the "main"-branch
+          - `5..10` also points to the versions in the interval `]5, 10]` of the "main"-branch
       required: false
       schema:
         type: string
+        default: main:HEAD
     VersionPath:
       name: version
       in: path
@@ -2234,6 +2379,12 @@ components:
             items:
               $ref: '#/components/schemas/Tag'
             type: array
+    BranchResponse:
+      description: A branch response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Branch'
     SpaceResponse:
       description: The space.
       content:
@@ -2268,6 +2419,20 @@ components:
                   cid: dX0BH75QE8paCVQr8MQw
                   createdAt: 1560417151751
                   updatedAt: 1561480482869
+    BranchesResponse:
+      description: A list of branches.
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Branch'
+            type: array
+          examples:
+            response:
+              value:
+                - id: myBranch
+                  baseRef: 'main:42'
+                  description: Description as markdown
     StatisticsResponse:
       description: Statistical information about a space.
       content:
@@ -2356,6 +2521,24 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Tag'
+    BranchRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Branch'
+    BranchOperationRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/MergeBranchOperation'
+            discriminator:
+              propertyName: type
+          example:
+            type: Merge
+            targetBranchId: main
     SpaceRequest:
       required: true
       content:
@@ -3282,6 +3465,106 @@ components:
           format: int64
           description: >-
             The timestamp of creation of the tag in millis.
+    Branch:
+      type: object
+      description: >-
+        A branch is like a separate space, which is based on a specific version of the space
+        or on a specific version of some other branch of the space. Reading & writing features
+        to a branch does not have an effect on the main branch or any other branch of the space.
+        
+        
+        A branch can be created by pointing to a base ref. A base ref consists of the base branch
+        (e.g, "main") and the base version of that base branch. New write transactions to the
+        created branch will continue to increase the version counter starting from the
+        base version. Versions in that branch are independent from the versions of the base branch.
+      properties:
+        id:
+          type: string
+          description: >-
+            The branch ID. It must be unique per space.
+        baseRef:
+          type: string
+          description: >-
+            The reference onto which the branch has been created.
+            A reference describes a target branch and a version within that target branch.
+            References have the following syntax:
+            
+            
+            `[<branchName (optional, default: main)>:][<version (optional, default: HEAD)>]`
+            
+            
+            The "main"-branch is the space itself as it has been created in the first place.
+            Defining the branch as part of the reference only becomes necessary if further
+            branches have been created for the space, which should be addressed by the ref.
+            
+            
+            Samples:
+              - `main:42` points to version 42 of the "main"-branch 
+              - `myBranch:37` Points to version 37 of the branch with ID "myBranch"
+              - `42` points to version 42 of the "main"-branch
+              - `myBranch:HEAD` points to the latest version of the branch with ID "myBranch"
+              - `HEAD` points to the latest version of the "main"-branch
+              - `myBranch` points to the latest version of the branch with ID "myBranch"
+    MergeBranchOperation:
+      type: object
+      description: |
+        This operation performs a merge of the branch into another specified branch.
+        Merging a branch into another one means to add all changes of this branch
+        into the specified target branch as a new single commit.
+        
+        
+        During a merge operation conflicts may occur. That will be indicated within the branch
+        response with `state = IN_CONFLICT`. In such a case the conflicts can be solved by the
+        client using the `conflictSolvingBranch` that points to `!<originalBranchId>`.
+        
+        The `merges` property of the branch response depicts all merges that have been executed
+        and/or attempted. The most recent merge attempt is the one with the highest version number.
+        There may be only one merge attempt that is in progress at any time. All other / older
+        entries in the `merges` map depict merge operations that have been executed successfully
+        in the past.
+        
+        
+        Sample:
+        
+        If a merge operation was started on branch `myBranch` and ends up in `state = IN_CONFLICT`
+        the resulting branch response could look like follows:
+        
+        
+        ```json
+        {
+          "id": "myBranch",
+          "baseRef": "main:11",
+          "state": "IN_CONFLICT",
+          "merges": {
+            "27": "main:42"
+            "15": "main:14"
+          }
+          "conflictSolvingBranch": "!myBranch"
+        }
+        ```
+        
+        
+        Here `"myBranch"` is the ID of the branch that was attempted to be merged into branch
+        `"main"`. It was attempted to merge version `27` of `myBranch`
+        as new commit (with version `42`) into the branch `"main"`.
+        
+        Conflicts occurred during that operation, that is why `state = "IN_CONFLICT"` and
+        the ID of a `"conflictSolvingBranch"` with ID `"!myBranch"` was provided.
+        
+        That conflict solving branch can be used like any other branch to solve the conflicts
+        by writing to it. All conflicting features in there are marked as such having set 
+        `conflicting = true` in their XYZ namespace.
+      discriminator:
+        propertyName: type
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: "The type is: `Merge`"
+        targetBranchId:
+          type: string
+          description: "The ID of the branch into which to merge this branch."
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.

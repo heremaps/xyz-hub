@@ -557,6 +557,23 @@ public class SpaceTaskHandler {
         });
   }
 
+  static void performSubResourceUpdates(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (!task.isDelete()) {
+      callback.call(task);
+      return;
+    }
+
+    Future.all(task.modifyOp.entries.get(0).head.getBranches().keySet().stream()
+        .map(branchId -> BranchHandler.deleteBranch(task.getMarker(), task.modifyOp.entries.get(0).head.getId(), branchId))
+        .toList())
+        .onComplete(ar -> {
+          if (ar.failed())
+            callback.exception(ar.cause());
+          else
+            callback.call(task);
+        });
+  }
+
   static void resolveExtensions(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     if (!task.isCreate() && !task.isUpdate()) {
       callback.call(task);
