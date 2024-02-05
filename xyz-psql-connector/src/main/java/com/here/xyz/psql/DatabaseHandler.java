@@ -24,10 +24,11 @@ import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
-import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
+import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readBranchTableFromEvent;
 import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Iterables;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.Event;
@@ -239,7 +240,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           /** Include Upserts */
           if (!upserts.isEmpty()) {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readTableFromEvent(event),
+            List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readBranchTableFromEvent(event),
                 upsertIds)));
             upserts.forEach(f -> {
                 if (existingIds.contains(f.getId())) {
@@ -395,7 +396,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
 
             //Set the version in the elements being returned
-            collection.getFeatures().forEach(f -> f.getProperties().getXyzNamespace().setVersion(version));
+            collection.getFeatures().forEach(f -> f.getProperties().getXyzNamespace().setVersion(version
+                + (event.getNodeId() > 0 ? Iterables.getLast(event.getBranchPath()).getVersion() : 0)));
 
             return collection;
         }
@@ -405,7 +407,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
             + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
             .withNamedParameter("schema", getDatabaseSettings().getSchema())
-            .withNamedParameter("constraintName", readTableFromEvent(event) + "_unique")
+            .withNamedParameter("constraintName", readBranchTableFromEvent(event) + "_unique")
             .run(dataSourceProvider, rs -> rs.next());
     }
 
@@ -417,7 +419,9 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withStreamId(event.getStreamId())
             .withParams(event.getParams())
             .withConnectorParams(event.getConnectorParams())
-            .withIds(idsToFetch);
+            .withIds(idsToFetch)
+            .withNodeId(event.getNodeId())
+            .withBranchPath(event.getBranchPath());
 
       try {
         return run(new GetFeaturesById(fetchEvent)).getFeatures();

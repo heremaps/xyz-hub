@@ -29,10 +29,10 @@ global.queryContext = () => TestFeatureWriter.queryContext;
 
 class TestFeatureWriter {
   static queryContext = {
-    "schema" : "public",
-    "historyEnabled" : true,
-    "batchMode" : true,
-    "tables" : [ "x-psql-test" ]
+    schema: "public",
+    tables: ["composite-export-space", "composite-export-space-ext", "composite-export-space-ext-ext"],
+    context: "DEFAULT",
+    historyEnabled: false
   };
 
   inputFeature = {

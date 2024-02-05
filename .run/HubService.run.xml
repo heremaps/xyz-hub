@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
       <env name="SPACES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-spaces" />
       <env name="SUBSCRIPTIONS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-subscriptions" />
       <env name="TAGS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-tags" />
+      <env name="BRANCHES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-branches" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="com.here.xyz.hub.Service" />
     <module name="xyz-hub-service" />
