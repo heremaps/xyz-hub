@@ -19,6 +19,9 @@
 
 package com.here.xyz.psql.query.helpers;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.query.helpers.TableExists.Table;
@@ -37,9 +40,9 @@ public class TableExists extends QueryRunner<Table, Boolean> {
 
   @Override
   protected SQLQuery buildQuery(Table table) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT FROM pg_tables WHERE schemaname = #{schema} AND tablename = #{tableName}")
-        .withNamedParameter("schema", table.schema)
-        .withNamedParameter("tableName", table.tableName);
+    return new SQLQuery("SELECT FROM pg_tables WHERE schemaname = #{schema} AND tablename = #{table}")
+        .withNamedParameter(SCHEMA, table.schema)
+        .withNamedParameter(TABLE, table.tableName);
   }
 
   @Override

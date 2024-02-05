@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query.bbox;
 
 import static com.here.xyz.psql.query.GetFeaturesByBBox.getTileFromBbox;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -30,6 +31,7 @@ import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.bbox.GetSamplingStrengthEstimation.SamplingStrengthEstimation;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;

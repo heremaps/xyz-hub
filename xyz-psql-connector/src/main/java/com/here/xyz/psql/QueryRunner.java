@@ -42,8 +42,6 @@ import org.apache.logging.log4j.Logger;
 public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
 
   private static final Logger logger = LogManager.getLogger();
-  protected static final String SCHEMA = "schema";
-  protected static final String TABLE = "table";
   private static final int MIN_REMAINING_TIME_FOR_RESULT_HANDLING = 2;
   private SQLQuery query;
   private boolean useReadReplica;
@@ -83,7 +81,8 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   protected R write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    return handleWrite(prepareQuery().write(dataSourceProvider));
+    SQLQuery query = prepareQuery();
+    return handleWrite(query.isBatch() ? query.writeBatch(dataSourceProvider) : new int[]{query.write(dataSourceProvider)});
   }
 
   public final R write() throws SQLException, ErrorResponseException {
@@ -104,7 +103,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   @Override
   public abstract R handle(ResultSet rs) throws SQLException;
 
-  protected R handleWrite(int rowCount) throws ErrorResponseException {
+  protected R handleWrite(int[] rowCounts) throws ErrorResponseException {
     return null;
   }
 
