@@ -782,7 +782,7 @@ public abstract class Job<T extends Job> extends Payload {
     public void setTarget(DatasetDescription target) {
         this.target = target;
         //Keep BWC
-        if (target instanceof DatasetDescription.Space space)
+        if (this instanceof Import && target instanceof DatasetDescription.Space space)
             setTargetSpaceId(space.getId());
     }
 
