@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "Conflict",
+  "errorMessage": "The event handler is still in use by these spaces: [space-blocking-handler-from-deletion]"
+}

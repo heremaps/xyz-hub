@@ -55,7 +55,7 @@ public final class Space extends EventTarget<Space> implements Typed {
   @JsonCreator
   public Space(
       @JsonProperty(ID) @NotNull String id,
-      @JsonProperty("eventHandlers") @NotNull List<@NotNull String> eventHandlers) {
+      @JsonProperty(EVENT_HANDLER_IDS) @NotNull List<@NotNull String> eventHandlers) {
     super(id, eventHandlers);
   }
 

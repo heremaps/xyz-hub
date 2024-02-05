@@ -64,6 +64,7 @@ public final class ApiParams {
   public static final double NULL_COORDINATE = 9999;
 
   public static final String TILE_TYPE_QUADKEY = "quadkey";
+  public static final String HANDLER_ID = "handlerId";
 
   public static @NotNull String extractMandatoryPathParam(
       final @NotNull RoutingContext routingContext, final @NotNull String param) {

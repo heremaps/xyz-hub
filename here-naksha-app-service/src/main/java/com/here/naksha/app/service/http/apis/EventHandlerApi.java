@@ -18,10 +18,7 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.CREATE_HANDLER;
-import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.GET_ALL_HANDLERS;
-import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.GET_HANDLER_BY_ID;
-import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.UPDATE_HANDLER;
+import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.*;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.EventHandlerApiTask;
@@ -47,6 +44,7 @@ public class EventHandlerApi extends Api {
     rb.operation("getHandlers").handler(this::getEventHandlers);
     rb.operation("getHandlerById").handler(this::getEventHandlerById);
     rb.operation("updateHandler").handler(this::updateEventHandler);
+    rb.operation("deleteHandler").handler(this::deleteEventHandler);
   }
 
   @Override
@@ -66,6 +64,10 @@ public class EventHandlerApi extends Api {
 
   private void updateEventHandler(RoutingContext routingContext) {
     startHandlerApiTask(UPDATE_HANDLER, routingContext);
+  }
+
+  private void deleteEventHandler(RoutingContext routingContext) {
+    startHandlerApiTask(DELETE_HANDLER, routingContext);
   }
 
   private void startHandlerApiTask(EventHandlerApiReqType reqType, RoutingContext routingContext) {

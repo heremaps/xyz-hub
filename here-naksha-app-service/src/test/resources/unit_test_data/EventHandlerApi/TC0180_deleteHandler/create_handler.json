@@ -1,0 +1,15 @@
+{
+  "id": "handler-to-delete",
+  "type": "EventHandler",
+  "title": "Test Handler",
+  "description": "For unit testing",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "storageId": "event_handler_api_test_storage",
+    "collection": {
+      "maxAge": 2
+    }
+  }
+}

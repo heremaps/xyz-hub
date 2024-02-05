@@ -18,10 +18,12 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.app.service.http.apis.ApiParams.HANDLER_ID;
 import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.app.service.http.apis.ApiParams;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
@@ -42,8 +44,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
-
-  private static final String HANDLER_ID_PATH_KEY = "handlerId";
 
   private static final Logger logger = LoggerFactory.getLogger(EventHandlerApiTask.class);
 
@@ -78,6 +78,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
         case GET_ALL_HANDLERS -> executeGetHandlers();
         case GET_HANDLER_BY_ID -> executeGetHandlerById();
         case UPDATE_HANDLER -> executeUpdateHandler();
+        case DELETE_HANDLER -> executeDeleteHandler();
         default -> executeUnsupported();
       };
     } catch (Exception ex) {
@@ -114,7 +115,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
 
   private @NotNull XyzResponse executeGetHandlerById() {
     // Create ReadFeatures Request to read the handler with the specific ID from Admin DB
-    final String handlerId = routingContext.pathParam(HANDLER_ID_PATH_KEY);
+    final String handlerId = routingContext.pathParam(HANDLER_ID);
     final ReadFeatures request = new ReadFeatures(EVENT_HANDLERS).withPropertyOp(POp.eq(PRef.id(), handlerId));
     // Submit request to NH Space Storage
     try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
@@ -123,7 +124,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
   }
 
   private @NotNull XyzResponse executeUpdateHandler() throws JsonProcessingException {
-    String handlerIdFromPath = routingContext.pathParam(HANDLER_ID_PATH_KEY);
+    String handlerIdFromPath = routingContext.pathParam(HANDLER_ID);
     EventHandler handlerToUpdate = handlerFromRequestBody();
     if (!handlerIdFromPath.equals(handlerToUpdate.getId())) {
       return verticle.sendErrorResponse(
@@ -134,6 +135,14 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
       try (Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq)) {
         return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);
       }
+    }
+  }
+
+  private @NotNull XyzResponse executeDeleteHandler() {
+    final String handlerId = ApiParams.extractMandatoryPathParam(routingContext, HANDLER_ID);
+    final WriteXyzFeatures wrRequest = RequestHelper.deleteFeatureByIdRequest(EVENT_HANDLERS, handlerId);
+    try (Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest)) {
+      return transformDeleteResultToXyzFeatureResponse(wrResult, EventHandler.class);
     }
   }
 

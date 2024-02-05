@@ -19,12 +19,13 @@
 package com.here.naksha.app.service;
 
 import static com.here.naksha.app.common.CommonApiTestSetup.createStorage;
-import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
-import static com.here.naksha.app.common.TestUtil.parseJson;
+import static com.here.naksha.app.common.TestUtil.*;
+import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static org.junit.jupiter.api.Named.named;
 
 import com.here.naksha.app.common.ApiTest;
+import com.here.naksha.app.common.CommonApiTestSetup;
 import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
@@ -287,5 +288,68 @@ class EventHandlerApiTest extends ApiTest {
         .hasStatus(400)
         .hasStreamIdHeader(streamId)
         .hasJsonBody(expectedErrorResponse);
+  }
+
+  @Test
+  void tc0180_testDeleteHandler() throws Exception {
+    // Test API : DELETE /hub/handlers/{handlerId}
+    // Given: send a request to create an event handler
+    final String streamId = UUID.randomUUID().toString();
+    CommonApiTestSetup.createHandler(nakshaClient,"EventHandlerApi/TC0180_deleteHandler/create_handler.json");
+    // When: here we send the deletion request to test if it works
+    final HttpResponse<String> response =
+            getNakshaClient().delete("hub/handlers/handler-to-delete", streamId);
+
+    // Then: check that the delete request is successful
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(getHeader(response, HDR_STREAM_ID));
+    // and the handler does not exist anymore
+    final HttpResponse<String> getResponse =
+            getNakshaClient().get("hub/handlers/handler-to-delete", streamId);
+    assertThat(getResponse)
+            .hasStatus(404)
+            .hasStreamIdHeader(getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  void tc0181_testDeleteHandlerInUse() throws Exception {
+    // Test API : DELETE /hub/handlers/{handlerId}
+    // Given: creating an event handler, and a space that uses this handler in its event pipeline
+    final String streamId = UUID.randomUUID().toString();
+    CommonApiTestSetup.createHandler(nakshaClient,"EventHandlerApi/TC0181_deleteHandlerInUse/create_handler.json");
+    CommonApiTestSetup.createSpace(nakshaClient,"EventHandlerApi/TC0181_deleteHandlerInUse/create_space.json");
+    // When: send a request to delete the handler
+    final HttpResponse<String> response =
+            getNakshaClient().delete("hub/handlers/handler-blocked-from-deletion", streamId);
+
+    // Then: the delete request should fail, as at least 1 space is still using it
+    final String expectedResponse = loadFileOrFail("EventHandlerApi/TC0181_deleteHandlerInUse/response.json");
+    assertThat(response)
+            .hasStatus(409)
+            .hasJsonBody(expectedResponse)
+            .hasStreamIdHeader(getHeader(response, HDR_STREAM_ID));
+    // and the event handler still exists
+    final HttpResponse<String> getResponse =
+            getNakshaClient().get("hub/handlers/handler-blocked-from-deletion", streamId);
+    assertThat(getResponse)
+            .hasStatus(200)
+            .hasStreamIdHeader(getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  void tc0182_testDeleteNonExistingHandler() throws Exception {
+    // Test API : DELETE /hub/handlers/{handlerId}
+    // Given: no event handler
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: send the delete request
+    final HttpResponse<String> response =
+            getNakshaClient().delete("hub/handlers/unreal-handler-cannot-delete", streamId);
+
+    // Then: the delete request fails because this event handler does not exist
+    assertThat(response)
+            .hasStatus(404)
+            .hasStreamIdHeader(getHeader(response, HDR_STREAM_ID));
   }
 }

@@ -98,6 +98,8 @@ paths:
         '513':
           $ref: '#/components/responses/ErrorResponse513'
   '/hub/storages/{storageId}':
+    parameters:
+      - $ref: '#/components/parameters/StorageId'
     get:
       tags:
         - Manage Storages
@@ -105,13 +107,6 @@ paths:
       description: >-
         Return the storage detail corresponding to the given ID if the current authenticated user has access to.
       operationId: getStorageById
-      parameters:
-        - name: storageId
-          in: path
-          description: ID of storage to fetch
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/StorageResponse'
@@ -141,13 +136,6 @@ paths:
       operationId: putStorage
       requestBody:
         $ref: '#/components/requestBodies/StorageRequest'
-      parameters:
-        - name: storageId
-          in: path
-          description: ID of storage to update
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/StorageResponse'
@@ -180,13 +168,6 @@ paths:
         Storages still being bound to active event handlers will not be deleted, 
         in such cases the response will have HTTP 409 error status code.
       operationId: deleteStorage
-      parameters:
-        - name: storageId
-          in: path
-          description: ID of storage to delete
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/StorageResponse'
@@ -258,19 +239,14 @@ paths:
         '513':
           $ref: '#/components/responses/ErrorResponse513'
   '/hub/handlers/{handlerId}':
+    parameters:
+      - $ref: '#/components/parameters/HandlerId'
     get:
       tags:
         - Manage Event Handlers
       summary: Get the event handler with the specific ID.
       description: Return the handler detail corresponding to the given ID if the current authenticated user has access to.
       operationId: getHandlerById
-      parameters:
-        - name: handlerId
-          in: path
-          description: ID of event handler to fetch
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/HandlerResponse'
@@ -298,13 +274,6 @@ paths:
       operationId: updateHandler
       requestBody:
         $ref: '#/components/requestBodies/HandlerRequest'
-      parameters:
-        - name: handlerId
-          in: path
-          description: ID of handler to update
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/HandlerResponse'
@@ -316,6 +285,34 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+    delete:
+      tags:
+        - Manage Event Handlers
+      summary: Delete the event handler with the specific ID.
+      description: >-
+        Delete the handler with the specific ID if the current authenticated user has access to.
+        Handlers still being bound to active spaces will not be deleted, 
+        in such cases the response will have HTTP 409 error status code.
+      operationId: deleteHandler
+      responses:
+        '200':
+          $ref: '#/components/responses/HandlerResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
         '429':
           $ref: '#/components/responses/ErrorResponse429'
         '500':
@@ -378,19 +375,14 @@ paths:
         '513':
           $ref: '#/components/responses/ErrorResponse513'
   '/hub/spaces/{spaceId}':
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
     get:
       tags:
         - Manage Spaces
       summary: Get the space with the specific ID.
       description: Return the space detail corresponding to the given ID if the current authenticated user has access to.
       operationId: getSpaceById
-      parameters:
-        - name: spaceId
-          in: path
-          description: ID of space to fetch
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/SpaceResponse'
@@ -418,13 +410,6 @@ paths:
       operationId: putSpace
       requestBody:
         $ref: '#/components/requestBodies/SpaceRequest'
-      parameters:
-        - name: spaceId
-          in: path
-          description: ID of Space to update
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/SpaceResponse'
@@ -456,13 +441,6 @@ paths:
         - this space is handled by `DefaultStorageHandler`
         - 'autoDeleteCollection` property of the handler was set to `true`.
       operationId: deleteSpace
-      parameters:
-        - name: spaceId
-          in: path
-          description: ID of space to delete
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/StorageResponse'
@@ -1003,6 +981,20 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    StorageId:
+      name: storageId
+      in: path
+      description: Unique Id of a Storage to fetch / update / delete
+      required: true
+      schema:
+        type: string
+    HandlerId:
+      name: handlerId
+      in: path
+      description: Unique Id of an Event Handler to fetch / update / delete
+      required: true
+      schema:
+        type: string
     SpaceId:
       name: spaceId
       in: path

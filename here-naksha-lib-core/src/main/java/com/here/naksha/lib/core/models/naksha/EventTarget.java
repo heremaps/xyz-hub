@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.core.models.naksha;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public abstract class EventTarget<SELF extends EventTarget<SELF>> extends NakshaFeature {
+
+  public static final String EVENT_HANDLER_IDS = "eventHandlerIds";
 
   /**
    * Create a new empty event target.
@@ -67,5 +70,6 @@ public abstract class EventTarget<SELF extends EventTarget<SELF>> extends Naksha
   }
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
+  @JsonProperty(EVENT_HANDLER_IDS)
   private final @NotNull List<@NotNull String> eventHandlerIds;
 }
