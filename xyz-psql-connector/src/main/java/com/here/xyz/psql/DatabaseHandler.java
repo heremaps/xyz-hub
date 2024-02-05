@@ -20,14 +20,10 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
-import static com.here.xyz.psql.QueryRunner.SCHEMA;
-import static com.here.xyz.psql.QueryRunner.TABLE;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQueries;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -36,7 +32,6 @@ import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
@@ -44,26 +39,20 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.GetFeaturesById;
-import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
-import com.here.xyz.psql.query.helpers.TableExists;
-import com.here.xyz.psql.query.helpers.TableExists.Table;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.psql.tools.ECPSTool;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.DatabaseSettings;
-import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,7 +72,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final Logger logger = LogManager.getLogger();
     private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
 
-    public static final String HEAD_TABLE_SUFFIX = "_head";
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
      * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
@@ -92,13 +80,6 @@ public abstract class DatabaseHandler extends StorageConnector {
     static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
-
-    public static final long PARTITION_SIZE = 100_000;
-
-    /**
-     * Current event.
-     */
-    private Event event;
 
     /**
      * The dbMaintainer for the current event.
@@ -117,7 +98,6 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     @Override
     protected void initialize(Event event) {
-        this.event = event;
         String connectorId = traceItem.getConnectorId();
         ConnectorParameters connectorParams = ConnectorParameters.fromEvent(event);
 
@@ -174,14 +154,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
         return false;
-    }
-
-    protected XyzResponse executeModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
-        if (event.getSpaceDefinition() != null && event.getOperation() == CREATE)
-            //Create Space Table
-            ensureSpace();
-
-        return write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
     }
 
     protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
@@ -427,162 +399,14 @@ public abstract class DatabaseHandler extends StorageConnector {
       return ids;
     }
 
-    private static boolean _advisory(String key, Connection connection, boolean lock, boolean block) throws SQLException
-    {
-     boolean cStateFlag = connection.getAutoCommit();
-     connection.setAutoCommit(true);
-     try (Statement stmt = connection.createStatement()) {
-         ResultSet rs = stmt.executeQuery("SELECT pg_" + (lock && !block ? "try_" : "") + "advisory_" + (lock ? "" : "un") + "lock(('x' || left(md5('" + key + "'), 15))::bit(60)::bigint)");
-         if (!block && rs.next())
-             return rs.getBoolean(1);
-         return false;
-     }
-     finally {
-         connection.setAutoCommit(cStateFlag);
-     }
-    }
-
-    private static void advisoryLock(String key, Connection connection ) throws SQLException { _advisory(key,connection,true, true); }
-
-    private static void advisoryUnlock(String key, Connection connection ) throws SQLException { _advisory(key,connection,false, true); }
-
     private static boolean isForExtendingSpace(Event event) {
         return event.getParams() != null && event.getParams().containsKey("extends");
-    }
-
-    //TODO: Move the following into ModifySpace QR
-    private void ensureSpace() throws SQLException, ErrorResponseException {
-        // Note: We can assume that when the table exists, the postgis extensions are installed.
-        final String tableName = XyzEventBasedQueryRunner.readTableFromEvent(event);
-
-        try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
-            advisoryLock( tableName, connection );
-            boolean cStateFlag = connection.getAutoCommit();
-            try {
-
-                if (cStateFlag)
-                  connection.setAutoCommit(false);
-
-                try (Statement stmt = connection.createStatement()) {
-                    createSpaceStatement(stmt, event);
-
-                    stmt.setQueryTimeout(calculateTimeout());
-                    stmt.executeBatch();
-                    connection.commit();
-                    logger.debug("{} Successfully created table '{}' for space id '{}'", traceItem, tableName, event.getSpace());
-                }
-            } catch (Exception e) {
-                logger.error("{} Failed to create table '{}' for space id: '{}': {}", traceItem, tableName, event.getSpace(), e);
-                connection.rollback();
-                //Check if the table was created in the meantime, by another instance.
-                boolean tableExists = run(new TableExists(new Table(getDatabaseSettings().getSchema(),
-                    XyzEventBasedQueryRunner.readTableFromEvent(event))));
-                if (tableExists)
-                    return;
-                throw new SQLException("Missing table \"" + tableName + "\" and creation failed: " + e.getMessage(), e);
-            } finally {
-                advisoryUnlock( tableName, connection );
-                if (cStateFlag)
-                 connection.setAutoCommit(true);
-            }
-        }
     }
 
     public static int readVersionsToKeep(Event event) {
         if (event.getParams() == null || !event.getParams().containsKey("versionsToKeep"))
             return DEFAULT_VERSIONS_TO_KEEP;
         return (int) event.getParams().get("versionsToKeep");
-    }
-
-    private void alterColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
-        stmt.addBatch(new SQLQuery("ALTER TABLE ${schema}.${table} "
-            + "ALTER COLUMN id SET STORAGE MAIN, "
-            + "ALTER COLUMN jsondata SET STORAGE MAIN, "
-            + "ALTER COLUMN geo SET STORAGE MAIN, "
-            + "ALTER COLUMN operation SET STORAGE PLAIN, "
-            + "ALTER COLUMN next_version SET STORAGE PLAIN, "
-            + "ALTER COLUMN version SET STORAGE PLAIN, "
-            + "ALTER COLUMN i SET STORAGE PLAIN, "
-            + "ALTER COLUMN author SET STORAGE MAIN, "
-
-            + "ALTER COLUMN id SET COMPRESSION lz4, "
-            + "ALTER COLUMN jsondata SET COMPRESSION lz4, "
-            + "ALTER COLUMN geo SET COMPRESSION lz4, "
-            + "ALTER COLUMN author SET COMPRESSION lz4;")
-            .withVariable(SCHEMA, schema)
-            .withVariable(TABLE, tableName)
-            .substitute()
-            .text());
-    }
-
-    private void createHeadPartition(Statement stmt, String schema, String rootTable) throws SQLException {
-        SQLQuery q = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${partitionTable} "
-            + "PARTITION OF ${schema}.${rootTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
-            .withVariable(SCHEMA, schema)
-            .withVariable("rootTable", rootTable)
-            .withVariable("partitionTable", rootTable + HEAD_TABLE_SUFFIX);
-
-        stmt.addBatch(q.substitute().text());
-    }
-
-    private void createHistoryPartition(Statement stmt, String schema, String rootTable, long partitionNo) throws SQLException {
-        SQLQuery q = new SQLQuery("SELECT xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
-        stmt.addBatch(q.substitute().text());
-    }
-
-    private void createSpaceTableStatement(Statement stmt, String schema, String table, boolean withIndices, String existingSerial) throws SQLException {
-        String tableFields = "id TEXT NOT NULL, "
-                + "version BIGINT NOT NULL, "
-                + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-                + "operation CHAR NOT NULL, "
-                + "author TEXT, "
-                + "jsondata JSONB, "
-                + "geo geometry(GeometryZ, 4326), "
-                + "i " + (existingSerial == null ? "BIGSERIAL" : "BIGINT NOT NULL DEFAULT nextval('${schema}.${existingSerial}')")
-                + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)";
-
-        SQLQuery createTable = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
-            .withQueryFragment("tableFields", tableFields)
-            .withVariable(SCHEMA, schema)
-            .withVariable(TABLE, table)
-            .withVariable("constraintName", table + "_primKey");
-
-        if (existingSerial != null)
-            createTable.setVariable("existingSerial", existingSerial);
-
-        stmt.addBatch(createTable.substitute().text());
-
-        //Add new way of using different storage-type for columns
-        alterColumnStorage(stmt, schema, table);
-
-        if (withIndices)
-            createIndices(stmt, schema, table);
-    }
-
-    private void createSpaceStatement(Statement stmt, Event event) throws SQLException {
-        String schema = getDatabaseSettings().getSchema();
-        String table = XyzEventBasedQueryRunner.readTableFromEvent(event);
-
-        createSpaceTableStatement(stmt, schema, table, true, null);
-        createHeadPartition(stmt, schema, table);
-        createHistoryPartition(stmt, schema, table, 0L);
-
-        stmt.addBatch(buildCreateSequenceQuery(schema, table, "version").substitute().text());
-
-        stmt.setQueryTimeout(calculateTimeout());
-    }
-
-    private static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName) {
-        return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 0 OWNED BY ${schema}.${table}.${columnName}")
-            .withVariable(SCHEMA, schema)
-            .withVariable(TABLE, table)
-            .withVariable("sequence", table + "_" + columnName + "_seq")
-            .withVariable("columnName", columnName);
-    }
-
-    private static void createIndices(Statement stmt, String schema, String table) throws SQLException {
-        for (SQLQuery indexCreationQuery : buildSpaceTableIndexQueries(schema, table))
-            stmt.addBatch(indexCreationQuery.substitute().text());
     }
 
     static int calculateTimeout() throws SQLException{

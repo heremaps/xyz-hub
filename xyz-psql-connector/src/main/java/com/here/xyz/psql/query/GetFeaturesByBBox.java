@@ -22,7 +22,9 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
-import static com.here.xyz.psql.DatabaseHandler.HEAD_TABLE_SUFFIX;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.HEAD_TABLE_SUFFIX;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -37,6 +39,7 @@ import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;

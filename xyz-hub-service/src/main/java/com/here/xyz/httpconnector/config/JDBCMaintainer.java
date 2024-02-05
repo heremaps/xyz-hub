@@ -19,7 +19,7 @@
 
 package com.here.xyz.httpconnector.config;
 
-import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
 
 import com.fasterxml.jackson.core.JsonProcessingException;

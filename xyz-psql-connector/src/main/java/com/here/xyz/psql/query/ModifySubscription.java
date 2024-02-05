@@ -24,6 +24,8 @@ import static com.here.xyz.events.ModifySubscriptionEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySubscriptionEvent.Operation.UPDATE;
 import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySubscriptionEvent;
@@ -61,7 +63,7 @@ public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, 
   }
 
   @Override
-  protected FeatureCollection handleWrite(int rowCount) {
+  protected FeatureCollection handleWrite(int[] rowCounts) {
     //TODO: Fix return type of this operation should not be a FeatureCollection but simply a SuccessResponse
     return new FeatureCollection().withCount(1L);
   }

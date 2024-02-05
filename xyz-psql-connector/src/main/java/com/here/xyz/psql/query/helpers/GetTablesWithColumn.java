@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql.query.helpers;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
@@ -46,7 +48,7 @@ public class GetTablesWithColumn extends QueryRunner<GetTablesWithColumnInput, L
         + "t.table_name != 'spatial_ref_sys' AND "
         + "LIMIT #{limit}")
         .withNamedParameter("column", input.columnName)
-        .withNamedParameter("schema", getSchema())
+        .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter("limit", input.limit);
   }
 

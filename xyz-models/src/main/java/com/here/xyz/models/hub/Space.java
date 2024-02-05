@@ -428,6 +428,7 @@ public class Space {
     return (T) this;
   }
 
+  //TODO: Change to primitive type
   public Boolean isEnableAutoSearchableProperties() {
     return enableAutoSearchableProperties;
   }

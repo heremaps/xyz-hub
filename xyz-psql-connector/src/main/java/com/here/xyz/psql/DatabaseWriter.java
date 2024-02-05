@@ -19,14 +19,14 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
-import static com.here.xyz.psql.QueryRunner.SCHEMA;
-import static com.here.xyz.psql.QueryRunner.TABLE;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_CONFLICT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -273,7 +273,7 @@ public class DatabaseWriter {
             }
 
             if (transactional) {
-                executeBatchesAndCheckOnFailures(dbh, idList, modificationQuery.prepareStatement(connection), fails, event, action);
+                executeBatchesAndCheckOnFailures(idList, modificationQuery.prepareStatement(connection), fails, event, action);
 
                 if (fails.size() > 0) {
                     logException(null, action, event);
@@ -383,10 +383,9 @@ public class DatabaseWriter {
         return ConnectorRuntime.getInstance().getStreamId();
     }
 
-    private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
+    private static void executeBatchesAndCheckOnFailures(List<String> idList, PreparedStatement batchStmt,
         List<FeatureCollection.ModificationFailure> fails,
         ModifyFeaturesEvent event, ModificationType type) throws SQLException {
-        int[] batchStmtResult;
 
         try {
             if (idList.size() > 0) {
