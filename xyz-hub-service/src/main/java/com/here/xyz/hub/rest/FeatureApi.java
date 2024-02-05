@@ -510,7 +510,7 @@ public class FeatureApi extends SpaceBasedApi {
                 .compose(v -> resolveExtendedSpaces(getMarker(context), space))
                 .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
                 //Perform the actual feature writing
-                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author, responseDataExpected))
+                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author, responseDataExpected, getBranch(context)))
                 .recover(t -> {
                   if (t instanceof TooManyRequestsException throttleException)
                     XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
@@ -738,7 +738,8 @@ public class FeatureApi extends SpaceBasedApi {
           .withTransaction(transactional)
           .withContext(spaceContext)
           .withConflictDetectionEnabled(isConflictDetectionEnabled(context))
-          .withEraseContent(eraseContent(context));
+          .withEraseContent(eraseContent(context))
+          .withRef(getBranch(context));
       int bodySize = context.getBody() != null ? context.getBody().length() : 0;
 
       ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists,
@@ -755,6 +756,12 @@ public class FeatureApi extends SpaceBasedApi {
       logger.warn(getMarker(context), e.getMessage(), e);
       context.fail(e);
     }
+  }
+
+  //TODO: Rename the param to "baseRef" => simply providing branch "b1" would then mean baseRef=b1:HEAD / but an other desired (global) base version could be defined (or *only* the global base version)
+  private static Ref getBranch(RoutingContext context) {
+    String branchId = Query.getString(context, "branch", "main");
+    return Ref.fromBranchId(branchId);
   }
 
   private static String getFeatureId(RoutingContext context) {

@@ -20,9 +20,12 @@
 package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.Event;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.psql.query.branching.BranchManager;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.SQLException;
 import java.util.Map;
@@ -48,8 +51,19 @@ public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object
     return XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId(spaceParams, spaceId, hashed);
   }
 
+  public static String readBranchTableFromEvent(ContextAwareEvent event) {
+    if (event.getNodeId() > 0)
+      return BranchManager.branchTableName(readTableFromEvent(event),
+          (Ref) event.getBranchPath().get(event.getBranchPath().size() - 1), event.getNodeId());
+    return readTableFromEvent(event);
+  }
+
   protected static String getTableNameForSpaceId(Event event, String spaceId) {
     return XyzSpaceTableHelper.getTableNameForSpaceId(spaceId, ConnectorParameters.fromEvent(event).isEnableHashedSpaceId());
+  }
+
+  protected String getBranchTable(ContextAwareEvent event) {
+    return readBranchTableFromEvent(event);
   }
 
   protected String getDefaultTable(E event) {

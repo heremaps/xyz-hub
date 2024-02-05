@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,8 +81,8 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
     }
 
     @Override
-    protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset) {
-      return overrideSelectClause(super.buildSelectClause(event, dataset), selectClauseOverride);
+    protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset, long baseVersion) {
+      return overrideSelectClause(super.buildSelectClause(event, dataset, baseVersion), selectClauseOverride);
     }
 
     private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {

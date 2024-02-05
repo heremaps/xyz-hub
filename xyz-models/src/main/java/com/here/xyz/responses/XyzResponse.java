@@ -47,6 +47,7 @@ import com.here.xyz.util.Hasher;
     @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
     @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
     @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),
+    @JsonSubTypes.Type(value = ModifiedBranchResponse.class, name = "ModifiedBranchResponse"),
     @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
     @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")
 })

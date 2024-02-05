@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.models.hub.Branch.MAIN_BRANCH;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
@@ -27,6 +28,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -58,9 +60,11 @@ import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Branch;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
@@ -69,6 +73,7 @@ import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
@@ -134,6 +139,81 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       event.setSpace(context.pathParam(ApiParam.Path.SPACE_ID));
     }
     this.requestBodySize = requestBodySize;
+  }
+
+  //TODO: Merge into resolveVersionRef
+  void resolveBranch(final X task, final Callback<X> callback) {
+    if (task.getEvent() instanceof ContextAwareEvent<?> event) {
+      try {
+        Space space = task.space;
+        resolveBranchFor(event, space);
+
+        callback.call(task);
+      }
+      catch (HttpException e) {
+        callback.exception(e);
+      }
+    }
+    else
+      callback.call(task);
+  }
+
+  static void resolveBranchFor(ContextAwareEvent<?> event, Space space) throws HttpException {
+    Branch referencedBranch = null;
+    if (!event.getRef().isMainBranch()) {
+      referencedBranch = getReferencedBranch(space, event.getRef());
+    }
+    else if (event.getRef().isTag()) {
+      //The ref was parsed as a tag, but it still could be depicting a branch ID, trying to resolve it ...
+      try {
+        Ref branchRef = Ref.fromBranchId(event.getRef().getTag());
+        referencedBranch = getReferencedBranch(space, branchRef);
+        event.setRef(branchRef);
+      }
+      catch (HttpException e) {
+        if (e.status != NOT_FOUND) //Ignore the NOT_FOUND exception and continue with the pipeline trying to resolve the tag
+          throw e;
+      }
+    }
+
+    if (referencedBranch != null)
+      event
+          .withNodeId(referencedBranch.getNodeId())
+          .withBranchPath(getBranchPath(space, referencedBranch));
+  }
+
+  protected static Branch getReferencedBranch(Space space, Ref ref) throws HttpException {
+    Map<String, Branch> branches = space.getBranches();
+    if (!branches.containsKey(ref.getBranch()))
+      throw new HttpException(NOT_FOUND, "Branch \"" + ref.getBranch() + "\" was not found on resource \"" + space.getId() + "\".");
+
+    return branches.get(ref.getBranch());
+  }
+
+  private static List<Ref> getBranchPath(Space space, Branch referencedBranch) {
+    LinkedList<Ref> branchPath = new LinkedList<>();
+
+    Branch currentBranch = referencedBranch;
+    do {
+      final Branch baseBranch = getBaseBranch(space, currentBranch);
+      branchPath.addFirst(resolveToNodeIdRef(baseBranch, currentBranch.getBaseRef()));
+      currentBranch = baseBranch;
+    } while (currentBranch != MAIN_BRANCH);
+
+    return branchPath;
+  }
+
+  private static Branch getBaseBranch(Space space, Branch branch) {
+    if (branch.getBaseRef().isMainBranch())
+      return MAIN_BRANCH;
+    return space.getBranches().get(branch.getBaseRef().getBranch());
+  }
+
+  private static Ref resolveToNodeIdRef(Branch branch, Ref ref) {
+    if (!ref.getBranch().equals(branch.getId()))
+      throw new IllegalArgumentException("The specified ref does not point to the specified branch.");
+
+    return new Ref("~" + branch.getNodeId() + ":" + ref.getVersion()); //TODO: Implement constructor Ref(branchId, version)
   }
 
   public CacheProfile getCacheProfile() {
@@ -262,6 +342,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<GeometryQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after checkImmutability
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(this::resolveRefSpace)
           .then(this::resolveRefConnector)
@@ -392,6 +473,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<BBoxQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after checkImmutability
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -422,6 +504,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<TileQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after checkImmutability
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -457,6 +540,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after auth
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -478,6 +562,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IterateQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after auth
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -499,6 +584,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<SearchQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef and move back again after auth
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -524,6 +610,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
+          .then(this::resolveBranch) //TODO: Merge into resolveVersionRef?
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
@@ -552,6 +639,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<ModifySpaceQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(this::resolveBranch)
           .then(SpaceTaskHandler::invokeConditionally);
     }
   }
@@ -611,6 +699,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::registerRequestMemory)
           .then(FeatureTaskHandler::throttle)
+          .then(this::resolveBranch)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::prepareModifyFeatureOp)

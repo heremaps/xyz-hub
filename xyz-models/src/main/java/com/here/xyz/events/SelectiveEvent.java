@@ -19,15 +19,11 @@
 
 package com.here.xyz.events;
 
-import static com.here.xyz.models.hub.Ref.HEAD;
-
-import com.here.xyz.models.hub.Ref;
 import java.util.List;
 
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
   private List<String> selection;
   private boolean force2D;
-  private Ref ref = new Ref(HEAD);
 
   @SuppressWarnings("unused")
   public List<String> getSelection() {
@@ -42,19 +38,6 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
   @SuppressWarnings("unused")
   public T withSelection(List<String> selection) {
     setSelection(selection);
-    return (T) this;
-  }
-
-  public Ref getRef() {
-    return ref;
-  }
-
-  public void setRef(Ref ref) {
-    this.ref = ref;
-  }
-
-  public T withRef(Ref ref) {
-    setRef(ref);
     return (T) this;
   }
 

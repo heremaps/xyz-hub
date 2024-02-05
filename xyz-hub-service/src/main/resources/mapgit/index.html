@@ -1,0 +1,166 @@
+<!--
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  ~
+  ~ SPDX-License-Identifier: Apache-2.0
+  ~ License-Filename: LICENSE
+  -->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no">
+  <title>XYZ Maps Example: Visualize a XYZ Space</title>
+  <style type="text/css">
+    #map {
+      position: absolute;
+      overflow: hidden;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 60%;
+    }
+
+    a.button {
+      position: relative;
+      display: block;
+      color: #FFFFFF;
+      cursor: pointer;
+      left: 20px;
+      height: 23px;
+      padding: 5px 6px 0px;
+      width: 150px;
+      text-align: center;
+      margin: 12px 0 0 0;
+      background-color: #333;
+    }
+
+  </style>
+  <script src="https://heremaps.github.io/xyz-maps/xyz-maps-common.min.js?ts=1754481308642"></script>
+  <script src="https://heremaps.github.io/xyz-maps/xyz-maps-core.min.js?ts=1754481308642"></script>
+  <script src="https://heremaps.github.io/xyz-maps/xyz-maps-display.min.js?ts=1754481308642"></script>
+  <script src="https://heremaps.github.io/xyz-maps/xyz-maps-editor.min.js?ts=1754481308642"></script>
+</head>
+<body>
+  <div id="map"></div>
+  <a id="newroad" class="button">Draw road</a>
+
+
+
+  <script>
+    let display;
+    let myLayer;
+
+    (()=>{
+  // import {MVTLayer, TileLayer, SpaceProvider} from '@here/xyz-maps-core';
+      const MVTLayer = here.xyz.maps.MVTLayer, TileLayer = here.xyz.maps.TileLayer, SpaceProvider = here.xyz.maps.SpaceProvider;
+  // import {Map} from '@here/xyz-maps-display';
+      const Map = here.xyz.maps.Map;
+      const Editor = here.xyz.maps.editor.Editor, LineShape = here.xyz.maps.editor.LineShape;
+      /** setup the Map **/
+      const YOUR_API_KEY = "mgUS5Yy_MX0JrROkmrrbMnSWZpLJivHCmJAPOW295yE";
+      display = new Map(document.getElementById('map'), {
+        zoomlevel: 17,
+        center: {
+          longitude: -2.960847, latitude: 53.430828,
+        },
+        // add layers to the display
+        layers: [
+          // create a MVTLayer to act as the "basemap" (background layer)
+          new MVTLayer({
+            remote: {
+              url: 'https://vector.hereapi.com/v2/vectortiles/base/mc/{z}/{x}/{y}/omv?apikey=' + YOUR_API_KEY
+            }
+          })
+        ]
+      });
+      /** done **/
+  // create a TileLayer using a SpaceProvider that's providing the map-data we want to display
+      myLayer = new TileLayer({
+        // the minimum zoom level the layer should be visible
+        min: 14,
+        // the maximum zoom level the layer should be visible
+        max: 20,
+        // create the SpaceProvider
+        provider: new SpaceProvider({
+          // zoom level at which tiles are loaded and a local tile index gets created
+          level: 13,
+          // id of the space
+          space: 'TEST',
+          // user credentials required by the xyz-hub remote service
+          withCredentials: false,
+          https: false,
+          url: "http://localhost:8080/hub/spaces"
+        })
+      });
+  // Add the layer to the display
+      display.addLayer(myLayer);
+
+
+      // setup the editor
+      const editor = new Editor(display, { layers: [myLayer] });
+
+      window.addEventListener("resize", () => display.resize())
+
+      //---------------------application
+
+      let createButton = document.querySelector('#newroad');
+      let drawingBoard = editor.getDrawingBoard();
+
+      // start the "drawing mode" on button click
+      createButton.onclick = function () {
+        drawingBoard.start({
+          mode: 'Line' // we want to draw a "Line" Feature.
+        });
+        // hide this button
+        createButton.style.display = 'none';
+        infoTag.innerText = 'Click map to add shape points, double click to finish drawing';
+      };
+
+      // listen the editor for pointerup events so we can recognize when the last drawn shape is clicked
+      // to automatically create a new line feature with the drawn geometry
+      editor.addEventListener('pointerup', function (event) {
+        // make sure its a left click
+        if (drawingBoard.isActive() && event.button == 0) {
+          let feature = event.target;
+          if (feature.class == 'LINE_SHAPE') {
+            // get the number of shape points
+            let length = feature.getLength();
+            // create the line if last shape is clicked
+            if (length > 1 && feature.getIndex() == length - 1) {
+              // create the line
+              let line = drawingBoard.create({ properties: { optional: 'just drawn' } });
+              editor.submit();
+            }
+            createButton.style.display = 'block';
+          }
+        }
+      });
+
+      editor.addEventListener("featureUnselected", event => {
+        editor.submit();
+      });
+
+      document.addEventListener("keyup", event => {
+        if (event.code.startsWith("Delete")) {
+          editor.getSelectedFeature().remove();
+          editor.submit();
+        }
+      });
+
+    })();
+
+  </script>
+</body>
+</html>

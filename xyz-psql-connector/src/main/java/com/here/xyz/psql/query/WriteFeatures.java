@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.psql.query.branching.CommitManager.branchPathToTableChain;
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.NOT_FOUND;
@@ -59,19 +60,30 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
   @Override
   protected SQLQuery buildQuery(WriteFeaturesEvent event) throws ErrorResponseException {
     List<String> tables = new ArrayList<>();
+    List<Long> tableBaseVersions = null;
     SpaceContext spaceContext = null;
+    String rootTableName = getDefaultTable(event);
 
-    if (isExtendedSpace(event)) {
-      tables.add(getExtendedTable(event));
-      if (is2LevelExtendedSpace(event))
-        tables.add(getIntermediateTable(event));
-      spaceContext = event.getContext();
+    if (event.getNodeId() > 0) {
+      tables.addAll(branchPathToTableChain(rootTableName, event.getBranchPath(), event.getNodeId()));
+      tableBaseVersions = new ArrayList<>();
+      tableBaseVersions.add(0l);
+      tableBaseVersions.addAll(event.getBranchPath().stream().map(baseRef -> baseRef.getVersion()).toList());
     }
-    tables.add(getDefaultTable(event));
+    else {
+      if (isExtendedSpace(event)) {
+        tables.add(getExtendedTable(event));
+        if (is2LevelExtendedSpace(event))
+          tables.add(getIntermediateTable(event));
+        spaceContext = event.getContext();
+      }
+      tables.add(rootTableName);
+    }
 
     Map<String, Object> queryContext = new FeatureWriterQueryContextBuilder()
         .withSchema(getSchema())
         .withTables(tables)
+        .withTableBaseVersions(tableBaseVersions)
         .withSpaceContext(spaceContext)
         .withHistoryEnabled(event.getVersionsToKeep() > 1)
         .withBatchMode(true)
