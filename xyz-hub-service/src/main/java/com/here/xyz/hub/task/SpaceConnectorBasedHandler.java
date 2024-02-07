@@ -56,7 +56,10 @@ public class SpaceConnectorBasedHandler {
         rpcClient.execute(marker, e, handler -> {
           if (handler.failed()) {
             logger.warn(marker, "Error during rpc execution for event: " + e.getClass(), handler.cause());
-            promise.fail(new HttpException(BAD_REQUEST, handler.cause().getMessage()));
+            if(handler.cause() != null && handler.cause() instanceof HttpException )
+                promise.fail(handler.cause());
+            else
+                promise.fail(new HttpException(BAD_REQUEST, handler.cause().getMessage()));
           }
           else
             promise.complete((R) handler.result());
