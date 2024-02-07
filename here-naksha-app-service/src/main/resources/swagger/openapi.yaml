@@ -844,6 +844,8 @@ paths:
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesQuery'
+        - $ref: '#/components/parameters/PropertiesSelection'
+#        - $ref: '#/components/parameters/Clip'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -1177,7 +1179,7 @@ components:
       name: radius
       in: query
       description: >-
-        Radius in meters which defines the diameter of the search request.
+        Radius in meters of the search request.
       schema:
         type: integer
     RefFeatureId:

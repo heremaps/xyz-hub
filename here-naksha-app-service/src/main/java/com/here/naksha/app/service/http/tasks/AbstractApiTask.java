@@ -319,14 +319,17 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     }
   }
 
-  protected <F extends XyzFeature> @NotNull F standardReadFeaturesPreResponseProcessing(
-      final @NotNull F f, final @Nullable Set<String> propPaths, final boolean clip, final Geometry clipGeo) {
-    F newF = f;
-    // Apply prop selection if enabled
-    if (propPaths != null) newF = applyPropertySelection(newF, propPaths);
-    // Apply geometry clipping if enabled
-    if (clip) applyGeometryClipping(newF, clipGeo);
-    return newF;
+  protected <F extends XyzFeature> @Nullable F1<F, F> standardReadFeaturesPreResponseProcessing(
+      final @Nullable Set<String> propPaths, final boolean clip, final Geometry clipGeo) {
+    if (propPaths == null && !clip) return null;
+    return f -> {
+      F newF = f;
+      // Apply prop selection if enabled
+      if (propPaths != null) newF = applyPropertySelection(newF, propPaths);
+      // Apply geometry clipping if enabled
+      if (clip) applyGeometryClipping(newF, clipGeo);
+      return newF;
+    };
   }
 
   @SuppressWarnings("unchecked")

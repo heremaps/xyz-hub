@@ -182,9 +182,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // transform Result to Http FeatureCollection response, restricted by given feature limit
     // we will also apply response preprocessing (like property selection and geometry clipping)
     // if any of the options is enabled
-    final F1<XyzFeature, XyzFeature> preResponseProcessing = (propPaths == null && !clip)
-        ? null
-        : f -> standardReadFeaturesPreResponseProcessing(f, propPaths, clip, bbox);
+    final F1<XyzFeature, XyzFeature> preResponseProcessing =
+        standardReadFeaturesPreResponseProcessing(propPaths, clip, bbox);
     return transformReadResultToXyzCollectionResponse(
         result, XyzFeature.class, 0, limit, null, preResponseProcessing);
   }
@@ -295,6 +294,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final String refFeatureId = ApiParams.extractParamAsString(queryParams, REF_FEATURE_ID);
     final long radius = ApiParams.extractQueryParamAsLong(queryParams, RADIUS, false, 0);
     long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
+    final Set<String> propPaths = PropertySelectionUtil.buildPropPathSetFromQueryParams(queryParams);
+    final boolean clip = ApiParams.extractQueryParamAsBoolean(queryParams, CLIP_GEO, false);
     // validate values
     limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
     ApiParams.validateLatLon(lat, lon);
@@ -313,8 +314,12 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
 
     // Forward request to NH Space Storage reader instance
     final Result result = executeReadRequestFromSpaceStorage(rdRequest);
+    // TODO pass the correct transformed geometry into this method call, also use the boolean clip
+    final F1<XyzFeature, XyzFeature> preResponseProcessing =
+        standardReadFeaturesPreResponseProcessing(propPaths, false, radiusOp.getGeometry());
     // transform Result to Http FeatureCollection response, restricted by given feature limit
-    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class, limit);
+    return transformReadResultToXyzCollectionResponse(
+        result, XyzFeature.class, 0, limit, null, preResponseProcessing);
   }
 
   private @NotNull XyzGeometry obtainReferenceGeometry(
