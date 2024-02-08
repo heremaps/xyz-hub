@@ -6,7 +6,6 @@
       "type": "Feature",
       "properties": {
         "speedLimit": "60",
-        "filteredOut": "yes",
         "@ns:com:here:xyz": {
           "tags": [ "selection-test" ]
         }
@@ -21,7 +20,6 @@
       "type": "Feature",
       "properties": {
         "speedLimit": "80",
-        "filteredOut": "yes",
         "@ns:com:here:xyz": {
           "tags": [ "selection-test" ]
         }
@@ -31,5 +29,6 @@
         "coordinates":[ 9.68872, 51.0561, 293.94377758]
       }
     }
-  ]
+  ],
+  "streamId": "{{streamId}}"
 }

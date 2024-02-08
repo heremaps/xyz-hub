@@ -170,4 +170,41 @@ class IterateFeaturesTest extends ApiTest {
             .hasJsonBody(expectedBodyPart, "Iterate Feature Error response body doesn't match");
   }
 
+  @Test
+  void tc1104_testIterateInTwoPagesWithPropSelection() throws URISyntaxException, InterruptedException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/iterate
+    // Validate all features getting returned in two iterations, with:
+    // - first iteration returning features and nextPageToken, selecting: 1 normal prop, 1 URI encoded prop, 1 prop not existing
+    // - second iteration accepting handle but use the wrong selection delimiter (should return 400)
+
+    // Given: iterate parameters for first request
+    final String limitQueryParam = "limit=3";
+    final String firstStreamId = UUID.randomUUID().toString();
+    final String firstExpectedBodyPart = loadFileOrFail("ReadFeatures/Iterate/TC1104_testIterateInTwoPagesWithPropSelection/iterate_response_1.json")
+            .replaceAll("\\{\\{streamId}}",firstStreamId);
+    final String selectionParams = "selection=p.speedLimit,p.unknown_prop,%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags"));
+
+    // When: First iterate Features request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + limitQueryParam + "&" + selectionParams, firstStreamId);
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(firstStreamId)
+            .hasJsonBody(firstExpectedBodyPart, "First Iterate response body doesn't match", true);
+
+    // Given: iterate parameters for second request
+    final String handleQueryParam = "handle=" + urlEncoded(parseJson(response.body(), XyzFeatureCollection.class).getNextPageToken());
+    final String secondExpectedBodyPart = loadFileOrFail("ReadFeatures/Iterate/TC1104_testIterateInTwoPagesWithPropSelection/iterate_response_2.json");
+    final String secondStreamId = UUID.randomUUID().toString();
+    final String selectionWrongDelimiterParams = "selection=p.speedLimit+p.unknown_prop";
+
+    // When: Second iterate Features request is submitted to NakshaHub
+    response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + handleQueryParam + "&" + selectionWrongDelimiterParams, secondStreamId);
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(400)
+            .hasStreamIdHeader(secondStreamId)
+            .hasJsonBody(secondExpectedBodyPart, "Final Iterate response body doesn't match");
+  }
+
 }

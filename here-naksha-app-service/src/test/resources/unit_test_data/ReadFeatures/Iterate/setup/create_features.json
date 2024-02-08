@@ -6,6 +6,7 @@
       "type": "Feature",
       "properties": {
         "speedLimit": "30",
+        "filteredOut": "yes",
         "@ns:com:here:xyz": {
           "tags": [ "one" ]
         }
@@ -19,6 +20,7 @@
       "id": "feature_2",
       "type": "Feature",
       "properties": {
+        "filteredOut": "yes",
         "speedLimit": "40",
         "@ns:com:here:xyz": {
           "tags": [ "one", "two" ]

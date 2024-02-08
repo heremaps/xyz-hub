@@ -476,6 +476,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/RequiredIds'
+        - $ref: '#/components/parameters/PropertiesSelection'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -627,6 +628,8 @@ paths:
       summary: Get a feature by ID
       description: Retrieves the feature with the provided identifier.
       operationId: getFeature
+      parameters:
+        - $ref: '#/components/parameters/PropertiesSelection'
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'
@@ -880,6 +883,8 @@ paths:
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesQuery'
+        - $ref: '#/components/parameters/PropertiesSelection'
+#        - $ref: '#/components/parameters/Clip'
       requestBody:
         $ref: '#/components/requestBodies/GeometryRequest'
       responses:
@@ -917,6 +922,7 @@ paths:
         - $ref: '#/components/parameters/TagList'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/PropertiesQuery'
+        - $ref: '#/components/parameters/PropertiesSelection'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -951,6 +957,7 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Handle'
+        - $ref: '#/components/parameters/PropertiesSelection'
       responses:
         '200':
           $ref: '#/components/responses/IterateResponse'

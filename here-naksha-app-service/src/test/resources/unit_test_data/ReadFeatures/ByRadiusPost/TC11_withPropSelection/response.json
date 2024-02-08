@@ -2,33 +2,32 @@
   "type": "FeatureCollection",
   "features": [
     {
-      "id": "tc_900_feature_2",
+      "id": "my-custom-id-2",
       "type": "Feature",
       "properties": {
-        "speedLimit": "40",
         "@ns:com:here:xyz": {
-          "tags": [ "one", "two", "three", "four" ]
+          "tags": [ "tag-2", "tag-ref" ]
         }
       },
       "geometry": {
         "type":"Point",
-        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+        "coordinates":[ 8.61235, 50.1234, 0.0 ]
       }
     },
     {
-      "id": "tc_900_feature_3",
+      "id": "my-custom-id-3",
       "type": "Feature",
       "properties": {
         "speedLimit": "60",
-        "filteredOut": "yes",
         "@ns:com:here:xyz": {
-          "tags": [ "one", "two", "three", "four", "five", "six" ]
+          "tags": [ "tag-3", "tag-ref" ]
         }
       },
       "geometry": {
         "type":"Point",
-        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+        "coordinates":[ 8.61235, 50.1234, 0.0 ]
       }
     }
-  ]
+  ],
+  "streamId": "{{streamId}}"
 }

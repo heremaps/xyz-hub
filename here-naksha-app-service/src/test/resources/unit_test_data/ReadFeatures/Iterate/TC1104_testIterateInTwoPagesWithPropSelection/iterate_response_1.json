@@ -1,11 +1,12 @@
 {
   "type": "FeatureCollection",
+  "nextPageToken": "eyJsaW1pdCI6Mywib2Zmc2V0IjozfQ==",
   "features": [
     {
-      "id": "tc_900_feature_1",
+      "id": "feature_1",
       "type": "Feature",
       "properties": {
-        "speedLimit": "10",
+        "speedLimit": "30",
         "@ns:com:here:xyz": {
           "tags": [ "one" ]
         }
@@ -16,12 +17,12 @@
       }
     },
     {
-      "id": "tc_900_feature_2",
+      "id": "feature_2",
       "type": "Feature",
       "properties": {
         "speedLimit": "40",
         "@ns:com:here:xyz": {
-          "tags": [ "one", "two", "three", "four" ]
+          "tags": [ "one", "two" ]
         }
       },
       "geometry": {
@@ -30,27 +31,12 @@
       }
     },
     {
-      "id": "tc_900_feature_3",
+      "id": "feature_3",
       "type": "Feature",
       "properties": {
-        "speedLimit": "60",
-        "filteredOut": "yes",
+        "speedLimit": "50",
         "@ns:com:here:xyz": {
-          "tags": [ "one", "two", "three", "four", "five", "six" ]
-        }
-      },
-      "geometry": {
-        "type":"Point",
-        "coordinates":[ 8.6578, 50.1234, 0.0 ]
-      }
-    },
-    {
-      "id": "tc_900_feature_4",
-      "type": "Feature",
-      "properties": {
-        "speedLimit": "70",
-        "@ns:com:here:xyz": {
-          "tags": [ "non-matching-tag", "@ThRee" ]
+          "tags": [ "one", "two", "three" ]
         }
       },
       "geometry": {
@@ -58,5 +44,6 @@
         "coordinates":[ 8.6578, 50.1234, 0.0 ]
       }
     }
-  ]
+  ],
+  "streamId": "{{streamId}}"
 }

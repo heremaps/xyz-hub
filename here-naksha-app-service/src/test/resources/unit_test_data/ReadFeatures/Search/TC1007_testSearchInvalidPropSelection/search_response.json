@@ -4,17 +4,11 @@
     {
       "id": "tc_900_feature_3",
       "type": "Feature",
-      "properties": {
-        "speedLimit": "60",
-        "@ns:com:here:xyz": {
-          "tags": [ "one", "two", "three", "four", "five", "six" ]
-        }
-      },
+      "properties": {},
       "geometry": {
         "type":"Point",
         "coordinates":[ 8.6578, 50.1234, 0.0 ]
       }
     }
-  ],
-  "streamId": "{{streamId}}"
+  ]
 }

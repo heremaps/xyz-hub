@@ -20,6 +20,7 @@ package com.here.naksha.app.service;
 
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
+import static com.here.naksha.app.common.TestUtil.urlEncoded;
 
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
@@ -46,7 +47,7 @@ class SearchFeaturesTest extends ApiTest {
   }
 
   @Test
-  void tc1000_testSearchFeatures() throws URISyntaxException, InterruptedException, JSONException, IOException {
+  void tc1000_testSearchFeatures() throws URISyntaxException, InterruptedException, IOException {
     // Test API : GET /hub/spaces/{spaceId}/search
     // Validate features getting returned for given Tag filter parameters
     // Given: search query
@@ -65,7 +66,7 @@ class SearchFeaturesTest extends ApiTest {
   }
 
   @Test
-  void tc1001_testSearchNoResults() throws URISyntaxException, IOException, InterruptedException, JSONException {
+  void tc1001_testSearchNoResults() throws URISyntaxException, IOException, InterruptedException {
     // Given: search query not matching saved features
     final String tagsQueryParam = "tags=seven";
     final String expectedBodyPart =
@@ -84,7 +85,7 @@ class SearchFeaturesTest extends ApiTest {
   }
 
   @Test
-  void tc1002_testSearchWrongSpace() throws URISyntaxException, IOException, InterruptedException, JSONException {
+  void tc1002_testSearchWrongSpace() throws URISyntaxException, IOException, InterruptedException {
     // Given: search query not matching saved features
     final String tagsQueryParam = "tags=one";
     final String expectedBodyPart =
@@ -104,28 +105,31 @@ class SearchFeaturesTest extends ApiTest {
   }
 
   @Test
-  void tc1003_testSearchWithTagsAndProp() throws URISyntaxException, InterruptedException, JSONException, IOException {
+  void tc1003_testSearchWithTagsAndProp() throws URISyntaxException, InterruptedException, IOException {
     // Test API : GET /hub/spaces/{spaceId}/search
     // Validate features getting returned for given Tag and Property search conditions
+    // with response displaying only selected properties
 
     // Given: search query
     final String tagsQueryParam = "tags=one+four";
     final String propQueryParam = "p.speedLimit='60'";
-    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1003_searchWithTagsAndProp/search_response.json");
     final String streamId = UUID.randomUUID().toString();
+    final String selectionParam = "selection=p.speedLimit,%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags"));
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1003_searchWithTagsAndProp/search_response.json")
+            .replaceAll("\\{\\{streamId}}",streamId);
 
     // When: Get Features By Tile request is submitted to NakshaHub
-    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + tagsQueryParam + "&" + propQueryParam, streamId);
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + tagsQueryParam + "&" + propQueryParam + "&" + selectionParam, streamId);
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
             .hasStatus(200)
             .hasStreamIdHeader(streamId)
-            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match",true);
   }
 
   @Test
-  void tc1004_testSearchWithTagsMatchAndPropDoesNot() throws URISyntaxException, InterruptedException, JSONException, IOException {
+  void tc1004_testSearchWithTagsMatchAndPropDoesNot() throws URISyntaxException, InterruptedException, IOException {
     // Test API : GET /hub/spaces/{spaceId}/search
     // Validate No features returned when Tag filter matches but Property filters don't
 
@@ -146,7 +150,7 @@ class SearchFeaturesTest extends ApiTest {
   }
 
   @Test
-  void tc1005_testSearchWithOnlyPropFilter() throws URISyntaxException, InterruptedException, JSONException, IOException {
+  void tc1005_testSearchWithOnlyPropFilter() throws URISyntaxException, InterruptedException, IOException {
     // Test API : GET /hub/spaces/{spaceId}/search
     // Validate features returned matches with Property filter (even when Tags filter not supplied)
 
@@ -166,7 +170,7 @@ class SearchFeaturesTest extends ApiTest {
   }
 
   @Test
-  void tc1006_testSearchWithoutFilters() throws URISyntaxException, InterruptedException, JSONException, IOException {
+  void tc1006_testSearchWithoutFilters() throws URISyntaxException, InterruptedException, IOException {
     // Test API : GET /hub/spaces/{spaceId}/search
     // Validate API returns error when neither Tags nor Property filters provided
 
@@ -184,5 +188,48 @@ class SearchFeaturesTest extends ApiTest {
             .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
   }
 
+  @Test
+  void tc1007_testSearchInvalidPropSelection() throws URISyntaxException, InterruptedException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Validate features getting returned for given Tag and Property search conditions
+    // with response displaying no properties as the selection property does not exist
 
+    // Given: search query
+    final String tagsQueryParam = "tags=one+four";
+    final String propQueryParam = "p.speedLimit='60'";
+    final String selectionParam = "selection=p.unknown_prop";
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1007_testSearchInvalidPropSelection/search_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By Tile request is submitted to NakshaHub
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + tagsQueryParam + "&" + propQueryParam + "&" + selectionParam, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
+
+  @Test
+  void tc1008_testSearchInvalidDelimiterPropSelection() throws URISyntaxException, InterruptedException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Return error result because of wrong delimiter in selection params
+
+    // Given: search query
+    final String tagsQueryParam = "tags=one+four";
+    final String propQueryParam = "p.speedLimit='60'";
+    final String selectionParam = "selection=p.speedLimit+%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags"));
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1008_testSearchInvalidDelimiterPropSelection/search_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By Tile request is submitted to NakshaHub
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + tagsQueryParam + "&" + propQueryParam + "&" + selectionParam, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(400)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
 }

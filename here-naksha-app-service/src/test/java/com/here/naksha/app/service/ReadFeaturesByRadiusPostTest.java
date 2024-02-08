@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
+import static com.here.naksha.app.common.TestUtil.urlEncoded;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 
 class ReadFeaturesByRadiusPostTest extends ApiTest {
@@ -65,6 +66,10 @@ class ReadFeaturesByRadiusPostTest extends ApiTest {
     TC  8 - No Geometry (should return 400)
     TC  9 - Point1, radius=-1m (should return 400)
     TC 10 - LineString, radius=5 (should return features 1,2,3)
+    TC 11 - Point1, radius=5m, Prop-2 (should return features 2,3 with appropriate selected json prop)
+    TC 12 - Point1, radius=5m, Prop-2 (should return features 2,3 disregarding invalid prop selection)
+    TC 13 - Invalid delimiter of prop selection (should return 400)
+
   */
 
   @BeforeAll
@@ -167,42 +172,101 @@ class ReadFeaturesByRadiusPostTest extends ApiTest {
                     ),
                     "ReadFeatures/ByRadiusPost/TC10_withLineString/feature_response_part.json",
                     200
+            ),
+            // TC 11 and 12 are in another params set strictJsonTestParams()
+            standardTestSpec(
+                    "tc13_withInvalidDelimiterPropSelection",
+                    "ReadFeatures/ByRadiusPost/TC13_withInvalidDelimiterPropSelection/request.json",
+                    List.of(
+                            "radius=5",
+                            "p.length=10",
+                            "selection=p.speedLimit+%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags")),
+                            "clip=false"
+                    ),
+                    "ReadFeatures/ByRadiusPost/TC13_withInvalidDelimiterPropSelection/response.json",
+                    400
             )
     );
 
   }
 
-  @ParameterizedTest
-  @MethodSource("standardTestParams")
-  void commonTestExecution(
-          final @Nullable String fPathOfRequestBody,
-          final @Nullable List<String> queryParamList,
-          final @NotNull String fPathOfExpectedResBody,
-          final int expectedResCode) throws Exception {
-    // Given: Request parameters
-    String urlQueryParams = "";
-    if (queryParamList!=null && !queryParamList.isEmpty()) {
-      urlQueryParams += String.join("&", queryParamList);
+    private static Stream<Arguments> strictJsonTestParams() {
+        return Stream.of(
+                standardTestSpec(
+                        "tc11_withPropSelection",
+                        "ReadFeatures/ByRadiusPost/TC11_withPropSelection/request.json",
+                        List.of(
+                                "radius=5",
+                                "p.length=10",
+                                "selection=p.speedLimit,%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags")),
+                                "clip=false"
+                        ),
+                        "ReadFeatures/ByRadiusPost/TC11_withPropSelection/response.json",
+                        200
+                ),
+                standardTestSpec(
+                        "tc12_withInvalidPropSelection",
+                        "ReadFeatures/ByRadiusPost/TC12_withInvalidPropSelection/request.json",
+                        List.of(
+                                "radius=5",
+                                "p.length=10",
+                                "selection=p.speedLimit,p.unknown_prop"
+                        ),
+                        "ReadFeatures/ByRadiusPost/TC12_withInvalidPropSelection/response.json",
+                        200
+                )
+        );
     }
-    final String streamId = UUID.randomUUID().toString();
 
-    // Given: Request body
-    final String requestBody = (fPathOfRequestBody!=null) ? loadFileOrFail(fPathOfRequestBody) : "";
+    void baseTestExecution(
+            final @Nullable String fPathOfRequestBody,
+            final @Nullable List<String> queryParamList,
+            final @NotNull String fPathOfExpectedResBody,
+            final int expectedResCode,
+            boolean strictChecking) throws Exception {
+        // Given: Request parameters
+        String urlQueryParams = "";
+        if (queryParamList!=null && !queryParamList.isEmpty()) {
+            urlQueryParams += String.join("&", queryParamList);
+        }
+        final String streamId = UUID.randomUUID().toString();
 
-    // Given: Expected response body
-    final String expectedBodyPart = loadFileOrFail(fPathOfExpectedResBody);
+        // Given: Request body
+        final String requestBody = (fPathOfRequestBody!=null) ? loadFileOrFail(fPathOfRequestBody) : "";
 
-    // When: Get Features By Radius request is submitted to NakshaHub
-    final HttpResponse<String> response = nakshaClient
-            .post("hub/spaces/" + SPACE_ID + "/spatial?" + urlQueryParams, requestBody, streamId);
+        // Given: Expected response body
+        final String loadedString = loadFileOrFail(fPathOfExpectedResBody);
+        final String expectedBodyPart = (strictChecking) ? loadedString.replaceAll("\\{\\{streamId}}",streamId) : loadedString;
+        // When: Get Features By Radius request is submitted to NakshaHub
+        final HttpResponse<String> response = nakshaClient
+                .post("hub/spaces/" + SPACE_ID + "/spatial?" + urlQueryParams, requestBody, streamId);
 
-    // Then: Perform standard assertions
-    assertThat(response)
-            .hasStatus(expectedResCode)
-            .hasStreamIdHeader(streamId)
-            .hasJsonBody(expectedBodyPart, "Response body doesn't match");
-  }
+        // Then: Perform standard assertions
+        assertThat(response)
+                .hasStatus(expectedResCode)
+                .hasStreamIdHeader(streamId)
+                .hasJsonBody(expectedBodyPart, "Response body doesn't match", strictChecking);
+    }
 
+    @ParameterizedTest
+    @MethodSource("strictJsonTestParams")
+    void strictResponseTestExecution(
+            final @Nullable String fPathOfRequestBody,
+            final @Nullable List<String> queryParamList,
+            final @NotNull String fPathOfExpectedResBody,
+            final int expectedResCode) throws Exception {
+        baseTestExecution(fPathOfRequestBody,queryParamList,fPathOfExpectedResBody,expectedResCode,true);
+    }
+
+    @ParameterizedTest
+    @MethodSource("standardTestParams")
+    void commonTestExecution(
+            final @Nullable String fPathOfRequestBody,
+            final @Nullable List<String> queryParamList,
+            final @NotNull String fPathOfExpectedResBody,
+            final int expectedResCode) throws Exception {
+        baseTestExecution(fPathOfRequestBody,queryParamList,fPathOfExpectedResBody,expectedResCode,false);
+    }
 
   @Test
   void tc06_testGetByRadiusPostWithPointRadiusLimit() throws Exception {

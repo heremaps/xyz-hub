@@ -18,24 +18,21 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
-import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
-import static com.here.naksha.app.common.TestUtil.parseJson;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.app.common.assertions.ResponseAssertions;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
-import java.util.List;
 import java.util.UUID;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+
+import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
+import static com.here.naksha.app.common.TestUtil.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ReadFeaturesByIdsTest extends ApiTest {
 
@@ -61,7 +58,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/feature_response_part.json");
     String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?" + idsQueryParam, streamId);
 
     // Then: Perform assertions
@@ -83,7 +80,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0401_MissingIds/feature_response_part.json");
     String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features" + idsQueryParam, streamId);
 
     // Then: Perform assertions
@@ -102,7 +99,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0402_WithoutIds/feature_response_part.json");
     String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features", streamId);
 
     // Then: Perform assertions
@@ -123,7 +120,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0403_ByIdsFromMissingSpace/feature_response_part.json");
     final String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + missingSpaceId + "/features?" + idsQueryParam, streamId);
 
     // Then: Perform assertions
@@ -143,7 +140,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0404_ExistingId/feature_response_part.json");
     final String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features/" + featureId, streamId);
 
     // Then: Perform assertions
@@ -168,7 +165,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0405_MissingId/feature_response_part.json");
     final String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features/" + featureId, streamId);
 
     // Then: Perform assertions
@@ -189,7 +186,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0406_ByIdFromMissingSpace/feature_response_part.json");
     final String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + missingSpaceId + "/features/" + featureId, streamId);
 
     // Then: Perform assertions
@@ -209,7 +206,7 @@ class ReadFeaturesByIdsTest extends ApiTest {
         loadFileOrFail("ReadFeatures/ByIds/TC0407_CommaSeparatedIds/feature_response_part.json");
     final String streamId = UUID.randomUUID().toString();
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
     final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?" + idsQueryParam, streamId);
 
     // Then: Perform assertions
@@ -221,4 +218,114 @@ class ReadFeaturesByIdsTest extends ApiTest {
     ;
   }
 
+  @Test
+  void tc0408_withPropSelection() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/features
+    // Validate features getting returned for Ids provided, in which only selected properties are returned
+    // Given: Features By Ids request (against existing space)
+    final String idsQueryParam = "id=my-custom-id-400-1,my-custom-id-400-2";
+    final String streamId = UUID.randomUUID().toString();
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByIds/TC0408_withPropSelection/feature_response_part.json")
+                    .replaceAll("\\{\\{streamId}}",streamId);
+    final String selectionParams = "selection=p.speedLimit,%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags"));
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?" + idsQueryParam + "&" + selectionParams, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match",false)
+    ;
+  }
+
+  @Test
+  void tc0409_withWrongPropSelection() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/features
+    // Validate features getting returned for Ids provided, in which none of selected properties exist
+    // Given: Features By Ids request (against existing space)
+    final String idsQueryParam = "id=my-custom-id-400-1,my-custom-id-400-2";
+    final String streamId = UUID.randomUUID().toString();
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByIds/TC0409_withWrongPropSelection/feature_response_part.json")
+                    .replaceAll("\\{\\{streamId}}",streamId);
+    final String selectionParams = "selection=p.unknown_prop,p.not_existing_prop";
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?" + idsQueryParam + "&" + selectionParams, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match",false)
+    ;
+  }
+
+  @Test
+  void tc0410_withWrongDelimiterPropSelection() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/features
+    // Validate features getting returned for Ids provided, in which selection parameter is wrong
+    // Given: Features By Ids request (against existing space)
+    final String idsQueryParam = "id=my-custom-id-400-1,my-custom-id-400-2";
+    final String streamId = UUID.randomUUID().toString();
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByIds/TC0410_withWrongDelimiterPropSelection/feature_response_part.json")
+                    .replaceAll("\\{\\{streamId}}",streamId);
+    final String selectionParams = "selection=p.unknown_prop+p.not_existing_prop";
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?" + idsQueryParam + "&" + selectionParams, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(400)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match",false)
+    ;
+  }
+
+  @Test
+  void tc0411_BySingleIdWithPropSelection() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
+    // Validate feature getting returned for given Id, with property selection
+    // one prop in complicated URI encoded format, one not existing
+    // Given: Feature By Id request (against already existing space)
+    final String featureId = "my-custom-id-400-1";
+    final String streamId = UUID.randomUUID().toString();
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByIds/TC0411_BySingleIdWithPropSelection/response.json");
+    final String selectionParams = "selection=p.unknown_prop,%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags"));
+
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features/" + featureId+"?"+selectionParams, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match",true);
+  }
+
+  @Test
+  void tc0412_BySingleIdWithInvalidDelimiterPropSelection() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
+    // Validate feature getting returned for given Id, with property selection and wrong delimiter
+    // Given: Feature By Id request (against already existing space)
+    final String featureId = "my-custom-id-400-1";
+    final String streamId = UUID.randomUUID().toString();
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByIds/TC0412_BySingleIdWithInvalidDelimiterPropSelection/response.json");
+    final String selectionParams = "selection=p.unknown_prop+%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags"));
+
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features/" + featureId+"?"+selectionParams, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(400)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
 }
