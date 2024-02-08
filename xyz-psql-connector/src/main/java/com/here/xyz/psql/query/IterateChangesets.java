@@ -19,8 +19,6 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -62,8 +60,10 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   public XyzResponse run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
     long min = new GetMinAvailableVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
 
-    if (start < min)
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Min Version=" + min);
+    if (start < min) {
+      start = min;
+      event.setStartVersion(start);
+    }
 
     return super.run(dataSourceProvider);
   }

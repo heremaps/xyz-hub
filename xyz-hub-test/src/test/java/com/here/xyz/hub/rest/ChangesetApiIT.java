@@ -352,4 +352,19 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .body("versions.0.inserted.features[0]", hasKey("geometry"))
         .body("versions.0.inserted.features[0].geometry", nullValue());
   }
+
+  @Test
+  public void deleteAndGetMultipleChangesets() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<4")
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=999")
+        .then()
+        .statusCode(OK.code());
+  }
 }
