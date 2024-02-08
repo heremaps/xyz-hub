@@ -37,7 +37,6 @@ import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -119,7 +118,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildVersionComparison(SelectiveEvent event) {
-    Ref ref = event.getParsedRef();
+    Ref ref = event.getRef();
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
 
@@ -128,7 +127,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildNextVersionFragment(SelectiveEvent event) {
-    return buildNextVersionFragment(event.getParsedRef(), event.getVersionsToKeep() > 1,
+    return buildNextVersionFragment(event.getRef(), event.getVersionsToKeep() > 1,
         "requestedVersion");
   }
 
@@ -150,7 +149,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
-    Ref ref = event.getParsedRef();
+    Ref ref = event.getRef();
     boolean isHeadOrStar = ref.isHead() || ref.isAllVersions();
     long version = isHeadOrStar ? Long.MAX_VALUE : ref.getVersion();
     if (event.getVersionsToKeep() > 1)
@@ -245,7 +244,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   private static String buildOrderByFragment(ContextAwareEvent event) {
     if (!(event instanceof SelectiveEvent selectiveEvent))
       return "";
-    return selectiveEvent.getParsedRef().isAllVersions() ? "ORDER BY version" : "";
+    return selectiveEvent.getRef().isAllVersions() ? "ORDER BY version" : "";
   }
 
   protected SQLQuery buildGeoFragment(E event) {

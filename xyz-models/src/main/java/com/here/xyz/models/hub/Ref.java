@@ -21,8 +21,9 @@ package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.here.xyz.XyzSerializable;
 
-public class Ref {
+public class Ref implements XyzSerializable {
 
   public static final String HEAD = "HEAD";
   public static final String ALL_VERSIONS = "*";
@@ -38,13 +39,21 @@ public class Ref {
       allVersions = true;
     else
       try {
-        version = Long.parseLong(ref);
-        if (version < 0)
-          throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
+        setVersion(Long.parseLong(ref));
       }
       catch (NumberFormatException e) {
         throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
       }
+  }
+
+  public Ref(long version) {
+    setVersion(version);
+  }
+
+  private void setVersion(long version) {
+    this.version = version;
+    if (version < 0)
+      throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
   }
 
   @JsonValue

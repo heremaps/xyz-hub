@@ -19,19 +19,15 @@
 
 package com.here.xyz.events;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.models.hub.Ref;
 import java.util.List;
 
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
-
   private List<String> selection;
   private boolean force2D;
-  private String ref;
+  private Ref ref = new Ref("HEAD");
   private long minVersion;
   private String author;
-  @JsonIgnore
-  private Ref parsedRef;
 
   @SuppressWarnings("unused")
   public List<String> getSelection() {
@@ -49,24 +45,17 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     return (T) this;
   }
 
-  public String getRef() {
+  public Ref getRef() {
     return ref;
   }
 
-  public void setRef(String ref) {
+  public void setRef(Ref ref) {
     this.ref = ref;
   }
 
-  public T withRef(String ref) {
+  public T withRef(Ref ref) {
     setRef(ref);
     return (T) this;
-  }
-
-  public Ref getParsedRef() {
-    if (parsedRef == null)
-      parsedRef = new Ref(getRef());
-
-    return parsedRef;
   }
 
   public long getMinVersion() {

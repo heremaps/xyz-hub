@@ -38,12 +38,12 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Export.Filters;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.SearchForFeatures;
@@ -185,7 +185,7 @@ public class JDBCExporter extends JdbcBasedHandler {
       throw new SQLException(e);
     }
 
-    if (spatialFilter != null && spatialFilter.isClipped()) 
+    if (spatialFilter != null && spatialFilter.isClipped())
     { SQLQuery geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
                geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
                geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
@@ -604,7 +604,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         }
 
         if (targetVersion != null)
-            event.setRef(targetVersion);
+            event.setRef(new Ref(targetVersion));
 
         if (propertyFilter != null) {
             PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);

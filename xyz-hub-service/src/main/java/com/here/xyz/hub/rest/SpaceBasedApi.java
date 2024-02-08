@@ -9,6 +9,8 @@ import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.Task;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.responses.ErrorResponse;
 import io.vertx.ext.web.RoutingContext;
 
@@ -22,9 +24,8 @@ public abstract class SpaceBasedApi extends Api {
 
   protected static SpaceContext getSpaceContext(RoutingContext context) throws HttpException {
     SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
-    if (spaceContext == null) {
+    if (spaceContext == null)
       throw new HttpException(BAD_REQUEST, "Invalid space context.");
-    }
     return spaceContext;
   }
 
@@ -66,5 +67,16 @@ public abstract class SpaceBasedApi extends Api {
 
   protected final String getSpaceId(RoutingContext context) {
     return context.pathParam(Path.SPACE_ID);
+  }
+
+  protected Ref getRef(RoutingContext context) throws HttpException {
+    final String version = Query.getString(context, Query.VERSION, null);
+    try {
+
+      return new Ref(version);
+    }
+    catch (InvalidRef e) {
+      throw new HttpException(BAD_REQUEST, "Invalid value for version: " + version, e);
+    }
   }
 }
