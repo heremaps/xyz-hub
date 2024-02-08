@@ -59,7 +59,7 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Space;
@@ -216,7 +216,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     private Future<Boolean> readEnableHashedSpaceId() {
-        return HubWebClient.getConnectorConfig(getTargetConnector())
+        return HubWebClientAsync.getConnectorConfig(getTargetConnector())
             .compose(connector -> {
                 boolean enableHashedSpaceId = connector.params.containsKey("enableHashedSpaceId")
                     ? (boolean) connector.params.get("enableHashedSpaceId") : false;
@@ -289,7 +289,7 @@ public abstract class Job<T extends Job> extends Payload {
         if (getTargetSpaceId() == null)
             return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!"));
 
-        return HubWebClient.getSpace(getTargetSpaceId())
+        return HubWebClientAsync.getSpace(getTargetSpaceId())
                 .compose(space -> {
                     setTargetSpaceId(space.getId());
                     setTargetConnector(space.getStorage().getId());
@@ -300,7 +300,7 @@ public abstract class Job<T extends Job> extends Payload {
 
                     if (space.getExtension() != null) {
                         /** Resolve Extension */
-                        HubWebClient.getSpace(space.getExtension().getSpaceId())
+                        HubWebClientAsync.getSpace(space.getExtension().getSpaceId())
                                 .onSuccess(baseSpace -> {
                                     p.complete(space.resolveCompositeParams(baseSpace));
                                 })
@@ -312,7 +312,7 @@ public abstract class Job<T extends Job> extends Payload {
                     Promise<Map> p = Promise.promise();
                     if (extension != null && extension.get("extends") != null  && ((Map)extension.get("extends")).get("extends") != null) {
                         /** Resolve 2nd Level Extension */
-                        HubWebClient.getSpace((String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
+                        HubWebClientAsync.getSpace((String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
                                 .onSuccess(baseSpace -> {
                                     /** Add persistExport flag to Parameters */
                                     Map<String, Object> ext = new HashMap<>();

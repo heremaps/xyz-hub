@@ -38,7 +38,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.CompositeFuture;
@@ -109,7 +109,7 @@ public class Import extends JDBCBasedJob<Import> {
     @Override
     public Future<Import> validate() {
         return super.validate()
-            .compose(job ->  HubWebClient.getSpaceStatistics(getTargetSpaceId())
+            .compose(job ->  HubWebClientAsync.getSpaceStatistics(getTargetSpaceId())
             .compose(statistics -> {
                 long value = statistics.getCount().getValue();
                 if (value != 0)
