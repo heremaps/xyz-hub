@@ -72,7 +72,7 @@ import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -263,12 +263,12 @@ public class Export extends JDBCBasedJob<Export> {
                                    );
 
                 String superSpaceId = extractSuperSpaceId();
-                return HubWebClient.getSpaceStatistics(superSpaceId != null ? superSpaceId : job.getTargetSpaceId(), ctx)
+                return HubWebClientAsync.getSpaceStatistics(superSpaceId != null ? superSpaceId : job.getTargetSpaceId(), ctx)
                     .compose(statistics -> {
                         setMaxSpaceVersion(statistics.getMaxVersion().getValue());
                         return superSpaceId == null
                             ? Future.succeededFuture(statistics)
-                            : HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx);
+                            : HubWebClientAsync.getSpaceStatistics(job.getTargetSpaceId(), ctx);
                     });
             })
             .compose(statistics -> {
@@ -1072,7 +1072,7 @@ public class Export extends JDBCBasedJob<Export> {
                     baseExport.addParam(PARAM_PERSIST_EXPORT, true);
 
                     logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), superSpaceId);
-                    return HubWebClient.performBaseLayerExport(superSpaceId, baseExport)
+                    return HubWebClientAsync.performBaseLayerExport(superSpaceId, baseExport)
                         .compose(newBaseExport -> {
                             logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
                             setSuperId(newBaseExport.getId());
