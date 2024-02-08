@@ -175,9 +175,13 @@ public class JobApiCompositeExportIT extends JobApiIT{
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         checkUrls(urls, true);
 
-//        job =  generateExportJob(testExportJobId, 4);
-//        urls = performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-//        checkUrls(urls, true);
+        Export compositeJob = (Export)loadJob(testSpaceId1Ext, job.getId());
+        Export baseJob = (Export)loadJob(testSpaceId1, job.getId()+ "_missing_base");
+
+        assertEquals(3, compositeJob.getMaxSpaceVersion());
+        assertEquals(0, compositeJob.getMaxSuperSpaceVersion());
+        assertEquals(0, baseJob.getMaxSpaceVersion());
+        assertEquals(-42,baseJob.getMaxSuperSpaceVersion());
     }
 
     @Test
