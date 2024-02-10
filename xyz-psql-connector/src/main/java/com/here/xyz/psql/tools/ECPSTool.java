@@ -20,14 +20,19 @@
 package com.here.xyz.psql.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.io.BaseEncoding;
 import com.google.crypto.tink.aead.AeadConfig;
 import com.google.crypto.tink.subtle.AesGcmJce;
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -57,12 +62,24 @@ public class ECPSTool {
     }
   }
 
-  public static String encrypt(String phrase, String data) throws GeneralSecurityException, UnsupportedEncodingException {
-    return AESGCMHelper.getInstance(phrase).encrypt(data);
+  public static String encrypt(String phrase, String data) throws GeneralSecurityException {
+    return encrypt(phrase, data, false);
   }
 
   public static String decrypt(String phrase, String data) throws GeneralSecurityException {
-    return AESGCMHelper.getInstance(phrase).decrypt(data);
+    return decrypt(phrase, data, false);
+  }
+
+  public static String encrypt(String phrase, String data, boolean cacheable) throws GeneralSecurityException {
+    return cacheable
+        ? AESCacheableHelper.encrypt(data, phrase)
+        : AESGCMHelper.getInstance(phrase).encrypt(data);
+  }
+
+  public static String decrypt(String phrase, String data, boolean cacheable) throws GeneralSecurityException {
+    return cacheable
+        ? AESCacheableHelper.decrypt(data, phrase)
+        : AESGCMHelper.getInstance(phrase).decrypt(data);
   }
 
   /**
@@ -76,6 +93,33 @@ public class ECPSTool {
     catch (Exception e) {
       logger.error("Unable to decrypt data to map.");
       throw new RuntimeException(e);
+    }
+  }
+
+  private static class AESCacheableHelper {
+    private static SecretKeySpec padKey(String secretKey) throws NoSuchAlgorithmException {
+      int keyLength = secretKey.length() <= 16 ? 16 : secretKey.length() <= 24 ? 24 : 32;
+
+      MessageDigest sha = MessageDigest.getInstance("SHA-512");
+      byte[] keyBytes = sha.digest(secretKey.getBytes());
+
+      return new SecretKeySpec(keyBytes, 0, keyLength, "AES");
+    }
+
+    public static String encrypt(String plainText, String secretKey) throws GeneralSecurityException {
+      Cipher cipher = Cipher.getInstance("AES");
+      cipher.init(Cipher.ENCRYPT_MODE, padKey(secretKey));
+
+      byte[] encryptedBytes = cipher.doFinal(plainText.getBytes());
+      return BaseEncoding.base16().encode(encryptedBytes);
+    }
+
+    public static String decrypt(String encryptedText, String secretKey) throws GeneralSecurityException {
+      Cipher cipher = Cipher.getInstance("AES");
+      cipher.init(Cipher.DECRYPT_MODE, padKey(secretKey));
+
+      byte[] decryptedBytes = cipher.doFinal(BaseEncoding.base16().decode(encryptedText));
+      return new String(decryptedBytes);
     }
   }
 
