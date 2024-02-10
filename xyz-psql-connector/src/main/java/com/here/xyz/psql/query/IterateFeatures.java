@@ -31,7 +31,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.psql.tools.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -41,15 +40,16 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, FeatureCollection> {
-
   public static final String HPREFIX = "h07~";
   protected static final String HANDLE_ENCRYPTION_PHRASE = "findFeaturesSort";
   private static String pg_hint_plan = "/*+ Set(seq_page_cost 100.0) IndexOnlyScan( ht1 ) */";
   private static String PropertyDoesNotExistIndikator = "#zJfCzPCz#";
   protected long limit;
   private long start;
-
-  private boolean isOrderByEvent;
+  protected boolean isOrderByEvent;
+  private String nextDataset = null;
+  private String nextIOffset = "";
+  private int numFeatures = 0;
 
   protected IterateFeaturesEvent tmpEvent; //TODO: Remove after refactoring
 
@@ -170,6 +170,13 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   @Override
   public FeatureCollection handle(ResultSet rs) throws SQLException {
     FeatureCollection fc = super.handle(rs);
+
+    if (numFeatures > 0 && numFeatures == limit) {
+      String nextHandle = (nextDataset != null ? nextDataset + "_" : "") + nextIOffset;
+      fc.setHandle(nextHandle);
+      fc.setNextPageToken(nextHandle);
+    }
+
     if (isOrderByEvent) {
       if (fc.getHandle() != null) {
         //Extend handle and encrypt
@@ -191,6 +198,15 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
       }
     }
     return fc;
+  }
+
+  @Override
+  protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
+    super.handleFeature(rs, result);
+    numFeatures++;
+    nextIOffset = rs.getString("i");
+    if (rs.getMetaData().getColumnCount() >= 5)
+      nextDataset = rs.getString("dataset");
   }
 
   private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) {
