@@ -38,7 +38,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
@@ -250,7 +249,7 @@ public abstract class ConnectorConfigClient implements Initializable {
       try {
         return ECPSTool.encrypt(ecpsPhrase, ecpsJson);
       }
-      catch (GeneralSecurityException | UnsupportedEncodingException e) {
+      catch (GeneralSecurityException e) {
         return null;
       }
     }, "$encrypt(", ")");
