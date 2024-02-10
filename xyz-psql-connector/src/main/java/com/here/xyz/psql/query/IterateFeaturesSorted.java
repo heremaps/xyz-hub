@@ -33,14 +33,12 @@ import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.psql.query.helpers.GetIndexList;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.psql.tools.ECPSTool;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -89,11 +87,6 @@ public class IterateFeaturesSorted extends IterateFeatures {
   @Override
   protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
     return super.buildQuery(event);
-  }
-
-  @Override
-  public FeatureCollection handle(ResultSet rs) throws SQLException {
-    return super.handle(rs);
   }
 
   private boolean canSortBy(String tableName, List<String> sort) {
@@ -157,7 +150,7 @@ public class IterateFeaturesSorted extends IterateFeatures {
     return ECPSTool.decrypt(phrase, encryptedtext);
   }
 
-  private class GetIterationHandles extends XyzQueryRunner<IterateFeaturesEvent, FeatureCollection> {
+  private class GetIterationHandles extends IterateFeatures {
 
     //TODO: Remove after refactoring
     private IterateFeaturesEvent tmpEvent;
@@ -165,12 +158,13 @@ public class IterateFeaturesSorted extends IterateFeatures {
     public GetIterationHandles(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
       super(event);
       setUseReadReplica(true);
+      isOrderByEvent = false; //Override the value from super constructor, because handle method is mis-used by this class for parsing result as feature (can be removed once FeatureCollection is not mis-used as response vehicle anymore)
       this.tmpEvent = event;
     }
 
     @Override
     protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
-      //FIXME: Do not manipulate the incoming event
+      //TODO: Do not manipulate the incoming event
       event.setPart(null);
       event.setTags(null);
 
@@ -192,8 +186,8 @@ public class IterateFeaturesSorted extends IterateFeatures {
 
     @Override
     public FeatureCollection handle(ResultSet rs) throws SQLException {
-      //FIXME: Do not use FeatureCollection as response vehicle
-      FeatureCollection cl = new FeatureResultSetHandler(limit).handle(rs);
+      //TODO: Do not use FeatureCollection as response vehicle
+      FeatureCollection cl = super.handle(rs);
       List<List<Object>> hdata;
       try {
         hdata = cl.getFeatures().get(0).getProperties().get("handles");
