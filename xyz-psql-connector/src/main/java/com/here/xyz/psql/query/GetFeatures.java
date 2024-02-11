@@ -307,9 +307,4 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     return geoFragment;
   }
-
-  //TODO: Remove that hack and instantiate & use the whole GetFeatures QR instead from wherever it's needed
-  public SQLQuery _buildQuery(E event) throws SQLException, ErrorResponseException {
-    return buildQuery(event);
-  }
 }
