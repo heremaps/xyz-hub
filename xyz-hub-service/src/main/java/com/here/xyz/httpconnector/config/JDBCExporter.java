@@ -27,16 +27,21 @@ import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSO
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.query.ExportSpace;
+import com.here.xyz.httpconnector.config.query.ExportSpaceByGeometry;
+import com.here.xyz.httpconnector.config.query.ExportSpaceByProperties;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Export.Filters;
+import com.here.xyz.httpconnector.util.jobs.Export.SpatialFilter;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
@@ -45,7 +50,6 @@ import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeatures;
-import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.JdbcClient;
@@ -127,7 +131,6 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {
-
     String propertyFilter = null;
     Export.SpatialFilter spatialFilter = null;
 ////// get filters from source space
@@ -164,39 +167,16 @@ public class JDBCExporter extends JdbcBasedHandler {
           event.setClip(spatialFilter.isClipped());
       }
 
-
-    SQLQuery contentQuery;
     try {
 
-      GetFeatures queryRunner;
-
-      if (spatialFilter == null)
-        queryRunner = new SearchForFeatures(event);
-      else
-        queryRunner = new GetFeaturesByGeometry(event);
-
-      queryRunner.setDataSourceProvider(client.getDataSourceProvider());
-      contentQuery = queryRunner._buildQuery(event)
-          .withQueryFragment("limit", "")
-          .withQueryFragment("geo", "geo")
-          .withQueryFragment("selection", "jsondata, operation, author");
+      return ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+          .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
+          .withGeoOverride(buildGeoFragment(spatialFilter))
+          .buildQuery(event);
     }
     catch (Exception e) {
       throw new SQLException(e);
     }
-
-    if (spatialFilter != null && spatialFilter.isClipped())
-    { SQLQuery geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
-               geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
-               geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
-
-      contentQuery.setQueryFragment("geo", geoFragment);
-    }
-
-    //Remove Limit
-    contentQuery.setQueryFragment("limit", "");
-
-    return contentQuery;
   }
 
   private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, Export job) {
@@ -565,15 +545,6 @@ public class JDBCExporter extends JdbcBasedHandler {
         throws SQLException {
 
         csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
-        //TODO: Re-use existing QR rather than the following duplicated code
-        SQLQuery geoFragment;
-
-        if (spatialFilter != null && spatialFilter.isClipped()) {
-            geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
-            geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
-            geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
-        } else
-            geoFragment = new SQLQuery("geo");
 
         GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent();
         event.setSpace(spaceId);
@@ -626,51 +597,36 @@ public class JDBCExporter extends JdbcBasedHandler {
         if (isForCompositeContentDetection)
             event.setContext( (partitionByFeatureId || downloadAsJsonWkb) ? EXTENSION : COMPOSITE_EXTENSION);
 
-        SQLQuery sqlQuery,
-                 sqlQueryContentByPropertyValue = null;
+        SQLQuery contentQuery,
+                 contentQueryByPropertyValue = null;
 
-        try {
-          GetFeatures queryRunner;
+      try {
+        final ExportSpace queryRunner = (ExportSpace) getQueryRunner(client, spatialFilter, event);
 
-          if (spatialFilter == null)
-            queryRunner = new SearchForFeatures(event);
-          else
-            queryRunner = new GetFeaturesByGeometry(event);
+        if (customWhereCondition != null && (csvFormat != PARTITIONID_FC_B64 || partitionByFeatureId))
+          queryRunner.withCustomWhereClause(customWhereCondition);
 
-          queryRunner.setDataSourceProvider(client.getDataSourceProvider());
-          sqlQuery = queryRunner._buildQuery(event);
+        contentQuery = queryRunner
+              .withGeoOverride(buildGeoFragment(spatialFilter))
+              .buildQuery(event);
 
-          if( partitionByPropertyValue && isForCompositeContentDetection )
-          { event.setContext(ctxStashed);
-            sqlQueryContentByPropertyValue = queryRunner._buildQuery(event);
+          if (partitionByPropertyValue && isForCompositeContentDetection) {
+            event.setContext(ctxStashed);
+            contentQueryByPropertyValue = ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+                .withGeoOverride(buildGeoFragment(spatialFilter))
+                .buildQuery(event);
           }
-
         }
         catch (Exception e) {
           throw new SQLException(e);
         }
-
-        //Override geoFragment
-        sqlQuery.setQueryFragment("geo", geoFragment);
-        //Remove Limit
-        sqlQuery.setQueryFragment("limit", "");
-
-        if( sqlQueryContentByPropertyValue != null )
-        {
-         sqlQueryContentByPropertyValue.setQueryFragment("geo", geoFragment);
-         sqlQueryContentByPropertyValue.setQueryFragment("limit", "");
-        }
-
-        if (customWhereCondition != null && csvFormat != PARTITIONID_FC_B64 )
-            addCustomWhereClause(sqlQuery, customWhereCondition);
 
         switch (csvFormat) {
           case GEOJSON :
           {
             SQLQuery geoJson = new SQLQuery("select jsondata || jsonb_build_object('geometry', ST_AsGeoJSON(geo, 8)::jsonb) "
                 + "from (${{contentQuery}}) X")
-                .withQueryFragment("contentQuery", sqlQuery)
-                .substitute();
+                .withQueryFragment("contentQuery", contentQuery);
             return queryToText(geoJson);
           }
 
@@ -702,22 +658,23 @@ public class JDBCExporter extends JdbcBasedHandler {
            {
               String converted = ApiParam.getConvertedKey(partitionKey);
               partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
-              partQry = String.format(
+              //TODO: Simplify / structure the following query blob
+              partQry =
                  " with  "
                 +" plist as  "
                 +" ( select o.* from "
                 +"   ( select ( dense_rank() over (order by key) )::integer as i, key  "
                 +"     from "
                 +"     ( select coalesce( key, '\"CSVNULL\"'::jsonb) as key "
-                +"       from ( select distinct jsondata->'%1$s' as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata->'%1$s' isnull " ) +" ) oo "
+                +"       from ( select distinct jsondata->'${{partitionKey}}' as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata->'${{partitionKey}}' isnull " ) +" ) oo "
                 +"     ) d1"
                 +"   ) o "
-                +"   where 1 = 1 " + ( customWhereCondition != null ? "${{customWhereClause}}" :"" )
+                +"   where 1 = 1 ${{customWhereCondition}}"
                 +" ), "
                 +" iidata as  "
-                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 20000000)::integer as chunk, r.jsondata, r.geo from ( ${{%2$s}} ) r right join plist l on ( coalesce( r.jsondata->'%1$s', '\"CSVNULL\"'::jsonb) = l.key )  "
+                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 20000000)::integer as chunk, r.jsondata, r.geo from (${{contentQueryReal}}) r right join plist l on ( coalesce( r.jsondata->'${{partitionKey}}', '\"CSVNULL\"'::jsonb) = l.key )  "
                 +" ), "
-                + ( csvFormat == PARTITIONID_FC_B64
+                + ( csvFormat == PARTITIONID_FC_B64 //TODO: Generalize / structure the following two fragments and re-use similar parts
                    ? " iiidata as  "
                     +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode(convert_to(('{\"type\":\"FeatureCollection\",\"features\":[' || coalesce( string_agg( (jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb))::text, ',' ), null::text ) || ']}'),'UTF8'),'base64') ,chr(10),'') as data "
                     +"   from iidata group by 1, chunk order by 1, 3 desc   "
@@ -728,53 +685,63 @@ public class JDBCExporter extends JdbcBasedHandler {
                     +"   from iidata "
                     +" )   "
                     +" select id, jsondata, geo from iiidata "
-                  ), partitionKey, sqlQueryContentByPropertyValue != null ? "contentQueryReal" : "contentQuery" );
+                  );
            }
 
-                SQLQuery geoJson = new SQLQuery(partQry)
-                        .withQueryFragment("customWhereCondition", "");
+          SQLQuery geoJson = new SQLQuery(partQry)
+              .withQueryFragment("partitionKey", partitionKey)
+              .withQueryFragment("contentQueryReal", contentQueryByPropertyValue != null ? contentQueryByPropertyValue : contentQuery)
+              .withQueryFragment("customWhereCondition", partitionByPropertyValue && customWhereCondition != null ? customWhereCondition : new SQLQuery(""))
+              .withQueryFragment("contentQuery", contentQuery);
 
-           if (  partitionByFeatureId && customWhereCondition != null )
-            addCustomWhereClause(sqlQuery, customWhereCondition);
-
-           if ( partitionByPropertyValue && customWhereCondition != null )
-             geoJson.withQueryFragment("customWhereClause", customWhereCondition);
-
-           geoJson.setQueryFragment("contentQuery", sqlQuery);
-
-           if( sqlQueryContentByPropertyValue != null )
-            geoJson.setQueryFragment("contentQueryReal", sqlQueryContentByPropertyValue);
-
-           geoJson.substitute();
            return queryToText(geoJson);
          }
 
             default:
             {
-                sqlQuery
-                        .withQueryFragment("id", "")
-                        .substitute();
-                return queryToText(sqlQuery);
+                contentQuery
+                        .withQueryFragment("id", "");
+                return queryToText(contentQuery);
             }
         }
 
     }
 
-    private static void addCustomWhereClause(SQLQuery query, SQLQuery customWhereClause) {
-        SQLQuery filterWhereClause = query.getQueryFragment("filterWhereClause");
-        SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} ${{customWhereClause}}")
-            .withQueryFragment("innerFilterWhereClause", filterWhereClause)
-            .withQueryFragment("customWhereClause", customWhereClause);
-        query.setQueryFragment("filterWhereClause", customizedWhereClause);
+  private static SQLQuery buildGeoFragment(SpatialFilter spatialFilter) {
+    if (spatialFilter != null && spatialFilter.isClipped()) {
+      return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo")
+          .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()))
+          .withNamedParameter("radius", spatialFilter.getRadius());
     }
+    else
+        return new SQLQuery("geo");
+  }
 
-    /*
-    FIXME:
-     The following works only for very specific kind of queries, do not try to compile dynamic queries in software,
-     but inside SQL functions directly and pass the parameters as function-arguments instead
-     */
+  private static SearchForFeatures getQueryRunner(JdbcClient client, SpatialFilter spatialFilter, GetFeaturesByGeometryEvent event)
+      throws SQLException, ErrorResponseException {
+    SearchForFeatures queryRunner;
+    if (spatialFilter == null)
+      queryRunner = new ExportSpaceByProperties(event);
+    else
+      queryRunner = new ExportSpaceByGeometry(event);
+
+    queryRunner.setDataSourceProvider(client.getDataSourceProvider());
+    return queryRunner;
+  }
+
+  /**
+   * @deprecated This method is deprecated, please do not use it for new implementations
+   * @param q
+   * @return
+   */
+    @Deprecated
     private static SQLQuery queryToText(SQLQuery q) {
-        String queryText = q.text()
+        /*
+      FIXME:
+       The following works only for very specific kind of queries, do not try to compile dynamic queries in software,
+       but inside SQL functions directly and pass the parameters as function-arguments instead
+       */
+        String queryText = q.substitute().text()
             .replace("?", "%L")
             .replace("'","''");
 
@@ -792,7 +759,12 @@ public class JDBCExporter extends JdbcBasedHandler {
       return sq;
     }
 
-    @Deprecated
+  /**
+   * @deprecated See above
+   * @param o
+   * @return
+   */
+  @Deprecated
     private static String getType(Object o) {
       if (o instanceof String)
         return "TEXT";
