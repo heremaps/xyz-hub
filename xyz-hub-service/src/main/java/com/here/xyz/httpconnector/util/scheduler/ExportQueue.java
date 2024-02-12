@@ -193,6 +193,9 @@ public class ExportQueue extends JobQueue {
                 catch (InterruptedException | CannotDecodeException ignored) {
                     //Nothing to do here.
                 }
+                catch (Exception e) {
+                    logger.error("Exception in queue:", e);
+                }
             });
         }
         catch (Exception e) {
