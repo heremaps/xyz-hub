@@ -34,21 +34,6 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
 
   @Override
   protected SQLQuery buildGeoFilter(GetFeaturesByGeometryEvent event) {
-    return buildSpatialGeoFilter(event);
-  }
-
-  @Override
-  protected SQLQuery buildClippedGeoFragment(final GetFeaturesByGeometryEvent event, SQLQuery geoFilter) {
-    if (!event.getClip())
-      return super.buildGeoFragment(event);
-
-    SQLQuery clippedGeo = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ${{geoFilter}})")
-        .withQueryFragment("geoFilter", geoFilter);
-
-    return super.buildGeoFragment(event, clippedGeo);
-  }
-
-  public static SQLQuery buildSpatialGeoFilter(GetFeaturesByGeometryEvent event){
     final int radius = event.getRadius();
 
     SQLQuery geoFilter = event.getH3Index() != null
@@ -63,5 +48,4 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
               .withNamedParameter("radius", radius);
     return geoFilter;
   }
-
 }
