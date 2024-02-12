@@ -36,7 +36,29 @@ public class ExportSpaceByGeometry extends GetFeaturesByGeometry implements Expo
 
   @Override
   public SQLQuery buildQuery(GetFeaturesByGeometryEvent event) throws SQLException, ErrorResponseException {
-    return patchQuery(super.buildQuery(event), geoOverride, customWhereClause, selectionOverride);
+    return super.buildQuery(event);
+  }
+
+  @Override
+  protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset) {
+    return patchSelectClause(super.buildSelectClause(event, dataset), selectionOverride);
+  }
+
+  @Override
+  protected SQLQuery buildGeoFragment(GetFeaturesByGeometryEvent event) {
+    if (geoOverride == null)
+      return super.buildGeoFragment(event);
+    return geoOverride;
+  }
+
+  @Override
+  protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
+    return patchWhereClause(super.buildFilterWhereClause(event), customWhereClause);
+  }
+
+  @Override
+  protected SQLQuery buildLimitFragment(GetFeaturesByGeometryEvent event) {
+    return new SQLQuery("");
   }
 
   @Override

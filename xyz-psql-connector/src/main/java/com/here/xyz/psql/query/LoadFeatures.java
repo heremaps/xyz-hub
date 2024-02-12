@@ -19,6 +19,10 @@
 
 package com.here.xyz.psql.query;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -26,8 +30,10 @@ import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollection> {
 
@@ -37,62 +43,65 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
   }
 
   @Override
-  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
-    return event.getVersionsToKeep() > 1 ? buildQueryForV2K2(event) : buildQueryForV2K1(event);
-  }
-
-  private SQLQuery buildQueryForV2K1(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
+  protected SQLQuery buildFilterWhereClause(LoadFeaturesEvent event) {
     final Map<String, String> idMap = event.getIdsMap();
-    SQLQuery filterWhereClause = new SQLQuery("id = ANY(#{ids})")
-        .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
 
-    return super.buildQuery(event)
-        .withQueryFragment("filterWhereClause", filterWhereClause);
+    if (event.getVersionsToKeep() > 1) {
+      Set<String> idsOnly = new HashSet<>();
+      Map<String, String> idsWithVersions = new HashMap<>();
+
+      idMap.forEach((k, v) -> {
+        idsOnly.add(k);
+        if (v != null)
+          idsWithVersions.put(k, v);
+      });
+
+      SQLQuery filterWhereClauseHead = new SQLQuery("(id, next_version) IN (${{loadFeaturesInputIdsOnly}})")
+          .withQueryFragment("loadFeaturesInputIdsOnly", buildLoadFeaturesInputFragment(idsOnly
+              .stream()
+              .map(id -> LoadFeatureVersionInput.of(id))
+              .collect(Collectors.toList()), true));
+
+      SQLQuery filterWhereClauseHistory = new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
+          .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
+              idsWithVersions.entrySet().stream().map(e -> LoadFeatureVersionInput.of(e.getKey(), Long.parseLong(e.getValue())))
+                  .collect(Collectors.toList()), false));
+
+      return new SQLQuery("(${{head}} OR ${{history}})")
+          .withQueryFragment("head", filterWhereClauseHead)
+          .withQueryFragment("history", filterWhereClauseHistory);
+    }
+    else
+      return new SQLQuery("id = ANY(#{ids})")
+          .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
   }
 
-  private SQLQuery buildQueryForV2K2(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
-    final Map<String, String> idMap = event.getIdsMap();
-    Set<String> idsOnly = new HashSet<>();
-    Map<String, String> idsWithVersions = new HashMap<>();
-
-    idMap.forEach((k,v) -> {
-      idsOnly.add(k);
-      if (v != null)
-        idsWithVersions.put(k, v);
-    });
-
-    SQLQuery filterWhereClauseHead = new SQLQuery("(id, next_version) IN (${{loadFeaturesInputIdsOnly}})")
-        .withQueryFragment("loadFeaturesInputIdsOnly", buildLoadFeaturesInputFragment(idsOnly.toArray(new String[0])));
-
-    SQLQuery filterWhereClauseHistory = new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
-        .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
-            idsWithVersions.keySet().toArray(new String[0]),
-            idsWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
-        ));
-
-    return new SQLQuery("${{head}} UNION ${{history}}")
-        .withQueryFragment("head", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHead))
-        .withQueryFragment("history", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHistory));
-
+  private static SQLQuery buildLoadFeaturesInputFragment(List<LoadFeatureVersionInput> input, boolean head) {
+    String inputParamName = head ? "headIds" : "historyIds";
+    //NOTE: If the version of the input object = -1 (default / unset) this will be translated into max_bigint() by the following query
+    return new SQLQuery("SELECT * FROM "
+        + "json_populate_recordset((null, max_bigint())::LOAD_FEATURE_VERSION_INPUT, #{" + inputParamName + "}::JSON)")
+        .withNamedParameter(inputParamName, XyzSerializable.serialize(input));
   }
 
-  private static SQLQuery buildLoadFeaturesInputFragment(String[] ids) {
-    return buildLoadFeaturesInputFragment(ids, null);
-  }
+  /**
+   * The java type representation of the Postgres types LOAD_FEATURE_VERSION_INPUT.
+   * This class is used for serialization to enable passing an array of complex type as a parameter to the LFE query.
+   */
+  @JsonInclude(NON_DEFAULT)
+  private static class LoadFeatureVersionInput implements XyzSerializable {
+    public String id;
+    public long version = -1;
 
-  private static SQLQuery buildLoadFeaturesInputFragment(String[] ids, Long[] versions) {
-    String idsParamName = "ids" + (versions != null ? "WithVersions" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
-    SQLQuery inputFragment = new SQLQuery("WITH "
-        + "  recs AS ( "
-        + "    SELECT unnest(transform_load_features_input(#{" + idsParamName + "}${{versions}})) as rec) "
-        + "SELECT "
-        + "  (rec).id, "
-        + "  (rec).version "
-        + "FROM recs")
-        .withNamedParameter(idsParamName, ids)
-        .withQueryFragment("versions", versions == null ? "" : ", #{versions}");
-     if (versions != null)
-        inputFragment.setNamedParameter("versions", versions);
-     return inputFragment;
+    public static LoadFeatureVersionInput of(String id) {
+      LoadFeatureVersionInput input = new LoadFeatureVersionInput();
+      input.id = id;
+      return input;
+    }
+    public static LoadFeatureVersionInput of(String id, long version) {
+      LoadFeatureVersionInput input = of(id);
+      input.version = version;
+      return input;
+    }
   }
 }
