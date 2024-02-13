@@ -77,6 +77,7 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
@@ -907,6 +908,10 @@ public class Export extends JDBCBasedJob<Export> {
         @JsonView({Public.class, Static.class})
         private SpaceContext context = DEFAULT;
 
+        @JsonView({Public.class, Static.class})
+        private Ref ref;
+
+
         public String getPropertyFilter() {
             return propertyFilter;
         }
@@ -945,6 +950,20 @@ public class Export extends JDBCBasedJob<Export> {
             setContext(context);
             return this;
         }
+
+        public Ref getRef() {
+            return ref;
+        }
+
+        public void setRef(Ref ref) {
+            this.ref = ref;
+        }
+
+        public Filters withRef(Ref ref) {
+            setRef(ref);
+            return this;
+        }
+
     }
 
     @Override

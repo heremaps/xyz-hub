@@ -88,42 +88,43 @@ public class JDBCExporter extends JdbcBasedHandler {
           : false;
       String targetSpaceId = job.getTarget().getKey();
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
-      return new SQLQuery(
-        "WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */ "
-            + "(INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version) "
-            + "SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version "
-            + "FROM "
-            + "  (${{contentQuery}} AND next_version = #{MAX_BIGINT} ) idata "
-            + "  LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint()) "
-            + "  RETURNING id, version "
-            + "), "
-            + "upd_data as "
-            + "(UPDATE ${schema}.${table} "
-            + "   SET next_version = (SELECT version FROM ins_data LIMIT 1) "
-            + " WHERE ${{targetVersioningEnabled}}"
-            + "    AND next_version = max_bigint()"
-            + "    AND id IN (SELECT id FROM ins_data)"
-            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
-            + "  RETURNING id, version"
-            + "), "
-            + "del_data AS "
-            + "(DELETE FROM ${schema}.${table} "
-            + "  WHERE not ${{targetVersioningEnabled}}"
-            + "    AND id IN (SELECT id FROM ins_data)"
-            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
-            + "  RETURNING id, version "
-            + ") "
-            + "SELECT count(1) AS rows_uploaded, 0::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded, "
-            +  "      (SELECT count(1) FROM upd_data) AS version_updated, "
-            +  "      (SELECT count(1) FROM del_data) AS version_deleted "
-            + "FROM ins_data l")
-          .withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
-          .withVariable("table", tableName)
-          .withQueryFragment("jobId", job.getId())
-          .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
-          .withVariable("versionSequenceName", tableName + "_version_seq")
-          .withNamedParameter("MAX_BIGINT", GetFeatures.MAX_BIGINT)
-          .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
+      return new SQLQuery( 
+          """
+            WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */
+            (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version)
+            SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version
+            FROM
+              (${{contentQuery}} ) idata
+              LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint())
+              RETURNING id, version
+            ),
+            upd_data as
+            (UPDATE ${schema}.${table}
+               SET next_version = (SELECT version FROM ins_data LIMIT 1)
+             WHERE ${{targetVersioningEnabled}}
+                AND next_version = max_bigint()
+                AND id IN (SELECT id FROM ins_data)
+                AND version < (SELECT version FROM ins_data LIMIT 1)
+              RETURNING id, version
+            ),
+            del_data AS
+            (DELETE FROM ${schema}.${table}
+              WHERE not ${{targetVersioningEnabled}}
+                AND id IN (SELECT id FROM ins_data)
+                AND version < (SELECT version FROM ins_data LIMIT 1)
+              RETURNING id, version
+            )
+            SELECT count(1) AS rows_uploaded, 0::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded,
+                  (SELECT count(1) FROM upd_data) AS version_updated,
+                  (SELECT count(1) FROM del_data) AS version_deleted
+            FROM ins_data l
+          """
+          ).withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
+           .withVariable("table", tableName)
+           .withQueryFragment("jobId", job.getId())
+           .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
+           .withVariable("versionSequenceName", tableName + "_version_seq")
+           .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
     }
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {
@@ -150,8 +151,10 @@ public class JDBCExporter extends JdbcBasedHandler {
         .withContext(EXTENSION)
         .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", enableHashedSpaceId));
 
-//      if (targetVersion != null)
-//           event.setRef(targetVersion);
+      if( event.getParams() != null && event.getParams().get("versionsToKeep") != null )
+       event.setVersionsToKeep((int) event.getParams().get("versionsToKeep") ); // -> forcing "...AND next_version = maxBigInt..." in query
+      
+      event.setRef( job.getTargetVersion() == null ? new Ref("HEAD") : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
           PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
