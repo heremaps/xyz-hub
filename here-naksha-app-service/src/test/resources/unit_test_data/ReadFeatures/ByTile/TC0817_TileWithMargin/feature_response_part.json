@@ -20,13 +20,14 @@
       "type": "Feature",
       "properties": {
         "speedLimit": "70",
+        "length": 50,
         "@ns:com:here:xyz": {
           "tags": [ "non-matching-tag", "@ThRee" ]
         }
       },
       "geometry": {
-        "type":"Point",
-        "coordinates":[ 8.65723, 50.1234, 0.0 ]
+        "type":"LineString",
+        "coordinates":[[8.6579, 50.1245, 0.0],[8.6583, 50.1235, 0.0]]
       }
     },
     {

@@ -25,6 +25,7 @@ import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.xy;
 import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.y;
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.junit.jupiter.api.Test;
@@ -178,4 +179,25 @@ public class WebMercatorTileTest {
               "Mismatch in Z ordinate for co-ordinate at index position " + i);
     }
   }
+
+  @Test
+  public void testBBoxCacheReuse() {
+    // Given: WebMercatorTile object created using specific tileId
+    final String tileId = "120203302030322200";
+    final WebMercatorTile webMercatorTile = WebMercatorTile.forQuadkey(tileId);
+
+    // When: Extended BBox is created with marging o
+    final BBox bbox = webMercatorTile.getBBox(false);
+    final BBox reusedBBox = webMercatorTile.getExtendedBBox(0);
+    // Then: Validate same original BBox is returned (from internal cache)
+    assertSame(bbox, reusedBBox, "Expected reuse of previously created BBox");
+
+    // When: BBox is created multiple times with the same margin value
+    final int margin = 20;
+    final BBox extendedBBox = webMercatorTile.getExtendedBBox(margin);
+    final BBox reusedExtendedBBox = webMercatorTile.getExtendedBBox(20);
+    // Then: Validate same extended BBox is returned (from internal cache)
+    assertSame(extendedBBox, reusedExtendedBBox, "Expected reuse of previously created extended BBox");
+  }
+
 }

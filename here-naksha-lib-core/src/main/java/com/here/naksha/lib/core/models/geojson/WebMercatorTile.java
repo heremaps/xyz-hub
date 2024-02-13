@@ -510,7 +510,12 @@ public class WebMercatorTile {
    */
   public BBox getExtendedBBox(int buffer) {
     if (eBbox != null && eBuffer == buffer) {
-      return bbox;
+      return eBbox;
+    }
+    if (buffer == 0) {
+      eBuffer = buffer;
+      eBbox = getBBox(false);
+      return eBbox;
     }
 
     long TILE_SIZE_IN_PIXEL = TileSizeInPixel;

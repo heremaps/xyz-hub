@@ -800,7 +800,9 @@ paths:
         - $ref: '#/components/parameters/TileType'
         - $ref: '#/components/parameters/TileId'
         - $ref: '#/components/parameters/TagList'
+        - $ref: '#/components/parameters/Clip'
         - $ref: '#/components/parameters/PropertiesQuery'
+        - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Margin'
         - $ref: '#/components/parameters/Limit'
       responses:

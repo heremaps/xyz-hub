@@ -204,6 +204,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // Parse and validate Query parameters
     final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
     // NOTE : queryParams can be null, but that is acceptable. We will move on with default values.
+    final Set<String> propPaths = PropertySelectionUtil.buildPropPathSetFromQueryParams(queryParams);
+    final boolean clip = ApiParams.extractQueryParamAsBoolean(queryParams, CLIP_GEO, false);
     final long margin = ApiParams.extractQueryParamAsLong(queryParams, MARGIN, false);
     ApiParams.validateParamRange(MARGIN, margin, 0, Integer.MAX_VALUE);
     long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
@@ -211,16 +213,21 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
 
     // Prepare read request based on parameters supplied
-    final SOp geoOp = SpatialUtil.buildOperationForTile(tileType, tileId, (int) margin);
+    final Geometry geo = SpatialUtil.buildGeometryForTile(tileType, tileId, (int) margin);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
     final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
-    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(geoOp);
+    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(SOp.intersects(geo));
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 
     // Forward request to NH Space Storage reader instance
     final Result result = executeReadRequestFromSpaceStorage(rdRequest);
     // transform Result to Http FeatureCollection response, restricted by given feature limit
-    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class, limit);
+    // we will also apply response preprocessing (like property selection and geometry clipping)
+    // if any of the options is enabled
+    final F1<XyzFeature, XyzFeature> preResponseProcessing =
+        standardReadFeaturesPreResponseProcessing(propPaths, clip, geo);
+    return transformReadResultToXyzCollectionResponse(
+        result, XyzFeature.class, 0, limit, null, preResponseProcessing);
   }
 
   private @NotNull XyzResponse executeSearch() {

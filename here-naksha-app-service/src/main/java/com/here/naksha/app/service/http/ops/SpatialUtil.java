@@ -23,7 +23,6 @@ import static com.here.naksha.app.service.http.apis.ApiParams.TILE_TYPE_QUADKEY;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
-import com.here.naksha.lib.core.models.storage.SOp;
 import org.jetbrains.annotations.NotNull;
 import org.locationtech.jts.geom.Geometry;
 
@@ -31,16 +30,15 @@ public class SpatialUtil {
 
   private SpatialUtil() {}
 
-  public static @NotNull SOp buildOperationForTile(
+  public static @NotNull Geometry buildGeometryForTile(
       final @NotNull String tileType, final @NotNull String tileId, final int margin) {
     try {
       if (!TILE_TYPE_QUADKEY.equals(tileType)) {
         throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Tile type " + tileType + " not supported");
       }
-      final Geometry geo = WebMercatorTile.forQuadkey(tileId)
+      return WebMercatorTile.forQuadkey(tileId)
           .getExtendedBBoxAsPolygon(margin)
           .getGeometry();
-      return SOp.intersects(geo);
     } catch (Exception ex) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Error interpreting tile input: " + ex.getMessage());
     }
