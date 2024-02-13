@@ -19,12 +19,15 @@
 
 package com.here.xyz.util.db.pg;
 
+import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
 
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.SQLQuery;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class XyzSpaceTableHelper {
@@ -129,5 +132,22 @@ public class XyzSpaceTableHelper {
           .withVariable(TABLE, table)
           .withVariable("sequence", table + "_" + columnName + "_seq")
           .withVariable("columnName", columnName);
+  }
+
+  public static String getTableNameForSpaceId(String spaceId, boolean hashed) {
+    if (spaceId == null || spaceId.length() == 0)
+      return null;
+
+    return hashed ? Hasher.getHash(spaceId) : spaceId;
+  }
+
+  public static String getTableNameFromSpaceParamsOrSpaceId(Map<String, Object> spaceParams, String spaceId, boolean hashed) {
+    if (spaceParams != null) {
+      Object tableName = spaceParams.get(TABLE_NAME);
+      if (tableName instanceof String && ((String) tableName).length() > 0)
+        return (String) tableName;
+    }
+
+    return getTableNameForSpaceId(spaceId, hashed);
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,8 @@ import java.util.Map;
 @JsonTypeName(value = "Space")
 @SuppressWarnings("unused")
 public class Space {
-
   public static final int DEFAULT_VERSIONS_TO_KEEP = 1;
+  public static final String TABLE_NAME = "tableName";
 
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
