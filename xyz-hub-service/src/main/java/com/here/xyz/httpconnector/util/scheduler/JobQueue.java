@@ -53,7 +53,7 @@ public abstract class JobQueue implements Runnable {
 
 
 
-    protected synchronized Future<Job> loadCurrentConfig(Job job) {
+    protected synchronized Future<Job<?>> loadCurrentConfig(Job job) {
         return CService.jobConfigClient.get(null, job.getId())
             .compose(currentJobConfig -> {
                 if (currentJobConfig == null) {
