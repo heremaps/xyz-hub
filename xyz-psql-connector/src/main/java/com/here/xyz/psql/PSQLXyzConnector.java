@@ -58,6 +58,7 @@ import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.IterateFeaturesSorted;
 import com.here.xyz.psql.query.LoadFeatures;
+import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
@@ -201,9 +202,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      SearchForFeatures.checkCanSearchFor(event, dataSourceProvider);
-
-      if (IterateFeatures.isOrderByEvent(event))
+      if (IterateFeaturesSorted.isOrderByEvent(event))
         return run(new IterateFeaturesSorted(event));
 
       return run(new IterateFeatures(event));
@@ -287,18 +286,23 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    try{
+    try {
       logger.info("{} Received ModifySpaceEvent", traceItem);
 
       if (event.isDryRun())
         return new SuccessResponse().withStatus("OK");
 
-      this.validateModifySpaceEvent(event);
+      validateModifySpaceEvent(event);
 
-      return executeModifySpace(event);
-    }catch (SQLException e){
+      XyzResponse response = write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
+      logger.debug("{} Successfully created table for space id '{}'", traceItem, event.getSpace());
+      return response;
+    }
+    catch (SQLException e) {
+      logger.error("{} Failed to create table for space id: '{}': {}", traceItem, event.getSpace(), e);
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }finally {
+    }
+    finally {
       logger.info("{} Finished ModifySpaceEvent", traceItem);
     }
   }

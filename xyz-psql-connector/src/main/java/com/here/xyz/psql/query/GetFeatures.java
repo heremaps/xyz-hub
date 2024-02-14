@@ -25,14 +25,16 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
-import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
@@ -42,7 +44,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
-
+  protected static final long MAX_RESULT_SIZE = 100 * 1024 * 1024;
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   public static long MAX_BIGINT = Long.MAX_VALUE;
 
@@ -116,7 +118,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildVersionComparison(SelectiveEvent event) {
-    Ref ref = event.getParsedRef();
+    Ref ref = event.getRef();
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
 
@@ -125,7 +127,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildNextVersionFragment(SelectiveEvent event) {
-    return buildNextVersionFragment(event.getParsedRef(), event.getVersionsToKeep() > 1,
+    return buildNextVersionFragment(event.getRef(), event.getVersionsToKeep() > 1,
         "requestedVersion");
   }
 
@@ -147,7 +149,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
-    Ref ref = event.getParsedRef();
+    Ref ref = event.getRef();
     boolean isHeadOrStar = ref.isHead() || ref.isAllVersions();
     long version = isHeadOrStar ? Long.MAX_VALUE : ref.getVersion();
     if (event.getVersionsToKeep() > 1)
@@ -213,9 +215,44 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
   }
 
+  /**
+   * The default handler for the most results.
+   *
+   * @param rs The result set.
+   * @return The generated feature collection from the result set.
+   * @throws SQLException When any unexpected error happened.
+   */
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    return (R) new FeatureResultSetHandler(this instanceof IterateFeatures itf ? itf.limit : -1).handle(rs);
+    StringBuilder result = new StringBuilder();
+    String prefix = "[";
+    result.append(prefix);
+
+    while (rs.next() && MAX_RESULT_SIZE > result.length())
+      handleFeature(rs, result);
+
+    if (result.length() > prefix.length())
+      result.setLength(result.length() - 1);
+
+    result.append("]");
+
+    final FeatureCollection featureCollection = new FeatureCollection();
+    featureCollection._setFeatures(result.toString());
+
+    if (result.length() > MAX_RESULT_SIZE)
+      throw new SQLException("Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
+
+    return (R) featureCollection;
+  }
+
+  protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
+    String geom = rs.getString("geo");
+    result.append(rs.getString("jsondata"));
+    result.setLength(result.length() - 1);
+    result.append(",\"geometry\":");
+    result.append(geom == null ? "null" : geom);
+    result.append("}");
+    result.append(",");
   }
 
   public static SQLQuery buildSelectionFragment(ContextAwareEvent event) {
@@ -242,7 +279,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   private static String buildOrderByFragment(ContextAwareEvent event) {
     if (!(event instanceof SelectiveEvent selectiveEvent))
       return "";
-    return selectiveEvent.getParsedRef().isAllVersions() ? "ORDER BY version" : "";
+    return selectiveEvent.getRef().isAllVersions() ? "ORDER BY version" : "";
   }
 
   protected SQLQuery buildGeoFragment(E event) {
@@ -269,10 +306,5 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       geoFragment.setQueryFragment("geoOverride", geoOverride);
 
     return geoFragment;
-  }
-
-  //TODO: Remove that hack and instantiate & use the whole GetFeatures QR instead from wherever it's needed
-  public SQLQuery _buildQuery(E event) throws SQLException, ErrorResponseException {
-    return buildQuery(event);
   }
 }

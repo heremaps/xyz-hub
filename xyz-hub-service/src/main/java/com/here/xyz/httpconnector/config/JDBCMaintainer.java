@@ -19,14 +19,14 @@
 
 package com.here.xyz.httpconnector.config;
 
-import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
 import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.hub.Core;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.DatabaseMaintainer;
@@ -106,7 +106,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
   }
 
   public Future<SpaceStatus> getMaintenanceStatusOfSpace(String spaceId) {
-      return HubWebClient.getSpace(spaceId)
+      return HubWebClientAsync.getSpace(spaceId)
               .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
               //Load space-config
               .compose(space -> {
@@ -356,7 +356,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
 
     public Future<Void> maintainSpace(String spaceId) {
         //Load space-config
-        return HubWebClient.getSpace(spaceId)
+        return HubWebClientAsync.getSpace(spaceId)
                 .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
                 .compose(space -> {
                     //Load JDBC Client
@@ -389,7 +389,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
     }
 
     public Future<Void> purgeOldVersions(String spaceId, Long minTagVersion) {
-       return HubWebClient.getSpace(spaceId)
+       return HubWebClientAsync.getSpace(spaceId)
                .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
                //Load space-config
                .compose(space -> {
@@ -418,7 +418,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
     }
 
     private Future<Space> injectEnableHashedSpaceIdIntoParams(Space space) {
-        return HubWebClient.getConnectorConfig(space.getStorage().getId())
+        return HubWebClientAsync.getConnectorConfig(space.getStorage().getId())
                 .compose(connector -> {
                     boolean enableHashedSpaceId = connector.params.containsKey("enableHashedSpaceId")
                             ? (boolean) connector.params.get("enableHashedSpaceId") : false;

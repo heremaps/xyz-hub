@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query.helpers.versioning;
 
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifyFeaturesEvent;

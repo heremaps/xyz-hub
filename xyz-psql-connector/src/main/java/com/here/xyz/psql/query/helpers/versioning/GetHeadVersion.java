@@ -19,6 +19,9 @@
 
 package com.here.xyz.psql.query.helpers.versioning;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;

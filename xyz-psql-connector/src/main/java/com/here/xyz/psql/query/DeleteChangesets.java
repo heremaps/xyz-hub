@@ -53,8 +53,8 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   }
 
   @Override
-  protected SuccessResponse handleWrite(int rowCount) throws ErrorResponseException {
-    if (rowCount == 0)
+  protected SuccessResponse handleWrite(int[] rowCounts) throws ErrorResponseException {
+    if (rowCounts[0] == 0)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Version < '"+event.getRequestedMinVersion()+"' is already deleted!");
     return new SuccessResponse();
   }

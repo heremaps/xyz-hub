@@ -89,7 +89,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -1472,13 +1471,13 @@ public class FeatureTaskHandler {
 
   public static <X extends FeatureTask<?, X>> void checkImmutability(X task, Callback<X> callback) {
     if (task.getEvent() instanceof SelectiveEvent selectiveEvent) {
-      Ref ref = selectiveEvent.getParsedRef();
+      Ref ref = selectiveEvent.getRef();
       if (ref.isSingleVersion()) {
         if (!ref.isHead())
-          //If the ref is a single specified version which is not HEAD, the response is immutable
+          //If the ref is a single specified version that is not HEAD, the response is immutable
           task.readOnlyAccess = true;
         else if (task.space.isReadOnly() && task.space.getReadOnlyHeadVersion() > -1) {
-          selectiveEvent.setRef(String.valueOf(task.space.getReadOnlyHeadVersion()));
+          selectiveEvent.setRef(new Ref(task.space.getReadOnlyHeadVersion()));
           task.readOnlyAccess = true;
         }
       }
@@ -1835,22 +1834,5 @@ public class FeatureTaskHandler {
       if (keepTask)
         this.task = task;
     }
-  }
-
-  static <X extends FeatureTask> void validateReadFeaturesParams(final X task, final Callback<X> callback) {
-    //TODO: Move this validation into the REST tier
-    if (task.getEvent() instanceof SelectiveEvent selectiveEvent) {
-      //Try to parse the provided ref
-      try {
-        selectiveEvent.getParsedRef();
-      }
-      catch (InvalidRef e) {
-        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for version: "
-            + selectiveEvent.getRef(), e));
-        return;
-      }
-    }
-
-    callback.call(task);
   }
 }

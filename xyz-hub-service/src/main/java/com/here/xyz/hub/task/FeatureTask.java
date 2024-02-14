@@ -452,7 +452,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
-          .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(Authorization::authorizeComposite)
