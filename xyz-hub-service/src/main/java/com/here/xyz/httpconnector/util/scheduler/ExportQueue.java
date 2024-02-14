@@ -89,7 +89,8 @@ public class ExportQueue extends JobQueue {
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
                                     else
-                                        currentJob.finalizeJob();
+                                        currentJob.finalizeJob()
+                                                .onFailure(t -> setFinalizationFailed(currentJob, t));
                                 });
                             break;
                         case trigger_executed:
@@ -101,6 +102,10 @@ public class ExportQueue extends JobQueue {
                 })
                 .onFailure(e -> logError(e, job.getId()));
             });
+    }
+
+    private static Future<Job> setFinalizationFailed(Job currentJob, Throwable t) {
+        return setJobFailed(currentJob, t.getMessage(), ERROR_TYPE_FINALIZATION_FAILED);
     }
 
     @Override
@@ -136,7 +141,7 @@ public class ExportQueue extends JobQueue {
             });
     }
 
-    protected void collectTriggerStatus(Job job) {
+    protected void collectTriggerStatus(Job<?> job) {
         //executeHttpTrigger
         if (((Export) job).getExportTarget().getType() == VML) {
             HubWebClientAsync.executeHTTPTriggerStatus((Export) job)
@@ -155,7 +160,7 @@ public class ExportQueue extends JobQueue {
                             return;
                         case "succeeded":
                             logger.info("job[{}] execution of '{}' succeeded ", job.getId(), ((Export) job).getTriggerId());
-                            job.finalizeJob();
+                            job.finalizeJob().onFailure(t -> setFinalizationFailed(job, t));
                             return;
                         case "cancelled":
                         case "failed":
@@ -166,7 +171,7 @@ public class ExportQueue extends JobQueue {
         }
         else
             //Skip collecting Trigger
-            job.finalizeJob();
+            job.finalizeJob().onFailure(t -> setFinalizationFailed(job, t));
     }
 
     /**
