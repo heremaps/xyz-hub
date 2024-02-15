@@ -1,0 +1,155 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "FeatId-create-5002",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "50",
+        "testSpace" : "delta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      }
+    },
+    {
+      "id": "FeatId-getById-5010",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "50",
+        "testSpace" : "delta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      }
+    },
+    {
+      "id": "FeatId-getById-5011",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "50",
+        "testSpace" : "delta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      }
+    },
+    {
+      "id": "FeatId-getById-5012",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "50",
+        "testSpace" : "delta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      }
+    },
+    {
+      "id": "FeatId-getByBBox-5020",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "50",
+        "testSpace" : "delta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          18.80,
+          54.60,
+          292.94377758
+        ]
+      }
+    },
+    {
+      "id": "FeatId-getByBBox-5023",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "50",
+        "testSpace" : "delta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          17.85,
+          53.60,
+          292.94377758
+        ]
+      }
+    }
+  ]
+}

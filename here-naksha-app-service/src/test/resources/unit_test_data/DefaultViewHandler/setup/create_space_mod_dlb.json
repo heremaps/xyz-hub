@@ -1,0 +1,15 @@
+{
+  "id": "mod-dev:topology-dlb",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "mod-dlb-handler-dev"
+  ],
+  "properties": {
+    "collection": {
+      "id": "topologies_dlb",
+      "type": "NakshaCollection"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "mod-dev:topology-view",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "mod-topology-view-handler-dev"
+  ],
+  "properties": {
+  }
+}

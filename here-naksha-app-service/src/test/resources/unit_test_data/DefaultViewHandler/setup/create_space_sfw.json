@@ -1,0 +1,15 @@
+{
+  "id": "mod-dev:topology-base",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "sfw-consistent-handler-dev"
+  ],
+  "properties": {
+    "collection": {
+      "id": "topologies",
+      "type": "NakshaCollection"
+    }
+  }
+}

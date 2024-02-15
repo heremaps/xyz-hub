@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "FeatId-getByBBox-5022",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.68872,
+          30.0561,
+          292.94377758
+        ]
+      },
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "modelVersion": "2.121.0",
+          "updatedByUser": "topology_adapter_service",
+          "lastUpdatedBy": "topology_adapter_service",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "operation": "CREATED"
+        },
+        "speedLimit": "20",
+        "testSpace": "base"
+      }
+    }
+  ]
+}

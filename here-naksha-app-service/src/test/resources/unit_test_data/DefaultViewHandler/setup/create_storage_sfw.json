@@ -1,0 +1,18 @@
+{
+  "id": "sfw-consistent-dev",
+  "type": "Storage",
+  "title": "Sfw-consistent-dev PSQL storage",
+  "description": "PSQL storage instance for testing purpose",
+  "className": "com.here.naksha.lib.psql.PsqlStorage",
+  "properties": {
+    "master": {
+      "host": "${dataDb.host}",
+      "db": "${dataDb.db}",
+      "user": "${dataDb.user}",
+      "password": "${dataDb.password}",
+      "readOnly": false
+    },
+    "appName": "test-app-name",
+    "schema": "${dataDb.schema}"
+  }
+}
