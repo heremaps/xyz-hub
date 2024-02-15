@@ -87,9 +87,12 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -962,48 +965,51 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Future<Job> checkPersistentExports() {
         //Check if we already have persistent exports. May trigger one.
-        if(readPersistExport())
+        if (readPersistExport())
             return checkPersistentExport();
-        else if(isSuperSpacePersist() && readParamCompositeMode().equals(CompositeMode.FULL_OPTIMIZED))
-            return checkPersistentSuperExport();
+        else if (isSuperSpacePersist() && readParamCompositeMode().equals(CompositeMode.FULL_OPTIMIZED))
+          return checkPersistentSuperExport();
         //No indication for persistent exports are given - proceed normal
         return updateJobStatus(this, prepared);
     }
 
-    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat format){
+    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat csvFormat) {
         return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
-                .compose(jobs -> {
-                    Export existingJob = null;
+            //Sort the candidates in reverse order by updated TS to get the oldest candidate
+            .map(jobs -> jobs.stream().sorted(Comparator.comparingLong(Job::getUpdatedAt)).toList())
+            .map(sortedJobs -> {
+              for (Job<?> job : sortedJobs) {
+                // filter out non Export jobs
+                if (!(job instanceof Export exportJob)) continue;
 
-                    //Sort the candidates in reverse order by updated TS to get the oldest candidate
-                    final List<Job> sortedJobs = jobs
-                        .stream()
-                        .sorted(Comparator.comparingLong(job -> job.getUpdatedAt()))
-                        .collect(Collectors.toList());
-                    for (Job jobCandidate : sortedJobs) {
-                        if (!(jobCandidate instanceof Export exportCandidate))
-                            continue;
+                // filter out non persistent
+                if (exportJob.getKeepUntil() >= 0) continue;
 
-                        //exp=-1 => persistent
-                        //hash must fit
-                        logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if (jobCandidate.getKeepUntil() < 0
-                            && exportCandidate.getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))
-                            && exportCandidate.getMaxSpaceVersion() == getMaxSpaceVersion()) {
-                            //try to find a finalized one - doesn't matter if it's the original export
-                            if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
-                                logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                                existingJob = (Export) jobCandidate;
-                                break;
-                            }else if(jobCandidate.getStatus().equals(failed) && jobCandidate.getId().equalsIgnoreCase(getId() + "_missing_base")) {
-                                logger.info(getMarker(), "job[{}] Spawned job has failed {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                                existingJob = (Export) jobCandidate;
-                                break;
-                            }
-                        }
-                    }
-                    return Future.succeededFuture(existingJob);
-                });
+                // filter out the non-matching hash
+                if (!exportJob.getHashForPersistentStorage(null).equals(getHashForPersistentStorage(csvFormat))) continue;
+
+                // filter out the ones with different EMR configuration
+                if (exportJob.isEmrTransformation() != isEmrTransformation()
+                    || !Objects.equals(exportJob.getEmrType(), getEmrType())) continue;
+
+                // filter out the ones with different max space version
+                if (exportJob.getMaxSpaceVersion() != getMaxSpaceVersion()) continue;
+
+                // try to find a finalized one - doesn't matter if it's the original export
+                if (exportJob.getStatus().equals(finalized)
+                    || exportJob.getStatus().equals(trigger_executed)
+                    || (exportJob.getStatus().equals(failed) && exportJob.getId().equalsIgnoreCase(getId() + "_missing_base"))) {
+                  return Optional.of(exportJob);
+                }
+              }
+              return Optional.<Export>empty();
+            })
+            // log the result
+            .map(candidate -> candidate.map(job -> {
+              final String logMessage = job.getStatus().equals(failed) ? "Spawned job has failed {}:{} " : "Found existing persistent job {}:{} ";
+              logger.info(getMarker(), "job[{}] " + logMessage, getId(), job.getId(), job.getStatus());
+              return job;
+            }).orElse(null));
     }
 
     public Future<Job> checkPersistentExport() {
@@ -1248,8 +1254,14 @@ public class Export extends JDBCBasedJob<Export> {
                     scriptParams.add(sourceS3Url);
                     scriptParams.add(targetS3Url);
                     scriptParams.add("--type=" + getEmrType());
-                    if (readParamCompositeMode() == FULL_OPTIMIZED)
-                        scriptParams.add("--delta");
+                    if (readParamCompositeMode() == FULL_OPTIMIZED) {
+                      scriptParams.add("--delta");
+                      if ("geoparquet".equals(getEmrType())) {
+                        final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
+                        String targetSuperS3Url = sourceSuperS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+                        scriptParams.add("--baseInputDir=" + targetSuperS3Url);
+                      }
+                    }
 
                     String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
                         EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
@@ -1355,16 +1367,16 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     @JsonIgnore
-    public String getHashForPersistentStorage(CSVFormat targetFormat) {
+    public String getHashForPersistentStorage(CSVFormat targetCSVFormat) {
         return Hasher.getHash(
                 (targetLevel != null ? targetLevel.toString() : "")
                 + maxTilesPerFile
                 + partitionKey
-                + (targetFormat == null ? csvFormat : targetFormat)
+                + (targetCSVFormat == null ? csvFormat : targetCSVFormat)
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() : "")
                 + (filters != null && filters.getPropertyFilter() != null ? filters.getPropertyFilter().hashCode() : "")
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getRadius() : "")
-                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().isClipped() : false));
+                + (filters != null && filters.getSpatialFilter() != null && filters.getSpatialFilter().isClipped()));
     }
 
     public enum CompositeMode {
