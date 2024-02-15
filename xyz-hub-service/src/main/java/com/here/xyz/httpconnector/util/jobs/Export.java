@@ -176,8 +176,11 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonView({Static.class})
     private String s3Key;
     private static final long UNKNOWN_MAX_SPACE_VERSION = -42;
-    @JsonView(Internal.class)
+    @JsonView(Public.class)
     private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+
+    @JsonView(Public.class)
+    private long maxSuperSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
     private static String PARAM_PERSIST_EXPORT = "persistExport";
@@ -259,20 +262,31 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                SpaceContext ctx = (   job.readParamContext() == EXTENSION
-                                    || job.readParamCompositeMode() == CHANGES
-                                    || job.readParamCompositeMode() == FULL_OPTIMIZED
-                                    ? EXTENSION : null
-                                   );
-
+                return Future.succeededFuture();
+            }).compose(f -> {
                 String superSpaceId = extractSuperSpaceId();
-                return HubWebClientAsync.getSpaceStatistics(superSpaceId != null ? superSpaceId : job.getTargetSpaceId(), ctx)
-                    .compose(statistics -> {
-                        setMaxSpaceVersion(statistics.getMaxVersion().getValue());
-                        return superSpaceId == null
-                            ? Future.succeededFuture(statistics)
-                            : HubWebClientAsync.getSpaceStatistics(job.getTargetSpaceId(), ctx);
-                    });
+
+                if(superSpaceId != null) {
+                    return HubWebClientAsync.getSpaceStatistics(superSpaceId, null)
+                        .compose(statistics -> {
+                            //Set version of base space
+                            setMaxSuperSpaceVersion(statistics.getMaxVersion().getValue());
+                            return Future.succeededFuture();
+                        });
+                }else
+                    return Future.succeededFuture();
+            }).compose(f -> {
+                SpaceContext ctx = (   readParamContext() == EXTENSION
+                        || readParamCompositeMode() == CHANGES
+                        || readParamCompositeMode() == FULL_OPTIMIZED
+                        ? EXTENSION : null
+                );
+                return HubWebClientAsync.getSpaceStatistics(getTargetSpaceId(), ctx)
+                        .compose(statistics ->{
+                            //Set version of target space
+                            setMaxSpaceVersion(statistics.getMaxVersion().getValue());
+                            return Future.succeededFuture(statistics);
+                        });
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer
@@ -973,7 +987,7 @@ public class Export extends JDBCBasedJob<Export> {
         return updateJobStatus(this, prepared);
     }
 
-    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat csvFormat) {
+    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat csvFormat, long targetVersion){
         return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
             //Sort the candidates in reverse order by updated TS to get the oldest candidate
             .map(jobs -> jobs.stream().sorted(Comparator.comparingLong(Job::getUpdatedAt)).toList())
@@ -993,7 +1007,7 @@ public class Export extends JDBCBasedJob<Export> {
                     || !Objects.equals(exportJob.getEmrType(), getEmrType())) continue;
 
                 // filter out the ones with different max space version
-                if (exportJob.getMaxSpaceVersion() != getMaxSpaceVersion()) continue;
+                if (exportJob.getMaxSpaceVersion() != targetVersion) continue;
 
                 // try to find a finalized one - doesn't matter if it's the original export
                 if (exportJob.getStatus().equals(finalized)
@@ -1014,7 +1028,7 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Future<Job> checkPersistentExport() {
         //Deliver result if Export is already available
-        return searchPersistentJobOnTarget(targetSpaceId, null)
+        return searchPersistentJobOnTarget(targetSpaceId, null, getMaxSpaceVersion())
             .compose(existingJob -> {
                 if (existingJob != null) {
                     //metafile is present but Export is not started yet
@@ -1054,7 +1068,7 @@ public class Export extends JDBCBasedJob<Export> {
         //Check if we can find a persistent export and check status. If no persistent export is available we are starting one.
         String superSpaceId = extractSuperSpaceId();
 
-        return searchPersistentJobOnTarget(superSpaceId, JSON_WKB)
+        return searchPersistentJobOnTarget(superSpaceId, JSON_WKB, getMaxSuperSpaceVersion())
             .compose(existingJob -> {
                 if (existingJob == null) {
                     logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), superSpaceId);
@@ -1216,6 +1230,19 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Export withMaxSpaceVersion(long maxSpaceVersion) {
         setMaxSpaceVersion(maxSpaceVersion);
+        return this;
+    }
+
+    public long getMaxSuperSpaceVersion() {
+        return maxSuperSpaceVersion;
+    }
+
+    public void setMaxSuperSpaceVersion(long maxSuperSpaceVersion) {
+        this.maxSuperSpaceVersion = maxSuperSpaceVersion;
+    }
+
+    public Export withMaxSuperSpaceVersion(long maxSuperSpaceVersion) {
+        setMaxSuperSpaceVersion(maxSuperSpaceVersion);
         return this;
     }
 
