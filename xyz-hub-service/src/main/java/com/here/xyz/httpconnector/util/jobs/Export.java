@@ -231,8 +231,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //L2 Composite
                         superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
 
-                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly
-                        && !(getTarget() instanceof Files)) {
+                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
                         //Enabled by default
                         params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
                     }
