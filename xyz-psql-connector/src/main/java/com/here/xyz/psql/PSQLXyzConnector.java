@@ -202,9 +202,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      SearchForFeatures.checkCanSearchFor(event, dataSourceProvider);
-
-      if (IterateFeatures.isOrderByEvent(event))
+      if (IterateFeaturesSorted.isOrderByEvent(event))
         return run(new IterateFeaturesSorted(event));
 
       return run(new IterateFeatures(event));

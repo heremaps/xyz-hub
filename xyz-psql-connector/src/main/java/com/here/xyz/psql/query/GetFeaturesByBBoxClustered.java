@@ -20,8 +20,8 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.HEAD_TABLE_SUFFIX;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.HEAD_TABLE_SUFFIX;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 
 import com.google.common.collect.Streams;
@@ -34,8 +34,6 @@ import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Map;
@@ -82,13 +80,8 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     }
   }
 
-  @Override
-  public R handle(ResultSet rs) throws SQLException {
-    return isMvtRequested ? (R) GetFeaturesByBBox.defaultBinaryResultSetHandler(rs) : super.handle(rs);
-  }
-
   /**
-   * Check if request parameters are valid. In case of invalidity throw an Exception
+   * Check if request parameters are valid. In a case of invalidity, throw an Exception
    */
   private void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event) throws ErrorResponseException {
     if (countMode != null)

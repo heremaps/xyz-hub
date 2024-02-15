@@ -33,51 +33,56 @@ import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.psql.query.helpers.GetIndexList;
 import com.here.xyz.psql.tools.DhString;
-import com.here.xyz.psql.tools.ECPSTool;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class IterateFeaturesSorted extends IterateFeatures {
+  public static final String SORTED_HANDLE_PREFIX = "h07~";
+  private static String pg_hint_plan = "/*+ Set(seq_page_cost 100.0) IndexOnlyScan( ht1 ) */";
+  private static String PropertyDoesNotExistIndikator = "#zJfCzPCz#";
+  protected IterateFeaturesEvent tmpEvent; //TODO: Remove after refactoring
 
   public IterateFeaturesSorted(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
+    tmpEvent = event;
   }
 
   @Override
   public FeatureCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
     IterateFeaturesEvent event = tmpEvent;
 
+    checkCanSearchFor(event, dataSourceProvider);
+
     boolean hasHandle = (event.getHandle() != null);
     String tableName = XyzEventBasedQueryRunner.readTableFromEvent(event);
 
-    if( !hasHandle )  // decrypt handle and configure event
-    {
-      if( event.getPart() != null && event.getPart()[0] == -1 )
+    if (!hasHandle) { // decrypt handle and configure event
+      if (event.getPart() != null && event.getPart()[0] == -1)
         return new GetIterationHandles(event).withDataSourceProvider(dataSourceProvider).run();
 
-      if (!canSortBy(tableName, event.getSort())) {
+      if (!canSortBy(tableName, event.getSort()))
         throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
             "Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
-      }
 
-      event.setSort( translateSortSysValues( event.getSort() ));
+      event.setSort(translateSortSysValues(event.getSort()));
     }
-    else if( !event.getHandle().startsWith( HPREFIX ) )
+    else if (!event.getHandle().startsWith(SORTED_HANDLE_PREFIX))
       throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Invalid request parameter. handle is corrupted");
     else
       try {
-        setEventValuesFromHandle(event, decrypt(chrD(event.getHandle().substring(HPREFIX.length())), HANDLE_ENCRYPTION_PHRASE));
+        setEventValuesFromHandle(event, decryptHandle(event.getHandle().substring(SORTED_HANDLE_PREFIX.length())));
       }
       catch (GeneralSecurityException | IllegalArgumentException | JsonProcessingException e) {
         throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Invalid request parameter. handle is corrupted");
@@ -88,12 +93,256 @@ public class IterateFeaturesSorted extends IterateFeatures {
 
   @Override
   protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
-    return super.buildQuery(event);
+    if (isCompositeQuery(event))
+      return super.buildQuery(event);
+    else
+      return buildQueryForOrderBy(event);
   }
 
   @Override
   public FeatureCollection handle(ResultSet rs) throws SQLException {
-    return super.handle(rs);
+    FeatureCollection fc = super.handle(rs);
+
+    if (fc.getHandle() != null) {
+      //Extend handle and encrypt
+      final String handle;
+      try {
+        handle = createHandle(tmpEvent, fc.getHandle());
+      }
+      catch (Exception e) {
+        throw new RuntimeException(e); //TODO: Use ErrorResponseException here after refactoring of the base class
+      }
+      fc.setHandle(handle);
+      fc.setNextPageToken(handle);
+    }
+
+    return fc;
+  }
+
+  /**
+   * @deprecated Kept for backwards compatibility. Will be removed after refactoring.
+   */
+  @Deprecated
+  public static boolean isOrderByEvent(IterateFeaturesEvent event) {
+    return event.getSort() != null || hasPropertyQuery(event) || event.getPart() != null || event.getHandle() != null
+        && event.getHandle().startsWith(SORTED_HANDLE_PREFIX);
+  }
+
+  private static boolean hasPropertyQuery(IterateFeaturesEvent event) {
+    return event.getPropertiesQuery() != null && !event.getPropertiesQuery().isEmpty()
+        && event.getPropertiesQuery().stream().anyMatch(pql -> !pql.isEmpty());
+  }
+
+  private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) {
+    SQLQuery partialQuery = buildPartialSortIterateQuery(event);
+
+    String nextHandleJson = buildNextHandleAttribute(event.getSort(), isPartOverI(event));
+    SQLQuery innerQry = new SQLQuery("WITH dt AS ("
+        + " ${{partialQuery}} "
+        + " ${{orderings}} "
+        + ") "
+        + "SELECT jsondata, geo, ${{nextHandleJson}} AS nxthandle "
+        + "    FROM dt s JOIN ${schema}.${table} d ON ( s.i = d.i ) "
+        + "    ORDER BY s.ord1, s.ord2")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event));
+
+    innerQry.setQueryFragment("partialQuery", partialQuery);
+    innerQry.setQueryFragment("orderings", event.getHandle() == null ? "" : "ORDER BY ord1, ord2 limit #{limit}");
+    innerQry.setNamedParameter("limit", limit);
+    innerQry.setQueryFragment("nextHandleJson", nextHandleJson);
+
+
+    //---------------------------------------------------------------------------------------------
+
+
+    SQLQuery query = new SQLQuery("${{pgHintPlan}} "
+        + "SELECT ${{selection}}, ${{geo}}, nxthandle FROM ("
+        + "    ${{innerQuery}}"
+        + ") o");
+    query.setQueryFragment("pgHintPlan", pg_hint_plan);
+    query.setQueryFragment("selection", buildSelectionFragment(event));
+    query.setQueryFragment("geo", buildGeoFragment(event));
+    query.setQueryFragment("innerQuery", innerQry);
+
+    return query;
+  }
+
+  private SQLQuery buildPartialSortIterateQuery(IterateFeaturesEvent event) {
+    SQLQuery searchQuery = generateSearchQuery(event);
+    SQLQuery filterWhereClause = new SQLQuery("${{searchQuery}} ${{partialIterationModules}}");
+    if (searchQuery != null)
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
+    else
+      filterWhereClause.setQueryFragment("searchQuery", "");
+
+    //Extend the filterWhereClause by the necessary parts for partial iteration using modules
+    Integer[] part = event.getPart();
+    if (part != null && part.length == 2 && part[1] > 1) {
+      filterWhereClause.setQueryFragment("partialIterationModules",
+          new SQLQuery((searchQuery != null ? "AND " : "") + "(( i %% #{total} ) = #{partition})")
+              .withNamedParameter("total", part[1])
+              .withNamedParameter("partition", part[0] - 1));
+    }
+
+    String orderByClause = buildOrderByClause(event);
+    List<String> continuationWhereClauses = event.getHandle() == null ? Collections.singletonList("")
+        : buildContinuationConditions(event);
+
+    List<SQLQuery> unionQueries = new ArrayList<>();
+    for (int i = 0; i < continuationWhereClauses.size(); i++)
+      unionQueries.add(new SQLQuery(buildPartialSortIterateSQL(i))
+          .withQueryFragment("continuation", continuationWhereClauses.get(i)));
+
+    SQLQuery partialQuery = SQLQuery.join(unionQueries, " UNION ALL ")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event))
+        .withQueryFragment("orderBy", orderByClause)
+        .withNamedParameter("limit", limit)
+        .withQueryFragment("filterWhereClause", filterWhereClause);
+
+    return partialQuery;
+  }
+
+  private static String buildPartialSortIterateSQL(int ord1) {
+    return "("
+        + "    SELECT " + ord1 + "::integer AS ord1, row_number() over () ord2, i FROM (" //TODO: Rename ord1_i / ord2 to meaningful names
+        + "        SELECT i FROM ${schema}.${table} ht1 "
+        + "        WHERE ${{filterWhereClause}} ${{continuation}} ${{orderBy}} LIMIT #{limit}"
+        + "    ) inr"
+        + ")";
+  }
+
+  protected boolean isPartOverI(IterateFeaturesEvent event) {
+    if (event.getHandle() != null)
+      return (new JSONObject(event.getHandle())).has("i");
+
+    return event.getPart() != null && event.getSort() == null && !hasSearch;
+  }
+
+  private static String buildNextHandleAttribute(List<String> sortby, boolean partOver_i)
+  { String nhandle = !partOver_i ? "jsonb_set('{}','{h0}', jsondata->'id')" : "jsonb_set('{}','{i}',to_jsonb(s.i))",
+           svalue = "";
+    int hDepth = 1;
+
+    if (sortby != null && sortby.size() > 0)
+      for (String s : sortby)
+      {
+        svalue += DhString.format("%s\"%s\"", (svalue.length() == 0 ? "" : ","), s);
+
+        nhandle = DhString.format("jsonb_set(%s,'{h%d}',coalesce(%s,'\"%s\"'::jsonb))", nhandle, hDepth++, jpathFromSortProperty(s), PropertyDoesNotExistIndikator);
+      }
+
+    return DhString.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
+  }
+
+  private static List<String> buildContinuationConditions(IterateFeaturesEvent event)
+  {
+    String handle = event.getHandle();
+   List<String> ret = new ArrayList<>(),
+                sortby = convHandle2sortbyList( handle );
+   JSONObject h = new JSONObject(handle);
+   boolean descendingLast = false, sortbyIdUseCase = false;
+   String sqlWhereContinuation = "";
+   int hdix = 1;
+
+   if( h.has("i") ) // partOver_i
+   { ret.add(DhString.format(" and i > %d", h.getBigInteger("i")));
+     return ret;
+   }
+
+   if( h.has("h") ) // start handle partitioned by id
+   { ret.add(DhString.format(" and id >= '%s'",h.get("h").toString()));
+     return ret;
+   }
+
+   for (String s : sortby)
+   { String hkey = "h" + hdix++;
+     Object v = h.get(hkey);
+     boolean bNull = PropertyDoesNotExistIndikator.equals(v.toString());
+     JSONObject jo = new JSONObject();
+     jo.put(hkey, v);
+
+
+     descendingLast = isDescending(s);
+
+     if(s.startsWith("id"))
+     { sortbyIdUseCase = true; break; }
+     else if( !bNull )
+      sqlWhereContinuation += DhString.format(" and %s = ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), jo.toString() ,hkey );
+     else
+      sqlWhereContinuation += DhString.format(" and %s is null", jpathFromSortProperty(s) );
+    }
+
+   sqlWhereContinuation += DhString.format(" and id %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
+
+   ret.add( sqlWhereContinuation );
+
+   if( sortbyIdUseCase ) return ret;
+
+   for(; !sortby.isEmpty(); sortby.remove(sortby.size()-1) )
+   {
+     sqlWhereContinuation = "";
+     hdix = 1;
+     boolean bNullLastEnd = false;
+
+     for (String s : sortby)
+     { String op   = (( hdix < sortby.size() ) ? "=" : (isDescending(s) ? "<" : ">" ) ),
+              hkey = "h" + hdix++;
+
+       Object v = h.get(hkey);
+       boolean bNull = PropertyDoesNotExistIndikator.equals(v.toString());
+
+       JSONObject jo = new JSONObject();
+       jo.put(hkey, v);
+
+       descendingLast = isDescending(s);
+
+       if(!bNull)
+        switch( op )
+        { case "=" :
+          case "<" : sqlWhereContinuation += DhString.format(" and %s %s ('%s'::jsonb)->'%s'", jpathFromSortProperty(s), op ,jo.toString() ,hkey ); break;
+          case ">" : ret.add( sqlWhereContinuation + DhString.format(" and ( %1$s > ('%2$s'::jsonb)->'%3$s' )", jpathFromSortProperty(s), jo.toString() ,hkey ) );
+                     sqlWhereContinuation += DhString.format(" and ( %1$s is null )", jpathFromSortProperty(s) ); break;
+        }
+       else
+        switch( op )
+        { case "=" : sqlWhereContinuation += DhString.format(" and %s is null", jpathFromSortProperty(s) ); break;
+          case ">" : bNullLastEnd = true; break; // nothing greater than null. this is due to default "NULLS LAST" on ascending dbindex
+          case "<" : sqlWhereContinuation += DhString.format(" and %s is not null", jpathFromSortProperty(s) ); break;
+        }
+     }
+
+     if(!bNullLastEnd)
+      ret.add( sqlWhereContinuation );
+   }
+
+   return ret;
+
+  }
+
+  protected static boolean isDescending(String sortproperty) {
+    return sortproperty.toLowerCase().endsWith(":desc");
+  }
+
+  private static String jpathFromSortProperty(String sortproperty)
+  { String jformat = "(%s->'%s')", jpth = "jsondata";
+    sortproperty = sortproperty.replaceAll(":(?i)(asc|desc)$", "");
+
+    for (String p : sortproperty.split("\\."))
+      jpth = DhString.format(jformat, jpth, p);
+
+    return jpth;
+  }
+
+  private static List<String> convHandle2sortbyList( String handle )
+  { JSONObject jo = new JSONObject(handle);
+    JSONArray jarr = jo.getJSONArray("s");
+    List<String> sortby = new ArrayList<String>();
+    for(int i = 0; i < jarr.length(); i++)
+     sortby.add(jarr.getString(i));
+
+    return(sortby);
   }
 
   private boolean canSortBy(String tableName, List<String> sort) {
@@ -150,15 +399,28 @@ public class IterateFeaturesSorted extends IterateFeatures {
     return r;
   }
 
-  private static String chrD( String s ) { return s.replace('-','+').replace('_','/').replace('.','='); }
+  private String buildOrderByClause(IterateFeaturesEvent event) {
+    List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
 
-  @SuppressWarnings("unused")
-  private static String decrypt(String encryptedtext, String phrase) throws GeneralSecurityException {
-    return ECPSTool.decrypt(phrase, encryptedtext);
+    if (sortby == null || sortby.size() == 0)
+     return isPartOverI(event) ? "ORDER BY i" : "ORDER BY id"; // in case no sort is specified
+
+    if (sortby.size() == 1 && sortby.get(0).toLowerCase().startsWith("id")) // usecase order by id
+      return "ORDER BY id" + (sortby.get(0).equalsIgnoreCase("id:desc") ? " DESC" : "");
+
+    String orderByClause = "", direction = "";
+
+    for (String s : sortby)
+    {
+     direction = (isDescending(s) ? "DESC" : "");
+
+     orderByClause += DhString.format("%s %s %s", (orderByClause.length() == 0 ? "" : ","), jpathFromSortProperty(s), direction);
+    }
+
+    return DhString.format("ORDER BY %s, id %s", orderByClause, direction); // id is always last sort crit with sort direction as last (most inner) index
   }
 
-  private class GetIterationHandles extends XyzQueryRunner<IterateFeaturesEvent, FeatureCollection> {
-
+  private class GetIterationHandles extends IterateFeatures {
     //TODO: Remove after refactoring
     private IterateFeaturesEvent tmpEvent;
 
@@ -170,7 +432,7 @@ public class IterateFeaturesSorted extends IterateFeatures {
 
     @Override
     protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
-      //FIXME: Do not manipulate the incoming event
+      //TODO: Do not manipulate the incoming event
       event.setPart(null);
       event.setTags(null);
 
@@ -192,8 +454,8 @@ public class IterateFeaturesSorted extends IterateFeatures {
 
     @Override
     public FeatureCollection handle(ResultSet rs) throws SQLException {
-      //FIXME: Do not use FeatureCollection as response vehicle
-      FeatureCollection cl = new FeatureResultSetHandler(limit).handle(rs);
+      //TODO: Do not use FeatureCollection as response vehicle
+      FeatureCollection cl = super.handle(rs);
       List<List<Object>> hdata;
       try {
         hdata = cl.getFeatures().get(0).getProperties().get("handles");
@@ -225,6 +487,19 @@ public class IterateFeaturesSorted extends IterateFeatures {
       }
       return cl;
     }
+  }
+
+  private static String eventValuesToHandle(IterateFeaturesEvent event, String dbHandle)  throws JsonProcessingException {
+    ObjectMapper om = new ObjectMapper();
+    String pQry = DhString.format( ",\"p\":%s", event.getPropertiesQuery() != null ? om.writeValueAsString(event.getPropertiesQuery()) : "[]" ),
+        tQry = DhString.format( ",\"t\":%s", event.getTags() != null ? om.writeValueAsString(event.getTags()) : "[]" ),
+        mQry = DhString.format( ",\"m\":%s", event.getPart() != null ? om.writeValueAsString(event.getPart()) : "[]" ),
+        hndl = DhString.format("%s%s%s%s}", dbHandle.substring(0, dbHandle.lastIndexOf("}")), pQry, tQry, mQry );
+    return hndl;
+  }
+
+  protected static String createHandle(IterateFeaturesEvent event, String jsonData) throws Exception {
+    return SORTED_HANDLE_PREFIX + encryptHandle(eventValuesToHandle(event, jsonData));
   }
 
   private static class IdxMaintenance // idx Maintenance

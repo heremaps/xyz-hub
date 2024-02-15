@@ -29,7 +29,7 @@ import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.mchange.v3.decode.CannotDecodeException;
@@ -89,7 +89,8 @@ public class ExportQueue extends JobQueue {
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
                                     else
-                                        currentJob.finalizeJob();
+                                        currentJob.finalizeJob()
+                                                .onFailure(t -> setFinalizationFailed(currentJob, t));
                                 });
                             break;
                         case trigger_executed:
@@ -101,6 +102,10 @@ public class ExportQueue extends JobQueue {
                 })
                 .onFailure(e -> logError(e, job.getId()));
             });
+    }
+
+    private static Future<Job> setFinalizationFailed(Job currentJob, Throwable t) {
+        return setJobFailed(currentJob, t.getMessage(), ERROR_TYPE_FINALIZATION_FAILED);
     }
 
     @Override
@@ -122,7 +127,7 @@ public class ExportQueue extends JobQueue {
     }
 
     protected Future<String> postTrigger(Job job) {
-        return HubWebClient.executeHTTPTrigger((Export) job)
+        return HubWebClientAsync.executeHTTPTrigger((Export) job)
             .onSuccess(triggerId -> {
                 //Add import ID
                 ((Export) job).setTriggerId(triggerId);
@@ -136,10 +141,10 @@ public class ExportQueue extends JobQueue {
             });
     }
 
-    protected void collectTriggerStatus(Job job) {
+    protected void collectTriggerStatus(Job<?> job) {
         //executeHttpTrigger
         if (((Export) job).getExportTarget().getType() == VML) {
-            HubWebClient.executeHTTPTriggerStatus((Export) job)
+            HubWebClientAsync.executeHTTPTriggerStatus((Export) job)
                 .onFailure(e -> {
                     if (e instanceof HttpException)
                         setJobFailed(job, Export.ERROR_DESCRIPTION_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
@@ -155,7 +160,7 @@ public class ExportQueue extends JobQueue {
                             return;
                         case "succeeded":
                             logger.info("job[{}] execution of '{}' succeeded ", job.getId(), ((Export) job).getTriggerId());
-                            job.finalizeJob();
+                            job.finalizeJob().onFailure(t -> setFinalizationFailed(job, t));
                             return;
                         case "cancelled":
                         case "failed":
@@ -166,7 +171,7 @@ public class ExportQueue extends JobQueue {
         }
         else
             //Skip collecting Trigger
-            job.finalizeJob();
+            job.finalizeJob().onFailure(t -> setFinalizationFailed(job, t));
     }
 
     /**
@@ -192,6 +197,9 @@ public class ExportQueue extends JobQueue {
                 }
                 catch (InterruptedException | CannotDecodeException ignored) {
                     //Nothing to do here.
+                }
+                catch (Exception e) {
+                    logger.error("Exception in queue:", e);
                 }
             });
         }

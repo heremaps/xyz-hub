@@ -34,12 +34,10 @@ import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.factory.TweaksSQL;
-import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
@@ -71,18 +69,18 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    return isMvtRequested ? (R) defaultBinaryResultSetHandler(rs) : super.handle(rs);
+    return isMvtRequested ? (R) mvtResultSetHandler(rs) : super.handle(rs);
   }
 
-  protected static BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
+  protected static BinaryResponse mvtResultSetHandler(ResultSet rs) throws SQLException {
     BinaryResponse br = new BinaryResponse()
         .withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE);
 
     if (rs.next())
-      br.setBytes(rs.getBytes(1));
+      br.setBytes(rs.getBytes("bin"));
 
-    if (br.getBytes() != null && br.getBytes().length > FeatureResultSetHandler.MAX_RESULT_CHARS)
-      throw new SQLException(DhString.format("Maximum bytes limit (%d) reached", FeatureResultSetHandler.MAX_RESULT_CHARS));
+    if (br.getBytes() != null && br.getBytes().length > MAX_RESULT_SIZE)
+      throw new SQLException("Maximum response byte limit of " + MAX_RESULT_SIZE + " reached");
 
     return br;
   }

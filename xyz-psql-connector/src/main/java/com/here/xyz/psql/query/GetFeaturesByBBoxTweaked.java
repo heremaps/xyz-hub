@@ -28,7 +28,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.bbox.GetSamplingStrengthEstimation;
 import com.here.xyz.psql.query.bbox.GetSamplingStrengthEstimation.SamplingStrengthEstimation;
-import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
@@ -39,7 +38,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extends XyzResponse> extends GetFeaturesByBBox<E, R> {
-
   private boolean isMvtRequested;
   private boolean resultIsPartial;
 
@@ -88,14 +86,20 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    if (isMvtRequested)
-      return (R) GetFeaturesByBBox.defaultBinaryResultSetHandler(rs);
-    else {
-      FeatureCollection collection = new FeatureResultSetHandler().handle(rs);
-      if (resultIsPartial)
-        collection.setPartial(true);
-      return (R) collection;
-    }
+    R response = super.handle(rs);
+
+    if (!isMvtRequested && resultIsPartial)
+        ((FeatureCollection) response).setPartial(true);
+
+    return response;
+  }
+
+  @Override
+  protected void handleFeature(ResultSet rs, StringBuilder result) throws SQLException {
+    //Skip features which have no geometry
+    if (rs.getString("geo") == null)
+      return;
+    super.handleFeature(rs, result);
   }
 
   static private boolean isVeryLargeSpace( String rTuples )

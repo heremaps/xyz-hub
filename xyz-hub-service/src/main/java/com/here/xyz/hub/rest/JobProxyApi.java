@@ -26,7 +26,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.rest.HApiParam;
-import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
@@ -71,8 +70,8 @@ public class JobProxyApi extends Api{
                                     if (!headSpace.isActive())
                                         return Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED,
                                             "The method is not allowed, because the resource \"" + spaceId + "\" is not active."));
-                                    if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
-                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
+                                    //if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
+                                    //    return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
 
                                     job.setTargetSpaceId(spaceId);
                                     return Future.succeededFuture(headSpace);
