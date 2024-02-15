@@ -232,7 +232,7 @@ public class Export extends JDBCBasedJob<Export> {
                         superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
 
                     if (compositeMode.equals(DEACTIVATED) && superIsReadOnly
-                        && !(getTarget() instanceof Files files && files.getOutputSettings().getFormat() instanceof GeoParquet)) {
+                        && !(getTarget() instanceof Files)) {
                         //Enabled by default
                         params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
                     }
