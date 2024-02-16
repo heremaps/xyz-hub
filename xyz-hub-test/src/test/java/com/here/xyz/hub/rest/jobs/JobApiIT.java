@@ -420,6 +420,10 @@ public class JobApiIT extends TestSpaceWithFeature {
                 //valid JSON_WKB with id
                 input = "\"{'\"id'\": '\"foo'\", '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
                 break;
+            case 12 :
+                //valid JSON_WKB with id and bbox & BBOX on root
+                input = "\"{'\"id'\": '\"foo'\", '\"bbox'\": [-10.0, -10.0, 10.0, 10.0], '\"BBOX'\": [-10.0, -10.0, 10.0, 10.0], '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
+                break;
         }
         System.out.println("Start Upload");
 
