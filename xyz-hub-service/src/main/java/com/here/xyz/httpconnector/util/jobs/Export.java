@@ -555,8 +555,15 @@ public class Export extends JDBCBasedJob<Export> {
         //Keep BWC
         if (target instanceof FileBasedTarget fbt) {
             final FileOutputSettings os = fbt.getOutputSettings();
+
+            setTargetLevel(os.getTileLevel());
+            setClipped(os.isClipped());
+            setMaxTilesPerFile(os.getMaxTilesPerFile());
+            setPartitionKey(os.getPartitionKey());
+
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
             //setCsvFormat(fbt.getOutputSettings().getFormat());
+
             if (getCsvFormat() == null) {
                 if (os.getFormat() instanceof GeoJson)
                     setCsvFormat(GEOJSON);
@@ -564,14 +571,11 @@ public class Export extends JDBCBasedJob<Export> {
                     setCsvFormat(JSON_WKB);
                     setEmrTransformation(true);
                     setEmrType("geoparquet");
+                    setPartitionKey("id");
                 }
                 else if (os.getFormat() instanceof Csv csv)
                     setCsvFormat(csv.toBWCFormat());
             }
-            setTargetLevel(os.getTileLevel());
-            setClipped(os.isClipped());
-            setMaxTilesPerFile(os.getMaxTilesPerFile());
-            setPartitionKey(os.getPartitionKey());
         }
     }
 
