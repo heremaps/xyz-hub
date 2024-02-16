@@ -1277,9 +1277,24 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
+    @Override    
+    public Future<Job> prepareStart() {
+
+      Future<Void> pushVersionTag = ( getTargetVersion() == null )
+       ? Future.succeededFuture()
+       : HubWebClientAsync.postTag( getSource().getKey(), Map.of("id", getId(), "version", Integer.parseInt(getTargetVersion())) );
+
+      return pushVersionTag.compose( v -> super.prepareStart() );
+    }
+
     @Override
     public Future<Void> finalizeJob() {
-        return finalizeJob(true);
+
+        Future<Void> deleteVersionTag = ( getTargetVersion() == null )
+        ? Future.succeededFuture()
+        : HubWebClientAsync.deleteTag( getSource().getKey(), getId() ).compose( tag -> Future.succeededFuture());
+         
+        return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
 
     protected Future<Void> finalizeJob(boolean finalizeAfterCompletion) {

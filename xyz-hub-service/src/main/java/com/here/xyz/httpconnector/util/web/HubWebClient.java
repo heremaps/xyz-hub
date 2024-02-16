@@ -29,6 +29,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import java.io.IOException;
 import java.net.URI;
@@ -90,6 +91,29 @@ public class HubWebClient {
       return connectorCache.put(connectorId, deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/connectors/" + connectorId))
           .build()).body(), Connector.class));
+    }
+    catch (JsonProcessingException e) {
+      throw new HubWebClientException("Error deserializing response", e);
+    }
+  }
+
+  public static void postTag(String spaceId, Map<String, Object> tagInfo) throws HubWebClientException {
+    request(HttpRequest.newBuilder()
+        .uri(uri("/spaces/" + spaceId + "/tags"))
+        .header(CONTENT_TYPE, JSON_UTF_8.toString())
+        .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(tagInfo).getBytes()))
+        .build());
+  }
+
+  public static Tag deleteTag(String spaceId, String tagId) throws HubWebClientException {
+    try {
+     return 
+      deserialize(
+       request(HttpRequest.newBuilder()
+         .DELETE()
+         .uri(uri("/spaces/" + spaceId + "/tags/" + tagId ))
+         .header(CONTENT_TYPE, JSON_UTF_8.toString())
+         .build()).body(),Tag.class);
     }
     catch (JsonProcessingException e) {
       throw new HubWebClientException("Error deserializing response", e);

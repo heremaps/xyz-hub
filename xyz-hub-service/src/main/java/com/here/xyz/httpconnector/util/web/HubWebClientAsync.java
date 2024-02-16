@@ -31,6 +31,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -67,9 +68,19 @@ public class HubWebClientAsync {
     return loadSpaceStatistics(spaceId, null);
   }
 
-
-    public static Future<Connector> loadConnector(String connectorId) {
+  public static Future<Connector> loadConnector(String connectorId) {
     return async(() -> HubWebClient.loadConnector(connectorId));
+  }
+
+  public static Future<Void> postTag(String spaceId, Map<String, Object> tagInfo) {
+    return async(() -> {
+      HubWebClient.postTag(spaceId, tagInfo);
+      return null;
+    });
+  }
+
+  public static Future<Tag> deleteTag(String spaceId, String tagId) {
+    return async(() -> HubWebClient.deleteTag(spaceId, tagId) );
   }
 
   //----------------------------------- Legacy implementations -----------------------------------------------
