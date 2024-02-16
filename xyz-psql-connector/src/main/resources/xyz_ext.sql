@@ -183,10 +183,8 @@ AS $BODY$
 			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
         END IF;
 
-        IF NEW.jsondata->'bbox' IS NOT NULL THEN
-			-- remove bbox on root
-			NEW.jsondata := NEW.jsondata - 'bbox';
-        END IF;
+		-- remove bbox on root
+        NEW.jsondata := NEW.jsondata - 'bbox';
 
         -- Inject type
         NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
