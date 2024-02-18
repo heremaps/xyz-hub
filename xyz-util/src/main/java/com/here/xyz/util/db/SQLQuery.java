@@ -84,6 +84,8 @@ public class SQLQuery {
   private boolean labelsEnabled = true;
   private List<SQLQuery> queryBatch;
 
+  private SQLQuery() {} //Only added as workaround for an issue with Jackson's Include.NON_DEFAULT setting
+
   public SQLQuery(String text) {
     if (text != null)
       statement = text;
