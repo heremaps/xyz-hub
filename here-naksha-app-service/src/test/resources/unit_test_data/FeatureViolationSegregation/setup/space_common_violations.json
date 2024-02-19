@@ -1,0 +1,15 @@
+{
+  "id": "common-violations",
+  "type": "Space",
+  "title": "Violations Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Violation collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "common-violations-handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "violations",
+      "type": "NakshaCollection"
+    }
+  }
+}

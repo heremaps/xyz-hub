@@ -18,16 +18,12 @@
  */
 package com.here.naksha.app.service.util;
 
-import static com.here.naksha.app.common.assertions.POpAssertion.assertThatOperation;
+import static com.here.naksha.test.common.assertions.POpAssertion.assertThatOperation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Named.named;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
-
-import com.here.naksha.app.common.assertions.POpAssertion;
 import com.here.naksha.app.service.http.ops.TagsUtil;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
@@ -39,6 +35,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import com.here.naksha.test.common.assertions.POpAssertion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;

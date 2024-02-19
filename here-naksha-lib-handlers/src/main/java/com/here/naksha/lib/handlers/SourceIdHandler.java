@@ -35,7 +35,6 @@ import com.here.naksha.lib.core.models.storage.Request;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
-import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.handlers.util.PropertyOperationUtil;
 import java.util.List;
 import java.util.Map;
@@ -52,18 +51,11 @@ public class SourceIdHandler extends AbstractEventHandler {
   private static final String SOURCE_ID = "sourceId";
   public static final int PREF_PATHS_SIZE = 3;
 
-  private @NotNull EventHandler eventHandler;
-  private @NotNull EventTarget<?> eventTarget;
-  private @NotNull XyzProperties properties;
-
   public SourceIdHandler(
       final @NotNull EventHandler eventHandler,
       final @NotNull INaksha hub,
       final @NotNull EventTarget<?> eventTarget) {
     super(hub);
-    this.eventHandler = eventHandler;
-    this.eventTarget = eventTarget;
-    this.properties = JsonSerializable.convert(eventHandler.getProperties(), XyzProperties.class);
   }
 
   @Override

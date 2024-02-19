@@ -1,0 +1,16 @@
+{
+  "id": "sign-violations",
+  "type": "Space",
+  "title": "Sign Violations Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Sign Violation collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "sign-violations-handler",
+    "common-violations-handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "violations",
+      "type": "NakshaCollection"
+    }
+  }
+}

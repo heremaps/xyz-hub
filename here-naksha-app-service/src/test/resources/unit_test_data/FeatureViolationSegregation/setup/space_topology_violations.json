@@ -1,0 +1,16 @@
+{
+  "id": "topology-violations",
+  "type": "Space",
+  "title": "Topology Violations Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Violation collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "topology-violations-handler",
+    "common-violations-handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "violations",
+      "type": "NakshaCollection"
+    }
+  }
+}

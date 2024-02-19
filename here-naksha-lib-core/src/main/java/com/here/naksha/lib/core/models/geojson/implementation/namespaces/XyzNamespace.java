@@ -724,13 +724,29 @@ public class XyzNamespace extends JsonObject {
    * @return this.
    */
   @AvailableSince(NakshaVersion.v2_0_11)
-  public @NotNull XyzNamespace removeTagsWithPrefix(String prefix) {
+  public @NotNull XyzNamespace removeTagsWithPrefix(final String prefix) {
     final List<@NotNull String> thisTags = getTags();
     if (thisTags == null || thisTags.isEmpty() || prefix == null) {
       return this;
     }
 
     thisTags.removeIf(tag -> tag.startsWith(prefix));
+    return this;
+  }
+
+  /**
+   * Removes tags starting with given list of prefixes
+   *
+   * @param prefixes list of tag prefixes
+   * @return this.
+   */
+  @AvailableSince(NakshaVersion.v2_0_13)
+  public @NotNull XyzNamespace removeTagsWithPrefixes(final @Nullable List<String> prefixes) {
+    if (prefixes != null) {
+      for (final @Nullable String prefix : prefixes) {
+        if (prefix != null) removeTagsWithPrefix(prefix);
+      }
+    }
     return this;
   }
 

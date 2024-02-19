@@ -14,6 +14,7 @@ repositories {
 plugins {
     java
     `java-library`
+    `java-test-fixtures`
     `maven-publish`
     // https://github.com/diffplug/spotless
     // gradle spotlessApply
@@ -145,6 +146,7 @@ subprojects {
     apply(plugin = "java")
     apply(plugin = "com.diffplug.spotless")
     apply(plugin = "java-library")
+    apply(plugin = "java-test-fixtures")
     apply(plugin = "jacoco")
 
     repositories {
@@ -281,8 +283,12 @@ subprojects {
         }
     }
     dependencies {
+        testImplementation(log4j_slf4j)
+        testImplementation(log4j_api)
+        testImplementation(log4j_core)
         testImplementation(junit_jupiter)
         testImplementation(junit_params)
+        testFixturesApi(junit_jupiter)
     }
 }
 
@@ -458,6 +464,9 @@ project(":here-naksha-lib-handlers") {
         implementation(commons_dbutils)
 
         testImplementation(mockito)
+        testImplementation(json_assert)
+        testImplementation(testFixtures(project(":here-naksha-lib-core")))
+
         setOverallCoverage(0.0)
     }
 }
@@ -509,6 +518,7 @@ project(":here-naksha-app-service") {
         testImplementation(json_assert)
         testImplementation(resillience4j_retry)
         testImplementation(test_containers)
+        testImplementation(testFixtures(project(":here-naksha-lib-core")))
     }
     setOverallCoverage(0.25) // only increasing allowed!
 }

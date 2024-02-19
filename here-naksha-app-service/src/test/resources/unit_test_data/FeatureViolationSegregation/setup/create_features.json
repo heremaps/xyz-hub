@@ -1,0 +1,101 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-01",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "10",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "one",
+            "violated_ftype_topology"
+          ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-02",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "20",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "one",
+            "two",
+            "no_violated_ftype"
+          ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-03",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "30",
+        "@ns:com:here:xyz": {
+          "tags": [
+            "one",
+            "two",
+            "three",
+            "violated_ftype_sign"
+          ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-04",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "40",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three", "four", "five", "six", "violated_ftype_topology" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-05",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "50",
+        "@ns:com:here:xyz": {
+          "tags": [ "non-matching-tag", "@ThRee", "violated_ftype_sign" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-06",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60",
+        "@ns:com:here:xyz": {
+          "tags": [ "non-matching-tag", "@ThRee", "@Four", "no_violated_ftype" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    }
+  ]
+}
