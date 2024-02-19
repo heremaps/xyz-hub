@@ -1,0 +1,14 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "FeatId-patchOp-5031",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "sourceId": "COM_1000001_20240214"
+        }
+      }
+    }
+  ]
+}

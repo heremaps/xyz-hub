@@ -1,0 +1,10 @@
+{
+  "id": "source_id_handler_for_view_handler",
+  "type": "EventHandler",
+  "title": "Storage Handler for UniMap Moderation Dev Storage",
+  "description": "Default Naksha Source Id Handler for operations on UniMap Moderation Dev Storage",
+  "className": "com.here.naksha.lib.handlers.SourceIdHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {}
+}

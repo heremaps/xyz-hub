@@ -150,6 +150,30 @@
           292.94377758
         ]
       }
+    },
+    {
+      "id": "FeatId-patchOp-5030",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "50",
+        "initialStoreSpace" : "delta"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          5.68872,
+          35.0561,
+          292.94377758
+        ]
+      }
     }
   ]
 }

@@ -4,6 +4,7 @@
   "title": "Topology Space for UniMap Moderation Dev Storage",
   "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
   "eventHandlerIds": [
+    "source_id_handler_for_view_handler",
     "mod-topology-view-handler-dev"
   ],
   "properties": {
