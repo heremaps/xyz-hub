@@ -572,6 +572,7 @@ public class Export extends JDBCBasedJob<Export> {
                     setEmrTransformation(true);
                     setEmrType("geoparquet");
                     setPartitionKey("id");
+                    os.setPartitionKey("id");
                 }
                 else if (os.getFormat() instanceof Csv csv)
                     setCsvFormat(csv.toBWCFormat());
