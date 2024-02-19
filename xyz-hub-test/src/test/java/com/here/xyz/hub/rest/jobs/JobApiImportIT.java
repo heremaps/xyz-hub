@@ -24,6 +24,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
@@ -110,6 +112,48 @@ public class JobApiImportIT extends JobApiIT {
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) +"/search")
                 .then()
                 .body("features.size()", equalTo(1));
+    }
+
+    @Test
+    public void validWKBWithBBOXImport() throws Exception {
+        /** Create job */
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
+
+        /** Create Upload URL */
+        String resp = given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl")
+                .getBody().asString();
+        String url = new JsonObject(resp).getString("url");
+
+        /** Upload File */
+        uploadDummyFile(new URL(url), 12);
+
+        /** start import */
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
+                .then()
+                .statusCode(NO_CONTENT.code());
+
+        /** Poll status */
+        pollStatus(getScopedSpaceId(testSpaceId1, scope), job.getId(), Job.Status.finalized, Job.Status.failed);
+
+        /** Check Feature in Space and BBOX got removed! */
+        given()
+                .accept(APPLICATION_GEO_JSON)
+                .contentType(APPLICATION_GEO_JSON)
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .when()
+                .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) +"/search")
+                .then()
+                .body("features.size()", equalTo(1))
+                .body("features[0].bbox", nullValue())
+                .body("features[0].BBOX", notNullValue());
     }
 
     @Test

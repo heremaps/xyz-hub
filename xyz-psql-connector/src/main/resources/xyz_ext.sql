@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 185
+ select 186
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -182,6 +182,9 @@ AS $BODY$
 		IF addSpaceId THEN
 			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
         END IF;
+
+		-- remove bbox on root
+        NEW.jsondata := NEW.jsondata - 'bbox';
 
         -- Inject type
         NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
