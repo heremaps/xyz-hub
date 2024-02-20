@@ -58,7 +58,7 @@ public class XyzSpaceTableHelper {
     List<SQLQuery> queries = new ArrayList<>();
 
     queries.add(buildCreateSpaceTableQuery(schema, table));
-    queries.add(buildColumnStoragAttributesQuery(schema, table));
+    queries.add(buildColumnStorageAttributesQuery(schema, table));
     queries.addAll(buildSpaceTableIndexQueries(schema, table));
     queries.add(buildCreateHeadPartitionQuery(schema, table));
     queries.add(buildCreateHistoryPartitionQuery(schema, table, 0L));
@@ -75,7 +75,7 @@ public class XyzSpaceTableHelper {
     return queryComment != null ? indexCreationQuery.withQueryFragment("queryComment", queryComment) : indexCreationQuery;
   }
 
-  public static SQLQuery buildColumnStoragAttributesQuery(String schema, String tableName) {
+  public static SQLQuery buildColumnStorageAttributesQuery(String schema, String tableName) {
       return new SQLQuery("ALTER TABLE ${schema}.${table} "
           + "ALTER COLUMN id SET STORAGE MAIN, "
           + "ALTER COLUMN jsondata SET STORAGE MAIN, "
@@ -115,14 +115,16 @@ public class XyzSpaceTableHelper {
               + "author TEXT, "
               + "jsondata JSONB, "
               + "geo geometry(GeometryZ, 4326), "
-              + "i BIGSERIAL"
-              + ", CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)";
+              + "i BIGSERIAL, "
+              + "CONSTRAINT ${uniqueConstraintName} UNIQUE (id, next_version), "
+              + "CONSTRAINT ${primKeyConstraintName} PRIMARY KEY (id, version, next_version)";
 
       SQLQuery createTable = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
           .withQueryFragment("tableFields", tableFields)
           .withVariable(SCHEMA, schema)
           .withVariable(TABLE, table)
-          .withVariable("constraintName", table + "_primKey");
+          .withVariable("uniqueConstraintName", table + "_unique")
+          .withVariable("primKeyConstraintName", table + "_primKey");
       return createTable;
   }
 
