@@ -1277,12 +1277,14 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
+    static private String buildSysTag( String s ) { return String.format("sys_%s", s); }
+    
     @Override    
     public Future<Job> prepareStart() {
 
       Future<Void> pushVersionTag = ( getTargetVersion() == null )
        ? Future.succeededFuture()
-       : HubWebClientAsync.postTag( getSource().getKey(), Map.of("id", getId(), "version", Integer.parseInt(getTargetVersion())) );
+       : HubWebClientAsync.postTag( getSource().getKey(), Map.of("id", buildSysTag( getId() ), "version", Integer.parseInt(getTargetVersion())) );
 
       return pushVersionTag.compose( v -> super.prepareStart() );
     }
@@ -1292,7 +1294,7 @@ public class Export extends JDBCBasedJob<Export> {
 
         Future<Void> deleteVersionTag = ( getTargetVersion() == null )
         ? Future.succeededFuture()
-        : HubWebClientAsync.deleteTag( getSource().getKey(), getId() ).compose( tag -> Future.succeededFuture());
+        : HubWebClientAsync.deleteTag( getSource().getKey(), buildSysTag( getId() ) ).compose( tag -> Future.succeededFuture());
          
         return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
