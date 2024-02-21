@@ -114,7 +114,12 @@ public class JdbcClient implements AutoCloseable {
       return;
 
     runTaskWithoutQueueing(queuedTask.task)
-        .onSuccess(result -> queuedTask.promise.complete(result));
+        .onComplete(result -> {
+          if (result.failed())
+            queuedTask.promise.fail(result.cause());
+          else
+            queuedTask.promise.complete(result.result());
+        });
   }
 
   public boolean hasReader() {
