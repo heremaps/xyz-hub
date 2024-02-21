@@ -19,7 +19,9 @@
 
 package com.here.xyz.models.hub;
 
-public class Tag {
+import com.here.xyz.XyzSerializable;
+
+public class Tag implements XyzSerializable {
   /**
    * The reader id.
    */
