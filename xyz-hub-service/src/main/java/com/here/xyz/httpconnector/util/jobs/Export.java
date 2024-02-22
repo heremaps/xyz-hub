@@ -506,7 +506,10 @@ public class Export extends JDBCBasedJob<Export> {
 
         Map<String, ExportObject> exportObjects = null;
 
-        if (getSuperId() != null && readPersistExport())
+        boolean isPersistExport = getSuperId() != null && readPersistExport();
+        boolean isEmptyGeoparquet = getSuperId() != null && getStatus() == finalized && "geoparquet".equals(getEmrType()) && getStatistic().rowsUploaded == 0;
+
+        if (isPersistExport  || isEmptyGeoparquet)
             return getSuperJob() != null ? getSuperJob().getExportObjects() : Collections.emptyMap();
         else if (getS3Key() != null) {
             if (getStatus() == finalized)
