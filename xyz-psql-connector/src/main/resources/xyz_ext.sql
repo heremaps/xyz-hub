@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 187
+ select 188
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2964,6 +2964,7 @@ $BODY$
     DECLARE
         insertQuery TEXT;
         updated_rows INTEGER;
+        constraintExists BOOLEAN;
     BEGIN
         insertQuery = 'INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)';
         IF concurrencyCheck THEN
@@ -2972,14 +2973,25 @@ $BODY$
                 format(insertQuery,
                        schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         ELSE
+            EXECUTE
+                format('SELECT EXISTS(' ||
+                       'SELECT 1 FROM pg_catalog.pg_constraint con ' ||
+                       'INNER JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid ' ||
+                       'INNER JOIN pg_catalog.pg_namespace nsp ON nsp.oid = connamespace ' ||
+                       'WHERE nsp.nspname = %L AND conname = %L)', schema, tableName || '_unique') INTO constraintExists;
+
+            IF constraintExists THEN
+                insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
+                              'version = greatest(tbl.version, EXCLUDED.version), ' ||
+                              'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
+                              'author = EXCLUDED.author, ' ||
+                              'jsondata = EXCLUDED.jsondata, ' ||
+                              'geo = EXCLUDED.geo';
+            END IF;
+
             -- This query will perform an update instead of throwing an error in case of a conflict
             EXECUTE
-                format(insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
-                       'version = greatest(tbl.version, EXCLUDED.version), ' ||
-                       'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
-                       'author = EXCLUDED.author, ' ||
-                       'jsondata = EXCLUDED.jsondata, ' ||
-                       'geo = EXCLUDED.geo',
+                format(insertQuery,
                        schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         END IF;
 
