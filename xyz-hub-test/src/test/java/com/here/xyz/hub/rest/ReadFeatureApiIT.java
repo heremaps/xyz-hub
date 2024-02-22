@@ -434,6 +434,36 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void testReadingFeatureByHereTileId() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get(getSpacesPath() + "/x-psql-test/tile/here/5148795631.geojson").
+        then().
+        statusCode(OK.code()).
+        body("features.size()", equalTo(1)).
+        body("features[0].id", equalTo("Q2390739")).
+        body("features[0].properties.name", equalTo("John F. Kennedy Stadium"));
+  }
+
+  @Test
+  public void testReadingFeatureByHereTileIdFalse() { 
+  /** "prepared" test that should fail, when duplicates points on tilesborder issue is solved (s. testReadingFeatureByHereTileId() ) */
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get(getSpacesPath() + "/x-psql-test/tile/here/5148795642.geojson").
+        then().
+        statusCode(OK.code()).
+        body("features.size()", equalTo(1)).
+        body("features[0].id", equalTo("Q2390739")).
+        body("features[0].properties.name", equalTo("John F. Kennedy Stadium"));
+  }
+
+
+  @Test
   public void testReadingFeatureByInvalidTileId() {
     given().
         accept(APPLICATION_GEO_JSON).
