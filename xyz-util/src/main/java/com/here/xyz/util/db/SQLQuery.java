@@ -60,7 +60,6 @@ import org.apache.logging.log4j.Logger;
  */
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
-
   private static final Logger logger = LogManager.getLogger();
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
@@ -84,6 +83,8 @@ public class SQLQuery {
   private static List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
   private List<SQLQuery> queryBatch;
+
+  private SQLQuery() {} //Only added as workaround for an issue with Jackson's Include.NON_DEFAULT setting
 
   public SQLQuery(String text) {
     if (text != null)
@@ -239,9 +240,9 @@ public class SQLQuery {
     if (paramValue instanceof Boolean)
       return paramValue + "::BOOLEAN";
     if (paramValue instanceof Object[] arrayValue)
-      return "{" + Arrays.stream(arrayValue)
+      return "ARRAY[" + Arrays.stream(arrayValue)
           .map(elementValue -> paramValueToString(elementValue))
-          .collect(Collectors.joining(",")) + "}";
+          .collect(Collectors.joining(",")) + "]";
     return paramValue.toString();
   }
 

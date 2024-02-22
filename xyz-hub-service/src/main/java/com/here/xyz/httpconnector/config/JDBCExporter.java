@@ -173,6 +173,8 @@ public class JDBCExporter extends JdbcBasedHandler {
     try {
 
       return ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+          //TODO: Why not selecting the feature id / geo here?
+          //FIXME: Do not select operation / author as part of the "property-selection"-fragment
           .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
           .withGeoOverride(buildGeoFragment(spatialFilter))
           .buildQuery(event);
@@ -702,8 +704,9 @@ public class JDBCExporter extends JdbcBasedHandler {
 
             default:
             {
-                contentQuery
-                        .withQueryFragment("id", "");
+              //TODO: Why is it important here to not have the id selected?
+              contentQuery = new SQLQuery("SELECT jsondata, geo FROM (${{innerContentQuery}}) contentQuery")
+                  .withQueryFragment("innerContentQuery", contentQuery);
                 return queryToText(contentQuery);
             }
         }

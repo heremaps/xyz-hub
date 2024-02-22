@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.8.15-SNAPSHOT</version>
+  <version>3.8.21-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -541,7 +541,7 @@
       <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
-        <version>42.6.0</version>
+        <version>42.7.2</version>
       </dependency>
       <dependency>
         <groupId>commons-dbutils</groupId>

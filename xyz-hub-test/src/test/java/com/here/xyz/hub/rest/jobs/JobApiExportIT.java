@@ -205,7 +205,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 121217, 263, mustContain);
+        downloadAndCheck(urls, 121221, 263, mustContain);
     }
 
     /**
@@ -247,7 +247,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 1 (Edit of Base);
-        downloadAndCheck(urls, 116712, 253, mustContain);
+        downloadAndCheck(urls, 116716, 253, mustContain);
     }
 
     @Test
@@ -334,7 +334,7 @@ public class JobApiExportIT extends JobApiIT {
             "2LPoint"  //Got added in composite space L2
         );
         // 252 + 11 + 1 = 264
-        downloadAndCheck(urls, 121545, 264, mustContain);
+        downloadAndCheck(urls, 121549, 264, mustContain);
     }
 
     @Test
@@ -353,7 +353,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 121217, 263, mustContain);
+        downloadAndCheck(urls, 121221, 263, mustContain);
     }
 
     /**
@@ -522,7 +522,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("280", "306", "IkZlYXR1cmU");
 
         // 252 + 10 (-feature w/o geometry) = 262mh o
-        downloadAndCheckFC(urls, 145485, 262, mustContain, 37);
+        downloadAndCheckFC(urls, 145489, 262, mustContain, 37);
     }
 
     @Test
@@ -540,7 +540,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("374", "352", "HVyZSIsICJnZW9", "374");
 
         // 252 + 10 (-feature w/o geometry) + 1 = 263
-        downloadAndCheckFC(urls, 145873, 263, mustContain, 37);
+        downloadAndCheckFC(urls, 145877, 263, mustContain, 37);
     }
 
     @Test
@@ -637,7 +637,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("Q3107495", "Q2907951", "foo_polygon", "IkZlYXR1cmV");
 
-        downloadAndCheckFC(urls, 161813, 263, mustContain, 263);
+        downloadAndCheckFC(urls, 161817, 263, mustContain, 263);
     }
 
     @Test

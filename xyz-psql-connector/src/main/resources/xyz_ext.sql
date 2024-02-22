@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 185
+ select 188
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -182,6 +182,9 @@ AS $BODY$
 		IF addSpaceId THEN
 			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
         END IF;
+
+		-- remove bbox on root
+        NEW.jsondata := NEW.jsondata - 'bbox';
 
         -- Inject type
         NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
@@ -2891,10 +2894,7 @@ $BODY$
         updated_rows INTEGER;
         minVersion BIGINT;
     BEGIN
-        EXECUTE
-           format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-               schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
-
+        -- First update the affected old version of the feature to make its next_version pointing to the new version
         IF operation != 'I' AND operation != 'H' THEN
             IF concurrencyCheck THEN
                 IF baseVersion IS NULL THEN
@@ -2933,6 +2933,11 @@ $BODY$
                        schema, tableName, version, id, max_bigint(), version);
         END IF;
 
+        -- Now actually insert the new version of the feature (NOTE: The order is important here to not violate the (id, next_version) uniqueness constraint)
+        EXECUTE
+            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
+                   schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
+
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
             EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
@@ -2957,18 +2962,40 @@ CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation 
     RETURNS INTEGER AS
 $BODY$
     DECLARE
+        insertQuery TEXT;
         updated_rows INTEGER;
+        constraintExists BOOLEAN;
     BEGIN
-        updated_rows = xyz_simple_update(id, version, CASE WHEN xyz_isHideOperation(operation) THEN 'J' ELSE 'U' END, author, jsondata, geo, schema, tableName, false, NULL, false);
-        IF updated_rows = 0 THEN
-            updated_rows = xyz_simple_insert(id, version, operation, author, jsondata, geo, schema, tableName);
+        insertQuery = 'INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)';
+        IF concurrencyCheck THEN
+            -- This query will throw an error in case of a conflict
+            EXECUTE
+                format(insertQuery,
+                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         ELSE
-            IF concurrencyCheck THEN
-                RAISE EXCEPTION 'Conflict while trying to insert feature with ID % in version %.', id, version
-                    USING HINT = 'Feature was already inserted in the meantime.',
-                        ERRCODE = 'XYZ49';
+            EXECUTE
+                format('SELECT EXISTS(' ||
+                       'SELECT 1 FROM pg_catalog.pg_constraint con ' ||
+                       'INNER JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid ' ||
+                       'INNER JOIN pg_catalog.pg_namespace nsp ON nsp.oid = connamespace ' ||
+                       'WHERE nsp.nspname = %L AND conname = %L)', schema, tableName || '_unique') INTO constraintExists;
+
+            IF constraintExists THEN
+                insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
+                              'version = greatest(tbl.version, EXCLUDED.version), ' ||
+                              'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
+                              'author = EXCLUDED.author, ' ||
+                              'jsondata = EXCLUDED.jsondata, ' ||
+                              'geo = EXCLUDED.geo';
             END IF;
+
+            -- This query will perform an update instead of throwing an error in case of a conflict
+            EXECUTE
+                format(insertQuery,
+                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         END IF;
+
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
     END
 $BODY$
@@ -3017,22 +3044,6 @@ $BODY$
             END IF;
         END IF;
 
-        RETURN updated_rows;
-    END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_simple_insert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT)
-    RETURNS INTEGER AS
-$BODY$
-    DECLARE
-        updated_rows INTEGER;
-    BEGIN
-        EXECUTE
-            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-                   schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
-        GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
     END
 $BODY$
@@ -3104,48 +3115,6 @@ BEGIN
     END IF;
     --more types here...
 END$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[], versions BIGINT[])
-    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
-$BODY$
-DECLARE
-    output LOAD_FEATURE_VERSION_INPUT[];
-    item LOAD_FEATURE_VERSION_INPUT;
-BEGIN
-    IF coalesce(array_length(ids, 1),0) > 0 THEN
-        FOR i IN 1 .. array_upper(ids, 1)
-            LOOP
-                item := ROW(ids[i], versions[i]);
-                SELECT array_append(output, item) into output;
-
-            END LOOP;
-    END IF;
-    RETURN output;
-END
-$BODY$
-    LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[])
-    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
-$BODY$
-DECLARE
-    output LOAD_FEATURE_VERSION_INPUT[];
-    versions BIGINT[];
-BEGIN
-    IF array_length(ids, 1) IS NULL THEN
-        RETURN output;
-    ELSE
-        FOR i IN 1 .. array_upper(ids, 1)
-        LOOP
-            versions := array_append(versions, max_bigint());
-        END LOOP;
-        RETURN transform_load_features_input(ids, versions);
-    END IF;
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_create_history_partition(schema TEXT, rootTable TEXT, partitionNo BIGINT, partitionSize BIGINT)
