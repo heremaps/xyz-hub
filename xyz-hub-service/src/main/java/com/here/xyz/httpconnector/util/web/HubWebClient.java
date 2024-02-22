@@ -27,6 +27,7 @@ import static java.net.http.HttpClient.Redirect.NORMAL;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.responses.StatisticsResponse;
@@ -97,7 +98,7 @@ public class HubWebClient {
   }
 
   private static URI uri(String path) {
-      return URI.create("http://localhost:8080/hub" + path);
+      return URI.create(CService.configuration.HUB_ENDPOINT + path);
   }
 
   private static HttpClient client() {
