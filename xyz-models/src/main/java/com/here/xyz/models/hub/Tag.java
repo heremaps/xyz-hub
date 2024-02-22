@@ -41,6 +41,8 @@ public class Tag implements XyzSerializable {
    */
   private long version = -2;
 
+  private boolean system = false;
+
   public String getId() {
     return id;
   }
@@ -79,4 +81,23 @@ public class Tag implements XyzSerializable {
    setVersion(version);
    return this;
   }
+
+  public boolean isSystem() {
+    return system;
+  }
+
+  public boolean getSystem() {
+    return isSystem();
+  }
+
+  public void setSystem(boolean system) {
+    this.system = system;
+  }
+
+  public Tag withSystem(boolean system) {
+   setSystem(system);
+   return this;
+  }
+
+
 }

@@ -98,11 +98,11 @@ public class HubWebClient {
     }
   }
 
-  public static void postTag(String spaceId, Map<String, Object> tagInfo) throws HubWebClientException {
+  public static void postTag(String spaceId, Tag tag) throws HubWebClientException {
     request(HttpRequest.newBuilder()
         .uri(uri("/spaces/" + spaceId + "/tags"))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
-        .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(tagInfo).getBytes()))
+        .method("POST", BodyPublishers.ofByteArray(tag.serialize().getBytes()))
         .build());
   }
 

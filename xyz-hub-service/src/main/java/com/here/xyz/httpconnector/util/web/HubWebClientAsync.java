@@ -72,9 +72,9 @@ public class HubWebClientAsync {
     return async(() -> HubWebClient.loadConnector(connectorId));
   }
 
-  public static Future<Void> postTag(String spaceId, Map<String, Object> tagInfo) {
+  public static Future<Void> postTag(String spaceId, Tag tag) {
     return async(() -> {
-      HubWebClient.postTag(spaceId, tagInfo);
+      HubWebClient.postTag(spaceId, tag);
       return null;
     });
   }

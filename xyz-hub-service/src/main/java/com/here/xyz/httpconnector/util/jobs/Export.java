@@ -78,6 +78,7 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
@@ -1290,14 +1291,12 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
-    static private String buildSysTag( String s ) { return String.format("sys_%s", s); }
-    
     @Override    
     public Future<Job> prepareStart() {
 
       Future<Void> pushVersionTag = ( getTargetVersion() == null )
        ? Future.succeededFuture()
-       : HubWebClientAsync.postTag( getSource().getKey(), Map.of("id", buildSysTag( getId() ), "version", Integer.parseInt(getTargetVersion())) );
+       : HubWebClientAsync.postTag( getSource().getKey(), new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
 
       return pushVersionTag.compose( v -> super.prepareStart() );
     }
@@ -1307,7 +1306,7 @@ public class Export extends JDBCBasedJob<Export> {
 
         Future<Void> deleteVersionTag = ( getTargetVersion() == null )
         ? Future.succeededFuture()
-        : HubWebClientAsync.deleteTag( getSource().getKey(), buildSysTag( getId() ) ).compose( tag -> Future.succeededFuture());
+        : HubWebClientAsync.deleteTag( getSource().getKey(), getId() ).compose( tag -> Future.succeededFuture());
          
         return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
