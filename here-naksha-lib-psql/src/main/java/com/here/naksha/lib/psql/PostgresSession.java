@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.postgresql.util.PGobject;
@@ -259,14 +260,77 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     }
   }
 
-  private static void addJsonPath(@NotNull SQL sql, @NotNull List<@NotNull String> path, int end) {
+  private static void addJsonPath(
+      @NotNull SQL sql, @NotNull List<@NotNull String> path, int end, boolean text, boolean nullif) {
+    if (nullif) {
+      sql.add("nullif(");
+    }
     sql.add("(jsondata");
+    final int last = end - 1;
     for (int i = 0; i < end; i++) {
       final String pname = path.get(i);
-      sql.add("->");
+      sql.add(i == last && text ? "->>" : "->");
       sql.addLiteral(pname);
     }
     sql.add(')');
+    if (text) {
+      sql.add(" COLLATE \"C\" ");
+    }
+    if (nullif) {
+      sql.add(",'null')");
+    }
+  }
+
+  private static void addOp( //
+      @NotNull SQL sql, //
+      @NotNull List<Object> parameter, //
+      final List<@NotNull String> path, //
+      @NotNull OpType opType, //
+      @Nullable Object value //
+  ) {
+    if (value == null) {
+      throw new IllegalArgumentException("Invalid value NULL for op: " + opType);
+    }
+    if (!(opType instanceof POpType)) {
+      throw new IllegalArgumentException("Operation not supported: " + opType);
+    }
+    final POpType op = (POpType) opType;
+    final String opString = op.op();
+    if (opString == null) {
+      throw new IllegalArgumentException("Operation not supported: " + op);
+    }
+    if (op == POpType.CONTAINS) {
+      addJsonPath(sql, path, path.size(), false, false);
+      sql.add(" ").add(opString).add(" ?::jsonb");
+      parameter.add(toJsonb(value));
+    } else if (value instanceof CharSequence) {
+      addJsonPath(sql, path, path.size(), true, false);
+      sql.add("::text ").add(opString).add(" ?");
+      parameter.add(value);
+    } else if (value instanceof Double) {
+      addJsonPath(sql, path, path.size(), false, false);
+      sql.add("::double precision ").add(opString).add(" ?");
+      parameter.add(value);
+    } else if (value instanceof Float) {
+      addJsonPath(sql, path, path.size(), false, false);
+      sql.add("::double precision ").add(opString).add(" ?");
+      parameter.add(((Number) value).doubleValue());
+    } else if (value instanceof Long) {
+      addJsonPath(sql, path, path.size(), false, false);
+      sql.add("::int8 ").add(opString).add(" ?");
+      parameter.add(value);
+    } else if (value instanceof Number) {
+      addJsonPath(sql, path, path.size(), false, false);
+      sql.add("::int8 ").add(opString).add(" ?");
+      parameter.add(((Number) value).longValue());
+    } else if (value instanceof Boolean) {
+      addJsonPath(sql, path, path.size(), false, false);
+      sql.add("::bool ").add(opString).add(" ?");
+      parameter.add(value);
+    } else {
+      throw new IllegalArgumentException(
+          "Unknown value type: " + (value.getClass().getName()));
+    }
   }
 
   private static void addPropertyQuery(
@@ -307,24 +371,24 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       if (op != POpType.EXISTS) {
         throw new IllegalArgumentException("Tags do only support EXISTS operation, not " + op);
       }
-      addJsonPath(sql, path, path.size());
+      addJsonPath(sql, path, path.size(), false, false);
       sql.add(" ?? ?");
       parameter.add(pref.getTagName());
       return;
     }
     if (op == POpType.EXISTS) {
-      addJsonPath(sql, path, path.size() - 1);
+      addJsonPath(sql, path, path.size() - 1, false, false);
       sql.add(" ?? ?");
       parameter.add(path.get(path.size() - 1));
       return;
     }
     if (op == POpType.NULL) {
-      addJsonPath(sql, path, path.size());
+      addJsonPath(sql, path, path.size(), false, false);
       sql.add(" = 'null'");
       return;
     }
     if (op == POpType.NOT_NULL) {
-      addJsonPath(sql, path, path.size());
+      addJsonPath(sql, path, path.size(), false, false);
       sql.add(" != 'null'");
       return;
     }
@@ -332,9 +396,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     if (op == POpType.STARTS_WITH) {
       if (value instanceof String) {
         String text = (String) value;
-        sql.add("(");
-        addJsonPath(sql, path, path.size());
-        sql.add("::text) LIKE ?");
+        addJsonPath(sql, path, path.size(), true, false);
+        sql.add(" LIKE ?");
         parameter.add(text + '%');
         return;
       }
@@ -342,41 +405,28 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     }
     if (op == POpType.EQ && pref == PRef.txn()) {
       sql.add("(");
-      addJsonPath(sql, path, path.size());
-      sql.add(" <= ");
-      sql.add("?::jsonb");
-      parameter.add(toJsonb(value));
+      addJsonPath(sql, path, path.size(), false, true);
+      sql.add("::int8 <= ?");
+      if (!(value instanceof Number)) {
+        throw new IllegalArgumentException("Value must be a number");
+      }
+      final Long txn = ((Number) value).longValue();
+      parameter.add(txn);
       if (isHstQuery) {
         sql.add(" AND ");
-        addPropertyQuery(sql, POp.gt(PRef.txn_next(), (Number) value), parameter, true);
+        addPropertyQuery(sql, POp.gt(PRef.txn_next(), txn), parameter, true);
       }
       sql.add(")");
       return;
     }
-    addJsonPath(sql, path, path.size());
-    if (op == POpType.EQ) {
-      sql.add(" = ");
-    } else if (op == POpType.GT) {
-      sql.add(" > ");
-    } else if (op == POpType.GTE) {
-      sql.add(" >= ");
-    } else if (op == POpType.LT) {
-      sql.add(" < ");
-    } else if (op == POpType.LTE) {
-      sql.add(" <= ");
-    } else if (op == POpType.CONTAINS) {
-      sql.add(" @> ");
-    } else {
-      throw new IllegalArgumentException("Unknown operation: " + op);
-    }
-    sql.add("?::jsonb");
-    parameter.add(toJsonb(value));
+    addOp(sql, parameter, path, op, value);
   }
 
   private static PGobject toJsonb(Object value) {
     try (final Json jp = Json.get()) {
       final PGobject jsonb = new PGobject();
       jsonb.setType("jsonb");
+      // TODO: Remove this, we do not want to guess!
       if (value instanceof String && Json.mightBeJson((String) value)) {
         // it's already a json - .writeValueAsString would add double quoting
         jsonb.setValue((String) value);
@@ -532,8 +582,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     return prepareQuery(historyCollection, spatial_where, hst_props_where.toString(), readFeatures.limit);
   }
 
-  @NotNull
-  <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> Result executeWrite(
+  @NotNull <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> Result executeWrite(
       @NotNull WriteRequest<FEATURE, CODEC, ?> writeRequest) {
     if (writeRequest instanceof WriteCollections) {
       final PreparedStatement stmt = prepareStatement(

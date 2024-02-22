@@ -18,16 +18,25 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import org.jetbrains.annotations.Nullable;
+
 public class POpType extends OpType {
 
   public static final POpType EXISTS = defIgnoreCase(POpType.class, "exists");
   public static final POpType STARTS_WITH = defIgnoreCase(POpType.class, "startsWith");
-  public static final POpType EQ = defIgnoreCase(POpType.class, "eq");
-  public static final POpType GT = defIgnoreCase(POpType.class, "gt");
-  public static final POpType GTE = defIgnoreCase(POpType.class, "gte");
-  public static final POpType LT = defIgnoreCase(POpType.class, "lt");
-  public static final POpType LTE = defIgnoreCase(POpType.class, "lte");
+  public static final POpType EQ = defIgnoreCase(POpType.class, "eq").with(POpType.class, (self) -> self.op = "=");
+  public static final POpType GT = defIgnoreCase(POpType.class, "gt").with(POpType.class, (self) -> self.op = ">");
+  public static final POpType GTE = defIgnoreCase(POpType.class, "gte").with(POpType.class, (self) -> self.op = ">=");
+  public static final POpType LT = defIgnoreCase(POpType.class, "lt").with(POpType.class, (self) -> self.op = "<");
+  public static final POpType LTE = defIgnoreCase(POpType.class, "lte").with(POpType.class, (self) -> self.op = "<=");
   public static final POpType NULL = defIgnoreCase(POpType.class, "null");
   public static final POpType NOT_NULL = defIgnoreCase(POpType.class, "notNull");
-  public static final POpType CONTAINS = defIgnoreCase(POpType.class, "contains");
+  public static final POpType CONTAINS =
+      defIgnoreCase(POpType.class, "contains").with(POpType.class, (self) -> self.op = "@>");
+
+  private @Nullable String op;
+
+  public @Nullable String op() {
+    return op;
+  }
 }

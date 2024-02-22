@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.here.naksha.lib.core.exceptions.NoCursor;
@@ -81,6 +82,7 @@ import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
+import java.util.ArrayList;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
@@ -1097,7 +1099,6 @@ public class PsqlStorageTests extends PsqlTests {
     }
   }
 
-
   @Test
   @Order(112)
   @EnabledIf("runTest")
@@ -1177,7 +1178,7 @@ public class PsqlStorageTests extends PsqlTests {
     expect.accept(readFeatures);
 
     // when - search by json object
-    POp jsonSearch2 = POp.contains(new NonIndexedPRef("properties", "references"), "[{\"id\":\"urn:here::here:Topology:106003684\"}]");
+    POp jsonSearch2 = POp.contains(new NonIndexedPRef("properties", "references"), reader.readValue("[{\"id\":\"urn:here::here:Topology:106003684\"}]", ArrayList.class));
     readFeatures.setPropertyOp(jsonSearch2);
     // then
     expect.accept(readFeatures);
