@@ -887,27 +887,28 @@ public class SQLQuery {
     }
   }
 
-  private String prepareQueryText(ExecutionContext executionContext) {
-    String queryText = text();
+  private SQLQuery prepareFinalQuery(ExecutionContext executionContext) {
     if (isAsync()) {
       if (executionContext.dataSourceProvider instanceof PooledDataSources pooledDataSources) {
-        SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
-            .withNamedParameter("query", queryText)
-            .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword());
-        queryText = asyncQuery.substitute().text();
+        return new SQLQuery("SELECT asyncify(#{query}, #{password})")
+            .withNamedParameter("query", text())
+            .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword())
+            .substitute();
       }
       else
         throw new RuntimeException("Async SQLQueries must be performed using an instance of PooledDataSources as DataSourceProvider");
     }
-    return queryText;
+    return this;
   }
 
   private int executeUpdate(DataSource dataSource, ExecutionContext executionContext) throws SQLException {
-    return getRunner(dataSource, executionContext).update(prepareQueryText(executionContext), parameters().toArray());
+    SQLQuery query = prepareFinalQuery(executionContext);
+    return getRunner(dataSource, executionContext).update(query.text(), query.parameters().toArray());
   }
 
   private Object executeQuery(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
-    return getRunner(dataSource, executionContext).query(prepareQueryText(executionContext), handler, parameters().toArray());
+    SQLQuery query = prepareFinalQuery(executionContext);
+    return getRunner(dataSource, executionContext).query(query.text(), handler, query.parameters().toArray());
   }
 
   private static QueryRunner getRunner(DataSource dataSource, ExecutionContext executionContext) {
