@@ -19,6 +19,10 @@
 
 package com.here.xyz.models.hub;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.XyzSerializable;
 
 public class Tag implements XyzSerializable {
@@ -40,6 +44,12 @@ public class Tag implements XyzSerializable {
    * The version 0 points to the initial version of a space with data.
    */
   private long version = -2;
+
+  /**
+   * The indicator that this tag is a system tag, which is not allowed to be deleted or modified by users.
+   */
+  @JsonInclude(NON_DEFAULT)
+  private boolean system;
 
   public String getId() {
     return id;
@@ -78,5 +88,18 @@ public class Tag implements XyzSerializable {
   public Tag withVersion(long version) {
    setVersion(version);
    return this;
+  }
+
+  public boolean isSystem() {
+    return system;
+  }
+
+  public void setSystem(boolean system) {
+    this.system = system;
+  }
+
+  public Tag withSystem(boolean system) {
+    setSystem(system);
+    return this;
   }
 }

@@ -316,6 +316,27 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/tags':
+    get:
+      tags:
+        - Manage Tags
+      summary: List tags
+      description: >-
+        List tags available in the space.
+        
+        List can include system tags when includeSystemTags parameter is set to true.
+      operationId: listTags
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/IncludeSystemTags'
+      responses:
+        '200':
+          $ref: '#/components/responses/TagsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
     post:
       tags:
         - Manage Tags
@@ -1569,6 +1590,16 @@ components:
           - error
           - create
         default: create
+    IncludeSystemTags:
+      name: includeSystemTags
+      in: query
+      description: >-
+        If set to _true_, the tags which are marked as 'system tags' are included in
+        the response.
+      required: false
+      schema:
+        type: boolean
+        default: false
     Latitude:
       name: lat
       in: query
@@ -2245,6 +2276,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Tag'
+    TagsResponse:
+      description: A list of tags response.
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Tag'
+            type: array
     SpaceResponse:
       description: The space.
       content:
@@ -3274,9 +3313,12 @@ components:
         version:
           type: integer
           format: int64
-          readOnly: true
           description: >-
             The referenced version.
+        system:
+          type: boolean
+          description: >-
+            The flag indicating the tag is a system tag and cannot be modified or deleted.
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.

@@ -29,7 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-public abstract class TagConfigClient implements Initializable{
+public abstract class TagConfigClient implements Initializable {
   private static final Logger logger = LogManager.getLogger();
 
   public static TagConfigClient getInstance() {
@@ -45,7 +45,7 @@ public abstract class TagConfigClient implements Initializable{
 
   public abstract Future<List<Tag>> getTagsByTagId(Marker marker, String tagId);
 
-  public abstract Future<List<Tag>> getTags(Marker marker, String spaceId);
+  public abstract Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags);
 
   public abstract Future<List<Tag>> getTags(Marker marker, List<String> spaceIds);
 

@@ -72,8 +72,10 @@ public class JDBCTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String spaceId) {
-    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId}").withNamedParameter("spaceId", spaceId));
+  public Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags) {
+    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId} AND isSystem = #{isSystem}")
+        .withNamedParameter("spaceId", spaceId)
+        .withNamedParameter("isSystem", includeSystemTags));
   }
 
   @Override
@@ -130,7 +132,7 @@ public class JDBCTagConfigClient extends TagConfigClient {
   public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
     final SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE space = #{spaceId}")
         .withNamedParameter("spaceId", spaceId);
-    return getTags(marker, spaceId)
+    return getTags(marker, spaceId, true)
         .compose(tags -> client.write(query).map(tags));
   }
 

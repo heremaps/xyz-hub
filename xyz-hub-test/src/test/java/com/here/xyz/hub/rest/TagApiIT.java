@@ -25,7 +25,10 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
@@ -57,18 +60,19 @@ public class TagApiIT extends TestSpaceWithFeature {
     public void teardown() {
         removeSpace(getSpaceId());
         removeSpace(SECOND_SPACE);
-        createdSpaces.stream().forEach(TagApiIT::removeSpace);
+        createdSpaces.forEach(TagApiIT::removeSpace);
     }
 
     private ValidatableResponse _createTag() {
-        return _createTagForId(getSpaceId());
+        return _createTagForId(getSpaceId(), "XYZ_1", false);
     }
 
-    private ValidatableResponse _createTagForId(String spaceId) {
+    private ValidatableResponse _createTagForId(String spaceId, String tagId, boolean system) {
+      String systemParam = system ? ",\"system\":true" : "";
         return given()
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .contentType(ContentType.JSON)
-                .body("{\"id\":\"XYZ_1\"}")
+                .body("{\"id\":\"" + tagId + "\"" + systemParam + "}")
                 .post("/spaces/" + spaceId + "/tags")
                 .then().statusCode(OK.code());
     }
@@ -239,7 +243,7 @@ public class TagApiIT extends TestSpaceWithFeature {
               .then()
               .body("size()", is(0));
 
-      createdSpaces.stream().forEach(spaceId -> _createTagForId(spaceId));
+      createdSpaces.stream().forEach(spaceId -> _createTagForId(spaceId, "XYZ_1", false));
 
       given()
               .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -366,6 +370,83 @@ public class TagApiIT extends TestSpaceWithFeature {
         .get("/spaces?contentUpdatedAt=gt=1&tag=XYZ_1&region=invalid_region")
         .then()
         .body("size()", is(0))
+        .statusCode(OK.code());
+  }
+
+  @Test
+  public void testGetSystemTag() {
+    _createTagForId(getSpaceId(), "XYZ_2", true);
+    _createTagForId(getSpaceId(), "XYZ_1", false);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo("XYZ_1"))
+        .body("spaceId", equalTo(getSpaceId()))
+        .body("version", equalTo(-1))
+        .body("$", not(hasKey("system")));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/XYZ_2")
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo("XYZ_2"))
+        .body("spaceId", equalTo(getSpaceId()))
+        .body("version", equalTo(-1))
+        .body("$", hasKey("system"))
+        .body("system", equalTo(true));
+  }
+
+  @Test
+  public void testListEmptyTags() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("size()", is(0))
+        .statusCode(OK.code());
+  }
+
+  @Test
+  public void testListTags() {
+    _createTagForId(getSpaceId(), "XYZ_2", true);
+    _createTagForId(getSpaceId(), "XYZ_1", false);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("size()", is(2))
+        .body("id", hasItems("XYZ_1", "XYZ_2"))
+        .statusCode(OK.code());
+  }
+
+  @Test
+  public void testListSystemTags() {
+    _createTagForId(getSpaceId(), "XYZ_2", true);
+    _createTagForId(getSpaceId(), "XYZ_1", true);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("size()", is(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags?includeSystemTags=false")
+        .then()
+        .body("size()", is(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags?includeSystemTags=true")
+        .then()
+        .body("size()", is(2))
+        .body("id", hasItems("XYZ_1", "XYZ_2"))
         .statusCode(OK.code());
   }
 }

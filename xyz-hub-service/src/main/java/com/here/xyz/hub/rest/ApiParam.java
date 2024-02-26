@@ -114,6 +114,8 @@ public class ApiParam {
     public static final String SUBSCRIPTION_ID = "subscriptionId";
     public static final String VERSION = "version";
     public static final String TAG_ID = "tagId";
+
+    public static final String INCLUDE_SYSTEM_TAGS = "includeSystemTags";
   }
 
   public static class Query {

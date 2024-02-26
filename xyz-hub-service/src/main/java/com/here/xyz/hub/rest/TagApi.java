@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.rest.ApiParam.Path.INCLUDE_SYSTEM_TAGS;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -26,6 +27,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
+import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -43,13 +45,19 @@ public class TagApi extends SpaceBasedApi {
     rb.getRoute("updateTag").setDoValidation(false).addHandler(this::updateTag);
     rb.getRoute("getTag").setDoValidation(false).addHandler(this::getTag);
     rb.getRoute("deleteTag").setDoValidation(false).addHandler(this::deleteTag);
+    rb.getRoute("listTags").setDoValidation(false).addHandler(this::listTags);
   }
 
   // TODO auth
   private void createTag(RoutingContext context) {
     deserializeTag(context.body().asString())
-        .compose(tag -> createTag(getMarker(context), getSpaceId(context), tag.getId(), tag.getVersion()))
-        .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
+        .compose(tag -> createTag(
+            getMarker(context),
+            getSpaceId(context),
+            tag.getId(),
+            tag.getVersion(),
+            tag.isSystem()))
+        .onSuccess(result -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, result))
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
@@ -63,7 +71,19 @@ public class TagApi extends SpaceBasedApi {
         .compose(result -> result != null
             ? Future.succeededFuture(result)
             : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found")))
-        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
+        .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
+        .onFailure(t -> sendHttpErrorResponse(context, t));
+  }
+
+  // TODO auth
+  private void listTags(RoutingContext context) {
+    final String spaceId = getSpaceId(context);
+    final boolean includeSystemTags = Query.getBoolean(context, INCLUDE_SYSTEM_TAGS, false);
+    final Marker marker = getMarker(context);
+
+    getSpace(marker, spaceId)
+        .compose(s -> Service.tagConfigClient.getTags(marker, spaceId, includeSystemTags))
+        .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
@@ -78,7 +98,7 @@ public class TagApi extends SpaceBasedApi {
         .compose(r -> r == null ? Future.failedFuture(
             new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found"))
             : Future.succeededFuture(r))
-        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
+        .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
@@ -98,18 +118,19 @@ public class TagApi extends SpaceBasedApi {
             : Future.succeededFuture(r));
 
     final Long version = inputFuture.result();
-    CompositeFuture.all(spaceFuture, tagFuture, inputFuture)
+    Future.all(spaceFuture, tagFuture, inputFuture)
         .compose(cf -> Service.tagConfigClient.storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
-        .onSuccess(v -> sendResponse(context, HttpResponseStatus.OK, tagFuture.result().withVersion(version)))
+        .onSuccess(v -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, tagFuture.result().withVersion(version)))
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
 
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
-    return createTag(marker, spaceId, tagId, -2);
+    return createTag(marker, spaceId, tagId, -2, true);
   }
 
   // TODO auth
-  private static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version) {
+  private static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long
+      version, boolean system) {
     if (spaceId == null) {
       return Future.failedFuture("Invalid spaceId parameter");
     }
@@ -124,11 +145,12 @@ public class TagApi extends SpaceBasedApi {
     final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture,
         spaceId);
 
-    return CompositeFuture.all(spaceFuture, changesetFuture).compose(cf -> {
+    return Future.all(spaceFuture, changesetFuture).compose(cf -> {
       final Tag tag = new Tag()
           .withId(tagId)
           .withSpaceId(spaceId)
-          .withVersion(version == -2 ? changesetFuture.result().getMaxVersion() : version);
+          .withVersion(version == -2 ? changesetFuture.result().getMaxVersion() : version)
+          .withSystem(system);
       return Service.tagConfigClient.storeTag(marker, tag).map(v -> tag);
     });
   }

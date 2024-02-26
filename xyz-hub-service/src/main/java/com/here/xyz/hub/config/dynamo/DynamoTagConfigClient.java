@@ -35,21 +35,26 @@ import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import software.amazon.awssdk.utils.AttributeMap;
 
 public class DynamoTagConfigClient extends TagConfigClient {
 
   private static final Logger logger = LogManager.getLogger();
-  private DynamoClient dynamoClient;
-  private Table tagTable;
+  private final DynamoClient dynamoClient;
+  private final Table tagTable;
 
   public DynamoTagConfigClient(String tableArn) {
     dynamoClient = new DynamoClient(tableArn, null);
@@ -123,10 +128,12 @@ public class DynamoTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String spaceId) {
+  public Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags) {
     try {
+      final String includeSystemTagsQuery = includeSystemTags ? "" : " AND (\"isSystem\" is MISSING OR \"isSystem\" = false)";
+
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
-          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\".\"spaceId-index\" WHERE \"spaceId\" = ?")
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\".\"spaceId-index\" WHERE \"spaceId\" = ?" + includeSystemTagsQuery)
           .withParameters(new AttributeValue(spaceId));
 
       return dynamoClient.executeStatement(request)
@@ -175,7 +182,8 @@ public class DynamoTagConfigClient extends TagConfigClient {
       tagTable.putItem(new Item()
           .withString("id", tag.getId())
           .withString("spaceId", tag.getSpaceId())
-          .withLong("version", tag.getVersion()));
+          .withLong("version", tag.getVersion())
+          .withBoolean("isSystem", tag.isSystem()));
       return null;
     });
   }
@@ -187,20 +195,25 @@ public class DynamoTagConfigClient extends TagConfigClient {
           .withPrimaryKey("id", id, "spaceId", spaceId)
           .withReturnValues(ReturnValue.ALL_OLD);
       DeleteItemOutcome response = tagTable.deleteItem(deleteItemSpec);
-      if (response.getItem() != null)
-        return Json.decodeValue(response.getItem().toJSON(), Tag.class);
-      else
-        return null;
+      if (response.getItem() != null) {
+        final Map<String, Object> tagData = response.getItem().asMap();
+        return new Tag()
+            .withId((String) tagData.get("id"))
+            .withSpaceId((String) tagData.get("spaceId"))
+            .withVersion(((BigDecimal) tagData.get("version")).intValue())
+            .withSystem((Boolean) tagData.get("isSystem"));
+      }
+      return null;
     });
   }
 
   @Override
   public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
-    return getTags(marker, spaceId)
+    return getTags(marker, spaceId, true)
         .compose(tags -> {
           try {
-            if (tags.size() == 0)
-              Future.succeededFuture();
+            if (tags.isEmpty())
+              return Future.succeededFuture();
 
             List<ParameterizedStatement> statements = new ArrayList<>();
             tags.forEach(r -> statements.add(new ParameterizedStatement()
@@ -217,12 +230,13 @@ public class DynamoTagConfigClient extends TagConfigClient {
   }
 
   private static List<Tag> tagDataToTags(List<Map<String, AttributeValue>> items) {
-    if (items == null || items.size() == 0)
+    if (items == null || items.isEmpty())
       return new ArrayList<>();
 
     return items.stream().map(tagData -> new Tag()
         .withId(tagData.get("id").getS())
         .withSpaceId(tagData.get("spaceId").getS())
-        .withVersion(Long.parseLong(tagData.get("version").getN()))).collect(Collectors.toList());
+        .withVersion(Long.parseLong(tagData.get("version").getN()))
+        .withSystem(tagData.get("isSystem").getBOOL())).collect(Collectors.toList());
   }
 }
