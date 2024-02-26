@@ -32,9 +32,12 @@ import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.handlers.DefaultStorageHandler;
 import com.here.naksha.lib.handlers.DefaultStorageHandlerProperties;
+import com.here.naksha.lib.handlers.DefaultViewHandler;
+import com.here.naksha.lib.handlers.DefaultViewHandlerProperties;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.apache.commons.lang3.StringUtils;
@@ -63,33 +66,94 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
     if (pluginValidation instanceof ErrorResult) {
       return pluginValidation;
     }
-    return defaultStorageValidation(eventHandler);
+    return defaultHandlerValidation(eventHandler);
   }
 
-  private Result defaultStorageValidation(EventHandler eventHandler) {
-    if (isDefaultStorageHandler(eventHandler)) {
-      return storageValidationError(eventHandler);
+  private Result defaultHandlerValidation(EventHandler eventHandler) {
+    if (handlerClassMatches(DefaultStorageHandler.class, eventHandler)) {
+      return storageValidationError(eventHandler, DefaultStorageHandlerProperties.STORAGE_ID);
+    }
+    if (handlerClassMatches(DefaultViewHandler.class, eventHandler)) {
+      return propertiesValidationError(eventHandler);
     }
     return new SuccessResult();
   }
 
-  private boolean isDefaultStorageHandler(@NotNull EventHandler eventHandler) {
-    return DefaultStorageHandler.class.getName().equals(eventHandler.getClassName());
+  private @NotNull Result propertiesValidationError(EventHandler eventHandler) {
+    Result storageValidation = storageValidationError(eventHandler, DefaultViewHandlerProperties.STORAGE_ID);
+
+    if (!(storageValidation instanceof SuccessResult)) {
+      return storageValidation;
+    }
+
+    DefaultViewHandlerProperties viewHandlerProperties =
+        JsonSerializable.convert(eventHandler.getProperties(), DefaultViewHandlerProperties.class);
+
+    List<String> spaceIds = viewHandlerProperties.getSpaceIds();
+    if (spaceIds == null || spaceIds.isEmpty()) {
+      return new ErrorResult(
+          XyzError.ILLEGAL_ARGUMENT,
+          "Mandatory properties parameter %s empty/blank!".formatted(DefaultViewHandlerProperties.SPACE_IDS));
+    }
+
+    for (String spaceId : spaceIds) {
+      if (StringUtils.isBlank(spaceId)) {
+        return new ErrorResult(
+            XyzError.ILLEGAL_ARGUMENT,
+            "Mandatory parameter %s contains space which is empty/blank!"
+                .formatted(DefaultViewHandlerProperties.SPACE_IDS));
+      }
+    }
+
+    return spaceExistenceValidation(spaceIds);
   }
 
-  private @NotNull Result storageValidationError(@NotNull EventHandler eventHandler) {
-    Object storageIdProp = eventHandler.getProperties().get(DefaultStorageHandlerProperties.STORAGE_ID);
+  private Result spaceExistenceValidation(List<String> spaceIds) {
+
+    ReadFeatures readFeaturesRequest = RequestHelper.readFeaturesByIdsRequest(SPACES, spaceIds);
+
+    try (final IReadSession readSession =
+        nakshaHub().getAdminStorage().newReadSession(NakshaContext.currentContext(), false)) {
+
+      final Result readResult = readSession.execute(readFeaturesRequest);
+
+      try {
+        List<Space> spaces = readFeaturesFromResult(readResult, Space.class);
+
+        if (spaces.size() != spaceIds.size()) {
+          return new ErrorResult(
+              XyzError.ILLEGAL_ARGUMENT,
+              "Mandatory parameter %s contains space which is not created!"
+                  .formatted(DefaultViewHandlerProperties.SPACE_IDS));
+        }
+
+      } catch (NoCursor | NoSuchElementException e) {
+        return new ErrorResult(
+            XyzError.ILLEGAL_ARGUMENT,
+            "Mandatory parameter %s contains space which is not created!"
+                .formatted(DefaultViewHandlerProperties.SPACE_IDS));
+      }
+    }
+    return new SuccessResult();
+  }
+
+  private boolean handlerClassMatches(@NotNull Class<?> requestedClass, @NotNull EventHandler eventHandler) {
+    return requestedClass.getName().equals(eventHandler.getClassName());
+  }
+
+  private @NotNull Result storageValidationError(
+      @NotNull EventHandler eventHandler, @NotNull String storagePropertyName) {
+    Object storageIdProp = eventHandler.getProperties().get(storagePropertyName);
     if (storageIdProp == null) {
       return new ErrorResult(
           XyzError.ILLEGAL_ARGUMENT,
-          "Mandatory properties parameter %s missing!".formatted(DefaultStorageHandlerProperties.STORAGE_ID));
+          "Mandatory properties parameter %s missing!".formatted(storagePropertyName));
     }
     String storageId = storageIdProp.toString();
     if (StringUtils.isBlank(storageId)) {
       return new ErrorResult(
           XyzError.ILLEGAL_ARGUMENT,
-          "Mandatory parameter %s can't be empty/blank!"
-              .formatted(DefaultStorageHandlerProperties.STORAGE_ID));
+          "Mandatory parameter %s can't be empty/blank!".formatted(storagePropertyName));
     }
     return storageExistenceValidation(storageId);
   }

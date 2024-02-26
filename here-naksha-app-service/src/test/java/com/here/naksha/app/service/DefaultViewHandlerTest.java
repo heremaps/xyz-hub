@@ -3,16 +3,21 @@ package com.here.naksha.app.service;
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static com.here.naksha.app.common.CommonApiTestSetup.*;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
+import static org.junit.jupiter.api.Named.named;
 
 public class DefaultViewHandlerTest extends ApiTest {
 
@@ -28,19 +33,21 @@ public class DefaultViewHandlerTest extends ApiTest {
         createStorage(nakshaClient, "DefaultViewHandler/setup/create_storage_sfw.json");
         createStorage(nakshaClient, "DefaultViewHandler/setup/create_storage_mod_dlb.json");
         createStorage(nakshaClient, "DefaultViewHandler/setup/create_storage_mod_delta.json");
-        createStorage(nakshaClient, "DefaultViewHandler/setup/create_storage_mod_view_dev.json");
 
         //create handlers
         createHandler(nakshaClient, "DefaultViewHandler/setup/create_handler_sfw.json");
         createHandler(nakshaClient, "DefaultViewHandler/setup/create_handler_mod_dlb.json");
         createHandler(nakshaClient, "DefaultViewHandler/setup/create_handler_mod_delta.json");
         createHandler(nakshaClient, "DefaultViewHandler/setup/create_sourceId_handler.json");
-        createHandler(nakshaClient, "DefaultViewHandler/setup/create_handler_view_handler.json");
 
         //create spaces
         createSpace(nakshaClient, "DefaultViewHandler/setup/create_space_sfw.json");
         createSpace(nakshaClient, "DefaultViewHandler/setup/create_space_mod_dlb.json");
         createSpace(nakshaClient, "DefaultViewHandler/setup/create_space_mod_delta.json");
+
+        //view stuff
+        createStorage(nakshaClient, "DefaultViewHandler/setup/create_storage_mod_view_dev.json");
+        createHandler(nakshaClient, "DefaultViewHandler/setup/create_view_handler.json");
         createSpace(nakshaClient, "DefaultViewHandler/setup/create_view_space.json");
 
         //setup data
@@ -64,7 +71,6 @@ public class DefaultViewHandlerTest extends ApiTest {
 
         // When: Sent create feature request to view space.
         HttpResponse<String> viewResponse = getNakshaClient().post("hub/spaces/" + SPACE_ID + "/features", bodyJson, viewStreamId);
-        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         // Then: Assert that feature was correctly create by view space and was located in correct space(top one -> delta)
         assertThat(viewResponse)
@@ -75,11 +81,14 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasInsertedIdsMatchingFeatureIds(null)
                 .hasUuids();
 
+        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
+
         assertThat(spaceSearchResponse)
                 .hasStatus(200)
                 .hasStreamIdHeader(streamId)
                 .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match");
     }
+
     @Test
     void tc5002_upsertFeatureByViewHandler_featureAvailableInAllLayers() throws Exception {
         // Given: Load data to be sent to view handler. Object with this id is available in all spaces.
@@ -91,7 +100,6 @@ public class DefaultViewHandlerTest extends ApiTest {
 
         // When: Sent create feature request to view space.
         HttpResponse<String> viewResponse = getNakshaClient().put("hub/spaces/" + SPACE_ID + "/features", bodyJson, viewStreamId);
-        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         // Then: Assert that feature was correctly updated by view space and was located in correct space(top one -> delta)
         assertThat(viewResponse)
@@ -100,12 +108,15 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasJsonBody(expectedBodyPart, "Upsert Feature response body doesn't match")
                 .hasUuids();
 
+        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
+
         assertThat(spaceSearchResponse)
                 .hasStatus(200)
                 .hasStreamIdHeader(streamId)
                 .hasJsonBody(expectedBodyPart, "Upsert Feature response body doesn't match");
 
     }
+
     @Test
     void tc5003_upsertFeatureByViewHandler_featureAvailableInDlbAndBase() throws Exception {
         // Given: Load data to be sent to view handler. Object with this id is available in DLB and BASE.
@@ -117,7 +128,6 @@ public class DefaultViewHandlerTest extends ApiTest {
 
         // When: Sent create feature request to view space.
         HttpResponse<String> viewResponse = getNakshaClient().put("hub/spaces/" + SPACE_ID + "/features", bodyJson, viewStreamId);
-        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         // Then: Assert that feature was correctly created by view space and was located in correct space(top one -> delta)
         assertThat(viewResponse)
@@ -127,6 +137,8 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasInsertedCountMatchingWithFeaturesInRequest(bodyJson)
                 .hasInsertedIdsMatchingFeatureIds(null)
                 .hasUuids();
+
+        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         assertThat(spaceSearchResponse)
                 .hasStatus(200)
@@ -145,7 +157,6 @@ public class DefaultViewHandlerTest extends ApiTest {
 
         // When: Sent create feature request to view space.
         HttpResponse<String> viewResponse = getNakshaClient().put("hub/spaces/" + SPACE_ID + "/features", bodyJson, viewStreamId);
-        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         // Then: Assert that feature was correctly created by view space and was located in correct space(top one -> delta)
         assertThat(viewResponse)
@@ -156,12 +167,13 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasInsertedIdsMatchingFeatureIds(null)
                 .hasUuids();
 
+        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
+
         assertThat(spaceSearchResponse)
                 .hasStatus(200)
                 .hasStreamIdHeader(streamId)
                 .hasJsonBody(expectedBodyPart, "Upsert Feature response body doesn't match");
     }
-
 
     @Test
     void tc5010_searchById_GetFromDeltaWhenAvailableAtAllSpaces() throws Exception {
@@ -180,7 +192,6 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match");
     }
 
-
     @Test
     void tc5011_searchById_GetFromDeltaWhenAvailableAtDeltaAndDlb() throws Exception {
         //given Feature with this id is available in delta and dlb spaces
@@ -198,7 +209,6 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match");
     }
 
-
     @Test
     void tc5012_searchById_GetFromDeltaWhenAvailableAtDeltaAndBase() throws Exception {
         //given Feature with this id is available in delta and base spaces
@@ -215,7 +225,6 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasStreamIdHeader(streamId)
                 .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match");
     }
-
 
     @Test
     void tc5013_searchById_GetFromDlbWhenAvailableAtDlbAndBase() throws Exception {
@@ -356,7 +365,6 @@ public class DefaultViewHandlerTest extends ApiTest {
 
         // when: Sent patch feature request to view space.
         HttpResponse<String> viewResponse = getNakshaClient().post("hub/spaces/" + SPACE_ID + "/features", bodyJson, viewStreamId);
-        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         // Then: Assert that feature was correctly patched by view space and was updated in correct space(top one -> delta)
         assertThat(viewResponse)
@@ -364,6 +372,8 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasStreamIdHeader(viewStreamId)
                 .hasJsonBody(expectedBodyPart, "Patch Feature response body doesn't match")
                 .hasUuids();
+
+        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         assertThat(spaceSearchResponse)
                 .hasStatus(200)
@@ -383,7 +393,6 @@ public class DefaultViewHandlerTest extends ApiTest {
 
         // when: Sent patch feature request to view space.
         HttpResponse<String> viewResponse = getNakshaClient().post("hub/spaces/" + SPACE_ID + "/features", bodyJson, viewStreamId);
-        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         // Then: Assert that feature was correctly patched by view space and was stored in delta space
         assertThat(viewResponse)
@@ -392,11 +401,14 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasJsonBody(expectedBodyPart, "Patch Feature response body doesn't match")
                 .hasUuids();
 
+        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
+
         assertThat(spaceSearchResponse)
                 .hasStatus(200)
                 .hasStreamIdHeader(streamId)
                 .hasJsonBody(expectedBodyPart, "Feature response body doesn't match");
     }
+
     @Test
     void tc5032_patchFeature_featureAvailableOnlyInBase() throws Exception {
 
@@ -409,7 +421,6 @@ public class DefaultViewHandlerTest extends ApiTest {
 
         // when: Sent patch feature request to view space.
         HttpResponse<String> viewResponse = getNakshaClient().post("hub/spaces/" + SPACE_ID + "/features", bodyJson, viewStreamId);
-        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
 
         // Then: Assert that feature was correctly patched by view space and was stored in delta space
         assertThat(viewResponse)
@@ -418,9 +429,72 @@ public class DefaultViewHandlerTest extends ApiTest {
                 .hasJsonBody(expectedBodyPart, "Patch Feature response body doesn't match")
                 .hasUuids();
 
+        HttpResponse<String> spaceSearchResponse = getNakshaClient().get("hub/spaces/" + DELTA_CONFIGURED_SPACE + "/features?" + idsQueryParam, streamId);
+
         assertThat(spaceSearchResponse)
                 .hasStatus(200)
                 .hasStreamIdHeader(streamId)
                 .hasJsonBody(expectedBodyPart, "Feature response body doesn't match");
+    }
+
+
+    @ParameterizedTest
+    @MethodSource("updateHandlerWithInvalidRequest")
+    void tc5040_invalid_handler_update(String filePath) throws Exception {
+        //given : prepare broken request
+        final String bodyJson = loadFileOrFail(filePath);
+        String streamId = UUID.randomUUID().toString();
+        String expectedResultPart = loadFileOrFail("DefaultViewHandler/TC5040_invalid_handler_update/error_response_part.json");
+
+        // when: update handler with wrong request
+
+        HttpResponse<String> viewResponse = getNakshaClient().post("hub/handlers", bodyJson, streamId);
+
+        //then
+        assertThat(viewResponse)
+                .hasStatus(400)
+                .hasStreamIdHeader(streamId)
+                .hasJsonBody(expectedResultPart);
+
+    }
+
+    @ParameterizedTest
+    @MethodSource("createHandlerWithInvalidRequest")
+    void tc5041_invalid_handler_create(String filePath) throws Exception {
+        //given : prepare broken request
+        final String bodyJson = loadFileOrFail(filePath);
+        String streamId = UUID.randomUUID().toString();
+        String expectedResultPart = loadFileOrFail("DefaultViewHandler/TC5041_invalid_handler_create/error_response_part.json");
+
+        // when: update handler with wrong request
+
+        HttpResponse<String> viewResponse = getNakshaClient().post("hub/handlers", bodyJson, streamId);
+
+        //then
+        assertThat(viewResponse)
+                .hasStatus(400)
+                .hasStreamIdHeader(streamId)
+                .hasJsonBody(expectedResultPart);
+
+    }
+
+    static Stream<Named<String>> createHandlerWithInvalidRequest() {
+        String location = "DefaultViewHandler/setup/invalid/create_view_handler_";
+        return Stream.of(
+                named("Missing 'storage' property", location + "no_storage.json"),
+                named("Missing 'spaceIds' property", location + "no_spaceIds.json"),
+                named("Empty 'spaceIds' property", location + "empty_spaceIds.json"),
+                named("Non existing space", location + "non_existing_space.json")
+        );
+    }
+
+    static Stream<Named<String>> updateHandlerWithInvalidRequest() {
+        String location = "DefaultViewHandler/setup/invalid/update_view_handler_";
+        return Stream.of(
+                named("Missing 'storage' property", location + "no_storage.json"),
+                named("Missing 'spaceIds' property", location + "no_spaceIds.json"),
+                named("Empty 'spaceIds' property", location + "empty_spaceIds.json"),
+                named("Non existing space", location + "non_existing_space.json")
+        );
     }
 }

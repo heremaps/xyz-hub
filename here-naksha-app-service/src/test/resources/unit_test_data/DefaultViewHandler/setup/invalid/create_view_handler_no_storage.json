@@ -1,0 +1,16 @@
+{
+  "id": "mod-topology-view-handler-invalid",
+  "type": "EventHandler",
+  "title": "Storage Handler for UniMap Moderation Dev Storage",
+  "description": "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage",
+  "className": "com.here.naksha.lib.handlers.DefaultViewHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "spaceIds": [
+      "mod-dev:topology-delta",
+      "mod-dev:topology-dlb",
+      "mod-dev:topology-base"
+    ]
+  }
+}
