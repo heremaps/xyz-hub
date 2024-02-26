@@ -20,14 +20,15 @@
 package com.here.xyz.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
+import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.StaticDataSources;
+import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.sql.SQLException;
 import org.junit.Test;
-import org.postgresql.ds.PGSimpleDataSource;
 
 public class SQLQueryIT {
   protected static final String PG_HOST = "localhost";
@@ -35,51 +36,71 @@ public class SQLQueryIT {
   protected static final String PG_USER = "postgres";
   protected static final String PG_PW = "password";
 
+  private static DataSourceProvider getDataSourceProvider() {
+    return new PooledDataSources(new DatabaseSettings("testPSQL")
+        .withHost(PG_HOST)
+        .withDb(PG_DB)
+        .withUser(PG_USER)
+        .withPassword(PG_PW)
+        .withDbMaxPoolSize(2));
+  }
+
+  private static String getQueryTextByQueryId(SQLQuery longRunningQuery, DataSourceProvider dsp) throws SQLException {
+    return new SQLQuery("SELECT query FROM pg_stat_activity "
+        + "WHERE state = 'active' "
+        + "AND strpos(query, #{labelValue}) > 0 "
+        + "AND pid != pg_backend_pid()")
+        .withNamedParameter("labelValue", longRunningQuery.getQueryId())
+        .run(dsp, rs -> rs.next() ? rs.getString("query") : null);
+  }
+
   @Test
-  public void startAndKillQuery() throws SQLException {
-    PGSimpleDataSource ds = new PGSimpleDataSource() ;
-    ds.setServerName(PG_HOST);
-    ds.setDatabaseName(PG_DB);
-    ds.setUser(PG_USER);
-    ds.setPassword(PG_PW);
-    DataSourceProvider dsp = new StaticDataSources(ds);
+  public void startAndKillQuery() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      SQLQuery longRunningQuery = new SQLQuery("SELECT pg_sleep(30)");
 
-    SQLQuery longRunningQuery = new SQLQuery("SELECT pg_sleep(30)");
+      new Thread(() -> {
+        try {
+          longRunningQuery.run(dsp);
+        }
+        catch (SQLException e) {
+          //Ignore
+        }
+      }).start();
 
-    new Thread(() -> {
+      //Wait some time to make sure query execution actually gets started on the DB
       try {
-        longRunningQuery.run(dsp);
+        Thread.sleep(1_000);
       }
-      catch (SQLException e) {
+      catch (InterruptedException e) {
         //Ignore
       }
-    }).start();
 
-    //Wait some time to make sure query execution actually gets started on the DB
-    try {
-      Thread.sleep(1_000);
+      //Check that the long-running query is actually running
+      assertEquals(longRunningQuery.text(), getQueryTextByQueryId(longRunningQuery, dsp));
+
+      //Kill the long-running query
+      longRunningQuery.kill();
+
+      //Check that the original query is not running anymore
+      assertNull(getQueryTextByQueryId(longRunningQuery, dsp));
     }
-    catch (InterruptedException e) {
-      //Ignore
+  }
+
+  @Test
+  public void runAsyncQuery() throws Exception {
+    SQLQuery longRunningAsyncQuery = new SQLQuery("SELECT pg_sleep(10)").withAsync(true);
+
+    //Start the query and directly close the connection
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      longRunningAsyncQuery.run(dsp);
     }
 
-    //Check that the long-running query is actually running
-    assertEquals(longRunningQuery.text(), new SQLQuery("SELECT query FROM pg_stat_activity "
-        + "WHERE state = 'active' "
-        + "AND strpos(query, #{labelValue}) > 0 "
-        + "AND pid != pg_backend_pid()")
-        .withNamedParameter("labelValue", longRunningQuery.getQueryId())
-        .run(dsp, rs -> rs.next() ? rs.getString("query") : null));
+    Thread.sleep(1_000);
 
-    //Kill the long-running query
-    longRunningQuery.kill();
-
-    //Check that the original query is not running anymore
-    assertNull(new SQLQuery("SELECT query FROM pg_stat_activity "
-        + "WHERE state = 'active' "
-        + "AND strpos(query, #{labelValue}) > 0 "
-        + "AND pid != pg_backend_pid()")
-        .withNamedParameter("labelValue", longRunningQuery.getQueryId())
-        .run(dsp, rs -> rs.next() ? rs.getString("query") : null));
+    //The query should still be running on the database
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      assertNotNull(getQueryTextByQueryId(longRunningAsyncQuery, dsp));
+    }
   }
 }
