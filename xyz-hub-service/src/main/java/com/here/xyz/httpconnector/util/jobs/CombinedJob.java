@@ -31,7 +31,7 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.jobs.datasets.Spaces;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api.ValidationException;
@@ -95,7 +95,7 @@ public class CombinedJob extends Job<CombinedJob> {
     for (int i = 0; i < childSpaces.size(); i++) {
       final int childNo = i;
       DatasetDescription.Space childSpace = childSpaces.get(childNo);
-      childFutures.add(HubWebClientAsync.getSpace(childSpace.getId())
+      childFutures.add(LegacyHubWebClient.getSpace(childSpace.getId())
           .compose(space -> {
             Export job = new Export()
                 .withId(getId() + "-" + childNo)
