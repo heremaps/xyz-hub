@@ -419,8 +419,8 @@ public class TagApiIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .get("/spaces/" + getSpaceId() + "/tags")
         .then()
-        .body("size()", is(2))
-        .body("id", hasItems("XYZ_1", "XYZ_2"))
+        .body("size()", is(1))
+        .body("id", hasItems("XYZ_1"))
         .statusCode(OK.code());
   }
 

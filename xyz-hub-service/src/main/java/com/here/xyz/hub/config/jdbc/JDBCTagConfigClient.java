@@ -73,9 +73,9 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags) {
-    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId} AND isSystem = #{isSystem}")
+    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId} ${{includeSystemTags}}")
         .withNamedParameter("spaceId", spaceId)
-        .withNamedParameter("isSystem", includeSystemTags));
+        .withQueryFragment("includeSystemTags", includeSystemTags ? "" : "AND isSystem = false"));
   }
 
   @Override

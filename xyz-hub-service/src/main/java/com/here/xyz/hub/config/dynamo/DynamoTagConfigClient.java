@@ -130,7 +130,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags) {
     try {
-      final String includeSystemTagsQuery = includeSystemTags ? "" : " AND (\"isSystem\" is MISSING OR \"isSystem\" = false)";
+      final String includeSystemTagsQuery = includeSystemTags ? "" : " AND (\"system\" is MISSING OR \"system\" = false)";
 
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
           .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\".\"spaceId-index\" WHERE \"spaceId\" = ?" + includeSystemTagsQuery)
@@ -183,7 +183,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
           .withString("id", tag.getId())
           .withString("spaceId", tag.getSpaceId())
           .withLong("version", tag.getVersion())
-          .withBoolean("isSystem", tag.isSystem()));
+          .withBoolean("system", tag.isSystem()));
       return null;
     });
   }
@@ -201,7 +201,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
             .withId((String) tagData.get("id"))
             .withSpaceId((String) tagData.get("spaceId"))
             .withVersion(((BigDecimal) tagData.get("version")).intValue())
-            .withSystem((Boolean) tagData.get("isSystem"));
+            .withSystem((Boolean) tagData.get("system"));
       }
       return null;
     });
@@ -237,6 +237,6 @@ public class DynamoTagConfigClient extends TagConfigClient {
         .withId(tagData.get("id").getS())
         .withSpaceId(tagData.get("spaceId").getS())
         .withVersion(Long.parseLong(tagData.get("version").getN()))
-        .withSystem(tagData.get("isSystem").getBOOL())).collect(Collectors.toList());
+        .withSystem(tagData.get("system").getBOOL())).collect(Collectors.toList());
   }
 }
