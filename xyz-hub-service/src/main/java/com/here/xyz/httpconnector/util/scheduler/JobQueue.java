@@ -24,7 +24,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
@@ -186,11 +186,11 @@ public abstract class JobQueue implements Runnable {
     }
 
     protected static Future<Void> releaseReadOnlyLockFromSpace(Job job){
-        return HubWebClientAsync.updateSpaceConfig(new JsonObject().put("readOnly", false), job.getTargetSpaceId());
+        return LegacyHubWebClient.updateSpaceConfig(new JsonObject().put("readOnly", false), job.getTargetSpaceId());
     }
 
     protected Future<Void> addReadOnlyLockToSpace(Job job){
-        return HubWebClientAsync.updateSpaceConfig(new JsonObject().put("readOnly", true), job.getTargetSpaceId());
+        return LegacyHubWebClient.updateSpaceConfig(new JsonObject().put("readOnly", true), job.getTargetSpaceId());
     }
 
 }

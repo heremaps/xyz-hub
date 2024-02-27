@@ -67,12 +67,12 @@ import com.here.xyz.httpconnector.util.emr.config.Step.WriteGeoparquet;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
 import com.here.xyz.httpconnector.util.jobs.datasets.FileOutputSettings;
-import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
 import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -93,8 +93,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -268,7 +266,7 @@ public class Export extends JDBCBasedJob<Export> {
                 String superSpaceId = extractSuperSpaceId();
 
                 if(superSpaceId != null) {
-                    return HubWebClientAsync.getSpaceStatistics(superSpaceId, null)
+                    return LegacyHubWebClient.getSpaceStatistics(superSpaceId, null)
                         .compose(statistics -> {
                             //Set version of base space
                             setMaxSuperSpaceVersion(statistics.getMaxVersion().getValue());
@@ -282,7 +280,7 @@ public class Export extends JDBCBasedJob<Export> {
                         || readParamCompositeMode() == FULL_OPTIMIZED
                         ? EXTENSION : null
                 );
-                return HubWebClientAsync.getSpaceStatistics(getTargetSpaceId(), ctx)
+                return LegacyHubWebClient.getSpaceStatistics(getTargetSpaceId(), ctx)
                         .compose(statistics ->{
                             //Set version of target space
                             setMaxSpaceVersion(statistics.getMaxVersion().getValue());
@@ -1119,7 +1117,7 @@ public class Export extends JDBCBasedJob<Export> {
                     baseExport.addParam(PARAM_PERSIST_EXPORT, true);
 
                     logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), superSpaceId);
-                    return HubWebClientAsync.performBaseLayerExport(superSpaceId, baseExport)
+                    return LegacyHubWebClient.performBaseLayerExport(superSpaceId, baseExport)
                         .compose(newBaseExport -> {
                             logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
                             setSuperId(newBaseExport.getId());

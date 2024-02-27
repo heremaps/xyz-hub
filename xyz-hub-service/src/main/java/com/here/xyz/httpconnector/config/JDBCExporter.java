@@ -44,7 +44,7 @@ import com.here.xyz.httpconnector.util.jobs.Export.Filters;
 import com.here.xyz.httpconnector.util.jobs.Export.SpatialFilter;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -202,8 +202,8 @@ public class JDBCExporter extends JdbcBasedHandler {
       List<Future> exportFutures = new ArrayList<>();
 
       String spaceId = job.getTarget().getKey();
-      return HubWebClientAsync.getSpace( spaceId )
-          .compose(space -> HubWebClientAsync.getConnectorConfig(space.getStorage().getId())
+      return LegacyHubWebClient.getSpace( spaceId )
+          .compose(space -> LegacyHubWebClient.getConnectorConfig(space.getStorage().getId())
               .compose(connector -> getClient(connector.id)
                   .compose(client -> {
                     try {
@@ -215,7 +215,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                       return Future.failedFuture(e);
                     }
                   }))
-              .compose(statistics -> HubWebClientAsync.updateSpaceConfig(new JsonObject().put("contentUpdatedAt", System.currentTimeMillis()), space.getId())
+              .compose(statistics -> LegacyHubWebClient.updateSpaceConfig(new JsonObject().put("contentUpdatedAt", System.currentTimeMillis()), space.getId())
                     .map(statistics))
           );
     }

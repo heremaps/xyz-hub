@@ -20,7 +20,6 @@
 package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.HttpMethod;
-import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -42,7 +41,6 @@ import java.util.List;
  */
 public class AwsS3Client {
     protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
-    protected static AWSCredentialsProvider customCredentialsProvider;
 
     protected final AmazonS3 client;
 
@@ -85,7 +83,7 @@ public class AwsS3Client {
         return client.generatePresignedUrl(generatePresignedUrlRequest);
     }
 
-    void deleteS3Folder(String bucketName, String folderPath) {
+    public void deleteS3Folder(String bucketName, String folderPath) {
         for (S3ObjectSummary file : client.listObjects(bucketName, folderPath).getObjectSummaries()){
             client.deleteObject(bucketName, file.getKey());
         }

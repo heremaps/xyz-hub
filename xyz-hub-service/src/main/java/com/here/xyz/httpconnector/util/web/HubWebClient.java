@@ -25,6 +25,7 @@ import static com.here.xyz.XyzSerializable.deserialize;
 import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
@@ -39,6 +40,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
@@ -89,9 +91,23 @@ public class HubWebClient {
     if (cachedConnector != null)
       return cachedConnector;
     try {
-      return connectorCache.put(connectorId, deserialize(request(HttpRequest.newBuilder()
+      Connector connector = deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/connectors/" + connectorId))
-          .build()).body(), Connector.class));
+          .build()).body(), Connector.class);
+      connectorCache.put(connectorId, connector);
+      return connector;
+    }
+    catch (JsonProcessingException e) {
+      throw new HubWebClientException("Error deserializing response", e);
+    }
+  }
+
+  public static List<Connector> loadConnectors() throws HubWebClientException {
+    //TODO: Add caching also here
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+          .uri(uri("/connectors"))
+          .build()).body(), new TypeReference<>() {});
     }
     catch (JsonProcessingException e) {
       throw new HubWebClientException("Error deserializing response", e);
