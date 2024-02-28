@@ -175,7 +175,8 @@ public class DynamoTagConfigClient extends TagConfigClient {
       tagTable.putItem(new Item()
           .withString("id", tag.getId())
           .withString("spaceId", tag.getSpaceId())
-          .withLong("version", tag.getVersion()));
+          .withLong("version", tag.getVersion())
+          .withBoolean("system", tag.isSystem()));
       return null;
     });
   }
@@ -223,6 +224,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
     return items.stream().map(tagData -> new Tag()
         .withId(tagData.get("id").getS())
         .withSpaceId(tagData.get("spaceId").getS())
-        .withVersion(Long.parseLong(tagData.get("version").getN()))).collect(Collectors.toList());
+        .withVersion(Long.parseLong(tagData.get("version").getN()))
+        .withSystem(tagData.get("system").getBOOL())).collect(Collectors.toList());
   }
 }

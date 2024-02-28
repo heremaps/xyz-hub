@@ -71,11 +71,14 @@ import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
+import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
@@ -928,6 +931,10 @@ public class Export extends JDBCBasedJob<Export> {
         @JsonView({Public.class, Static.class})
         private SpaceContext context = DEFAULT;
 
+        @JsonView({Public.class, Static.class})
+        private Ref ref;
+
+
         public String getPropertyFilter() {
             return propertyFilter;
         }
@@ -966,6 +973,20 @@ public class Export extends JDBCBasedJob<Export> {
             setContext(context);
             return this;
         }
+
+        public Ref getRef() {
+            return ref;
+        }
+
+        public void setRef(Ref ref) {
+            this.ref = ref;
+        }
+
+        public Filters withRef(Ref ref) {
+            setRef(ref);
+            return this;
+        }
+
     }
 
     @Override
@@ -1268,9 +1289,24 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
+    @Override    
+    public Future<Job> prepareStart() {
+
+      Future<Void> pushVersionTag = ( getTargetVersion() == null )
+       ? Future.succeededFuture()
+       : HubWebClientAsync.postTag( getSource().getKey(), new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
+
+      return pushVersionTag.compose( v -> super.prepareStart() );
+    }
+
     @Override
     public Future<Void> finalizeJob() {
-        return finalizeJob(true);
+
+        Future<Void> deleteVersionTag = ( getTargetVersion() == null )
+        ? Future.succeededFuture()
+        : HubWebClientAsync.deleteTag( getSource().getKey(), getId() ).compose( tag -> Future.succeededFuture());
+         
+        return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
 
     protected Future<Void> finalizeJob(boolean finalizeAfterCompletion) {

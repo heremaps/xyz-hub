@@ -48,7 +48,7 @@ public class TagApi extends SpaceBasedApi {
   // TODO auth
   private void createTag(RoutingContext context) {
     deserializeTag(context.body().asString())
-        .compose(tag -> createTag(getMarker(context), getSpaceId(context), tag.getId(), tag.getVersion()))
+        .compose(tag -> createTag(getMarker(context), getSpaceId(context), tag.getId(), tag.getVersion(), tag.isSystem()))
         .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
         .onFailure(t -> sendHttpErrorResponse(context, t));
   }
@@ -105,11 +105,11 @@ public class TagApi extends SpaceBasedApi {
   }
 
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
-    return createTag(marker, spaceId, tagId, -2);
+    return createTag(marker, spaceId, tagId, -2, false);
   }
 
   // TODO auth
-  private static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version) {
+  private static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version, boolean isSystem) {
     if (spaceId == null) {
       return Future.failedFuture("Invalid spaceId parameter");
     }
@@ -128,7 +128,8 @@ public class TagApi extends SpaceBasedApi {
       final Tag tag = new Tag()
           .withId(tagId)
           .withSpaceId(spaceId)
-          .withVersion(version == -2 ? changesetFuture.result().getMaxVersion() : version);
+          .withVersion(version == -2 ? changesetFuture.result().getMaxVersion() : version)
+          .withSystem(isSystem);
       return Service.tagConfigClient.storeTag(marker, tag).map(v -> tag);
     });
   }
