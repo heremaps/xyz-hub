@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
+import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "MultiPoint")
@@ -51,5 +52,22 @@ public class XyzMultiPoint extends XyzGeometryItem {
   @Override
   public void validate() throws InvalidGeometryException {
     validateMultiPointCoordinates(this.coordinates);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    XyzMultiPoint that = (XyzMultiPoint) o;
+    return Objects.equals(coordinates, that.coordinates);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(coordinates);
   }
 }

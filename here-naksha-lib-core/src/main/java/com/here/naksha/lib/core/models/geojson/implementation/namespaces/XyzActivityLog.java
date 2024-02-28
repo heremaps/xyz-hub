@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.core.models.geojson.implementation.namespaces;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,17 +47,13 @@ public class XyzActivityLog extends JsonObject {
   private @NotNull Original original;
 
   /** The Difference tag. */
+  @JsonInclude(Include.NON_EMPTY)
   @JsonProperty(DIFF)
   private JsonNode diff;
 
   /** The space ID the feature belongs to. */
   @JsonProperty(ID)
   private String id;
-
-  // For Now INVALIDATED_AT is not used
-  /** * * The timestamp, when a feature was created. */
-  @JsonProperty(INVALIDATED_AT)
-  private long invalidatedAt;
 
   /**
    * The operation that lead to the current state of the namespace. Should be a value from {@link
@@ -92,14 +90,6 @@ public class XyzActivityLog extends JsonObject {
   public @NotNull XyzActivityLog withAction(@NotNull EXyzAction action) {
     setAction(action);
     return this;
-  }
-
-  public long getInvalidatedAt() {
-    return invalidatedAt;
-  }
-
-  public void setInvalidatedAt(long invalidatedAt) {
-    this.invalidatedAt = invalidatedAt;
   }
 
   public boolean isDeleted() {

@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
+import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -66,5 +67,22 @@ public class XyzPoint extends XyzGeometryItem {
   @Override
   public void validate() throws InvalidGeometryException {
     validatePointCoordinates(this.coordinates);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    XyzPoint xyzPoint = (XyzPoint) o;
+    return Objects.equals(coordinates, xyzPoint.coordinates);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(coordinates);
   }
 }

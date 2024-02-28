@@ -1,0 +1,21 @@
+{
+  "id": "TC1307_feature",
+  "type": "Feature",
+  "properties": {
+    "speedLimit": "80",
+    "@ns:com:here:xyz": {
+      "tags": [
+        "tc1307",
+        "two"
+      ]
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      8.6123,
+      50.1234,
+      0.0
+    ]
+  }
+}

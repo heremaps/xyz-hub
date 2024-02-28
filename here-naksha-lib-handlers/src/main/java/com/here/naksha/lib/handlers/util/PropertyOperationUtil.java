@@ -27,6 +27,8 @@ import org.jetbrains.annotations.NotNull;
 
 public class PropertyOperationUtil {
 
+  private PropertyOperationUtil() {}
+
   public static void transformPropertyInPropertyOperationTree(
       POp rootPropertyOperation, Function<POp, Optional<POp>> transformingFunction) {
     replacePropertyInPropertyOperationTree(

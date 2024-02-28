@@ -69,7 +69,18 @@ public class ListBasedForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_11)
   public void close() {
-    featureCodecList.clear();
+    try {
+      featureCodecList.clear();
+    } catch (UnsupportedOperationException uoe) {
+      log.info(
+          "Invoking List::clear on underlying codecs list failed - operation not supported by {}",
+          featureCodecList.getClass().getName(),
+          uoe);
+    }
     featureIdx = totalFeatures;
+  }
+
+  public int size() {
+    return featureCodecList.size();
   }
 }

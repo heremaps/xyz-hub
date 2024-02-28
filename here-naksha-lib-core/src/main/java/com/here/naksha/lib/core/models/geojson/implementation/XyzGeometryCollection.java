@@ -25,6 +25,7 @@ import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GeometryCollection")
@@ -116,5 +117,22 @@ public class XyzGeometryCollection extends XyzGeometry {
             + e.getMessage());
       }
     }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    XyzGeometryCollection that = (XyzGeometryCollection) o;
+    return Objects.equals(geometries, that.geometries);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(geometries);
   }
 }

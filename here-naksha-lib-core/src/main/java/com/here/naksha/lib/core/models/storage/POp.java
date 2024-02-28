@@ -32,6 +32,7 @@ import static com.here.naksha.lib.core.models.storage.POpType.NOT_NULL;
 import static com.here.naksha.lib.core.models.storage.POpType.NULL;
 import static com.here.naksha.lib.core.models.storage.POpType.STARTS_WITH;
 
+import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -170,5 +171,22 @@ public class POp extends Op<POp> {
    */
   public static @NotNull POp contains(@NotNull PRef propertyRef, @NotNull Object value) {
     return new POp(CONTAINS, propertyRef, value);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    POp pOp = (POp) o;
+    return Objects.equals(propertyRef, pOp.propertyRef) && Objects.equals(value, pOp.value);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(propertyRef, value);
   }
 }

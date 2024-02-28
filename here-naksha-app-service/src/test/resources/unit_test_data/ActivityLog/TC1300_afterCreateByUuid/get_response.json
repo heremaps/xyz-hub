@@ -1,0 +1,27 @@
+{
+  "type": "Feature",
+  "id": "${id}",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      8.68872,
+      50.0561,
+      292.94377758
+    ]
+  },
+  "properties": {
+    "@ns:com:here:xyz": {
+      "action": "CREATE"
+    },
+    "@ns:com:here:xyz:log": {
+      "action": "CREATE",
+      "id": "${activityLogId}",
+      "original": {
+        "space": "regular_space_ah",
+        "createdAt": "${createdAt}",
+        "updatedAt": "${updatedAt}"
+      }
+    },
+    "speedLimit": "60"
+  }
+}

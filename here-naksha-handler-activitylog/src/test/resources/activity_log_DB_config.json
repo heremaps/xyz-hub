@@ -1,9 +1,0 @@
-{
-  "appName": "xyz-hub.test",
-  "host": "SET-ME",
-  "port": 5432,
-  "db": "SET-ME",
-  "user": "SET-ME",
-  "password": "SET-ME",
-  "schema": "SET-ME and copy to ~/.config/xyz-hub.test/http-handler-activitylog.json"
-}

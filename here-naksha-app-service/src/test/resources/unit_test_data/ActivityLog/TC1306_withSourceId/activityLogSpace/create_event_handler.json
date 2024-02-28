@@ -1,0 +1,12 @@
+{
+  "id": "activity_history_test_handler_source_id_tests",
+  "type": "EventHandler",
+  "title": "Sample Activity History Handler",
+  "description": "Activity History Handler used for tests",
+  "className": "com.here.naksha.handler.activitylog.ActivityLogHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "spaceId": "source_id_ah_test_space"
+  }
+}

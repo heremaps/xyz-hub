@@ -333,6 +333,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     }
   }
 
+  // TODO: collectionId at handler level can be potentially removed in the future
   private @NotNull XyzCollection chooseCollection() {
     final XyzCollection collectionDefinedInHandler = properties.getXyzCollection();
     if (collectionDefinedInHandler != null) {

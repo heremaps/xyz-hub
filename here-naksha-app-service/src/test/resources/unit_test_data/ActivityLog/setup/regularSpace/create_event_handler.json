@@ -1,0 +1,12 @@
+{
+  "id": "regular_test_handler_ah",
+  "type": "EventHandler",
+  "title": "Typical Handler",
+  "description": "Typical Handler used for tests",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "storageId": "activity_history_test_storage"
+  }
+}

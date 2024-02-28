@@ -18,9 +18,16 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import static com.here.naksha.lib.core.models.geojson.implementation.XyzFeature.ID;
 import static com.here.naksha.lib.core.models.geojson.implementation.XyzFeature.PROPERTIES;
 import static com.here.naksha.lib.core.models.geojson.implementation.XyzProperties.XYZ_NAMESPACE;
-import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.*;
+import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.APP_ID;
+import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.AUTHOR;
+import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.GRID;
+import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.TAGS;
+import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.TXN;
+import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.TXN_NEXT;
+import static com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace.UUID;
 import static com.here.naksha.lib.core.util.StringCache.string;
 
 import java.util.HashMap;
@@ -49,7 +56,7 @@ public class PRef {
     return this;
   }
 
-  public static final String[] ID_PROP_PATH = new String[] {"id"};
+  public static final String[] ID_PROP_PATH = new String[] {ID};
   public static final String[] APP_ID_PROP_PATH = new String[] {PROPERTIES, XYZ_NAMESPACE, APP_ID};
   public static final String[] AUTHOR_PROP_PATH = new String[] {PROPERTIES, XYZ_NAMESPACE, AUTHOR};
   public static final String[] UUID_PROP_PATH = new String[] {PROPERTIES, XYZ_NAMESPACE, UUID};

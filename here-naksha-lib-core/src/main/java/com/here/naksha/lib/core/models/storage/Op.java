@@ -20,6 +20,7 @@ package com.here.naksha.lib.core.models.storage;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -78,5 +79,22 @@ public abstract class Op<SELF extends Op<SELF>> {
     assert children != null;
     children.add(child);
     return (SELF) this;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    Op<?> op1 = (Op<?>) o;
+    return Objects.equals(op, op1.op) && Objects.equals(children, op1.children);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(op, children);
   }
 }

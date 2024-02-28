@@ -1,0 +1,22 @@
+{
+  "id": "TC1305_feature",
+  "type": "Feature",
+  "properties": {
+    "speedLimit": "80",
+    "@ns:com:here:xyz": {
+      "tags": [
+        "three",
+        "four",
+        "five"
+      ]
+    }
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      8.68872,
+      50.0561,
+      292.94377758
+    ]
+  }
+}

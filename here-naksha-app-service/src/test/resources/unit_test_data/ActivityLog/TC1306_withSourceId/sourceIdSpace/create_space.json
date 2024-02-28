@@ -1,0 +1,10 @@
+{
+  "id": "source_id_ah_test_space",
+  "type": "Space",
+  "title": "Space for testing Activity BHistory",
+  "description": "Space with sourceId modification",
+  "eventHandlerIds": [
+    "source_id_handler_ah_source_test",
+    "default_handler_ah_source_test"
+  ]
+}

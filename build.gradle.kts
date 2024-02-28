@@ -382,19 +382,21 @@ project(":here-naksha-lib-extension") {
 }
 */
 
-/*
 project(":here-naksha-handler-activitylog") {
     description = "Naksha Activity Log Handler"
     dependencies {
         implementation(project(":here-naksha-lib-core"))
         implementation(project(":here-naksha-lib-psql"))
+        implementation(project(":here-naksha-lib-handlers"))
 
         implementation(flipkart_zjsonpatch)
         testImplementation(jayway_jsonpath)
+        testImplementation(mockito)
+        testImplementation(json_assert)
+        testImplementation(testFixtures(project(":here-naksha-lib-core")))
     }
     setOverallCoverage(0.4) // only increasing allowed!
 }
-*/
 
 /*
 project(":here-naksha-handler-http") {
@@ -514,6 +516,7 @@ project(":here-naksha-app-service") {
         implementation(vertx_web)
         implementation(vertx_web_client)
         implementation(vertx_web_openapi)
+        implementation(project(":here-naksha-handler-activitylog"))
 
         testImplementation(json_assert)
         testImplementation(resillience4j_retry)

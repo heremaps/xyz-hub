@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "TC1306_feature",
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      },
+      "properties": {
+        "speedLimit": "60",
+        "@ns:com:here:mom:meta": {
+          "sourceId": "ah_test_source"
+        },
+        "@ns:com:here:xyz": {
+          "tags": [
+            "existing_normalized_tag",
+            "xyz_source_id_some_existing_source_tag"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.core.util.diff;
 
+import java.util.Objects;
+
 /** A common interface for primitive changes. */
 public abstract class PrimitiveDiff implements Difference {
 
@@ -45,5 +47,22 @@ public abstract class PrimitiveDiff implements Difference {
    */
   public Object newValue() {
     return newValue;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    PrimitiveDiff that = (PrimitiveDiff) o;
+    return Objects.equals(newValue, that.newValue) && Objects.equals(oldValue, that.oldValue);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(newValue, oldValue);
   }
 }

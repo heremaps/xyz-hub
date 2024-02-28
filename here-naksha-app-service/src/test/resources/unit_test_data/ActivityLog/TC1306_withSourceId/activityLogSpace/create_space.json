@@ -1,0 +1,9 @@
+{
+  "id": "activity_history_space_source_id_tests",
+  "type": "Space",
+  "title": "Space for testing Activity BHistory",
+  "description": "Sample Space description",
+  "eventHandlerIds": [
+    "activity_history_test_handler_source_id_tests"
+  ]
+}

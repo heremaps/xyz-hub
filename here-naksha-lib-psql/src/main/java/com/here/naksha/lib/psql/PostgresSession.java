@@ -287,7 +287,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       final List<@NotNull String> path, //
       @NotNull OpType opType, //
       @Nullable Object value //
-  ) {
+      ) {
     if (value == null) {
       throw new IllegalArgumentException("Invalid value NULL for op: " + opType);
     }
@@ -582,7 +582,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     return prepareQuery(historyCollection, spatial_where, hst_props_where.toString(), readFeatures.limit);
   }
 
-  @NotNull <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> Result executeWrite(
+  @NotNull
+  <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> Result executeWrite(
       @NotNull WriteRequest<FEATURE, CODEC, ?> writeRequest) {
     if (writeRequest instanceof WriteCollections) {
       final PreparedStatement stmt = prepareStatement(

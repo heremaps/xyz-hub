@@ -1,0 +1,24 @@
+{
+  "id": "TC1306_feature",
+  "type": "Feature",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      8.68872,
+      50.0561,
+      292.94377758
+    ]
+  },
+  "properties": {
+    "speedLimit": "80",
+    "@ns:com:here:mom:meta": {
+      "sourceId": "ah_test_updated_source"
+    },
+    "@ns:com:here:xyz": {
+      "tags": [
+        "existing_normalized_tag",
+        "xyz_source_id_ah_test_source"
+      ]
+    }
+  }
+}

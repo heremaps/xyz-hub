@@ -115,7 +115,6 @@ public class XyzFeature extends JsonObject implements Typed {
   public static final String REFERENCE_POINT = "referencePoint";
 
   @JsonProperty(REFERENCE_POINT)
-  @JsonInclude(Include.NON_NULL)
   private XyzPoint referencePoint;
 
   public static final String PROPERTIES = "properties";
@@ -332,7 +331,9 @@ public class XyzFeature extends JsonObject implements Typed {
 
   @JsonIgnore
   public void setIdPrefix(final @Nullable String prefixId) {
-    if (prefixId != null) setId(prefixId + getId());
+    if (prefixId != null) {
+      setId(prefixId + getId());
+    }
   }
 
   @Override

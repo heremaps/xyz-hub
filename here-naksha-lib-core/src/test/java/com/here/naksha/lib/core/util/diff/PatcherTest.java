@@ -24,10 +24,19 @@ import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzName
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONException;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -35,6 +44,7 @@ import java.util.Map;
 
 import static com.here.naksha.lib.core.util.diff.PatcherUtils.removeAllRemoveOp;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 @SuppressWarnings({"rawtypes", "ConstantConditions"})
 class PatcherTest {
@@ -233,5 +243,70 @@ class PatcherTest {
     final InsertOp inserted = assertInstanceOf(InsertOp.class, tags.get(22));
     assertEquals("utm_dummy_update", inserted.newValue());
     assertNull(inserted.oldValue());
+  }
+
+  @ParameterizedTest
+  @MethodSource("listDiffSamples")
+  void testListDiff(List before, List after, ListDiff expectedResult){
+    // When:
+    Difference difference = Patcher.getDifference(before, after);
+
+    // Then:
+    Assertions.assertEquals(expectedResult, difference);
+  }
+
+  private static Stream<Arguments> listDiffSamples(){
+    return Stream.of(
+        arguments(
+            List.of("one", "two"),
+            List.of("one", "three"),
+            listDiff(
+                null,
+                new UpdateOp("two","three")
+            )
+        ),
+        arguments(
+            List.of("one", "two", "three"),
+            List.of("three", "four"),
+            listDiff(
+                new UpdateOp("one", "three"),
+                new UpdateOp("two", "four"),
+                new RemoveOp("three")
+            )
+        ),
+        arguments(
+            List.of("one", "two"),
+            List.of("three", "four", "five"),
+            listDiff(
+                new UpdateOp("one", "three"),
+                new UpdateOp("two", "four"),
+                new InsertOp("five")
+            )
+        ),
+        arguments(
+            List.of(),
+            List.of("one", "two", "three"),
+            listDiff(
+                new InsertOp("one"),
+                new InsertOp("two"),
+                new InsertOp("three")
+            )
+        ),
+        arguments(
+            List.of("one", "two", "three"),
+            List.of(),
+            listDiff(
+                new RemoveOp("one"),
+                new RemoveOp("two"),
+                new RemoveOp("three")
+            )
+        )
+    );
+  }
+
+  private static ListDiff listDiff(Difference... diffs){
+    ListDiff listDiff = new ListDiff(diffs.length);
+    listDiff.addAll(Arrays.asList(diffs));
+    return listDiff;
   }
 }

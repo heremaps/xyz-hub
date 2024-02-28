@@ -29,6 +29,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActi
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import java.util.List;
+import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -220,5 +221,27 @@ public class XyzProperties extends JsonObject {
 
   public void setReferences(@Nullable List<XyzReference> references) {
     this.references = references;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    if (!super.equals(o)) {
+      return false;
+    }
+    XyzProperties that = (XyzProperties) o;
+    return Objects.equals(xyzNamespace, that.xyzNamespace)
+        && Objects.equals(references, that.references)
+        && Objects.equals(xyzActivityLog, that.xyzActivityLog);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(super.hashCode(), xyzNamespace, references, xyzActivityLog);
   }
 }

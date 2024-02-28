@@ -1,0 +1,56 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "${uuid}",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.6123,
+          50.1234,
+          0.0
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "action": "UPDATE",
+          "uuid": "${uuid}",
+          "puuid": "${puuid}",
+          "tags": [
+            "tc1308",
+            "two"
+          ]
+        },
+        "@ns:com:here:xyz:log": {
+          "action": "UPDATE",
+          "diff": {
+            "add": 0,
+            "remove": 0,
+            "replace": 2,
+            "ops": [
+              {
+                "op": "replace",
+                "path": "/properties/@ns:com:here:xyz/tags/1",
+                "value": "one"
+              },
+              {
+                "op": "replace",
+                "path": "/properties/speedLimit",
+                "value": "60"
+              }
+            ]
+          },
+          "id": "TC1308_feature",
+          "original": {
+            "createdAt": "${createdAt}",
+            "puuid": "${puuid}",
+            "space": "regular_space_ah",
+            "updatedAt": "${updatedAt}"
+          }
+        },
+        "speedLimit": "80"
+      }
+    }
+  ]
+}

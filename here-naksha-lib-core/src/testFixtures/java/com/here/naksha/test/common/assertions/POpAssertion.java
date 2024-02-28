@@ -63,6 +63,12 @@ public class POpAssertion {
     return this;
   }
 
+  public POpAssertion hasPRef(PRef expected) {
+    assertNotNull(expected);
+    assertEquals(expected, subject.getPropertyRef());
+    return this;
+  }
+
   public POpAssertion hasPRefWithPath(String[] path) {
     hasPRef(true);
     assertArrayEquals(path, subject.getPropertyRef().getPath().toArray());
