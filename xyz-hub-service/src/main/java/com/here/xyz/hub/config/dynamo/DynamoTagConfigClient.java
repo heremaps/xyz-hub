@@ -225,6 +225,6 @@ public class DynamoTagConfigClient extends TagConfigClient {
         .withId(tagData.get("id").getS())
         .withSpaceId(tagData.get("spaceId").getS())
         .withVersion(Long.parseLong(tagData.get("version").getN()))
-        .withSystem(tagData.get("system").getBOOL())).collect(Collectors.toList());
+        .withSystem( tagData.get("system") != null ? tagData.get("system").getBOOL() : false )).collect(Collectors.toList());
   }
 }
