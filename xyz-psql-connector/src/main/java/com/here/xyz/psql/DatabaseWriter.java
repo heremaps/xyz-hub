@@ -19,15 +19,15 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
+import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_CONFLICT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
-import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_CONFLICT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable.Static;
@@ -238,6 +238,8 @@ public class DatabaseWriter {
         SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action);
 
         List<String> idList = transactional ? new ArrayList<>() : null;
+
+        logger.info("{} Executing action {} for {} features.", getStreamId(), action.name(), inputData.size());
 
         try {
             for (final Object inputDatum : inputData) {

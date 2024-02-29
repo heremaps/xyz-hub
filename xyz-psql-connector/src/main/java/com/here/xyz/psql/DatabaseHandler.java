@@ -24,6 +24,7 @@ import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
+import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -39,7 +40,6 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.GetFeaturesById;
-import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
@@ -48,6 +48,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.DatabaseSettings;
+import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.BatchUpdateException;
@@ -223,7 +224,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           /** Include Upserts */
           if (!upserts.isEmpty()) {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(XyzEventBasedQueryRunner.readTableFromEvent(event),
+            List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readTableFromEvent(event),
                 upsertIds)));
             upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
           }
@@ -236,6 +237,8 @@ public abstract class DatabaseHandler extends StorageConnector {
           else
               throw e;
         }
+
+        checkUniqueTableConstraint(event);
 
         try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
 
@@ -364,6 +367,20 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             return collection;
         }
+    }
+
+    /**
+     * NOTE: This is a workaround for tables which have no unique constraint
+     * TODO: Remove this workaround once all constraints have been adjusted accordingly
+     */
+    private void checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
+        boolean uniqueConstraintExists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
+            + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
+            .withNamedParameter("schema", getDatabaseSettings().getSchema())
+            .withNamedParameter("constraintName", readTableFromEvent(event) + "_unique")
+            .run(dataSourceProvider, rs -> rs.next());
+        if (!uniqueConstraintExists)
+            event.setConflictDetectionEnabled(true);
     }
 
     private List<Feature> loadExistingFeatures(ModifyFeaturesEvent event, List<String> idsToFetch) throws SQLException,
