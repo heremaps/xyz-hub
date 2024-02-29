@@ -1,0 +1,14 @@
+{
+  "id": "read_features_by_ids_http_test_storage",
+  "type": "Storage",
+  "title": "Test Http storage",
+  "description": "Http storage instance for testing purpose",
+  "className": "com.here.naksha.storage.http.HttpStorage",
+  "properties": {
+    "url" : "http://localhost:8089",
+    "headers" : {
+      "Authorization" : "Bearer <token>",
+      "Content-Type" :  "application/json"
+    }
+  }
+}

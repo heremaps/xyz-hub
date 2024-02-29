@@ -19,7 +19,7 @@
 package com.here.naksha.app.service.util.logging;
 
 import static com.here.naksha.app.service.http.NakshaHttpHeaders.STREAM_ID;
-import static com.here.naksha.app.service.http.apis.ApiParams.ACCESS_TOKEN;
+import static com.here.naksha.common.http.apis.ApiParamsConst.ACCESS_TOKEN;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ORIGIN;

@@ -19,6 +19,7 @@
 package com.here.naksha.app.service.http.tasks;
 
 import static com.here.naksha.app.service.http.apis.ApiParams.*;
+import static com.here.naksha.common.http.apis.ApiParamsConst.*;
 import static com.here.naksha.lib.core.models.storage.transformation.BufferTransformation.bufferInMeters;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
@@ -39,10 +40,13 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ReadFeaturesProxyWrapper.ReadRequestType;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.util.storage.ResultHelper;
 import io.vertx.ext.web.RoutingContext;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -124,7 +128,9 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     if (featureIds == null || featureIds.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing id parameter");
     }
-    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds);
+    final ReadFeaturesProxyWrapper rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds)
+        .withReadRequestType(ReadRequestType.GET_BY_IDS)
+        .withQueryParameters(Map.of(FEATURE_IDS, featureIds));
 
     // Forward request to NH Space Storage reader instance
     try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
@@ -142,7 +148,9 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final QueryParameterList queryParameters = queryParamsFromRequest(routingContext);
     final Set<String> propPaths = PropertySelectionUtil.buildPropPathSetFromQueryParams(queryParameters);
 
-    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(spaceId, featureId);
+    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(spaceId, featureId)
+        .withReadRequestType(ReadRequestType.GET_BY_ID)
+        .withQueryParameters(Map.of(FEATURE_ID, featureId));
 
     // Forward request to NH Space Storage reader instance
     try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
@@ -181,7 +189,20 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final Geometry bbox = RequestHelper.createBBoxEnvelope(west, south, east, north);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
     final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
-    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(SOp.intersects(bbox));
+
+    final Map<String, Object> queryParamsMap = new HashMap<>();
+    queryParamsMap.put(WEST, west);
+    queryParamsMap.put(NORTH, north);
+    queryParamsMap.put(EAST, east);
+    queryParamsMap.put(SOUTH, south);
+    queryParamsMap.put(LIMIT, limit);
+    if (propSearchOp != null) queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
+
+    final ReadFeatures rdRequest = new ReadFeaturesProxyWrapper()
+        .withReadRequestType(ReadRequestType.GET_BY_BBOX)
+        .withQueryParameters(queryParamsMap)
+        .addCollection(spaceId)
+        .withSpatialOp(SOp.intersects(bbox));
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 
     // Forward request to NH Space Storage reader instance
@@ -216,7 +237,19 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final Geometry geo = SpatialUtil.buildGeometryForTile(tileType, tileId, (int) margin);
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
     final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
-    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(SOp.intersects(geo));
+
+    final Map<String, Object> queryParamsMap = new HashMap<>();
+    queryParamsMap.put(MARGIN, margin);
+    queryParamsMap.put(LIMIT, limit);
+    queryParamsMap.put(TILE_TYPE, tileType);
+    queryParamsMap.put(TILE_ID, tileId);
+    if (propSearchOp != null) queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
+
+    final ReadFeatures rdRequest = new ReadFeaturesProxyWrapper()
+        .withReadRequestType(ReadRequestType.GET_BY_TILE)
+        .withQueryParameters(queryParamsMap)
+        .addCollection(spaceId)
+        .withSpatialOp(SOp.intersects(geo));
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
 
     // Forward request to NH Space Storage reader instance

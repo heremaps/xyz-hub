@@ -49,9 +49,10 @@ public class RequestHelper {
    * @return ReadFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull ReadFeatures readFeaturesByIdRequest(
+  public static @NotNull ReadFeaturesProxyWrapper readFeaturesByIdRequest(
       final @NotNull String collectionName, final @NotNull String featureId) {
-    return new ReadFeatures().addCollection(collectionName).withPropertyOp(eq(id(), featureId));
+    return (ReadFeaturesProxyWrapper)
+        new ReadFeaturesProxyWrapper().addCollection(collectionName).withPropertyOp(eq(id(), featureId));
   }
 
   /**
@@ -62,10 +63,11 @@ public class RequestHelper {
    * @return ReadFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull ReadFeatures readFeaturesByIdsRequest(
+  public static @NotNull ReadFeaturesProxyWrapper readFeaturesByIdsRequest(
       final @NotNull String collectionName, final @NotNull List<@NotNull String> featureIds) {
     final POp[] ops = featureIds.stream().map(id -> eq(id(), id)).toArray(POp[]::new);
-    return new ReadFeatures().addCollection(collectionName).withPropertyOp(or(ops));
+    return (ReadFeaturesProxyWrapper)
+        new ReadFeaturesProxyWrapper().addCollection(collectionName).withPropertyOp(or(ops));
   }
 
   /**

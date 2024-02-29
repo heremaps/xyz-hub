@@ -18,8 +18,8 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.STORAGE_ID;
 import static com.here.naksha.app.service.http.ops.PasswordMaskingUtil.removePasswordFromProps;
+import static com.here.naksha.common.http.apis.ApiParamsConst.STORAGE_ID;
 import static com.here.naksha.lib.core.NakshaAdminCollection.STORAGES;
 
 import com.fasterxml.jackson.core.JsonProcessingException;

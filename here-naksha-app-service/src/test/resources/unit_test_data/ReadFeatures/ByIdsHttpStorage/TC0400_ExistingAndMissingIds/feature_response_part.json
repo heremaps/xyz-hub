@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-400-1",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60",
+        "filteredOut": "yes"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.68872, 50.0561, 292.94377758]
+      }
+    },
+    {
+      "id": "my-custom-id-400-2",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "80",
+        "filteredOut": "yes"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 9.68872, 51.0561, 293.94377758]
+      }
+    }
+  ]
+}

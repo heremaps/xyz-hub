@@ -1,0 +1,5 @@
+{
+  "url" : "https://example.org",
+  "unknownStringKey" : "value",
+  "unknownNumberKey" : 0
+}

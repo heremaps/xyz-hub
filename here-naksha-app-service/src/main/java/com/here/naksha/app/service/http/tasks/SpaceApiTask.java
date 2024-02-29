@@ -18,8 +18,8 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.SPACE_ID;
 import static com.here.naksha.app.service.http.apis.ApiParams.extractMandatoryPathParam;
+import static com.here.naksha.common.http.apis.ApiParamsConst.SPACE_ID;
 import static com.here.naksha.lib.core.NakshaAdminCollection.SPACES;
 
 import com.fasterxml.jackson.core.JsonProcessingException;

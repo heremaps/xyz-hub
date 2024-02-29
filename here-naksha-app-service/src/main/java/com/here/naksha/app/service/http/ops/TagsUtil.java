@@ -18,7 +18,7 @@
  */
 package com.here.naksha.app.service.http.ops;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.TAGS;
+import static com.here.naksha.common.http.apis.ApiParamsConst.TAGS;
 import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.*;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;

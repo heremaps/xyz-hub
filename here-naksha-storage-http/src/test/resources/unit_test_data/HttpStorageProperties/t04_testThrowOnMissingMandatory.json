@@ -1,0 +1,8 @@
+{
+  "connectTimeout" : 60,
+  "socketTimeout" : 3600,
+  "headers" : {
+    "Authorization" : "Bearer <token>",
+    "Content-Type" :  "application/json"
+  }
+}

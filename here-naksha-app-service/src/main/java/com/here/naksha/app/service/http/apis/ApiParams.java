@@ -18,6 +18,8 @@
  */
 package com.here.naksha.app.service.http.apis;
 
+import static com.here.naksha.common.http.apis.ApiParamsConst.*;
+
 import com.here.naksha.app.service.models.IterateHandle;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
@@ -31,40 +33,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class ApiParams {
-  public static final String ACCESS_TOKEN = "access_token";
-  public static final String STORAGE_ID = "storageId";
-  public static final String SPACE_ID = "spaceId";
-  public static final String PREFIX_ID = "prefixId";
-  public static final String FEATURE_ID = "featureId";
-  public static final String ADD_TAGS = "addTags";
-  public static final String REMOVE_TAGS = "removeTags";
-  public static final String TAGS = "tags";
-  public static final String FEATURE_IDS = "id";
-  public static final String WEST = "west";
-  public static final String NORTH = "north";
-  public static final String EAST = "east";
-  public static final String SOUTH = "south";
-  public static final String LIMIT = "limit";
-  public static final String TILE_TYPE = "type";
-  public static final String TILE_ID = "tileId";
-  public static final String HANDLE = "handle";
-  public static final String MARGIN = "margin";
-  public static final String LAT = "lat";
-  public static final String LON = "lon";
-  public static final String RADIUS = "radius";
-  public static final String REF_SPACE_ID = "refSpaceId";
-  public static final String REF_FEATURE_ID = "refFeatureId";
-  public static final String PROP_SELECTION = "selection";
-  public static final String CLIP_GEO = "clip";
-
-  public static final long DEF_FEATURE_LIMIT = 30_000;
-  public static final long DEF_ADMIN_FEATURE_LIMIT = 1_000;
-  // Note - using specific NULL value is not ideal, but practically it makes code less messy at few places
-  // and use of it doesn't cause any side effect
-  public static final double NULL_COORDINATE = 9999;
-
-  public static final String TILE_TYPE_QUADKEY = "quadkey";
-  public static final String HANDLER_ID = "handlerId";
 
   public static @NotNull String extractMandatoryPathParam(
       final @NotNull RoutingContext routingContext, final @NotNull String param) {

@@ -18,7 +18,7 @@
  */
 package com.here.naksha.app.service.http.ops;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.PROP_SELECTION;
+import static com.here.naksha.common.http.apis.ApiParamsConst.PROP_SELECTION;
 import static com.here.naksha.lib.core.models.payload.events.QueryDelimiter.*;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;

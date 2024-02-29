@@ -18,7 +18,7 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.HANDLER_ID;
+import static com.here.naksha.common.http.apis.ApiParamsConst.HANDLER_ID;
 import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;

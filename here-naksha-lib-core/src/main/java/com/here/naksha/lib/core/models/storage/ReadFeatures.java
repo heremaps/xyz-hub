@@ -180,6 +180,7 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
 
   @Override
   public ReadFeatures shallowClone() {
+    // If you are updating this method, remember to update its overrides
     ReadFeatures clone = new ReadFeatures();
     clone.setPropertyOp(this.getPropertyOp());
     clone.setCollections(this.getCollections());
