@@ -24,10 +24,13 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Export.Filters;
+
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.Ref;
 
 import java.net.URL;
 import java.util.Arrays;
@@ -209,6 +212,24 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         downloadAndCheck(urls, 916, 3, mustContain);
     }
+
+    @Test
+    public void compositeL1Export_ByVersion_jsonWkb() throws Exception {
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
+        Filters filter = new Filters().withRef( new Ref(4)  );
+        /** Create job */
+        Export job =  buildTestJob(testExportJobId, filter, exportTarget, Job.CSVFormat.JSON_WKB);
+        /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/ 
+          job.setTargetVersion("4"); 
+        /* */  
+        List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed, Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("id000", "id002", "movedFromEmpty", "deltaonly");
+
+        downloadAndCheck(urls, 796, 2, mustContain);
+    }
+
 
     @Test
     public void compositeL1Export_Changes_tileid_partitionedJsonWkb() throws Exception {

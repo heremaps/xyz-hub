@@ -1292,9 +1292,11 @@ public class Export extends JDBCBasedJob<Export> {
     @Override    
     public Future<Job> prepareStart() {
 
+      String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used 
+
       Future<Void> pushVersionTag = ( getTargetVersion() == null )
        ? Future.succeededFuture()
-       : HubWebClientAsync.postTag( getSource().getKey(), new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
+       : HubWebClientAsync.postTag( srcKey, new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
 
       return pushVersionTag.compose( v -> super.prepareStart() );
     }
@@ -1302,9 +1304,11 @@ public class Export extends JDBCBasedJob<Export> {
     @Override
     public Future<Void> finalizeJob() {
 
+        String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used 
+
         Future<Void> deleteVersionTag = ( getTargetVersion() == null )
         ? Future.succeededFuture()
-        : HubWebClientAsync.deleteTag( getSource().getKey(), getId() ).compose( tag -> Future.succeededFuture());
+        : HubWebClientAsync.deleteTag( srcKey, getId() ).compose( tag -> Future.succeededFuture());
          
         return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
