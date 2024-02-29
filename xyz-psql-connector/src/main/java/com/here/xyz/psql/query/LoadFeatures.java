@@ -36,10 +36,24 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollection> {
+  private boolean isForHistoryQuery;
 
   public LoadFeatures(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(false);
+  }
+
+  @Override
+  protected SQLQuery buildQuery(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
+    if (event.getVersionsToKeep() > 1) {
+      SQLQuery headQuery = super.buildQuery(event);
+      isForHistoryQuery = true;
+      SQLQuery historyQuery = super.buildQuery(event);
+      return new SQLQuery("(${{head}}) UNION (${{history}})")
+          .withQueryFragment("head", headQuery)
+          .withQueryFragment("history", historyQuery);
+    }
+    return super.buildQuery(event);
   }
 
   @Override
@@ -56,20 +70,17 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
           idsWithVersions.put(k, v);
       });
 
-      SQLQuery filterWhereClauseHead = new SQLQuery("(id, next_version) IN (${{loadFeaturesInputIdsOnly}})")
+      if (isForHistoryQuery)
+        return new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
+            .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
+                idsWithVersions.entrySet().stream().map(e -> LoadFeatureVersionInput.of(e.getKey(), Long.parseLong(e.getValue())))
+                    .collect(Collectors.toList()), false));
+
+      return new SQLQuery("(id, next_version) IN (${{loadFeaturesInputIdsOnly}})")
           .withQueryFragment("loadFeaturesInputIdsOnly", buildLoadFeaturesInputFragment(idsOnly
               .stream()
               .map(id -> LoadFeatureVersionInput.of(id))
               .collect(Collectors.toList()), true));
-
-      SQLQuery filterWhereClauseHistory = new SQLQuery("(id, version) IN (${{loadFeaturesInput}})")
-          .withQueryFragment("loadFeaturesInput", buildLoadFeaturesInputFragment(
-              idsWithVersions.entrySet().stream().map(e -> LoadFeatureVersionInput.of(e.getKey(), Long.parseLong(e.getValue())))
-                  .collect(Collectors.toList()), false));
-
-      return new SQLQuery("(${{head}} OR ${{history}})")
-          .withQueryFragment("head", filterWhereClauseHead)
-          .withQueryFragment("history", filterWhereClauseHistory);
     }
     else
       return new SQLQuery("id = ANY(#{ids})")
