@@ -238,7 +238,11 @@ public abstract class DatabaseHandler extends StorageConnector {
               throw e;
         }
 
-        checkUniqueTableConstraint(event);
+        /*
+        NOTE: This is a workaround for tables which have no unique constraint
+        TODO: Remove this workaround once all constraints have been adjusted accordingly
+         */
+        boolean uniqueConstraintExists = checkUniqueTableConstraint(event);
 
         try (final Connection connection = dataSourceProvider.getWriter().getConnection()) {
 
@@ -247,13 +251,13 @@ public abstract class DatabaseHandler extends StorageConnector {
 
             try {
                 if (deletes.size() > 0) {
-                    DatabaseWriter.modifyFeatures(this, event, DELETE, collection, fails, new ArrayList(deletes.entrySet()), connection, version);
+                    DatabaseWriter.modifyFeatures(this, event, DELETE, collection, fails, new ArrayList(deletes.entrySet()), connection, version, uniqueConstraintExists);
                 }
                 if (inserts.size() > 0) {
-                    DatabaseWriter.modifyFeatures(this, event, INSERT, collection, fails, inserts, connection, version);
+                    DatabaseWriter.modifyFeatures(this, event, INSERT, collection, fails, inserts, connection, version, uniqueConstraintExists);
                 }
                 if (updates.size() > 0) {
-                    DatabaseWriter.modifyFeatures(this, event, UPDATE, collection, fails, updates, connection, version);
+                    DatabaseWriter.modifyFeatures(this, event, UPDATE, collection, fails, updates, connection, version, uniqueConstraintExists);
                 }
 
                 if (event.getTransaction()) {
@@ -369,18 +373,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    /**
-     * NOTE: This is a workaround for tables which have no unique constraint
-     * TODO: Remove this workaround once all constraints have been adjusted accordingly
-     */
-    private void checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
-        boolean uniqueConstraintExists = new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
+    private boolean checkUniqueTableConstraint(ModifyFeaturesEvent event) throws SQLException {
+        return new SQLQuery("SELECT 1 FROM pg_catalog.pg_constraint "
             + "WHERE connamespace::regnamespace::text = #{schema} AND conname = #{constraintName}")
             .withNamedParameter("schema", getDatabaseSettings().getSchema())
             .withNamedParameter("constraintName", readTableFromEvent(event) + "_unique")
             .run(dataSourceProvider, rs -> rs.next());
-        if (!uniqueConstraintExists)
-            event.setConflictDetectionEnabled(true);
     }
 
     private List<Feature> loadExistingFeatures(ModifyFeaturesEvent event, List<String> idsToFetch) throws SQLException,
