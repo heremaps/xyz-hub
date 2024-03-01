@@ -67,7 +67,7 @@ public class DatabaseWriter {
             .withNamedParameter("pw", dbSettings.getPassword());
     }
 
-    private static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+    private static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, boolean uniqueConstraintExists) {
         /*
         As a workaround for duplicate features perform an "upsert" to make sure that
         no two inserts are happening during a race condition.
@@ -75,7 +75,12 @@ public class DatabaseWriter {
          */
         //id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN
         return setCommonParams(new SQLQuery("SELECT xyz_simple_upsert(#{id}, #{version}, #{operation}, #{author}, #{jsondata}::jsonb, "
-            + "#{geo}, #{schema}, #{table}, #{concurrencyCheck})"), dbHandler, event);
+            + "#{geo}, #{schema}, #{table}, #{concurrencyCheck}, #{uniqueConstraintExists})"), dbHandler, event)
+            /*
+            NOTE: This is a workaround for tables which have no unique constraint
+            TODO: Remove this workaround once all constraints have been adjusted accordingly
+             */
+            .withNamedParameter("uniqueConstraintExists", uniqueConstraintExists);
     }
 
     private static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
@@ -232,10 +237,10 @@ public class DatabaseWriter {
 
     protected static void modifyFeatures(DatabaseHandler dbh, ModifyFeaturesEvent event, ModificationType action,
         FeatureCollection responseCollection, List<FeatureCollection.ModificationFailure> fails, List inputData, Connection connection,
-        long version) throws SQLException, JsonProcessingException {
+        long version, boolean uniqueConstraintExists) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
-        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action);
+        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, uniqueConstraintExists);
 
         List<String> idList = transactional ? new ArrayList<>() : null;
 
@@ -323,13 +328,13 @@ public class DatabaseWriter {
         return null;
     }
 
-    private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action) {
+    private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action, boolean uniqueConstraintExists) {
         //If versioning is activated for the space, always only perform inserts
         if (event.getVersionsToKeep() > 1)
             return buildMultiModalInsertStmtQuery(dbHandler.getDatabaseSettings(), event);
         switch (action) {
             case INSERT:
-                return buildInsertStmtQuery(dbHandler, event);
+                return buildInsertStmtQuery(dbHandler, event, uniqueConstraintExists);
             case UPDATE:
                 return buildUpdateStmtQuery(dbHandler, event);
             case DELETE:

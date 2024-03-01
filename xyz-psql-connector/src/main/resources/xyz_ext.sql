@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 189
+ select 190
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2958,7 +2958,7 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
+CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, uniqueConstraintExists BOOLEAN)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
@@ -2972,13 +2972,16 @@ $BODY$
                 format(insertQuery,
                        schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         ELSE
-            -- This query will perform an update instead of throwing an error in case of a conflict
-            insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
-                          'version = greatest(tbl.version, EXCLUDED.version), ' ||
-                          'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
-                          'author = EXCLUDED.author, ' ||
-                          'jsondata = EXCLUDED.jsondata, ' ||
-                          'geo = EXCLUDED.geo';
+            IF uniqueConstraintExists THEN
+                -- This query will perform an update instead of throwing an error in case of a conflict
+                insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
+                              'version = greatest(tbl.version, EXCLUDED.version), ' ||
+                              'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
+                              'author = EXCLUDED.author, ' ||
+                              'jsondata = EXCLUDED.jsondata, ' ||
+                              'geo = EXCLUDED.geo';
+            END IF;
+
             EXECUTE
                 format(insertQuery,
                        schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
