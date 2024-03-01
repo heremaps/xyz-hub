@@ -134,10 +134,11 @@ class HttpStorageReadExecute {
       final XyzFeatureCodec codec = codecFactory.newInstance();
       codec.setOp(EExecutedOp.READ);
       codec.setFeature(feature);
+      codec.setId(feature.getId());
       codecs.add(codec);
     }
-    final ListBasedForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-        new ListBasedForwardCursor<>(codecFactory, codecs);
+
+    final HeapCacheCursor<XyzFeature, XyzFeatureCodec> cursor = new HeapCacheCursor<>(codecFactory, codecs, null);
 
     return new HttpSuccessResult<>(cursor);
   }

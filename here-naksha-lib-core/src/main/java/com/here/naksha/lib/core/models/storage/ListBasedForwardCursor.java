@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <FEATURE> The feature type that the cursor returns.
  * @param <CODEC>   The codec type.
+ * @deprecated use {@link HeapCacheCursor} instead
  */
 @ApiStatus.AvailableSince(NakshaVersion.v2_0_11)
 public class ListBasedForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>>

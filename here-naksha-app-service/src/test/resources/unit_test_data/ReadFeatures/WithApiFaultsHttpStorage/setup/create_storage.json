@@ -7,7 +7,7 @@
   "properties": {
     "connectTimeout" : 1,
     "socketTimeout" : 1,
-    "url" : "http://localhost:8089",
+    "url" : "http://localhost:9093",
     "headers" : {
       "Authorization" : "Bearer <token>",
       "Content-Type" :  "application/json"

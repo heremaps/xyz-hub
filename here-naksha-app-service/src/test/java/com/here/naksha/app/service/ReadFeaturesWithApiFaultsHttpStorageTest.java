@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Test for Api communication faults in {@link com.here.naksha.storage.http.HttpStorage}.
  * API used: GET /hub/spaces/{spaceId}/features/{featureId}
  */
-@WireMockTest(httpPort = 8089)
+@WireMockTest(httpPort = 9093)
 class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
 
   public static final String CORRECT_ENDPOINT_RESPONSE = loadFileOrFail("ReadFeatures/WithApiFaultsHttpStorage/correct_response.json");

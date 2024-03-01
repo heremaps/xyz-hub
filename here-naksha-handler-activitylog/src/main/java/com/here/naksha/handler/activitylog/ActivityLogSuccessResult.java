@@ -19,12 +19,7 @@
 package com.here.naksha.handler.activitylog;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.storage.EExecutedOp;
-import com.here.naksha.lib.core.models.storage.ForwardCursor;
-import com.here.naksha.lib.core.models.storage.ListBasedForwardCursor;
-import com.here.naksha.lib.core.models.storage.SuccessResult;
-import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
-import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
+import com.here.naksha.lib.core.models.storage.*;
 import java.util.List;
 
 public class ActivityLogSuccessResult extends SuccessResult {
@@ -38,7 +33,7 @@ public class ActivityLogSuccessResult extends SuccessResult {
     List<XyzFeatureCodec> codecs = features.stream()
         .map(feature -> featureCodec(codecFactory, feature))
         .toList();
-    return new ActivityLogSuccessResult(new ListBasedForwardCursor<>(codecFactory, codecs));
+    return new ActivityLogSuccessResult(new HeapCacheCursor<>(codecFactory, codecs, null));
   }
 
   private static XyzFeatureCodec featureCodec(XyzFeatureCodecFactory codecFactory, XyzFeature feature) {

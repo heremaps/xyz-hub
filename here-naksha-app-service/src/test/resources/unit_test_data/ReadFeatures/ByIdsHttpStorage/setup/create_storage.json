@@ -5,7 +5,7 @@
   "description": "Http storage instance for testing purpose",
   "className": "com.here.naksha.storage.http.HttpStorage",
   "properties": {
-    "url" : "http://localhost:8089",
+    "url" : "http://localhost:9091",
     "headers" : {
       "Authorization" : "Bearer <token>",
       "Content-Type" :  "application/json"

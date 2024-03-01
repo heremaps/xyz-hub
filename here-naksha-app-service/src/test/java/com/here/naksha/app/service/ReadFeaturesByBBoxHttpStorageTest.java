@@ -31,16 +31,19 @@ import java.net.http.HttpResponse;
 import java.util.UUID;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.here.naksha.app.common.CommonApiTestSetup.createHandler;
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 
-@WireMockTest(httpPort = 8089)
+@WireMockTest(httpPort = 9090)
 class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
 
   private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
 
-  private static final String SPACE_ID = "read_features_by_bbox_http_test_space";
+  private static final String HTTP_SPACE_ID = "read_features_by_bbox_space_4_http_storage";
+  private static final String PSQL_SPACE_ID = "read_features_by_bbox_space_4_psql_storage";
+  private static final String VIEW_SPACE_ID = "read_features_by_bbox_space_4_view_storage";
   private static final String ENDPOINT = "/my_env/my_storage/my_feat_type/bbox";
 
   /*
@@ -50,7 +53,17 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
   */
   @BeforeAll
   static void setup() throws URISyntaxException, IOException, InterruptedException {
-    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByBBoxHttpStorage/setup");
+    // Set up Http Storage based Space
+    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByBBoxHttpStorage/setup/http_storage_space");
+    // Set up (standard) Psql Storage based Space
+    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByBBoxHttpStorage/setup/psql_storage_space");
+    // Set up View Space over Psql and Http Storage based spaces
+    createHandler(nakshaClient, "ReadFeatures/ByBBoxHttpStorage/setup/view_space/create_sourceId_handler.json");
+    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByBBoxHttpStorage/setup/view_space");
+    // Load some test data in PsqlStorage based Space
+    final String initialFeaturesJson = loadFileOrFail("ReadFeatures/ByBBoxHttpStorage/setup/psql_storage_space/create_features.json");
+    final HttpResponse<String> response = nakshaClient.post("hub/spaces/" + PSQL_SPACE_ID + "/features", initialFeaturesJson, UUID.randomUUID().toString());
+    assertThat(response).hasStatus(200);
   }
 
   @Test
@@ -75,7 +88,7 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
 
     // When: Get Features By BBox request is submitted to NakshaHub
     HttpResponse<String> response = nakshaClient
-            .get("hub/spaces/" + SPACE_ID + "/bbox?" + tagsQueryParam + "&" + bboxQueryParam, streamId);
+            .get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + tagsQueryParam + "&" + bboxQueryParam, streamId);
 
     // Then: Perform assertions
     assertThat(response)
@@ -112,7 +125,7 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     // When: Get Features By BBox request is submitted to NakshaHub
     HttpResponse<String> response = nakshaClient
             .get(
-                    "hub/spaces/" + SPACE_ID + "/bbox?" + tagsQueryParam + "&" + bboxQueryParam + "&"
+                    "hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + tagsQueryParam + "&" + bboxQueryParam + "&"
                             + limitQueryParam,
                     streamId);
 
@@ -145,7 +158,7 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
             .willReturn(okJson(expectedBodyPart)));
 
     // When: Get Features By BBox request is submitted to NakshaHub
-    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam, streamId);
+    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + bboxQueryParam, streamId);
 
     // Then: Perform assertions
     assertThat(response)
@@ -168,7 +181,7 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     String streamId = UUID.randomUUID().toString();
 
     // When: Get Features By BBox request is submitted to NakshaHub
-    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam, streamId);
+    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + bboxQueryParam, streamId);
 
     // Then: Perform assertions
     assertThat(response)
@@ -179,4 +192,40 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     // Then: Verify request did not reach endpoint
     verify(0, getRequestedFor(urlPathEqualTo(ENDPOINT)));
   }
+
+
+  @Test
+  void tc0711_testGetByBBoxOnViewSpace() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/bbox
+    // Validate features returned match with given BBox condition using View space over psql and http storage based spaces
+
+    // Given: Features By BBox request (against view space)
+    final String bboxQueryParam = "west=-180&south=-90&east=180&north=90";
+    final String httpStorageMockResponse =
+            loadFileOrFail("ReadFeatures/ByBBoxHttpStorage/TC0711_BBoxOnViewSpace/http_storage_response.json");
+    final String expectedViewResponse =
+            loadFileOrFail("ReadFeatures/ByBBoxHttpStorage/TC0711_BBoxOnViewSpace/feature_response_part.json");
+    String streamId = UUID.randomUUID().toString();
+
+    final UrlPattern endpointPath = urlPathEqualTo(ENDPOINT);
+    stubFor(get(endpointPath)
+            .withQueryParam("west", equalTo("-180.0"))
+            .withQueryParam("south", equalTo("-90.0"))
+            .withQueryParam("east", equalTo("180.0"))
+            .withQueryParam("north", equalTo("90.0"))
+            .willReturn(okJson(httpStorageMockResponse)));
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + VIEW_SPACE_ID + "/bbox?" + bboxQueryParam, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedViewResponse, "Get Feature response body doesn't match");
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
 }

@@ -1,0 +1,9 @@
+{
+  "id": "read_features_by_bbox_http_view_storage",
+  "type": "Storage",
+  "title": "Sfw-consistent-dev PSQL storage",
+  "description": "PSQL storage instance for testing purpose",
+  "className": "com.here.naksha.lib.view.View",
+  "properties": {
+  }
+}

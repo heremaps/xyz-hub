@@ -176,6 +176,7 @@ public abstract class Result implements Typed, AutoCloseable {
    * @return the cursor.
    */
   @JsonIgnore
+  @SuppressWarnings("unchecked")
   public @NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> getXyzFeatureCursor() throws NoCursor {
     if (cursor != null) {
       if (cursor instanceof HeapCacheCursor) {
@@ -183,6 +184,10 @@ public abstract class Result implements Typed, AutoCloseable {
         if (originalForwardCursor != null) {
           cursor = originalForwardCursor;
         }
+      }
+      if (cursor.codecFactory.getClass() == XyzFeatureCodecFactory.class) {
+        // with this, we avoid re-encoding of feature, when feature type is same
+        return (ForwardCursor<XyzFeature, XyzFeatureCodec>) cursor;
       }
       return cursor.withCodecFactory(XyzFeatureCodecFactory.get(), false);
     }

@@ -1,0 +1,15 @@
+{
+  "id": "read_features_by_bbox_space_4_http_storage",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "read_features_by_bbox_http_test_handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "my_env/my_storage/my_feat_type",
+      "type": "NakshaCollection"
+    }
+  }
+}

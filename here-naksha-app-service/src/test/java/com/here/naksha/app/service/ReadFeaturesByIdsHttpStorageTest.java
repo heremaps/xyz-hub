@@ -39,7 +39,7 @@ import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 /**
  * Tests for GET /hub/spaces/{spaceId}/features/{featureId} against {@link com.here.naksha.storage.http.HttpStorage}
  */
-@WireMockTest(httpPort = 8089)
+@WireMockTest(httpPort = 9091)
 class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
 
   private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
