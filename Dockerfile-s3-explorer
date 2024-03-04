@@ -1,0 +1,10 @@
+FROM deskoh/aws-js-s3-explorer
+
+#Patch settings to use local stack endpoint and default local bucket
+RUN echo 'AWS.config = new AWS.Config({credentials: new AWS.Credentials("localstack", "localstack"), endpoint: new AWS.Endpoint("http://localhost:4566"), s3ForcePathStyle: true}); \
+    addEventListener("load", event => { \
+    settingsScope.settings.entered_bucket = "test-bucket"; \
+    settingsScope.settings.auth = "auth"; \
+    settingsScope.settings.cred = {endpointUrl: "http://localhost:4566", accessKeyId: "localstack", secretAccessKey: "localstack", s3ForcePathStyle: true}; \
+    settingsScope.update(); \
+    });' >> explorer.js
