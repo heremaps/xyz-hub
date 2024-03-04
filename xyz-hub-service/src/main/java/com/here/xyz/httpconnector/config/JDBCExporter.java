@@ -84,19 +84,22 @@ public class JDBCExporter extends JdbcBasedHandler {
       return instance;
     }
 
+    static private final int PSEUDO_NEXT_VERSION = 0;
     //Space-Copy Begin
     private SQLQuery buildCopySpaceQuery(JdbcClient client, Export job,
         Connector targetSpaceConnector, boolean targetVersioningEnabled) throws SQLException {
       boolean enableHashedSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
-          ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
-          : false;
+                                    ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
+                                    : false;
       String targetSpaceId = job.getTarget().getKey();
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
       return new SQLQuery( 
           """
             WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */
-            (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version)
-            SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version
+            (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
+            SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id,
+                   (SELECT nextval('${schema}.${versionSequenceName}')) AS version,
+                   CASE WHEN edata.id isnull THEN max_bigint() ELSE ${{pseudoNextVersion}} END as next_version
             FROM
               (${{contentQuery}} ) idata
               LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint())
@@ -128,8 +131,29 @@ public class JDBCExporter extends JdbcBasedHandler {
            .withQueryFragment("jobId", job.getId())
            .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
            .withVariable("versionSequenceName", tableName + "_version_seq")
+           .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" )
            .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
     }
+
+    private SQLQuery buildCopySpaceNextVersionUpdate(JdbcClient client, Export job, Connector targetSpaceConnector) throws SQLException {
+      boolean enableHashedSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
+                                    ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
+                                    : false;
+      String targetSpaceId = job.getTarget().getKey();
+      final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
+      return new SQLQuery( 
+          """
+            UPDATE /* space_copy_hint m499#jobId(${{jobId}}) */ 
+             ${schema}.${table}
+             set next_version = max_bigint()
+            where 
+             next_version = ${{pseudoNextVersion}}
+          """
+          ).withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
+           .withVariable("table", tableName)
+           .withQueryFragment("jobId", job.getId())
+           .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" );
+    }    
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {
     String propertyFilter = null;
@@ -184,6 +208,7 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
   }
 
+
   private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, Export job) {
       logger.info("job[{}] Execute Query Space-Copy {}->{} {}", job.getId(), job.getTargetSpaceId(), "Space-Destination", q.text());
       return client.run(q, rs -> {
@@ -197,6 +222,14 @@ public class JDBCExporter extends JdbcBasedHandler {
       });
     }
 
+  private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, SQLQuery q2, Export job)
+  {
+    return executeCopyQuery( client, q, job )
+             .compose( e -> { 
+               return client.write(q2).compose( i -> Future.succeededFuture(e) ); 
+            } );
+  }
+
     public Future<ExportStatistic> executeCopy(Export job) {
       Promise<Export.ExportStatistic> promise = Promise.promise();
       List<Future> exportFutures = new ArrayList<>();
@@ -207,8 +240,12 @@ public class JDBCExporter extends JdbcBasedHandler {
               .compose(connector -> getClient(connector.id)
                   .compose(client -> {
                     try {
-                      SQLQuery copyQuery = buildCopySpaceQuery(client, job, connector, space.getVersionsToKeep() > 1);
-                      exportFutures.add(executeCopyQuery(client, copyQuery, job));
+                      boolean targetVersioningEnabled = space.getVersionsToKeep() > 1;
+
+                      SQLQuery copyQuery = buildCopySpaceQuery(client, job, connector, targetVersioningEnabled ),
+                               setNextVersionUpdateSql = buildCopySpaceNextVersionUpdate(client, job, connector );
+
+                      exportFutures.add(executeCopyQuery(client, copyQuery, setNextVersionUpdateSql, job));
                       return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
                     }
                     catch (SQLException e) {
