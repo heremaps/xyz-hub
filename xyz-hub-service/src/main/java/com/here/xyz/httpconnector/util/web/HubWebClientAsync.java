@@ -23,6 +23,9 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.models.hub.Tag;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.Async;
 import io.vertx.core.Future;
@@ -54,9 +57,22 @@ public class HubWebClientAsync {
 
   public static Future<Connector> loadConnector(String connectorId) {
     return async.run(() -> HubWebClient.loadConnector(connectorId));
+
   }
 
   public static Future<List<Connector>> loadConnectors() {
     return async.run(() -> HubWebClient.loadConnectors());
   }
+
+  public static Future<Void> postTag(String spaceId, Tag tag) {
+    return async.run(() -> {
+      HubWebClient.postTag(spaceId, tag);
+      return null;
+    });
+  }
+
+  public static Future<Tag> deleteTag(String spaceId, String tagId) {
+    return async.run(() -> HubWebClient.deleteTag(spaceId, tagId) );
+  }
+
 }

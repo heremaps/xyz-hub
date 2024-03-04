@@ -62,6 +62,7 @@ import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
@@ -764,8 +765,14 @@ public abstract class Job<T extends Job> extends Payload {
             setTargetSpaceId(space.getId());
             if (this instanceof Export export) {
                 export.setFilters(space.getFilters());
-                if (export.getFilters() != null)
-                    addParam(PARAM_CONTEXT, export.getFilters().getContext());
+                if (export.getFilters() != null) {
+                 addParam(PARAM_CONTEXT, export.getFilters().getContext());
+
+                 Ref ref = export.getFilters().getRef();
+                 if( ref != null && ref.isSingleVersion() && !ref.isHead() )
+                  export.setTargetVersion( "" + ref.getVersion() );
+
+                }
             }
         }
     }
