@@ -354,6 +354,25 @@ public class DefaultViewHandlerTest extends ApiTest {
     }
 
     @Test
+    void tc5024_searchByBBox_PullingByIdWhenOutsideBBoxFromDlb() throws Exception {
+        //given  DLB and Base features have slightly  different geometries. Bbox covers only feature from Base
+        final String bboxQueryParam = "west=12.79&south=53.59&east=12.82&north=53.62";
+
+        final String expectedBodyPart = loadFileOrFail("DefaultViewHandler/TC5024_searchByBBox/feature_response_part.json");
+        String streamId = UUID.randomUUID().toString();
+
+        // When: Get Features By BBox request is submitted to NakshaHub
+        HttpResponse<String> viewResponse = nakshaClient
+                .get("hub/spaces/" + SPACE_ID + "/bbox?" + bboxQueryParam, streamId);
+
+        //then Feature from dlb is returned as gathered by ID in second internal call.
+        assertThat(viewResponse)
+                .hasStatus(200)
+                .hasStreamIdHeader(streamId)
+                .hasJsonBody(expectedBodyPart, "Create Feature response body doesn't match");
+    }
+
+    @Test
     void tc5030_patchFeature_featureAvailableInAllLayer() throws Exception {
 
         //given Feature is available in all three spaces

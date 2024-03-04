@@ -41,6 +41,7 @@ public class View implements IView {
     this.storage = storage;
   }
 
+  @Override
   public ViewLayerCollection getViewCollection() {
     return viewLayerCollection;
   }

@@ -227,6 +227,31 @@
       }
     },
     {
+      "id": "FeatId-getByBBox-5024",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "tid": "urn:here::here:Topology-Transaction:1866780",
+          "owner": "topology_adapter_service",
+          "sourceId": "Task_1",
+          "operation": "CREATED",
+          "modelVersion": "2.121.0",
+          "lastUpdatedBy": "topology_adapter_service",
+          "updatedByUser": "topology_adapter_service"
+        },
+        "speedLimit": "20",
+        "testSpace" : "base"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          12.8,
+          53.60,
+          292.94377758
+        ]
+      }
+    },
+    {
       "id": "FeatId-patchOp-5030",
       "type": "Feature",
       "properties": {
