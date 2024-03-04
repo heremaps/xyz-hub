@@ -1,0 +1,11 @@
+{
+  "id": "patch_on_view_test_view_space",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "patch_on_view_http_test_view_handler"
+  ],
+  "properties": {
+  }
+}

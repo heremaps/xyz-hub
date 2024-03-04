@@ -37,13 +37,19 @@ import org.slf4j.LoggerFactory;
 class RequestSender {
 
   private static final Logger log = LoggerFactory.getLogger(RequestSender.class);
+  private final String name;
   private final String hostUrl;
   private final Map<String, String> defaultHeaders;
   private final HttpClient httpClient;
   private final long socketTimeoutSec;
 
   public RequestSender(
-      String hostUrl, Map<String, String> defaultHeaders, HttpClient httpClient, long socketTimeoutSec) {
+      final String name,
+      String hostUrl,
+      Map<String, String> defaultHeaders,
+      HttpClient httpClient,
+      long socketTimeoutSec) {
+    this.name = name;
     this.httpClient = httpClient;
     this.hostUrl = hostUrl;
     this.defaultHeaders = defaultHeaders;
@@ -55,8 +61,8 @@ class RequestSender {
    *
    * @param endpoint does not contain host:port part, starts with "/".
    */
-  HttpResponse<String> sendRequest(String endpoint) {
-    return sendRequest(endpoint, true, null, null, null);
+  HttpResponse<String> sendRequest(@NotNull String endpoint, @Nullable Map<String, String> headers) {
+    return sendRequest(endpoint, true, headers, null, null);
   }
 
   HttpResponse<String> sendRequest(
@@ -80,17 +86,28 @@ class RequestSender {
   }
 
   private HttpResponse<String> sendRequest(HttpRequest request) {
+    long startTime = System.currentTimeMillis();
+    HttpResponse<String> response = null;
     try {
-      long startTime = System.currentTimeMillis();
       CompletableFuture<HttpResponse<String>> futureResponse =
           httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
-      HttpResponse<String> response = futureResponse.get(socketTimeoutSec, TimeUnit.SECONDS);
-      long executionTime = System.currentTimeMillis() - startTime;
-      log.info("Request to {} took {}ms", request.uri(), executionTime);
+      response = futureResponse.get(socketTimeoutSec, TimeUnit.SECONDS);
       return response;
     } catch (Exception e) {
       log.warn("We got exception while executing Http request against remote server.", e);
       throw unchecked(e);
+    } finally {
+      long executionTime = System.currentTimeMillis() - startTime;
+      log.info(
+          "[Storage API stats => type,storageId,host,method,path,status,timeTakenMs,resSize] - StorageAPIStats {} {} {} {} {} {} {} {}",
+          "HttpStorage",
+          this.name,
+          this.hostUrl,
+          request.method(),
+          request.uri(),
+          (response == null) ? "-" : response.statusCode(),
+          executionTime,
+          (response == null) ? 0 : response.body().length());
     }
   }
 }

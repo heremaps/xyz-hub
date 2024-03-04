@@ -35,6 +35,7 @@ import java.util.UUID;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
+import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 
 /**
  * Tests for GET /hub/spaces/{spaceId}/features/{featureId} against {@link com.here.naksha.storage.http.HttpStorage}
@@ -44,14 +45,25 @@ class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
 
   private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
 
-  private static final String SPACE_ID = "read_features_by_ids_http_test_space";
+  private static final String HTTP_SPACE_ID = "read_features_by_ids_http_test_space";
+  private static final String PSQL_SPACE_ID = "read_features_by_ids_http_test_psql_space";
+  private static final String VIEW_SPACE_ID = "read_features_by_ids_http_test_view_space";
 
   private static final String ENDPOINT = "/my_env/my_storage/my_feat_type/features";
 
 
   @BeforeAll
   static void setup() throws URISyntaxException, IOException, InterruptedException {
-    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByIdsHttpStorage/setup");
+    // Set up Http Storage based Space
+    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByIdsHttpStorage/setup/http_storage_space");
+    // Set up (standard) Psql Storage based Space
+    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByIdsHttpStorage/setup/psql_storage_space");
+    // Set up View Space over Psql and Http Storage based spaces
+    setupSpaceAndRelatedResources(nakshaClient, "ReadFeatures/ByIdsHttpStorage/setup/view_space");
+    // Load some test data in PsqlStorage based Space
+    final String initialFeaturesJson = loadFileOrFail("ReadFeatures/ByIdsHttpStorage/setup/psql_storage_space/create_features.json");
+    final HttpResponse<String> response = nakshaClient.post("hub/spaces/" + PSQL_SPACE_ID + "/features", initialFeaturesJson, UUID.randomUUID().toString());
+    assertThat(response).hasStatus(200);
   }
 
   @Test
@@ -72,7 +84,7 @@ class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
             .willReturn(okJson(expectedBodyPart)));
 
     // When: Get Features request is submitted to NakshaHub Space Storage instance
-    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?" + idsQueryParam, streamId);
+    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + HTTP_SPACE_ID + "/features?" + idsQueryParam, streamId);
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
@@ -100,7 +112,7 @@ class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
             .willReturn(okJson(expectedBodyPart)));
 
     // When: Get Features request is submitted to NakshaHub Space Storage instance
-    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features" + idsQueryParam, streamId);
+    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + HTTP_SPACE_ID + "/features" + idsQueryParam, streamId);
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
@@ -126,7 +138,7 @@ class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
     stubFor(get(endpointPath).willReturn(okJson(expectedBodyPart)));
 
     // When: Get Features request is submitted to NakshaHub Space Storage instance
-    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features/" + featureId, streamId);
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + HTTP_SPACE_ID + "/features/" + featureId, streamId);
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
@@ -152,11 +164,41 @@ class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
     stubFor(get(endpointPath).willReturn(notFound()));
 
     // When: Get Features request is submitted to NakshaHub Space Storage instance
-    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features/" + featureId, streamId);
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + HTTP_SPACE_ID + "/features/" + featureId, streamId);
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
             .hasStatus(404)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
+  @Test
+  void tc0406_testGetByIdOnViewWhenFeatureMissingInBase() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
+    // Validate feature is retrieved from top layer (Psql Storage) of a View,
+    // when Http Storage (base layer) has it missing for given featureId
+
+    // Given: Feature Id which is missing in base layer
+    // Given: Expected response body
+    final String featureId = "my-custom-id-01";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByIdsHttpStorage/TC0406_ViewWithMissingIdInHttpStorage/feature_response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // Given: Mock Base layer (Http Storage) response indicating error 404 (feature not found)
+    final UrlPattern endpointPath = urlPathEqualTo(ENDPOINT + "/" + featureId);
+    stubFor(get(endpointPath).willReturn(notFound()));
+
+    // When: Get Feature by Id request is submitted to View space of NakshaHub
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + VIEW_SPACE_ID + "/features/" + featureId, streamId);
+
+    // Then: Validate that we successfully get a feature back from top layer (Psql Storage)
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
             .hasStreamIdHeader(streamId)
             .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
 

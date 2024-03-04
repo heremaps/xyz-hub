@@ -1,0 +1,16 @@
+{
+  "id": "read_features_by_ids_http_test_view_handler",
+  "type": "EventHandler",
+  "title": "Storage Handler for UniMap Moderation Dev Storage",
+  "description": "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage",
+  "className": "com.here.naksha.lib.handlers.DefaultViewHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "storageId": "read_features_by_ids_http_test_view_storage",
+    "spaceIds": [
+      "read_features_by_ids_http_test_psql_space",
+      "read_features_by_ids_http_test_space"
+    ]
+  }
+}

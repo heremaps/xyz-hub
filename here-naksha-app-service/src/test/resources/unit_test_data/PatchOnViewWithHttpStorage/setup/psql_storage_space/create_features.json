@@ -1,0 +1,50 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-01",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "10",
+        "@ns:com:here:xyz": {
+          "tags": [ "one" ]
+        },
+        "layer": "delta"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-02",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "20",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two" ]
+        },
+        "layer": "delta"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-03",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "30",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three" ]
+        },
+        "layer": "delta"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    }
+  ]
+}

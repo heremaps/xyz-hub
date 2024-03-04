@@ -1,0 +1,16 @@
+{
+  "id": "patch_on_view_test_psql_space",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "patch_on_view_http_test_sourceid_handler",
+    "patch_on_view_test_psql_handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "patch_on_view_test_http_collection",
+      "type": "NakshaCollection"
+    }
+  }
+}

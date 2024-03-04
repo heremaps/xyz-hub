@@ -45,7 +45,11 @@ public class HttpStorage implements IStorage {
         .connectTimeout(Duration.ofSeconds(properties.getConnectTimeout()))
         .build();
     requestSender = new RequestSender(
-        properties.getUrl(), properties.getHeaders(), httpStorageClient, properties.getSocketTimeout());
+        storage.getId(),
+        properties.getUrl(),
+        properties.getHeaders(),
+        httpStorageClient,
+        properties.getSocketTimeout());
   }
 
   @Override

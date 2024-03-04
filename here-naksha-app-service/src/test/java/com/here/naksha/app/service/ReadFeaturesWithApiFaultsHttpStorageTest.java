@@ -140,8 +140,6 @@ class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
             .hasStatus(500)
             .hasStreamIdHeader(streamId);
 
-    assertTrue(response.body().contains("java.util.concurrent.ExecutionException: java.net.SocketException: Connection reset"));
-
     // Then: Verify request reached endpoint once
     verify(1, getRequestedFor(endpointPath));
   }

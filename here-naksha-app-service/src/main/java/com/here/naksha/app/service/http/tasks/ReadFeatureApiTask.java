@@ -399,7 +399,9 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // Find geometry by querying referenced feature
     XyzFeature feature = null;
     // Forward Read request to NHSpaceStorage instance
-    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(refSpaceId, refFeatureId);
+    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(refSpaceId, refFeatureId)
+        .withReadRequestType(ReadRequestType.GET_BY_ID)
+        .withQueryParameters(Map.of(FEATURE_ID, refFeatureId));
     try (final Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
       if (result instanceof SuccessResult) {
         feature = ResultHelper.readFeatureFromResult(result, XyzFeature.class);

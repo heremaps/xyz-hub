@@ -1,0 +1,14 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "my-custom-id-04",
+      "properties": {
+        "@ns:com:here:mom:meta": {
+          "sourceId": "COM_1000001_20240301"
+        }
+      }
+    }
+  ]
+}

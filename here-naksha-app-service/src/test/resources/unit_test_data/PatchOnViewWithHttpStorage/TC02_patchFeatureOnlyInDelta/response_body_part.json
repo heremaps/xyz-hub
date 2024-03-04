@@ -1,0 +1,23 @@
+{
+    "type": "Feature",
+    "id": "my-custom-id-01",
+    "geometry": {
+        "type": "Point",
+        "coordinates": [ 8.6123, 50.1234, 0.0 ]
+    },
+    "properties": {
+        "@ns:com:here:mom:meta": {
+            "sourceId": "COM_1000001_20240301"
+        },
+        "@ns:com:here:xyz": {
+            "action": "UPDATE",
+            "tags": [
+                "one",
+                "xyz_source_id_COM_1000001_20240301"
+            ],
+            "version": 2
+        },
+        "speedLimit": "10",
+        "layer": "delta"
+    }
+}

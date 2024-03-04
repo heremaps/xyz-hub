@@ -1,0 +1,14 @@
+{
+  "id": "my-custom-id-01",
+  "type": "Feature",
+  "properties": {
+    "speedLimit": "10",
+    "@ns:com:here:xyz": {
+      "tags": [ "one" ]
+    }
+  },
+  "geometry": {
+    "type":"Point",
+    "coordinates":[ 8.6123, 50.1234, 0.0 ]
+  }
+}

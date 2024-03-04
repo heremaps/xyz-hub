@@ -20,6 +20,7 @@ package com.here.naksha.storage.http;
 
 import static com.here.naksha.common.http.apis.ApiParamsConst.*;
 
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -28,9 +29,7 @@ import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.net.HttpURLConnection;
 import java.net.http.HttpResponse;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
@@ -41,49 +40,61 @@ import org.slf4j.LoggerFactory;
 class HttpStorageReadExecute {
 
   private static final Logger log = LoggerFactory.getLogger(HttpStorageReadExecute.class);
+  private static final String HDR_STREAM_ID = "Stream-Id";
 
   @NotNull
-  static Result execute(ReadFeaturesProxyWrapper request, RequestSender sender) {
+  static Result execute(@NotNull NakshaContext context, ReadFeaturesProxyWrapper request, RequestSender sender) {
 
     return switch (request.getReadRequestType()) {
-      case GET_BY_ID -> executeFeatureById(request, sender);
-      case GET_BY_IDS -> executeFeaturesById(request, sender);
-      case GET_BY_BBOX -> executeFeatureByBBox(request, sender);
-      case GET_BY_TILE -> executeFeaturesByTile(request, sender);
+      case GET_BY_ID -> executeFeatureById(context, request, sender);
+      case GET_BY_IDS -> executeFeaturesById(context, request, sender);
+      case GET_BY_BBOX -> executeFeatureByBBox(context, request, sender);
+      case GET_BY_TILE -> executeFeaturesByTile(context, request, sender);
     };
   }
 
-  private static Result executeFeatureById(ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
+  private static Result executeFeatureById(
+      @NotNull NakshaContext context, ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
     String featureId = readRequest.getQueryParameter(FEATURE_ID);
 
-    HttpResponse<String> response =
-        requestSender.sendRequest(String.format("/%s/features/%s", baseEndpoint(readRequest), featureId));
+    HttpResponse<String> response = requestSender.sendRequest(
+        String.format("/%s/features/%s", baseEndpoint(readRequest), featureId),
+        Map.of(HDR_STREAM_ID, context.getStreamId()));
 
+    if (response.statusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+      // For Error 404 (not found) on single feature GetById request, we need to return empty result
+      return createHttpResultFromFeatureList(Collections.emptyList());
+    }
     return prepareResult(response, XyzFeature.class, List::of);
   }
 
-  private static Result executeFeaturesById(ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
+  private static Result executeFeaturesById(
+      @NotNull NakshaContext context, ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
     List<String> featureIds = readRequest.getQueryParameter(FEATURE_IDS);
     String queryParamsString = FEATURE_IDS + "=" + String.join(",", featureIds);
 
     HttpResponse<String> response = requestSender.sendRequest(
-        String.format("/%s/features?%s", baseEndpoint(readRequest), queryParamsString));
+        String.format("/%s/features?%s", baseEndpoint(readRequest), queryParamsString),
+        Map.of(HDR_STREAM_ID, context.getStreamId()));
 
     return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
   }
 
-  private static Result executeFeatureByBBox(ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
+  private static Result executeFeatureByBBox(
+      @NotNull NakshaContext context, ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
     String queryParamsString = keysToKeyValuesStrings(readRequest, WEST, NORTH, EAST, SOUTH, LIMIT);
 
     warnOnUnsupportedQueryParam(readRequest, PROPERTY_SEARCH_OP);
 
-    HttpResponse<String> response =
-        requestSender.sendRequest(String.format("/%s/bbox?%s", baseEndpoint(readRequest), queryParamsString));
+    HttpResponse<String> response = requestSender.sendRequest(
+        String.format("/%s/bbox?%s", baseEndpoint(readRequest), queryParamsString),
+        Map.of(HDR_STREAM_ID, context.getStreamId()));
 
     return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
   }
 
-  private static Result executeFeaturesByTile(ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
+  private static Result executeFeaturesByTile(
+      @NotNull NakshaContext context, ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
     String queryParamsString = keysToKeyValuesStrings(readRequest, MARGIN, LIMIT);
     String tileType = readRequest.getQueryParameter(TILE_TYPE);
     String tileId = readRequest.getQueryParameter(TILE_ID);
@@ -93,7 +104,8 @@ class HttpStorageReadExecute {
     warnOnUnsupportedQueryParam(readRequest, PROPERTY_SEARCH_OP);
 
     HttpResponse<String> response = requestSender.sendRequest(
-        String.format("/%s/quadkey/%s?%s", baseEndpoint(readRequest), tileId, queryParamsString));
+        String.format("/%s/quadkey/%s?%s", baseEndpoint(readRequest), tileId, queryParamsString),
+        Map.of(HDR_STREAM_ID, context.getStreamId()));
 
     return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
   }

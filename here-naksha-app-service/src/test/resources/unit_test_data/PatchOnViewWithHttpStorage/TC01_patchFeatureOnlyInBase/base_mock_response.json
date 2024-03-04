@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-03",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "30",
+        "layer": "base"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-04",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "40",
+        "layer": "base"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-05",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "50",
+        "layer": "base"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    }
+  ]
+}

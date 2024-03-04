@@ -42,10 +42,7 @@ import com.here.naksha.lib.core.util.diff.Difference;
 import com.here.naksha.lib.core.util.diff.Patcher;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import io.vertx.ext.web.RoutingContext;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Objects;
+import java.util.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -254,7 +251,9 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
       }
     }
     // Extract the version of features in storage
-    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds);
+    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds)
+        .withReadRequestType(ReadFeaturesProxyWrapper.ReadRequestType.GET_BY_IDS)
+        .withQueryParameters(Map.of(FEATURE_IDS, featureIds));
     try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
       if (result == null) {
         return returnError(

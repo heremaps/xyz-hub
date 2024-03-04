@@ -1,0 +1,12 @@
+{
+  "id": "patch_on_view_test_http_handler",
+  "type": "EventHandler",
+  "title": "Storage Handler for UniMap Moderation Dev Storage",
+  "description": "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "storageId": "patch_on_view_test_http_storage"
+  }
+}

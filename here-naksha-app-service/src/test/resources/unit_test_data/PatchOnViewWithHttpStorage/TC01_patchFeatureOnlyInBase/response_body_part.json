@@ -1,0 +1,30 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "id": "my-custom-id-04",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [ 8.6123, 50.1234, 0.0 ]
+            },
+            "properties": {
+                "@ns:com:here:mom:meta": {
+                    "sourceId": "COM_1000001_20240301"
+                },
+                "@ns:com:here:xyz": {
+                    "action": "CREATE",
+                    "tags": [
+                        "xyz_source_id_COM_1000001_20240301"
+                    ],
+                    "version": 1
+                },
+                "speedLimit": "40",
+                "layer": "base"
+            }
+        }
+    ],
+    "inserted": [
+        "my-custom-id-04"
+    ]
+}
