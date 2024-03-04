@@ -40,6 +40,16 @@ import org.postgresql.util.HostSpec;
 @SuppressWarnings("unused")
 public class PsqlInstanceConfig {
 
+  public static final String HOST = "host";
+
+  public static final String PORT = "port";
+
+  public static final String DB = "db";
+  public static final String USER = "user";
+  public static final String PASSWORD = "password";
+
+  public static final String READ_ONLY = "readOnly";
+
   /**
    * The database host to connect against.
    */
@@ -103,12 +113,12 @@ public class PsqlInstanceConfig {
   @SuppressWarnings("ConstantValue")
   @JsonCreator
   PsqlInstanceConfig(
-      @JsonProperty("host") @NotNull String host,
-      @JsonProperty("port") @Nullable Integer port,
-      @JsonProperty("db") @NotNull String db,
-      @JsonProperty("user") @NotNull String user,
-      @JsonProperty("password") @NotNull String password,
-      @JsonProperty("readOnly") @Nullable Boolean readOnly) {
+      @JsonProperty(HOST) @NotNull String host,
+      @JsonProperty(PORT) @Nullable Integer port,
+      @JsonProperty(DB) @NotNull String db,
+      @JsonProperty(USER) @NotNull String user,
+      @JsonProperty(PASSWORD) @NotNull String password,
+      @JsonProperty(READ_ONLY) @Nullable Boolean readOnly) {
     if (host == null || host.length() == 0) {
       throw new IllegalArgumentException("host is empty");
     }

@@ -38,13 +38,28 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.handlers.DefaultStorageHandlerProperties;
+import com.here.naksha.storage.http.HttpStorage;
+import com.here.naksha.storage.http.HttpStorageProperties;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForStorages extends AdminFeatureEventHandler<Storage> {
+
+  private static final long MIN_HTTP_CONNECT_TIMEOUT_SEC = 0;
+  private static final long MAX_HTTP_CONNECT_TIMEOUT_SEC = 30;
+
+  private static final long MIN_HTTP_SOCKET_TIMEOUT_SEC = 0;
+  private static final long MAX_HTTP_SOCKET_TIMEOUT_SEC = 90;
+
+  private static final Set<String> ALLOWED_PROTOCOLS = Set.of("http", "https");
 
   public IntHandlerForStorages(final @NotNull INaksha hub) {
     super(hub, Storage.class);
@@ -63,7 +78,81 @@ public class IntHandlerForStorages extends AdminFeatureEventHandler<Storage> {
       return basicValidation;
     }
     final Storage storage = (Storage) codec.getFeature();
-    return pluginValidation(storage);
+    Result pluginValidation = pluginValidation(storage);
+    if (pluginValidation instanceof ErrorResult) {
+      return pluginValidation;
+    }
+    return httpStorageValidation(storage);
+  }
+
+  private Result httpStorageValidation(Storage storage) {
+    if (HttpStorage.class.getName().equals(storage.getClassName())) {
+      HttpStorageProperties httpStorageProperties = null;
+      try {
+        httpStorageProperties = JsonSerializable.convert(storage.getProperties(), HttpStorageProperties.class);
+      } catch (Exception e) {
+        return new ErrorResult(
+            XyzError.ILLEGAL_ARGUMENT,
+            "Unable to convert 'properties' to " + HttpStorageProperties.class.getName(),
+            e);
+      }
+      return httpStoragePropertiesValidation(httpStorageProperties);
+    }
+    return new SuccessResult();
+  }
+
+  private Result httpStoragePropertiesValidation(HttpStorageProperties httpStorageProperties) {
+    boolean isConnectionTimeoutValid = isBetween(
+        httpStorageProperties.getConnectTimeout(), MIN_HTTP_CONNECT_TIMEOUT_SEC, MAX_HTTP_CONNECT_TIMEOUT_SEC);
+    boolean isSocketTimeoutValid = isBetween(
+        httpStorageProperties.getSocketTimeout(), MIN_HTTP_SOCKET_TIMEOUT_SEC, MAX_HTTP_SOCKET_TIMEOUT_SEC);
+    boolean isUrlValid = isUrlValid(httpStorageProperties.getUrl());
+    if (isConnectionTimeoutValid && isSocketTimeoutValid && isUrlValid) {
+      return new SuccessResult();
+    }
+    String errorMsg =
+        getErrorMsg(httpStorageProperties, isConnectionTimeoutValid, isSocketTimeoutValid, isUrlValid);
+    return new ErrorResult(XyzError.ILLEGAL_ARGUMENT, errorMsg);
+  }
+
+  @NotNull
+  private static String getErrorMsg(
+      HttpStorageProperties httpStorageProperties,
+      boolean isConnectionTimeoutValid,
+      boolean isSocketTimeoutValid,
+      boolean isUrlValid) {
+    ArrayList<String> errorMsgs = new ArrayList<>(3);
+    if (!isConnectionTimeoutValid) {
+      errorMsgs.add("Invalid connection timeout: %d, allowed values (sec): %d - %d"
+          .formatted(
+              httpStorageProperties.getConnectTimeout(),
+              MIN_HTTP_CONNECT_TIMEOUT_SEC,
+              MAX_HTTP_CONNECT_TIMEOUT_SEC));
+    }
+    if (!isSocketTimeoutValid) {
+      errorMsgs.add("Invalid socket timeout: %d, allowed values (sec): %d - %d"
+          .formatted(
+              httpStorageProperties.getSocketTimeout(),
+              MIN_HTTP_SOCKET_TIMEOUT_SEC,
+              MAX_HTTP_SOCKET_TIMEOUT_SEC));
+    }
+    if (!isUrlValid) {
+      errorMsgs.add("Invalid url: %s".formatted(httpStorageProperties.getUrl()));
+    }
+    return String.join("\n", errorMsgs);
+  }
+
+  private boolean isBetween(long value, long min, long max) {
+    return value >= min && value <= max;
+  }
+
+  private boolean isUrlValid(String maybeUrl) {
+    try {
+      URL url = new URL(maybeUrl);
+      return ALLOWED_PROTOCOLS.contains(url.getProtocol());
+    } catch (MalformedURLException e) {
+      return false;
+    }
   }
 
   private Result noActiveHandlerValidation(XyzFeatureCodec codec) {

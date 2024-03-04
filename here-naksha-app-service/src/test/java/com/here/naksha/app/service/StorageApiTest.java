@@ -110,6 +110,23 @@ class StorageApiTest extends ApiTest {
   }
 
   @Test
+  void test0005_testAuthorizationHeaderMaskForHttpStorage() throws Exception {
+    // 1. Load test data
+    final String bodyJson = loadFileOrFail("StorageApi/TC0005_maskAuthorizationHeader/create_storage.json");
+    final String expectedBodyPart = loadFileOrFail("StorageApi/TC0005_maskAuthorizationHeader/response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpResponse<String> response = getNakshaClient().post("hub/storages", bodyJson, streamId);
+
+    // 3. Perform assertions
+    assertThat(response)
+        .hasStatus(200)
+        .hasStreamIdHeader(streamId)
+        .hasJsonBody(expectedBodyPart);
+  }
+
+  @Test
   void tc0020_testGetStorageById() throws Exception {
     // Test API : GET /hub/storages/{storageId}
     // GivenL registered storage

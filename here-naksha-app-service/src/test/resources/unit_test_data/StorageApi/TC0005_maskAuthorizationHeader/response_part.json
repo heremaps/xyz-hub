@@ -1,0 +1,14 @@
+{
+    "id": "tc_0005_http_storage",
+    "type": "Storage",
+    "title": "Test Http storage",
+    "description": "Http storage instance for testing purpose",
+    "className": "com.here.naksha.storage.http.HttpStorage",
+    "properties": {
+        "url" : "http://localhost:8089",
+        "headers" : {
+            "Authorization" : "xxxxxx",
+            "Content-Type" :  "application/json"
+        }
+    }
+}

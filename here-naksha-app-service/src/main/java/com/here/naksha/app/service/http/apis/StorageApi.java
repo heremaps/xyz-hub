@@ -67,7 +67,7 @@ public class StorageApi extends Api {
   }
 
   private void startStorageApiTask(StorageApiReqType reqType, RoutingContext routingContext) {
-    new StorageApiTask<>(reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
+    new StorageApiTask(reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
         .start();
   }
 }

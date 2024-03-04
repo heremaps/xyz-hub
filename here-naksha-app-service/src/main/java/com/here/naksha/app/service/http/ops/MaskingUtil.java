@@ -18,26 +18,32 @@
  */
 package com.here.naksha.app.service.http.ops;
 
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
+import java.util.Set;
 
-public class PasswordMaskingUtil {
-  private static final String JSON_KEY_PASSWORD = "password";
-  private static final String PASSWORD_MASK = "xxxxxx";
+public class MaskingUtil {
 
-  public static void removePasswordFromProps(Map<String, Object> propertiesAsMap) {
+  static final String MASK = "xxxxxx";
+
+  private MaskingUtil() {}
+
+  public static void maskProperties(XyzFeature feature, Set<String> propertiesToMask) {
+    maskProperties(feature.getProperties(), propertiesToMask);
+  }
+
+  private static void maskProperties(Map<String, Object> propertiesAsMap, Set<String> propertiesToMask) {
     for (Entry<String, Object> entry : propertiesAsMap.entrySet()) {
-      if (Objects.equals(entry.getKey(), JSON_KEY_PASSWORD)) {
-        entry.setValue(PASSWORD_MASK);
+      if (propertiesToMask.contains(entry.getKey())) {
+        entry.setValue(MASK);
       } else if (entry.getValue() instanceof Map) {
-        // recursive call to the nested json property
-        removePasswordFromProps((Map<String, Object>) entry.getValue());
+        maskProperties((Map<String, Object>) entry.getValue(), propertiesToMask);
       } else if (entry.getValue() instanceof ArrayList array) {
         // recursive call to the nested array json
         for (Object arrayEntry : array) {
-          removePasswordFromProps((Map<String, Object>) arrayEntry);
+          maskProperties((Map<String, Object>) arrayEntry, propertiesToMask);
         }
       }
     }
