@@ -94,10 +94,6 @@ public class Tag implements XyzSerializable {
     return system;
   }
 
-  public boolean getSystem() {
-    return isSystem();
-  }
-
   public void setSystem(boolean system) {
     this.system = system;
   }
