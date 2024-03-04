@@ -902,6 +902,10 @@ $BODY$
 			RETURN;
 		END IF;
 
+		/** set indication that idx creation is running */
+        UPDATE xyz_config.xyz_idxs_status
+            SET idx_creation_finished = false
+        WHERE spaceid = space AND schem = schema;
 		--EXECUTE xyz_index_check_comments(schema, space);
 
 		/** Analyze IDX-ON DEMAND aka MANUAL MODE */
