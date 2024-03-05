@@ -23,6 +23,7 @@ import static com.here.xyz.hub.rest.ApiParam.Path.INCLUDE_SYSTEM_TAGS;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
@@ -134,18 +135,23 @@ public class TagApi extends SpaceBasedApi {
     if (spaceId == null) {
       return Future.failedFuture("Invalid spaceId parameter");
     }
-    if (tagId == null) {
+
+    if (tagId == null || invalidTagId(tagId)) {
       return Future.failedFuture("Invalid tagId parameter");
     }
+
     if (version < -2) {
       return Future.failedFuture("Invalid version parameter");
     }
 
-    final Future<Space> spaceFuture = getSpace(marker, spaceId);
-    final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture,
-        spaceId);
 
-    return Future.all(spaceFuture, changesetFuture).compose(cf -> {
+    final Future<Space> spaceFuture = getSpace(marker, spaceId);
+    final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
+    final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, tagId, spaceId)
+        .compose(r -> r == null ? Future.succeededFuture(null) : Future.failedFuture(
+            new HttpException(HttpResponseStatus.CONFLICT, "Tag " + tagId + " with space " + spaceId + " already exists")));
+
+    return Future.all(spaceFuture, changesetFuture, tagFuture).compose(cf -> {
       final Tag tag = new Tag()
           .withId(tagId)
           .withSpaceId(spaceId)
@@ -153,6 +159,10 @@ public class TagApi extends SpaceBasedApi {
           .withSystem(system);
       return Service.tagConfigClient.storeTag(marker, tag).map(v -> tag);
     });
+  }
+
+  private static boolean invalidTagId(String tagId) {
+    return StringUtils.isBlank(tagId) || !StringUtils.isAlpha(tagId.substring(0, 1));
   }
 
   // TODO auth
