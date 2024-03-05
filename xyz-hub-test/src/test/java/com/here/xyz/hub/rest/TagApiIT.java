@@ -114,6 +114,23 @@ public class TagApiIT extends TestSpaceWithFeature {
                 .statusCode(OK.code());
     }
 
+  @Test
+  public void createTagWithInvalidId() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"1_NUMBER\"}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then().statusCode(BAD_REQUEST.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"_INVALID_CHAR\"}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then().statusCode(BAD_REQUEST.code());
+  }
+
     @Test
     public void deleteTag() {
         _createTag();
