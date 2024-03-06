@@ -51,6 +51,7 @@
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
     <module>xyz-util</module>
+    <module>xyz-jobs</module>
   </modules>
 
   <scm>
