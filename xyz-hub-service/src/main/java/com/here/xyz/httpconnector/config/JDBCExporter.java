@@ -141,11 +141,13 @@ public class JDBCExporter extends JdbcBasedHandler {
                                     : false;
       String targetSpaceId = job.getTarget().getKey();
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
+      /* adjust next_version to max_bigint(), except in case of concurency set it to concurrent inserted version */
+      //TODO: case of extern concurency && same id in source & target && non-versiond layer a duplicate id can occure with next_version = concurrent_inserted.version
       return new SQLQuery( 
           """
             UPDATE /* space_copy_hint m499#jobId(${{jobId}}) */ 
-             ${schema}.${table}
-             set next_version = max_bigint()
+             ${schema}.${table} t
+             set next_version = coalesce(( select version from ${schema}.${table} i where i.id = t.id and i.next_version = max_bigint() ), max_bigint())
             where 
              next_version = ${{pseudoNextVersion}}
           """
