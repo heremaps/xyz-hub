@@ -1,9 +1,6 @@
 package com.here.xyz.util.db.metrics;
 
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.lambda.AWSLambda;
-import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -24,12 +21,10 @@ public class MetricsReporterService {
 
     private static final Logger logger = LogManager.getLogger();
     private final String lambdaFunctionName;
-    private final AWSLambda lambdaClient = AWSLambdaClientBuilder.standard()
-            .withRegion(Regions.EU_WEST_1)
-            .withCredentials(new ProfileCredentialsProvider("vhnes-rd"))
-            .build();
+    private final AWSLambda lambdaClient;
 
-    public MetricsReporterService(String lambdaFunctionName, int minutesPeriod) {
+    public MetricsReporterService(AWSLambda lambdaClient, String lambdaFunctionName, int minutesPeriod) {
+        this.lambdaClient = lambdaClient;
         this.lambdaFunctionName = lambdaFunctionName;
         this.scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(this::aggregateAndInvokeLambda, 0, minutesPeriod, TimeUnit.MINUTES);
