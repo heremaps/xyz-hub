@@ -931,10 +931,6 @@ public class Export extends JDBCBasedJob<Export> {
         @JsonView({Public.class, Static.class})
         private SpaceContext context = DEFAULT;
 
-        @JsonView({Public.class, Static.class})
-        private Ref ref;
-
-
         public String getPropertyFilter() {
             return propertyFilter;
         }
@@ -973,20 +969,6 @@ public class Export extends JDBCBasedJob<Export> {
             setContext(context);
             return this;
         }
-
-        public Ref getRef() {
-            return ref;
-        }
-
-        public void setRef(Ref ref) {
-            this.ref = ref;
-        }
-
-        public Filters withRef(Ref ref) {
-            setRef(ref);
-            return this;
-        }
-
     }
 
     @Override

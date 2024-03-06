@@ -768,10 +768,9 @@ public abstract class Job<T extends Job> extends Payload {
                 if (export.getFilters() != null) {
                  addParam(PARAM_CONTEXT, export.getFilters().getContext());
 
-                 Ref ref = export.getFilters().getRef();
-                 if( ref != null && ref.isSingleVersion() && !ref.isHead() )
-                  export.setTargetVersion( "" + ref.getVersion() );
-
+                 Ref ref = space.getVersionRef();
+                 if (ref != null && ref.isSingleVersion() && !ref.isHead())
+                  export.setTargetVersion("" + ref.getVersion());
                 }
             }
         }

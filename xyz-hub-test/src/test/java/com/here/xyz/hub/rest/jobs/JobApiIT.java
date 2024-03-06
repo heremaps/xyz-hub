@@ -474,8 +474,7 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus,
-        Export.CompositeMode compositeMode)
-        throws Exception {
+        Export.CompositeMode compositeMode) throws Exception {
         return performExport(job, spaceId, expectedStatus, failStatus, null, compositeMode);
     }
 
