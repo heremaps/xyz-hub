@@ -94,5 +94,10 @@
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <artifactId>aws-java-sdk-lambda</artifactId>
+      <groupId>com.amazonaws</groupId>
+    </dependency>
   </dependencies>
 </project>
