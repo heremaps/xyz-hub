@@ -249,7 +249,7 @@
       <artifactId>aws-lambda-java-log4j2</artifactId>
     </dependency>
 
-    <!-- -->
+    <!-- AWS SDKs -->
     <dependency>
       <groupId>commons-dbutils</groupId>
       <artifactId>commons-dbutils</artifactId>

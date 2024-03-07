@@ -21,10 +21,10 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -41,6 +41,8 @@ import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
+import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;
@@ -242,7 +244,7 @@ public class FeatureApi extends SpaceBasedApi {
       XyzNamespace.fixNormalizedTags(task.addTags);
       XyzNamespace.fixNormalizedTags(task.removeTags);
       task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
-      task.author = Api.Context.getAuthor(context);
+      task.author = BaseHttpServerVerticle.getAuthor(context);
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
       logger.warn(getMarker(context), e.getMessage(), e);

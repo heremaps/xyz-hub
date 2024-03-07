@@ -3,7 +3,7 @@ package com.here.xyz.httpconnector.util.jobs;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 
 import com.here.xyz.httpconnector.task.StatusHandler;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 
 public abstract class JDBCBasedJob<T extends JDBCBasedJob> extends Job<T> {

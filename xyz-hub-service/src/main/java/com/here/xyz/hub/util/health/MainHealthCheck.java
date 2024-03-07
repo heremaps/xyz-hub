@@ -19,24 +19,17 @@
 package com.here.xyz.hub.util.health;
 
 import static com.here.xyz.hub.util.health.Config.Setting.BOOT_GRACE_TIME;
-import static com.here.xyz.hub.util.health.schema.Status.Result.CRITICAL;
 import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
-import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
-import static com.here.xyz.hub.util.health.schema.Status.Result.WARNING;
 
-import com.here.xyz.hub.Core;
-import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.FunctionCheck;
 import com.here.xyz.hub.util.health.checks.ServiceHealthCheck;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
-import com.here.xyz.hub.util.health.schema.Status.Result;
+import com.here.xyz.util.service.Core;
 import java.lang.management.ManagementFactory;
 import java.net.MalformedURLException;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.core.util.CachedClock;
 

@@ -21,12 +21,12 @@ package com.here.xyz.hub.rest.admin;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;

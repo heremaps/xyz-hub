@@ -35,7 +35,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLamb
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.Node;
-import com.here.xyz.hub.util.ARN;
+import com.here.xyz.util.ARN;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.List;

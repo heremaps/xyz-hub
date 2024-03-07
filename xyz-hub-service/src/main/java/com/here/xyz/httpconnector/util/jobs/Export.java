@@ -73,14 +73,14 @@ import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
 import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
-import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -1271,10 +1271,10 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
-    @Override    
+    @Override
     public Future<Job> prepareStart() {
 
-      String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used 
+      String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
 
       Future<Void> pushVersionTag = ( getTargetVersion() == null )
        ? Future.succeededFuture()
@@ -1286,12 +1286,12 @@ public class Export extends JDBCBasedJob<Export> {
     @Override
     public Future<Void> finalizeJob() {
 
-        String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used 
+        String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
 
         Future<Void> deleteVersionTag = ( getTargetVersion() == null )
         ? Future.succeededFuture()
         : HubWebClientAsync.deleteTag( srcKey, getId() ).compose( tag -> Future.succeededFuture());
-         
+
         return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
 

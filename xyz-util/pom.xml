@@ -48,6 +48,14 @@
       <artifactId>vertx-core</artifactId>
       <groupId>io.vertx</groupId>
     </dependency>
+    <dependency>
+      <artifactId>vertx-config</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vertx-web-openapi</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
 
     <!-- XYZ libraries -->
     <dependency>
@@ -73,6 +81,12 @@
       <artifactId>log4j-jcl</artifactId>
     </dependency>
 
+    <!-- AWS SDKs -->
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-kms</artifactId>
+    </dependency>
+
     <!-- DB utils -->
     <dependency>
       <groupId>com.mchange</groupId>
@@ -87,6 +101,12 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
+    </dependency>
+
+    <!-- Util -->
+    <dependency>
+      <artifactId>guava</artifactId>
+      <groupId>com.google.guava</groupId>
     </dependency>
 
     <dependency>

@@ -24,7 +24,7 @@ import static com.here.xyz.httpconnector.job.RuntimeInfo.State.SUBMITTED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.collect.ImmutableMap;
-import com.here.xyz.hub.Core;
+import com.here.xyz.util.service.Core;
 import java.util.Arrays;
 import java.util.Map;
 

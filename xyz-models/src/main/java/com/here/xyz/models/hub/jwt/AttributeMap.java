@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.auth;
+package com.here.xyz.models.hub.jwt;
 
 import com.google.common.base.Objects;
-import io.vertx.core.json.JsonArray;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,18 +59,14 @@ public class AttributeMap extends LinkedHashMap<String, Object> {
   }
 
   /**
-   * A helper method to test if the given value is a valid value for the attribute map, therefore either being a scalar value, a {@link
-   * List} or a {@link JsonArray} only containing valid scalar values.
+   * A helper method to test if the given value is a valid value for the attribute map, therefore, either being a scalar value or
+   * a {@link List} only containing valid scalar values.
    *
    * @param value the value to test.
-   * @return true if the value is allowed in the attributes map; false otherwise.
+   * @return true if the value is allowed in the attributes-map; false otherwise.
    */
   @SuppressWarnings("unchecked")
   public static final boolean isValidValue(Object value) {
-    if (value instanceof JsonArray) {
-      value = ((JsonArray) value).getList();
-    }
-
     if (value instanceof List) {
       final List<Object> list = (List<Object>) value;
       for (final Object v : list) {
@@ -193,11 +188,11 @@ public class AttributeMap extends LinkedHashMap<String, Object> {
    * </p>
    * <p>
    * If the value of an attribute is an array, then it is treated as an AND clause and means for the access attributes map that the resource
-   * must have all values in the corresponding key. If the value of the resource attribute is an array it means that the corresponding
-   * attribute of the resource does have multiple values, for example a resource may have three values for the attribute "tag" being
+   * must have all values in the corresponding key. If the value of the resource attribute is an array, it means that the corresponding
+   * attribute of the resource does have multiple values, for example, a resource may have three values for the attribute "tag" being
    * "restaurant", "burger" and "pizza".
    *
-   * @param accessAttributesMap the attributes map that describes the access rights for the resource; if null, the method will return
+   * @param accessAttributesMap the attributes-map that describes the access rights for the resource; if null, the method will return
    * false.
    * @param resourceAttributesMap the map that describes the attributes of the resource.
    * @param ignoreKeys an optional map of keys to ignore when reading from the access attributes map; may be null.
@@ -219,12 +214,6 @@ public class AttributeMap extends LinkedHashMap<String, Object> {
 
       Object accessValue = accessAttributesMap.get(key);
       Object objectValue = resourceAttributesMap.get(key);
-      if (accessValue instanceof JsonArray) {
-        accessValue = ((JsonArray) accessValue).getList();
-      }
-      if (objectValue instanceof JsonArray) {
-        objectValue = ((JsonArray) objectValue).getList();
-      }
 
       if (accessValue instanceof List) {
         final List<Object> accessValues = (List<Object>) accessValue;
@@ -363,9 +352,7 @@ public class AttributeMap extends LinkedHashMap<String, Object> {
 
     List<Object> list;
     final Object raw = get(key);
-    if (raw instanceof JsonArray) {
-      list = ((JsonArray) raw).getList();
-    } else if (raw instanceof List) {
+    if (raw instanceof List) {
       list = (List<Object>) raw;
     } else {
       if (Objects.equal(raw, value)) {

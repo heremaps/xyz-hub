@@ -26,7 +26,7 @@ import com.here.xyz.httpconnector.config.JobS3Client;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
-import com.here.xyz.hub.Core;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;

@@ -12,6 +12,7 @@ import com.here.xyz.hub.task.Task;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.ext.web.RoutingContext;
 
 public abstract class SpaceBasedApi extends Api {

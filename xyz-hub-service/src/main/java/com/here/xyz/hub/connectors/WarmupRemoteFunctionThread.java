@@ -20,9 +20,9 @@
 package com.here.xyz.hub.connectors;
 
 import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.util.service.Core;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.apache.logging.log4j.LogManager;

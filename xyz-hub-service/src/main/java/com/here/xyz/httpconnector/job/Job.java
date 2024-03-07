@@ -42,7 +42,7 @@ import com.here.xyz.httpconnector.job.steps.execution.JobExecutor;
 import com.here.xyz.httpconnector.job.steps.inputs.UploadUrl;
 import com.here.xyz.httpconnector.util.Async;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.hub.Core;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;

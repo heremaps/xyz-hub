@@ -22,6 +22,7 @@ package com.here.xyz.hub.auth;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.io.CharStreams;
 import com.here.xyz.hub.Service;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;

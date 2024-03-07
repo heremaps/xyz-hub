@@ -45,7 +45,7 @@ import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
 import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.util.ARN;
+import com.here.xyz.util.ARN;
 import io.vertx.core.Future;
 import io.vertx.core.WorkerExecutor;
 import java.util.ArrayList;

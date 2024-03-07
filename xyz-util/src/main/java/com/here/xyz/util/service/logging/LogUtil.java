@@ -17,10 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.logging;
+package com.here.xyz.util.service.logging;
 
 import static com.google.common.net.HttpHeaders.X_FORWARDED_FOR;
-import static com.here.xyz.hub.XYZHubRESTVerticle.STREAM_INFO_CTX_KEY;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.STREAM_INFO_CTX_KEY;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getJWT;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ORIGIN;
@@ -30,9 +33,8 @@ import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
-import com.here.xyz.hub.auth.JWTPayload;
-import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.ApiParam.Query;
+import com.google.common.base.Strings;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
@@ -42,19 +44,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public class LogUtil {
-
   private static final Logger logger = LogManager.getLogger();
   private static final Level STREAM_LEVEL = Level.forName("STREAM", 50);
   private static final Marker ACCESS_LOG_MARKER = MarkerManager.getMarker("ACCESS");
   private static final String REALM = "rlm";
+  private static final String MARKER = "marker";
+  private static final String ACCESS_LOG = "accessLog";
 
   private static List<String> skipLoggingHeaders = Collections.singletonList(X_FORWARDED_FOR);
 
@@ -68,7 +71,7 @@ public class LogUtil {
 
   private static String getIp(RoutingContext context) {
     String ips = context.request().getHeader(X_FORWARDED_FOR);
-    if(!StringUtils.isEmpty(ips)) {
+    if(!Strings.isNullOrEmpty(ips)) {
       String ip = ips.split(", ")[0];
 
       if(IPV4_PATTERN.matcher(ip).matches() ||
@@ -112,7 +115,7 @@ public class LogUtil {
    * @param context the context of the marker to become modified.
    */
   public static void addRequestInfo(RoutingContext context) {
-    AccessLog accessLog = Api.Context.getAccessLog(context);
+    AccessLog accessLog = getAccessLog(context);
     HttpMethod method = context.request().method();
     accessLog.reqInfo.method = context.request().method().name();
     accessLog.reqInfo.uri = context.request().uri();
@@ -138,7 +141,7 @@ public class LogUtil {
    * @param context the context of the marker to become modified.
    */
   public static AccessLog addResponseInfo(RoutingContext context) {
-    AccessLog accessLog = Api.Context.getAccessLog(context);
+    AccessLog accessLog = getAccessLog(context);
     accessLog.respInfo.statusCode = context.response().getStatusCode();
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
@@ -146,26 +149,63 @@ public class LogUtil {
 
     accessLog.streamInfo = context.get(STREAM_INFO_CTX_KEY);
 
-    final JWTPayload tokenPayload = Api.Context.getJWT(context);
+    final JWTPayload tokenPayload = getJWT(context);
     if (tokenPayload != null) {
       accessLog.clientInfo.userId = tokenPayload.aid;
-      accessLog.clientInfo.appId = tokenPayload.cid != null ? tokenPayload.cid : Api.Context.getAuthor(context);
+      accessLog.clientInfo.appId = tokenPayload.cid != null ? tokenPayload.cid : getAuthor(context);
       accessLog.classified = new String[]{tokenPayload.tid, tokenPayload.jwt};
     }
     else {
-      String token = context.get(Query.ACCESS_TOKEN); //Could be a token ID or an actual JWT, both has to be classified
+      final String ACCESS_TOKEN = "access_token";
+      String token = context.get(ACCESS_TOKEN); //Could be a token ID or an actual JWT, both have to be classified
       if (token != null && token != "")
-        accessLog.classified = new String[]{context.get(Query.ACCESS_TOKEN)};
+        accessLog.classified = new String[]{context.get(ACCESS_TOKEN)};
     }
 
     return accessLog;
   }
 
   public static void writeAccessLog(RoutingContext context) {
-    final AccessLog accessLog = Api.Context.getAccessLog(context);
-    final Marker marker = Api.Context.getMarker(context);
+    final AccessLog accessLog = getAccessLog(context);
+    final Marker marker = getMarker(context);
 
     accessLog.streamId = marker.getName();
     logger.log(STREAM_LEVEL, ACCESS_LOG_MARKER, accessLog.serialize());
+  }
+
+  /**
+   * Returns the log marker for the request.
+   *
+   * @return the marker or null, if no marker was found.
+   */
+  public static Marker getMarker(RoutingContext context) {
+    if (context == null) {
+      return null;
+    }
+    Marker marker = context.get(MARKER);
+    if (marker == null) {
+      String sid = context.request().getHeader(STREAM_ID);
+      marker = new Log4jMarker( sid != null ? sid : STREAM_ID + "-null" );
+      context.put(MARKER, marker);
+    }
+    return marker;
+  }
+
+  /**
+   * Returns the access log object for this request.
+   *
+   * @param context the routing context.
+   * @return the access log object
+   */
+  public static AccessLog getAccessLog(RoutingContext context) {
+    if (context == null) {
+      return null;
+    }
+    AccessLog accessLog = context.get(ACCESS_LOG);
+    if (accessLog == null) {
+      accessLog = new AccessLog();
+      context.put(ACCESS_LOG, accessLog);
+    }
+    return accessLog;
   }
 }

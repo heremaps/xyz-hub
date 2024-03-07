@@ -35,6 +35,7 @@ import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub;
+package com.here.xyz.util.service;
 
-import com.here.xyz.hub.util.ConfigDecryptor;
-import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
+import com.google.common.primitives.Ints;
+import com.here.xyz.util.service.ConfigDecryptor.CryptoException;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
@@ -32,11 +32,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -95,8 +95,9 @@ public class Core {
   public static boolean isDebugModeActive;
 
   public static Future<Vertx> initializeVertx(VertxOptions vertxOptions) {
+    final String workerPoolSize = System.getenv(Core.VERTX_WORKER_POOL_SIZE);
     vertxOptions = (vertxOptions != null ? vertxOptions : new VertxOptions())
-            .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
+            .setWorkerPoolSize(Optional.ofNullable(workerPoolSize == null ? null : Ints.tryParse(workerPoolSize)).orElse(128))
             .setPreferNativeTransport(true);
 
     if (isDebugModeActive) {
@@ -204,7 +205,7 @@ public class Core {
   }
 
   protected static String getBuildProperty(String name) {
-    InputStream input = AbstractHttpServerVerticle.class.getResourceAsStream("/build.properties");
+    InputStream input = Core.class.getResourceAsStream("/build.properties");
 
     // load a properties file
     Properties buildProperties = new Properties();

@@ -19,9 +19,8 @@
 
 package com.here.xyz.hub.auth;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -34,10 +33,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.CombinableMatcher.either;
 
 import com.here.xyz.hub.rest.RestAssuredTest;
-import com.here.xyz.hub.util.Compression;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.util.Compression;
 import io.restassured.response.ValidatableResponse;
 import java.util.Arrays;
 import java.util.Base64;
