@@ -764,14 +764,15 @@ public abstract class Job<T extends Job> extends Payload {
         if (source instanceof DatasetDescription.Space space) {
             setTargetSpaceId(space.getId());
             if (this instanceof Export export) {
+
+                Ref ref = space.getVersionRef();
+
+                if (ref != null && ref.isSingleVersion() && !ref.isHead())
+                export.setTargetVersion("" + ref.getVersion());
+
                 export.setFilters(space.getFilters());
                 if (export.getFilters() != null) {
                  addParam(PARAM_CONTEXT, export.getFilters().getContext());
-
-                 Ref ref = export.getFilters().getRef();
-                 if( ref != null && ref.isSingleVersion() && !ref.isHead() )
-                  export.setTargetVersion( "" + ref.getVersion() );
-
                 }
             }
         }

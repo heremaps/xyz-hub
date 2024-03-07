@@ -217,9 +217,9 @@ public class JobApiExportVersionIT extends JobApiIT {
     public void compositeL1Export_ByVersion_jsonWkb() throws Exception {
 
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
-        Filters filter = new Filters().withRef( new Ref(4)  );
+
         /** Create job */
-        Export job =  buildTestJob(testExportJobId, filter, exportTarget, Job.CSVFormat.JSON_WKB);
+        Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.JSON_WKB);
         /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/ 
           job.setTargetVersion("4"); 
         /* */  
