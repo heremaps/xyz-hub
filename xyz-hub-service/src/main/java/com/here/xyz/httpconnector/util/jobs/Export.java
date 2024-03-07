@@ -71,7 +71,6 @@ import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -1276,9 +1275,9 @@ public class Export extends JDBCBasedJob<Export> {
 
       String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
 
-      Future<Void> pushVersionTag = ( getTargetVersion() == null )
+      Future<Tag> pushVersionTag = ( getTargetVersion() == null )
        ? Future.succeededFuture()
-       : HubWebClientAsync.postTag( srcKey, new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
+       : CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
 
       return pushVersionTag.compose( v -> super.prepareStart() );
     }
@@ -1290,7 +1289,7 @@ public class Export extends JDBCBasedJob<Export> {
 
         Future<Void> deleteVersionTag = ( getTargetVersion() == null )
         ? Future.succeededFuture()
-        : HubWebClientAsync.deleteTag( srcKey, getId() ).compose( tag -> Future.succeededFuture());
+        : CService.hubWebClient.deleteTagAsync( srcKey, getId() ).compose( tag -> Future.succeededFuture());
 
         return finalizeJob(true).compose( v -> deleteVersionTag  );
     }

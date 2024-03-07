@@ -19,17 +19,18 @@
 
 package com.here.xyz.httpconnector.job.steps.impl;
 
-import static com.here.xyz.httpconnector.util.web.HubWebClient.loadConnector;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.loadSpace;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.httpconnector.job.Config;
 import com.here.xyz.httpconnector.job.steps.execution.db.DatabaseBasedStep;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
-import com.here.xyz.httpconnector.util.web.HubWebClient.HubWebClientException;
 import com.here.xyz.hub.rest.Api.ValidationException;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.config.ConnectorParameters;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateIndex.class),
@@ -55,12 +56,12 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected final String getRootTableName(String spaceId) throws HubWebClientException {
-    return getRootTableName(HubWebClient.loadSpace(spaceId));
+    return getRootTableName(loadSpace(spaceId));
   }
 
   protected final String getRootTableName(Space space) throws HubWebClientException {
     return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(),
-        ConnectorParameters.fromMap(loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId());
+        ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId());
   }
 
   protected void validateSpaceExists() throws ValidationException {
@@ -71,6 +72,18 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     catch (HubWebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
+  }
+
+  protected Space loadSpace(String spaceId) throws HubWebClientException {
+    return hubWebClient().loadSpace(spaceId);
+  }
+
+  protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws HubWebClientException {
+    return hubWebClient().loadSpaceStatistics(spaceId, context);
+  }
+
+  protected HubWebClient hubWebClient() {
+    return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
   }
 
   @Override

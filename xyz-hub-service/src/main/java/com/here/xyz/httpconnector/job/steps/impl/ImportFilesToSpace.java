@@ -22,10 +22,7 @@ package com.here.xyz.httpconnector.job.steps.impl;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.httpconnector.job.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.httpconnector.job.steps.execution.db.Database.loadDatabase;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.HubWebClientException;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.loadSpace;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.loadSpaceStatistics;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.patchSpace;
+import static com.here.xyz.util.web.HubWebClient.HubWebClientException;
 
 import com.here.xyz.httpconnector.job.RuntimeInfo;
 import com.here.xyz.httpconnector.job.resources.TooManyResourcesClaimed;
@@ -33,8 +30,8 @@ import com.here.xyz.httpconnector.job.steps.Load;
 import com.here.xyz.httpconnector.job.steps.execution.db.Database;
 import com.here.xyz.httpconnector.job.steps.inputs.Input;
 import com.here.xyz.httpconnector.job.steps.inputs.UploadUrl;
-import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api.ValidationException;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.json.JsonObject;
@@ -126,7 +123,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       //Prepare
       logger.info("Set readOnly for space{}" + getSpaceId());
-      patchSpace(getSpaceId(), new HashMap<>(){{ put("readOnly", true);}});
+      hubWebClient().patchSpace(getSpaceId(), new HashMap<>(){{ put("readOnly", true);}});
 
       logger.info("Prepare - Retrieve new Version from {}" + getSpaceId());
       long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0),
@@ -227,7 +224,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       logger.info("Finalize - Delete tmp-import-table for {}" + getSpaceId());
       runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
-      patchSpace(getSpaceId(), new HashMap<>() {{
+      hubWebClient().patchSpace(getSpaceId(), new HashMap<>() {{
         put("readOnly", false);
       }});
 

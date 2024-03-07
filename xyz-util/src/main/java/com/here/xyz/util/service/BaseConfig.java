@@ -21,6 +21,11 @@ package com.here.xyz.util.service;
 
 public class BaseConfig {
   public static BaseConfig instance;
+
+  {
+    instance = this;
+  }
+
   /**
    * The maximum size of an event transiting between connector -> service -> client. Validation is only applied when
    * MAX_SERVICE_RESPONSE_SIZE is bigger than zero.
@@ -73,10 +78,6 @@ public class BaseConfig {
    * When set, modifies the Stream-Info header name to the value specified.
    */
   public String CUSTOM_STREAM_INFO_HEADER_NAME;
-
-  {
-    instance = this;
-  }
 
   /**
    * Flag indicating whether the author should be retrieved from the custom header Author.

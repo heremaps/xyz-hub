@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.httpconnector.util.web;
+package com.here.xyz.util.web;
 
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.JSON_UTF_8;
@@ -28,9 +28,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import java.io.IOException;
@@ -48,12 +47,24 @@ import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient {
-  private static ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
+  private static Map<String, HubWebClient> instances = new HashMap<>();
+  private final String baseUrl;
+  private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(3, TimeUnit.MINUTES)
       .build();
 
-  public static Space loadSpace(String spaceId) throws HubWebClientException {
+  protected HubWebClient(String baseUrl) {
+    this.baseUrl = baseUrl;
+  }
+
+  public static HubWebClient getInstance(String baseUrl) {
+    if (!instances.containsKey(baseUrl))
+      instances.put(baseUrl, new HubWebClient(baseUrl));
+    return instances.get(baseUrl);
+  }
+
+  public Space loadSpace(String spaceId) throws HubWebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/spaces/" + spaceId))
@@ -64,11 +75,11 @@ public class HubWebClient {
     }
   }
 
-  public static Space createSpace(String spaceId, String title) throws HubWebClientException {
+  public Space createSpace(String spaceId, String title) throws HubWebClientException {
     return createSpace(spaceId, title, null);
   }
 
-  public static Space createSpace(String spaceId, String title, Map<String, Object> spaceConfig) throws HubWebClientException {
+  public Space createSpace(String spaceId, String title, Map<String, Object> spaceConfig) throws HubWebClientException {
     spaceConfig = new HashMap<>(spaceConfig == null ? Map.of() : spaceConfig);
     spaceConfig.put("id", spaceId);
     spaceConfig.put("title", title);
@@ -85,7 +96,7 @@ public class HubWebClient {
     }
   }
 
-  public static void patchSpace(String spaceId, Map<String, Object> spaceUpdates) throws HubWebClientException {
+  public void patchSpace(String spaceId, Map<String, Object> spaceUpdates) throws HubWebClientException {
     request(HttpRequest.newBuilder()
         .uri(uri("/spaces/" + spaceId))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
@@ -93,14 +104,14 @@ public class HubWebClient {
         .build());
   }
 
-  public static void deleteSpace(String spaceId) throws HubWebClientException {
+  public void deleteSpace(String spaceId) throws HubWebClientException {
     request(HttpRequest.newBuilder()
             .DELETE()
             .uri(uri("/spaces/" + spaceId))
             .build());
   }
 
-  public static StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws HubWebClientException {
+  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws HubWebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/spaces/" + spaceId + "/statistics" + (context == null ? "" : "?context=" + context)))
@@ -111,11 +122,11 @@ public class HubWebClient {
     }
   }
 
-  public static StatisticsResponse loadSpaceStatistics(String spaceId) throws HubWebClientException {
+  public StatisticsResponse loadSpaceStatistics(String spaceId) throws HubWebClientException {
     return loadSpaceStatistics(spaceId, null);
   }
 
-  public static Connector loadConnector(String connectorId) throws HubWebClientException {
+  public Connector loadConnector(String connectorId) throws HubWebClientException {
     Connector cachedConnector = connectorCache.get(connectorId);
     if (cachedConnector != null)
       return cachedConnector;
@@ -131,7 +142,7 @@ public class HubWebClient {
     }
   }
 
-  public static List<Connector> loadConnectors() throws HubWebClientException {
+  public List<Connector> loadConnectors() throws HubWebClientException {
     //TODO: Add caching also here
     try {
       return deserialize(request(HttpRequest.newBuilder()
@@ -143,38 +154,36 @@ public class HubWebClient {
     }
   }
 
-  public static void postTag(String spaceId, Tag tag) throws HubWebClientException {
-    request(HttpRequest.newBuilder()
-        .uri(uri("/spaces/" + spaceId + "/tags"))
-        .header(CONTENT_TYPE, JSON_UTF_8.toString())
-        .method("POST", BodyPublishers.ofByteArray(tag.serialize().getBytes()))
-        .build());
-  }
-
-  public static Tag deleteTag(String spaceId, String tagId) throws HubWebClientException {
+  public Tag postTag(String spaceId, Tag tag) throws HubWebClientException {
     try {
-     return 
-      deserialize(
-       request(HttpRequest.newBuilder()
-         .DELETE()
-         .uri(uri("/spaces/" + spaceId + "/tags/" + tagId ))
-         .header(CONTENT_TYPE, JSON_UTF_8.toString())
-         .build()).body(),Tag.class);
+      return deserialize(request(HttpRequest.newBuilder()
+          .uri(uri("/spaces/" + spaceId + "/tags"))
+          .header(CONTENT_TYPE, JSON_UTF_8.toString())
+          .method("POST", BodyPublishers.ofByteArray(tag.serialize().getBytes()))
+          .build()).body(), Tag.class);
     }
     catch (JsonProcessingException e) {
       throw new HubWebClientException("Error deserializing response", e);
     }
   }
 
-  private static URI uri(String path) {
-      return URI.create(CService.configuration.HUB_ENDPOINT + path);
+  public void deleteTag(String spaceId, String tagId) throws HubWebClientException {
+    request(HttpRequest.newBuilder()
+        .DELETE()
+        .uri(uri("/spaces/" + spaceId + "/tags/" + tagId ))
+        .header(CONTENT_TYPE, JSON_UTF_8.toString())
+        .build());
   }
 
-  private static HttpClient client() {
+  private URI uri(String path) {
+    return URI.create(baseUrl + path);
+  }
+
+  private HttpClient client() {
     return HttpClient.newBuilder().followRedirects(NORMAL).build();
   }
 
-  private static HttpResponse<byte[]> request(HttpRequest request) throws HubWebClientException {
+  private HttpResponse<byte[]> request(HttpRequest request) throws HubWebClientException {
     try {
       HttpResponse<byte[]> response = client().send(request, BodyHandlers.ofByteArray());
       if (response.statusCode() >= 400)

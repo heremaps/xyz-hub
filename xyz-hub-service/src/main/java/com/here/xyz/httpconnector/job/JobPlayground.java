@@ -20,14 +20,10 @@
 package com.here.xyz.httpconnector.job;
 
 import static com.here.xyz.httpconnector.job.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.createSpace;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.deleteSpace;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.runtime.SimulatedContext;
-import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.Config;
 import com.here.xyz.httpconnector.job.steps.execution.LambdaBasedStep;
 import com.here.xyz.httpconnector.job.steps.execution.LambdaBasedStep.LambdaBasedStepExecutor;
 import com.here.xyz.httpconnector.job.steps.execution.LambdaBasedStep.LambdaStepRequest;
@@ -40,10 +36,11 @@ import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.FileOutputSettings;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
-import com.here.xyz.httpconnector.util.web.HubWebClient.ErrorResponseException;
-import com.here.xyz.httpconnector.util.web.HubWebClient.HubWebClientException;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.HubWebClient.ErrorResponseException;
+import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import java.io.ByteArrayInputStream;
@@ -61,6 +58,8 @@ import org.apache.logging.log4j.Logger;
 public class JobPlayground {
   private static final Logger logger = LogManager.getLogger();
 
+  private static HubWebClient hubWebClient;
+
   static {
     VertxOptions vertxOptions = new VertxOptions()
         .setWorkerPoolSize(128)
@@ -72,13 +71,14 @@ public class JobPlayground {
         .setMaxWorkerExecuteTime(TimeUnit.MINUTES.toMillis(1))
         .setWarningExceptionTime(TimeUnit.MINUTES.toMillis(1));
 
-    CService.vertx = Vertx.vertx(vertxOptions);
-    CService.configuration = new Config();
-    CService.configuration.ECPS_PHRASE = "local";
-    CService.configuration.HUB_ENDPOINT = "http://localhost:8080/hub";
-    CService.configuration.JOBS_S3_BUCKET = "test-bucket";
-    CService.configuration.JOBS_REGION = "eu-west-1";
-    CService.configuration.LOCALSTACK_ENDPOINT = "http://localhost:4566";
+    JobService.vertx = Vertx.vertx(vertxOptions);
+    new Config();
+    Config.instance.ECPS_PHRASE = "local";
+    Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
+    Config.instance.JOBS_S3_BUCKET = "test-bucket";
+    Config.instance.JOBS_REGION = "eu-west-1";
+    Config.instance.LOCALSTACK_ENDPOINT = "http://localhost:4566";
+    hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
   }
 
   private static Job mockJob = new Job()
@@ -107,12 +107,12 @@ public class JobPlayground {
   private static Space createSampleSpace(String spaceId) throws HubWebClientException {
     final String title = "Playground";
     try {
-      return createSpace(spaceId, title);
+      return hubWebClient.createSpace(spaceId, title);
     }
     catch (ErrorResponseException e) {
       if (e.getErrorResponse().statusCode() == 409) {
-        deleteSpace(spaceId);
-        return createSpace(spaceId, title);
+        hubWebClient.deleteSpace(spaceId);
+        return hubWebClient.createSpace(spaceId, title);
       }
       else {
         HttpResponse<byte[]> response = e.getErrorResponse();

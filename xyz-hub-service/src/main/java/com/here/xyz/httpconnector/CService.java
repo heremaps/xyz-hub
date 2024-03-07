@@ -27,6 +27,7 @@ import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.HubWebClientAsync;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
@@ -59,6 +60,11 @@ public class CService extends Core {
    * The client to access job configs
    */
   public static JobConfigClient jobConfigClient;
+
+  /**
+   * The client to access the Hub REST API
+   */
+  public static HubWebClientAsync hubWebClient;
 
   /**
    * The client to access job configs
@@ -139,6 +145,7 @@ public class CService extends Core {
   }
 
   private static Future<JsonObject> initializeClients(JsonObject config) {
+    hubWebClient = HubWebClientAsync.getInstance(configuration.HUB_ENDPOINT, vertx);
     jobConfigClient = JobConfigClient.getInstance();
 
     return jobConfigClient.init()
