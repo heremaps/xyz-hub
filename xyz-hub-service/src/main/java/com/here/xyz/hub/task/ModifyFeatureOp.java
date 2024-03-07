@@ -27,11 +27,11 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;

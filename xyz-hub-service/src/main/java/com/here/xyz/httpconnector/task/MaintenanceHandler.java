@@ -24,11 +24,11 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCMaintainer;
-import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

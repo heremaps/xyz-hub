@@ -24,7 +24,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
@@ -32,6 +31,7 @@ import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;

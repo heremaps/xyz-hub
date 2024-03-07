@@ -20,7 +20,7 @@
 package com.here.xyz.httpconnector.util.web;
 
 import static com.here.xyz.XyzSerializable.deserialize;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -29,9 +29,9 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;

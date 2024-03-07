@@ -18,17 +18,14 @@
  */
 package com.here.xyz.httpconnector.rest;
 
-import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
-import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.ApiParam;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
-import java.util.HashMap;
 
 public class HApiParam extends ApiParam {
 

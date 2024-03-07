@@ -29,6 +29,8 @@ import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -62,7 +64,7 @@ public class JobProxyApi extends Api{
             Job job = HApiParam.HQuery.getJobInput(context);
           Authorization.authorizeManageSpacesRights(context, spaceId)
                     .onSuccess(auth -> {
-                        Service.spaceConfigClient.get(Api.Context.getMarker(context), spaceId)
+                        Service.spaceConfigClient.get(LogUtil.getMarker(context), spaceId)
                                 .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Error fetching space!", t)))
                                 .compose(headSpace -> {
                                     if (headSpace == null)
@@ -225,7 +227,7 @@ public class JobProxyApi extends Api{
                                 Job job = res.bodyAsJson(Job.class);
 
                                 //TODO - resolve composite Connectors
-                                Service.connectorConfigClient.get( Api.Context.getMarker(context), job.getTargetConnector())
+                                Service.connectorConfigClient.get( LogUtil.getMarker(context), job.getTargetConnector())
                                     .onFailure(t ->  this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject()))
                                     .onSuccess(connector -> {
 
@@ -296,14 +298,14 @@ public class JobProxyApi extends Api{
               sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), Json.decodeValue(XyzSerializable.serialize(upstreamResponse, Job.Public.class)));
               return;
             }catch (Exception e){
-              logger.error(Api.Context.getMarker(context), "Error in Job-Proxy during response serialization.", e);
+              logger.error(LogUtil.getMarker(context), "Error in Job-Proxy during response serialization.", e);
             }
 
             try {
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                 return;
             }catch (Exception e){
-              logger.error(Api.Context.getMarker(context), "Error in Job-Proxy during response serialization.", e);
+              logger.error(LogUtil.getMarker(context), "Error in Job-Proxy during response serialization.", e);
             }
         }
 

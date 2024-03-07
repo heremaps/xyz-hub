@@ -22,6 +22,7 @@ package com.here.xyz.hub.auth;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.here.xyz.models.hub.jwt.ActionMatrix;
 import io.vertx.core.json.Json;
 import org.junit.Test;
 

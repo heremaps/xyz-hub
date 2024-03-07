@@ -19,7 +19,7 @@
 package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -38,7 +38,6 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -46,6 +45,7 @@ import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;

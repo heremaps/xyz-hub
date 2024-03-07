@@ -26,14 +26,14 @@ import com.google.common.base.Strings;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.auth.Authorization;
+import com.here.xyz.hub.auth.SpaceAuthorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.auth.SpaceAuthorization;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
@@ -120,7 +120,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       selectedCondition.region = region;
 
       if (!Strings.isNullOrEmpty(owner)) {
-        String ownOwnerId = Api.Context.getJWT(context).aid;
+        String ownOwnerId = BaseHttpServerVerticle.getJWT(context).aid;
         switch (owner) {
           case ME:
             selectedCondition.ownerIds = Collections.singleton(ownOwnerId);

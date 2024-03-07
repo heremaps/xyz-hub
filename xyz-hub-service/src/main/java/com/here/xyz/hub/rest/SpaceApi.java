@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
@@ -35,6 +35,7 @@ import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.models.hub.Space.Copyright;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;

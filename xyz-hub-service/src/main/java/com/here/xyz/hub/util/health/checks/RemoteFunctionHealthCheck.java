@@ -27,7 +27,6 @@ import static com.here.xyz.hub.util.health.schema.Status.Result.UNKNOWN;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
@@ -38,6 +37,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedde
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
+import com.here.xyz.util.service.Core;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;

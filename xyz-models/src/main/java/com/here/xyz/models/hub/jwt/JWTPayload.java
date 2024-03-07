@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,32 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.auth;
+package com.here.xyz.models.hub.jwt;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class XYZUsageLimits {
-  public int maxSpaces = -1;
-  public long maxFeaturesPerSpace = -1;
+@JsonInclude(Include.NON_DEFAULT)
+public class JWTPayload {
+  public String tid;
+  public String aid;
+  public String cid;
+
+  public Map<String, Object> metadata;
+
+  public int exp;
+  public ServiceMatrix urm;
+  public XYZUsageLimits limits;
+  public boolean anonymous;
+
+  public String jwt;
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class XYZUsageLimits {
+    public int maxSpaces = -1;
+    public long maxFeaturesPerSpace = -1;
+  }
 }

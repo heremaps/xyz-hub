@@ -31,12 +31,12 @@ import static org.junit.Assert.assertNull;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.util.service.HttpException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;

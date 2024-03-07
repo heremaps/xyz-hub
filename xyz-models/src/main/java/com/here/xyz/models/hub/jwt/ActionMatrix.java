@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.auth;
+package com.here.xyz.models.hub.jwt;
 
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.task.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;

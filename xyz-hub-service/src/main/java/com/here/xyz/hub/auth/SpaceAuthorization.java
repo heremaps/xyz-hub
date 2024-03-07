@@ -36,8 +36,6 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifySpaceOp;
@@ -47,6 +45,8 @@ import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.models.hub.jwt.AttributeMap;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -83,20 +83,20 @@ public class SpaceAuthorization extends Authorization {
       return;
     }
 
-    if (task.getJwt().getXyzHubMatrix() == null) {
+    if (getXyzHubMatrix(task.getJwt()) == null) {
       callback.exception(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
       return;
     }
 
     if (task.canReadConnectorsProperties) {
       final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
-      task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
+      task.canReadConnectorsProperties = getXyzHubMatrix(task.getJwt()).matches(connectorsReadMatrix);
     }
 
     if (task.responseType == ApiResponseType.SPACE && task.responseSpaces != null && task.responseSpaces.size() == 1) {
       Space space = task.responseSpaces.get(0);
 
-      final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
+      final XyzHubActionMatrix tokenRights = getXyzHubMatrix(task.getJwt());
       if (tokenRights == null)
         throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
 
@@ -131,7 +131,7 @@ public class SpaceAuthorization extends Authorization {
   }
 
   public static void authorizeModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
-    final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
+    final XyzHubActionMatrix tokenRights = getXyzHubMatrix(task.getJwt());
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
     final Entry<Space> entry = task.modifyOp.entries.get(0);
