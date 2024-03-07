@@ -109,6 +109,12 @@
       <groupId>com.google.guava</groupId>
     </dependency>
 
+    <!-- Cache -->
+    <dependency>
+      <artifactId>expiringmap</artifactId>
+      <groupId>net.jodah</groupId>
+    </dependency>
+
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>

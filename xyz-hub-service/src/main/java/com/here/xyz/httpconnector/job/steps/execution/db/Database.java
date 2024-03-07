@@ -21,22 +21,22 @@ package com.here.xyz.httpconnector.job.steps.execution.db;
 
 import static com.here.xyz.httpconnector.job.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.httpconnector.job.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.loadConnector;
 
 import com.amazonaws.services.rds.model.DBCluster;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.job.Config;
+import com.here.xyz.httpconnector.job.JobService;
 import com.here.xyz.httpconnector.job.resources.AwsRDSClient;
 import com.here.xyz.httpconnector.job.resources.ExecutionResource;
-import com.here.xyz.httpconnector.util.web.HubWebClient.HubWebClientException;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
-import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.tools.ECPSTool;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,7 +95,7 @@ public class Database extends ExecutionResource {
 
   public static Database loadDatabase(String name, DatabaseRole role) {
     try {
-      List<Database> dbs = loadDatabasesForConnector(loadConnector(name));
+      List<Database> dbs = loadDatabasesForConnector(HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadConnector(name));
 
       return dbs.stream()
           .filter(db -> db.getName().equals(name) && role.equals(db.getRole())).findAny().get();
@@ -107,7 +107,7 @@ public class Database extends ExecutionResource {
   }
 
   private static Future<Void> initializeDatabases() {
-    return HubWebClientAsync.loadConnectors()
+    return JobService.hubWebClient.loadConnectorsAsync()
         .compose(connectors -> {
           //TODO: Run the following asynchronously
           for (Connector connector : connectors) {
@@ -125,7 +125,7 @@ public class Database extends ExecutionResource {
     List<Database> databases = new ArrayList<>();
 
     if (connector.active) {
-      final Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(CService.configuration.ECPS_PHRASE,
+      final Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(Config.instance.ECPS_PHRASE,
           ConnectorParameters.fromMap(connector.params).getEcps());
       DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap);
 

@@ -33,7 +33,6 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.AwsS3Client;
 import com.here.xyz.httpconnector.config.SecretManagerCredentialsProvider;
 import java.net.URL;
@@ -42,7 +41,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class S3Client {
-  private static final S3Client instance = new S3Client(CService.configuration.JOBS_S3_BUCKET);
+  private static final S3Client instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
 
@@ -55,18 +54,18 @@ public class S3Client {
 
     if (isLocal()) {
       builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-              CService.configuration.LOCALSTACK_ENDPOINT, CService.configuration.JOBS_REGION))
+              Config.instance.LOCALSTACK_ENDPOINT, Config.instance.JOBS_REGION))
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
           .withPathStyleAccessEnabled(true);
     }
     else {
-      final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
+      final String region = Config.instance != null ? Config.instance.JOBS_REGION : "eu-west-1";
       builder.setRegion(region);
     }
 
-    if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
+    if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
       synchronized (AwsS3Client.class) {
-        builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOB_BOT_SECRET_ARN));
+        builder.setCredentials(new SecretManagerCredentialsProvider(Config.instance.JOB_BOT_SECRET_ARN));
       }
     }
     client = builder.build();
@@ -74,8 +73,8 @@ public class S3Client {
 
   public boolean isLocal() {
     //TODO: Rather encapsulate this in a "local" sub-implementation of S3Client
-    if(CService.configuration.HUB_ENDPOINT.contains("localhost") ||
-        CService.configuration.HUB_ENDPOINT.contains("xyz-hub:8080"))
+    if(Config.instance.HUB_ENDPOINT.contains("localhost") ||
+        Config.instance.HUB_ENDPOINT.contains("xyz-hub:8080"))
       return true;
     return false;
   }

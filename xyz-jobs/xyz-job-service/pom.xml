@@ -14,6 +14,13 @@
   <artifactId>xyz-job-service</artifactId>
   <packaging>jar</packaging>
 
+  <dependencies>
+    <dependency>
+      <groupId>com.here.xyz</groupId>
+      <artifactId>xyz-util</artifactId>
+    </dependency>
+  </dependencies>
+
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>

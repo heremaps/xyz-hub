@@ -20,14 +20,13 @@
 package com.here.xyz.httpconnector.job;
 
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.Async;
+import com.here.xyz.util.Async;
 import io.vertx.core.Future;
 import java.util.List;
 
 public class AsyncS3Client extends S3Client {
-  private static final AsyncS3Client instance = new AsyncS3Client(CService.configuration.JOBS_S3_BUCKET);
-  private Async async = new Async(20);
+  private static final AsyncS3Client instance = new AsyncS3Client(Config.instance.JOBS_S3_BUCKET);
+  private Async async = new Async(20, JobService.vertx, AsyncS3Client.class);
 
   protected AsyncS3Client(String bucketName) {
     super(bucketName);

@@ -21,16 +21,15 @@ package com.here.xyz.httpconnector.job.steps.impl;
 
 import static com.here.xyz.httpconnector.job.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.httpconnector.job.steps.execution.db.Database.loadDatabase;
-import static com.here.xyz.httpconnector.util.web.HubWebClient.loadSpace;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
 
 import com.here.xyz.httpconnector.job.resources.TooManyResourcesClaimed;
 import com.here.xyz.httpconnector.job.steps.Load;
 import com.here.xyz.httpconnector.job.steps.execution.db.Database;
-import com.here.xyz.httpconnector.util.web.HubWebClient.HubWebClientException;
-import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;

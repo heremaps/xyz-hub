@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
-import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.job.Config;
 import com.here.xyz.httpconnector.job.Job;
 import com.here.xyz.httpconnector.job.RuntimeInfo;
 import com.here.xyz.httpconnector.job.S3Client;
@@ -85,11 +85,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   public abstract int getTimeoutSeconds();
 
   protected String bucketName() {
-    return CService.configuration.JOBS_S3_BUCKET;
+    return Config.instance.JOBS_S3_BUCKET;
   }
 
   protected String bucketRegion() {
-    return CService.configuration.JOBS_REGION; //TODO: Get from bucket accordingly
+    return Config.instance.JOBS_REGION; //TODO: Get from bucket accordingly
   }
 
   private String stepS3Prefix(boolean previousStep) {

@@ -32,6 +32,7 @@ import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.web.HubWebClientAsync;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
@@ -50,7 +51,7 @@ public class LegacyHubWebClient {
   private static final Logger logger = LogManager.getLogger();
 
   /**
-   * @deprecated Please use {@link HubWebClientAsync#patchSpace(String, Map)} instead.
+   * @deprecated Please use {@link HubWebClientAsync#patchSpaceAsync(String, Map)} instead.
    * @param config
    * @param spaceId
    * @return
@@ -71,7 +72,7 @@ public class LegacyHubWebClient {
   }
 
   /**
-   * @deprecated Please use {@link HubWebClientAsync#loadSpace(String)} instead.
+   * @deprecated Please use {@link HubWebClientAsync#loadSpaceAsync(String)} instead.
    * @param spaceId
    * @return
    */
@@ -216,7 +217,7 @@ public class LegacyHubWebClient {
   }
 
   /**
-   * @deprecated Please use {@link HubWebClientAsync#loadConnector(String)} instead.
+   * @deprecated Please use {@link HubWebClientAsync#loadConnectorAsync(String)} instead.
    * @param connectorId
    * @return
    */
@@ -239,7 +240,7 @@ public class LegacyHubWebClient {
   }
 
   /**
-   * @deprecated Please use {@link HubWebClientAsync#loadSpaceStatistics(String, SpaceContext)} instead.
+   * @deprecated Please use {@link HubWebClientAsync#loadSpaceStatisticsAsync(String, SpaceContext)} instead.
    * @param spaceId
    * @param context
    * @return
@@ -265,7 +266,7 @@ public class LegacyHubWebClient {
   }
 
   /**
-   * @deprecated Please use {@link HubWebClientAsync#loadSpaceStatistics(String)} instead.
+   * @deprecated Please use {@link HubWebClientAsync#loadSpaceStatisticsAsync(String)} instead.
    * @param spaceId
    * @return
    */

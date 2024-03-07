@@ -17,7 +17,14 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs;
+package com.here.xyz.httpconnector.job;
 
-public class JobService {
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.HubWebClientAsync;
+
+public class JobService extends Core {
+  /**
+   * The client to access the Hub REST API
+   */
+  public static HubWebClientAsync hubWebClient;
 }

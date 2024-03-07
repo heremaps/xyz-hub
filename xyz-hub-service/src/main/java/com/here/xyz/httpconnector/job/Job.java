@@ -40,8 +40,8 @@ import com.here.xyz.httpconnector.job.steps.Step;
 import com.here.xyz.httpconnector.job.steps.StepGraph;
 import com.here.xyz.httpconnector.job.steps.execution.JobExecutor;
 import com.here.xyz.httpconnector.job.steps.inputs.UploadUrl;
-import com.here.xyz.httpconnector.util.Async;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
+import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.util.ArrayList;
@@ -82,7 +82,7 @@ public class Job implements XyzSerializable {
   @JsonView(Static.class)
   private String executionId;
 
-  public static final Async async = new Async(20);
+  public static final Async async = new Async(20, JobService.vertx, Job.class);
   private static final Logger logger = LogManager.getLogger();
 
   /**
