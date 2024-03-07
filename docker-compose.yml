@@ -59,5 +59,14 @@ services:
             - AWS_ACCESS_KEY_ID=localstack
             - AWS_SECRET_ACCESS_KEY=localstack
             - AWS_DEFAULT_REGION=eu-west-1
+            - EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5001
         volumes:
             - ./xyz-hub-test/src/test/resources/mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh
+    s3-explorer:
+        image: aws-js-s3-explorer
+        build:
+            context: ./
+            dockerfile: Dockerfile-s3-explorer
+        container_name: s3-explorer
+        ports:
+            - "5001:8080"

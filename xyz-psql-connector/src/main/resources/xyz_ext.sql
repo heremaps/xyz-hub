@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 190
+ select 191
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -903,12 +903,10 @@ $BODY$
 		END IF;
 
 		/** set indication that idx creation is running */
-		UPDATE xyz_config.xyz_idxs_status
-			SET idx_creation_finished = false
-				WHERE spaceid = space
-                  AND schem = schema;
-
-		EXECUTE xyz_index_check_comments(schema, space);
+        UPDATE xyz_config.xyz_idxs_status
+            SET idx_creation_finished = false
+        WHERE spaceid = space AND schem = schema;
+		--EXECUTE xyz_index_check_comments(schema, space);
 
 		/** Analyze IDX-ON DEMAND aka MANUAL MODE */
 		RAISE NOTICE 'ANALYSE MANUAL IDX on SPACE: %', space;
