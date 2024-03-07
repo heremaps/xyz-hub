@@ -162,7 +162,7 @@ public class TagApi extends SpaceBasedApi {
   }
 
   private static boolean invalidTagId(String tagId) {
-    return StringUtils.isBlank(tagId) || !StringUtils.isAlpha(tagId.substring(0, 1));
+    return StringUtils.isBlank(tagId) || !StringUtils.isAlpha(tagId.substring(0, 1)) || "HEAD".equals(tagId);
   }
 
   // TODO auth
