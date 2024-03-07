@@ -445,6 +445,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
+        - $ref: '#/components/parameters/VersionRefStar'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -657,6 +658,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
+        - $ref: '#/components/parameters/VersionRefStar'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -789,6 +791,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -835,6 +838,7 @@ paths:
         - $ref: '#/components/parameters/VizSampling'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -875,6 +879,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -907,6 +912,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/GeometryRequest'
       responses:
@@ -941,6 +947,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -979,6 +986,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/IterateResponse'
@@ -1967,6 +1975,23 @@ components:
       in: query
       description: >-
         The query parameter used to specify the version of a feature or feature collection to be loaded.
+      required: false
+      schema:
+        type: string
+    VersionRef:
+      name: version
+      in: query
+      description: >-
+        The query parameter used to specify the version reference pointing to a tag or a version.
+      required: false
+      schema:
+        type: string
+    VersionRefStar:
+      name: version
+      in: query
+      description: >-
+        The query parameter used to specify the version reference pointing to a tag or a version
+        with also the possibility to use the star '*' to load all versions.
       required: false
       schema:
         type: string

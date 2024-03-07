@@ -59,6 +59,7 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.cache.CacheClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -72,6 +73,7 @@ import com.here.xyz.hub.rest.Api.Context;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.task.FeatureTask.BBoxQuery;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
@@ -772,6 +774,34 @@ public class FeatureTaskHandler {
     }
 
     callback.call(task);
+  }
+
+  static <X extends FeatureTask> void resolveVersionRef(final X task, final Callback<X> callback) {
+    if (!(task.getEvent() instanceof SelectiveEvent<?> event)) {
+      callback.call(task);
+      return;
+    }
+
+    if (event.getRef() == null || event.getRef().isResolved()) {
+      callback.call(task);
+      return;
+    }
+
+    TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getVersionRef(), task.space.getId())
+        .onSuccess(tag -> {
+          if (tag == null) {
+            callback.exception(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getVersionRef()));
+            return;
+          }
+
+          event.getRef().setResolved(true);
+          event.getRef().setVersion(tag.getVersion());
+          callback.call(task);
+        })
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Error while resolving version ref.", t);
+          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
+        });
   }
 
   private static class RpcContextHolder {
