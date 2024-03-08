@@ -30,6 +30,7 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
@@ -60,7 +61,8 @@ public class AwsS3Client {
 
         if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
             synchronized (AwsS3Client.class) {
-                builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOB_BOT_SECRET_ARN));
+                builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOBS_REGION,
+                    CService.configuration.LOCALSTACK_ENDPOINT, CService.configuration.JOB_BOT_SECRET_ARN));
             }
         }
         client = builder.build();

@@ -230,6 +230,16 @@
         <artifactId>xyz-util</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-job-service</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-job-steps</artifactId>
+        <version>${project.version}</version>
+      </dependency>
 
       <!-- Vertx -->
       <dependency>

@@ -28,12 +28,12 @@ import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.jobs.datasets.Files;
-import com.here.xyz.httpconnector.util.jobs.datasets.Spaces;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.Api.ValidationException;
+import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.Files;
+import com.here.xyz.jobs.datasets.Spaces;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;

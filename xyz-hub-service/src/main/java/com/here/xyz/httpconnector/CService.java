@@ -20,7 +20,6 @@
 package com.here.xyz.httpconnector;
 
 import com.here.xyz.httpconnector.config.AwsCWClient;
-import com.here.xyz.httpconnector.config.AwsSecretManagerClient;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.config.JobS3Client;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
@@ -75,11 +74,6 @@ public class CService extends Core {
    * The client to access job configs
    */
   public static AwsCWClient jobCWClient;
-
-  /**
-   * The client to access secrets from AWS Secret Manager
-   */
-  public static AwsSecretManagerClient jobSecretClient;
 
   /**
    * Queue for executed importJobs
@@ -145,7 +139,7 @@ public class CService extends Core {
   }
 
   private static Future<JsonObject> initializeClients(JsonObject config) {
-    hubWebClient = HubWebClientAsync.getInstance(configuration.HUB_ENDPOINT, vertx);
+    hubWebClient = HubWebClientAsync.getInstance(configuration.HUB_ENDPOINT);
     jobConfigClient = JobConfigClient.getInstance();
 
     return jobConfigClient.init()
@@ -158,7 +152,6 @@ public class CService extends Core {
               .setTcpQuickAck(true)
               .setTcpFastOpen(true));
 
-          jobSecretClient = new AwsSecretManagerClient();
           jobS3Client = new JobS3Client();
           jobCWClient = new AwsCWClient();
           importQueue = new ImportQueue();

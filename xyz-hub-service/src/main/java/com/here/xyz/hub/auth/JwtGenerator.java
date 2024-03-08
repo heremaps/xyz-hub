@@ -21,8 +21,8 @@ package com.here.xyz.hub.auth;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.io.CharStreams;
-import com.here.xyz.hub.Service;
 import com.here.xyz.models.hub.jwt.JWTPayload;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -67,7 +67,7 @@ public class JwtGenerator {
             .setAlgorithm("RS256")
             .setBuffer(readResourceFile("/auth/jwt.key")));
 
-    authProvider = JWTAuth.create(Service.vertx, authConfig);
+    authProvider = JWTAuth.create(Core.vertx, authConfig);
   }
 
   private static String readResourceFile(String resourceFilename) throws IOException {

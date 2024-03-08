@@ -45,6 +45,8 @@ import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
+import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;

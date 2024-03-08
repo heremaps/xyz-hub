@@ -39,6 +39,7 @@ import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -599,7 +600,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         assertEquals(expectedFeatureCount, featureCount);
     }
 
-    protected Export buildTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format){
+    protected Export buildTestJob(String id, Filters filters, Export.ExportTarget target, Job.CSVFormat format){
         return new Export()
                 .withId(id + CService.currentTimeMillis())
                 .withFilters(filters)
@@ -607,7 +608,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .withCsvFormat(format);
     }
 
-    protected Export buildVMTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel,
+    protected Export buildVMTestJob(String id, Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel,
         int maxTilesPerFile) {
         Export export = buildTestJob(id, filters, target, format)
                 .withMaxTilesPerFile(maxTilesPerFile)

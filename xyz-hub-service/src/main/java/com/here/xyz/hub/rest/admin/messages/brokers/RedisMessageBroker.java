@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest.admin.messages.brokers;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -49,8 +50,8 @@ public class RedisMessageBroker implements MessageBroker {
 
   public RedisMessageBroker() {
     try {
-      client = Redis.createClient(Service.vertx, getClientConfig(true));
-      messageReceiverClient = Redis.createClient(Service.vertx, getClientConfig(false));
+      client = Redis.createClient(Core.vertx, getClientConfig(true));
+      messageReceiverClient = Redis.createClient(Core.vertx, getClientConfig(false));
     }
     catch (Exception e) {
       logger.error("Error while subscribing node in Redis.", e);

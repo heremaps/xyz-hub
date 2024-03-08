@@ -22,8 +22,8 @@ package com.here.xyz.psql;
 import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
 
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.factory.MaintenanceSQL;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.io.BufferedReader;

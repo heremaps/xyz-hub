@@ -22,7 +22,7 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.config.ConnectorParameters;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.SQLException;
 import java.util.Map;

@@ -87,7 +87,7 @@ public class StorageStatisticsProvider {
 
   private static Future<Map<String, List<String>>> sortByStorage(List<Space> spaces) {
     //That operation could take longer, so do it asynchronously
-    return Service.vertx.executeBlocking(p -> sortByStorageSync(spaces, p));
+    return Core.vertx.executeBlocking(p -> sortByStorageSync(spaces, p));
   }
 
   private static void sortByStorageSync(List<Space> spaces, Promise<Map<String, List<String>>> p) {

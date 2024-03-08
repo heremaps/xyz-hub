@@ -568,7 +568,7 @@ public class FeatureTaskHandler {
       long interval, boolean adminNotification) {
     if (!timerMap.containsKey(nc.space.getId())) {
       //Schedule a new notification
-      long timerId = Service.vertx.setTimer(interval, tId -> {
+      long timerId = Core.vertx.setTimer(interval, tId -> {
         timerMap.remove(nc.space.getId());
         ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId());
         Long spaceVersion = latestSeenContentVersions.get(nc.space.getId());
@@ -585,7 +585,7 @@ public class FeatureTaskHandler {
       //Check whether some other thread also just scheduled a new timer
       if (timerMap.putIfAbsent(nc.space.getId(), timerId) != null)
         //Another thread scheduled a new timer in the meantime. Cancelling this one ...
-        Service.vertx.cancelTimer(timerId);
+        Core.vertx.cancelTimer(timerId);
     }
   }
 

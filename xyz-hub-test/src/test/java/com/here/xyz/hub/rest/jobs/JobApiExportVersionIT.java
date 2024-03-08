@@ -24,14 +24,10 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.httpconnector.util.jobs.Export.Filters;
-
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.hub.Ref;
-
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
@@ -50,7 +46,7 @@ public class JobApiExportVersionIT extends JobApiIT {
     @BeforeClass
     public static void init(){
 
-        final Feature[] 
+        final Feature[]
         baseFeatures =
         { newFeature().withId("id000")
                       .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.61,50.020093)))  // base  - htile 122001322003 , 23600771
@@ -114,7 +110,7 @@ public class JobApiExportVersionIT extends JobApiIT {
           newFeature().withId("id002")
                         .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
                         .withProperties(new Properties().with("group", "deltaonly")
-                                                        .with("vflag", "newest"))                                                        
+                                                        .with("vflag", "newest"))
         };
 
         /** Create test space with CompostitSpace, Version and content */
@@ -127,7 +123,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         for( Feature dft : deltaFeatures )
          postFeature(getScopedSpaceId(testVersionedSpaceId1Ext,scope), dft, AuthProfile.ACCESS_OWNER_1_ADMIN );
-        
+
         deleteFeature(getScopedSpaceId(testVersionedSpaceId1Ext,scope), "id003");  // feature in base got deleted in delta
 
         deleteAllJobsOnSpace(getScopedSpaceId(testVersionedSpaceId1, scope));
@@ -191,7 +187,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
 
         List<String> mustContain = Arrays.asList("23600771","23600774","23600775", "AwMiIs","AwMCIs");
@@ -220,9 +216,9 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.JSON_WKB);
-        /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/ 
-          job.setTargetVersion("4"); 
-        /* */  
+        /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
+          job.setTargetVersion("4");
+        /* */
         List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed, Export.CompositeMode.CHANGES );
 
         List<String> mustContain = Arrays.asList("id000", "id002", "movedFromEmpty", "deltaonly");
@@ -244,7 +240,7 @@ public class JobApiExportVersionIT extends JobApiIT {
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile)
                       .withPartitionKey("tileid");
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
 
         List<String> mustContain = Arrays.asList("23600771,,","23600774","23600775", "deltaonly","baseonly","movedFromEmpty");

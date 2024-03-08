@@ -27,6 +27,8 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import java.net.URL;
@@ -78,12 +80,12 @@ public class JobApiExportIT extends JobApiIT {
      * */
     @Test
     public void testFilteredWKBExportWithSpatialFilterClipped() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
 
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
@@ -99,12 +101,12 @@ public class JobApiExportIT extends JobApiIT {
 
     @Test
     public void testFilteredWKBExportWithSpatialFilterUnclipped() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
 
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
@@ -122,7 +124,7 @@ public class JobApiExportIT extends JobApiIT {
     public void testFilteredWKBExportWithPropFilter() throws Exception {
         String propertyFilter = "p.description=Point";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withPropertyFilter(propertyFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
 
@@ -139,13 +141,13 @@ public class JobApiExportIT extends JobApiIT {
 
     @Test
     public void testFilteredWKBExportWithPropAndSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
         String propertyFilter = "p.description=Point";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
@@ -252,11 +254,11 @@ public class JobApiExportIT extends JobApiIT {
 
     @Test
     public void testFilteredGEOJSONCompositeL1ExportWithSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
 
         Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), finalized, failed);
@@ -272,13 +274,13 @@ public class JobApiExportIT extends JobApiIT {
 
     @Test
     public void testFilteredGEOJSONCompositeL1ExportWithPropAndSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
         String propertyFilter = "p.foo_new=test";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
@@ -295,12 +297,12 @@ public class JobApiExportIT extends JobApiIT {
 
     @Test
     public void testFilteredGEOJSONCompositeL2WithPropAndSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter);
 
         /** Create job */
@@ -419,12 +421,12 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2+":dummy");
 
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), finalized, failed);
 
@@ -442,12 +444,12 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2+":dummy");
 
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
@@ -465,7 +467,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2+":dummy");
 
         String propertyFilter = "p.description=Point";
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withPropertyFilter(propertyFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
@@ -484,13 +486,13 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
         String propertyFilter = "p.description=Point";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
@@ -551,11 +553,11 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2Ext+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext,scope), finalized, failed);
@@ -573,13 +575,13 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2Ext+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
         String propertyFilter = "p.foo_new=test";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
@@ -599,12 +601,12 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(getScopedSpaceId(testSpaceId2ExtExt, scope)+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter);
 
         /** Create job */
@@ -668,7 +670,7 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
 
         List<String> mustContain = Arrays.asList("23600771","23600774","23600775", "fX19XX0","fX1dfQ");
@@ -702,7 +704,7 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile);
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3, scope), finalized, failed,  Export.CompositeMode.DEACTIVATED );
 
         List<String> mustContain = Arrays.asList("23600771,","23600774,", "baseonly","shouldBeEmpty");
@@ -722,7 +724,7 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile);
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
 
         List<String> mustContain = Arrays.asList("23600771,,","23600774","23600775", "deltaonly","baseonly","movedFromEmpty");

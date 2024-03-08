@@ -20,10 +20,10 @@
 package com.here.xyz.hub.connectors;
 
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
-import com.here.xyz.connectors.runtime.SimulatedContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.aws.SimulatedContext;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
