@@ -26,12 +26,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
+import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClientBuilder;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
@@ -107,16 +109,26 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
+  private CloudWatchEventsClient cwEventsClient() {
+    if (cwEventsClient == null) {
+      CloudWatchEventsClientBuilder builder = CloudWatchEventsClient.builder();
+      if (Config.instance.LOCALSTACK_ENDPOINT != null)
+        builder.endpointOverride(Config.instance.LOCALSTACK_ENDPOINT);
+      cwEventsClient = builder.build();
+    }
+    return cwEventsClient;
+  }
+
   private void registerStateCheckTrigger() {
-    //String globalStepId = getJobId() + "." + getId();
-    //
-    //stateCheckTriggerArn = cwEventsClient.putRule(PutRuleRequest.builder()
+    String globalStepId = getJobId() + "." + getId();
+
+    //stateCheckTriggerArn = cwEventsClient().putRule(PutRuleRequest.builder()
     //    .state(ENABLED)
     //    .scheduleExpression("rate(1 minute)")
     //    .description("Heartbeat trigger for Step " + globalStepId)
     //    .build()).ruleArn();
     //
-    //cwEventsClient.putTargets(PutTargetsRequest.builder()
+    //cwEventsClient().putTargets(PutTargetsRequest.builder()
     //    .targets(Target.builder()
     //        .id(globalStepId)
     //        .arn(ownLambdaArn)
@@ -129,18 +141,18 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   //TODO: Also call this on cancel?
   private void unregisterStateCheckTrigger() {
-    ////List all targets
-    //List<String> targetIds = cwEventsClient.listTargetsByRule(ListTargetsByRuleRequest.builder().rule(stateCheckTriggerArn).build())
+    //List all targets
+    //List<String> targetIds = cwEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(stateCheckTriggerArn).build())
     //    .targets()
     //    .stream()
     //    .map(target -> target.id())
     //    .collect(Collectors.toList());
     //
     ////Remove all targets from the rule
-    //cwEventsClient.removeTargets(RemoveTargetsRequest.builder().rule(stateCheckTriggerArn).ids(targetIds).build());
+    //cwEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(stateCheckTriggerArn).ids(targetIds).build());
     //
     ////Remove the rule
-    //cwEventsClient.deleteRule(DeleteRuleRequest.builder().name(stateCheckTriggerArn).build());
+    //cwEventsClient().deleteRule(DeleteRuleRequest.builder().name(stateCheckTriggerArn).build());
   }
 
   private void checkAsyncExecutionState() {
@@ -179,6 +191,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (sfnClient != null)
       sfnClient.sendTaskSuccess(SendTaskSuccessRequest.builder().taskToken(taskToken).build());
     else
+      //TODO: Remove testing code
       System.out.println(getClass().getSimpleName() + " : SUCCESS");
   }
 
@@ -284,7 +297,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       //The lambda call is complete, call the shutdown hook
       request.getStep().onRuntimeShutdown();
     }
-
   }
 
   public static class LambdaStepRequest implements XyzSerializable {

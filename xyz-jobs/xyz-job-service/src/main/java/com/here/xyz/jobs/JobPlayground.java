@@ -49,16 +49,27 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.lambda.LambdaClient;
+import software.amazon.awssdk.services.lambda.model.InvokeRequest;
+import software.amazon.awssdk.services.lambda.model.InvokeResponse;
 
 public class JobPlayground {
   private static final Logger logger = LogManager.getLogger();
   private static HubWebClient hubWebClient;
+  private static LambdaClient lambdaClient;
+  private static final String LAMBDA_NAME = "job-step";
 
   static {
     VertxOptions vertxOptions = new VertxOptions()
@@ -76,9 +87,19 @@ public class JobPlayground {
     Config.instance.ECPS_PHRASE = "local";
     Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
     Config.instance.JOBS_S3_BUCKET = "test-bucket";
-    Config.instance.JOBS_REGION = "eu-west-1";
-    Config.instance.LOCALSTACK_ENDPOINT = "http://localhost:4566";
+    Config.instance.JOBS_REGION = "us-east-1";
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
+    try {
+      Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
+      lambdaClient = LambdaClient.builder()
+          .region(Region.US_EAST_1)
+          .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack", "localstack")))
+          .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
+          .build();
+    }
+    catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private static Job mockJob = new Job()
@@ -88,7 +109,6 @@ public class JobPlayground {
   private static Space sampleSpace;
 
   public static void main(String[] args) throws IOException, HubWebClientException {
-    //Configurator.initialize("default", CONSOLE_LOG_CONFIG);
     sampleSpace = createSampleSpace("TEST");
 
     //Upload files with each having one feature without id
@@ -155,37 +175,53 @@ public class JobPlayground {
   }
 
   public static void runDropIndexStep(String spaceId) throws IOException {
-    runLambdaStep(new DropIndexes().withSpaceId(spaceId));
+    simulateLambdaStep(new DropIndexes().withSpaceId(spaceId));
   }
 
   public static void runImportFilesToSpaceStep(String spaceId) throws IOException {
-    runLambdaStep(new ImportFilesToSpace().withSpaceId(spaceId));
+    simulateLambdaStep(new ImportFilesToSpace().withSpaceId(spaceId));
   }
 
   public static void runCreateIndexStep(String spaceId, Index index) throws IOException {
-    runLambdaStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
+    simulateLambdaStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
   }
 
   public static void runAnalyzeSpaceTableStep(String spaceId) throws IOException {
-    runLambdaStep(new AnalyzeSpaceTable().withSpaceId(spaceId));
+    simulateLambdaStep(new AnalyzeSpaceTable().withSpaceId(spaceId));
   }
 
   public static void runMarkForMaintenanceStep(String spaceId) throws IOException {
-    runLambdaStep(new MarkForMaintenance().withSpaceId(spaceId));
+    simulateLambdaStep(new MarkForMaintenance().withSpaceId(spaceId));
   }
 
-  private static void runLambdaStep(LambdaBasedStep step) throws IOException {
+  private static void simulateLambdaStep(LambdaBasedStep step) throws IOException {
     InputStream is = null;
     OutputStream os = null;
     Context ctx = new SimulatedContext("localLambda", null);
 
+    final LambdaStepRequest request = prepareStepRequestPayload(step);
+
+    new LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
+  }
+
+  private static void runLambdaStep(LambdaBasedStep step) {
+    InvokeResponse response = lambdaClient.invoke(InvokeRequest.builder()
+        .functionName(LAMBDA_NAME)
+        .payload(SdkBytes.fromByteArray(prepareStepRequestPayload(step).toByteArray()))
+        .build());
+    logger.info("Response from lambda function: Status-code ({}), Payload:\n{}", response.statusCode(),
+        response.payload().asUtf8String());
+
+    System.out.println(response.payload().asUtf8String());
+  }
+
+  private static LambdaStepRequest prepareStepRequestPayload(LambdaBasedStep step) {
     Map<String, Object> stepMap = step.toMap();
     stepMap.put("taskToken", "test123");
     stepMap.put("jobId", mockJob.getId());
     LambdaBasedStep enrichedStep = XyzSerializable.fromMap(stepMap, LambdaBasedStep.class);
 
     LambdaStepRequest request = new LambdaStepRequest().withStep(enrichedStep).withType(START_EXECUTION);
-
-    new LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
+    return request;
   }
 }

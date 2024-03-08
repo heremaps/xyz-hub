@@ -98,6 +98,10 @@
       <artifactId>aws-lambda-java-core</artifactId>
       <groupId>com.amazonaws</groupId>
     </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>lambda</artifactId>
+    </dependency>
 
     <!-- DB utils -->
     <dependency>
