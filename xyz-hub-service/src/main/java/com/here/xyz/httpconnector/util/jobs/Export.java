@@ -64,17 +64,17 @@ import com.here.xyz.httpconnector.util.emr.config.Step.ConvertToGeoparquet;
 import com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV;
 import com.here.xyz.httpconnector.util.emr.config.Step.ReplaceWkbWithGeo;
 import com.here.xyz.httpconnector.util.emr.config.Step.WriteGeoparquet;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
-import com.here.xyz.httpconnector.util.jobs.datasets.FileOutputSettings;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
+import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.FileBasedTarget;
+import com.here.xyz.jobs.datasets.FileOutputSettings;
+import com.here.xyz.jobs.datasets.files.Csv;
+import com.here.xyz.jobs.datasets.files.FileFormat;
+import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.datasets.files.GeoParquet;
+import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
@@ -194,6 +194,10 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Export() {
         super();
+    }
+
+    public static CSVFormat toBWCFormat(Csv csv) {
+      return csv.isAddPartitionKey() ? PARTITIONED_JSON_WKB : JSON_WKB;
     }
 
     @Override
@@ -577,7 +581,7 @@ public class Export extends JDBCBasedJob<Export> {
                     os.setPartitionKey("id");
                 }
                 else if (os.getFormat() instanceof Csv csv)
-                    setCsvFormat(csv.toBWCFormat());
+                    setCsvFormat(toBWCFormat(csv));
             }
         }
     }
@@ -840,132 +844,6 @@ public class Export extends JDBCBasedJob<Export> {
 
         public ExportTarget withType(final Type type) {
             setType(type);
-            return this;
-        }
-    }
-
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    public static class SpatialFilter {
-
-        @JsonView({Public.class})
-        private Geometry geometry;
-
-        @JsonView({Public.class})
-        private int radius;
-
-        @JsonView({Public.class})
-        private boolean clip;
-
-        public Geometry getGeometry() {
-            return geometry;
-        }
-
-        public void setGeometry(Geometry geometry) {
-            this.geometry = geometry;
-        }
-
-        public SpatialFilter withGeometry(Geometry geometry){
-            this.setGeometry(geometry);
-            return this;
-        }
-
-        public int getRadius() {
-            return radius;
-        }
-
-        public void setRadius(int radius) {
-            this.radius = radius;
-        }
-
-        public SpatialFilter withRadius(final int radius) {
-            setRadius(radius);
-            return this;
-        }
-
-        /**
-         * @deprecated Use {@link #isClip()} instead.
-         */
-        @Deprecated
-        public boolean isClipped() {
-            return isClip();
-        }
-
-        /**
-         * @deprecated Use {@link #setClip(boolean)} instead.
-         */
-        @Deprecated
-        public void setClipped(boolean clipped) {
-            setClip(clipped);
-        }
-
-        /**
-         * @deprecated Use {@link #withClip(boolean)} instead.
-         */
-        @Deprecated
-        public SpatialFilter withClipped(final boolean clipped) {
-            return withClip(clipped);
-        }
-
-        public boolean isClip() {
-            return clip;
-        }
-
-        public void setClip(boolean clipped) {
-            this.clip = clipped;
-        }
-
-        public SpatialFilter withClip(final boolean clipped) {
-            setClipped(clipped);
-            return this;
-        }
-    }
-
-    public static class Filters {
-        @JsonView({Public.class})
-        private String propertyFilter;
-
-        @JsonView({Public.class})
-        private SpatialFilter spatialFilter;
-
-        @JsonView({Public.class, Static.class})
-        private SpaceContext context = DEFAULT;
-
-        public String getPropertyFilter() {
-            return propertyFilter;
-        }
-
-        public void setPropertyFilter(String propertyFilter) {
-            this.propertyFilter = propertyFilter;
-        }
-
-        public Filters withPropertyFilter(String propertyFilter) {
-            setPropertyFilter(propertyFilter);
-            return this;
-        }
-
-        public SpatialFilter getSpatialFilter() {
-            return spatialFilter;
-        }
-
-        public void setSpatialFilter(SpatialFilter spatialFilter) {
-            this.spatialFilter = spatialFilter;
-        }
-
-        public Filters withSpatialFilter(SpatialFilter spatialFilter) {
-            setSpatialFilter(spatialFilter);
-            return this;
-        }
-
-        public SpaceContext getContext() {
-            return context;
-        }
-
-        public void setContext(SpaceContext context) {
-            this.context = context;
-        }
-
-        public Filters withContext(SpaceContext context) {
-            setContext(context);
             return this;
         }
     }
@@ -1425,7 +1303,7 @@ public class Export extends JDBCBasedJob<Export> {
                 + maxTilesPerFile
                 + partitionKey
                 + (targetCSVFormat == null ? csvFormat : targetCSVFormat)
-                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() : "")
+                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getGeometry().getJTSGeometry().hashCode() : "")
                 + (filters != null && filters.getPropertyFilter() != null ? filters.getPropertyFilter().hashCode() : "")
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getRadius() : "")
                 + (filters != null && filters.getSpatialFilter() != null && filters.getSpatialFilter().isClipped()));

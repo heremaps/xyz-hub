@@ -24,6 +24,7 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoSettingsConfigClient;
 import com.here.xyz.hub.config.memory.InMemSettingsConfigClient;
 import com.here.xyz.hub.config.settings.Setting;
+import com.here.xyz.util.service.Initializable;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.json.jackson.JacksonCodec;

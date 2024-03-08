@@ -183,6 +183,12 @@
       <artifactId>xyz-psql-connector</artifactId>
     </dependency>
 
+    <!-- Added only temporary; Can be removed when legacy job service was removed -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-job-service</artifactId>
+    </dependency>
+
     <!-- Logging libraries -->
     <dependency>
       <artifactId>log4j-slf4j-impl</artifactId>
@@ -200,7 +206,6 @@
       <artifactId>disruptor</artifactId>
       <groupId>com.lmax</groupId>
     </dependency>
-
 
     <!-- Vert.x -->
     <dependency>

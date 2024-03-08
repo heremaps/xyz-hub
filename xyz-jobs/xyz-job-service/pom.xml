@@ -15,9 +15,74 @@
   <packaging>jar</packaging>
 
   <dependencies>
+    <!-- XYZ libraries -->
     <dependency>
       <groupId>com.here.xyz</groupId>
       <artifactId>xyz-util</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.here.xyz</groupId>
+      <artifactId>xyz-job-steps</artifactId>
+    </dependency>
+
+    <!-- Vert.x -->
+    <dependency>
+      <artifactId>vertx-core</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+
+    <!-- AWS SDK -->
+    <dependency>
+      <artifactId>aws-java-sdk-s3</artifactId>
+      <groupId>com.amazonaws</groupId>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-secretsmanager</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>stepfunctions</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <!-- Jackson -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+    </dependency>
+
+    <!-- Util -->
+    <dependency>
+      <artifactId>guava</artifactId>
+      <groupId>com.google.guava</groupId>
+    </dependency>
+
+    <!-- Logging libraries -->
+    <dependency>
+      <artifactId>log4j-slf4j-impl</artifactId>
+      <groupId>org.apache.logging.log4j</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>log4j-core</artifactId>
+      <groupId>org.apache.logging.log4j</groupId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-jcl</artifactId>
+    </dependency>
+    <dependency>
+      <artifactId>disruptor</artifactId>
+      <groupId>com.lmax</groupId>
     </dependency>
   </dependencies>
 

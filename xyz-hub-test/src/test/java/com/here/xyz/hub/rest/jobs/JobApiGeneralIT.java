@@ -39,6 +39,8 @@ import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -107,7 +109,7 @@ public class JobApiGeneralIT extends JobApiIT {
                 .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD))
                 .withCsvFormat(Job.CSVFormat.GEOJSON);
 
-        job.setFilters(new Export.Filters().withSpatialFilter(new Export.SpatialFilter().withGeometry(new Point().withCoordinates(new PointCoordinates(399,399)))));
+        job.setFilters(new Filters().withSpatialFilter(new SpatialFilter().withGeometry(new Point().withCoordinates(new PointCoordinates(399,399)))));
 
         postJob(job,getScopedSpaceId(testSpaceId1, scope))
                 .statusCode(BAD_REQUEST.code());

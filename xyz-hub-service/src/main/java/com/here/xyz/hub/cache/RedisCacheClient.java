@@ -20,6 +20,7 @@
 package com.here.xyz.hub.cache;
 
 import com.here.xyz.hub.Service;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.redis.client.Command;
@@ -50,7 +51,7 @@ public class RedisCacheClient implements CacheClient {
     //Use redis auth token when available
     if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
       config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
-    redis = ThreadLocal.withInitial(() -> Redis.createClient(Service.vertx, config));
+    redis = ThreadLocal.withInitial(() -> Redis.createClient(Core.vertx, config));
   }
 
   public static synchronized CacheClient getInstance() {

@@ -366,11 +366,6 @@ public class Config extends BaseConfig {
   @Deprecated
   private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
 
-  /**
-   * Whether the service should use InstanceProviderCredentialsProfile with cached credential when utilizing AWS clients.
-   */
-  public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
-
   @Deprecated
   public boolean containsFeatureNamespaceOptionalField(String field) {
     if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null)

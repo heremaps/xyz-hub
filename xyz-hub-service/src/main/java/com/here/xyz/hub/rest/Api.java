@@ -57,6 +57,7 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.compression.ZlibWrapper;
@@ -669,16 +670,6 @@ public abstract class Api {
       return map;
     }
 
-  }
-
-  public static class ValidationException extends Exception {
-      public ValidationException(String message) {
-          super(message);
-      }
-
-      public ValidationException(String message, Exception cause) {
-          super(message, cause);
-      }
   }
 
   public static class AccessDeniedException extends Exception {

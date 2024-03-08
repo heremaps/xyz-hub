@@ -23,7 +23,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.tools.ECPSTool;
+import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;

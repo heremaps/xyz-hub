@@ -100,8 +100,8 @@ public class Node {
   }
 
   private static void initNodeChecker() {
-    if (Service.vertx != null) {
-      Service.vertx.setPeriodic(CLUSTER_NODES_CHECKER_PERIOD, timerId -> otherClusterNodes.forEach(otherNode -> otherNode.isHealthy(ar -> {
+    if (Core.vertx != null) {
+      Core.vertx.setPeriodic(CLUSTER_NODES_CHECKER_PERIOD, timerId -> otherClusterNodes.forEach(otherNode -> otherNode.isHealthy(ar -> {
         if (ar.failed()) {
           otherNode.consecutiveHcFailures++;
           if (otherNode.consecutiveHcFailures >= MAX_HC_FAILURE_COUNT)

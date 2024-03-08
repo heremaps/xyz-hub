@@ -21,11 +21,12 @@ package com.here.xyz.hub.rest.caching;
 
 import static org.junit.Assert.assertEquals;
 
-import com.here.xyz.hub.Service;
 import com.here.xyz.hub.Config;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.rest.RestAssuredTest;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,7 +41,7 @@ public class S3CacheIT extends RestAssuredTest {
     Service.configuration = new Config();
     Service.configuration.XYZ_HUB_S3_BUCKET = "test-bucket";
     Service.configuration.LOCALSTACK_ENDPOINT = "http://localhost:4566";
-    Service.vertx = Vertx.vertx();
+    Core.vertx = Vertx.vertx();
   }
 
   @AfterClass

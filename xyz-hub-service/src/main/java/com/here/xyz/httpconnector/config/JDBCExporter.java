@@ -40,16 +40,15 @@ import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
-import com.here.xyz.httpconnector.util.jobs.Export.Filters;
-import com.here.xyz.httpconnector.util.jobs.Export.SpatialFilter;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
+import com.here.xyz.jobs.datasets.DatasetDescription.Space;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.JdbcClient;
@@ -93,7 +92,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                                     : false;
       String targetSpaceId = job.getTarget().getKey();
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
-      return new SQLQuery( 
+      return new SQLQuery(
           """
             WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */
             (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
@@ -143,7 +142,7 @@ public class JDBCExporter extends JdbcBasedHandler {
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
       /* adjust next_version to max_bigint(), except in case of concurency set it to concurrent inserted version */
       //TODO: case of extern concurency && same id in source & target && non-versiond layer a duplicate id can occure with next_version = concurrent_inserted.version
-      return new SQLQuery( 
+      return new SQLQuery(
           """
             UPDATE /* space_copy_hint m499#jobId(${{jobId}}) */ 
              ${schema}.${table} t
@@ -155,11 +154,11 @@ public class JDBCExporter extends JdbcBasedHandler {
            .withVariable("table", tableName)
            .withQueryFragment("jobId", job.getId())
            .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" );
-    }    
+    }
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {
     String propertyFilter = null;
-    Export.SpatialFilter spatialFilter = null;
+    SpatialFilter spatialFilter = null;
 ////// get filters from source space
     if( job.getSource() != null && job.getSource() instanceof Space )
     { Filters f = ((Space) job.getSource()).getFilters();
@@ -182,7 +181,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
       if( event.getParams() != null && event.getParams().get("versionsToKeep") != null )
        event.setVersionsToKeep((int) event.getParams().get("versionsToKeep") ); // -> forcing "...AND next_version = maxBigInt..." in query
-      
+
       event.setRef( job.getTargetVersion() == null ? new Ref("HEAD") : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
@@ -227,8 +226,8 @@ public class JDBCExporter extends JdbcBasedHandler {
   private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, SQLQuery q2, Export job)
   {
     return executeCopyQuery( client, q, job )
-             .compose( e -> { 
-               return client.write(q2).compose( i -> Future.succeededFuture(e) ); 
+             .compose( e -> {
+               return client.write(q2).compose( i -> Future.succeededFuture(e) );
             } );
   }
 
@@ -267,7 +266,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
             try {
               String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
-              Export.SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
+              SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery;
 
               boolean compositeCalculation =   job.readParamCompositeMode() == Export.CompositeMode.CHANGES
@@ -476,7 +475,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                                               boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
 
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
         SQLQuery exportSelectString = generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
@@ -501,7 +500,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         String s3Region, boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
         //Generic partition
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
 
@@ -527,7 +526,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         SQLQuery qkTileQry) throws SQLException {
         //Tiled export
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
 
@@ -569,23 +568,23 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
         return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
         return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, isForCompositeContentDetection, null, false);
     }
 
 
     private SQLQuery generateFilteredExportQueryForCompositeTileCalculation(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
         return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
         throws SQLException {
 
         csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );

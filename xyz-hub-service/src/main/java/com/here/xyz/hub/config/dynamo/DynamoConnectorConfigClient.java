@@ -29,6 +29,8 @@ import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
+import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;

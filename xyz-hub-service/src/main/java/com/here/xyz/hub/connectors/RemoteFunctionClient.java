@@ -460,7 +460,7 @@ public abstract class RemoteFunctionClient {
     final byte[] bytes;
     final boolean fireAndForget;
     final boolean hasPriority;
-    final Context context = Service.vertx.getOrCreateContext();
+    final Context context = Core.vertx.getOrCreateContext();
 
     private final Handler<AsyncResult<byte[]>> callback;
     private Runnable cancelHandler;
