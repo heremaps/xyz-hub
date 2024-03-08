@@ -53,7 +53,7 @@ public class S3Client {
 
     if (isLocal()) {
       builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-              Config.instance.LOCALSTACK_ENDPOINT, Config.instance.JOBS_REGION))
+              Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.JOBS_REGION))
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
           .withPathStyleAccessEnabled(true);
     }
@@ -64,8 +64,8 @@ public class S3Client {
 
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
       synchronized (S3Client.class) {
-        builder.setCredentials(new SecretManagerCredentialsProvider(Config.instance.JOBS_REGION, Config.instance.LOCALSTACK_ENDPOINT,
-            Config.instance.JOB_BOT_SECRET_ARN));
+        builder.setCredentials(new SecretManagerCredentialsProvider(Config.instance.JOBS_REGION,
+            Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.JOB_BOT_SECRET_ARN));
       }
     }
     client = builder.build();

@@ -31,6 +31,12 @@
     <dependency>
       <artifactId>aws-java-sdk-s3</artifactId>
       <groupId>com.amazonaws</groupId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <!-- TODO: Use new RDS SDK2 instead -->
     <dependency>
@@ -38,6 +44,12 @@
       <groupId>com.amazonaws</groupId>
       <!-- TODO: put version into main pom's dependency-management -->
       <version>1.12.651</version>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
@@ -98,4 +110,127 @@
       <artifactId>aws-lambda-java-log4j2</artifactId>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <configuration>
+          <createDependencyReducedPom>false</createDependencyReducedPom>
+          <transformers>
+            <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+              <mainClass>com.here.xyz.jobs.steps.execution.LambdaBasedStep$LambdaBasedStepExecutor</mainClass>
+              <manifestEntries>
+                <Multi-Release>true</Multi-Release>
+              </manifestEntries>
+            </transformer>
+            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+          </transformers>
+          <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+          <finalName>${project.artifactId}-${project.version}</finalName>
+          <filters>
+            <filter>
+              <artifact>*:*</artifact>
+              <excludes>
+                <exclude>META-INF/*.SF</exclude>
+                <exclude>META-INF/*.DSA</exclude>
+                <exclude>META-INF/*.RSA</exclude>
+              </excludes>
+            </filter>
+            <filter>
+              <artifact>org.apache.logging.log4j:log4j-slf4j-impl</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>commons-logging:commons-logging</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>org.apache.logging.log4j:log4j-core</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>org.apache.logging.log4j:log4j-jcl</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>org.apache.logging.log4j:log4j-api</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>com.amazonaws:aws-lambda-java-log4j2</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>com.mchange:mchange-commons-java</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>com.mchange:c3p0</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+            <filter>
+              <artifact>org.postgresql:postgresql</artifact>
+              <includes>
+                <include>**</include>
+              </includes>
+            </filter>
+          </filters>
+          <minimizeJar>true</minimizeJar>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>local</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <configuration>
+                  <workingDirectory>${project.build.directory}/</workingDirectory>
+                  <executable>${basedir}/src/main/bash/deployLocalLambda.sh</executable>
+                </configuration>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <id>deployLocalLambda</id>
+                <phase>install</phase>
+              </execution>
+            </executions>
+            <groupId>org.codehaus.mojo</groupId>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

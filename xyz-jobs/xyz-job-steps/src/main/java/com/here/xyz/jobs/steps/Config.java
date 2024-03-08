@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps;
 
 import com.here.xyz.util.service.BaseConfig;
+import java.net.URI;
 
 public class Config extends BaseConfig {
   public static Config instance;
@@ -51,6 +52,6 @@ public class Config extends BaseConfig {
   /**
    * S3/CW/Dynamodb localstack endpoints
    */
-  public String LOCALSTACK_ENDPOINT;
+  public URI LOCALSTACK_ENDPOINT;
 
 }
