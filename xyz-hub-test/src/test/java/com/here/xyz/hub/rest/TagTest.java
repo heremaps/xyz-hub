@@ -35,9 +35,8 @@ public class TagTest {
     assertTrue(invalidTagId("  abc"));
     assertTrue(invalidTagId("_abc"));
     assertTrue(invalidTagId("1abc"));
-    assertTrue(invalidTagId("a_bc"));
     assertTrue(invalidTagId("abc "));
-    assertTrue(invalidTagId("abcdefghijk"));
+    assertTrue(invalidTagId("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijX"));
     assertTrue(invalidTagId("HEAD"));
     assertFalse(invalidTagId("abcdefghij"));
     assertFalse(invalidTagId("head"));

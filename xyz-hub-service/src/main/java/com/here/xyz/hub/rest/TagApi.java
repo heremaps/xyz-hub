@@ -36,6 +36,7 @@ import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Marker;
 
@@ -162,7 +163,7 @@ public class TagApi extends SpaceBasedApi {
   }
 
   public static boolean invalidTagId(String tagId) {
-    return StringUtils.isBlank(tagId) || !StringUtils.isAlpha(tagId.substring(0, 1)) || !StringUtils.isAlphanumeric(tagId) || "HEAD".equals(tagId) || tagId.length() > 10;
+    return StringUtils.isBlank(tagId) || !Pattern.matches("^[a-zA-Z][a-zA-Z0-9_-]+$", tagId) || "HEAD".equals(tagId) || tagId.length() > 50;
   }
 
   // TODO auth
