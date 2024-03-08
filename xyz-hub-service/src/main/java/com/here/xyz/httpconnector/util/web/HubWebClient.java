@@ -40,6 +40,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -63,12 +64,40 @@ public class HubWebClient {
     }
   }
 
+  public static Space createSpace(String spaceId, String title) throws HubWebClientException {
+    return createSpace(spaceId, title, null);
+  }
+
+  public static Space createSpace(String spaceId, String title, Map<String, Object> spaceConfig) throws HubWebClientException {
+    spaceConfig = new HashMap<>(spaceConfig == null ? Map.of() : spaceConfig);
+    spaceConfig.put("id", spaceId);
+    spaceConfig.put("title", title);
+
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces"))
+              .header(CONTENT_TYPE, JSON_UTF_8.toString())
+              .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceConfig).getBytes()))
+              .build()).body(), Space.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new HubWebClientException("Error deserializing response", e);
+    }
+  }
+
   public static void patchSpace(String spaceId, Map<String, Object> spaceUpdates) throws HubWebClientException {
     request(HttpRequest.newBuilder()
         .uri(uri("/spaces/" + spaceId))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method("PATCH", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceUpdates).getBytes()))
         .build());
+  }
+
+  public static void deleteSpace(String spaceId) throws HubWebClientException {
+    request(HttpRequest.newBuilder()
+            .DELETE()
+            .uri(uri("/spaces/" + spaceId))
+            .build());
   }
 
   public static StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws HubWebClientException {

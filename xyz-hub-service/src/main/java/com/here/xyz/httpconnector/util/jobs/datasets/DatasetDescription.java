@@ -24,10 +24,15 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
 import com.here.xyz.httpconnector.util.jobs.Export.Filters;
+import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Job.Public;
+import com.here.xyz.httpconnector.util.jobs.Job.Static;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
+import com.here.xyz.models.hub.Ref;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = Id.NAME, property = "type")
@@ -50,9 +55,11 @@ public abstract class DatasetDescription implements Typed {
 
   }
 
-  public static class Space<T extends Space> extends Identifiable<T> implements FilteringSource<T> {
+  public static class Space<T extends Space> extends Identifiable<T> implements FilteringSource<T>, VersionRefSource<T> {
 
     private Filters filters;
+
+    private Ref versionRef;
 
     @Override
     public Filters getFilters() {
@@ -69,6 +76,21 @@ public abstract class DatasetDescription implements Typed {
       setFilters(filters);
       return (T) this;
     }
-  }
 
+    @Override
+    public Ref getVersionRef() {
+      return versionRef;
+    }
+
+    @Override
+    public void setVersionRef(Ref versionRef) {
+      this.versionRef = versionRef;
+    }
+
+    @Override
+    public T withVersionRef(Ref versionRef) {
+      setVersionRef(versionRef);
+      return (T) this;
+    }
+  }
 }

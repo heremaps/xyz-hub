@@ -21,6 +21,18 @@ package com.here.xyz.util.db.pg;
 
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
+import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.AUTHOR;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.CREATED_AT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID_VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.NEXT_VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.OPERATION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.SERIAL;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.UPDATED_AT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.SQLQuery;
@@ -37,21 +49,71 @@ public class XyzSpaceTableHelper {
   public static final String HEAD_TABLE_SUFFIX = "_head";
   public static final long PARTITION_SIZE = 100_000;
 
+  public enum Index {
+    ID_VERSION,
+    GEO,
+    ID,
+    VERSION,
+    NEXT_VERSION,
+    OPERATION,
+    SERIAL,
+    UPDATED_AT,
+    CREATED_AT,
+    VIZ,
+    AUTHOR
+  }
+
+  public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
+    return switch (index) {
+      case ID_VERSION -> buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE");
+      case GEO -> buildCreateIndexQuery(schema, table, "geo", "GIST");
+      case ID -> buildCreateIndexQuery(schema, table, "id", "BTREE", "idx_" + table + "_idnew");
+      case VERSION -> buildCreateIndexQuery(schema, table, "version", "BTREE");
+      case NEXT_VERSION -> buildCreateIndexQuery(schema, table, "next_version", "BTREE");
+      case OPERATION -> buildCreateIndexQuery(schema, table, "operation", "BTREE");
+      case SERIAL -> buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial");
+      case UPDATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt')", "id"), "BTREE", "idx_" + table + "_updatedAt");
+      case CREATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'createdAt')", "id"), "BTREE", "idx_" + table + "_createdAt");
+      case VIZ -> buildCreateIndexQuery(schema, table, "(left(md5('' || i), 5))", "BTREE", "idx_" + table + "_viz");
+      case AUTHOR -> buildCreateIndexQuery(schema, table, "author", "BTREE");
+    };
+  }
+
+  /**
+   * @deprecated Please use only method {@link #buildSpaceTableIndexQueries(String, String)} instead.
+   * @param schema
+   * @param table
+   * @param queryComment
+   * @return
+   */
+  @Deprecated
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
     return Arrays.asList(
-        buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE"),
-        buildCreateIndexQuery(schema, table, "geo", "GIST"),
-        buildCreateIndexQuery(schema, table, "id", "BTREE", "idx_" + table + "_idnew"),
-        buildCreateIndexQuery(schema, table, "version", "BTREE"),
-        buildCreateIndexQuery(schema, table, "next_version", "BTREE"),
-        buildCreateIndexQuery(schema, table, "operation", "BTREE"),
-        //buildCreateIndexQuery(schema, table, "(jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops", "GIN", "idx_" + table + "_tags"),
-        buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial"),
-        buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt')", "id"), "BTREE", "idx_" + table + "_updatedAt"),
-        buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'createdAt')", "id"), "BTREE", "idx_" + table + "_createdAt"),
-        buildCreateIndexQuery(schema, table, "(left(md5('' || i), 5))", "BTREE", "idx_" + table + "_viz"),
-        buildCreateIndexQuery(schema, table, "author", "BTREE")
+        buildSpaceTableIndexQuery(schema, table, ID_VERSION),
+        buildSpaceTableIndexQuery(schema, table, GEO),
+        buildSpaceTableIndexQuery(schema, table, ID),
+        buildSpaceTableIndexQuery(schema, table, VERSION),
+        buildSpaceTableIndexQuery(schema, table, NEXT_VERSION),
+        buildSpaceTableIndexQuery(schema, table, OPERATION),
+        buildSpaceTableIndexQuery(schema, table, SERIAL),
+        buildSpaceTableIndexQuery(schema, table, UPDATED_AT),
+        buildSpaceTableIndexQuery(schema, table, CREATED_AT),
+        buildSpaceTableIndexQuery(schema, table, VIZ),
+        buildSpaceTableIndexQuery(schema, table, AUTHOR)
     ).stream().map(q -> addQueryComment(q, queryComment)).collect(Collectors.toList());
+  }
+
+  public static SQLQuery buildLoadSpaceTableIndicesQuery(String schema, String table) {
+    return new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
+            .withNamedParameter("schema", schema)
+            .withNamedParameter("table", table);
+  }
+
+
+  public static List<SQLQuery> buildSpaceTableDropIndexQueries(String schema, List<String> indices) {
+    return indices.stream()
+            .map(index -> buildDropIndexQuery(schema, index))
+            .collect(Collectors.toList());
   }
 
   public static List<SQLQuery> buildCreateSpaceTableQueries(String schema, String table) {
@@ -71,8 +133,15 @@ public class XyzSpaceTableHelper {
     return buildSpaceTableIndexQueries(schema, table, null);
   }
 
-  private static SQLQuery addQueryComment(SQLQuery indexCreationQuery, SQLQuery queryComment) {
-    return queryComment != null ? indexCreationQuery.withQueryFragment("queryComment", queryComment) : indexCreationQuery;
+  /**
+   * @deprecated Please use labels instead. See: {@link SQLQuery#withLabel(String, String)}
+   * @param sourceQuery
+   * @param queryComment
+   * @return
+   */
+  @Deprecated
+  private static SQLQuery addQueryComment(SQLQuery sourceQuery, SQLQuery queryComment) {
+    return queryComment != null ? sourceQuery.withQueryFragment("queryComment", queryComment) : sourceQuery;
   }
 
   public static SQLQuery buildColumnStorageAttributesQuery(String schema, String tableName) {

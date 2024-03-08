@@ -71,8 +71,8 @@ services:
             - QUERY_CONFIG_ENABLED=true
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
     aws-localstack:
-        image: "localstack/localstack:3.0.2"
-        container_name: "aws-localstack"
+        image: "localstack/localstack:3.2.0"
+        container_name: "localstack-main"
         hostname: localstack
         ports:
             - "4563-4599:4563-4599"
@@ -84,7 +84,8 @@ services:
             - AWS_DEFAULT_REGION=eu-west-1
             - EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5001
         volumes:
-            - ./xyz-hub-test/src/test/resources/mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh
+            - "/var/run/docker.sock:/var/run/docker.sock"
+            - "./xyz-hub-test/src/test/resources/mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh"
     s3-explorer:
         image: aws-js-s3-explorer
         build:
