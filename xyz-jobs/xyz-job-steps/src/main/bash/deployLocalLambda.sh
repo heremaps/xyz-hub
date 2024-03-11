@@ -21,4 +21,5 @@ aws --endpoint http://localhost:4566 lambda create-function \
   --runtime java17 \
   --zip-file fileb://xyz-job-steps.zip \
   --handler 'com.here.xyz.jobs.steps.execution.LambdaBasedStep$LambdaBasedStepExecutor::handleRequest' \
-  --role arn:aws:iam::000000000000:role/lambda-role
+  --role arn:aws:iam::000000000000:role/lambda-role \
+  --environment 'Variables={HUB_ENDPOINT=http://host.docker.internal:8080/hub,ECPS_PHRASE=local,JOBS_S3_BUCKET=test-bucket,LOCALSTACK_ENDPOINT=http://localstack:4566,LOCAL_DB_HOST_OVERRIDE=postgres}'

@@ -22,6 +22,7 @@ package com.here.xyz.jobs;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
@@ -45,8 +46,8 @@ import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -108,7 +109,7 @@ public class JobPlayground {
 
   private static Space sampleSpace;
 
-  public static void main(String[] args) throws IOException, HubWebClientException {
+  public static void main(String[] args) throws IOException, HubWebClientException, InterruptedException {
     sampleSpace = createSampleSpace("TEST");
 
     //Upload files with each having one feature without id
@@ -116,13 +117,13 @@ public class JobPlayground {
       uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
 
     runDropIndexStep(sampleSpace.getId());
-    //runImportFilesToSpaceStep(sampleSpace.getId());
-    //
-    //for (Index index : Index.values())
-    //  runCreateIndexStep(sampleSpace.getId(), index);
-    //
-    //runAnalyzeSpaceTableStep(sampleSpace.getId());
-    //runMarkForMaintenanceStep(sampleSpace.getId());
+    runImportFilesToSpaceStep(sampleSpace.getId());
+
+    for (Index index : Index.values())
+      runCreateIndexStep(sampleSpace.getId(), index);
+
+    runAnalyzeSpaceTableStep(sampleSpace.getId());
+    runMarkForMaintenanceStep(sampleSpace.getId());
   }
 
   private static Space createSampleSpace(String spaceId) throws HubWebClientException {
@@ -195,13 +196,14 @@ public class JobPlayground {
   }
 
   private static void simulateLambdaStep(LambdaBasedStep step) throws IOException {
-    InputStream is = null;
-    OutputStream os = null;
+    OutputStream os = new ByteArrayOutputStream();
     Context ctx = new SimulatedContext("localLambda", null);
 
     final LambdaStepRequest request = prepareStepRequestPayload(step);
 
     new LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
+
+    logger.info("Response from simulated Lambda:\n{}", os.toString());
   }
 
   private static void runLambdaStep(LambdaBasedStep step) {
@@ -209,10 +211,14 @@ public class JobPlayground {
         .functionName(LAMBDA_NAME)
         .payload(SdkBytes.fromByteArray(prepareStepRequestPayload(step).toByteArray()))
         .build());
-    logger.info("Response from lambda function: Status-code ({}), Payload:\n{}", response.statusCode(),
-        response.payload().asUtf8String());
-
-    System.out.println(response.payload().asUtf8String());
+    try {
+      logger.info("Response from lambda function: Status-code ({}), Payload:\n{}", response.statusCode(),
+          XyzSerializable.serialize(XyzSerializable.deserialize(response.payload().asByteArray(), Map.class), true));
+    }
+    catch (JsonProcessingException e) {
+      logger.error("Response from Lambda:\n{}\nError deserializing response from lambda:", response.payload().asUtf8String(), e);
+    }
+    logger.info("Logs from lambda function:\n{}", response.logResult());
   }
 
   private static LambdaStepRequest prepareStepRequestPayload(LambdaBasedStep step) {

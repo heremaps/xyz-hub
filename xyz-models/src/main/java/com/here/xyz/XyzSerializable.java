@@ -108,6 +108,10 @@ public interface XyzSerializable {
     return serialize(object, view, false);
   }
 
+  static String serialize(Object object, boolean pretty) {
+    return serialize(object, Public.class, pretty);
+  }
+
   private static String serialize(Object object, Class<? extends SerializationView> view, boolean pretty) {
     ObjectMapper mapper = getMapperForView(view);
     try {

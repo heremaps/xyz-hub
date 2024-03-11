@@ -21,6 +21,8 @@ package com.here.xyz.jobs.steps.execution.db;
 
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.util.db.DatabaseSettings.PSQL_HOST;
+import static com.here.xyz.util.db.DatabaseSettings.PSQL_REPLICA_HOST;
 
 import com.amazonaws.services.rds.model.DBCluster;
 import com.google.common.cache.Cache;
@@ -117,6 +119,25 @@ public class Database extends ExecutionResource {
         });
   }
 
+  /**
+   * @deprecated This method is used only as workaround for DNS resolution of connector-DB-host and will be removed soon.
+   * Please do not use it for any other purposes.
+   */
+  @Deprecated
+  private static boolean isLocal() {
+    return Config.instance.LOCALSTACK_ENDPOINT != null;
+  }
+
+  private static void fixLocalDbHosts(Map<String, Object> dbSettings) {
+    if (!isLocal() || Config.instance.LOCAL_DB_HOST_OVERRIDE == null)
+      return;
+
+    if (dbSettings.get(PSQL_HOST) instanceof String dbHost)
+      dbSettings.put(PSQL_HOST, dbHost.replace("localhost", Config.instance.LOCAL_DB_HOST_OVERRIDE));
+    if (dbSettings.get(PSQL_REPLICA_HOST) instanceof String dbHost)
+      dbSettings.put(PSQL_REPLICA_HOST, dbHost.replace("localhost", Config.instance.LOCAL_DB_HOST_OVERRIDE));
+  }
+
   private static List<Database> loadDatabasesForConnector(Connector connector) {
     List<Database> databasesFromCache = cache.getIfPresent(connector.id);
     if (databasesFromCache != null)
@@ -127,6 +148,8 @@ public class Database extends ExecutionResource {
     if (connector.active) {
       final Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(Config.instance.ECPS_PHRASE,
           ConnectorParameters.fromMap(connector.params).getEcps());
+      fixLocalDbHosts(connectorDbSettingsMap);
+
       DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap);
 
       String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());

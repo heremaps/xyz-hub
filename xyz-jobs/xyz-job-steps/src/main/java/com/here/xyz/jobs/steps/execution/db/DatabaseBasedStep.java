@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.steps.execution.db;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.FAILURE_CALLBACK;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
@@ -135,18 +134,20 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   protected SQLQuery buildSuccessCallbackQuery() {
-                              //TODO: De-activated when running locally for now
-    return new SQLQuery("--PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}'), '${{successRequestBody}}'::json, 'Event');")
-        .withQueryFragment("lambdaArn", getwOwnLambdaArn())
-        .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
+    //TODO: De-activated when running locally for now
+    return new SQLQuery("");
+    //return new SQLQuery("--PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}'), '${{successRequestBody}}'::json, 'Event');")
+    //    .withQueryFragment("lambdaArn", getwOwnLambdaArn())
+    //    .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
     //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
   }
 
   protected SQLQuery buildFailureCallbackQuery() {
     return new SQLQuery("""
         RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
-        --PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}'), '${{failureRequestBody}}'::json, 'Event');
-        """) //TODO: De-activated when running locally for now
+        """)
+        //--PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}'), '${{failureRequestBody}}'::json, 'Event');
+        //TODO: De-activated when running locally for now
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
         .withQueryFragment("lambdaArn", getwOwnLambdaArn())

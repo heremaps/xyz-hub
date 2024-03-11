@@ -32,6 +32,7 @@ import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Map;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClientBuilder;
 import software.amazon.awssdk.services.sfn.SfnClient;
@@ -81,6 +82,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private SfnClient sfnClient;
   private CloudWatchEventsClient cwEventsClient;
+  private static final String INVOKE_SUCCESS = """
+      {"status": "OK"}""";
 
   @Override
   public RuntimeInfo getStatus() {
@@ -263,6 +266,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public static class LambdaBasedStepExecutor implements RequestStreamHandler {
     @Override
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
+      //Initialize Config from environment variables
+      if (Config.instance == null)
+        XyzSerializable.fromMap(Map.copyOf(System.getenv()), Config.class);
+      //Read the incoming request
       LambdaStepRequest request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
       request.getStep().ownLambdaArn = context.getInvokedFunctionArn();
       //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
@@ -296,6 +303,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
       //The lambda call is complete, call the shutdown hook
       request.getStep().onRuntimeShutdown();
+
+      outputStream.write(INVOKE_SUCCESS.getBytes());
     }
   }
 
