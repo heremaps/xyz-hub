@@ -214,6 +214,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
     return getTags(marker, spaceId, true)
         .compose(tags -> {
           try {
+
             if (tags.isEmpty())
               return Future.succeededFuture();
 
