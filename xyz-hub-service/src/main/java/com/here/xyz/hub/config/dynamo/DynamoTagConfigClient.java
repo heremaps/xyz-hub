@@ -203,7 +203,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
         .compose(tags -> {
           try {
             if (tags.size() == 0)
-              Future.succeededFuture();
+             return Future.succeededFuture();
 
             List<ParameterizedStatement> statements = new ArrayList<>();
             tags.forEach(r -> statements.add(new ParameterizedStatement()
