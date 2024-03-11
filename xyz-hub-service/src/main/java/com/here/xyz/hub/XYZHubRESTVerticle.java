@@ -38,6 +38,7 @@ import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.SubscriptionApi;
 import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.rest.health.HealthApi;
+import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.Task;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
@@ -56,7 +57,9 @@ import io.vertx.ext.web.openapi.router.OpenAPIRoute;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import io.vertx.openapi.contract.OpenAPIContract;
 import java.io.File;
+import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -88,6 +91,13 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
     } catch (Exception e) {
       logger.error("Unable to generate OpenApi specs.", e);
     }
+  }
+
+  public static <T extends FeatureTask> void addStreamInfo(RoutingContext context, String streamInfoKey, Object streamInfoValue) {
+    if (context.get(STREAM_INFO_CTX_KEY) == null)
+      context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
+
+    ((Map<String, Object>) context.get(STREAM_INFO_CTX_KEY)).put(streamInfoKey, streamInfoValue);
   }
 
   @Override

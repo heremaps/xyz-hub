@@ -27,7 +27,6 @@ import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
@@ -35,6 +34,7 @@ import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.responses.StorageStatistics;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -87,7 +87,7 @@ public class StorageStatisticsProvider {
 
   private static Future<Map<String, List<String>>> sortByStorage(List<Space> spaces) {
     //That operation could take longer, so do it asynchronously
-    return Service.vertx.executeBlocking(p -> sortByStorageSync(spaces, p));
+    return Core.vertx.executeBlocking(p -> sortByStorageSync(spaces, p));
   }
 
   private static void sortByStorageSync(List<Space> spaces, Promise<Map<String, List<String>>> p) {

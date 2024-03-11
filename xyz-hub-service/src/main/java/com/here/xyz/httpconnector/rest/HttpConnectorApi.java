@@ -23,12 +23,13 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.httpconnector.PsqlHttpConnectorVerticle;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient.EmbeddedContext;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import java.io.ByteArrayInputStream;
@@ -58,12 +59,12 @@ public class HttpConnectorApi extends Api {
   }
 
   private void postEvent(final RoutingContext context) {
-    String streamId = Context.getMarker(context).getName();
+    String streamId = LogUtil.getMarker(context).getName();
     byte[] inputBytes = new byte[context.getBody().length()];
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    EmbeddedContext embeddedContext = new EmbeddedContext(Context.getMarker(context),"psql",
+    EmbeddedContext embeddedContext = new EmbeddedContext(LogUtil.getMarker(context),"psql",
         PsqlHttpConnectorVerticle.getEnvMap());
     connector.handleRequest(inputStream, os, embeddedContext, streamId);
     this.sendResponse(context, OK, os);

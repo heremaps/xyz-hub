@@ -30,7 +30,7 @@ import com.here.xyz.httpconnector.config.JDBCMaintainer;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.task.MaintenanceHandler;
 import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;

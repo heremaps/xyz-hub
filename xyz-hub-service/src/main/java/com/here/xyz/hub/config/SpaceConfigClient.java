@@ -24,6 +24,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.hub.util.di.ImplementationProvider;
+import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.Collections;

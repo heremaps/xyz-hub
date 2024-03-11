@@ -49,13 +49,14 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -205,7 +206,7 @@ public class RpcClient {
 
   private void relocateAsync(Marker marker, byte[] bytes, Handler<AsyncResult<byte[]>> callback) {
     logger.info(marker, "Relocating event. Total event byte size: {}", bytes.length);
-    Service.vertx.executeBlocking(
+    Core.vertx.executeBlocking(
         future -> {
           try {
             future.complete(relocationClient.relocate(marker.getName(), Payload.compress(bytes)));
@@ -518,7 +519,7 @@ public class RpcClient {
   }
 
   private void processRelocatedEventAsync(RelocatedEvent relocatedEvent, Handler<AsyncResult<byte[]>> callback) {
-    Service.vertx.executeBlocking(
+    Core.vertx.executeBlocking(
         future -> {
           try {
             InputStream input = relocationClient.processRelocatedEvent(relocatedEvent, getConnector().getRemoteFunction().getRegion());

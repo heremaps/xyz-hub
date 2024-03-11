@@ -20,8 +20,8 @@
 package com.here.xyz.hub.auth;
 
 import com.google.common.io.ByteStreams;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import io.vertx.core.json.JsonObject;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;

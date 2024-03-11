@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.connectors;
 
-import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
+import static com.here.xyz.hub.AbstractHttpServerVerticle.CLIENT_CLOSED_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
@@ -41,14 +41,14 @@ import com.amazonaws.services.lambda.model.InvokeResult;
 import com.amazonaws.services.lambda.model.ResourceNotFoundException;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import com.google.common.util.concurrent.ForwardingExecutorService;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.admin.Node;
-import com.here.xyz.hub.util.ARN;
+import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
 import io.vertx.core.Future;

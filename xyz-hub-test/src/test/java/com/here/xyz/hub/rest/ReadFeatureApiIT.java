@@ -20,8 +20,8 @@
 package com.here.xyz.hub.rest;
 
 import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -448,7 +448,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testReadingFeatureByHereTileIdFalse() { 
+  public void testReadingFeatureByHereTileIdFalse() {
   /** "prepared" test that should fail, when duplicates points on tilesborder issue is solved (s. testReadingFeatureByHereTileId() ) */
     given().
         accept(APPLICATION_GEO_JSON).

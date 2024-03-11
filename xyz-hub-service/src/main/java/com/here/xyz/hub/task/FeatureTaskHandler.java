@@ -22,14 +22,14 @@ package com.here.xyz.hub.task;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -54,10 +54,8 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SelectiveEvent;
-import com.here.xyz.hub.AbstractHttpServerVerticle;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.auth.JWTPayload;
+import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -69,11 +67,8 @@ import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.connectors.models.Space.ConnectorType;
 import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.Api.Context;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.FeatureTask.BBoxQuery;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
@@ -92,6 +87,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection.Modification
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space.Extension;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
@@ -102,6 +98,9 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -276,7 +275,7 @@ public class FeatureTaskHandler {
             }
           });
         }, task.space);
-        AbstractHttpServerVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
+        XYZHubRESTVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
       catch (IllegalStateException e) {
@@ -332,9 +331,9 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void addConnectorPerformanceInfo(T task, long storageTime, RpcContext rpcContext, String eventPrefix) {
-    AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "Time", storageTime);
+    XYZHubRESTVerticle.addStreamInfo(task.context, eventPrefix + "Time", storageTime);
     if (rpcContext != null)
-      AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "ResSize", rpcContext.getResponseSize());
+      XYZHubRESTVerticle.addStreamInfo(task.context, eventPrefix + "ResSize", rpcContext.getResponseSize());
   }
 
   private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, long processorTime, RpcContext rpcContext, int processorNo) {
@@ -385,7 +384,7 @@ public class FeatureTaskHandler {
         .onSuccess(cacheResult -> {
           if (cacheResult == null) {
             //Cache MISS: Just go on in the task pipeline
-            AbstractHttpServerVerticle.addStreamInfo(task.context, "CH",0);
+            XYZHubRESTVerticle.addStreamInfo(task.context, "CH",0);
             logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
           }
           else {
@@ -394,9 +393,9 @@ public class FeatureTaskHandler {
               task.setResponse(transformCacheValue(cacheResult));
               task.setCacheHit(true);
               //Add "Cache-Hit" stream-info
-              AbstractHttpServerVerticle.addStreamInfo(task.context, "CH", 1);
+              XYZHubRESTVerticle.addStreamInfo(task.context, "CH", 1);
               //Add "Cache-Type" stream-info (static / volatile)
-              AbstractHttpServerVerticle.addStreamInfo(task.context, "CT", cacheClient == Service.staticCacheClient ? "S" : "V");
+              XYZHubRESTVerticle.addStreamInfo(task.context, "CT", cacheClient == Service.staticCacheClient ? "S" : "V");
               logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
             }
             catch (JsonProcessingException e) {
@@ -405,7 +404,7 @@ public class FeatureTaskHandler {
               logger.info(task.getMarker(), "Cache MISS (as of JSON parse exception) for cache key {} {}", cacheKey, e);
             }
           }
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
+          XYZHubRESTVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
           callback.call(task);
         })
         .onFailure(t -> {
@@ -570,7 +569,7 @@ public class FeatureTaskHandler {
       long interval, boolean adminNotification) {
     if (!timerMap.containsKey(nc.space.getId())) {
       //Schedule a new notification
-      long timerId = Service.vertx.setTimer(interval, tId -> {
+      long timerId = Core.vertx.setTimer(interval, tId -> {
         timerMap.remove(nc.space.getId());
         ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId());
         Long spaceVersion = latestSeenContentVersions.get(nc.space.getId());
@@ -587,7 +586,7 @@ public class FeatureTaskHandler {
       //Check whether some other thread also just scheduled a new timer
       if (timerMap.putIfAbsent(nc.space.getId(), timerId) != null)
         //Another thread scheduled a new timer in the meantime. Cancelling this one ...
-        Service.vertx.cancelTimer(timerId);
+        Core.vertx.cancelTimer(timerId);
     }
   }
 
@@ -936,7 +935,7 @@ public class FeatureTaskHandler {
     logger.debug(task.getMarker(), "Given space configuration is: {}", task.space);
 
     final String storageId = task.space.getStorage().getId();
-    AbstractHttpServerVerticle.addStreamInfo(task.context, "SID", storageId);
+    XYZHubRESTVerticle.addStreamInfo(task.context, "SID", storageId);
     return Space.resolveConnector(task.getMarker(), storageId)
         .compose(
             connector -> {
@@ -1049,7 +1048,7 @@ public class FeatureTaskHandler {
       //When ZGC is in use, only throttle requests if the service memory filled up over the specified service memory threshold
       if (Service.IS_USING_ZGC) {
         if (usedMemoryPercent > Service.configuration.SERVICE_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
+          XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node.");
         }
       }
@@ -1065,7 +1064,7 @@ public class FeatureTaskHandler {
 
         RpcClient rpcClient = getRpcClient(storage);
         if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE) {
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
+          XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
         }
       }
@@ -1116,7 +1115,7 @@ public class FeatureTaskHandler {
    * Parses the body of the request as a FeatureCollection, Feature or a FeatureModificationList object and returns the features as a list.
    */
   private static List<Map<String, Object>> getObjectsAsList(final RoutingContext context) throws HttpException {
-    final Marker logMarker = Context.getMarker(context);
+    final Marker logMarker = LogUtil.getMarker(context);
     try {
       JsonObject json = context.body().asJsonObject();
       return getJsonObjects(json, context);
@@ -1166,7 +1165,7 @@ public class FeatureTaskHandler {
       }
     }
     catch (Exception e) {
-      logger.info(Context.getMarker(context), "Error in the provided content", e);
+      logger.info(LogUtil.getMarker(context), "Error in the provided content", e);
       throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
     }
   }

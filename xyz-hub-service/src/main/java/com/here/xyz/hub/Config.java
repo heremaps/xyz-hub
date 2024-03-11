@@ -25,7 +25,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.AuthorizationType;
 import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
-import com.here.xyz.hub.util.ARN;
+import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.BaseConfig;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,7 +37,7 @@ import java.util.Map;
  * The service configuration.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Config {
+public class Config extends BaseConfig {
 
   /**
    * The global maximum number of http client connections.
@@ -322,44 +323,14 @@ public class Config {
   public String FS_WEB_ROOT;
 
   /**
-   * The name of the upload limit header
-   */
-  public String UPLOAD_LIMIT_HEADER_NAME;
-
-  /**
    * The code which gets returned if UPLOAD_LIMIT is reached
    */
   public int UPLOAD_LIMIT_REACHED_HTTP_CODE;
 
   /**
-   * The message which gets returned if UPLOAD_LIMIT is reached
-   */
-  public String UPLOAD_LIMIT_REACHED_MESSAGE;
-
-  /**
-   * The name of the health check header to instruct for additional health status information.
-   */
-  public String HEALTH_CHECK_HEADER_NAME;
-
-  /**
-   * The value of the health check header to instruct for additional health status information.
-   */
-  public String HEALTH_CHECK_HEADER_VALUE;
-
-  /**
-   * An identifier for the service environment.
-   */
-  public String ENVIRONMENT_NAME;
-
-  /**
    * Whether to publish custom service metrics like JVM memory utilization or Major GC count.
    */
   public boolean PUBLISH_METRICS;
-
-  /**
-   * The AWS region this service is running in. Value is <code>null</code> if not running in AWS.
-   */
-  public String AWS_REGION;
 
   /**
    * The verticles class names to be deployed, separated by comma
@@ -370,34 +341,6 @@ public class Config {
    * The topic ARN for Space modification notifications. If no value is provided no notifications will be sent.
    */
   public String MSE_NOTIFICATION_TOPIC;
-
-  /**
-   * The maximum size of an event transiting between connector -> service -> client. Validation is only applied when
-   * MAX_SERVICE_RESPONSE_SIZE is bigger than zero.
-   *
-   * @deprecated Use instead MAX_UNCOMPRESSED_RESPONSE_SIZE
-   */
-  public int MAX_SERVICE_RESPONSE_SIZE;
-
-  /**
-   * The maximum uncompressed request size in bytes supported on API calls. If uncompressed request size is bigger than
-   * MAX_UNCOMPRESSED_REQUEST_SIZE, an error with status code 413 will be sent.
-   */
-  public long MAX_UNCOMPRESSED_REQUEST_SIZE;
-
-  /**
-   * The maximum uncompressed response size in bytes supported on API calls. If uncompressed response size is bigger than
-   * MAX_UNCOMPRESSED_RESPONSE_SIZE, an error with status code 513 will be sent.
-   */
-  public long MAX_UNCOMPRESSED_RESPONSE_SIZE;
-
-  /**
-   * The maximum http response size in bytes supported on API calls. If response size is bigger than MAX_HTTP_RESPONSE_SIZE, an error with
-   * status code 513 will be sent. Validation is only applied when MAX_HTTP_RESPONSE_SIZE is bigger than zero.
-   *
-   * @deprecated Use instead MAX_UNCOMPRESSED_RESPONSE_SIZE
-   */
-  public int MAX_HTTP_RESPONSE_SIZE;
 
   /**
    * Whether to activate pipelining for the HTTP client of the service.
@@ -423,16 +366,6 @@ public class Config {
   @Deprecated
   private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
 
-  /**
-   * When set, modifies the Stream-Info header name to the value specified.
-   */
-  public String CUSTOM_STREAM_INFO_HEADER_NAME;
-
-  /**
-   * Whether the service should use InstanceProviderCredentialsProfile with cached credential when utilizing AWS clients.
-   */
-  public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
-
   @Deprecated
   public boolean containsFeatureNamespaceOptionalField(String field) {
     if (FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP == null)
@@ -444,14 +377,9 @@ public class Config {
   }
 
   /**
-   * Global limit for the maximum amount of versions to keep per space.
+   * Global limit for the maximum number of versions to keep per space.
    */
   public long MAX_VERSIONS_TO_KEEP = 1_000_000_001;
-
-  /**
-   * Flag indicating whether the author should be retrieved from the custom header Author.
-   */
-  public boolean USE_AUTHOR_FROM_HEADER = false;
 
   /**
    * Endpoint which points to the HTTP connector.

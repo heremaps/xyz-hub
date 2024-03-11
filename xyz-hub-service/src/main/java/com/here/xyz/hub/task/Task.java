@@ -27,14 +27,15 @@ import static com.here.xyz.hub.task.Task.TaskState.RESPONSE_SENT;
 import static com.here.xyz.hub.task.Task.TaskState.STARTED;
 
 import com.here.xyz.events.Event;
-import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.C2;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Objects;
@@ -187,7 +188,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    * @return the log marker
    */
   public Marker getMarker() {
-    return Api.Context.getMarker(context);
+    return LogUtil.getMarker(context);
   }
 
   /**
@@ -196,7 +197,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
    * @return the payload of the JWT Token
    */
   public JWTPayload getJwt() {
-    return Api.Context.getJWT(context);
+    return BaseHttpServerVerticle.getJWT(context);
   }
 
   /**

@@ -37,11 +37,8 @@ import com.here.xyz.Payload;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.auth.ActionMatrix;
-import com.here.xyz.hub.auth.AttributeMap;
-import com.here.xyz.hub.auth.JWTPayload;
+import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -49,7 +46,6 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
@@ -63,7 +59,12 @@ import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.models.hub.jwt.ActionMatrix;
+import com.here.xyz.models.hub.jwt.AttributeMap;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
@@ -163,7 +164,7 @@ public class SpaceTaskHandler {
 
     final List<String> authorizedListSpacesOps = Arrays
         .asList(ADMIN_SPACES, MANAGE_SPACES, READ_FEATURES, CREATE_FEATURES, UPDATE_FEATURES, DELETE_FEATURES);
-    final ActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
+    final ActionMatrix tokenRights = Authorization.getXyzHubMatrix(task.getJwt());
 
     if (tokenRights != null) {
       final Supplier<Stream<AttributeMap>> sup = () -> tokenRights
@@ -437,7 +438,7 @@ public class SpaceTaskHandler {
     List<String> operations = Arrays
         .asList("readFeatures", "createFeatures", "updateFeatures", "deleteFeatures", "manageSpaces", "adminSpaces");
 
-    final ActionMatrix accessMatrix = task.getJwt().getXyzHubMatrix();
+    final ActionMatrix accessMatrix = Authorization.getXyzHubMatrix(task.getJwt());
 
     task.responseSpaces = task.responseSpaces.stream().map(g -> {
           final SpaceWithRights space = DatabindCodec.mapper().convertValue(g, SpaceWithRights.class);

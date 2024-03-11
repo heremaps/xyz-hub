@@ -26,7 +26,24 @@ public class Random {
 
   public static String randomAlpha(int length) {
     return new java.util.Random()
-        .ints(10, 'a', 'z')
-        .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append).toString();
+        .ints(length, 'a', 'z')
+        .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+        .toString();
+  }
+
+  public static String randomAlphaNumeric(int length) {
+    char numericStart = '0';
+    char numericEnd = '9';
+    char upperCaseStart = 'A';
+    char upperCaseEnd = 'Z';
+    char lowerCaseStart = 'a';
+    char lowerCaseEnd = 'z';
+
+    return new java.util.Random()
+        .ints(numericStart, lowerCaseEnd + 1)
+        .filter(i -> (i <= numericEnd || i >= upperCaseStart) && (i <= upperCaseEnd || i >= lowerCaseStart))
+        .limit(length)
+        .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+        .toString();
   }
 }

@@ -24,6 +24,7 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.settings.Setting;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;

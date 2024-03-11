@@ -24,6 +24,7 @@ import com.here.xyz.hub.config.dynamo.DynamoSubscriptionConfigClient;
 import com.here.xyz.hub.config.jdbc.JDBCSubscriptionConfigClient;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.List;

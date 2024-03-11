@@ -20,6 +20,7 @@
 package com.here.xyz.connectors.runtime;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.here.xyz.util.service.aws.SimulatedContext;
 
 public class LambdaConnectorRuntime extends ConnectorRuntime {
 
