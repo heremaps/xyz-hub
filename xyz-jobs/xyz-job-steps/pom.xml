@@ -127,8 +127,7 @@
             </transformer>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
           </transformers>
-          <outputDirectory>${project.build.outputDirectory}</outputDirectory>
-          <finalName>${project.artifactId}-${project.version}</finalName>
+          <finalName>${project.artifactId}-fat</finalName>
           <filters>
             <filter>
               <artifact>*:*</artifact>
@@ -217,7 +216,7 @@
             <executions>
               <execution>
                 <configuration>
-                  <workingDirectory>${project.build.directory}/</workingDirectory>
+                  <workingDirectory>${project.build.directory}</workingDirectory>
                   <executable>${basedir}/src/main/bash/deployLocalLambda.sh</executable>
                 </configuration>
                 <goals>

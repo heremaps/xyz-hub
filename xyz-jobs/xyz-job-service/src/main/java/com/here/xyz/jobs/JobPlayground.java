@@ -116,13 +116,13 @@ public class JobPlayground {
       uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
 
     runDropIndexStep(sampleSpace.getId());
-    runImportFilesToSpaceStep(sampleSpace.getId());
-
-    for (Index index : Index.values())
-      runCreateIndexStep(sampleSpace.getId(), index);
-
-    runAnalyzeSpaceTableStep(sampleSpace.getId());
-    runMarkForMaintenanceStep(sampleSpace.getId());
+    //runImportFilesToSpaceStep(sampleSpace.getId());
+    //
+    //for (Index index : Index.values())
+    //  runCreateIndexStep(sampleSpace.getId(), index);
+    //
+    //runAnalyzeSpaceTableStep(sampleSpace.getId());
+    //runMarkForMaintenanceStep(sampleSpace.getId());
   }
 
   private static Space createSampleSpace(String spaceId) throws HubWebClientException {
@@ -175,7 +175,7 @@ public class JobPlayground {
   }
 
   public static void runDropIndexStep(String spaceId) throws IOException {
-    simulateLambdaStep(new DropIndexes().withSpaceId(spaceId));
+    runLambdaStep(new DropIndexes().withSpaceId(spaceId));
   }
 
   public static void runImportFilesToSpaceStep(String spaceId) throws IOException {

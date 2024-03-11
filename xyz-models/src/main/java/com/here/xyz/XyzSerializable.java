@@ -224,7 +224,7 @@ public interface XyzSerializable {
   static <T> T deserialize(String string, Class<T> klass) throws JsonProcessingException {
     /*
     Jackson always wraps larger strings, with a string reader, which hides the original string from the lazy raw deserializer.
-    To circumvent that wrap the source string with a custom string reader, which provides access to the input string.
+    To circumvent that, wrap the source string with a custom string reader, which provides access to the input string.
      */
     try {
       return getDefaultMapper().readValue(new ProxyStringReader(string), klass);
