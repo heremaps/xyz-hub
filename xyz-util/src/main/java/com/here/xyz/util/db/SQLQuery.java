@@ -735,20 +735,41 @@ public class SQLQuery {
 
   private static void kill(String labelIdentifier, String labelValue, long timeout)
       throws SQLException {
-    SQLQuery labelMatching = new SQLQuery("substring(query, "
-        + "strpos(query, '/*labels(') + 9, "
-        + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
-        .withNamedParameter("labelIdentifier", labelIdentifier)
-        .withNamedParameter("labelValue", labelValue);
-
     for (ExecutionContext execution : executions)
       new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
           + "WHERE state = 'active' "
           + "AND ${{labelMatching}} "
           + "AND pid != pg_backend_pid()")
-          .withQueryFragment("labelMatching", labelMatching)
-          .withNamedParameter("labelValue", labelValue)
+          .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
           .run(execution.dataSourceProvider, execution.useReplica);
+  }
+
+  private static SQLQuery buildLabelMatchQuery(String labelIdentifier, String labelValue) {
+    return new SQLQuery("substring(query, "
+        + "strpos(query, '/*labels(') + 9, "
+        + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
+        .withNamedParameter("labelIdentifier", labelIdentifier)
+        .withNamedParameter("labelValue", labelValue);
+  }
+
+  public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String queryId) throws SQLException {
+    return isRunning(dataSourceProvider, useReplica, QUERY_ID, queryId);
+  }
+
+  /**
+   * Checks whether there exists at least one running query on the target database that is matching the specified label value.
+   * @param labelIdentifier
+   * @param labelValue
+   * @return Whether a running query exists with the specified label
+   */
+  private static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
+      throws SQLException {
+    return new SQLQuery("""
+        SELECT 1 FROM pg_stat_activity
+          WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()
+        """)
+        .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
+        .run(dataSourceProvider, rs -> rs.next(), useReplica);
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {

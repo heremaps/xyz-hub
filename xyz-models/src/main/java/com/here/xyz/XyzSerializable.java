@@ -286,4 +286,10 @@ public interface XyzSerializable {
    * (e.g. when it comes to saving the instance to a database)
    */
   class Static implements SerializationView {}
+
+  /**
+   * Used as a JsonView on {@link XyzSerializable} models to indicate that a property should be serialized as part of internal types.
+   * (e.g. when it comes to communication between software components)
+   */
+  class Internal implements SerializationView {}
 }

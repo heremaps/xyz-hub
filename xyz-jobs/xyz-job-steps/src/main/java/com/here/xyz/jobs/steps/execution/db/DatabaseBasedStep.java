@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.execution.db;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.FAILURE_CALLBACK;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
@@ -43,6 +44,7 @@ import org.apache.logging.log4j.Logger;
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();
   private double claimedAcuLoad;
+  @JsonView(Internal.class)
   private List<String> runningQueryIds = new ArrayList<>();
   private Map<Database, DataSourceProvider> usedDataSourceProviders;
 
@@ -175,9 +177,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
+    logger.info("Checking execution state of step {}.{} ...", getJobId(), getId());
     //TODO: Check running state of all queries
     //TODO: If the hearbeat is called, but the query is not running anymore, it might be a failure => throw UnknownStateException
-    return null;
+    return AsyncExecutionState.RUNNING;
   }
 
   @Override

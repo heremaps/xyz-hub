@@ -19,11 +19,15 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
+import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.ENABLED;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.Config;
@@ -32,9 +36,21 @@ import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClientBuilder;
+import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.awssdk.services.sfn.SfnClient;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
@@ -44,6 +60,7 @@ import software.amazon.awssdk.services.sfn.model.SendTaskSuccessRequest;
     @JsonSubTypes.Type(value = DatabaseBasedStep.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
+  private static final Logger logger = LogManager.getLogger();
 
   //TODO: Allow the implementations to define their heartbeat interval & timeout?
 
@@ -78,7 +95,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String taskToken = "$$.Task.Token"; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
   private String ownLambdaArn; //Will be defined from Lambda's execution context
   private String invokersRoleArn; //Will be defined by the framework alongside the START_EXECUTION request being relayed by the Step Function
-  private String stateCheckTriggerArn; //Will be defined (for ASYNC ExecutionMode) by this step when it created the CW event rule trigger
+  @JsonView(Internal.class)
+  private String stateCheckRuleName; //Will be defined (for ASYNC ExecutionMode) by this step when it created the CW event rule trigger
 
   private SfnClient sfnClient;
   private CloudWatchEventsClient cwEventsClient;
@@ -115,8 +133,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private CloudWatchEventsClient cwEventsClient() {
     if (cwEventsClient == null) {
       CloudWatchEventsClientBuilder builder = CloudWatchEventsClient.builder();
-      if (Config.instance.LOCALSTACK_ENDPOINT != null)
+      if (Config.instance.LOCALSTACK_ENDPOINT != null) {
         builder.endpointOverride(Config.instance.LOCALSTACK_ENDPOINT);
+        builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack",
+            "localstack")));
+      }
       cwEventsClient = builder.build();
     }
     return cwEventsClient;
@@ -124,38 +145,40 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void registerStateCheckTrigger() {
     String globalStepId = getJobId() + "." + getId();
+    stateCheckRuleName = "HeartBeat-" + globalStepId;
 
-    //stateCheckTriggerArn = cwEventsClient().putRule(PutRuleRequest.builder()
-    //    .state(ENABLED)
-    //    .scheduleExpression("rate(1 minute)")
-    //    .description("Heartbeat trigger for Step " + globalStepId)
-    //    .build()).ruleArn();
-    //
-    //cwEventsClient().putTargets(PutTargetsRequest.builder()
-    //    .targets(Target.builder()
-    //        .id(globalStepId)
-    //        .arn(ownLambdaArn)
-    //        .roleArn(invokersRoleArn)
-    //        .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
-    //        .build())
-    //        .rule(stateCheckTriggerArn)
-    //    .build());
+    cwEventsClient().putRule(PutRuleRequest.builder()
+        .name(stateCheckRuleName)
+        .state(ENABLED)
+        .scheduleExpression("rate(1 minute)")
+        .description("Heartbeat trigger for Step " + globalStepId)
+        .build());
+
+    cwEventsClient().putTargets(PutTargetsRequest.builder()
+        .rule(stateCheckRuleName)
+        .targets(Target.builder()
+            .id(globalStepId)
+            .arn(ownLambdaArn)
+            .roleArn(invokersRoleArn)
+            .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
+            .build())
+        .build());
   }
 
   //TODO: Also call this on cancel?
   private void unregisterStateCheckTrigger() {
     //List all targets
-    //List<String> targetIds = cwEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(stateCheckTriggerArn).build())
-    //    .targets()
-    //    .stream()
-    //    .map(target -> target.id())
-    //    .collect(Collectors.toList());
-    //
-    ////Remove all targets from the rule
-    //cwEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(stateCheckTriggerArn).ids(targetIds).build());
-    //
-    ////Remove the rule
-    //cwEventsClient().deleteRule(DeleteRuleRequest.builder().name(stateCheckTriggerArn).build());
+    List<String> targetIds = cwEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(stateCheckRuleName).build())
+        .targets()
+        .stream()
+        .map(target -> target.id())
+        .collect(Collectors.toList());
+
+    //Remove all targets from the rule
+    cwEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(stateCheckRuleName).ids(targetIds).build());
+
+    //Remove the rule
+    cwEventsClient().deleteRule(DeleteRuleRequest.builder().name(stateCheckRuleName).build());
   }
 
   private void checkAsyncExecutionState() {
@@ -210,6 +233,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void reportAsyncFailure(Exception e, boolean retryable) {
     retryable = retryable && onAsyncFailure(e);
+    logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}.{}:", getJobId(), getId(), e);
     setFailedRetryable(retryable);
     reportAsyncFailure(e);
   }
@@ -281,7 +305,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
             request.getStep().startExecution();
           }
           catch (Exception e) {
-            //TODO: log exception
             request.getStep().reportAsyncFailure(e, false);
           }
         }
