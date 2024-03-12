@@ -22,66 +22,61 @@ package com.here.xyz.models.hub;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.here.xyz.XyzSerializable;
-import org.apache.commons.lang3.StringUtils;
 
 public class Ref implements XyzSerializable {
-
   public static final String HEAD = "HEAD";
   public static final String ALL_VERSIONS = "*";
+  private String tag;
   private long version = -1;
   private boolean head;
   private boolean allVersions;
-  private String versionRef;
-  private boolean resolved;
 
   @JsonCreator
   public Ref(String ref) {
-    if (ref == null || ref.isEmpty() || HEAD.equals(ref)) {
+    if (ref == null || ref.isEmpty() || HEAD.equals(ref))
       head = true;
-      setResolved(true);
-    }
-    else if (ALL_VERSIONS.equals(ref)) {
+    else if (ALL_VERSIONS.equals(ref))
       allVersions = true;
-      setResolved(true);
-    }
-    else if (StringUtils.isNumeric(ref)) {
+    else
       try {
         setVersion(Long.parseLong(ref));
-        setResolved(true);
-      } catch (NumberFormatException e) {
-        throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
       }
-    }
-    else {
-      this.versionRef = ref;
-      setResolved(false);
-    }
+      catch (NumberFormatException e) {
+        if (!Tag.isValidId(ref))
+          throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
+
+        tag = ref;
+      }
   }
 
   public Ref(long version) {
     setVersion(version);
   }
 
-  public void setVersion(long version) {
+  /**
+   * Validates & sets the version internally(!).
+   * NOTE: This method should stay private to keep the immutability of this Ref model.
+   * @param version
+   */
+  private void setVersion(long version) {
     if (version < 0)
       throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
 
     this.version = version;
-    setResolved(true);
   }
 
   @JsonValue
   @Override
   public String toString() {
-    if (version < 0 && !head && !allVersions && resolved)
+    if (!isTag() && version < 0 && !head && !allVersions)
       throw new IllegalArgumentException("Not a valid ref");
+    if (isTag())
+      return tag;
     if (head)
       return HEAD;
     if (allVersions)
       return ALL_VERSIONS;
-    if (resolved)
-      return String.valueOf(version);
-    return versionRef;
+    return String.valueOf(version);
   }
 
   @Override
@@ -89,6 +84,26 @@ public class Ref implements XyzSerializable {
     return o instanceof Ref otherRef && otherRef.toString().equals(toString());
   }
 
+  /**
+   * @return <code>true</code> if this ref depicts a tag, <code>false</code> otherwise
+   */
+  public boolean isTag() {
+    return tag != null;
+  }
+
+  /**
+   * If this ref is depicting a tag, this method returns the tag's ID.
+   * @return The tag name if this ref depicts a tag, <code>null</code> otherwise
+   */
+  public String getTag() {
+    return tag;
+  }
+
+  /**
+   * The version being referenced by this ref object.
+   * A valid version is an integer >= 0 where 0 is the very first version of an empty space just after having been created.
+   * TODO: Fix DB queries accordingly to take into account the empty space as first history state
+   */
   public long getVersion() {
     if (!isSingleVersion())
       throw new NumberFormatException("Ref is not depicting a single version.");
@@ -107,18 +122,6 @@ public class Ref implements XyzSerializable {
 
   public boolean isSingleVersion() {
     return !isAllVersions();
-  }
-
-  public boolean isResolved() {
-    return resolved;
-  }
-
-  public void setResolved(boolean resolved) {
-    this.resolved = resolved;
-  }
-
-  public String getVersionRef() {
-    return versionRef;
   }
 
   public static class InvalidRef extends IllegalArgumentException {

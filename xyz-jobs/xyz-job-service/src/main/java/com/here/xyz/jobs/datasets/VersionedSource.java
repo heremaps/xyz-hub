@@ -21,7 +21,7 @@ package com.here.xyz.jobs.datasets;
 
 import com.here.xyz.models.hub.Ref;
 
-public interface VersionRefSource<T extends VersionRefSource> {
+public interface VersionedSource<T extends VersionedSource> {
 
   Ref getVersionRef();
 

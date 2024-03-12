@@ -776,25 +776,24 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask> void resolveVersionRef(final X task, final Callback<X> callback) {
-    if (!(task.getEvent() instanceof SelectiveEvent<?> event)) {
+    if (!(task.getEvent() instanceof SelectiveEvent event)) {
       callback.call(task);
       return;
     }
 
-    if (event.getRef() == null || event.getRef().isResolved()) {
+    if (event.getRef() == null || !event.getRef().isTag()) {
       callback.call(task);
       return;
     }
 
-    TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getVersionRef(), task.space.getId())
+    TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
         .onSuccess(tag -> {
           if (tag == null) {
-            callback.exception(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getVersionRef()));
+            callback.exception(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
             return;
           }
 
-          event.getRef().setResolved(true);
-          event.getRef().setVersion(tag.getVersion());
+          event.setRef(new Ref(tag.getVersion()));
           callback.call(task);
         })
         .onFailure(t -> {

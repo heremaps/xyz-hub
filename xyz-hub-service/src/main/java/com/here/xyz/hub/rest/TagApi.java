@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
-import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Marker;
 
@@ -121,6 +120,7 @@ public class TagApi extends SpaceBasedApi {
       return Future.failedFuture(new ValidationException("Invalid spaceId parameter"));
     }
 
+    //FIXME: Neither -2 nor -1 are valid versions
     if (version < -2) {
       return Future.failedFuture(new ValidationException("Invalid version parameter"));
     }
@@ -141,20 +141,18 @@ public class TagApi extends SpaceBasedApi {
   }
 
   // TODO auth
-  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long
-      version, boolean system) {
+  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version, boolean system) {
     if (spaceId == null) {
       return Future.failedFuture(new ValidationException("Invalid spaceId parameter"));
     }
 
-    if (tagId == null || invalidTagId(tagId)) {
+    if (!Tag.isValidId(tagId)) {
       return Future.failedFuture(new ValidationException("Invalid tagId parameter"));
     }
 
     if (version < -2) {
       return Future.failedFuture(new ValidationException("Invalid version parameter"));
     }
-
 
     final Future<Space> spaceFuture = getSpace(marker, spaceId);
     final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
@@ -170,10 +168,6 @@ public class TagApi extends SpaceBasedApi {
           .withSystem(system);
       return Service.tagConfigClient.storeTag(marker, tag).map(v -> tag);
     });
-  }
-
-  public static boolean invalidTagId(String tagId) {
-    return StringUtils.isBlank(tagId) || !Pattern.matches("^[a-zA-Z][a-zA-Z0-9_-]+$", tagId) || "HEAD".equals(tagId) || tagId.length() > 50;
   }
 
   // TODO auth

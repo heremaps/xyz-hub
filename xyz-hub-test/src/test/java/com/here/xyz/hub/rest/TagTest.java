@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.TagApi.invalidTagId;
+import static com.here.xyz.models.hub.Tag.isValidId;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -28,19 +28,26 @@ import org.junit.Test;
 public class TagTest {
 
   @Test
-  public void testInvalidTagName() {
-    assertTrue(invalidTagId(""));
-    assertTrue(invalidTagId("  "));
-    assertTrue(invalidTagId("  abc"));
-    assertTrue(invalidTagId("  abc"));
-    assertTrue(invalidTagId("_abc"));
-    assertTrue(invalidTagId("1abc"));
-    assertTrue(invalidTagId("abc "));
-    assertTrue(invalidTagId("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijX"));
-    assertTrue(invalidTagId("HEAD"));
-    assertFalse(invalidTagId("abcdefghij"));
-    assertFalse(invalidTagId("head"));
-    assertFalse(invalidTagId("a1bc"));
-    assertFalse(invalidTagId("abc"));
+  public void testInvalidTagNames() {
+    assertFalse(isValidId(""));
+    assertFalse(isValidId("  "));
+    assertFalse(isValidId("  abc"));
+    assertFalse(isValidId("  abc"));
+    assertFalse(isValidId("1abc"));
+    assertFalse(isValidId("abc "));
+    assertFalse(isValidId("abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijX"));
+    assertFalse(isValidId("HEAD"));
+    assertFalse(isValidId("*"));
+  }
+
+  @Test
+  public void testValidTagNames() {
+    assertTrue(isValidId("abcdefghij"));
+    assertTrue(isValidId("head"));
+    assertTrue(isValidId("a1bc"));
+    assertTrue(isValidId("abc"));
+    assertTrue(isValidId("a"));
+    assertTrue(isValidId("#27"));
+    assertTrue(isValidId("_abc"));
   }
 }
