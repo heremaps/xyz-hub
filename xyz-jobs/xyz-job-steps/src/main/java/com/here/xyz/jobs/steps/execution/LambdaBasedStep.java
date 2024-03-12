@@ -43,8 +43,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClientBuilder;
 import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
@@ -130,16 +130,24 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
-  private CloudWatchEventsClient cwEventsClient() {
-    if (cwEventsClient == null) {
-      CloudWatchEventsClientBuilder builder = CloudWatchEventsClient.builder();
-      if (Config.instance.LOCALSTACK_ENDPOINT != null) {
-        builder.endpointOverride(Config.instance.LOCALSTACK_ENDPOINT);
-        builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack",
-            "localstack")));
-      }
-      cwEventsClient = builder.build();
+  private static <T extends AwsClientBuilder> T prepareClientForLocalStack(T builder) {
+    if (Config.instance.LOCALSTACK_ENDPOINT != null) {
+      builder.endpointOverride(Config.instance.LOCALSTACK_ENDPOINT);
+      builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack",
+          "localstack")));
     }
+    return builder;
+  }
+
+  private SfnClient sfnClient() {
+    if (sfnClient == null)
+      sfnClient = prepareClientForLocalStack(SfnClient.builder()).build();
+    return sfnClient;
+  }
+
+  private CloudWatchEventsClient cwEventsClient() {
+    if (cwEventsClient == null)
+      cwEventsClient = prepareClientForLocalStack(CloudWatchEventsClient.builder()).build();
     return cwEventsClient;
   }
 
@@ -215,7 +223,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     unregisterStateCheckTrigger();
     //Report success to SFN
     if (sfnClient != null)
-      sfnClient.sendTaskSuccess(SendTaskSuccessRequest.builder().taskToken(taskToken).build());
+      sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder().taskToken(taskToken).build());
     else
       //TODO: Remove testing code
       System.out.println(getClass().getSimpleName() + " : SUCCESS");
@@ -223,7 +231,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void reportAsyncHeartbeat() {
     //Report heartbeat to SFN
-    sfnClient.sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
+    sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
   }
 
   protected boolean onAsyncFailure(Exception e) {
@@ -253,7 +261,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .error(e != null ? e.getMessage() : null)
           .cause(e.getCause() != null ? e.getCause().getMessage() : null);
 
-    sfnClient.sendTaskFailure(request.build());
+    sfnClient().sendTaskFailure(request.build());
   }
 
   public abstract ExecutionMode getExecutionMode();

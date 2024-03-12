@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs;
 
+import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -27,6 +28,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
+import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaBasedStepExecutor;
@@ -103,15 +105,24 @@ public class JobPlayground {
     }
   }
 
-  private static Job mockJob = new Job()
-      .withDescription("Sample playground job for mocked steps")
-      .withOwner("me");
-
   private static Space sampleSpace;
 
-  public static void main(String[] args) throws IOException, HubWebClientException, InterruptedException {
-    sampleSpace = createSampleSpace("TEST");
+  static {
+    try {
+      sampleSpace = createSampleSpace("TEST");
+    }
+    catch (HubWebClientException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
+  private static Job mockJob = new Job()
+      .withDescription("Sample import job")
+      .withOwner("me")
+      .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
+      .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
+
+  public static void main(String[] args) throws IOException {
     //Upload files with each having one feature without id
     for (int i = 0; i < 2; i++)
       uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
