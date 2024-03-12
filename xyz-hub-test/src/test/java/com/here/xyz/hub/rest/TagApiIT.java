@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.Tag;
 import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
 import java.util.ArrayList;
@@ -41,190 +44,186 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 public class TagApiIT extends TestSpaceWithFeature {
+  private static final String SECOND_SPACE = "secondSpace";
+  private static final List<String> createdSpaces = new ArrayList<>();
 
-    private static final String SECOND_SPACE = "secondSpace";
-    private static final List<String> createdSpaces = new ArrayList<>();
-
-    @BeforeClass
-    public static void setupClass() {
-        removeSpace(getSpaceId());
-        createdSpaces.forEach(TagApiIT::removeSpace);
-    }
-
-    @Before
-    public void setup() {
-        createSpaceWithVersionsToKeep(getSpaceId(), 2);
-    }
-
-    @After
-    public void teardown() {
-        removeSpace(getSpaceId());
-        removeSpace(SECOND_SPACE);
-        createdSpaces.forEach(TagApiIT::removeSpace);
-    }
-
-    private ValidatableResponse _createTag() {
-        return _createTagForId(getSpaceId(), "XYZ_1", false);
-    }
-
-    private ValidatableResponse _createTagForId(String spaceId, String tagId, boolean system) {
-      String systemParam = system ? ",\"system\":true" : "";
-        return given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .contentType(ContentType.JSON)
-                .body("{\"id\":\"" + tagId + "\"" + systemParam + "}")
-                .post("/spaces/" + spaceId + "/tags")
-                .then().statusCode(OK.code());
-    }
-
-  private ValidatableResponse _addOneFeature() {
-    return given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .contentType("application/geo+json")
-        .body("{\"type\":\"Feature\",\"properties\":{\"name\":\"abc\"}}")
-        .post("/spaces/" + getSpaceId() + "/features")
-        .then();
+  @BeforeClass
+  public static void setupClass() {
+      removeSpace(getSpaceId());
+      createdSpaces.forEach(TagApiIT::removeSpace);
   }
 
-    @Test
-    public void testDeleteSpace() {
-        _createTag();
-        removeSpace(getSpaceId());
-        createSpace();
+  @Before
+  public void setup() {
+      createSpaceWithVersionsToKeep(getSpaceId(), 2);
+  }
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
-                .then()
-                .statusCode(NOT_FOUND.code());
-    }
+  @After
+  public void teardown() {
+      removeSpace(getSpaceId());
+      removeSpace(SECOND_SPACE);
+      createdSpaces.forEach(TagApiIT::removeSpace);
+  }
 
-    @Test
-    public void createTag() {
-        _createTag()
-                .statusCode(OK.code())
-                .body("id", equalTo("XYZ_1"))
-                .body("spaceId", equalTo(getSpaceId()))
-                .body("version", equalTo(-1));
+  private ValidatableResponse _createTag() {
+      return _createTagForId(getSpaceId(), "XYZ_1", false);
+  }
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
-                .then()
-                .statusCode(OK.code());
-    }
+  private ValidatableResponse _createTagForId(String spaceId, String tagId, boolean system) {
+      return given()
+          .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+          .contentType(ContentType.JSON)
+          .body(new Tag().withId(tagId).withSystem(system))
+          .post("/spaces/" + spaceId + "/tags")
+          .then().statusCode(OK.code());
+  }
+
+  private void _addOneFeature() {
+    addFeature(getSpaceId(), new Feature().withProperties(new Properties().with("name", "abc")));
+  }
 
   @Test
-  public void createTagWithInvalidId() {
+  public void testDeleteSpace() {
+      _createTag();
+      removeSpace(getSpaceId());
+      createSpace();
+
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+              .then()
+              .statusCode(NOT_FOUND.code());
+  }
+
+  @Test
+  public void createTag() {
+      _createTag()
+              .statusCode(OK.code())
+              .body("id", equalTo("XYZ_1"))
+              .body("spaceId", equalTo(getSpaceId()))
+              .body("version", equalTo(-1));
+
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+              .then()
+              .statusCode(OK.code());
+  }
+
+  @Test
+  public void createTagStartingNumericNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"1_NUMBER\"}")
+        .body(new Tag().withId("1_NUMBER"))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then().statusCode(BAD_REQUEST.code());
+  }
 
+  @Test
+  public void createTagWithIdStarNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"_INVALID_CHAR\"}")
+        .body(new Tag().withId("*"))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then().statusCode(BAD_REQUEST.code());
   }
 
     @Test
-    public void deleteTag() {
-        _createTag();
+  public void deleteTag() {
+      _createTag();
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
-                .then()
-                .statusCode(OK.code());
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+              .then()
+              .statusCode(OK.code());
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
-                .then()
-                .statusCode(NOT_FOUND.code());
-    }
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .delete("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+              .then()
+              .statusCode(NOT_FOUND.code());
+  }
 
-    @Test
-    public void getTagVersion() {
-        _createTag();
+  @Test
+  public void getTagVersion() {
+      _createTag();
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
-                .then()
-                .statusCode(OK.code())
-                .body("version", equalTo(-1));
-    }
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+              .then()
+              .statusCode(OK.code())
+              .body("version", equalTo(-1));
+  }
 
-    @Test
-    public void updateTagVersion() {
-        _createTag();
+  @Test
+  public void updateTagVersion() {
+      _createTag();
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .contentType(ContentType.JSON)
-                .body("{\"version\":999}")
-                .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
-                .then()
-                .statusCode(OK.code());
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .contentType(ContentType.JSON)
+              .body(new Tag().withVersion(999).serialize())
+              .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+              .then()
+              .statusCode(OK.code());
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
-                .then()
-                .statusCode(OK.code())
-                .body("version", equalTo(999));
-    }
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+              .then()
+              .statusCode(OK.code())
+              .body("version", equalTo(999));
+  }
 
-    @Test
-    public void testSubscriptions() {
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .body(content("/xyz/hub/createSubscription.json"))
-                .post("/spaces/" + getSpaceId() + "/subscriptions");
+  @Test
+  public void testSubscriptions() {
+      given()
+              .accept(APPLICATION_JSON)
+              .contentType(APPLICATION_JSON)
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .body(content("/xyz/hub/createSubscription.json"))
+              .post("/spaces/" + getSpaceId() + "/subscriptions");
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
-                .then()
-                .statusCode(OK.code());
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
+              .then()
+              .statusCode(OK.code());
 
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
-                .then()
-                .statusCode(OK.code());
-    }
+      given()
+              .accept(APPLICATION_JSON)
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
+              .then()
+              .statusCode(OK.code());
+  }
 
-    @Test
-    public void testRemoveSubscriptions() {
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .body(content("/xyz/hub/createSubscription.json"))
-                .post("/spaces/" + getSpaceId() + "/subscriptions");
+  @Test
+  public void testRemoveSubscriptions() {
+      given()
+              .accept(APPLICATION_JSON)
+              .contentType(APPLICATION_JSON)
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .body(content("/xyz/hub/createSubscription.json"))
+              .post("/spaces/" + getSpaceId() + "/subscriptions");
 
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
-                .then()
-                .statusCode(OK.code());
+      given()
+              .accept(APPLICATION_JSON)
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
+              .then()
+              .statusCode(OK.code());
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
-                .then()
-                .statusCode(NOT_FOUND.code());
-    }
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
+              .then()
+              .statusCode(NOT_FOUND.code());
+  }
 
   @Test
   public void testListSpacesFilterByTagId() {
@@ -289,7 +288,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"XYZ_1\"}")
+        .body(new Tag().withId("XYZ_1"))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(1));
@@ -300,7 +299,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"XYZ_1\",\"version\":555}")
+        .body(new Tag().withId("XYZ_1").withVersion(555))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(555));
@@ -311,7 +310,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"XYZ_1\",\"version\":-10}")
+        .body(new Tag().withId("XYZ_1").withVersion(-10))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .statusCode(BAD_REQUEST.code());
@@ -322,7 +321,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"XYZ_1\",\"version\":-1}")
+        .body(new Tag().withId("XYZ_1").withVersion(-1))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(-1));
@@ -335,7 +334,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"XYZ_1\",\"version\":-1}")
+        .body(new Tag().withId("XYZ_1").withVersion(-1))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(-1));
@@ -346,7 +345,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"XYZ_1\",\"version\":0}")
+        .body(new Tag().withId("XYZ_1").withVersion(0))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(0));
@@ -359,7 +358,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"id\":\"XYZ_1\",\"version\":0}")
+        .body(new Tag().withId("XYZ_1").withVersion(0))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(0));
@@ -372,7 +371,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(ContentType.JSON)
-        .body("{\"version\":-10}")
+        .body(new Tag().withVersion(-10))
         .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
         .then()
         .statusCode(BAD_REQUEST.code());

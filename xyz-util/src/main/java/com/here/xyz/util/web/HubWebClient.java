@@ -175,7 +175,7 @@ public class HubWebClient {
         .build());
   }
 
-  public Tag getTag(String spaceId, String tagId) throws HubWebClientException {
+  public Tag loadTag(String spaceId, String tagId) throws HubWebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
           .GET()

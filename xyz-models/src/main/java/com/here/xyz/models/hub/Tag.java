@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,13 @@
 package com.here.xyz.models.hub;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+import static com.here.xyz.models.hub.Ref.ALL_VERSIONS;
+import static com.here.xyz.models.hub.Ref.HEAD;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
+import java.util.regex.Pattern;
 
 public class Tag implements XyzSerializable {
   /**
@@ -37,11 +40,9 @@ public class Tag implements XyzSerializable {
   private String spaceId;
 
   /**
-   * The version pointer.
-   * Versions below -2 are invalid versions.
-   * The version -2 is the default version, when version is not provided for example.
-   * The version -1 points to the initial version of a space without data.
-   * The version 0 points to the initial version of a space with data.
+   * The version this tag is pointing to.
+   *
+   * @see Ref#getVersion()
    */
   private long version = -2;
 
@@ -103,5 +104,8 @@ public class Tag implements XyzSerializable {
    return this;
   }
 
-
+  public static boolean isValidId(String tagId) {
+    return !Strings.isNullOrEmpty(tagId) && !HEAD.equals(tagId) && !ALL_VERSIONS.equals(tagId)
+        && Pattern.matches("^[^0-9\s][^\s]{0,49}$", tagId);
+  }
 }

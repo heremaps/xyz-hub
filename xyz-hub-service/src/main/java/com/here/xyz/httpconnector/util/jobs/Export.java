@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileBasedTarget;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Identifiable;
-import com.here.xyz.jobs.datasets.VersionRefSource;
+import com.here.xyz.jobs.datasets.VersionedSource;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
 import com.here.xyz.jobs.datasets.files.GeoJson;
@@ -268,16 +268,17 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                if (getSource() instanceof VersionRefSource<?> versionRefSource
+                if (getSource() instanceof VersionedSource<?> versionRefSource
                     && getSource() instanceof Identifiable<?> identifiable
                     && versionRefSource.getVersionRef() != null
-                    && !versionRefSource.getVersionRef().isResolved()) {
+                    && versionRefSource.getVersionRef().isTag()) {
                   final Ref ref = versionRefSource.getVersionRef();
                   try {
-                    long version = CService.hubWebClient.getTag(identifiable.getId(), ref.getVersionRef()).getVersion();
-                    ref.setVersion(version);
+                    long version = CService.hubWebClient.loadTag(identifiable.getId(), ref.getTag()).getVersion();
+                    versionRefSource.setVersionRef(new Ref(version));
                     setTargetVersion(String.valueOf(version));
-                  } catch (HubWebClientException e) {
+                  }
+                  catch (HubWebClientException e) {
                     return Future.failedFuture(e);
                   }
                 }
