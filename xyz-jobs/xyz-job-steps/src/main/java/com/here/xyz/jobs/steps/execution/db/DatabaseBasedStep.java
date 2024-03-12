@@ -21,12 +21,17 @@ package com.here.xyz.jobs.steps.execution.db;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.FAILURE_CALLBACK;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.hub.Space.Internal;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
@@ -44,7 +49,8 @@ import org.apache.logging.log4j.Logger;
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();
   private double claimedAcuLoad;
-  private List<String> runningQueryIds = new ArrayList<>();
+  @JsonView(Internal.class)
+  private List<RunningQuery> runningQueries = new ArrayList<>();
   private Map<Database, DataSourceProvider> usedDataSourceProviders;
 
   @Override
@@ -96,7 +102,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       boolean isWriteQuery, boolean async) throws TooManyResourcesClaimed, SQLException {
     if (async)
       query = wrapQuery(query).withAsync(true);
-    runningQueryIds.add(query.getQueryId());
+    runningQueries.add(new RunningQuery(query.getQueryId(), db.getName(), db.getRole()));
 
     if (query.isBatch() && isWriteQuery)
       return query.writeBatch(requestResource(db, estimatedMaxAcuLoad));
@@ -162,12 +168,15 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   @Override
   public void cancel() throws Exception {
     //Cancel all running queries
-    runningQueryIds.stream().forEach(queryId -> {
+    runningQueries.stream().forEach(runningQuery -> {
       try {
-        SQLQuery.killByQueryId(queryId);
+        SQLQuery.killByQueryId(runningQuery.queryId, requestResource(Database.loadDatabase(runningQuery.dbName, runningQuery.dbRole),
+            0), runningQuery.dbRole == READER);
       }
-      catch (SQLException e) {
-        //TODO: Log error and report failure?
+      catch (SQLException | TooManyResourcesClaimed e) {
+        logger.error("Error cancelling running queries of step {}.{}. Following queries are probably still running: {}",
+            getJobId(), getId(), runningQueries);
+        //TODO: report failure?
       }
     });
   }
@@ -199,4 +208,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       usedDataSourceProviders.put(db, dsp = db.getDataSources());
     return dsp;
   }
+
+  private record RunningQuery(String queryId, String dbName, DatabaseRole dbRole) implements XyzSerializable {}
 }

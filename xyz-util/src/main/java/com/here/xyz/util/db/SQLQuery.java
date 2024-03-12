@@ -78,9 +78,9 @@ public class SQLQuery {
   private int maximumRetries;
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
   private PreparedStatement preparedStatement;
-  private volatile String queryId;
+  private String queryId;
   private Map<String, String> labels = new HashMap<>();
-  private static List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
+  private List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
   private List<SQLQuery> queryBatch;
 
@@ -713,42 +713,47 @@ public class SQLQuery {
   }
 
   public void cancel(long timeout) throws SQLException {
-    kill(QUERY_ID, getQueryId(), timeout);
+    killByLabel(QUERY_ID, getQueryId(), timeout);
   }
 
-  public static void cancelByLabel(String labelIdentifier, String labelValue, long timeout)
-      throws SQLException {
-    kill(labelIdentifier, labelValue, timeout);
+  public static void cancelByLabel(String labelIdentifier, String labelValue, long timeout, DataSourceProvider dataSourceProvider,
+      boolean useReplica) throws SQLException {
+    killByLabel(labelIdentifier, labelValue, timeout, dataSourceProvider, useReplica);
   }
 
   public void kill() throws SQLException {
-    kill(QUERY_ID, getQueryId(), 0);
+    killByLabel(QUERY_ID, getQueryId(), 0);
   }
 
-  public static void killByQueryId(String queryId) throws SQLException {
-    kill(QUERY_ID, queryId, 0);
+  public static void killByQueryId(String queryId, DataSourceProvider dataSourceProvider, boolean useReplica) throws SQLException {
+    killByLabel(QUERY_ID, queryId, dataSourceProvider, useReplica);
   }
 
-  public static void killByLabel(String labelIdentifier, String labelValue) throws SQLException {
-    kill(labelIdentifier, labelValue, 0);
-  }
-
-  private static void kill(String labelIdentifier, String labelValue, long timeout)
+  public static void killByLabel(String labelIdentifier, String labelValue, DataSourceProvider dataSourceProvider, boolean useReplica)
       throws SQLException {
+    killByLabel(labelIdentifier, labelValue, 0, dataSourceProvider, useReplica);
+  }
+
+  private void killByLabel(String labelIdentifier, String labelValue, long timeout) throws SQLException {
+    for (ExecutionContext execution : executions)
+      killByLabel(labelIdentifier, labelValue, timeout, execution.dataSourceProvider, execution.useReplica);
+  }
+
+  private static void killByLabel(String labelIdentifier, String labelValue, long timeout, DataSourceProvider dataSourceProvider,
+      boolean useReplica) throws SQLException {
     SQLQuery labelMatching = new SQLQuery("substring(query, "
         + "strpos(query, '/*labels(') + 9, "
         + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
         .withNamedParameter("labelIdentifier", labelIdentifier)
         .withNamedParameter("labelValue", labelValue);
 
-    for (ExecutionContext execution : executions)
-      new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-          + "WHERE state = 'active' "
-          + "AND ${{labelMatching}} "
-          + "AND pid != pg_backend_pid()")
-          .withQueryFragment("labelMatching", labelMatching)
-          .withNamedParameter("labelValue", labelValue)
-          .run(execution.dataSourceProvider, execution.useReplica);
+    new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        + "WHERE state = 'active' "
+        + "AND ${{labelMatching}} "
+        + "AND pid != pg_backend_pid()")
+        .withQueryFragment("labelMatching", labelMatching)
+        .withNamedParameter("labelValue", labelValue)
+        .run(dataSourceProvider, useReplica);
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
