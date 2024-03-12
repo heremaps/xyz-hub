@@ -84,10 +84,9 @@ class HttpStorageReadExecute {
       @NotNull NakshaContext context, ReadFeaturesProxyWrapper readRequest, RequestSender requestSender) {
     String queryParamsString = keysToKeyValuesStrings(readRequest, WEST, NORTH, EAST, SOUTH, LIMIT);
 
-    warnOnUnsupportedQueryParam(readRequest, PROPERTY_SEARCH_OP);
-
     HttpResponse<String> response = requestSender.sendRequest(
-        String.format("/%s/bbox?%s", baseEndpoint(readRequest), queryParamsString),
+        String.format(
+            "/%s/bbox?%s%s", baseEndpoint(readRequest), queryParamsString, getPOpQueryOrEmpty(readRequest)),
         Map.of(HDR_STREAM_ID, context.getStreamId()));
 
     return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
@@ -101,10 +100,11 @@ class HttpStorageReadExecute {
 
     if (tileType != null && !tileType.equals(TILE_TYPE_QUADKEY))
       return new ErrorResult(XyzError.NOT_IMPLEMENTED, "Tile type other than " + TILE_TYPE_QUADKEY);
-    warnOnUnsupportedQueryParam(readRequest, PROPERTY_SEARCH_OP);
 
     HttpResponse<String> response = requestSender.sendRequest(
-        String.format("/%s/quadkey/%s?%s", baseEndpoint(readRequest), tileId, queryParamsString),
+        String.format(
+            "/%s/quadkey/%s?%s%s",
+            baseEndpoint(readRequest), tileId, queryParamsString, getPOpQueryOrEmpty(readRequest)),
         Map.of(HDR_STREAM_ID, context.getStreamId()));
 
     return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
@@ -122,10 +122,12 @@ class HttpStorageReadExecute {
     return createHttpResultFromFeatureList(typedResponseToFeatureList.apply(resultFeatures));
   }
 
-  private static void warnOnUnsupportedQueryParam(ReadFeaturesProxyWrapper readRequest, String key) {
-    if (readRequest.getQueryParameter(key) != null)
-      log.warn("The " + key + " query param for " + readRequest.getReadRequestType()
-          + " is not supported yet and will be ignored.");
+  /**
+   * @return either POp query string starting with "&" or an empty string if the POp is null
+   */
+  private static String getPOpQueryOrEmpty(ReadFeaturesProxyWrapper readRequest) {
+    POp pOp = readRequest.getQueryParameter(PROPERTY_SEARCH_OP);
+    return pOp == null ? "" : "&" + POpToQueryConverter.p0pToQuery(pOp);
   }
 
   /**

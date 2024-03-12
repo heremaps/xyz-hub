@@ -100,7 +100,7 @@ public class DefaultViewHandler extends AbstractEventHandler {
       } else {
 
         view.setViewLayerCollection(
-                prepareViewLayerCollection(nakshaHub().getSpaceStorage(), properties.getSpaceIds()));
+            prepareViewLayerCollection(nakshaHub().getSpaceStorage(), properties.getSpaceIds()));
         // TODO MCPODS-7046 Replace the way how view is created. Should be immutable without need to use set
         // method.
         return processRequest(ctx, view, request);

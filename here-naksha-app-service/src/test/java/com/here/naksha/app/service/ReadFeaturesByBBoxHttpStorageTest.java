@@ -19,16 +19,21 @@
 package com.here.naksha.app.service;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
+import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import com.github.tomakehurst.wiremock.matching.UrlPattern;
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.here.naksha.app.common.CommonApiTestSetup.createHandler;
@@ -228,4 +233,22 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     verify(1, getRequestedFor(endpointPath));
   }
 
+  @ParameterizedTest
+  @MethodSource("propSearchTestParams")
+  void tc800_testPropertySearch(String inputQueryString, RequestPatternBuilder outputQueryPattern) throws Exception {
+    final String bboxQueryParam = "west=-180.0&north=90.0&east=180.0&south=-90.0&limit=30000";
+
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + bboxQueryParam + "&" + inputQueryString, streamId);
+
+    stubFor(any(anyUrl()).willReturn(ok()));
+
+    verify(1, outputQueryPattern);
+  }
+
+  private static Stream<Arguments> propSearchTestParams(){
+    return PropertySearchSamples.queryParams();
+  }
 }

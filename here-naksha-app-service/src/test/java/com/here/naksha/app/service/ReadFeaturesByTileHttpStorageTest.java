@@ -20,6 +20,7 @@ package com.here.naksha.app.service;
 
 import com.github.tomakehurst.wiremock.client.MappingBuilder;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
+import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import com.github.tomakehurst.wiremock.matching.UrlPathPattern;
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
@@ -48,7 +49,7 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
 
   private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
 
-  private static final String SPACE_ID = "read_features_by_tile_http_test_space";
+  private static final String HTTP_SPACE_ID = "read_features_by_tile_http_test_space";
   private static final String TYPE_QUADKEY = "quadkey";
 
   @BeforeAll
@@ -175,7 +176,7 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
 
     // When: Get Features By Tile request is submitted to NakshaHub
     final HttpResponse<String> response = nakshaClient
-            .get("hub/spaces/" + SPACE_ID + "/tile/" + tileType + "/" + tileId + "?" + urlQueryParams, streamId);
+            .get("hub/spaces/" + HTTP_SPACE_ID + "/tile/" + tileType + "/" + tileId + "?" + urlQueryParams, streamId);
 
     // Then: Perform standard assertions
     assertThat(response)
@@ -198,4 +199,21 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
             });
   }
 
+  @ParameterizedTest
+  @MethodSource("propSearchTestParams")
+  void tc900_testPropertySearch(String inputQueryString, RequestPatternBuilder outputQueryPattern) throws Exception {
+
+    String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By tile request is submitted to NakshaHub
+    nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/tile/" + TYPE_QUADKEY + "/11111?" + inputQueryString, streamId);
+
+    stubFor(any(anyUrl()));
+
+    verify(1, outputQueryPattern);
+  }
+
+  private static Stream<Arguments> propSearchTestParams(){
+    return PropertySearchSamples.queryParams();
+  }
 }
