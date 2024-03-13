@@ -32,6 +32,8 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.aws.SimulatedContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -92,7 +94,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
    */
   @JsonProperty("taskToken.$")
   private String taskToken = "$$.Task.Token"; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
-  private String ownLambdaArn; //Will be defined from Lambda's execution context
+  private ARN ownLambdaArn; //Will be defined from Lambda's execution context
   private String invokersRoleArn; //Will be defined by the framework alongside the START_EXECUTION request being relayed by the Step Function
   @JsonView(Internal.class)
   private String stateCheckRuleName; //Will be defined (for ASYNC ExecutionMode) by this step when it created the CW event rule trigger
@@ -159,7 +161,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         .rule(stateCheckRuleName)
         .targets(Target.builder()
             .id(globalStepId)
-            .arn(ownLambdaArn)
+            .arn(ownLambdaArn.toString())
             .roleArn(invokersRoleArn)
             .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
             .build())
@@ -260,7 +262,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public abstract ExecutionMode getExecutionMode();
 
   @JsonIgnore
-  protected String getwOwnLambdaArn() {
+  protected ARN getwOwnLambdaArn() {
     return ownLambdaArn;
   }
 
@@ -296,7 +298,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         XyzSerializable.fromMap(Map.copyOf(System.getenv()), Config.class);
       //Read the incoming request
       LambdaStepRequest request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
-      request.getStep().ownLambdaArn = context.getInvokedFunctionArn();
+
+      //Set the own lambda ARN accordingly
+      if (context instanceof SimulatedContext)
+        request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.JOBS_REGION + ":000000000000:function:job-step");
+      else
+        request.getStep().ownLambdaArn = new ARN(context.getInvokedFunctionArn());
+      Config.instance.JOBS_REGION = request.getStep().ownLambdaArn.getRegion();
+
       //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
       //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method
       //IF the incoming event is a cancellation event (check if SF is sending one) call the cancel method!

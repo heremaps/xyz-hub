@@ -24,7 +24,6 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepReques
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
@@ -138,10 +137,9 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   protected SQLQuery buildSuccessCallbackQuery() {
-    return new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}','${{lambdaRegion}}'), '${{successRequestBody}}'::json, 'Event');")
-        .withQueryFragment("lambdaArn", getwOwnLambdaArn())
-            //TODO: Check if we can retrieve the region via context
-        .withQueryFragment("lambdaRegion", Config.instance.JOBS_REGION)
+    return new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::json, 'Event');")
+        .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())
+        .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
         .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
     //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
   }
@@ -149,13 +147,12 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   protected SQLQuery buildFailureCallbackQuery() {
     return new SQLQuery("""
         RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
-        PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}','${{lambdaRegion}}'), '${{failureRequestBody}}'::json, 'Event');
+        PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, 'Event');
         """)
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
-        .withQueryFragment("lambdaArn", getwOwnLambdaArn())
-            //TODO: Check if we can retrieve the region via context
-        .withQueryFragment("lambdaRegion", Config.instance.JOBS_REGION)
+        .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())
+        .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
         .withQueryFragment("failureRequestBody", new LambdaStepRequest().withType(FAILURE_CALLBACK).withStep(this).serialize());
     //TODO: Inject error message into failureRequestBody using SQLSTATE & SQLERRM
     //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
