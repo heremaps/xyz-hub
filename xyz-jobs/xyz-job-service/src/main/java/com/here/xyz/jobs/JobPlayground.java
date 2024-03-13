@@ -128,6 +128,10 @@ public class JobPlayground {
   public static void main(String[] args) throws IOException {
     //startMockJob();
 
+    //Upload files with each having one feature without id
+    for (int i = 0; i < 2; i++)
+      uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
+
     runDropIndexStep(sampleSpace.getId());
     runImportFilesToSpaceStep(sampleSpace.getId());
 
