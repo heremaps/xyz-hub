@@ -74,7 +74,8 @@ public class S3Client {
   public boolean isLocal() {
     //TODO: Rather encapsulate this in a "local" sub-implementation of S3Client
     if(Config.instance.HUB_ENDPOINT.contains("localhost") ||
-        Config.instance.HUB_ENDPOINT.contains("xyz-hub:8080"))
+            Config.instance.HUB_ENDPOINT.contains("xyz-hub:8080") ||
+            Config.instance.HUB_ENDPOINT.contains("host.docker.internal"))
       return true;
     return false;
   }
