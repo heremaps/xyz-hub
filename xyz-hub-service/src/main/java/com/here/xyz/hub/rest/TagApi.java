@@ -23,7 +23,6 @@ import static com.here.xyz.hub.rest.ApiParam.Path.INCLUDE_SYSTEM_TAGS;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
@@ -31,9 +30,9 @@ import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
@@ -44,10 +43,10 @@ import org.apache.logging.log4j.Marker;
 public class TagApi extends SpaceBasedApi {
 
   public TagApi(RouterBuilder rb) {
-    rb.getRoute("createTag").setDoValidation(false).addHandler(this::createTag);
-    rb.getRoute("updateTag").setDoValidation(false).addHandler(this::updateTag);
-    rb.getRoute("getTag").setDoValidation(false).addHandler(this::getTag);
-    rb.getRoute("deleteTag").setDoValidation(false).addHandler(this::deleteTag);
+    rb.getRoute("createTag").setDoValidation(false).addHandler(handleErrors(this::createTag));
+    rb.getRoute("updateTag").setDoValidation(false).addHandler(handleErrors(this::updateTag));
+    rb.getRoute("getTag").setDoValidation(false).addHandler(handleErrors(this::getTag));
+    rb.getRoute("deleteTag").setDoValidation(false).addHandler(handleErrors(this::deleteTag));
     rb.getRoute("listTags").setDoValidation(false).addHandler(this::listTags);
   }
 
@@ -61,7 +60,7 @@ public class TagApi extends SpaceBasedApi {
             tag.getVersion(),
             tag.isSystem()))
         .onSuccess(result -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, result))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   // TODO auth
@@ -75,7 +74,7 @@ public class TagApi extends SpaceBasedApi {
             ? Future.succeededFuture(result)
             : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found")))
         .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   // TODO auth
@@ -87,7 +86,7 @@ public class TagApi extends SpaceBasedApi {
     getSpace(marker, spaceId)
         .compose(s -> Service.tagConfigClient.getTags(marker, spaceId, includeSystemTags))
         .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   // TODO auth
@@ -102,7 +101,7 @@ public class TagApi extends SpaceBasedApi {
             new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found"))
             : Future.succeededFuture(r))
         .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   // TODO auth
@@ -113,7 +112,8 @@ public class TagApi extends SpaceBasedApi {
 
     final Future<Long> inputFuture = deserializeTag(context.body().asString())
         .map(Tag::getVersion)
-        .compose(version -> version < -2 ? Future.failedFuture("Invalid version parameter") : Future.succeededFuture(version));
+        .compose(version -> version < -2 ? Future.failedFuture(new ValidationException("Invalid version parameter"))
+            : Future.succeededFuture(version));
     final Future<Space> spaceFuture = getSpace(marker, spaceId);
     final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, tagId, spaceId)
         .compose(r -> r == null ? Future.failedFuture(
@@ -124,7 +124,7 @@ public class TagApi extends SpaceBasedApi {
     Future.all(spaceFuture, tagFuture, inputFuture)
         .compose(cf -> Service.tagConfigClient.storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
         .onSuccess(v -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, tagFuture.result().withVersion(version)))
-        .onFailure(t -> sendHttpErrorResponse(context, t));
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
@@ -135,15 +135,15 @@ public class TagApi extends SpaceBasedApi {
   private static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long
       version, boolean system) {
     if (spaceId == null) {
-      return Future.failedFuture("Invalid spaceId parameter");
+      return Future.failedFuture(new ValidationException("Invalid spaceId parameter"));
     }
 
     if (tagId == null || invalidTagId(tagId)) {
-      return Future.failedFuture("Invalid tagId parameter");
+      return Future.failedFuture(new ValidationException("Invalid tagId parameter"));
     }
 
     if (version < -2) {
-      return Future.failedFuture("Invalid version parameter");
+      return Future.failedFuture(new ValidationException("Invalid version parameter"));
     }
 
 
@@ -170,7 +170,7 @@ public class TagApi extends SpaceBasedApi {
   // TODO auth
   public static Future<Tag> deleteTag(Marker marker, String spaceId, String tagId) {
     if (spaceId == null || tagId == null) {
-      return Future.failedFuture("Invalid spaceId or tagId parameters");
+      return Future.failedFuture(new ValidationException("Invalid spaceId or tagId parameters"));
     }
 
     return Service.spaceConfigClient.get(marker, spaceId)
@@ -179,24 +179,14 @@ public class TagApi extends SpaceBasedApi {
 
   private static Future<Tag> deserializeTag(String body) {
     if (StringUtils.isBlank(body)) {
-      return Future.failedFuture("Unable to parse body");
+      return Future.failedFuture(new ValidationException("Unable to parse body"));
     }
 
     try {
       return Future.succeededFuture(XyzSerializable.deserialize(body, Tag.class));
     } catch (JsonProcessingException e) {
-      return Future.failedFuture("Unable to parse body");
+      return Future.failedFuture(new ValidationException("Unable to parse body"));
     }
-  }
-
-  private void sendHttpErrorResponse(RoutingContext context, Throwable t) {
-    if (t == null) {
-      t = new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid response");
-    }
-    if (!(t instanceof HttpException)) {
-      t = new HttpException(HttpResponseStatus.BAD_REQUEST, t.getMessage());
-    }
-    this.sendErrorResponse(context, t);
   }
 
   private static Future<Space> getSpace(Marker marker, String spaceId) {
