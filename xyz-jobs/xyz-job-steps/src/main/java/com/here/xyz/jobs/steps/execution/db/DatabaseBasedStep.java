@@ -70,7 +70,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     runReadQuery(query, db, estimatedMaxAcuLoad, rs -> null);
   }
 
-  protected final void runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+  protected final void runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, boolean withCallbacks)
+      throws TooManyResourcesClaimed, SQLException {
     runReadQuery(query, db, estimatedMaxAcuLoad, rs -> null, withCallbacks);
   }
 
@@ -79,8 +80,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, true, true);
   }
 
-  protected final <R> R runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<R> resultSetHandler, boolean withCallbacks)
-          throws TooManyResourcesClaimed, SQLException {
+  protected final <R> R runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<R> resultSetHandler,
+      boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
     return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, true, withCallbacks);
   }
 
@@ -94,7 +95,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, true, true);
   }
 
-  protected final int runWriteQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+  protected final int runWriteQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, boolean withCallbacks)
+      throws TooManyResourcesClaimed, SQLException {
     return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, true, withCallbacks);
   }
 
@@ -104,15 +106,14 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   protected final int[] runBatchWriteQuerySync(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed,
-          SQLException {
+      SQLException {
     return (int[]) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false);
   }
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
       boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
-    if (async) {
-      query = withCallbacks ? wrapQuery(query).withAsync(true) : query.withAsync(true);
-    }
+    if (async)
+      query = (withCallbacks ? wrapQuery(query) : query).withAsync(true);
     runningQueryIds.add(query.getQueryId());
 
     if (query.isBatch() && isWriteQuery)
@@ -151,15 +152,15 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
   }
 
-  protected SQLQuery buildSuccessCallbackQuery() {
-    return new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::json, 'Event');")
+  protected final SQLQuery buildSuccessCallbackQuery() {
+    return new SQLQuery("aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::json, 'Event');")
         .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())
         .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
         .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
     //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
   }
 
-  protected SQLQuery buildFailureCallbackQuery() {
+  protected final SQLQuery buildFailureCallbackQuery() {
     return new SQLQuery("""
         RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
         PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, 'Event');

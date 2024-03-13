@@ -141,7 +141,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       //Execute
       for (int i = 0; i < importThreadCnt; i++) {
-        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), "jsonwkb", super.buildSuccessCallbackQuery(), i), db, calculateNeededAcus(0,0), false);
+        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), "jsonwkb", buildSuccessCallbackQuery(), i), db, calculateNeededAcus(0,0), false);
       }
     }
     catch (SQLException | TooManyResourcesClaimed | HubWebClientException e){
