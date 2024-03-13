@@ -26,6 +26,8 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -33,6 +35,7 @@ import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.Map;
 
@@ -43,10 +46,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 public class JobApi extends Api {
-
-    private static Map<String,String> MODIFICATION_IGNORE_MAP = ImmutableMap.of(
-            "createdAt","createdAt",
-            "updatedAt","updatedAt");
 
     public JobApi(RouterBuilder rb) {
         rb.getRoute("postJob").setDoValidation(false).addHandler(handleErrors(this::postJob));
@@ -93,16 +92,39 @@ public class JobApi extends Api {
                 .onFailure(err -> sendErrorResponse(context, err));
     }
 
-    private void postJobInputs(final RoutingContext context) {
-        //TODO: Needs to be Implememnted
+    private void postJobInputs(final RoutingContext context) throws HttpException {
+        String spaceId = ApiParam.getPathParam(context, SPACE_ID);
+        String jobId = ApiParam.getPathParam(context, JOB_ID);
+        Input input = getJobInputFromBody(context);
+
+        if(input instanceof UploadUrl) {
+            loadJob(spaceId, jobId)
+                    .map(job -> job.createUploadUrl())
+                    .onSuccess(res -> sendResponse(context, CREATED, res))
+                    .onFailure(err -> sendErrorResponse(context, err));
+        } else {
+            throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported");
+        }
     }
 
     private void getJobInputs(final RoutingContext context) {
-        //TODO: Needs to be Implememnted
+        String spaceId = ApiParam.getPathParam(context, SPACE_ID);
+        String jobId = ApiParam.getPathParam(context, JOB_ID);
+
+        loadJob(spaceId, jobId)
+                .compose(job -> job.loadInputs())
+                .onSuccess(res -> sendResponse(context, OK, res))
+                .onFailure(err -> sendErrorResponse(context, err));
     }
 
     private void getJobOutputs(final RoutingContext context) {
-        //TODO: Needs to be Implememnted
+        String spaceId = ApiParam.getPathParam(context, SPACE_ID);
+        String jobId = ApiParam.getPathParam(context, JOB_ID);
+
+        loadJob(spaceId, jobId)
+                .compose(job -> job.loadOutputs())
+                .onSuccess(res -> sendResponse(context, OK, res))
+                .onFailure(err -> sendErrorResponse(context, err));
     }
     private void patchJobStatus(final RoutingContext context) throws HttpException {
         String spaceId = ApiParam.getPathParam(context, SPACE_ID);
@@ -148,6 +170,15 @@ public class JobApi extends Api {
             space.setId(spaceId);
 
         return job;
+    }
+
+    private Input getJobInputFromBody(RoutingContext context) throws HttpException {
+        try {
+            return XyzSerializable.deserialize(context.body().asString(), Input.class);
+        }
+        catch (JsonProcessingException e) {
+            throw new HttpException(BAD_REQUEST, "Error parsing request");
+        }
     }
 
     private RuntimeStatus getStatusFromBody(RoutingContext context) throws HttpException {

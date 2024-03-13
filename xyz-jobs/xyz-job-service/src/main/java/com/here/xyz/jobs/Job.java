@@ -39,7 +39,9 @@ import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
+import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.util.Async;
@@ -305,6 +307,25 @@ public class Job implements XyzSerializable {
   private Future<Void> deleteInputs() {
     //TODO: implement
     return null;
+  }
+
+  public Future<List<Input>> loadInputs() {
+    return AsyncS3Client.getInstance()
+            .scanFolderAsync(Input.inputS3Prefix(getId()))
+            .map(summaries -> summaries.stream()
+                    .map(s3ObjectSummary -> new UploadUrl()
+                            .withS3Key(s3ObjectSummary.getKey())
+                            .withByteSize(s3ObjectSummary.getSize()))
+                    .collect(Collectors.toList())
+            );
+  }
+
+  public Future<List<Output>> loadOutputs() {
+    List<Output> outputs =  steps.stepStream()
+            .map(step -> (List<Output>) step.loadOutputs(true))
+            .flatMap(ol -> ol.stream())
+            .collect(Collectors.toList());
+    return Future.succeededFuture(outputs);
   }
 
   public boolean isResumable() {

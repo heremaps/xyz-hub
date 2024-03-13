@@ -126,7 +126,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loadOutputs(true, userOutput);
   }
 
-  protected List<Output> loadOutputs(boolean userOutput) {
+  public List<Output> loadOutputs(boolean userOutput) {
     return loadOutputs(false, userOutput);
   }
 
