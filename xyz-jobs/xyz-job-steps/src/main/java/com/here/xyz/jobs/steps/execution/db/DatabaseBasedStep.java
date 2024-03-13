@@ -70,34 +70,49 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     runReadQuery(query, db, estimatedMaxAcuLoad, rs -> null);
   }
 
+  protected final void runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+    runReadQuery(query, db, estimatedMaxAcuLoad, rs -> null, withCallbacks);
+  }
+
   protected final <R> R runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<R> resultSetHandler)
       throws TooManyResourcesClaimed, SQLException {
-    return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, true);
+    return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, true, true);
   }
+
+  protected final <R> R runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<R> resultSetHandler, boolean withCallbacks)
+          throws TooManyResourcesClaimed, SQLException {
+    return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, true, withCallbacks);
+  }
+
 
   protected final <R> R runReadQuerySync(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<R> resultSetHandler)
       throws SQLException, TooManyResourcesClaimed {
-    return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, false);
+    return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, false, false);
   }
 
   protected final int runWriteQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed, SQLException {
-    return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, true);
+    return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, true, true);
+  }
+
+  protected final int runWriteQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+    return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, true, withCallbacks);
   }
 
   protected final int runWriteQuerySync(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed,
       SQLException {
-    return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false);
+    return (int) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false);
   }
 
   protected final int[] runBatchWriteQuerySync(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed,
           SQLException {
-    return (int[]) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false);
+    return (int[]) executeQuery(query, db, estimatedMaxAcuLoad, null, true, false, false);
   }
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
-      boolean isWriteQuery, boolean async) throws TooManyResourcesClaimed, SQLException {
-    if (async)
-      query = wrapQuery(query).withAsync(true);
+      boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+    if (async) {
+      query = withCallbacks ? wrapQuery(query).withAsync(true) : query.withAsync(true);
+    }
     runningQueryIds.add(query.getQueryId());
 
     if (query.isBatch() && isWriteQuery)
@@ -126,7 +141,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         DO $$
         BEGIN
           ${{stepQuery}};
-          ${{successCallback}}
+          PERFORM ${{successCallback}}
           EXCEPTION WHEN OTHERS THEN
                 ${{failureCallback}}
         END$$;
