@@ -4241,7 +4241,7 @@ LANGUAGE plpgsql VOLATILE;
 
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION public.import_into_space(schem text, temporary_tbl regclass, target_tbl regclass, format text, i integer)
+CREATE OR REPLACE FUNCTION xyz_import_into_space(schem text, temporary_tbl regclass, target_tbl regclass, success_callback text, format text, i integer)
     RETURNS void
     LANGUAGE 'plpgsql'
 AS $BODY$
@@ -4300,6 +4300,9 @@ AS $BODY$
                     ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
                         RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count,import_results.total_count;
                     END IF;
+                    RAISE NOTICE 'ALL DONE! %',success_callback;
+                    --TODO: remove asyncify
+                    PERFORM asyncify(format(success_callback),'postgres');
                 END IF;
                 RETURN;
             END IF;

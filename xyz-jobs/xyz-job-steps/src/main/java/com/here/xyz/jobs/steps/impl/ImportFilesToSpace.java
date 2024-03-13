@@ -141,17 +141,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       //Execute
       for (int i = 0; i < importThreadCnt; i++) {
-        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), "jsonwkb", i), db, calculateNeededAcus(0,0));
+        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), "jsonwkb", super.buildSuccessCallbackQuery(), i), db, calculateNeededAcus(0,0), false);
       }
-
-      //TODO: remove - simulates async processing <-- maybe better move it into the JobPlayground between the steps
-      try {
-          Thread.sleep(2000l);
-      } catch (InterruptedException e) {
-          throw new RuntimeException(e);
-      }
-      //TODO: remove - used only for mocking
-      onAsyncSuccess();
     }
     catch (SQLException | TooManyResourcesClaimed | HubWebClientException e){
       //@TODO: ErrorHandling! <- Is it necessary here? Anything that should be catched / transformed?
@@ -251,12 +242,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     super.cancel();
   }
 
-  @Override
-  protected SQLQuery buildFailureCallbackQuery() {
-    //TODO add custom exception for skip notification
-    return super.buildFailureCallbackQuery();
-  }
-
   private SQLQuery buildTemporaryTableForImportQuery(String schema, String table){
     return new SQLQuery("""
                     CREATE TABLE IF NOT EXISTS ${schema}.${table}
@@ -306,12 +291,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", table + JOB_DATA_SUFFIX);
   }
 
-  private SQLQuery buildImportQuery(String schema, String table, String format, int i) {
-    return new SQLQuery("SELECT import_into_space(#{schema},#{temporary_tbl}::regclass,#{target_tbl}::regclass,#{format},#{i})")
+  private SQLQuery buildImportQuery(String schema, String table, String format, SQLQuery successQuery, int i) {
+    return new SQLQuery("SELECT xyz_import_into_space(#{schema},#{temporary_tbl}::regclass,#{target_tbl}::regclass,#{format},'${{successQuery}}',#{i})")
             .withNamedParameter("schema", schema)
             .withNamedParameter("target_tbl", schema+".\""+table+"\"")
             .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
             .withNamedParameter("format", format)
-            .withNamedParameter("i", i);
+            .withNamedParameter("i", i)
+            .withQueryFragment("successQuery","select "+successQuery.substitute().text().replaceAll("'","''"));
   }
 }
