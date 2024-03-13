@@ -29,7 +29,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
@@ -102,12 +101,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private CloudWatchEventsClient cwEventsClient;
   private static final String INVOKE_SUCCESS = """
       {"status": "OK"}""";
-
-  @Override
-  public RuntimeInfo getStatus() {
-    //TODO: Called by the framework node to get the (previously updated & cached) step state .. Status updates come through CW event bridge
-    return null;
-  }
 
   /**
    * This method must be implemented by subclasses.

@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepReques
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
@@ -45,6 +46,7 @@ import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.HubWebClient.ErrorResponseException;
 import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import java.io.ByteArrayInputStream;
@@ -73,6 +75,7 @@ public class JobPlayground {
   private static HubWebClient hubWebClient;
   private static LambdaClient lambdaClient;
   private static final String LAMBDA_NAME = "job-step";
+  private static Space sampleSpace;
 
   static {
     VertxOptions vertxOptions = new VertxOptions()
@@ -91,6 +94,7 @@ public class JobPlayground {
     Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
     Config.instance.JOBS_S3_BUCKET = "test-bucket";
     Config.instance.JOBS_REGION = "us-east-1";
+    Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
     try {
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
@@ -105,8 +109,6 @@ public class JobPlayground {
     }
   }
 
-  private static Space sampleSpace;
-
   static {
     try {
       sampleSpace = createSampleSpace("TEST");
@@ -114,6 +116,7 @@ public class JobPlayground {
     catch (HubWebClientException e) {
       throw new RuntimeException(e);
     }
+    JobConfigClient.getInstance().init();
   }
 
   private static Job mockJob = new Job()
@@ -123,9 +126,7 @@ public class JobPlayground {
       .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
 
   public static void main(String[] args) throws IOException {
-    //Upload files with each having one feature without id
-    for (int i = 0; i < 2; i++)
-      uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
+    //startMockJob();
 
     runDropIndexStep(sampleSpace.getId());
     runImportFilesToSpaceStep(sampleSpace.getId());
@@ -135,6 +136,27 @@ public class JobPlayground {
 
     runAnalyzeSpaceTableStep(sampleSpace.getId());
     runMarkForMaintenanceStep(sampleSpace.getId());
+  }
+
+  private static void startMockJob() {
+    mockJob.submit()
+        .compose(submitted -> {
+          //Upload files with each having one feature without id
+          try {
+            for (int i = 0; i < 2; i++)
+              uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
+          }
+          catch (IOException e) {
+            return Future.failedFuture(e);
+          }
+          return mockJob.submit(); //Submit the job, now that the input files have been uploaded
+        })
+        .compose(submitted -> {
+          if (!submitted)
+            return Future.failedFuture("Job is still not ready, even after uploading the input files");
+          return Future.succeededFuture();
+        })
+        .onFailure(t -> logger.error(t));
   }
 
   private static Space createSampleSpace(String spaceId) throws HubWebClientException {

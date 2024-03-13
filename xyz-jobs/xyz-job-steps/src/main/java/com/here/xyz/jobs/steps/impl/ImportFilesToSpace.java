@@ -24,7 +24,6 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.web.HubWebClient.HubWebClientException;
 
-import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
@@ -92,17 +91,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //Check if the space is actually existing
       loadSpace(getSpaceId());
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      if(statistics.getCount().getValue() > 0)
+      if (statistics.getCount().getValue() > 0)
         throw new ValidationException("Space is not empty");
-
-      //TODO: Validate the input files in S3
-
     }
     catch (HubWebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
-    //Return true as no user inputs are needed
-    return true;
+
+    //TODO: Validate the input files in S3
+    return !loadInputs().isEmpty();
   }
 
   private int calculateNeededAcus(long featureCount, long byteSize) {
@@ -252,11 +249,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public void cancel() throws Exception {
     super.cancel();
-  }
-
-  @Override
-  public RuntimeInfo getStatus() {
-    return super.getStatus();
   }
 
   @Override

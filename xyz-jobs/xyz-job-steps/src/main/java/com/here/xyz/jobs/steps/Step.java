@@ -54,6 +54,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private String previousStepId;
   @JsonView({Public.class, Static.class})
   boolean failedRetryable;
+  private RuntimeInfo status = new RuntimeInfo();
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -78,7 +79,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loads;
   }
 
-  public abstract RuntimeInfo getStatus();
+  public RuntimeInfo getStatus() {
+    //TODO: Called by the framework node to get the (previously updated & cached) step state .. Status updates come through CW event bridge
+    return status;
+  }
 
   public abstract int getTimeoutSeconds();
 
@@ -266,6 +270,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   T withJobId(String jobId) {
     setJobId(jobId);
+    return (T) this;
+  }
+
+  public String getPreviousStepId() {
+    return previousStepId;
+  }
+
+  public void setPreviousStepId(String previousStepId) {
+    this.previousStepId = previousStepId;
+  }
+
+  public T withPreviousStepId(String previousStepId) {
+    setPreviousStepId(previousStepId);
     return (T) this;
   }
 

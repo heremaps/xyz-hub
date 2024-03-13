@@ -60,7 +60,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
   }
 
-
   @Override
   public Future<Job> loadJob(String resourceKey, String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
@@ -103,8 +102,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
   private Item convertJobToItem(String resourceKey, Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
-    jobItemData.put("state", job.getStatus().getState());
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
+    jobItemData.put("resourceKey", resourceKey);
     return Item.fromMap(jobItemData);
   }
 
@@ -121,7 +120,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     if (dynamoClient.isLocal()) {
       logger.info("DynamoDB running locally, initializing Jobs table.");
       try {
-        List<IndexDefinition> indexes = List.of(new IndexDefinition("type"), new IndexDefinition("state"));
+        List<IndexDefinition> indexes = List.of(new IndexDefinition("state"));
         dynamoClient.createTable(jobTable.getTableName(), "resourceKey:S,id:S,state:S", "resourceKey,id", indexes, "keepUntil");
         //TODO: Register a dynamo stream (also in CFN) to ensure we're getting informed when a job expires
       }

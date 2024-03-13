@@ -20,7 +20,6 @@
 package com.here.xyz.jobs;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
-import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.collect.ImmutableMap;
@@ -83,7 +82,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   }
 
   public void setState(State state) {
-    State.checkTransition(getState(), SUBMITTED);
+    State.checkTransition(getState(), state);
     this.state = state;
   }
 

@@ -34,8 +34,8 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class JobExecutor {
   private static final Logger logger = LogManager.getLogger();
-  private static final JobExecutor instance = new StateMachineExecutor(); //TODO: Use a different impl locally
   private static final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+  private static final JobExecutor instance = new StateMachineExecutor(); //TODO: Use a different impl locally
   private static volatile boolean running;
   private static volatile boolean stopRequested;
 

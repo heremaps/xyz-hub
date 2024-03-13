@@ -37,7 +37,7 @@ public abstract class JobConfigClient implements Initializable {
     public Provider() {}
     protected abstract JobConfigClient getInstance();
     private static JobConfigClient provideInstance() {
-      if(client == null)
+      if (client == null)
         client = ImplementationProvider.loadProvider(Provider.class).getInstance();
       return client;
     }

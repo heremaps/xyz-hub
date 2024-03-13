@@ -125,6 +125,7 @@ public class Job implements XyzSerializable {
    * @return Whether submission was done. If submission was not done, the Job remains in state NOT_READY.
    */
   public Future<Boolean> submit() {
+    //TODO: Do not re-compile if the steps are set already?
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
           setSteps(stepGraph);
@@ -155,12 +156,17 @@ public class Job implements XyzSerializable {
    */
   protected Future<Boolean> validate() {
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
-    return Future.all(Job.<Step, Boolean>forEach(getSteps().stepStream().collect(Collectors.toList()), step -> validateStep(step)))
+    return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> validateStep(step)))
         .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(validation -> (boolean) validation)));
   }
 
   private static Future<Boolean> validateStep(Step step) {
-    return async.run(() -> step.validate());
+    return async.run(() -> {
+      boolean isReady = step.validate();
+      if (isReady && step.getStatus().getState() != SUBMITTED)
+        step.getStatus().setState(SUBMITTED);
+      return isReady;
+    });
   }
 
   public Future<Void> start() {
@@ -169,7 +175,7 @@ public class Job implements XyzSerializable {
       return Future.failedFuture(new IllegalStateException("Job can not be started as it's not in SUBMITTED state."));
 
     getStatus().setState(PENDING);
-    getSteps().stepStream().forEach(step -> getStatus().setState(PENDING));
+    getSteps().stepStream().forEach(step -> step.getStatus().setState(PENDING));
 
     return store()
         .compose(v -> startExecution(false));
@@ -241,7 +247,8 @@ public class Job implements XyzSerializable {
 
   public Future<Void> store() {
     //TODO: Validate changes on the job and make sure the job may be stored in the current state
-    return JobConfigClient.getInstance().storeJob("", this); //TODO: Specify resourceKey
+    //TODO: Make sure to reflect the correct resource key
+    return JobConfigClient.getInstance().storeJob(getTarget().getKey(), this);
   }
 
   public static Future<Job> load(String jobId) {
