@@ -138,7 +138,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   protected SQLQuery buildSuccessCallbackQuery() {
-    return new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}},${{lambdaRegion}}'), '${{successRequestBody}}'::json, 'Event');")
+    return new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}','${{lambdaRegion}}'), '${{successRequestBody}}'::json, 'Event');")
         .withQueryFragment("lambdaArn", getwOwnLambdaArn())
             //TODO: Check if we can retrieve the region via context
         .withQueryFragment("lambdaRegion", Config.instance.JOBS_REGION)
@@ -149,7 +149,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   protected SQLQuery buildFailureCallbackQuery() {
     return new SQLQuery("""
         RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
-        PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}},${{lambdaRegion}}'), '${{failureRequestBody}}'::json, 'Event');
+        PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}','${{lambdaRegion}}'), '${{failureRequestBody}}'::json, 'Event');
         """)
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
