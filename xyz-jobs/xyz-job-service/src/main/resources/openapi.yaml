@@ -62,23 +62,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-    patch:
-      tags:
-        - Manage Jobs
-      summary: Update Job
-      operationId: patchJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/JobId'
-      requestBody:
-        $ref: '#/components/requestBodies/JobRequest'
-      responses:
-        '200':
-          $ref: '#/components/responses/JobResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
         - Manage Jobs
@@ -741,6 +724,10 @@ components:
         type:
           description: The type of the Input
           example: UploadUrl
+          type: string
+        s3Key:
+          description: The type of the Input
+          example: import/h3TGlF/part_1.csv
           type: string
     UploadUrl:
       allOf:

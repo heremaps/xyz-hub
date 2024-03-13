@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.util.diff;
+package com.here.xyz.hub.util.diff;
 
 import java.util.ArrayList;
 import java.util.HashMap;

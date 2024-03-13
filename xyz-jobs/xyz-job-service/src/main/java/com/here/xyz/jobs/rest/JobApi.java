@@ -23,12 +23,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
-import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.util.diff.Difference;
-import com.here.xyz.util.diff.Patcher;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -54,7 +51,6 @@ public class JobApi extends Api {
     public JobApi(RouterBuilder rb) {
         rb.getRoute("postJob").setDoValidation(false).addHandler(handleErrors(this::postJob));
         rb.getRoute("getJobs").setDoValidation(false).addHandler(handleErrors(this::getJobs));
-        rb.getRoute("patchJob").setDoValidation(false).addHandler(handleErrors(this::patchJob));
         rb.getRoute("getJob").setDoValidation(false).addHandler(handleErrors(this::getJob));
         rb.getRoute("deleteJob").setDoValidation(false).addHandler(handleErrors(this::deleteJob));
         rb.getRoute("postJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInputs));
@@ -75,21 +71,6 @@ public class JobApi extends Api {
     private void getJobs(final RoutingContext context) {
         String spaceId = ApiParam.getPathParam(context, SPACE_ID);
         JobConfigClient.getInstance().loadJobs(spaceId)
-                .onSuccess(res -> sendResponse(context, OK, res))
-                .onFailure(err -> sendErrorResponse(context, err));
-    }
-
-    private void patchJob(final RoutingContext context) {
-        String spaceId = ApiParam.getPathParam(context, SPACE_ID);
-        String jobId = ApiParam.getPathParam(context, JOB_ID);
-        Job job = getJobFromBody(context);
-        loadJob(spaceId, jobId)
-                .compose(loadedJob -> {
-                    if(loadedJob.getStatus().getState() != RuntimeInfo.State.NOT_READY)
-                        return Future.failedFuture(new HttpException(HttpResponseStatus.CONFLICT, "The requested job cannot be updated"));
-                    Job patchedJob = patchJobDiff(loadedJob, job);
-                    return patchedJob.submit().map(res -> patchedJob);
-                })
                 .onSuccess(res -> sendResponse(context, OK, res))
                 .onFailure(err -> sendErrorResponse(context, err));
     }
@@ -166,18 +147,6 @@ public class JobApi extends Api {
         if(job.getSource() instanceof DatasetDescription.Space space)
             space.setId(spaceId);
 
-        return job;
-    }
-
-    private Job patchJobDiff(Job job, Job patch) {
-        Map jobMap = XyzSerializable.toMap(job);
-        Map patchMap = XyzSerializable.toMap(patch);
-        Difference.DiffMap diffMap = (Difference.DiffMap) Patcher.calculateDifferenceOfPartialUpdate(jobMap, patchMap, MODIFICATION_IGNORE_MAP,
-                true);
-        if (diffMap == null) {
-            Patcher.patch(jobMap, diffMap);
-            job = (Job) XyzSerializable.fromMap(jobMap);
-        }
         return job;
     }
 
