@@ -25,6 +25,7 @@ import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
+import com.here.xyz.jobs.Config;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
@@ -46,6 +47,19 @@ public class DynamoJobConfigClient extends JobConfigClient {
     logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     jobTable = dynamoClient.db.getTable(dynamoClient.tableName);
   }
+
+  public static class Provider extends JobConfigClient.Provider {
+    @Override
+    public boolean chooseMe() {
+      return Config.instance.JOBS_DYNAMODB_TABLE_ARN != null && !"test".equals(System.getProperty("scope"));
+    }
+
+    @Override
+    protected JobConfigClient getInstance() {
+      return new DynamoJobConfigClient(Config.instance.JOBS_DYNAMODB_TABLE_ARN);
+    }
+  }
+
 
   @Override
   public Future<Job> loadJob(String resourceKey, String jobId) {

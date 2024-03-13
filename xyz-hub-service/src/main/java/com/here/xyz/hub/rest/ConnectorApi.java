@@ -30,7 +30,7 @@ import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.task.ConnectorHandler;
-import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.util.diff.Difference;
 import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;

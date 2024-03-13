@@ -31,8 +31,8 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLamb
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.ConnectorApi;
-import com.here.xyz.hub.util.diff.Difference.DiffMap;
-import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.util.diff.Difference.DiffMap;
+import com.here.xyz.util.diff.Patcher;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;

@@ -30,6 +30,18 @@
       <artifactId>vertx-core</artifactId>
       <groupId>io.vertx</groupId>
     </dependency>
+    <dependency>
+      <artifactId>vertx-web</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vertx-openapi</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vertx-web-openapi-router</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
 
     <!-- AWS SDK -->
     <dependency>

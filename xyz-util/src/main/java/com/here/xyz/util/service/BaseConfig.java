@@ -19,6 +19,9 @@
 
 package com.here.xyz.util.service;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class BaseConfig {
   public static BaseConfig instance;
 

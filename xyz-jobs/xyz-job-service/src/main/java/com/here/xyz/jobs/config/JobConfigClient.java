@@ -21,6 +21,7 @@ package com.here.xyz.jobs.config;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
@@ -28,8 +29,18 @@ import java.util.List;
 public abstract class JobConfigClient implements Initializable {
 
   public static JobConfigClient getInstance() {
-    //TODO: Chose the right client impl using SPI here
-    return new DynamoJobConfigClient(""); //TODO: Get table name from env vars
+    return Provider.provideInstance();
+  }
+
+  public static abstract class Provider implements ImplementationProvider {
+    private static JobConfigClient client;
+    public Provider() {}
+    protected abstract JobConfigClient getInstance();
+    private static JobConfigClient provideInstance() {
+      if(client == null)
+        client = ImplementationProvider.loadProvider(Provider.class).getInstance();
+      return client;
+    }
   }
 
   public abstract Future<Job> loadJob(String resourceKey, String jobId);

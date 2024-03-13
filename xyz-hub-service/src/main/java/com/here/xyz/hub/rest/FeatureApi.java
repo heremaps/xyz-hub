@@ -39,7 +39,7 @@ import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
-import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
+import com.here.xyz.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.HttpException;

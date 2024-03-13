@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.httpconnector;
+package com.here.xyz.util.service;
 
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;

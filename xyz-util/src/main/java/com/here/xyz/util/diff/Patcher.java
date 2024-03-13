@@ -17,13 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.diff;
+package com.here.xyz.util.diff;
 
-import com.here.xyz.hub.util.diff.Difference.DiffList;
-import com.here.xyz.hub.util.diff.Difference.DiffMap;
-import com.here.xyz.hub.util.diff.Difference.Insert;
-import com.here.xyz.hub.util.diff.Difference.Remove;
-import com.here.xyz.hub.util.diff.Difference.Update;
+import com.here.xyz.util.diff.Difference.DiffList;
+import com.here.xyz.util.diff.Difference.DiffMap;
+import com.here.xyz.util.diff.Difference.Insert;
+import com.here.xyz.util.diff.Difference.Remove;
+import com.here.xyz.util.diff.Difference.Update;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

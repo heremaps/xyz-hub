@@ -30,6 +30,19 @@ import java.util.stream.Collectors;
 public class InMemJobConfigClient extends JobConfigClient {
     private Map<JobKey, Job> jobMap = new ConcurrentHashMap<>();
 
+    public static class Provider extends JobConfigClient.Provider {
+        @Override
+        public boolean chooseMe() {
+            return "test".equals(System.getProperty("scope"));
+        }
+
+        @Override
+        protected JobConfigClient getInstance() {
+            return new InMemJobConfigClient();
+        }
+    }
+
+
     @Override
     public Future<Job> loadJob(String resourceKey, String jobId) {
         return Future.succeededFuture(jobMap.get(new JobKey(resourceKey, jobId)));
