@@ -75,7 +75,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   private int calculateNeededAcus(long featureCount, long byteSize) {
     //TODO: Also take into account the index type
-    return 20;
+    return 3;
   }
 
   @Override

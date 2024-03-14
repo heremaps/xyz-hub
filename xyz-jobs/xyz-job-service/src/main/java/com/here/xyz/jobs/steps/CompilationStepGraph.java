@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
 /**
@@ -41,6 +42,7 @@ class CompilationStepGraph extends StepGraph {
     return super.addExecution(execution);
   }
 
+  @JsonIgnore
   private String getPreviousStepId() {
     List<StepExecution> executions = getExecutions();
     if (!executions.isEmpty()) {

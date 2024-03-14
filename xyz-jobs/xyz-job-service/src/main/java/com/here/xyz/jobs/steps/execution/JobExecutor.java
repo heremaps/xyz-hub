@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import io.vertx.core.Future;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -49,18 +50,20 @@ public abstract class JobExecutor {
 
   public final Future<Void> startExecution(Job job, String formerExecutionId) {
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
-    if (mayExecute(job)) {
-      //Update the job status atomically, that now is RUNNING to make sure no other node will try to start it.
-      job.getStatus().setState(RUNNING);
-      //TODO: Update / invalidate the reserved unit maps?
-      return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic
-          .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
-          //Execution was started successfully, store the execution ID.
-          .compose(executionId -> job.withExecutionId(executionId).store());
-    }
-    else
-      //The Job remains in PENDING state and will be checked be later again if it may be executed
-      return Future.succeededFuture();
+    return mayExecute(job)
+        .compose(executionAllowed -> {
+          if (!executionAllowed)
+            //The Job remains in PENDING state and will be checked be later again if it may be executed
+            return Future.succeededFuture();
+
+          //Update the job status atomically, that now is RUNNING to make sure no other node will try to start it.
+          job.getStatus().setState(RUNNING);
+          //TODO: Update / invalidate the reserved unit maps?
+          return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic
+              .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
+              //Execution was started successfully, store the execution ID.
+              .compose(executionId -> job.withExecutionId(executionId).store());
+        });
   }
 
   private void checkPendingJobs() {
@@ -102,9 +105,18 @@ public abstract class JobExecutor {
    * @param job The job to be checked
    * @return true, if the job may be executed / enough resources are free
    */
-  private boolean mayExecute(Job job) {
-    //Check for all needed resource-loads whether they can be fulfilled
-    return job.calculateResourceLoads().stream().allMatch(load -> load.getEstimatedVirtualUnits() < load.getResource().getFreeVirtualUnits());
+  private Future<Boolean> mayExecute(Job job) {
+    //Check for all needed resource loads whether they can be fulfilled
+    return ResourcesRegistry.getFreeVirtualUnits()
+        .map(freeVirtualUnits -> job.calculateResourceLoads().stream()
+            .allMatch(load -> {
+              final boolean sufficientFreeUnits = load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
+              if (!sufficientFreeUnits)
+                logger.info("Job {} can not be executed (yet) as there are not sufficient units available of resource {}. "
+                        + "Needed units: {}, currently available units: {}",
+                    job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
+              return sufficientFreeUnits;
+            }));
   }
 
   public static void shutdown() throws InterruptedException {

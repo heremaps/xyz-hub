@@ -195,7 +195,7 @@ public class JobPlayground {
             return Future.failedFuture("Job is still not ready, even after uploading the input files");
           return Future.succeededFuture();
         })
-        .onFailure(t -> logger.error(t));
+        .onFailure(t -> logger.error("Error submitting job:", t));
   }
 
   private static Space createSampleSpace(String spaceId) throws HubWebClientException {

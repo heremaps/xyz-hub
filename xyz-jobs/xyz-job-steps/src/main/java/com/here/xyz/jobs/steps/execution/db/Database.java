@@ -31,6 +31,7 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.resources.AwsRDSClient;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.models.hub.Connector;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -64,6 +66,7 @@ public class Database extends ExecutionResource {
       .newBuilder()
       .expireAfterWrite(3, TimeUnit.MINUTES)
       .build();
+  private static final String ALL_DATABASES = "ALL_DATABASES";
   private String name;
   private DatabaseRole role;
   private String clusterId;
@@ -89,10 +92,17 @@ public class Database extends ExecutionResource {
     return dbSettings;
   }
 
-  //TODO: Needed at all?
-  public static List<Database> getAll() {
-    //TODO: Call initializeDatabases internally here and cache it in a static guava cache internally for some time
-    return null;
+  public static Future<List<Database>> getAll() {
+    logger.info("Gathering all database objects ...");
+    List<Database> allDbs = cache.getIfPresent(ALL_DATABASES);
+    if (allDbs != null)
+      return Future.succeededFuture(allDbs);
+
+    return initializeDatabases()
+        .compose(loadedDbs -> {
+          cache.put(ALL_DATABASES, loadedDbs);
+          return Future.succeededFuture(loadedDbs);
+        });
   }
 
   public static Database loadDatabase(String name, DatabaseRole role) {
@@ -108,14 +118,15 @@ public class Database extends ExecutionResource {
     }
   }
 
-  private static Future<Void> initializeDatabases() {
+  private static Future<List<Database>> initializeDatabases() {
     return HubWebClientAsync.getInstance(Config.instance.HUB_ENDPOINT).loadConnectorsAsync()
         .compose(connectors -> {
           //TODO: Run the following asynchronously
+          List<Database> allDbs = new CopyOnWriteArrayList<>();
           for (Connector connector : connectors) {
-            loadDatabasesForConnector(connector);
+            allDbs.addAll(loadDatabasesForConnector(connector));
           }
-          return Future.succeededFuture();
+          return Future.succeededFuture(allDbs);
         });
   }
 
@@ -139,6 +150,7 @@ public class Database extends ExecutionResource {
   }
 
   private static List<Database> loadDatabasesForConnector(Connector connector) {
+    logger.info("Gathering database objects for connector \"{}\" ...", connector.id);
     List<Database> databasesFromCache = cache.getIfPresent(connector.id);
     if (databasesFromCache != null)
       return databasesFromCache;
@@ -146,35 +158,51 @@ public class Database extends ExecutionResource {
     List<Database> databases = new ArrayList<>();
 
     if (connector.active) {
-      final Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(Config.instance.ECPS_PHRASE,
-          ConnectorParameters.fromMap(connector.params).getEcps());
-      fixLocalDbHosts(connectorDbSettingsMap);
+      final ConnectorParameters connectorParameters = ConnectorParameters.fromMap(connector.params);
+      if (connectorParameters.getEcps() != null) { //Ignore connectors which have no db settings
+        final Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(Config.instance.ECPS_PHRASE,
+            connectorParameters.getEcps());
+        fixLocalDbHosts(connectorDbSettingsMap);
 
-      DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap);
+        DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap);
 
-      String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
+        String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
 
-      if (rdsClusterId == null) {
-        logger.warn("No cluster ID detected for hostname of DB \"" + connector.id + "\". Taking it into account as simple writer DB.");
-        databases.add(new Database(null, null, 128, connectorDbSettingsMap)
-            .withName(connector.id)
-            .withRole(WRITER));
-      }
-      else {
-        DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
-        dbCluster.getDBClusterMembers().forEach(instance -> {
-          final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
-
-          databases.add(new Database(rdsClusterId, instance.getDBInstanceIdentifier(),
-              dbCluster.getServerlessV2ScalingConfiguration().getMaxCapacity(), connectorDbSettingsMap)
+        if (rdsClusterId == null) {
+          logger.warn("No cluster ID detected for hostname of DB \"" + connector.id + "\". Taking it into account as simple writer DB.");
+          databases.add(new Database(null, null, 128, connectorDbSettingsMap)
               .withName(connector.id)
-              .withRole(role));
-        });
+              .withRole(WRITER));
+        }
+        else {
+          DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
+          dbCluster.getDBClusterMembers().forEach(instance -> {
+            final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
+
+            databases.add(new Database(rdsClusterId, instance.getDBInstanceIdentifier(),
+                dbCluster.getServerlessV2ScalingConfiguration().getMaxCapacity(), connectorDbSettingsMap)
+                .withName(connector.id)
+                .withRole(role));
+          });
+        }
       }
     }
 
+    //Update the cache
+    updateAllDbsCacheEntry(connector, databases);
     cache.put(connector.id, databases);
+
     return databases;
+  }
+
+  private static void updateAllDbsCacheEntry(Connector connector, List<Database> databases) {
+    List<Database> allDbs = cache.getIfPresent(ALL_DATABASES);
+    if (allDbs != null) {
+      for (Database db : allDbs)
+        if (db.name.equals(connector.id))
+          allDbs.remove(db);
+      allDbs.addAll(databases);
+    }
   }
 
   public static String getClusterIdFromHostname(String hostname) {
@@ -244,6 +272,19 @@ public class Database extends ExecutionResource {
   @Override
   protected double getMaxVirtualUnits() {
     return getMaxUnits() * DB_MAX_JOB_UTILIZATION_PERCENTAGE;
+  }
+
+  @Override
+  protected String getId() {
+    return Hasher.getHash(getName() + getDatabaseSettings().getHost());
+  }
+
+  @Override
+  public String toString() {
+    return "Database{" +
+        "name='" + name + '\'' +
+        ", role=" + role +
+        '}';
   }
 
   public enum DatabaseRole {
