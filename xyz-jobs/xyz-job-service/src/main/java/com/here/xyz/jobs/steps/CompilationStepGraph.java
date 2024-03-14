@@ -27,6 +27,8 @@ import java.util.List;
 class CompilationStepGraph extends StepGraph {
   private String jobId;
 
+  private CompilationStepGraph() {}
+
   CompilationStepGraph(String jobId) {
     this.jobId = jobId;
   }

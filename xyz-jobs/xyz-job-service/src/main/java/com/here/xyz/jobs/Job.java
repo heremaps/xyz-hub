@@ -30,6 +30,7 @@ import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.util.Random.randomAlpha;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
@@ -58,6 +59,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 @JsonInclude(NON_DEFAULT)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Job implements XyzSerializable {
   //Framework defined properties:
   @JsonView(Static.class)
@@ -133,16 +135,10 @@ public class Job implements XyzSerializable {
           setSteps(stepGraph);
           return validate();
         })
-        .compose(isReady -> {
-          if (isReady) {
-            getStatus().setState(SUBMITTED);
-            return store().compose(v -> start()).map(true);
-          }
-          else {
-            logger.info("{}: Job is not ready for submission yet. Not all pre-conditions are met.", getId());
-            return Future.succeededFuture(false);
-          }
-        });
+        .compose(isReady -> store().compose(v -> {
+            if(isReady) getStatus().setState(SUBMITTED);
+            return Future.succeededFuture(isReady);
+        }));
   }
 
   private static <E, R> List<Future<R>> forEach(List<E> elements, Function<E, Future<R>> action) {
@@ -350,12 +346,11 @@ public class Job implements XyzSerializable {
     return description;
   }
 
-  public Job withDescription(String description) {
+  public void setDescription(String description) {
     this.description = description;
-    return this;
   }
 
-  public Job setDescription(String description) {
+  public Job withDescription(String description) {
     setDescription(description);
     return this;
   }

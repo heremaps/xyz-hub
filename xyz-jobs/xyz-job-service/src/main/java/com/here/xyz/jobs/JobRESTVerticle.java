@@ -54,8 +54,7 @@ public class JobRESTVerticle extends BaseHttpServerVerticle {
                 AbstractRouterBuilder rb = (AbstractRouterBuilder) cls.newInstance();
                 return rb.buildRoutes(vertx)
                         .compose(router -> {
-                            //Add CORS Handler on sub-routers
-                            router.route().order(1).handler(createCorsHandler());
+                            super.addDefaultHandlers(router);
                             mainRouter.mountSubRouter("/", router);
                             return Future.succeededFuture();
                         });

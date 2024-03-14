@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs;
 
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.HubWebClientAsync;
 import io.vertx.core.DeploymentOptions;
@@ -82,5 +84,9 @@ public class JobService extends Core {
             .onFailure(t -> logger.error("Unable to deploy JobVerticle.", t))
             .onSuccess(s -> logger.info("Service is up and running on port " + configuration.HTTP_PORT))
             .map(config);
+  }
+
+  static {
+    XyzSerializable.registerSubtypes(StepGraph.class);
   }
 }

@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
@@ -32,12 +31,9 @@ import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.commons.lang3.NotImplementedException;
-
-import java.util.Map;
 
 import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.JOB_ID;
 import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.SPACE_ID;
@@ -59,7 +55,7 @@ public class JobApi extends Api {
         rb.getRoute("getJobStatus").setDoValidation(false).addHandler(handleErrors(this::getJobStatus));
     }
 
-    private void postJob(final RoutingContext context) {
+    private void postJob(final RoutingContext context) throws HttpException {
         Job job = getJobFromBody(context);
         job.submit()
                 .map(res -> job)
@@ -160,16 +156,22 @@ public class JobApi extends Api {
 
     }
 
-    private Job getJobFromBody(RoutingContext context) {
-        JsonObject body = context.body().asJsonObject();
-        Job job = XyzSerializable.fromMap(body.getMap());
+    private Job getJobFromBody(RoutingContext context) throws HttpException {
 
-        String spaceId = ApiParam.getPathParam(context, SPACE_ID);
+        try {
+            Job job = XyzSerializable.deserialize(context.body().asString(), Job.class);
 
-        if(job.getSource() instanceof DatasetDescription.Space space)
-            space.setId(spaceId);
+            String spaceId = ApiParam.getPathParam(context, SPACE_ID);
 
-        return job;
+            if(job.getSource() instanceof DatasetDescription.Space space)
+                space.setId(spaceId);
+
+            return job;
+        }
+        catch (JsonProcessingException e) {
+            throw new HttpException(BAD_REQUEST, "Error parsing request");
+        }
+
     }
 
     private Input getJobInputFromBody(RoutingContext context) throws HttpException {
