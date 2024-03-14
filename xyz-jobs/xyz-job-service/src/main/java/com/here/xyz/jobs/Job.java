@@ -311,16 +311,14 @@ public class Job implements XyzSerializable {
 
   public Future<List<Input>> loadInputs() {
     return AsyncS3Client.getInstance()
-            .scanFolderAsync(Input.inputS3Prefix(getId()))
-            .map(summaries -> summaries.stream()
-                    .map(s3ObjectSummary -> new UploadUrl()
-                            .withS3Key(s3ObjectSummary.getKey())
-                            .withByteSize(s3ObjectSummary.getSize()))
-                    .collect(Collectors.toList())
-            );
+        .scanFolderAsync(Input.inputS3Prefix(getId()))
+        .map(summaries -> summaries.stream()
+                .map(s3ObjectSummary -> new UploadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize()))
+                .collect(Collectors.toList()));
   }
 
   public Future<List<Output>> loadOutputs() {
+    //TODO: Make this asynchronously
     List<Output> outputs =  steps.stepStream()
             .map(step -> (List<Output>) step.loadOutputs(true))
             .flatMap(ol -> ol.stream())
