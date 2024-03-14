@@ -1153,9 +1153,10 @@ public class Export extends JDBCBasedJob<Export> {
 
       String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
 
+//TODO: reactivate postTagAsync - temporaery uncommented due to postTag issue when different job tag for same spaceid exists
       Future<Tag> pushVersionTag = ( getTargetVersion() == null )
        ? Future.succeededFuture()
-       : CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
+       : Future.succeededFuture(); //CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
 
       return pushVersionTag.compose( v -> super.prepareStart() );
     }
@@ -1164,10 +1165,11 @@ public class Export extends JDBCBasedJob<Export> {
     public Future<Void> finalizeJob() {
 
         String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
-
+        
+//TODO: reactivate deleteTagAsync - temporaery uncommented due to postTag issue when different job tag for same spaceid exists
         Future<Void> deleteVersionTag = ( getTargetVersion() == null )
         ? Future.succeededFuture()
-        : CService.hubWebClient.deleteTagAsync( srcKey, getId() ).compose( tag -> Future.succeededFuture());
+        : Future.succeededFuture(); //CService.hubWebClient.deleteTagAsync( srcKey, getId() ).compose( tag -> Future.succeededFuture());
 
         return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
