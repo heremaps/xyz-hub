@@ -1174,30 +1174,8 @@ public class Export extends JDBCBasedJob<Export> {
 
     protected Future<Void> finalizeJob(boolean finalizeAfterCompletion) {
         if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
-            final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
-            String sourceS3Url = sourceS3UrlWithoutSlash + "/";
-            String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
             return updateJobStatus(this, finalizing)
-                .compose(job -> {
-                    //Start EMR Job, return jobId
-                    List<String> scriptParams = new ArrayList<>();
-                    scriptParams.add(sourceS3Url);
-                    scriptParams.add(targetS3Url);
-                    scriptParams.add("--type=" + getEmrType());
-                    if (readParamCompositeMode() == FULL_OPTIMIZED) {
-                      scriptParams.add("--delta");
-                      if ("geoparquet".equals(getEmrType())) {
-                        final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
-                        String targetSuperS3Url = sourceSuperS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
-                        scriptParams.add("--baseInputDir=" + targetSuperS3Url);
-                      }
-                    }
-
-                    String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
-                        EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
-                    this.emrJobId = emrJobId;
-                    return Future.succeededFuture(emrJobId);
-                })
+                .compose(job -> startEmrJob(job))
                 .onFailure(err -> {
                     logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
                     setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
@@ -1208,6 +1186,31 @@ public class Export extends JDBCBasedJob<Export> {
             return super.finalizeJob();
         else
             return Future.succeededFuture();
+    }
+
+    private Future<String> startEmrJob(Job job) {
+        final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
+        String sourceS3Url = sourceS3UrlWithoutSlash + "/";
+        String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+
+        //Start EMR Job, return jobId
+        List<String> scriptParams = new ArrayList<>();
+        scriptParams.add(sourceS3Url);
+        scriptParams.add(targetS3Url);
+        scriptParams.add("--type=" + getEmrType());
+        if (readParamCompositeMode() == FULL_OPTIMIZED) {
+          scriptParams.add("--delta");
+          if ("geoparquet".equals(getEmrType())) {
+            final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
+            String targetSuperS3Url = sourceSuperS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+            scriptParams.add("--baseInputDir=" + targetSuperS3Url);
+          }
+        }
+
+        String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
+            EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
+        this.emrJobId = emrJobId;
+        return store().map(emrJobId);
     }
 
     private String buildEmrJsonConfig(String inputDirectory, String outputDirectory) {
