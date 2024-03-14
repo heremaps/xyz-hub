@@ -34,6 +34,7 @@ import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
+import java.util.ConcurrentModificationException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -47,18 +48,20 @@ public class ExportQueue extends JobQueue {
     protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("export-queue"));
 
     protected void process() throws InterruptedException, CannotDecodeException {
+        getQueue().stream().filter(job -> (job instanceof Export || job instanceof CombinedJob)).forEach(job -> processJob(job));
+    }
 
-        getQueue().stream().filter(job -> (job instanceof Export || job instanceof CombinedJob)).forEach(job -> {
-
+    private void processJob(Job job) {
+        try {
             //Check Capacity
             ((Future<Job>) job.isProcessingPossible())
                 .compose(j -> loadCurrentConfig(job))
                 .compose(currentJob -> {
-                    /*
-                    Job-Life-Cycle:
-                    waiting -> (executing) -> executed -> executing_trigger -> trigger_executed -> collecting_trigger_status -> finalized
-                    all stages can end up in failed
-                     */
+                /*
+                Job-Life-Cycle:
+                waiting -> (executing) -> executed -> executing_trigger -> trigger_executed -> collecting_trigger_status -> finalized
+                all stages can end up in failed
+                 */
                     switch (currentJob.getStatus()) {
                         case aborted:
                             //Abort has happened on other node
@@ -74,23 +77,23 @@ public class ExportQueue extends JobQueue {
                             break;
                         case prepared:
                             updateJobStatus(currentJob, Job.Status.executing)
-                                    .onSuccess(f -> currentJob.execute());
+                                .onSuccess(f -> currentJob.execute());
                             break;
                         case executed:
                             updateJobStatus(currentJob, Job.Status.executing_trigger)
                                 .onSuccess(f -> {
                                     if (currentJob instanceof Export export
-                                            && export.getExportTarget() != null
-                                            && export.getExportTarget().getType() == VML
-                                            && export.getStatistic() != null
-                                            && export.getStatistic().getFilesUploaded() > 0
-                                            && export.getStatistic().getBytesUploaded() > 0
-                                            && !export.readParamSkipTrigger())
+                                        && export.getExportTarget() != null
+                                        && export.getExportTarget().getType() == VML
+                                        && export.getStatistic() != null
+                                        && export.getStatistic().getFilesUploaded() > 0
+                                        && export.getStatistic().getBytesUploaded() > 0
+                                        && !export.readParamSkipTrigger())
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
                                     else
                                         currentJob.finalizeJob()
-                                                .onFailure(t -> setFinalizationFailed(currentJob, t));
+                                            .onFailure(t -> setFinalizationFailed(currentJob, t));
                                 });
                             break;
                         case trigger_executed:
@@ -101,7 +104,14 @@ public class ExportQueue extends JobQueue {
                     return Future.succeededFuture();
                 })
                 .onFailure(e -> logError(e, job.getId()));
-            });
+        }
+        catch (ConcurrentModificationException e) {
+            /*
+            Catch any ConcurrentModificationException from the actual job execution to not interfere with ConcurrentModificationExceptions
+            being caught for the process-queue.
+             */
+            logger.error("[{}]", job.getId(), e);
+        }
     }
 
     private static Future<Job> setFinalizationFailed(Job currentJob, Throwable t) {
@@ -194,6 +204,13 @@ public class ExportQueue extends JobQueue {
             this.executorService.submit(() -> {
                 try {
                     process();
+                }
+                catch (ConcurrentModificationException e) {
+                    /*
+                    Some element of the queue has been removed or added during the runtime of the process method.
+                    Execution can be stopped for this time, and we wait for the next process execution to ensure to not
+                    process any elements that have been removed.
+                     */
                 }
                 catch (InterruptedException | CannotDecodeException ignored) {
                     //Nothing to do here.
