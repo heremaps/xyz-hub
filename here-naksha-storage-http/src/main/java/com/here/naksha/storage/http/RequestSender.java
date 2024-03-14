@@ -34,26 +34,21 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class RequestSender {
+public class RequestSender {
 
   private static final Logger log = LoggerFactory.getLogger(RequestSender.class);
-  private final String name;
-  private final String hostUrl;
-  private final Map<String, String> defaultHeaders;
-  private final HttpClient httpClient;
-  private final long socketTimeoutSec;
 
-  public RequestSender(
-      final String name,
-      String hostUrl,
-      Map<String, String> defaultHeaders,
-      HttpClient httpClient,
-      long socketTimeoutSec) {
-    this.name = name;
-    this.httpClient = httpClient;
-    this.hostUrl = hostUrl;
-    this.defaultHeaders = defaultHeaders;
-    this.socketTimeoutSec = socketTimeoutSec;
+  @NotNull
+  private final HttpClient httpClient;
+
+  @NotNull
+  private final RequestSender.KeyProperties keyProps;
+
+  public RequestSender(@NotNull RequestSender.KeyProperties keyProps) {
+    this.keyProps = keyProps;
+    this.httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(keyProps.connectionTimeoutSec))
+        .build();
   }
 
   /**
@@ -71,10 +66,10 @@ class RequestSender {
       @Nullable Map<String, String> headers,
       @Nullable String httpMethod,
       @Nullable String body) {
-    URI uri = URI.create(hostUrl + endpoint);
-    HttpRequest.Builder builder = newBuilder().uri(uri).timeout(Duration.ofSeconds(socketTimeoutSec));
+    URI uri = URI.create(keyProps.hostUrl + endpoint);
+    HttpRequest.Builder builder = newBuilder().uri(uri).timeout(Duration.ofSeconds(keyProps.socketTimeoutSec));
 
-    if (keepDefHeaders) defaultHeaders.forEach(builder::header);
+    if (keepDefHeaders) keyProps.defaultHeaders.forEach(builder::header);
     if (headers != null) headers.forEach(builder::header);
 
     HttpRequest.BodyPublisher bodyPublisher =
@@ -91,7 +86,7 @@ class RequestSender {
     try {
       CompletableFuture<HttpResponse<String>> futureResponse =
           httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
-      response = futureResponse.get(socketTimeoutSec, TimeUnit.SECONDS);
+      response = futureResponse.get(keyProps.socketTimeoutSec, TimeUnit.SECONDS);
       return response;
     } catch (Exception e) {
       log.warn("We got exception while executing Http request against remote server.", e);
@@ -101,8 +96,8 @@ class RequestSender {
       log.info(
           "[Storage API stats => type,storageId,host,method,path,status,timeTakenMs,resSize] - StorageAPIStats {} {} {} {} {} {} {} {}",
           "HttpStorage",
-          this.name,
-          this.hostUrl,
+          keyProps.name,
+          keyProps.hostUrl,
           request.method(),
           request.uri(),
           (response == null) ? "-" : response.statusCode(),
@@ -110,4 +105,20 @@ class RequestSender {
           (response == null) ? 0 : response.body().length());
     }
   }
+
+  public boolean hasKeyProps(KeyProperties thatKeyProps) {
+    return this.keyProps.equals(thatKeyProps);
+  }
+
+  /**
+   * Set of properties that are just enough to construct the sender
+   * and distinguish unambiguously between objects
+   * in terms of their effective configuration
+   */
+  public record KeyProperties(
+      @NotNull String name,
+      @NotNull String hostUrl,
+      @NotNull Map<String, String> defaultHeaders,
+      long connectionTimeoutSec,
+      long socketTimeoutSec) {}
 }

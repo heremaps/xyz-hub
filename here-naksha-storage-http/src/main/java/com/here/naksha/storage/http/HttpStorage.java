@@ -18,14 +18,15 @@
  */
 package com.here.naksha.storage.http;
 
+import static com.here.naksha.storage.http.RequestSender.KeyProperties;
+
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import java.net.http.HttpClient;
-import java.time.Duration;
+import com.here.naksha.storage.http.cache.RequestSenderCache;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import org.jetbrains.annotations.NotNull;
@@ -41,15 +42,13 @@ public class HttpStorage implements IStorage {
 
   public HttpStorage(@NotNull Storage storage) {
     HttpStorageProperties properties = HttpStorage.getProperties(storage);
-    HttpClient httpStorageClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(properties.getConnectTimeout()))
-        .build();
-    requestSender = new RequestSender(
-        storage.getId(),
-        properties.getUrl(),
-        properties.getHeaders(),
-        httpStorageClient,
-        properties.getSocketTimeout());
+    requestSender = RequestSenderCache.getInstance()
+        .getSenderWith(new KeyProperties(
+            storage.getId(),
+            properties.getUrl(),
+            properties.getHeaders(),
+            properties.getConnectTimeout(),
+            properties.getSocketTimeout()));
   }
 
   @Override
