@@ -135,10 +135,16 @@ public class Job implements XyzSerializable {
           setSteps(stepGraph);
           return validate();
         })
-        .compose(isReady -> store().compose(v -> {
-            if(isReady) getStatus().setState(SUBMITTED);
-            return Future.succeededFuture(isReady);
-        }));
+        .compose(isReady -> {
+          if (isReady) {
+            getStatus().setState(SUBMITTED);
+            return store().compose(v -> start()).map(true);
+          }
+          else {
+            logger.info("{}: Job is not ready for submission yet. Not all pre-conditions are met.", getId());
+            return Future.succeededFuture(false);
+          }
+        });
   }
 
   private static <E, R> List<Future<R>> forEach(List<E> elements, Function<E, Future<R>> action) {

@@ -26,13 +26,12 @@ import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.ext.web.Router;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobRESTVerticle extends BaseHttpServerVerticle {
 
@@ -54,7 +53,7 @@ public class JobRESTVerticle extends BaseHttpServerVerticle {
                 AbstractRouterBuilder rb = (AbstractRouterBuilder) cls.newInstance();
                 return rb.buildRoutes(vertx)
                         .compose(router -> {
-                            super.addDefaultHandlers(router);
+                            super.addDefaultHandlers(router); //TODO: Why calling the super method and not the one below?
                             mainRouter.mountSubRouter("/", router);
                             return Future.succeededFuture();
                         });

@@ -19,11 +19,13 @@
 
 package com.here.xyz.jobs.steps;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = Step.class)
+    @JsonSubTypes.Type(value = Step.class)
 })
+@JsonIgnoreProperties(ignoreUnknown = true)
 public interface StepExecution {}
