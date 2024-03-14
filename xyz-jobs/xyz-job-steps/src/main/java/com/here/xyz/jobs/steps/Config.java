@@ -26,36 +26,46 @@ import java.net.URI;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Config extends BaseConfig {
   public static Config instance;
-  /**
-   * The arn of the secret (in Secret Manager) that contains bot credentials.
-   */
-  public String JOB_BOT_SECRET_ARN;
-  /**
-   * Hub-Endpoint
-   */
-  public String HUB_ENDPOINT;
 
   {
     instance = this;
   }
 
   /**
+   * The arn of the secret (in Secret Manager) that contains AWS bot credentials.
+   */
+  public String JOB_BOT_SECRET_ARN;
+
+  /**
+   * Hub-Endpoint
+   */
+  public String HUB_ENDPOINT;
+
+  /**
    * ECPS_PHRASE of Default Connector
    */
   public String ECPS_PHRASE;
+
   /**
-   * S3 Bucket for imports/exports
+   * The S3 Bucket for all inputs / outputs of the job framework
    */
   public String JOBS_S3_BUCKET;
+
   /**
    * Region in which components are running/hosted
    */
   public String JOBS_REGION;
+
   /**
-   * S3/CW/Dynamodb localstack endpoints
+   * The localstack endpoint to use it for all AWS clients when running locally
+   *
+   * NOTE: This config variable may only be set when running locally, because the system uses it as an indicator
+   *  to determine whether it's running locally or on AWS.
    */
   public URI LOCALSTACK_ENDPOINT;
 
+  /**
+   * The DB hostname to be used inside the step lambda when running locally
+   */
   public String LOCAL_DB_HOST_OVERRIDE;
-
 }

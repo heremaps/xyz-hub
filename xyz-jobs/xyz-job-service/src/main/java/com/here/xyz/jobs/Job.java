@@ -284,6 +284,7 @@ public class Job implements XyzSerializable {
    * @return A list of overall resource-loads being reserved by this job
    */
   public List<Load> calculateResourceLoads() {
+    //TODO: Run asynchronous!
     return calculateResourceLoads(getSteps())
         .entrySet()
         .stream()
@@ -291,6 +292,7 @@ public class Job implements XyzSerializable {
   }
 
   private Map<ExecutionResource, Double> calculateResourceLoads(StepGraph graph) {
+    //TODO: Run asynchronous!
     Map<ExecutionResource, Double> loads = new HashMap<>();
     graph.getExecutions().forEach(execution -> addLoads(loads, execution instanceof Step step
         ? calculateResourceLoads(step)
@@ -299,6 +301,8 @@ public class Job implements XyzSerializable {
   }
 
   private Map<ExecutionResource, Double> calculateResourceLoads(Step step) {
+    //TODO: Asyncify!
+    logger.info("Calculating resource loads for step {}.{} of type {} ...", getId(), step.getId(), step.getClass().getSimpleName());
     return step.getAggregatedNeededResources();
   }
 

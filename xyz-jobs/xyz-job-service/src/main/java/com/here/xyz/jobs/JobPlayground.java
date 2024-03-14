@@ -42,6 +42,7 @@ import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.ARN;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.SimulatedContext;
@@ -76,7 +77,6 @@ public class JobPlayground {
   private static final Logger logger = LogManager.getLogger();
   private static HubWebClient hubWebClient;
   private static LambdaClient lambdaClient;
-  private static final String LAMBDA_NAME = "job-step";
   private static Space sampleSpace;
   private static boolean simulateExecution = true;
 
@@ -98,6 +98,7 @@ public class JobPlayground {
     Config.instance.JOBS_S3_BUCKET = "test-bucket";
     Config.instance.JOBS_REGION = "us-east-1";
     Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
+    Config.instance.STEP_LAMBDA_ARN = new ARN("arn:aws:lambda:us-east-1:000000000000:function:job-step");
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
     try {
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
@@ -287,7 +288,7 @@ public class JobPlayground {
 
   private static void runLambdaStep(LambdaBasedStep step, RequestType requestType) {
     InvokeResponse response = lambdaClient.invoke(InvokeRequest.builder()
-        .functionName(LAMBDA_NAME)
+        .functionName(Config.instance.STEP_LAMBDA_ARN.toString())
         .payload(SdkBytes.fromByteArray(prepareStepRequestPayload(step, requestType).toByteArray()))
         .build());
     try {

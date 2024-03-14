@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs;
 
+import com.here.xyz.util.ARN;
+
 public class Config extends com.here.xyz.jobs.steps.Config {
   public static Config instance;
 
@@ -27,7 +29,7 @@ public class Config extends com.here.xyz.jobs.steps.Config {
   }
 
   /**
-   * The port of the HTTP server.
+   * The port of the HTTP server
    */
   public int HTTP_PORT;
 
@@ -41,4 +43,8 @@ public class Config extends com.here.xyz.jobs.steps.Config {
    */
   public String JOBS_DYNAMODB_TABLE_ARN;
 
+  /**
+   * The ARN of the step lambda being called by the step functions
+   */
+  public ARN STEP_LAMBDA_ARN;
 }
