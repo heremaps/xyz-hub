@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="waitRemoteDebuggerServer" type="ShConfigurationType">
+  <configuration default="false" name="_wait for xyz-job-steps [debug]" type="ShConfigurationType">
     <option name="SCRIPT_TEXT" value="while [[ -z $(docker ps | grep :5050) ]]; do sleep 1; done" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />

@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="RemoteJVMDebugForLocalLambda" type="Remote">
+  <configuration default="false" name="xyz-job-steps [debug]" type="Remote">
     <option name="USE_SOCKET_TRANSPORT" value="true" />
     <option name="SERVER_MODE" value="false" />
     <option name="SHMEM_ADDRESS" />
@@ -11,7 +11,7 @@
       <option name="LOCAL" value="false" />
     </RunnerSettings>
     <method v="2">
-      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Wait Remote Debugger Server" run_configuration_type="ShConfigurationType" />
+      <option name="RunConfigurationTask" enabled="false" run_configuration_name="_wait for xyz-job-steps [debug]" run_configuration_type="ShConfigurationType" />
     </method>
   </configuration>
 </component>
