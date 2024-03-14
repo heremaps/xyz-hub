@@ -1,16 +1,18 @@
 package com.here.xyz.util.db.metrics;
 
 import java.util.Map;
-import java.util.Objects;
 
 public class Metric {
 
     private final Map<String, String> dimensions;
 
+    private String name;
+
     private final Long value;
 
-    public Metric(Map<String, String> dimensions, Long value) {
+    public Metric(Map<String, String> dimensions, String name, Long value) {
         this.dimensions = dimensions;
+        this.name = name;
         this.value = value;
     }
 
@@ -22,16 +24,11 @@ public class Metric {
         return value;
     }
 
-    public int generateHash() {
-        // 17 and 31 are prime numbers commonly used to make hash collisions less likely
-        int result = 17;
-
-        for (Map.Entry<String, String> entry : dimensions.entrySet()) {
-            String dimension = entry.getKey();
-            String value = entry.getValue();
-            result = 31 * result + Objects.hash(dimension, value);
-        }
-        return result;
+    public String getName() {
+        return name;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
 }

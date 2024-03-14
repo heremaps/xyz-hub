@@ -8,6 +8,7 @@ import com.here.xyz.util.db.metrics.Metric;
 import com.here.xyz.util.db.metrics.MetricsReporterService;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.Map;
 
 public class MetricsReporterServiceIT {
@@ -18,15 +19,16 @@ public class MetricsReporterServiceIT {
             .build();
     @Test
     public void test() throws InterruptedException {
-        MetricsReporterService metricsReporterService = new MetricsReporterService(lambdaClient,"iml-metrics-scrapper-sit", 1);
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), 2L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), 2L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), 100L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "a"), 3L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "a"), 1L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "b"), 2L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("di", "b"), 2L));
-        Thread.sleep(1 * 60 * 1000);
+        MetricsReporterService metricsReporterService = new MetricsReporterService(lambdaClient,"iml-metrics-scrapper-sit", 1, List.of("io", "storage"));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "io", 2L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "io",2L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "storage", 100L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "storage", 100L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "a"), "io", 3L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "a"), "io", 1L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "b"), "io", 2L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("di", "b"), "io",2L));
+        Thread.sleep(1 * 60 * 2000);
         metricsReporterService.shutdown();
     }
 }
