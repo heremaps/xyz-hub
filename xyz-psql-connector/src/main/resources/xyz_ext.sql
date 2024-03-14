@@ -4368,6 +4368,7 @@ AS $BODY$
                     --recursive call for next work-item
                     EXECUTE import_into_space(schem, temporary_tbl, target_tbl, format, i);
                     WHEN OTHERS THEN
+                        --TODO: Make sure that recursion is working indefinitely until really all items have been processed
                         -- Unexpected Exception => no retry
                         GET STACKED DIAGNOSTICS exeception_msg = MESSAGE_TEXT,
                                   exeception_detail = PG_EXCEPTION_DETAIL,
