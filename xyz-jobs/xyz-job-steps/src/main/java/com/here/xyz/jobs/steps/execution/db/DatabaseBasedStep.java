@@ -153,7 +153,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
-    return new SQLQuery("aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::json, 'Event');")
+    return new SQLQuery("aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::json, '${{lambdaRegion}}', 'Event');")
         .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())
         .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
         .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
@@ -163,7 +163,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   protected final SQLQuery buildFailureCallbackQuery() {
     return new SQLQuery("""
         RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
-        PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, 'Event');
+        PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, '${{lambdaRegion}}', 'Event');
         """)
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
