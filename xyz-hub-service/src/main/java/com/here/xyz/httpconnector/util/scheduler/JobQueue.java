@@ -29,6 +29,7 @@ import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,7 +38,7 @@ public abstract class JobQueue implements Runnable {
     protected static final Logger logger = LogManager.getLogger();
 
     //Queue for import and export Jobs
-    private volatile static ArrayList<Job> JOB_QUEUE = new ArrayList<>();
+    private volatile static List<Job> JOB_QUEUE = new ArrayList<>();
 
     protected boolean commenced = false;
 
@@ -120,7 +121,7 @@ public abstract class JobQueue implements Runnable {
         return null;
     }
 
-    public synchronized static ArrayList<Job> getQueue() {
+    public synchronized static List<Job> getQueue() {
         return JOB_QUEUE;
     }
 
