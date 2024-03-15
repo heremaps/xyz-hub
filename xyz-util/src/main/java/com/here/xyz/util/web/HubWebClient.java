@@ -175,6 +175,18 @@ public class HubWebClient {
         .build());
   }
 
+  public Tag getTag(String spaceId, String tagId) throws HubWebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+          .GET()
+          .uri(uri("/spaces/" + spaceId + "/tags/" + tagId))
+          .build()).body(), Tag.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new HubWebClientException("Error deserializing response", e);
+    }
+  }
+
   private URI uri(String path) {
     return URI.create(baseUrl + path);
   }
