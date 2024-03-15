@@ -275,10 +275,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
       //Set the own lambda ARN accordingly
       if (context instanceof SimulatedContext)
-        request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.JOBS_REGION + ":000000000000:function:job-step");
+        request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.AWS_REGION + ":000000000000:function:job-step");
       else
         request.getStep().ownLambdaArn = new ARN(context.getInvokedFunctionArn());
-      Config.instance.JOBS_REGION = request.getStep().ownLambdaArn.getRegion();
+      Config.instance.AWS_REGION = request.getStep().ownLambdaArn.getRegion();
 
       //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
       //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method

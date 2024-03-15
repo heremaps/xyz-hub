@@ -52,11 +52,6 @@ public class Config extends BaseConfig {
   public String JOBS_S3_BUCKET;
 
   /**
-   * Region in which components are running/hosted
-   */
-  public String JOBS_REGION;
-
-  /**
    * The localstack endpoint to use it for all AWS clients when running locally
    *
    * NOTE: This config variable may only be set when running locally, because the system uses it as an indicator

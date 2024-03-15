@@ -53,18 +53,18 @@ public class S3Client {
 
     if (isLocal()) {
       builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-              Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.JOBS_REGION))
+              Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.AWS_REGION))
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
           .withPathStyleAccessEnabled(true);
     }
     else {
-      final String region = Config.instance != null ? Config.instance.JOBS_REGION : "eu-west-1";
+      final String region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
       builder.setRegion(region);
     }
 
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
       synchronized (S3Client.class) {
-        builder.setCredentials(new SecretManagerCredentialsProvider(Config.instance.JOBS_REGION,
+        builder.setCredentials(new SecretManagerCredentialsProvider(Config.instance.AWS_REGION,
             Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.JOB_BOT_SECRET_ARN));
       }
     }

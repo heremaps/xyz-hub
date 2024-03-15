@@ -142,7 +142,7 @@ public class Job implements XyzSerializable {
           }
           else {
             logger.info("{}: Job is not ready for submission yet. Not all pre-conditions are met.", getId());
-            return Future.succeededFuture(false);
+            return store().map(false);
           }
         });
   }

@@ -91,7 +91,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected String bucketRegion() {
-    return Config.instance.JOBS_REGION; //TODO: Get from bucket accordingly
+    return Config.instance.AWS_REGION; //TODO: Get from bucket accordingly
   }
 
   private String stepS3Prefix(boolean previousStep) {

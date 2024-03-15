@@ -23,6 +23,7 @@ import com.here.xyz.jobs.steps.Config;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.sfn.SfnClient;
 
@@ -31,10 +32,11 @@ public class AwsClients {
   private static CloudWatchEventsClient cloudwatchEventsClient;
 
   private static <T extends AwsClientBuilder> T prepareClientForLocalStack(T builder) {
-    if (Config.instance.LOCALSTACK_ENDPOINT != null) {
+    if (isLocal()) {
       builder.endpointOverride(Config.instance.LOCALSTACK_ENDPOINT);
       builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack",
           "localstack")));
+      builder.region(Region.of(Config.instance.AWS_REGION));
     }
     return builder;
   }
@@ -49,5 +51,9 @@ public class AwsClients {
     if (cloudwatchEventsClient == null)
       cloudwatchEventsClient = prepareClientForLocalStack(CloudWatchEventsClient.builder()).build();
     return cloudwatchEventsClient;
+  }
+
+  private static boolean isLocal() {
+    return Config.instance.LOCALSTACK_ENDPOINT != null;
   }
 }

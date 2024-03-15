@@ -96,7 +96,7 @@ public class JobPlayground {
     Config.instance.ECPS_PHRASE = "local";
     Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
     Config.instance.JOBS_S3_BUCKET = "test-bucket";
-    Config.instance.JOBS_REGION = "us-east-1";
+    Config.instance.AWS_REGION = "us-east-1";
     Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
     Config.instance.STEP_LAMBDA_ARN = new ARN("arn:aws:lambda:us-east-1:000000000000:function:job-step");
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
