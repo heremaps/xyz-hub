@@ -202,7 +202,7 @@ public abstract class Job<T extends Job> extends Payload {
     public abstract Future<T> init();
 
     protected static String generateRandomId() {
-        return RandomStringUtils.randomAlphanumeric(6);
+        return RandomStringUtils.randomAlphabetic(1) + RandomStringUtils.randomAlphanumeric(5);
     }
 
     public Future<Job> injectConfigValues() {
