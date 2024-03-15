@@ -768,7 +768,7 @@ public abstract class Job<T extends Job> extends Payload {
                 Ref ref = space.getVersionRef();
 
                 if (ref != null && ref.isSingleVersion() && !ref.isHead())
-                export.setTargetVersion("" + ref.getVersion());
+                  export.setTargetVersion("" + ref.getVersion());
 
                 export.setFilters(space.getFilters());
                 if (export.getFilters() != null) {

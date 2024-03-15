@@ -67,18 +67,21 @@ public class Ref implements XyzSerializable {
       throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
 
     this.version = version;
+    setResolved(true);
   }
 
   @JsonValue
   @Override
   public String toString() {
-    if (version < 0 && !head && !allVersions)
+    if (version < 0 && !head && !allVersions && resolved)
       throw new IllegalArgumentException("Not a valid ref");
     if (head)
       return HEAD;
     if (allVersions)
       return ALL_VERSIONS;
-    return String.valueOf(version);
+    if (resolved)
+      return String.valueOf(version);
+    return versionRef;
   }
 
   @Override
