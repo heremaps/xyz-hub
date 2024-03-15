@@ -32,6 +32,8 @@ import com.here.naksha.lib.core.models.geojson.declaration.IBoundedCoordinates;
 })
 public abstract class XyzGeometryItem extends XyzGeometry {
 
+  public static final String COORDINATES = "coordinates";
+
   public abstract IBoundedCoordinates getCoordinates();
 
   @Override

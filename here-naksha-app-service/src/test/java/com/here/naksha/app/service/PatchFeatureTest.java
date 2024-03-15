@@ -13,7 +13,7 @@ import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class PatchFeatureTest extends ApiTest {
+class PatchFeatureTest extends ApiTest {
 
     private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
 

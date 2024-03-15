@@ -18,7 +18,10 @@
  */
 package com.here.naksha.lib.core.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.PolygonCoordinates;
@@ -29,13 +32,16 @@ import java.util.Objects;
 @JsonTypeName(value = "Polygon")
 public class XyzPolygon extends XyzGeometryItem {
 
+  @JsonProperty(COORDINATES)
   private PolygonCoordinates coordinates = new PolygonCoordinates();
 
   @Override
+  @JsonGetter
   public PolygonCoordinates getCoordinates() {
     return this.coordinates;
   }
 
+  @JsonSetter
   public void setCoordinates(PolygonCoordinates coordinates) {
     this.coordinates = coordinates;
   }

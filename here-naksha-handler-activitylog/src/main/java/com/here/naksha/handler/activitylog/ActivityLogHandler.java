@@ -18,8 +18,7 @@
  */
 package com.here.naksha.handler.activitylog;
 
-import static com.here.naksha.handler.activitylog.ReversePatchUtil.reversePatch;
-import static com.here.naksha.handler.activitylog.ReversePatchUtil.toJsonNode;
+import static com.here.naksha.handler.activitylog.ActivityLogEnhancer.enhanceWithActivityLog;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
 import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.NOT_IMPLEMENTED;
 import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingStrategy.PROCESS;
@@ -27,16 +26,12 @@ import static com.here.naksha.lib.handlers.AbstractEventHandler.EventProcessingS
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
-import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.EventTarget;
@@ -135,7 +130,8 @@ public class ActivityLogHandler extends AbstractEventHandler {
   private List<XyzFeature> featuresEnhancedWithActivity(List<XyzFeature> historyFeatures, NakshaContext context) {
     List<FeatureWithPredecessor> featuresWithPredecessors = featuresWithPredecessors(historyFeatures, context);
     return featuresWithPredecessors.stream()
-        .map(this::featureEnhancedWithActivity)
+        .map(featureWithPredecessor -> enhanceWithActivityLog(
+            featureWithPredecessor.feature, featureWithPredecessor.oldFeature, properties.getSpaceId()))
         .sorted(FEATURE_COMPARATOR)
         .toList();
   }
@@ -195,59 +191,6 @@ public class ActivityLogHandler extends AbstractEventHandler {
   @NotNull
   private static Map<String, XyzFeature> featuresByUuid(List<XyzFeature> historyFeatures) {
     return historyFeatures.stream().collect(toMap(ActivityLogHandler::uuid, identity()));
-  }
-
-  private XyzFeature featureEnhancedWithActivity(@NotNull FeatureWithPredecessor featureWithPredecessor) {
-    XyzActivityLog activityLog = activityLog(featureWithPredecessor);
-    XyzFeature feature = featureWithPredecessor.feature;
-    feature.getProperties().setXyzActivityLog(activityLog);
-    feature.setId(uuid(feature));
-    return feature;
-  }
-
-  private XyzActivityLog activityLog(@NotNull FeatureWithPredecessor featureWithPredecessor) {
-    final XyzNamespace xyzNamespace =
-        featureWithPredecessor.feature.getProperties().getXyzNamespace();
-    final XyzActivityLog xyzActivityLog = new XyzActivityLog();
-    xyzActivityLog.setId(featureWithPredecessor.feature.getId());
-    xyzActivityLog.setOriginal(original(xyzNamespace, properties.getSpaceId()));
-    EXyzAction action = xyzNamespace.getAction();
-    if (action != null) {
-      xyzActivityLog.setAction(action);
-    }
-    xyzActivityLog.setDiff(calculateDiff(action, featureWithPredecessor));
-    return xyzActivityLog;
-  }
-
-  private @Nullable JsonNode calculateDiff(
-      @Nullable EXyzAction action, @NotNull FeatureWithPredecessor featureWithPredecessor) {
-    if (action == null || EXyzAction.CREATE.equals(action) || EXyzAction.DELETE.equals(action)) {
-      return null;
-    } else if (EXyzAction.UPDATE.equals(action)) {
-      if (featureWithPredecessor.oldFeature == null) {
-        logger.warn(
-            "Unable to calculate reversePatch for, missing predecessor for feature with uuid: {}, returning null",
-            uuid(featureWithPredecessor.feature));
-        return null;
-      }
-      ReversePatch reversePatch = reversePatch(featureWithPredecessor.oldFeature, featureWithPredecessor.feature);
-      return toJsonNode(reversePatch);
-    } else {
-      throw new IllegalStateException("Unable to process unknown action type: " + action);
-    }
-  }
-
-  private Original original(@Nullable XyzNamespace xyzNamespace, @Nullable String spaceId) {
-    Original original = new Original();
-    if (xyzNamespace != null) {
-      original.setPuuid(xyzNamespace.getPuuid());
-      original.setUpdatedAt(xyzNamespace.getUpdatedAt());
-      original.setCreatedAt(xyzNamespace.getCreatedAt());
-    }
-    if (spaceId != null) {
-      original.setSpace(spaceId);
-    }
-    return original;
   }
 
   private static boolean nullOrEmpty(String value) {

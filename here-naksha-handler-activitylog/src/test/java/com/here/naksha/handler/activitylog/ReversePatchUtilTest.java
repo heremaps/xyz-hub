@@ -6,7 +6,11 @@ import static com.here.naksha.handler.activitylog.ReversePatch.PatchOp.REPLACE;
 import static com.here.naksha.handler.activitylog.assertions.ReversePatchAssertions.assertThat;
 
 import com.here.naksha.handler.activitylog.ReversePatch.PatchOp;
+import com.here.naksha.lib.core.models.geojson.coordinates.LineStringCoordinates;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzLineString;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.List;
@@ -132,6 +136,39 @@ class ReversePatchUtilTest {
             new PatchOp(REPLACE, "/properties/@ns:com:here:xyz/tags/1", "two"),
             new PatchOp(REPLACE, "/properties/@ns:com:here:xyz/tags/2", "three"),
             new PatchOp(REMOVE, "/properties/@ns:com:here:xyz/tags/3", null)
+        );
+  }
+
+  @Test
+  void shouldCorrectlyParseLineGeometryChange(){
+    // Given
+    XyzFeature oldFeature = new XyzFeature();
+    LineStringCoordinates oldCoordinates = new LineStringCoordinates();
+    oldCoordinates.add(new PointCoordinates(4.0d, 5.0));
+    oldCoordinates.add(new PointCoordinates(4.0d, 6.0));
+    oldCoordinates.add(new PointCoordinates(4.0d, 7.0));
+    oldCoordinates.add(new PointCoordinates(4.0d, 8.0));
+    oldFeature.setGeometry(new XyzLineString().withCoordinates(oldCoordinates));
+
+    // And:
+    XyzFeature newFeature = new XyzFeature();
+    LineStringCoordinates newCoordinates = new LineStringCoordinates();
+    newCoordinates.add(new PointCoordinates(4.0d, 5.0));
+    newCoordinates.add(new PointCoordinates(4.0d, 8.0));
+    newCoordinates.add(new PointCoordinates(4.0d, 7.0));
+    newFeature.setGeometry(new XyzLineString().withCoordinates(newCoordinates));
+
+    // When: applying reverse patch calculation on these two
+    ReversePatch reversePatch = ReversePatchUtil.reversePatch(oldFeature, newFeature);
+
+    // Then:
+    assertThat(reversePatch)
+        .hasRemoveOpsCount(0)
+        .hasAddOpsCount(1) // we did remove last coordinate
+        .hasUpdateOpsCount(1) // we did update second coordinate
+        .hasReverseOps(
+            new PatchOp(REPLACE, "/geometry/coordinates/1/1", 6.0),
+            new PatchOp(ADD, "/geometry/coordinates/3", new PointCoordinates(4.0d, 8.0d))
         );
   }
 

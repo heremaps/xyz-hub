@@ -18,7 +18,10 @@
  */
 package com.here.naksha.lib.core.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.MultiLineStringCoordinates;
@@ -29,13 +32,16 @@ import java.util.Objects;
 @JsonTypeName(value = "MultiLineString")
 public class XyzMultiLineString extends XyzGeometryItem {
 
+  @JsonProperty(COORDINATES)
   private MultiLineStringCoordinates coordinates = new MultiLineStringCoordinates();
 
   @Override
+  @JsonGetter
   public MultiLineStringCoordinates getCoordinates() {
     return this.coordinates;
   }
 
+  @JsonSetter
   public void setCoordinates(MultiLineStringCoordinates coordinates) {
     this.coordinates = coordinates;
   }

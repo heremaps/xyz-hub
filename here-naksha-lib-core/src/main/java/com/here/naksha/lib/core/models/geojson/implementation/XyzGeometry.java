@@ -18,15 +18,18 @@
  */
 package com.here.naksha.lib.core.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
+import com.here.naksha.lib.core.util.json.JsonObject;
 import java.util.List;
 
 /** Implemented following: https://tools.ietf.org/html/rfc7946#section-3.1 */
@@ -34,9 +37,11 @@ import java.util.List;
   @JsonSubTypes.Type(value = XyzGeometryCollection.class, name = "GeometryCollection"),
   @JsonSubTypes.Type(value = XyzGeometryItem.class)
 })
-public abstract class XyzGeometry implements Typed {
+public abstract class XyzGeometry extends JsonObject implements Typed {
 
-  @JsonProperty
+  public static final String BBOX = "bbox";
+
+  @JsonProperty(BBOX)
   @JsonInclude(Include.NON_NULL)
   private BBox bbox;
 
@@ -276,10 +281,12 @@ public abstract class XyzGeometry implements Typed {
     }
   }
 
+  @JsonGetter
   public BBox getBBox() {
     return bbox;
   }
 
+  @JsonSetter
   public void setBBox(BBox bbox) {
     this.bbox = bbox;
   }
