@@ -144,9 +144,12 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
           ${{stepQuery}};
           PERFORM ${{successCallback}}
           EXCEPTION WHEN OTHERS THEN
-                ${{failureCallback}}
+                RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
+                PERFORM ${{failureCallback}}
         END$$;
         """)
+        .withQueryFragment("jobId", getJobId())
+        .withQueryFragment("stepId", getId())
         .withQueryFragment("stepQuery", stepQuery)
         .withQueryFragment("successCallback", buildSuccessCallbackQuery())
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
@@ -161,12 +164,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   protected final SQLQuery buildFailureCallbackQuery() {
-    return new SQLQuery("""
-        RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
-        PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, '${{lambdaRegion}}', 'Event');
-        """)
-        .withQueryFragment("jobId", getJobId())
-        .withQueryFragment("stepId", getId())
+    return new SQLQuery("aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, '${{lambdaRegion}}', 'Event'); ")
         .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())
         .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
         .withQueryFragment("failureRequestBody", new LambdaStepRequest().withType(FAILURE_CALLBACK).withStep(this).serialize());

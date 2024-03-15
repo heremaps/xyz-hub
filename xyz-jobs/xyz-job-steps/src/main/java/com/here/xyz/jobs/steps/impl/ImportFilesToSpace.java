@@ -141,7 +141,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       //Execute
       for (int i = 0; i < importThreadCnt; i++) {
-        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), "jsonwkb", buildSuccessCallbackQuery(), i), db, calculateNeededAcus(0,0), false);
+        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), "jsonwkb", buildSuccessCallbackQuery(), buildFailureCallbackQuery(),  i), db, calculateNeededAcus(0,0), false);
       }
     }
     catch (SQLException | TooManyResourcesClaimed | HubWebClientException e){
@@ -291,13 +291,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", table + JOB_DATA_SUFFIX);
   }
 
-  private SQLQuery buildImportQuery(String schema, String table, String format, SQLQuery successQuery, int i) {
-    return new SQLQuery("SELECT xyz_import_into_space(#{schema},#{temporary_tbl}::regclass,#{target_tbl}::regclass,#{format},'${{successQuery}}',#{i})")
+  private SQLQuery buildImportQuery(String schema, String table, String format, SQLQuery successQuery, SQLQuery failureQuery, int i) {
+    return new SQLQuery("SELECT xyz_import_into_space(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}', #{i})")
             .withNamedParameter("schema", schema)
             .withNamedParameter("target_tbl", schema+".\""+table+"\"")
             .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
             .withNamedParameter("format", format)
             .withNamedParameter("i", i)
-            .withQueryFragment("successQuery","select "+successQuery.substitute().text().replaceAll("'","''"));
+            .withQueryFragment("successQuery","select "+successQuery.substitute().text().replaceAll("'","''"))
+            .withQueryFragment("failureQuery","select "+failureQuery.substitute().text().replaceAll("'","''"));
   }
 }
