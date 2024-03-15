@@ -20,7 +20,7 @@ public class MetricsReporterServiceIT {
     @Test
     public void test() throws InterruptedException {
         MetricsReporterService metricsReporterService = new MetricsReporterService(lambdaClient,"iml-metrics-scrapper-sit", 1, List.of("io", "storage"));
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "io", 2L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "ios", 2L));
         metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "io",2L));
         metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "storage", 100L));
         metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "storage", 100L));

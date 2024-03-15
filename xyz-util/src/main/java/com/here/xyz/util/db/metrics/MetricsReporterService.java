@@ -8,10 +8,7 @@ import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,15 +35,17 @@ public class MetricsReporterService {
     }
 
     public void consumeMetric(Metric metric) {
-        metricStorage.get(metric.getName())
-                .compute(Hasher.getHash(metric.getDimensions().toString()), (key, existingMetric) -> {
-                    if (existingMetric != null) {
-                        existingMetric.addToValue(metric.getValue());
-                        return existingMetric;
-                    } else {
-                        return new StorageMetric(metric.getDimensions(), initializeAdder(metric.getValue()));
-                    }
-                });
+        Optional.ofNullable(metricStorage.get(metric.getName()))
+                .ifPresentOrElse(map -> {
+                    map.compute(Hasher.getHash(metric.getDimensions().toString()), (key, existingMetric) -> {
+                        if (existingMetric != null) {
+                            existingMetric.addToValue(metric.getValue());
+                            return existingMetric;
+                        } else {
+                            return new StorageMetric(metric.getDimensions(), initializeAdder(metric.getValue()));
+                        }
+                    });
+                }, () -> logger.error("Unknown metric"));
     }
 
     private LongAdder initializeAdder(long value) {
@@ -80,7 +79,6 @@ public class MetricsReporterService {
             logger.info("Aggregated: " + eventJson);
             invokeLambda(eventJson.toString());
         });
-
     }
 
     private void invokeLambda(String eventJson) {
