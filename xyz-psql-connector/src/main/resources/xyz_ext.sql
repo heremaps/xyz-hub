@@ -4241,7 +4241,7 @@ LANGUAGE plpgsql VOLATILE;
 
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_into_space(schem text, temporary_tbl regclass, target_tbl regclass, format text, success_callback text, i integer)
+CREATE OR REPLACE FUNCTION xyz_import_into_space(schem text, temporary_tbl regclass, target_tbl regclass, format text, success_callback text, failure_callback text, i integer)
     RETURNS void
     LANGUAGE 'plpgsql'
 AS $BODY$
@@ -4301,7 +4301,7 @@ AS $BODY$
                         RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count,import_results.total_count;
                     END IF;
                     RAISE NOTICE 'ALL DONE! %',success_callback;
-                    PERFORM success_callback;
+                    EXECUTE success_callback;
                 END IF;
                 RETURN;
             END IF;
@@ -4340,7 +4340,7 @@ AS $BODY$
              i := i+1;
 
             --recursive call for next work-item
-            EXECUTE import_into_space(schem, temporary_tbl, target_tbl, format, i);
+            EXECUTE xyz_import_into_space(schem, temporary_tbl, target_tbl, format, success_callback, failure_callback, i);
 
             EXCEPTION
                 WHEN SQLSTATE '55P03' THEN
@@ -4349,7 +4349,7 @@ AS $BODY$
                     */
                     i := i+1;
                     --recursive call for next work-item
-                    EXECUTE import_into_space(schem, temporary_tbl, target_tbl, format , i);
+                    EXECUTE xyz_import_into_space(schem, temporary_tbl, target_tbl, format, success_callback, failure_callback, i);
                 WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
                     /** Retryable errors:
                             23505 (duplicate key value violates unique constraint)
@@ -4366,7 +4366,7 @@ AS $BODY$
                             locked_item.i);
 
                     --recursive call for next work-item
-                    EXECUTE import_into_space(schem, temporary_tbl, target_tbl, format, i);
+                    EXECUTE xyz_import_into_space(schem, temporary_tbl, target_tbl, format, success_callback, failure_callback, i);
                     WHEN OTHERS THEN
                         --TODO: Make sure that recursion is working indefinitely until really all items have been processed
                         -- Unexpected Exception => no retry
@@ -4382,8 +4382,8 @@ AS $BODY$
                                             'FAILED',
                                             retry_count,
                                             locked_item.i);
-
-                        RAISE EXCEPTION 'Import has failed % %', exeception_msg, exeception_detail;
+                        RAISE NOTICE 'Import has failed % %', exeception_msg, exeception_detail;
+                        EXECUTE failure_callback;
         END;
 END
 $BODY$;
