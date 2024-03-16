@@ -4070,6 +4070,25 @@ begin
     end if;
 end
 $BODY$;
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 ------------------------------------------------
 ------------------------------------------------
 
@@ -4256,6 +4275,9 @@ AS $BODY$
 		exeception_detail text;
 		exeception_hint text;
     BEGIN
+
+	    --TODO: Simplify this function by splitting it into several smaller functions (e.g. separate recursion from actual task)
+
 		/** TODO:
 			- Check how to use labels of queries which are getting performed inside a function.
 			- Remove debug outputs
@@ -4382,6 +4404,7 @@ AS $BODY$
                                             'FAILED',
                                             retry_count,
                                             locked_item.i);
+                        --TODO: Move RAISE WARNING expression back to generic #buildFailureCallbackQuery() to ensure consistent error reporting & logging across all step implementations
                         RAISE NOTICE 'Import has failed % %', exeception_msg, exeception_detail;
                         EXECUTE failure_callback;
         END;

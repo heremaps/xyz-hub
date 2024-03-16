@@ -149,7 +149,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
                 PERFORM ${{failureCallback}}
         END
         $wrapped$;
-        """)
+        """) //TODO: Move RAISE WARNING expression back to generic #buildFailureCallbackQuery() to ensure consistent error reporting & logging across all step implementations
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
         .withQueryFragment("stepQuery", stepQuery)

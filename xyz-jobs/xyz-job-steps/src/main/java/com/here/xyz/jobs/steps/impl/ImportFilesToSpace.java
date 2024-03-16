@@ -297,7 +297,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withNamedParameter("target_tbl", schema+".\""+table+"\"")
             .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
             .withNamedParameter("format", format)
-            .withNamedParameter("i", i)
+            .withNamedParameter("i", i) //TODO: Now that SQLQuery escaping is fixed, workarounds can be removed
             .withQueryFragment("successQuery","select "+successQuery.substitute().text().replaceAll("'","''"))
             .withQueryFragment("failureQuery","select "+failureQuery.substitute().text().replaceAll("'","''"));
   }
