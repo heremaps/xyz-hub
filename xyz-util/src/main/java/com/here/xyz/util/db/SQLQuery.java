@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ public class SQLQuery {
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
   public static final String QUERY_ID = "queryId";
+  public static final String TEXT_QUOTE = "\\$sqlq\\$";
   private String statement = "";
   @JsonProperty
   private List<Object> parameters = new ArrayList<>();
@@ -232,7 +233,7 @@ public class SQLQuery {
     if (paramValue == null)
       return "NULL";
     if (paramValue instanceof String)
-      return "'" + paramValue + "'";
+      return TEXT_QUOTE + paramValue + TEXT_QUOTE;
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)

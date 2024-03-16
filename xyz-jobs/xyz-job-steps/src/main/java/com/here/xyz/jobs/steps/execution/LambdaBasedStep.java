@@ -114,8 +114,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     switch (getExecutionMode()) {
       case SYNC -> execute();
       case ASYNC -> {
-        execute(); //TODO: Catch exceptions
         registerStateCheckTrigger();
+        execute(); //TODO: Catch exceptions
       }
     }
   }

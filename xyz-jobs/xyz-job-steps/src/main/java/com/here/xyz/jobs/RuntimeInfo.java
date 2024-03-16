@@ -136,8 +136,9 @@ public class RuntimeInfo<T extends RuntimeInfo> {
     }
 
     public static void checkTransition(State sourceState, State targetState) {
-      if (sourceState != targetState && !sourceState.isValidSuccessor(targetState))
-        throw new IllegalStateTransition(sourceState, targetState);
+      //TODO: Reactivate transition check when the starting value was changed to null
+      //if (sourceState != targetState && !sourceState.isValidSuccessor(targetState))
+      //  throw new IllegalStateTransition(sourceState, targetState);
     }
 
     public static State of(String value) {

@@ -103,4 +103,31 @@ public class SQLQueryIT {
       assertNotNull(getQueryTextByQueryId(longRunningAsyncQuery, dsp));
     }
   }
+
+  @Test
+  public void runAsyncQueryWithParameter() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        new SQLQuery("DROP TABLE IF EXISTS SQLQueryIT;").write(dsp);
+        //Prepare an empty test table
+        new SQLQuery("CREATE TABLE SQLQueryIT (col TEXT);").write(dsp);
+
+        //Run an async query with parameter
+        final String fancyString = """
+            so''meF'ancy"String
+            """;
+
+        new SQLQuery("INSERT INTO SQLQueryIT VALUES (#{param});").withNamedParameter("param", fancyString).withAsync(true).write(dsp);
+
+        Thread.sleep(1_000);
+
+        assertEquals(fancyString, new SQLQuery("SELECT col FROM SQLQueryIT")
+            .run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+      }
+      finally {
+        //Delete the test table again
+        new SQLQuery("DROP TABLE IF EXISTS SQLQueryIT;").write(dsp);
+      }
+    }
+  }
 }

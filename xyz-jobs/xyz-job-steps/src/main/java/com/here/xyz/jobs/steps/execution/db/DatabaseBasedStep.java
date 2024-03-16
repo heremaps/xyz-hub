@@ -139,14 +139,16 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    */
   private SQLQuery wrapQuery(SQLQuery stepQuery) {
     return new SQLQuery("""
-        DO $$
+        DO
+        $wrapped$
         BEGIN
           ${{stepQuery}};
           PERFORM ${{successCallback}}
           EXCEPTION WHEN OTHERS THEN
                 RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
                 PERFORM ${{failureCallback}}
-        END$$;
+        END
+        $wrapped$;
         """)
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
@@ -193,7 +195,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     logger.info("Checking execution state of step {}.{} ...", getJobId(), getId());
     //TODO: Check running state of all queries
-    //TODO: If the hearbeat is called, but the query is not running anymore, it might be a failure => throw UnknownStateException
+    //TODO: If the heartbeat is called, but the query is not running anymore, it might be a failure => throw UnknownStateException
     return AsyncExecutionState.RUNNING;
   }
 

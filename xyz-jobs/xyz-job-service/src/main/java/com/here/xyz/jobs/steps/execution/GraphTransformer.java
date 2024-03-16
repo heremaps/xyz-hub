@@ -221,12 +221,12 @@ public class GraphTransformer {
         .withStep(lambdaStep);
 
     //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
-    lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString(), payload.serialize()));
+    lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString(), payload.toMap()));
 
     state.stateBuilder.resource(taskResource);
   }
 
   private record NamedState<SB extends State.Builder>(String stateName, SB stateBuilder) {}
 
-  private record LambdaTaskParameters(String lambdaArn, String payload) {}
+  private record LambdaTaskParameters(String lambdaArn, Map<String, Object> payload) {}
 }
