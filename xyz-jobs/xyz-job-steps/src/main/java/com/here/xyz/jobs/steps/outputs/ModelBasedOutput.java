@@ -19,10 +19,12 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
+import com.here.xyz.jobs.steps.S3Client;
+
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
 
     @Override
     public void store(String s3Key) {
-        //TODO: Serialize output & store it to S3 (including metadata: at least type)
+        S3Client.getInstance().putJSONObject(s3Key,this);
     }
 }
