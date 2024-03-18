@@ -200,14 +200,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
       /** Collecting statistics */
-      List<String> statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0),
+      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0),
               rs -> {
-                List<String> result = new ArrayList<>();
-                while (rs.next())
-                  result.add(rs.getString(1));
-                return result;
+                FeatureStatistics featureStatistics = new FeatureStatistics();
+                if(rs.next()) {
+                  featureStatistics.setFeatureCount(rs.getLong("imported_rows"));
+                  featureStatistics.setByteSize(rs.getLong("imported_bytes"));
+                }
+                return featureStatistics;
               });
-      logger.info("Statistics-size:{}", statistics.size());
+      registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
+      logger.info("Statistics: bytes={} rows={}", statistics.getByteSize(), statistics.getFeatureCount());
 
       logger.info("Finalize - Delete tmp import-trigger table for {}" + getSpaceId());
       runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
@@ -284,7 +287,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildStatisticDataOfTemporaryTableQuery(String schema, String table) {
-    return new SQLQuery("SELECT data->'import_statistics' FROM ${schema}.${table};")
+    return new SQLQuery("""
+            SELECT sum((data->'filesize')::bigint) as imported_bytes,
+            	count(1) as imported_files,
+            	sum(SUBSTRING((data->>'import_statistics'),0,POSITION('rows' in data->>'import_statistics'))::bigint) as imported_rows
+            	from ${schema}.${table};
+          """)
             .withVariable("schema", schema)
             .withVariable("table", table + JOB_DATA_SUFFIX);
   }
