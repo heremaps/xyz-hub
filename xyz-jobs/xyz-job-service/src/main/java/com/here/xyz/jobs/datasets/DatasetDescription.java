@@ -48,8 +48,25 @@ public abstract class DatasetDescription implements Typed {
   @JsonIgnore
   public abstract String getKey();
 
-  public static class Map extends Identifiable {
+  public static class Map extends Identifiable implements VersionRefSource<Map> {
 
+    private Ref versionRef;
+
+    @Override
+    public Ref getVersionRef() {
+      return versionRef;
+    }
+
+    @Override
+    public void setVersionRef(Ref versionRef) {
+      this.versionRef = versionRef;
+    }
+
+    @Override
+    public Map withVersionRef(Ref versionRef) {
+      setVersionRef(versionRef);
+      return this;
+    }
   }
 
   public static class Space<T extends Space> extends Identifiable<T> implements FilteringSource<T>, VersionRefSource<T> {
