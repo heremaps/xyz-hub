@@ -72,7 +72,7 @@ public class TagApi extends SpaceBasedApi {
         .compose(s -> deleteTag(getMarker(context), spaceId, tagId))
         .compose(result -> result != null
             ? Future.succeededFuture(result)
-            : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found")))
+            : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found.")))
         .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -98,7 +98,7 @@ public class TagApi extends SpaceBasedApi {
     getSpace(marker, spaceId)
         .compose(s -> Service.tagConfigClient.getTag(marker, tagId, spaceId))
         .compose(r -> r == null ? Future.failedFuture(
-            new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found"))
+            new HttpException(HttpResponseStatus.NOT_FOUND, "Tag " + tagId + " with space " + spaceId + " not found"))
             : Future.succeededFuture(r))
         .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
         .onFailure(t -> sendErrorResponse(context, t));
@@ -110,21 +110,30 @@ public class TagApi extends SpaceBasedApi {
     final String tagId = context.pathParam(Path.TAG_ID);
     final Marker marker = getMarker(context);
 
-    final Future<Long> inputFuture = deserializeTag(context.body().asString())
-        .map(Tag::getVersion)
-        .compose(version -> version < -2 ? Future.failedFuture(new ValidationException("Invalid version parameter"))
-            : Future.succeededFuture(version));
+    deserializeTag(context.body().asString())
+        .compose(tag -> updateTag(marker, spaceId, tagId, tag.getVersion()))
+        .onSuccess(tag -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, tag))
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  public static Future<Tag> updateTag(Marker marker, String spaceId, String tagId, long version) {
+    if (spaceId == null) {
+      return Future.failedFuture(new ValidationException("Invalid spaceId parameter"));
+    }
+
+    if (version < -2) {
+      return Future.failedFuture(new ValidationException("Invalid version parameter"));
+    }
+
     final Future<Space> spaceFuture = getSpace(marker, spaceId);
     final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, tagId, spaceId)
         .compose(r -> r == null ? Future.failedFuture(
             new HttpException(HttpResponseStatus.NOT_FOUND, "Tag " + tagId + " with space " + spaceId + " not found"))
             : Future.succeededFuture(r));
 
-    final Long version = inputFuture.result();
-    Future.all(spaceFuture, tagFuture, inputFuture)
+    return Future.all(spaceFuture, tagFuture)
         .compose(cf -> Service.tagConfigClient.storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
-        .onSuccess(v -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, tagFuture.result().withVersion(version)))
-        .onFailure(t -> sendErrorResponse(context, t));
+        .map(v -> tagFuture.result().withVersion(version));
   }
 
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
@@ -132,7 +141,7 @@ public class TagApi extends SpaceBasedApi {
   }
 
   // TODO auth
-  private static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long
+  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long
       version, boolean system) {
     if (spaceId == null) {
       return Future.failedFuture(new ValidationException("Invalid spaceId parameter"));
