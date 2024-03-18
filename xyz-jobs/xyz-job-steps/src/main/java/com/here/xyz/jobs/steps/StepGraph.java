@@ -56,6 +56,10 @@ public class StepGraph implements StepExecution {
     return this;
   }
 
+  public void replaceStep(Step<?> step) {
+    //TODO: Find and replace the step in this graph, throw an exception if the step was not found
+  }
+
   public boolean isParallel() {
     return parallel;
   }

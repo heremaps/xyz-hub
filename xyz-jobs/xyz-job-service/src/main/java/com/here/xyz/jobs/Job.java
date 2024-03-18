@@ -226,6 +226,16 @@ public class Job implements XyzSerializable {
     return null;
   }
 
+  /**
+   * Updates the status of a step at this job by replacing it with the specified one.
+   * @param step
+   * @return
+   */
+  public Future<Void> updateStep(Step<?> step) {
+    getSteps().replaceStep(step);
+    return store();
+  }
+
   public Future<Void> resume() {
     if (isResumable()) {
       getStatus().setState(RESUMING);
