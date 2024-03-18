@@ -189,11 +189,11 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
     return new SQLQuery("""
         DO
-        $success$
+        $failure$
         BEGIN
           ${{performLambdaFailureInvoke}}
         END
-        $success$;
+        $failure$;
         """)
         .withQueryFragment("performLambdaFailureInvoke", lambdaFailureInvoke);
   }

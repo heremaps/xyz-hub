@@ -38,8 +38,8 @@ import io.vertx.core.json.JsonObject;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -122,7 +122,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       //Prepare
       logger.info("Set readOnly for space{}" + getSpaceId());
-      hubWebClient().patchSpace(getSpaceId(), new HashMap<>(){{ put("readOnly", true);}});
+      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
       logger.info("Prepare - Retrieve new Version from {}" + getSpaceId());
       long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0),
@@ -199,27 +199,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       logger.info("Getting storage database for space {}", getSpaceId());
       Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-      /** Collecting statistics */
-      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0),
-              rs -> {
-                FeatureStatistics featureStatistics = new FeatureStatistics();
-                if(rs.next()) {
-                  featureStatistics.setFeatureCount(rs.getLong("imported_rows"));
-                  featureStatistics.setByteSize(rs.getLong("imported_bytes"));
-                }
-                return featureStatistics;
-              });
-      registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
-      logger.info("Statistics: bytes={} rows={}", statistics.getByteSize(), statistics.getFeatureCount());
+      //Collecting statistics
+      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
+          calculateNeededAcus(0, 0), rs -> rs.next()
+              ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
+              : new FeatureStatistics());
+      registerOutputs(List.of(statistics), true);
+      logger.info("Statistics for step {}.{}: {}", getJobId(), getId(), statistics);
 
       logger.info("Finalize - Delete tmp import-trigger table for {}" + getSpaceId());
       runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
 
       logger.info("Finalize - Delete tmp-import-table for {}" + getSpaceId());
       runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
-      hubWebClient().patchSpace(getSpaceId(), new HashMap<>() {{
-        put("readOnly", false);
-      }});
+      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
 
       //TODO: Register one output of type {@link FeatureStatistics} as last step using registerOutputs()
 

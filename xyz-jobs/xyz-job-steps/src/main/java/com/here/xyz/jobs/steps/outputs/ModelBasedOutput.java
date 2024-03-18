@@ -22,9 +22,9 @@ package com.here.xyz.jobs.steps.outputs;
 import com.here.xyz.jobs.steps.S3Client;
 
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
-
-    @Override
-    public void store(String s3Key) {
-        S3Client.getInstance().putJSONObject(s3Key,this);
-    }
+  @Override
+  public void store(String s3Key) {
+    S3Client.getInstance().putObject(s3Key, "application/json", serialize());
+    //TODO: Update the object metadata in a separate metadata file (e.g. register all ModelBasedOutput s3Keys in there, e.g. append?)
+  }
 }

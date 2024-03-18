@@ -30,16 +30,13 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
-
 import java.io.ByteArrayInputStream;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -126,19 +123,14 @@ public class S3Client {
     return summaries;
   }
 
-  public void putJSONObject(String s3Key, Object content) {
-    //TODO: How to deal with errors
+  public void putObject(String s3Key, String contentType, String content) {
+    putObject(s3Key, contentType, content.getBytes());
+  }
 
-    String jsonContent = XyzSerializable.serialize(content);
+  public void putObject(String s3Key, String contentType, byte[] content) {
     ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentType("application/json");
-    metadata.addUserMetadata("type", content.getClass().getSimpleName());
-
-    PutObjectRequest request = new PutObjectRequest(bucketName, s3Key, new ByteArrayInputStream(jsonContent.getBytes(StandardCharsets.UTF_8)), metadata);
-    request.setMetadata(metadata);
-    client.putObject(request);
-
-    //Alternative (w/o metadata) => client.putObject(bucketName, s3Key, jsonContent);
+    metadata.setContentType(contentType);
+    client.putObject(new PutObjectRequest(bucketName, s3Key, new ByteArrayInputStream(content), metadata));
   }
 
   public ObjectMetadata loadMetadata(String key) {

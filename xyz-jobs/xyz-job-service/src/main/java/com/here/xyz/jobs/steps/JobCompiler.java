@@ -41,10 +41,10 @@ public class JobCompiler {
       StepGraph graph = new CompilationStepGraph(job.getId())
           .addExecution(new DropIndexes().withSpaceId(spaceId)) // Drop all existing indices
           .addExecution(new ImportFilesToSpace().withSpaceId(spaceId)) // Perform import
-          //TODO: Do not create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
+          //TODO: Create *some* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
           .addExecution(new CompilationStepGraph(job.getId()) // Create all the base indices in parallel
               .withExecutions(Stream.of(XyzSpaceTableHelper.Index.values())
-                  .map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList())).withParallel(true))
+                  .map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList())).withParallel(false))
           .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
           .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
 
