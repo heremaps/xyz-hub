@@ -52,7 +52,51 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
   private static final String JOB_DATA_SUFFIX = "_job_data";
   private static int importThreadCnt = 2;
-  private String format = "jsonwkb"; //TODO: Use enum (with well defined entries) which is accessible by JobCompiler
+  private Format format;
+  private Phase phase;
+  public enum Format {
+    CSV_GEOJSON, CSV_JSONWKB, GEOJSON;
+    public static Format of(String value) {
+      if (value == null) {
+        return null;
+      }
+      try {
+        return valueOf(value.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        return null;
+      }
+    }
+  }
+  public enum Phase {
+    SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, FILL_TMP_TABLE, EXECUTE_IMPORT,
+    RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
+    public static Phase of(String value) {
+      if (value == null) {
+        return null;
+      }
+      try {
+        return valueOf(value.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        return null;
+      }
+    }
+  }
+  public Format getFormat() {
+    return format;
+  }
+
+  public void setFormat(Format format) {
+    this.format = format;
+  }
+
+  public ImportFilesToSpace withFormat(Format format) {
+    setFormat(format);
+    return this;
+  }
+
+  public Phase getPhase() {
+    return phase;
+  }
 
   @Override
   public List<Load> getNeededResources() {
@@ -120,27 +164,26 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       logger.info("Getting storage database for space {}", getSpaceId());
       Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-      //Prepare
-      logger.info("Set readOnly for space{}" + getSpaceId());
+      logAndSetPhase(Phase.SET_READONLY);
       hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-      logger.info("Prepare - Retrieve new Version from {}" + getSpaceId());
+      logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
       long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0),
               rs -> {
                 rs.next();
                 return rs.getLong(1);
               });
 
-      logger.info("Prepare - Create tmp import-trigger table for {}" + getSpaceId());
+      logAndSetPhase(Phase.CREATE_TRIGGER);
       runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, calculateNeededAcus(0,0));
 
-      logger.info("Prepare - Create tmp-import-table for {}" + getSpaceId());
+      logAndSetPhase(Phase.CREATE_TMP_TABLE);
       runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0));
 
-      logger.info("Prepare - Fill tmp import table {}" + getSpaceId());
+      logAndSetPhase(Phase.FILL_TMP_TABLE);
       fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
 
-      //Execute
+      logAndSetPhase(Phase.EXECUTE_IMPORT);
       for (int i = 0; i < importThreadCnt; i++) {
         runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
       }
@@ -199,19 +242,25 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       logger.info("Getting storage database for space {}", getSpaceId());
       Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-      //Collecting statistics
+      logAndSetPhase(Phase.RETRIEVE_STATISTICS);
       FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
-          calculateNeededAcus(0, 0), rs -> rs.next()
-              ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
-              : new FeatureStatistics());
-      registerOutputs(List.of(statistics), true);
-      logger.info("Statistics for step {}.{}: {}", getJobId(), getId(), statistics);
+              calculateNeededAcus(0, 0), rs -> rs.next()
+                      ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
+                      : new FeatureStatistics());
 
-      logger.info("Finalize - Delete tmp import-trigger table for {}" + getSpaceId());
+      logger.info("Statistics: bytes={} rows={}", statistics.getByteSize(), statistics.getFeatureCount());
+      registerOutputs(List.of(statistics), true);
+
+      logAndSetPhase(Phase.WRITE_STATISTICS);
+      registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
+
+      logAndSetPhase(Phase.DROP_TRIGGER);
       runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
 
-      logger.info("Finalize - Delete tmp-import-table for {}" + getSpaceId());
+      logAndSetPhase(Phase.DROP_TMP_TABLE);
       runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
+
+      logAndSetPhase(Phase.RELEASE_READONLY);
       hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
 
       //TODO: Register one output of type {@link FeatureStatistics} as last step using registerOutputs()
@@ -224,7 +273,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
     super.onAsyncSuccess();
   }
-
+  private void logAndSetPhase(Phase curPhase, String... messages){
+    phase = curPhase;
+    logger.info("[{}@{}] ON/INTO '{}' {}",getId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
+  }
   @Override
   public void resume() throws Exception {
     //TODO:
@@ -297,7 +349,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withNamedParameter("schema", schema)
             .withNamedParameter("target_tbl", schema+".\""+table+"\"")
             .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
-            .withNamedParameter("format", format)
+            .withNamedParameter("format", format.toString())
             .withNamedParameter("i", i) //TODO: Now that SQLQuery escaping is fixed, workarounds can be removed
             .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
             .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));

@@ -4243,7 +4243,7 @@ CREATE OR REPLACE FUNCTION xyz_import_into_space(schem text, temporary_tbl regcl
 AS $BODY$
 	DECLARE
         retry_count integer := 2;
-		import_config text := 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''"'' ESCAPE '''''''' ';
+		import_config text := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
 		locked_item record;
 		import_results record;
 		target_clomuns text;
@@ -4261,13 +4261,16 @@ AS $BODY$
 		*/
 		format := lower(format);
 
-		IF format = 'jsonwkb' THEN
+		IF format = 'csv_jsonwkb' THEN
 			target_clomuns := 'jsondata,geo';
-		ELSEIF format = 'geojson'THEN
+		ELSEIF format = 'csv_geojson' THEN
 			target_clomuns := 'jsondata';
+		ELSEIF format = 'geojson' THEN
+			target_clomuns := 'jsondata';
+		    import_config := '(FORMAT TEXT, ENCODING ''UTF8'')';
         ELSE
 			RAISE EXCEPTION 'Format ''%'' not supported! ',format
-			USING HINT = 'geojson | jsonwkb are available',
+			USING HINT = 'csv_geojson | csv_jsonwkb are available',
 				  ERRCODE = 'XYZ51';
         END IF;
 
@@ -4298,9 +4301,10 @@ AS $BODY$
                         RAISE EXCEPTION 'All imports are failed!';
                     ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
                         RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count,import_results.total_count;
+                    ELSE
+						RAISE NOTICE 'ALL DONE! %',success_callback;
+                        EXECUTE success_callback;
                     END IF;
-                    RAISE NOTICE 'ALL DONE! %',success_callback;
-                    EXECUTE success_callback;
                 END IF;
                 RETURN;
             END IF;
