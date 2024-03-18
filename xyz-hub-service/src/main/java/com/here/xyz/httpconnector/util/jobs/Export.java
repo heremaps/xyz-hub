@@ -66,9 +66,10 @@ import com.here.xyz.httpconnector.util.emr.config.Step.ReplaceWkbWithGeo;
 import com.here.xyz.httpconnector.util.emr.config.Step.WriteGeoparquet;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.FileBasedTarget;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
+import com.here.xyz.jobs.datasets.Identifiable;
+import com.here.xyz.jobs.datasets.VersionRefSource;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
 import com.here.xyz.jobs.datasets.files.GeoJson;
@@ -83,7 +84,6 @@ import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.web.HubWebClient.HubWebClientException;
-import com.here.xyz.util.web.HubWebClientAsync;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -268,10 +268,13 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                if (getSource() instanceof Space spaceSource && !spaceSource.getVersionRef().isResolved()) {
-                  final Ref ref = spaceSource.getVersionRef();
+                if (getSource() instanceof VersionRefSource<?> versionRefSource
+                    && getSource() instanceof Identifiable<?> identifiable
+                    && versionRefSource.getVersionRef() != null
+                    && !versionRefSource.getVersionRef().isResolved()) {
+                  final Ref ref = versionRefSource.getVersionRef();
                   try {
-                    long version = CService.hubWebClient.getTag(spaceSource.getId(), ref.getVersionRef()).getVersion();
+                    long version = CService.hubWebClient.getTag(identifiable.getId(), ref.getVersionRef()).getVersion();
                     ref.setVersion(version);
                     setTargetVersion(String.valueOf(version));
                   } catch (HubWebClientException e) {
