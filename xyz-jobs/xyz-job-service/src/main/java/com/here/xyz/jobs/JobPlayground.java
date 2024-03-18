@@ -61,6 +61,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpResponse;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -77,7 +78,9 @@ public class JobPlayground {
   private static HubWebClient hubWebClient;
   private static LambdaClient lambdaClient;
   private static Space sampleSpace;
-  private static boolean simulateExecution = false;
+  private static boolean simulateExecution = true;
+  private static ImportFilesToSpace.Format format = ImportFilesToSpace.Format.GEOJSON;
+  private static int uploadFileCount = 2;
 
   static {
     VertxOptions vertxOptions = new VertxOptions()
@@ -138,7 +141,7 @@ public class JobPlayground {
 
     runDropIndexStep(sampleSpace.getId());
 
-    runImportFilesToSpaceStep(sampleSpace.getId());
+    runImportFilesToSpaceStep(sampleSpace.getId(), format);
 
     for (Index index : Index.values())
       runCreateIndexStep(sampleSpace.getId(), index);
@@ -149,9 +152,23 @@ public class JobPlayground {
   }
 
   private static void uploadFiles() throws IOException {
-    //Upload files with each having one feature without id
-    for (int i = 0; i < 2; i++)
-      uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
+    //Generate N Files with M features
+    for (int i = 0; i < uploadFileCount; i++)
+      uploadInputFile(generateContent(format, 10));
+  }
+
+  private static byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt){
+    Random rd = new Random();
+    String output = "";
+    for (int i = 0; i < featureCnt; i++) {
+      if(format.equals(ImportFilesToSpace.Format.CSV_JSONWKB))
+        output += "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000\n";
+      else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
+        output += "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":[8,50."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\"\n";
+      else
+        output += "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}\n";
+    }
+    return output.getBytes();
   }
 
   private static void startMockJob() {
@@ -219,8 +236,8 @@ public class JobPlayground {
     runStep(new DropIndexes().withSpaceId(spaceId));
   }
 
-  public static void runImportFilesToSpaceStep(String spaceId) throws IOException {
-    runStep(new ImportFilesToSpace().withSpaceId(spaceId));
+  public static void runImportFilesToSpaceStep(String spaceId, ImportFilesToSpace.Format format) throws IOException {
+    runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format));
   }
 
   public static void runCreateIndexStep(String spaceId, Index index) throws IOException {
