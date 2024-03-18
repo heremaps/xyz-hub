@@ -29,7 +29,6 @@ import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import io.vertx.core.Future;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,8 +40,11 @@ public abstract class JobExecutor {
   private static volatile boolean stopRequested;
 
   {
-    exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, TimeUnit.SECONDS);
+    //TODO: Activate checking for PENDING jobs
+    //exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, TimeUnit.SECONDS);
   }
+
+  protected JobExecutor() {}
 
   public static JobExecutor getInstance() {
     return instance;

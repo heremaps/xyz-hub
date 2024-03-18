@@ -28,7 +28,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
@@ -78,7 +77,7 @@ public class JobPlayground {
   private static HubWebClient hubWebClient;
   private static LambdaClient lambdaClient;
   private static Space sampleSpace;
-  private static boolean simulateExecution = true;
+  private static boolean simulateExecution = false;
 
   static {
     VertxOptions vertxOptions = new VertxOptions()
@@ -131,44 +130,15 @@ public class JobPlayground {
 
   public static void main(String[] args) throws IOException, InterruptedException {
     //startMockJob();
-
-    //Upload files with each having one feature without id
-    for (int i = 0; i < 2; i++)
-      uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
-
-      if (simulateExecution)
-          startSimulatedExecutions();
-      else
-          startLambdaExecutions();
+    startLambdaExecutions();
   }
 
   private static void startLambdaExecutions() throws IOException, InterruptedException {
-    runDropIndexStep(sampleSpace.getId());
-    Thread.sleep(4000);
+    uploadFiles();
 
-    runImportFilesToSpaceStep(sampleSpace.getId(), START_EXECUTION);
-    Thread.sleep(4000);
-
-    for (Index index : Index.values()) {
-      runCreateIndexStep(sampleSpace.getId(), index);
-      Thread.sleep(4000);
-    }
-
-    runAnalyzeSpaceTableStep(sampleSpace.getId());
-    Thread.sleep(4000);
-
-    runMarkForMaintenanceStep(sampleSpace.getId());
-    Thread.sleep(4000);
-  }
-
-  private static void startSimulatedExecutions() throws IOException, InterruptedException {
     runDropIndexStep(sampleSpace.getId());
 
-    runImportFilesToSpaceStep(sampleSpace.getId(), START_EXECUTION);
-    Thread.sleep(4000);
-    simulateExecution = false;
-    runImportFilesToSpaceStep(sampleSpace.getId(), SUCCESS_CALLBACK);
-    simulateExecution = true;
+    runImportFilesToSpaceStep(sampleSpace.getId());
 
     for (Index index : Index.values())
       runCreateIndexStep(sampleSpace.getId(), index);
@@ -178,13 +148,19 @@ public class JobPlayground {
     runMarkForMaintenanceStep(sampleSpace.getId());
   }
 
+  private static void uploadFiles() throws IOException {
+    //Upload files with each having one feature without id
+    for (int i = 0; i < 2; i++)
+      uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
+  }
+
   private static void startMockJob() {
     mockJob.submit()
         .compose(submitted -> {
-          //Upload files with each having one feature without id
+          if (submitted)
+            return Future.succeededFuture(true);
           try {
-            for (int i = 0; i < 2; i++)
-              uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
+            uploadFiles();
           }
           catch (IOException e) {
             return Future.failedFuture(e);
@@ -239,54 +215,51 @@ public class JobPlayground {
       throw new RuntimeException("Error uploading file, got status code " + connection.getResponseCode());
   }
 
-  private static void startImportJob() {
-    new Job()
-        .withOwner("TestUser")
-        .withDescription("Some test Import Job")
-        .withSource(new DatasetDescription.Space().withId("someSpace"))
-        .withTarget(new Files().withOutputSettings(new FileOutputSettings().withFormat(new GeoJson())))
-        .submit();
-  }
-
   public static void runDropIndexStep(String spaceId) throws IOException {
-    runStep(new DropIndexes().withSpaceId(spaceId), START_EXECUTION);
+    runStep(new DropIndexes().withSpaceId(spaceId));
   }
 
-  public static void runImportFilesToSpaceStep(String spaceId, RequestType requestType) throws IOException {
-    runStep(new ImportFilesToSpace().withSpaceId(spaceId), requestType);
+  public static void runImportFilesToSpaceStep(String spaceId) throws IOException {
+    runStep(new ImportFilesToSpace().withSpaceId(spaceId));
   }
 
   public static void runCreateIndexStep(String spaceId, Index index) throws IOException {
-    runStep(new CreateIndex().withSpaceId(spaceId).withIndex(index), START_EXECUTION);
+    runStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
   }
 
   public static void runAnalyzeSpaceTableStep(String spaceId) throws IOException {
-    runStep(new AnalyzeSpaceTable().withSpaceId(spaceId), START_EXECUTION);
+    runStep(new AnalyzeSpaceTable().withSpaceId(spaceId));
   }
 
   public static void runMarkForMaintenanceStep(String spaceId) throws IOException {
-    runStep(new MarkForMaintenance().withSpaceId(spaceId), START_EXECUTION);
+    runStep(new MarkForMaintenance().withSpaceId(spaceId));
   }
 
-  private static void runStep(LambdaBasedStep step, RequestType requestType) throws IOException {
-    if (simulateExecution)
-      simulateLambdaStep(step, requestType);
-    else
-      runLambdaStep(step, requestType);
+  private static void runStep(LambdaBasedStep step) throws IOException {
+    if (simulateExecution) {
+      simulateLambdaStepRequest(step, START_EXECUTION);
+      //Wait some time before simulating success callback
+      sleep(4000);
+      simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+    }
+    else {
+      sendLambdaStepRequest(step, START_EXECUTION);
+      //Wait some time to give some time for the execution of the success callback
+      sleep(4000);
+    }
   }
 
-  private static void simulateLambdaStep(LambdaBasedStep step, RequestType requestType) throws IOException {
+  private static void simulateLambdaStepRequest(LambdaBasedStep step, RequestType requestType) throws IOException {
     OutputStream os = new ByteArrayOutputStream();
     Context ctx = new SimulatedContext("localLambda", null);
 
     final LambdaStepRequest request = prepareStepRequestPayload(step, requestType);
-
     new LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
 
     logger.info("Response from simulated Lambda:\n{}", os.toString());
   }
 
-  private static void runLambdaStep(LambdaBasedStep step, RequestType requestType) {
+  private static void sendLambdaStepRequest(LambdaBasedStep step, RequestType requestType) {
     InvokeResponse response = lambdaClient.invoke(InvokeRequest.builder()
         .functionName(Config.instance.STEP_LAMBDA_ARN.toString())
         .payload(SdkBytes.fromByteArray(prepareStepRequestPayload(step, requestType).toByteArray()))
@@ -309,5 +282,14 @@ public class JobPlayground {
 
     LambdaStepRequest request = new LambdaStepRequest().withStep(enrichedStep).withType(requestType);
     return request;
+  }
+
+  private static void sleep(long ms) {
+    try {
+      Thread.sleep(ms);
+    }
+    catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

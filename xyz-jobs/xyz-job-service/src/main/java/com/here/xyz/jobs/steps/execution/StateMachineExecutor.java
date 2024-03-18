@@ -31,8 +31,10 @@ import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
 
-public class StateMachineExecutor extends JobExecutor {
+class StateMachineExecutor extends JobExecutor {
   private GraphTransformer graphTransformer = new GraphTransformer(Config.instance.STEP_LAMBDA_ARN);
+
+  StateMachineExecutor() {}
 
   @Override
   public Future<String> execute(Job job) {

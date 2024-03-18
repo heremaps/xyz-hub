@@ -4167,7 +4167,6 @@ begin
     ) order by weight DESC) a;
 end
 $BODY$;
-
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION streamId() RETURNS TEXT AS
@@ -4183,28 +4182,6 @@ CREATE OR REPLACE FUNCTION streamId(sid TEXT) RETURNS VOID AS
 $BODY$
 BEGIN
     PERFORM set_config('xyz.streamId', sid, true);
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_drop_all_space_idxs(schem text, tbl text, lables jsonb) RETURNS VOID AS
-$BODY$
-	DECLARE
-        idx record;
-		lbls text;
-    BEGIN
-		IF lables IS NOT NULL THEN
-			lbls := format('/*labels(%s)*/', lables);
-    END IF;
-
-    FOR idx IN
-        SELECT idx_name FROM xyz_index_list_all_available(schem, tbl)
-        LOOP
-            RAISE NOTICE '% DROP INDEX %.%;', lbls, schem, idx.idx_name;
-            execute format('%s DROP INDEX %I.%I;',  lbls , schem, idx.idx_name);
-    END LOOP;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;

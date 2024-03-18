@@ -27,6 +27,8 @@ import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.E
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -58,6 +60,8 @@ import software.amazon.awssdk.services.sfn.model.SendTaskSuccessRequest;
     @JsonSubTypes.Type(value = DatabaseBasedStep.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
+  public static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
+  protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
   //TODO: Allow the implementations to define their heartbeat interval & timeout?
@@ -89,8 +93,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   - Assume other roles?
    */
-  @JsonProperty("taskToken.$")
-  private String taskToken = "$$.Task.Token"; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
+  @JsonView(Internal.class)
+  private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
   private String invokersRoleArn; //Will be defined by the framework alongside the START_EXECUTION request being relayed by the Step Function
   @JsonView(Internal.class)
@@ -121,6 +125,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void registerStateCheckTrigger() {
+    if (isSimulation)
+      return;
+
     String globalStepId = getJobId() + "." + getId();
     stateCheckRuleName = "HeartBeat-" + globalStepId;
 
@@ -144,6 +151,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   //TODO: Also call this on cancel?
   private void unregisterStateCheckTrigger() {
+    if (isSimulation)
+      return;
+
     //List all targets
     List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(stateCheckRuleName).build())
         .targets()
@@ -191,14 +201,20 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     onAsyncSuccess();
     unregisterStateCheckTrigger();
     //Report success to SFN
-    if (Config.instance.LOCALSTACK_ENDPOINT == null) //TODO: Remove testing code
-      sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder().taskToken(taskToken).build());
+    if (!isSimulation) { //TODO: Remove testing code
+      sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()
+          .taskToken(taskToken)
+          .output(INVOKE_SUCCESS)
+          .build());
+    }
     else
       //TODO: Remove testing code
       System.out.println(getClass().getSimpleName() + " : SUCCESS");
   }
 
   private void reportAsyncHeartbeat() {
+    if (isSimulation)
+      return;
     //Report heartbeat to SFN
     sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
   }
@@ -216,11 +232,12 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void reportAsyncFailure(Exception e) {
-    if (Config.instance.LOCALSTACK_ENDPOINT != null) //TODO: Remove testing code
+    if (isSimulation) //TODO: Remove testing code
       throw new RuntimeException(e);
 
     //TODO: synchronize the step state with the framework before?
     unregisterStateCheckTrigger();
+
     //Report failure to SFN
     SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
         .taskToken(taskToken);
@@ -242,6 +259,12 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   protected void onRuntimeShutdown() {
     //Nothing to do here. Subclasses may override this method to implement some steps to be executed as a "shutdown-hook".
+  }
+
+  @JsonProperty("taskToken.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getTaskTokenTemplate() {
+    return TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
   }
 
   protected enum ExecutionMode {
@@ -274,8 +297,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       LambdaStepRequest request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
       //Set the own lambda ARN accordingly
-      if (context instanceof SimulatedContext)
+      if (context instanceof SimulatedContext) {
         request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.AWS_REGION + ":000000000000:function:job-step");
+        request.getStep().isSimulation = true;
+      }
       else
         request.getStep().ownLambdaArn = new ARN(context.getInvokedFunctionArn());
       Config.instance.AWS_REGION = request.getStep().ownLambdaArn.getRegion();

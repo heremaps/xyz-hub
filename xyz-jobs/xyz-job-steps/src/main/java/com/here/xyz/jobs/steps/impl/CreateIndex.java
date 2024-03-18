@@ -95,7 +95,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   public void resume() throws Exception {
     /*
     No cleanup needed, in any case, sending the index creation query again will work
-    as it is using the "CREATE SEQUENCE IF NOT EXISTS" semantics
+    as it is using the "CREATE INDEX IF NOT EXISTS" semantics
      */
     execute();
   }

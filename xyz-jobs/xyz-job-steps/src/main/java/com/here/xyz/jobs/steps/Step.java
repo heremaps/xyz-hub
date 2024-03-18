@@ -25,6 +25,8 @@ import static com.here.xyz.util.Random.randomAlpha;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
@@ -47,6 +49,7 @@ import java.util.stream.Collectors;
     @JsonSubTypes.Type(value = LambdaBasedStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);

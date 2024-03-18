@@ -52,6 +52,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
   private static final String JOB_DATA_SUFFIX = "_job_data";
   private static int importThreadCnt = 2;
+  private String format = "jsonwkb"; //TODO: Use enum (with well defined entries) which is accessible by JobCompiler
 
   @Override
   public List<Load> getNeededResources() {
@@ -141,7 +142,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       //Execute
       for (int i = 0; i < importThreadCnt; i++) {
-        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), "jsonwkb", buildSuccessCallbackQuery(), buildFailureCallbackQuery(),  i), db, calculateNeededAcus(0,0), false);
+        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
       }
     }
     catch (SQLException | TooManyResourcesClaimed | HubWebClientException e){
@@ -230,10 +231,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public void resume() throws Exception {
-    /*
-    No cleanup needed, in any case, sending the index creation query again will work
-    as it is using the "CREATE SEQUENCE IF NOT EXISTS" semantics
-     */
+    //TODO:
     execute();
   }
 
@@ -291,14 +289,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", table + JOB_DATA_SUFFIX);
   }
 
-  private SQLQuery buildImportQuery(String schema, String table, String format, SQLQuery successQuery, SQLQuery failureQuery, int i) {
+  private SQLQuery buildImportQuery(String schema, String table, int i) {
+    SQLQuery successQuery = buildSuccessCallbackQuery();
+    SQLQuery failureQuery = buildFailureCallbackQuery();
     return new SQLQuery("SELECT xyz_import_into_space(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}', #{i})")
             .withNamedParameter("schema", schema)
             .withNamedParameter("target_tbl", schema+".\""+table+"\"")
             .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
             .withNamedParameter("format", format)
             .withNamedParameter("i", i) //TODO: Now that SQLQuery escaping is fixed, workarounds can be removed
-            .withQueryFragment("successQuery","select "+successQuery.substitute().text().replaceAll("'","''"))
-            .withQueryFragment("failureQuery","select "+failureQuery.substitute().text().replaceAll("'","''"));
+            .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
+            .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
   }
 }

@@ -143,10 +143,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         $wrapped$
         BEGIN
           ${{stepQuery}};
-          PERFORM ${{successCallback}}
+          ${{successCallback}}
           EXCEPTION WHEN OTHERS THEN
-                RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
-                PERFORM ${{failureCallback}}
+            RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
+            ${{failureCallback}}
         END
         $wrapped$;
         """) //TODO: Move RAISE WARNING expression back to generic #buildFailureCallbackQuery() to ensure consistent error reporting & logging across all step implementations
@@ -158,20 +158,44 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
-    return new SQLQuery("aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::json, '${{lambdaRegion}}', 'Event');")
-        .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())
-        .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
-        .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
-    //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
+    SQLQuery lambdaSuccessInvoke = isSimulation
+        ? new SQLQuery("PERFORM 'Success callback will be simulated';")
+        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::JSON, '${{lambdaRegion}}', 'Event');")
+            .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString()) //TODO: Use named params instead of query fragments
+            .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
+            //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
+            .withQueryFragment("successRequestBody", new LambdaStepRequest().withType(SUCCESS_CALLBACK).withStep(this).serialize());
+
+    return new SQLQuery("""
+        DO
+        $success$
+        BEGIN
+          ${{performLambdaSuccessInvoke}}
+        END
+        $success$;
+        """)
+        .withQueryFragment("performLambdaSuccessInvoke", lambdaSuccessInvoke);
   }
 
   protected final SQLQuery buildFailureCallbackQuery() {
-    return new SQLQuery("aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, '${{lambdaRegion}}', 'Event'); ")
-        .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())
-        .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
-        .withQueryFragment("failureRequestBody", new LambdaStepRequest().withType(FAILURE_CALLBACK).withStep(this).serialize());
-    //TODO: Inject error message into failureRequestBody using SQLSTATE & SQLERRM
-    //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
+    SQLQuery lambdaFailureInvoke = isSimulation
+        ? new SQLQuery("PERFORM 'Failure callback will be simulated';")
+        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, '${{lambdaRegion}}', 'Event');")
+            .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())  //TODO: Use named params instead of query fragments
+            .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
+            //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
+            //TODO: Inject error message into failureRequestBody using SQLSTATE & SQLERRM
+            .withQueryFragment("failureRequestBody", new LambdaStepRequest().withType(FAILURE_CALLBACK).withStep(this).serialize());
+
+    return new SQLQuery("""
+        DO
+        $success$
+        BEGIN
+          ${{performLambdaFailureInvoke}}
+        END
+        $success$;
+        """)
+        .withQueryFragment("performLambdaFailureInvoke", lambdaFailureInvoke);
   }
 
   protected final String getSchema(Database db) {
