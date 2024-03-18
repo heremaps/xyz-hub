@@ -62,7 +62,11 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     isMvtRequested = isMvtRequested(event);
     Map<String, Object> tweakParams = getTweakParams(event);
+    
     SQLQuery query;
+          
+    super.buildQuery(event); // force "geoFilter" to be not null, fixes fragment is null error when mvt is requested with mode=viz
+
     switch (event.getTweakType().toLowerCase()) {
       case TweaksSQL.ENSURE: {
         tweakParams = getTweakParamsForEnsureMode(event, tweakParams);
@@ -217,6 +221,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
     query.setQueryFragment("filterWhereClause", filterWhereClause);
     query.setQueryFragment("orderBy", ""); //Can be overridden by caller
+    query.setQueryFragment("limit", buildLimitFragment((E) event));  // needed when called by tweaks, e.g. "http://../tile/...?tweaks=sampling&limit=5555"
 
     return query;
   }
