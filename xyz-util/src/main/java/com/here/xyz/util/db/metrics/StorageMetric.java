@@ -9,9 +9,11 @@ public class StorageMetric {
 
     private final LongAdder value;
 
-    public StorageMetric(Map<String, String> dimensions, LongAdder value) {
+    public StorageMetric(Map<String, String> dimensions, long value) {
         this.dimensions = dimensions;
-        this.value = value;
+        var adder = new LongAdder();
+        adder.add(value);
+        this.value = adder;
     }
 
     public Map<String, String> getDimensions() {

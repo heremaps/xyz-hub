@@ -17,17 +17,17 @@ public class MetricsReporterServiceIT {
             .withRegion(Regions.EU_WEST_1)
             .withCredentials(new ProfileCredentialsProvider("vhnes-rd"))
             .build();
+
     @Test
     public void test() throws InterruptedException {
-        MetricsReporterService metricsReporterService = new MetricsReporterService(lambdaClient,"iml-metrics-scrapper-sit", 1, List.of("io", "storage"));
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "ios", 2L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "io",2L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "storage", 100L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "dim", "a"), "storage", 100L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "a"), "io", 3L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "a"), "io", 1L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("dim", "b"), "io", 2L));
-        metricsReporterService.consumeMetric(new Metric(Map.of("di", "b"), "io",2L));
+        MetricsReporterService metricsReporterService = new MetricsReporterService(lambdaClient, "iml-metrics-scrapper-sit", 1, List.of("io", "storage"));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "realmId", "a"), "io", 2L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "realmId", "a"), "io", 4L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("realmId", "a", "userId", "2"), "io", 4L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "a", "realmId", "b"), "io", 3L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "realmId", "a"), "storage", 100L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "2", "realmId", "a"), "storage", 100L));
+        metricsReporterService.consumeMetric(new Metric(Map.of("userId", "a"), "io", 32L));
         Thread.sleep(1 * 60 * 2000);
         metricsReporterService.shutdown();
     }

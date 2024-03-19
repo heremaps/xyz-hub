@@ -2,7 +2,6 @@ package com.here.xyz.util.db.metrics;
 
 import com.amazonaws.services.lambda.AWSLambda;
 import com.amazonaws.services.lambda.model.InvokeRequest;
-import com.here.xyz.util.Hasher;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
@@ -13,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAdder;
 
 public class MetricsReporterService {
 
@@ -24,38 +22,33 @@ public class MetricsReporterService {
     private final String lambdaFunctionName;
     private final AWSLambda lambdaClient;
 
-    public MetricsReporterService(AWSLambda lambdaClient, String lambdaFunctionName, int minutesPeriod, List<String> metricNames) {
+    public MetricsReporterService(AWSLambda lambdaClient, String lambdaFunctionName, int minutesPeriod, List<String> metricTypes) {
         this.lambdaClient = lambdaClient;
         this.lambdaFunctionName = lambdaFunctionName;
         this.scheduler = Executors.newScheduledThreadPool(1);
-        metricNames.forEach(name -> {
-            metricStorage.put(name, new ConcurrentHashMap<>());
+        metricTypes.forEach(type -> {
+            metricStorage.put(type, new ConcurrentHashMap<>());
         });
         scheduler.scheduleAtFixedRate(this::aggregateAndInvokeLambda, 1, minutesPeriod, TimeUnit.MINUTES);
     }
 
     public void consumeMetric(Metric metric) {
-        Optional.ofNullable(metricStorage.get(metric.getName()))
+        System.out.println(getKey(metric.dimensions()));
+        Optional.ofNullable(metricStorage.get(metric.type()))
                 .ifPresentOrElse(map -> {
-                    map.compute(Hasher.getHash(metric.getDimensions().toString()), (key, existingMetric) -> {
+                    map.compute(getKey(metric.dimensions()), (key, existingMetric) -> {
                         if (existingMetric != null) {
-                            existingMetric.addToValue(metric.getValue());
+                            existingMetric.addToValue(metric.value());
                             return existingMetric;
                         } else {
-                            return new StorageMetric(metric.getDimensions(), initializeAdder(metric.getValue()));
+                            return new StorageMetric(metric.dimensions(), metric.value());
                         }
                     });
                 }, () -> logger.error("Unknown metric"));
     }
 
-    private LongAdder initializeAdder(long value) {
-        var adder = new LongAdder();
-        adder.add(value);
-        return adder;
-    }
-
     private void aggregateAndInvokeLambda() {
-        metricStorage.forEach((name, metricMap) -> {
+        metricStorage.forEach((type, metricMap) -> {
             var metricsJsonArray = new JsonArray();
 
             Iterator<Map.Entry<String, StorageMetric>> iterator = metricMap.entrySet().iterator();
@@ -73,11 +66,11 @@ public class MetricsReporterService {
 
             metricMap.forEach((key, value) -> System.out.println("Key: " + key + ", Value: " + value));
             var eventJson = new JsonObject();
-            eventJson.put("type", name);
+            eventJson.put("type", type);
             eventJson.put("metrics", metricsJsonArray);
             System.out.println("Aggregated: " + eventJson);
             logger.info("Aggregated: " + eventJson);
-            invokeLambda(eventJson.toString());
+//            invokeLambda(eventJson.toString());
         });
     }
 
@@ -92,6 +85,17 @@ public class MetricsReporterService {
         } catch (Exception e) {
             logger.error(e.getLocalizedMessage());
         }
+    }
+
+    public static String getKey(Map<String, String> map) {
+        List<Map.Entry<String, String>> entryList = new ArrayList<>(map.entrySet());
+        entryList.sort(Map.Entry.comparingByKey());
+
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : entryList) {
+            sb.append("<").append(entry.getKey()).append(":").append(entry.getValue()).append(">");
+        }
+        return sb.toString();
     }
 
     public void shutdown() {
