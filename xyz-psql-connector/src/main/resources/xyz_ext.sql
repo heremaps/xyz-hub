@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 185
+ select 191
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -182,6 +182,9 @@ AS $BODY$
 		IF addSpaceId THEN
 			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
         END IF;
+
+		-- remove bbox on root
+        NEW.jsondata := NEW.jsondata - 'bbox';
 
         -- Inject type
         NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
@@ -900,12 +903,10 @@ $BODY$
 		END IF;
 
 		/** set indication that idx creation is running */
-		UPDATE xyz_config.xyz_idxs_status
-			SET idx_creation_finished = false
-				WHERE spaceid = space
-                  AND schem = schema;
-
-		EXECUTE xyz_index_check_comments(schema, space);
+        UPDATE xyz_config.xyz_idxs_status
+            SET idx_creation_finished = false
+        WHERE spaceid = space AND schem = schema;
+		--EXECUTE xyz_index_check_comments(schema, space);
 
 		/** Analyze IDX-ON DEMAND aka MANUAL MODE */
 		RAISE NOTICE 'ANALYSE MANUAL IDX on SPACE: %', space;
@@ -2891,10 +2892,7 @@ $BODY$
         updated_rows INTEGER;
         minVersion BIGINT;
     BEGIN
-        EXECUTE
-           format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-               schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
-
+        -- First update the affected old version of the feature to make its next_version pointing to the new version
         IF operation != 'I' AND operation != 'H' THEN
             IF concurrencyCheck THEN
                 IF baseVersion IS NULL THEN
@@ -2933,6 +2931,11 @@ $BODY$
                        schema, tableName, version, id, max_bigint(), version);
         END IF;
 
+        -- Now actually insert the new version of the feature (NOTE: The order is important here to not violate the (id, next_version) uniqueness constraint)
+        EXECUTE
+            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
+                   schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
+
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
             EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
@@ -2953,22 +2956,36 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
+CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, uniqueConstraintExists BOOLEAN)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
+        insertQuery TEXT;
         updated_rows INTEGER;
     BEGIN
-        updated_rows = xyz_simple_update(id, version, CASE WHEN xyz_isHideOperation(operation) THEN 'J' ELSE 'U' END, author, jsondata, geo, schema, tableName, false, NULL, false);
-        IF updated_rows = 0 THEN
-            updated_rows = xyz_simple_insert(id, version, operation, author, jsondata, geo, schema, tableName);
+        insertQuery = 'INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)';
+        IF concurrencyCheck THEN
+            -- This query will throw an error in case of a conflict
+            EXECUTE
+                format(insertQuery,
+                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         ELSE
-            IF concurrencyCheck THEN
-                RAISE EXCEPTION 'Conflict while trying to insert feature with ID % in version %.', id, version
-                    USING HINT = 'Feature was already inserted in the meantime.',
-                        ERRCODE = 'XYZ49';
+            IF uniqueConstraintExists THEN
+                -- This query will perform an update instead of throwing an error in case of a conflict
+                insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
+                              'version = greatest(tbl.version, EXCLUDED.version), ' ||
+                              'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
+                              'author = EXCLUDED.author, ' ||
+                              'jsondata = EXCLUDED.jsondata, ' ||
+                              'geo = EXCLUDED.geo';
             END IF;
+
+            EXECUTE
+                format(insertQuery,
+                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         END IF;
+
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
     END
 $BODY$
@@ -3017,22 +3034,6 @@ $BODY$
             END IF;
         END IF;
 
-        RETURN updated_rows;
-    END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_simple_insert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT)
-    RETURNS INTEGER AS
-$BODY$
-    DECLARE
-        updated_rows INTEGER;
-    BEGIN
-        EXECUTE
-            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-                   schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
-        GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
     END
 $BODY$
@@ -3104,48 +3105,6 @@ BEGIN
     END IF;
     --more types here...
 END$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[], versions BIGINT[])
-    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
-$BODY$
-DECLARE
-    output LOAD_FEATURE_VERSION_INPUT[];
-    item LOAD_FEATURE_VERSION_INPUT;
-BEGIN
-    IF coalesce(array_length(ids, 1),0) > 0 THEN
-        FOR i IN 1 .. array_upper(ids, 1)
-            LOOP
-                item := ROW(ids[i], versions[i]);
-                SELECT array_append(output, item) into output;
-
-            END LOOP;
-    END IF;
-    RETURN output;
-END
-$BODY$
-    LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[])
-    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
-$BODY$
-DECLARE
-    output LOAD_FEATURE_VERSION_INPUT[];
-    versions BIGINT[];
-BEGIN
-    IF array_length(ids, 1) IS NULL THEN
-        RETURN output;
-    ELSE
-        FOR i IN 1 .. array_upper(ids, 1)
-        LOOP
-            versions := array_append(versions, max_bigint());
-        END LOOP;
-        RETURN transform_load_features_input(ids, versions);
-    END IF;
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_create_history_partition(schema TEXT, rootTable TEXT, partitionNo BIGINT, partitionSize BIGINT)
@@ -4208,3 +4167,220 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
+
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_drop_all_space_idxs(schem text, tbl text, lables jsonb) RETURNS VOID AS
+$BODY$
+	DECLARE
+        idx record;
+		lbls text;
+    BEGIN
+		IF lables IS NOT NULL THEN
+			lbls := format('/*labels(%s)*/', lables);
+    END IF;
+
+    FOR idx IN
+        SELECT idx_name FROM xyz_index_list_all_available(schem, tbl)
+        LOOP
+            RAISE NOTICE '% DROP INDEX %.%;', lbls, schem, idx.idx_name;
+            execute format('%s DROP INDEX %I.%I;',  lbls , schem, idx.idx_name);
+    END LOOP;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger_v2()
+ RETURNS trigger
+AS $BODY$
+	DECLARE
+        author text := TG_ARGV[0];
+        curVersion bigint := TG_ARGV[1];
+
+		fid text := NEW.jsondata->>'id';
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+		meta jsonb := format(
+			'{
+                 "createdAt": %s,
+                 "updatedAt": %s
+			}', createdAt, createdAt
+        );
+    BEGIN
+            -- Inject id if not available
+            IF fid IS NULL THEN
+                fid = xyz_random_string(10);
+                NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
+            END IF;
+
+            -- remove bbox on root
+            NEW.jsondata := NEW.jsondata - 'bbox';
+
+            -- Inject type
+            NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
+
+            -- Inject meta
+            NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
+
+            IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+            --GeoJson Feature Import
+                NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
+                NEW.jsondata := NEW.jsondata - 'geometry';
+            ELSE
+                NEW.geo := ST_Force3D(NEW.geo);
+            END IF;
+
+            NEW.operation := 'I';
+            NEW.version := curVersion;
+            NEW.id := fid;
+            NEW.author := author;
+    RETURN NEW;
+END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION public.import_into_space(schem text, temporary_tbl regclass, target_tbl regclass, format text, i integer)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+AS $BODY$
+	DECLARE
+        retry_count integer := 2;
+		import_config text := 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''"'' ESCAPE '''''''' ';
+		locked_item record;
+		import_results record;
+		target_clomuns text;
+		import_statistics text;
+		exeception_msg text;
+		exeception_detail text;
+		exeception_hint text;
+    BEGIN
+		/** TODO:
+			- Check how to use labels of queries which are getting performed inside a function.
+			- Remove debug outputs
+		*/
+		format := lower(format);
+
+		IF format = 'jsonwkb' THEN
+			target_clomuns := 'jsondata,geo';
+		ELSEIF format = 'geojson'THEN
+			target_clomuns := 'jsondata';
+        ELSE
+			RAISE EXCEPTION 'Format ''%'' not supported! ',format
+			USING HINT = 'geojson | jsonwkb are available',
+				  ERRCODE = 'XYZ51';
+        END IF;
+
+        BEGIN
+            EXECUTE format('SELECT s3_uri, state, i, execution_count, data FROM %1$s '
+                       ||'WHERE state=%2$L AND i >= %3$L OR (state=%4$L AND execution_count < %5$L ) ORDER by i LIMIT 1 FOR UPDATE NOWAIT'
+                    , temporary_tbl, 'SUBMITTED',  i,  'FAILED', retry_count )
+            INTO locked_item;
+
+            IF locked_item is NULL THEN
+                RAISE NOTICE 'No work left!';
+
+                EXECUTE format('SELECT '
+                           || '   COUNT(*) FILTER (WHERE state = %1$L) AS finished_count,'
+                           || '   COUNT(*) FILTER (WHERE state = %2$L and execution_count=%3$L) AS failed_count,'
+                           || '   COUNT(*) AS total_count '
+                           || 'FROM %4$s;',
+                       'FINISHED',
+                       'FAILED',
+                       retry_count,
+                       temporary_tbl
+                ) INTO import_results;
+
+                IF  (import_results.finished_count+import_results.failed_count) = import_results.total_count THEN
+                    -- Will only be executed from last worker
+                    RAISE NOTICE 'Last Worker reports ... %',import_results;
+                    IF import_results.total_count = import_results.failed_count  THEN
+                        RAISE EXCEPTION 'All imports are failed!';
+                    ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
+                        RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count,import_results.total_count;
+                    END IF;
+                END IF;
+                RETURN;
+            END IF;
+
+            RAISE NOTICE 'Work on: i:% work_item:% retry_count:% s3_url:% ', i , locked_item.i, locked_item.execution_count, locked_item.s3_uri;
+
+            EXECUTE format(
+                'SELECT/*lables({"type": "ImortFilesToSpace","bytes":%1$L})*/ aws_s3.table_import_from_s3( '
+                    ||' ''%2$s.%3$s'', '
+                    ||'	%4$L, '
+                    ||'	%5$L, '
+                    ||'	%6$L) ',
+                locked_item.data->'filesize',
+                schem,
+                target_tbl,
+                target_clomuns,
+                import_config,
+                locked_item.s3_uri) INTO import_statistics;
+
+            RAISE NOTICE 'import_statistics %',import_statistics;
+
+            --TODO: REMOVE! Simiulates diffrent processing times!
+            --PERFORM pg_sleep((random() * 4)::INT);
+
+            --Update success
+            EXECUTE format('UPDATE %1$s '
+                               ||'set state = %2$L, '
+                               ||'execution_count = %3$L ,'
+                               ||'data = data || %4$L'
+                               ||'WHERE i = %5$L',temporary_tbl,
+                        'FINISHED',
+                        locked_item.execution_count+1 ,
+                        json_build_object('import_statistics', import_statistics),
+                        locked_item.i);
+
+             i := i+1;
+
+            --recursive call for next work-item
+            PERFORM import_into_space(schem, temporary_tbl, target_tbl, format, i);
+
+            EXCEPTION
+                WHEN SQLSTATE '55P03' THEN
+                    /**
+                        55P03 (rowlock detected) - try next next item
+                    */
+                    i := i+1;
+                    --recursive call for next work-item
+                    PERFORM import_into_space(schem, temporary_tbl, target_tbl, format , i);
+                WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
+                    /** Retryable errors:
+                            23505 (duplicate key value violates unique constraint)
+                            22P02 (invalid input syntax for type json)
+                            22P04 (extra data after last expected column)
+                    */
+                    EXECUTE format('UPDATE %1$s '
+                        ||'set state = %2$L, '
+                        ||'execution_count = %3$L '
+                        ||'WHERE i = %4$L',
+                            temporary_tbl,
+                            'FAILED',
+                            locked_item.execution_count+1,
+                            locked_item.i);
+
+                    --recursive call for next work-item
+                    PERFORM import_into_space(schem, temporary_tbl, target_tbl, format, i);
+                    WHEN OTHERS THEN
+                        -- Unexpected Exception => no retry
+                        GET STACKED DIAGNOSTICS exeception_msg = MESSAGE_TEXT,
+                                  exeception_detail = PG_EXCEPTION_DETAIL,
+                                  exeception_hint = PG_EXCEPTION_HINT;
+
+                        EXECUTE format('UPDATE %1$s '
+                                       ||'set state = %2$L, '
+                                       ||'execution_count = %3$L '
+                                       ||'WHERE i = %4$L',
+                                            temporary_tbl,
+                                            'FAILED',
+                                            retry_count,
+                                            locked_item.i);
+
+                        RAISE EXCEPTION 'Import has failed % %', exeception_msg, exeception_detail;
+        END;
+END
+$BODY$;

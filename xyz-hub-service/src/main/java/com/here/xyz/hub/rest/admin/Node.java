@@ -21,12 +21,12 @@ package com.here.xyz.hub.rest.admin;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.admin.messages.brokers.RedisMessageBroker;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -100,8 +100,8 @@ public class Node {
   }
 
   private static void initNodeChecker() {
-    if (Service.vertx != null) {
-      Service.vertx.setPeriodic(CLUSTER_NODES_CHECKER_PERIOD, timerId -> otherClusterNodes.forEach(otherNode -> otherNode.isHealthy(ar -> {
+    if (Core.vertx != null) {
+      Core.vertx.setPeriodic(CLUSTER_NODES_CHECKER_PERIOD, timerId -> otherClusterNodes.forEach(otherNode -> otherNode.isHealthy(ar -> {
         if (ar.failed()) {
           otherNode.consecutiveHcFailures++;
           if (otherNode.consecutiveHcFailures >= MAX_HC_FAILURE_COUNT)

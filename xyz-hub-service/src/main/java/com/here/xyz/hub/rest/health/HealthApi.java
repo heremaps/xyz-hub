@@ -19,10 +19,9 @@
 
 package com.here.xyz.hub.rest.health;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.admin.Node;
@@ -36,6 +35,7 @@ import com.here.xyz.hub.util.health.checks.RedisHealthCheck;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthAggregator;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;

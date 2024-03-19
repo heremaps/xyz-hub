@@ -40,16 +40,15 @@ import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
-import com.here.xyz.httpconnector.util.jobs.Export.Filters;
-import com.here.xyz.httpconnector.util.jobs.Export.SpatialFilter;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
+import com.here.xyz.jobs.datasets.DatasetDescription.Space;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.JdbcClient;
@@ -84,55 +83,82 @@ public class JDBCExporter extends JdbcBasedHandler {
       return instance;
     }
 
+    static private final int PSEUDO_NEXT_VERSION = 0;
     //Space-Copy Begin
     private SQLQuery buildCopySpaceQuery(JdbcClient client, Export job,
         Connector targetSpaceConnector, boolean targetVersioningEnabled) throws SQLException {
       boolean enableHashedSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
-          ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
-          : false;
+                                    ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
+                                    : false;
       String targetSpaceId = job.getTarget().getKey();
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
       return new SQLQuery(
-        "WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */ "
-            + "(INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version) "
-            + "SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version "
-            + "FROM "
-            + "  (${{contentQuery}} AND next_version = #{MAX_BIGINT} ) idata "
-            + "  LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint()) "
-            + "  RETURNING id, version "
-            + "), "
-            + "upd_data as "
-            + "(UPDATE ${schema}.${table} "
-            + "   SET next_version = (SELECT version FROM ins_data LIMIT 1) "
-            + " WHERE ${{targetVersioningEnabled}}"
-            + "    AND next_version = max_bigint()"
-            + "    AND id IN (SELECT id FROM ins_data)"
-            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
-            + "  RETURNING id, version"
-            + "), "
-            + "del_data AS "
-            + "(DELETE FROM ${schema}.${table} "
-            + "  WHERE not ${{targetVersioningEnabled}}"
-            + "    AND id IN (SELECT id FROM ins_data)"
-            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
-            + "  RETURNING id, version "
-            + ") "
-            + "SELECT count(1) AS rows_uploaded, 0::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded, "
-            +  "      (SELECT count(1) FROM upd_data) AS version_updated, "
-            +  "      (SELECT count(1) FROM del_data) AS version_deleted "
-            + "FROM ins_data l")
-          .withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
-          .withVariable("table", tableName)
-          .withQueryFragment("jobId", job.getId())
-          .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
-          .withVariable("versionSequenceName", tableName + "_version_seq")
-          .withNamedParameter("MAX_BIGINT", GetFeatures.MAX_BIGINT)
-          .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
+          """
+            WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */
+            (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
+            SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id,
+                   (SELECT nextval('${schema}.${versionSequenceName}')) AS version,
+                   CASE WHEN edata.id isnull THEN max_bigint() ELSE ${{pseudoNextVersion}} END as next_version
+            FROM
+              (${{contentQuery}} ) idata
+              LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint())
+              RETURNING id, version
+            ),
+            upd_data as
+            (UPDATE ${schema}.${table}
+               SET next_version = (SELECT version FROM ins_data LIMIT 1)
+             WHERE ${{targetVersioningEnabled}}
+                AND next_version = max_bigint()
+                AND id IN (SELECT id FROM ins_data)
+                AND version < (SELECT version FROM ins_data LIMIT 1)
+              RETURNING id, version
+            ),
+            del_data AS
+            (DELETE FROM ${schema}.${table}
+              WHERE not ${{targetVersioningEnabled}}
+                AND id IN (SELECT id FROM ins_data)
+                AND version < (SELECT version FROM ins_data LIMIT 1)
+              RETURNING id, version
+            )
+            SELECT count(1) AS rows_uploaded, 0::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded,
+                  (SELECT count(1) FROM upd_data) AS version_updated,
+                  (SELECT count(1) FROM del_data) AS version_deleted
+            FROM ins_data l
+          """
+          ).withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
+           .withVariable("table", tableName)
+           .withQueryFragment("jobId", job.getId())
+           .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
+           .withVariable("versionSequenceName", tableName + "_version_seq")
+           .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" )
+           .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
+    }
+
+    private SQLQuery buildCopySpaceNextVersionUpdate(JdbcClient client, Export job, Connector targetSpaceConnector) throws SQLException {
+      boolean enableHashedSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
+                                    ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
+                                    : false;
+      String targetSpaceId = job.getTarget().getKey();
+      final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
+      /* adjust next_version to max_bigint(), except in case of concurency set it to concurrent inserted version */
+      //TODO: case of extern concurency && same id in source & target && non-versiond layer a duplicate id can occure with next_version = concurrent_inserted.version
+      return new SQLQuery(
+          """
+            UPDATE /* space_copy_hint m499#jobId(${{jobId}}) */ 
+             ${schema}.${table} t
+             set next_version = coalesce(( select version from ${schema}.${table} i where i.id = t.id and i.next_version = max_bigint() ), max_bigint())
+            where 
+             next_version = ${{pseudoNextVersion}}
+          """
+          ).withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
+           .withVariable("table", tableName)
+           .withQueryFragment("jobId", job.getId())
+           .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" );
     }
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {
     String propertyFilter = null;
-    Export.SpatialFilter spatialFilter = null;
+    SpatialFilter spatialFilter = null;
 ////// get filters from source space
     if( job.getSource() != null && job.getSource() instanceof Space )
     { Filters f = ((Space) job.getSource()).getFilters();
@@ -153,8 +179,10 @@ public class JDBCExporter extends JdbcBasedHandler {
         .withContext(EXTENSION)
         .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", enableHashedSpaceId));
 
-//      if (targetVersion != null)
-//           event.setRef(targetVersion);
+      if( event.getParams() != null && event.getParams().get("versionsToKeep") != null )
+       event.setVersionsToKeep((int) event.getParams().get("versionsToKeep") ); // -> forcing "...AND next_version = maxBigInt..." in query
+
+      event.setRef( job.getTargetVersion() == null ? new Ref("HEAD") : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
           PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
@@ -170,6 +198,8 @@ public class JDBCExporter extends JdbcBasedHandler {
     try {
 
       return ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+          //TODO: Why not selecting the feature id / geo here?
+          //FIXME: Do not select operation / author as part of the "property-selection"-fragment
           .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
           .withGeoOverride(buildGeoFragment(spatialFilter))
           .buildQuery(event);
@@ -178,6 +208,7 @@ public class JDBCExporter extends JdbcBasedHandler {
       throw new SQLException(e);
     }
   }
+
 
   private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, Export job) {
       logger.info("job[{}] Execute Query Space-Copy {}->{} {}", job.getId(), job.getTargetSpaceId(), "Space-Destination", q.text());
@@ -192,25 +223,37 @@ public class JDBCExporter extends JdbcBasedHandler {
       });
     }
 
+  private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, SQLQuery q2, Export job)
+  {
+    return executeCopyQuery( client, q, job )
+             .compose( e -> {
+               return client.write(q2).compose( i -> Future.succeededFuture(e) );
+            } );
+  }
+
     public Future<ExportStatistic> executeCopy(Export job) {
       Promise<Export.ExportStatistic> promise = Promise.promise();
       List<Future> exportFutures = new ArrayList<>();
 
       String spaceId = job.getTarget().getKey();
-      return HubWebClientAsync.getSpace( spaceId )
-          .compose(space -> HubWebClientAsync.getConnectorConfig(space.getStorage().getId())
+      return LegacyHubWebClient.getSpace( spaceId )
+          .compose(space -> LegacyHubWebClient.getConnectorConfig(space.getStorage().getId())
               .compose(connector -> getClient(connector.id)
                   .compose(client -> {
                     try {
-                      SQLQuery copyQuery = buildCopySpaceQuery(client, job, connector, space.getVersionsToKeep() > 1);
-                      exportFutures.add(executeCopyQuery(client, copyQuery, job));
+                      boolean targetVersioningEnabled = space.getVersionsToKeep() > 1;
+
+                      SQLQuery copyQuery = buildCopySpaceQuery(client, job, connector, targetVersioningEnabled ),
+                               setNextVersionUpdateSql = buildCopySpaceNextVersionUpdate(client, job, connector );
+
+                      exportFutures.add(executeCopyQuery(client, copyQuery, setNextVersionUpdateSql, job));
                       return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
                     }
                     catch (SQLException e) {
                       return Future.failedFuture(e);
                     }
                   }))
-              .compose(statistics -> HubWebClientAsync.updateSpaceConfig(new JsonObject().put("contentUpdatedAt", System.currentTimeMillis()), space.getId())
+              .compose(statistics -> LegacyHubWebClient.updateSpaceConfig(new JsonObject().put("contentUpdatedAt", System.currentTimeMillis()), space.getId())
                     .map(statistics))
           );
     }
@@ -223,7 +266,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
             try {
               String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
-              Export.SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
+              SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery;
 
               boolean compositeCalculation =   job.readParamCompositeMode() == Export.CompositeMode.CHANGES
@@ -432,7 +475,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                                               boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
 
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
         SQLQuery exportSelectString = generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
@@ -457,7 +500,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         String s3Region, boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
         //Generic partition
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
 
@@ -483,7 +526,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         SQLQuery qkTileQry) throws SQLException {
         //Tiled export
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
 
@@ -525,23 +568,23 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
         return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
         return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, isForCompositeContentDetection, null, false);
     }
 
 
     private SQLQuery generateFilteredExportQueryForCompositeTileCalculation(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
         return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
         throws SQLException {
 
         csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
@@ -699,8 +742,9 @@ public class JDBCExporter extends JdbcBasedHandler {
 
             default:
             {
-                contentQuery
-                        .withQueryFragment("id", "");
+              //TODO: Why is it important here to not have the id selected?
+              contentQuery = new SQLQuery("SELECT jsondata, geo FROM (${{innerContentQuery}}) contentQuery")
+                  .withQueryFragment("innerContentQuery", contentQuery);
                 return queryToText(contentQuery);
             }
         }

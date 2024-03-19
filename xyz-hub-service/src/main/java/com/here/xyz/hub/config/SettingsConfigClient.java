@@ -19,28 +19,20 @@
 
 package com.here.xyz.hub.config;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoSettingsConfigClient;
 import com.here.xyz.hub.config.memory.InMemSettingsConfigClient;
 import com.here.xyz.hub.config.settings.Setting;
-import com.here.xyz.hub.connectors.models.Connector;
-import io.vertx.core.AsyncResult;
+import com.here.xyz.util.service.Initializable;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
-import io.vertx.core.Promise;
 import io.vertx.core.json.jackson.JacksonCodec;
-import java.awt.Composite;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;

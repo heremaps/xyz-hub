@@ -26,14 +26,14 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.ModifySubscriptionEvent.Operation;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.task.FeatureTask.ModifySubscriptionQuery;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -49,7 +49,7 @@ public class SubscriptionHandler {
   private static final Logger logger = LogManager.getLogger();
 
   public static Future<Subscription> getSubscription(RoutingContext context, String spaceId, String subscriptionId) {
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = LogUtil.getMarker(context);
 
     return Service.subscriptionConfigClient.get(marker, subscriptionId)
         .compose(subscription -> {
@@ -67,7 +67,7 @@ public class SubscriptionHandler {
   }
 
   public static Future<List<Subscription>> getSubscriptions(RoutingContext context, String source) {
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = LogUtil.getMarker(context);
 
     return Service.subscriptionConfigClient.getBySource(marker, source)
         .recover(t -> {
@@ -77,7 +77,7 @@ public class SubscriptionHandler {
   }
 
   public static Future<Subscription> createSubscription(RoutingContext context, Subscription subscription) {
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = LogUtil.getMarker(context);
     subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
 
     return Service.subscriptionConfigClient.get(marker, subscription.getId())
@@ -92,7 +92,7 @@ public class SubscriptionHandler {
   }
 
   public static Future<Subscription> createOrReplaceSubscription(RoutingContext context, Subscription subscription) {
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = LogUtil.getMarker(context);
 
     // Set status to 'ACTIVE' only when status is not present
     if (subscription.getStatus() == null || subscription.getStatus().getState() == null) {
@@ -118,7 +118,7 @@ public class SubscriptionHandler {
                 return Future.failedFuture(
                     "Unable to increase versionsToKeep value on space " + subscription.getSource() + " during subscription registration.");
               });
-          final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, subscription.getId(), subscription.getSource())
+          final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, Service.configuration.SUBSCRIPTION_TAG, subscription.getSource())
               .compose(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
               .recover(t -> {
                 logger.warn("tagFuture for tag creation failed with cause: " + t.getMessage(), t);
@@ -160,7 +160,7 @@ public class SubscriptionHandler {
   }
 
   protected static Future<Subscription> removeSubscription(RoutingContext context, Subscription subscription) {
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = LogUtil.getMarker(context);
 
     return Service.subscriptionConfigClient.delete(marker, subscription)
         .compose(s -> Service.subscriptionConfigClient.getBySource(marker, subscription.getSource()))
@@ -185,7 +185,7 @@ public class SubscriptionHandler {
 
   private static Future<Void> sendEvent(RoutingContext context, Operation operation, Subscription subscription) {
     final Promise<Void> promise = Promise.promise();
-    final Marker marker = Api.Context.getMarker(context);
+    final Marker marker = LogUtil.getMarker(context);
 
     final ModifySubscriptionEvent event = new ModifySubscriptionEvent()
         .withOperation(operation)

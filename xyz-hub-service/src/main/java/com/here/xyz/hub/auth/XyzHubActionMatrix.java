@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.auth;
 
+import com.here.xyz.models.hub.jwt.ActionMatrix;
+import com.here.xyz.models.hub.jwt.AttributeMap;
+
 @SuppressWarnings("serial")
 public class XyzHubActionMatrix extends ActionMatrix {
 

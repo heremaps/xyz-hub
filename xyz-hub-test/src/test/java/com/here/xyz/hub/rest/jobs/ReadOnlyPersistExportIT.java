@@ -22,7 +22,7 @@ import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWN
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.restassured.RestAssured.given;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;

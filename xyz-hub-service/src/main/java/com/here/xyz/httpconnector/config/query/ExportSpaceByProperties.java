@@ -39,7 +39,29 @@ public class ExportSpaceByProperties extends SearchForFeatures<SearchForFeatures
 
   @Override
   public SQLQuery buildQuery(SearchForFeaturesEvent event) throws SQLException, ErrorResponseException {
-    return patchQuery(super.buildQuery(event), geoOverride, customWhereClause, selectionOverride);
+    return super.buildQuery(event);
+  }
+
+  @Override
+  protected SQLQuery buildSelectClause(SearchForFeaturesEvent event, int dataset) {
+    return patchSelectClause(super.buildSelectClause(event, dataset), selectionOverride);
+  }
+
+  @Override
+  protected SQLQuery buildGeoFragment(SearchForFeaturesEvent event) {
+    if (geoOverride == null)
+      return super.buildGeoFragment(event);
+    return geoOverride;
+  }
+
+  @Override
+  protected SQLQuery buildFilterWhereClause(SearchForFeaturesEvent event) {
+    return patchWhereClause(super.buildFilterWhereClause(event), customWhereClause);
+  }
+
+  @Override
+  protected SQLQuery buildLimitFragment(SearchForFeaturesEvent event) {
+    return new SQLQuery("");
   }
 
   @Override

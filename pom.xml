@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.8.14-SNAPSHOT</version>
+  <version>3.8.26-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -51,6 +51,7 @@
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
     <module>xyz-util</module>
+    <module>xyz-jobs</module>
   </modules>
 
   <scm>
@@ -91,6 +92,7 @@
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
+    <aws-sdk2-version>2.23.18</aws-sdk2-version>
     <vertx-version>4.4.4</vertx-version>
     <geo-tools-version>30.1</geo-tools-version>
     <jts-version>1.19.0</jts-version>
@@ -202,7 +204,6 @@
 
   <dependencyManagement>
     <dependencies>
-
       <!-- Modules versions -->
       <dependency>
         <groupId>${project.groupId}</groupId>
@@ -227,6 +228,16 @@
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-util</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-job-service</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-job-steps</artifactId>
         <version>${project.version}</version>
       </dependency>
 
@@ -328,6 +339,30 @@
 
       <!-- AWS SDKs -->
       <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>bom</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>aws-core</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
         <artifactId>aws-java-sdk-core</artifactId>
         <exclusions>
           <exclusion>
@@ -337,6 +372,17 @@
         </exclusions>
         <groupId>com.amazonaws</groupId>
         <version>${aws-sdk-version}</version>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>lambda</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
       </dependency>
 
       <dependency>
@@ -402,6 +448,28 @@
         <artifactId>aws-java-sdk-emrserverless</artifactId>
         <groupId>com.amazonaws</groupId>
         <version>1.12.230</version>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>stepfunctions</artifactId>
+        <version>2.0.0-preview-11</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>cloudwatchevents</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
       </dependency>
 
       <!-- AWS Lambda Core -->
@@ -541,7 +609,7 @@
       <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
-        <version>42.6.0</version>
+        <version>42.7.2</version>
       </dependency>
       <dependency>
         <groupId>commons-dbutils</groupId>
@@ -567,6 +635,11 @@
         <groupId>com.ongres.scram</groupId>
         <artifactId>client</artifactId>
         <version>2.1</version>
+      </dependency>
+      <dependency>
+        <groupId>dnsjava</groupId>
+        <artifactId>dnsjava</artifactId>
+        <version>3.5.3</version>
       </dependency>
 
     </dependencies>

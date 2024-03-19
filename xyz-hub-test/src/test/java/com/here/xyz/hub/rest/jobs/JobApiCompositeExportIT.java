@@ -31,12 +31,14 @@ import static org.junit.Assert.assertNull;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.util.service.HttpException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -175,9 +177,13 @@ public class JobApiCompositeExportIT extends JobApiIT{
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         checkUrls(urls, true);
 
-//        job =  generateExportJob(testExportJobId, 4);
-//        urls = performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-//        checkUrls(urls, true);
+        Export compositeJob = (Export)loadJob(testSpaceId1Ext, job.getId());
+        Export baseJob = (Export)loadJob(testSpaceId1, job.getId()+ "_missing_base");
+
+        assertEquals(3, compositeJob.getMaxSpaceVersion());
+        assertEquals(0, compositeJob.getMaxSuperSpaceVersion());
+        assertEquals(0, baseJob.getMaxSpaceVersion());
+        assertEquals(-42,baseJob.getMaxSuperSpaceVersion());
     }
 
     @Test
@@ -208,11 +214,11 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         /** Composite Export with filter - requires new Export of base */
         job =  generateExportJob(testExportJobId, 6);
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(41.65012, 38.968056)))
                 .withRadius(5000);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         job.setFilters(filters);
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
@@ -230,7 +236,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         /** Composite Export with new property filter - requires new Export of base */
         job =  generateExportJob(testExportJobId, 7);
-        filters = new Export.Filters()
+        filters = new Filters()
                 .withPropertyFilter( "p.foo=test2");
         job.setFilters(filters);
 
@@ -241,7 +247,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         /** Composite Export with existing configuration - requires NO new Export of base */
         job =  generateExportJob(testExportJobId, 7);
-        filters = new Export.Filters()
+        filters = new Filters()
                 .withPropertyFilter( "p.foo=test2");
         job.setFilters(filters);
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);

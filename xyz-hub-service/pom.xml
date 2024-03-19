@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.8.14-SNAPSHOT</version>
+    <version>3.8.26-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -169,16 +169,26 @@
 
   <dependencies>
 
+    <!-- XYZ libraries -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-util</artifactId>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-models</artifactId>
     </dependency>
-
-    <!-- Embedded xyz lambdas -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-psql-connector</artifactId>
     </dependency>
+
+    <!-- Added only temporary; Can be removed when legacy job service was removed -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-job-service</artifactId>
+    </dependency>
+
     <!-- Logging libraries -->
     <dependency>
       <artifactId>log4j-slf4j-impl</artifactId>
@@ -196,7 +206,6 @@
       <artifactId>disruptor</artifactId>
       <groupId>com.lmax</groupId>
     </dependency>
-
 
     <!-- Vert.x -->
     <dependency>
@@ -291,6 +300,33 @@
       <artifactId>aws-java-sdk-emrserverless</artifactId>
       <groupId>com.amazonaws</groupId>
     </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>stepfunctions</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>cloudwatchevents</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!-- TODO: Use new RDS SDK2 instead -->
+    <dependency>
+      <artifactId>aws-java-sdk-rds</artifactId>
+      <groupId>com.amazonaws</groupId>
+      <!-- TODO: put version into main pom's dependency-management -->
+      <version>1.12.651</version>
+    </dependency>
 
     <!--  GeoTools libraries -->
     <dependency>
@@ -370,6 +406,10 @@
     <dependency>
       <groupId>com.ongres.scram</groupId>
       <artifactId>client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>dnsjava</groupId>
+      <artifactId>dnsjava</artifactId>
     </dependency>
 
     <!-- Test -->

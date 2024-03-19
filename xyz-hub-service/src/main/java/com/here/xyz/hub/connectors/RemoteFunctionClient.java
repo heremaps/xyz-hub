@@ -23,12 +23,12 @@ import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
@@ -460,7 +460,7 @@ public abstract class RemoteFunctionClient {
     final byte[] bytes;
     final boolean fireAndForget;
     final boolean hasPriority;
-    final Context context = Service.vertx.getOrCreateContext();
+    final Context context = Core.vertx.getOrCreateContext();
 
     private final Handler<AsyncResult<byte[]>> callback;
     private Runnable cancelHandler;

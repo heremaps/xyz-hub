@@ -45,11 +45,12 @@ Once refactoring is complete, all members of SearchForFeaturesEvent can be pulle
 can be renamed to SearchForFeaturesEvent again.
  */
 public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzResponse> extends GetFeatures<E, R> {
-
   protected boolean hasSearch;
 
   public SearchForFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
+    //hasSearch = (event.getPropertiesQuery() == null || event.getPropertiesQuery().size() == 0)
+    //    && (event.getTags() == null || event.getTags().size() == 0);
   }
 
   //TODO: Make protected & non-static to be able to simply access the dataSourceProvider of this QR
@@ -60,27 +61,24 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
   @Override
-  protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
-    SQLQuery query = super.buildQuery(event);
-
+  protected SQLQuery buildFilterWhereClause(E event) {
     SQLQuery searchQuery = buildSearchFragment(event);
-    if (hasSearch)
-      query.setQueryFragment("filterWhereClause", searchQuery);
-    else
-      query.setQueryFragment("filterWhereClause", "TRUE");
 
-    query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
-    return query;
+    if (searchQuery != null)
+      return searchQuery;
+
+    return super.buildFilterWhereClause(event);
   }
 
   protected SQLQuery buildSearchFragment(E event) {
-    final SQLQuery searchQuery = SearchForFeatures.generateSearchQuery(event);
+    final SQLQuery searchQuery = generateSearchQuery(event);
     hasSearch = searchQuery != null;
     return searchQuery;
   }
 
-  protected static SQLQuery buildLimitFragment(long limit) {
-    return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", limit);
+  @Override
+  protected SQLQuery buildLimitFragment(E event) {
+    return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit());
   }
 
   /**
@@ -218,6 +216,8 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
         .withNamedParameters(namedParams);
   }
 
+  //TODO: Remove search by tags implementation as it was removed from the API
+  @Deprecated
   private static SQLQuery generateTagsQuery(TagsQuery tagsQuery) {
     if (tagsQuery == null || tagsQuery.size() == 0)
       return null;

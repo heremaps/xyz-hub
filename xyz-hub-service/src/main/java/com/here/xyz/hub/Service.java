@@ -42,6 +42,7 @@ import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;

@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.util;
 
+import com.here.xyz.util.Compression;
 import java.util.zip.DataFormatException;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;

@@ -35,7 +35,6 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -69,6 +68,7 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
     //TODO: Do version related queries directly inside xyz_statistic_space() and remove GetChangesetStatistics / GetChangesetStatisticsEvent / ChangesetStatisticsResponse ...
     long minVersion;
     long maxVersion;
+    Value<Long> minTagVersion;
     try {
       final GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent()
           .withSpace(spaceId)
@@ -76,6 +76,7 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
       ChangesetsStatisticsResponse versionResponse = new GetChangesetStatistics(event).withDataSourceProvider(dataSourceProvider).run();
       minVersion = versionResponse.getMinVersion();
       maxVersion = versionResponse.getMaxVersion();
+      minTagVersion = versionResponse.getMinTagVersion() == null ? null : new Value<>(versionResponse.getMinTagVersion());
     }
     catch (ErrorResponseException e) {
       throw new RuntimeException(e);
@@ -83,7 +84,8 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
 
     return super.run(dataSourceProvider)
         .withMinVersion(new Value<>(minVersion).withEstimated(false))
-        .withMaxVersion(new Value<>(maxVersion).withEstimated(false));
+        .withMaxVersion(new Value<>(maxVersion).withEstimated(false))
+        .withMinTagVersion(minTagVersion);
   }
 
   @Override

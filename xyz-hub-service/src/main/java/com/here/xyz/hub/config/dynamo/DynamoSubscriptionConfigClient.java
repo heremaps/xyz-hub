@@ -29,6 +29,8 @@ import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
+import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;

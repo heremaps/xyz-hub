@@ -66,20 +66,23 @@ recipes:
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
       - components.parameters.ConnectorId
-      - components.parameters.StartVersionNotRequired
       - components.parameters.EndVersionNotRequired
-      - components.parameters.Tweaks
-      - components.parameters.TweaksParams
+      - components.parameters.IncludeSystemTags
       - components.parameters.PrefixId
-      - components.parameters.Transactional
+      - components.parameters.StartVersionNotRequired
       - components.parameters.SubscriptionId
       - components.parameters.TagId
+      - components.parameters.Transactional
+      - components.parameters.Tweaks
+      - components.parameters.TweaksParams
       - components.responses.ConnectorResponse
       - components.responses.ConnectorsResponse
-      - components.responses.SubscriptionResponse
-      - components.responses.SubscriptionsResponse
       - components.responses.JobResponse
       - components.responses.JobsResponse
+      - components.responses.SubscriptionResponse
+      - components.responses.SubscriptionsResponse
+      - components.responses.TagResponse
+      - components.responses.TagsResponse
       - components.requestBodies.ConnectorConfig
       - components.requestBodies.SubscriptionRequest
       - components.schemas.AWSLambda

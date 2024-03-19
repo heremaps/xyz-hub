@@ -30,8 +30,8 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -86,7 +86,7 @@ public class S3CacheClient implements CacheClient {
 
   @Override
   public Future<byte[]> get(String key) {
-    return Service.vertx.executeBlocking(promise -> {
+    return Core.vertx.executeBlocking(promise -> {
       S3Object object = s3client.getObject(bucket, prefix + key);
       try {
         promise.complete(ByteStreams.toByteArray(object.getObjectContent()));
@@ -102,7 +102,7 @@ public class S3CacheClient implements CacheClient {
 
   @Override
   public void set(String key, byte[] value, long ttl) {
-    Service.vertx.executeBlocking(promise -> {
+    Core.vertx.executeBlocking(promise -> {
       final long now = Core.currentTimeMillis();
       s3client.putObject(bucket, prefix + key, new ByteArrayInputStream(value),
           getMetadata(now + TimeUnit.SECONDS.toMillis(ttl), now, value.length));
@@ -129,7 +129,7 @@ public class S3CacheClient implements CacheClient {
     long oldAccessedAt = Long.parseLong(existingMetadata.getUserMetadata().get(LAST_ACCESSED_AT)) + ACCESS_UPDATE_TIME_THRESHOLD;
     if (lastAccessedAt - ACCESS_UPDATE_TIME_THRESHOLD < oldAccessedAt)
       return;
-    Service.vertx.executeBlocking(promise -> {
+    Core.vertx.executeBlocking(promise -> {
       s3client.copyObject(new CopyObjectRequest()
           .withSourceBucketName(bucket)
           .withSourceKey(key)
@@ -144,7 +144,7 @@ public class S3CacheClient implements CacheClient {
 
   @Override
   public void remove(String key) {
-    Service.vertx.executeBlocking(promise -> {
+    Core.vertx.executeBlocking(promise -> {
       s3client.deleteObject(bucket, prefix + key);
       promise.complete();
     }, false);

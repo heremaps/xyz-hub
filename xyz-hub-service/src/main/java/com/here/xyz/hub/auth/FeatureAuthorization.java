@@ -19,16 +19,18 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getJWT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.models.hub.jwt.ActionMatrix;
+import com.here.xyz.models.hub.jwt.AttributeMap;
+import com.here.xyz.util.service.HttpException;
 
 public class FeatureAuthorization extends Authorization {
 
@@ -71,16 +73,14 @@ public class FeatureAuthorization extends Authorization {
         requestRights.readFeatures(XyzHubAttributeMap.forValues( ((GeometryQuery)task).refSpace.getOwner(), ((GeometryQuery)task).refSpaceId , ((GeometryQuery)task).refSpace.getPackages()));
     }
 
-    evaluateRights(requestRights, task.getJwt().getXyzHubMatrix(), task, callback);
+    evaluateRights(requestRights, getXyzHubMatrix(task.getJwt()), task, callback);
   }
 
   /**
    * Authorizes a conditional operation.
    */
   private static void authorizeConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    JWTPayload jwt = Api.Context.getJWT(task.context);
-
-    final ActionMatrix tokenRights = jwt.getXyzHubMatrix();
+    final ActionMatrix tokenRights = getXyzHubMatrix(getJWT(task.context));
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
     //READ

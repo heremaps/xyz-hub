@@ -19,10 +19,9 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
-import static com.here.xyz.hub.rest.Api.HeaderValues.TEXT_PLAIN;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
@@ -41,14 +40,11 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
-import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.SpaceTask;
 import com.here.xyz.hub.task.Task;
-import com.here.xyz.hub.task.TaskPipeline;
-import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space.Internal;
 import com.here.xyz.models.hub.Space.WithConnectors;
@@ -60,6 +56,10 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
+import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -83,7 +83,6 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 public abstract class Api {
 
@@ -94,11 +93,8 @@ public abstract class Api {
   public static final HttpResponseStatus RESPONSE_PAYLOAD_TOO_LARGE = new HttpResponseStatus(513, "Response payload too large");
   public static final String RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE =
       "The response payload was too large. Please try to reduce the expected amount of data.";
-  public static final HttpResponseStatus CLIENT_CLOSED_REQUEST = new HttpResponseStatus(499, "Client closed request");
   private static final String DEFAULT_GATEWAY_TIMEOUT_MESSAGE = "The storage connector exceeded the maximum time";
   private static final String DEFAULT_BAD_GATEWAY_MESSAGE = "The storage connector failed to execute the request";
-  private static final String AUTHOR_HEADER = "Author";
-
 
 
   /**
@@ -394,7 +390,7 @@ public abstract class Api {
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
   protected void sendErrorResponse(final RoutingContext context, Throwable e) {
-    if (e instanceof TaskPipeline.PipelineCancelledException)
+    if (e instanceof RequestCancelledException)
       return;
     if (e instanceof ValidationException)
       e = new HttpException(BAD_REQUEST, e.getMessage(), e);
@@ -535,7 +531,7 @@ public abstract class Api {
     if (Service.configuration.INCLUDE_HEADERS_FOR_DECOMPRESSED_IO_SIZE){
       RoutingContext context = task.context;
       // the body is discarded already, but the request size is stored in the access log object
-      long requestSize = Context.getAccessLog(context).reqInfo.size;
+      long requestSize = LogUtil.getAccessLog(context).reqInfo.size;
       long responseSize = response == null ? 0 : response.length;
       context.response().putHeader(Service.configuration.DECOMPRESSED_INPUT_SIZE_HEADER_NAME, String.valueOf(requestSize));
       context.response().putHeader(Service.configuration.DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME, String.valueOf(responseSize));
@@ -612,18 +608,6 @@ public abstract class Api {
     }
   }
 
-  public static class HeaderValues {
-
-    public static final String STREAM_ID = "Stream-Id";
-    public static final String STREAM_INFO = "Stream-Info";
-    public static final String STRICT_TRANSPORT_SECURITY = "Strict-Transport-Security";
-    public static final String APPLICATION_GEO_JSON = "application/geo+json";
-    public static final String APPLICATION_JSON = "application/json";
-    public static final String TEXT_PLAIN = "text/plain";
-    public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
-    public static final String APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST = "application/vnd.here.feature-modification-list";
-  }
-
   private static class XYZHttpContentCompressor extends HttpContentCompressor {
 
     private static final XYZHttpContentCompressor instance = new XYZHttpContentCompressor();
@@ -639,69 +623,12 @@ public abstract class Api {
   }
 
   public static Marker getMarker(RoutingContext context) {
-    return Context.getMarker(context);
+    return LogUtil.getMarker(context);
   }
 
   public static final class Context {
 
-    private static final String MARKER = "marker";
-    private static final String ACCESS_LOG = "accessLog";
-    private static final String JWT = "jwt";
     private static final String QUERY_PARAMS = "queryParams";
-
-    /**
-     * Returns the log marker for the request.
-     * TODO move to {@link com.here.xyz.hub.util.logging.LogUtil}
-     * @return the marker or null, if no marker was found.
-     */
-    public static Marker getMarker(RoutingContext context) {
-      if (context == null) {
-        return null;
-      }
-      Marker marker = context.get(MARKER);
-      if (marker == null) {
-        String sid = context.request().getHeader(STREAM_ID);
-        marker = new Log4jMarker( sid != null ? sid : STREAM_ID + "-null" );
-        context.put(MARKER, marker);
-      }
-      return marker;
-    }
-
-    /**
-     * Returns the access log object for this request.
-     * TODO move to {@link com.here.xyz.hub.util.logging.LogUtil}
-     * @param context the routing context.
-     * @return the access log object
-     */
-    public static AccessLog getAccessLog(RoutingContext context) {
-      if (context == null) {
-        return null;
-      }
-      AccessLog accessLog = context.get(ACCESS_LOG);
-      if (accessLog == null) {
-        accessLog = new AccessLog();
-        context.put(ACCESS_LOG, accessLog);
-      }
-      return accessLog;
-    }
-
-    /**
-     * Returns the log marker for the request.
-     *
-     * @return the marker or null, if no marker was found.
-     */
-    public static JWTPayload getJWT(RoutingContext context) {
-      if (context == null) {
-        return null;
-      }
-      JWTPayload payload = context.get(JWT);
-      if (payload == null && context.user() != null) {
-        payload = DatabindCodec.mapper().convertValue(context.user().principal(), JWTPayload.class);
-        context.put(JWT, payload);
-      }
-
-      return payload;
-    }
 
     /**
      * Returns the custom parsed query parameters.
@@ -743,21 +670,6 @@ public abstract class Api {
       return map;
     }
 
-    public static String getAuthor(RoutingContext context) {
-      if (Service.configuration.USE_AUTHOR_FROM_HEADER)
-        return context.request().getHeader(AUTHOR_HEADER);
-      return getJWT(context).aid;
-    }
-  }
-
-  public static class ValidationException extends Exception {
-      public ValidationException(String message) {
-          super(message);
-      }
-
-      public ValidationException(String message, Exception cause) {
-          super(message, cause);
-      }
   }
 
   public static class AccessDeniedException extends Exception {

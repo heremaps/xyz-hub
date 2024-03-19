@@ -19,10 +19,11 @@
 
 package com.here.xyz.hub.task;
 
+import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * A pipeline with functions to process a a task.
+ * A pipeline with functions to process a task.
  *
  * @param <V> the type of the task.
  */
@@ -175,24 +176,20 @@ public class TaskPipeline<V> {
       }
     }
 
-    //Execute the next chain stage, if there is any.
+    //Execute the next chain stage if there is any.
     if (next != null && !state.isCancelled)
       next._execute();
   }
 
   void cancel() {
     state.isCancelled = true;
-    PipelineCancelledException e = new PipelineCancelledException();
+    RequestCancelledException e = new RequestCancelledException();
     try {
       finishException.call(state.value, e);
     }
     catch (Throwable throwable) {
       state.exception = e;
     }
-  }
-
-  public static class PipelineCancelledException extends RuntimeException {
-
   }
 
   /**

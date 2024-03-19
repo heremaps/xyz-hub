@@ -33,7 +33,6 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
@@ -47,64 +46,70 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   protected static final long MAX_RESULT_SIZE = 100 * 1024 * 1024;
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   public static long MAX_BIGINT = Long.MAX_VALUE;
+  private boolean historyEnabled;
 
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
+    historyEnabled = event.getVersionsToKeep() > 1;
   }
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
-    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    boolean useExtensionQuery = isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
     SQLQuery versionCheckFragment = buildVersionCheckFragment(event);
+    SQLQuery filterWhereClause = buildFilterWhereClause(event);
+
     SQLQuery query;
-    if (useExtensionQuery) {
+    if (isCompositeQuery(event)) {
+      int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
       query = new SQLQuery(
           "SELECT * FROM ("
-          + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}${{id}}"
-          + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}})"
-          + " ${{unionAll}} "
-          + "        SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}} FROM"
-          + "            ("
-          + "                ${{baseQuery}}"
-          + "            ) a WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} b WHERE ${{notExistsIdComparison}})"
-          + ") limitQuery ${{limit}}")
-          .withQueryFragment("notExistsIdComparison", buildIdComparisonFragment(event, "a.", versionCheckFragment))
+          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}})"
+          + "   ${{unionAll}} "
+          + "     SELECT * FROM (${{baseQuery}}) a"
+          + "       WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} WHERE ${{idComparison}})"
+          + ") limitQuery ${{orderBy}} ${{limit}}")
+          .withQueryFragment("selectClause", buildSelectClause(event, dataset))
+          .withQueryFragment("filters", buildFiltersFragment(event, true, filterWhereClause, dataset))
+          .withQueryFragment("idComparison", buildIdComparisonFragment(event, "a.", versionCheckFragment))
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
           .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION ? "" : "NOT")
-          .withQueryFragment("iColumnExtension", "") //NOTE: This can be overridden by implementing subclasses
-          .withQueryFragment("iOffsetExtension", "")
           .withQueryFragment("baseQuery", !is2LevelExtendedSpace(event)
-              ? build1LevelBaseQuery(event) //1-level extension
-              : build2LevelBaseQuery(event)) //2-level extension
-          .withQueryFragment("iColumnBase", "") //NOTE: This can be overridden by implementing subclasses
-          .withQueryFragment("iOffsetBase", "") //NOTE: This can be overridden by implementing subclasses
-          .withQueryFragment("iColumnIntermediate", "") //NOTE: This can be overridden by implementing subclasses
-          .withQueryFragment("iOffsetIntermediate", ""); //NOTE: This can be overridden by implementing subclasses
+              ? build1LevelBaseQuery(event, filterWhereClause) //1-level extension
+              : build2LevelBaseQuery(event, filterWhereClause)); //2-level extension
     }
     else {
       query = new SQLQuery(
-          "SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}}"
-              + "    FROM ${schema}.${table} ${{tableSample}}"
-              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}")
-          .withQueryFragment("orderBy", buildOrderByFragment(event)) //NOTE: This can be overridden by implementing subclasses
-          .withQueryFragment("offset", ""); //NOTE: This can be overridden by implementing subclasses
+          "SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}} ${{limit}}")
+          .withQueryFragment("selectClause", buildSelectClause(event, 0))
+          .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, 0));
     }
 
     return query
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, getDefaultTable(event))
-        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, useExtensionQuery))
         .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("orderBy", buildOrderByFragment(event))
+        .withQueryFragment("limit", buildLimitFragment(event));
+  }
+
+  protected SQLQuery buildFiltersFragment(E event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
+    return new SQLQuery("${{filterWhereClause}} ${{authorCheck}} ${{deletedCheck}}")
+        .withQueryFragment("filterWhereClause", filterWhereClause)
         .withQueryFragment("authorCheck", buildAuthorCheckFragment(event))
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(isExtension));
+  }
+
+  protected SQLQuery buildFilterWhereClause(E event) {
+    return new SQLQuery("TRUE");
+  }
+
+  protected SQLQuery buildSelectClause(E event, int dataset) {
+    return new SQLQuery("id, ${{selection}}, ${{geo}}, ${{dataset}}")
         .withQueryFragment("selection", buildSelectionFragment(event))
         .withQueryFragment("geo", buildGeoFragment(event))
-        .withQueryFragment("iColumn", "") //NOTE: This can be overridden by implementing subclasses
-        .withQueryFragment("tableSample", "") //NOTE: This can be overridden by implementing subclasses
-        .withQueryFragment("limit", "") //NOTE: This can be overridden by implementing subclasses
-        .withQueryFragment("id", ", id");
+        .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
+            .withQueryFragment("datasetNo", "" + dataset));
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
@@ -113,8 +118,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     return new SQLQuery("${{versionComparison}} ${{nextVersion}} ${{minVersion}}")
         .withQueryFragment("versionComparison", buildVersionComparison(selectiveEvent))
-        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
-        .withQueryFragment("nextVersion", buildNextVersionFragment(selectiveEvent));
+        .withQueryFragment("nextVersion", buildNextVersionFragment(selectiveEvent))
+        .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
   }
 
   private SQLQuery buildVersionComparison(SelectiveEvent event) {
@@ -122,8 +127,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
 
-    return new SQLQuery("AND version <= #{version}")
-        .withNamedParameter("version", ref.getVersion());
+    return new SQLQuery("AND version <= #{requestedVersion}")
+        .withNamedParameter("requestedVersion", ref.getVersion());
   }
 
   private SQLQuery buildNextVersionFragment(SelectiveEvent event) {
@@ -150,14 +155,16 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
     Ref ref = event.getRef();
-    boolean isHeadOrStar = ref.isHead() || ref.isAllVersions();
-    long version = isHeadOrStar ? Long.MAX_VALUE : ref.getVersion();
+    boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions();
+    long version = isHeadOrAllVersions ? Long.MAX_VALUE : ref.getVersion();
+
     if (event.getVersionsToKeep() > 1)
       return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) - #{versionsToKeep} FROM ${schema}.${table})) <= #{version}")
           .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
           .withNamedParameter("minVersion", event.getMinVersion())
           .withNamedParameter("version", version);
-    return isHeadOrStar ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) as HEAD FROM ${schema}.${table})")
+
+    return isHeadOrAllVersions ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${table})")
         .withNamedParameter("version", version);
   }
 
@@ -169,33 +176,29 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withNamedParameter("author", selectiveEvent.getAuthor());
   }
 
-  private SQLQuery build1LevelBaseQuery(E event) {
-    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-
-    return new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
-        + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}}")
+  private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause) {
+    int dataset = compositeDatasetNo(event, CompositeDataset.SUPER);
+    return new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${extendedTable} WHERE ${{filters}} ${{versionCheck}}")
         .withVariable("extendedTable", getExtendedTable(event))
-        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, false)) //NOTE: We know that the base space is not an extended one
+        .withQueryFragment("selectClause", buildSelectClause(event, dataset))
+        .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the base space is not an extended one
         .withQueryFragment("versionCheck", buildBaseVersionCheckFragment("base1Version"));
   }
 
-  private SQLQuery build2LevelBaseQuery(E event) {
-    int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
+  private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {
     SQLQuery versionCheckFragment = buildBaseVersionCheckFragment("base2Version");
 
-    return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
-        + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}}) "
+    int dataset = compositeDatasetNo(event, CompositeDataset.INTERMEDIATE);
+    return new SQLQuery("(SELECT ${{selectClause}}"
+        + "  FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}}) "
         + "UNION ALL"
-        + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
-        + "        ("
-        + "            ${{innerBaseQuery}}"
-        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
+        + "  SELECT * FROM (${{baseQuery}}) b"
+        + "    WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
         .withVariable("intermediateExtensionTable", getIntermediateTable(event))
-        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, true)) //NOTE: We know that the intermediate space is an extended one
+        .withQueryFragment("selectClause", buildSelectClause(event, dataset))
+        .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the intermediate space is an extended one
         .withQueryFragment("versionCheck", versionCheckFragment)
-        .withQueryFragment("innerBaseQuery", build1LevelBaseQuery(event))
+        .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
         .withQueryFragment("idComparison", buildIdComparisonFragment(event, "b.", versionCheckFragment));
   }
 
@@ -205,14 +208,23 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("versionCheck", versionCheckFragment);
   }
 
-  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) {
-    if (v2k == 1 && !isExtended) return new SQLQuery("");
+  private SQLQuery buildDeletionCheckFragment(boolean isExtension) {
+    if (!historyEnabled && !isExtension)
+      return new SQLQuery("");
 
-    String operationsParamName = "operationsToFilterOut" + (isExtended ? "Extended" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
+    String operationsParamName = "operationsToFilterOut" + (isExtension ? "Extension" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
     return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
-        .withNamedParameter(operationsParamName, Arrays.stream(isExtended
+        .withNamedParameter(operationsParamName, Arrays.stream(isExtension
             ? new ModificationType[]{DELETE, INSERT_HIDE_COMPOSITE, UPDATE_HIDE_COMPOSITE}
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
+  }
+
+  protected SQLQuery buildLimitFragment(E event) {
+    return new SQLQuery("");
+  }
+
+  protected boolean isCompositeQuery(E event) {
+    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
   }
 
   /**
@@ -255,7 +267,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     result.append(",");
   }
 
-  public static SQLQuery buildSelectionFragment(ContextAwareEvent event) {
+  protected SQLQuery buildSelectionFragment(ContextAwareEvent event) {
     String jsonDataWithVersion = "jsonb_set(jsondata, '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
 
     if (!(event instanceof SelectiveEvent) || ((SelectiveEvent) event).getSelection() == null
@@ -276,35 +288,39 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withNamedParameter("selection", selection.toArray(new String[0]));
   }
 
-  private static String buildOrderByFragment(ContextAwareEvent event) {
+  protected String buildOrderByFragment(ContextAwareEvent event) {
     if (!(event instanceof SelectiveEvent selectiveEvent))
       return "";
     return selectiveEvent.getRef().isAllVersions() ? "ORDER BY version" : "";
   }
 
   protected SQLQuery buildGeoFragment(E event) {
-    return buildGeoFragment(event, true, null);
+    return new SQLQuery("${{geoExpression}} AS geo")
+        .withQueryFragment("geoExpression", buildGeoJsonExpression(event));
   }
 
-  protected SQLQuery buildGeoFragment(ContextAwareEvent event, SQLQuery geoOverride) {
-    return buildGeoFragment(event, true, geoOverride);
+  protected SQLQuery buildGeoJsonExpression(E event) {
+    return new SQLQuery("replace(ST_AsGeojson(${{rawGeoExpression}}, ${{precision}}), 'nan', '0')")
+          .withQueryFragment("rawGeoExpression", buildRawGeoExpression(event))
+          .withQueryFragment("precision", "" + GetFeatures.GEOMETRY_DECIMAL_DIGITS);
   }
 
-  public static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson) {
-    return buildGeoFragment(event, convertToGeoJson, null);
+  protected SQLQuery buildRawGeoExpression(E event) {
+    boolean isForce2D = event instanceof SelectiveEvent selectiveEvent ? selectiveEvent.isForce2D() : false;
+    return new SQLQuery((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
   }
 
-  protected static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson, SQLQuery geoOverride) {
-    boolean isForce2D = event instanceof SelectiveEvent ? ((SelectiveEvent) event).isForce2D() : false;
-    String geo = geoOverride != null ? "${{geoOverride}}" : ((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
+  protected enum CompositeDataset {
+    EXTENSION,
+    INTERMEDIATE,
+    SUPER
+  }
 
-    if (convertToGeoJson)
-      geo = "replace(ST_AsGeojson(" + geo + ", " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
-
-    SQLQuery geoFragment = new SQLQuery(geo + " as geo");
-    if (geoOverride != null)
-      geoFragment.setQueryFragment("geoOverride", geoOverride);
-
-    return geoFragment;
+  protected int compositeDatasetNo(E event, CompositeDataset dataset) {
+    return switch (dataset) {
+      case EXTENSION -> 0;
+      case INTERMEDIATE -> 1;
+      case SUPER -> is2LevelExtendedSpace(event) ? 2 : 1;
+    };
   }
 }

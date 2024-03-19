@@ -23,13 +23,13 @@ import static com.here.xyz.hub.util.health.Config.Setting.CHECK_DEFAULT_TIMEOUT;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Check;
 import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
 import com.here.xyz.hub.util.health.schema.Status.Result;
+import com.here.xyz.util.service.Core;
 import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -43,7 +43,7 @@ import org.apache.logging.log4j.Logger;
  * A check which executes a specific action periodically and asynchronously.
  * As soon as a result exists the status will be available using {@link #getStatus()}
  * and also (if applicable) a response may be available using {@link #getResponse()}.
- * 
+ *
  * @see #setCheckInterval(int)
  * @see #setTimeout(int)
  * @see Config
@@ -59,15 +59,15 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 		executor.setRemoveOnCancelPolicy(true);
 		executor.setKeepAliveTime(Config.getInt(CHECK_DEFAULT_INTERVAL) + Config.getInt(CHECK_DEFAULT_TIMEOUT), TimeUnit.MILLISECONDS);
 	}
-	
+
 	protected int checkInterval = Config.getInt(CHECK_DEFAULT_INTERVAL);
 	protected int timeout = Config.getInt(CHECK_DEFAULT_TIMEOUT);
 	protected ScheduledFuture<?> executionHandle;
 
 	protected boolean commenced = false;
-	
+
 	private String id = UUID.randomUUID().toString();
-	
+
 	public ExecutableCheck() {
 		setStatus(new Status());
 	}
@@ -76,7 +76,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 	 * Begins executing this check periodically and asynchronously.
 	 * Will only be called once by {@link MainHealthCheck#commence()},
 	 * subsequent calls won't have an effect.
-	 * 
+	 *
 	 * @return This check for chaining
 	 */
 	public ExecutableCheck commence() {
@@ -100,7 +100,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 		}
 		return this;
 	}
-	
+
 	public void run() {
 		try {
 			final long t1 = Core.currentTimeMillis();
@@ -138,30 +138,30 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 			logger.error("{}: Error when executing check", this.getClass().getSimpleName(), e);
 		}
 	}
-	
+
 	/**
 	 * Executes the check.
-	 * This method does whatever is needed to check if some specific dependency is 
+	 * This method does whatever is needed to check if some specific dependency is
 	 * provided correctly.
 	 * That could be a component of the service itself, but also remote components like
 	 * databases or other services.
-	 * 
+	 *
 	 * Besides its return value this method can set / update following details on this check
 	 * upon completion:
 	 * - {@link Check#setResponse(Response)}
 	 * - {@link Check#setAdditionalProperty(String, Object)} (For arbitrary non-standard details)
-	 * 
+	 *
 	 * The following details will be set automatically by the health-check system:
 	 * - {@link Check#setStatus(Status)}
 	 * - {@link Check#setTarget(Target)}
 	 * - {@link Check#setRole(Role)}
-	 * 
+	 *
 	 * @see Check#getRole()
 	 * @throws InterruptedException when the execution was interrupted by the health-check system. (e.g. for timed out executions)
 	 * @return A {@link Status} object reflecting the minimal required result of a check.
 	 */
 	public abstract Status execute() throws InterruptedException;
-	
+
 	protected Result getWorseResult(Result r1, Result r2) {
 		if (r1.compareTo(r2) > 0) return r1;
 		return r2;
@@ -175,7 +175,7 @@ public abstract class ExecutableCheck extends Check implements Runnable {
 		if (!(other instanceof ExecutableCheck)) return super.equals(other);
 		return super.equals(other) && ((ExecutableCheck) other).id.equals(id);
 	}
-	
+
 	private static class TimeoutValueFilter {
 		@Override
 		public boolean equals(Object obj) {

@@ -22,6 +22,7 @@ package com.here.xyz.models.hub;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.here.xyz.XyzSerializable;
+import org.apache.commons.lang3.StringUtils;
 
 public class Ref implements XyzSerializable {
 
@@ -30,30 +31,42 @@ public class Ref implements XyzSerializable {
   private long version = -1;
   private boolean head;
   private boolean allVersions;
+  private String versionRef;
+  private boolean resolved;
 
   @JsonCreator
   public Ref(String ref) {
-    if (ref == null || ref.isEmpty() || HEAD.equals(ref))
+    if (ref == null || ref.isEmpty() || HEAD.equals(ref)) {
       head = true;
-    else if (ALL_VERSIONS.equals(ref))
+      setResolved(true);
+    }
+    else if (ALL_VERSIONS.equals(ref)) {
       allVersions = true;
-    else
+      setResolved(true);
+    }
+    else if (StringUtils.isNumeric(ref)) {
       try {
         setVersion(Long.parseLong(ref));
-      }
-      catch (NumberFormatException e) {
+        setResolved(true);
+      } catch (NumberFormatException e) {
         throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
       }
+    }
+    else {
+      this.versionRef = ref;
+      setResolved(false);
+    }
   }
 
   public Ref(long version) {
     setVersion(version);
   }
 
-  private void setVersion(long version) {
-    this.version = version;
+  public void setVersion(long version) {
     if (version < 0)
       throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
+
+    this.version = version;
   }
 
   @JsonValue
@@ -91,6 +104,18 @@ public class Ref implements XyzSerializable {
 
   public boolean isSingleVersion() {
     return !isAllVersions();
+  }
+
+  public boolean isResolved() {
+    return resolved;
+  }
+
+  public void setResolved(boolean resolved) {
+    this.resolved = resolved;
+  }
+
+  public String getVersionRef() {
+    return versionRef;
   }
 
   public static class InvalidRef extends IllegalArgumentException {

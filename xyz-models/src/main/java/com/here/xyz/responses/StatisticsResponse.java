@@ -45,6 +45,7 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
   private Value<List<String>> geometryTypes;
   private Value<Long> minVersion;
   private Value<Long> maxVersion;
+  private Value<Long> minTagVersion;
 
   /**
    * Returns the amount of features stored in the space.
@@ -270,6 +271,19 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
 
   public StatisticsResponse withMaxVersion(Value<Long> maxVersion) {
     setMaxVersion(maxVersion);
+    return this;
+  }
+
+  public Value<Long> getMinTagVersion() {
+    return minTagVersion;
+  }
+
+  public void setMinTagVersion(Value<Long> minTagVersion) {
+    this.minTagVersion = minTagVersion;
+  }
+
+  public StatisticsResponse withMinTagVersion(Value<Long> minTagVersion) {
+    setMinTagVersion(minTagVersion);
     return this;
   }
 

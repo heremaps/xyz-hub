@@ -25,11 +25,11 @@ import static com.here.xyz.hub.task.ModifyOp.IfExists.PATCH;
 import static com.here.xyz.hub.task.ModifyOp.IfExists.REPLACE;
 import static com.here.xyz.hub.task.ModifyOp.IfExists.RETAIN;
 
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.JsonObject;
 import java.util.Arrays;
 import java.util.Collections;

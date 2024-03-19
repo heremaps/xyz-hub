@@ -1,6 +1,6 @@
 package com.here.xyz.httpconnector.util.jobs;
 
-import com.here.xyz.hub.Core;
+import com.here.xyz.util.service.Core;
 
 public class RuntimeStatus {
 

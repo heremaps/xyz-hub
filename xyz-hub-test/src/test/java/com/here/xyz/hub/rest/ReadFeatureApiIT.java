@@ -20,8 +20,8 @@
 package com.here.xyz.hub.rest;
 
 import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -432,6 +432,36 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         body("features[0].id", equalTo("Q2838923")).
         body("features[0].properties.name", equalTo("Estadio Universidad San Marcos"));
   }
+
+  @Test
+  public void testReadingFeatureByHereTileId() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get(getSpacesPath() + "/x-psql-test/tile/here/5148795631.geojson").
+        then().
+        statusCode(OK.code()).
+        body("features.size()", equalTo(1)).
+        body("features[0].id", equalTo("Q2390739")).
+        body("features[0].properties.name", equalTo("John F. Kennedy Stadium"));
+  }
+
+  @Test
+  public void testReadingFeatureByHereTileIdFalse() {
+  /** "prepared" test that should fail, when duplicates points on tilesborder issue is solved (s. testReadingFeatureByHereTileId() ) */
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get(getSpacesPath() + "/x-psql-test/tile/here/5148795642.geojson").
+        then().
+        statusCode(OK.code()).
+        body("features.size()", equalTo(1)).
+        body("features[0].id", equalTo("Q2390739")).
+        body("features[0].properties.name", equalTo("John F. Kennedy Stadium"));
+  }
+
 
   @Test
   public void testReadingFeatureByInvalidTileId() {

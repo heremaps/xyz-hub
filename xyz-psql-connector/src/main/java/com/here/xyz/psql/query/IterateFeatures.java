@@ -19,13 +19,11 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.tools.ECPSTool;
+import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
@@ -34,7 +32,9 @@ import java.sql.SQLException;
 public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, FeatureCollection> {
   private static final String HANDLE_ENCRYPTION_PHRASE = "IterateFeatures";
   protected long limit;
-  protected long start;
+  private boolean hasHandle;
+  private long start;
+  private int startDataset = -1;
   private String nextDataset = null;
   private String nextIOffset = "";
   private int numFeatures = 0;
@@ -42,100 +42,81 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   public IterateFeatures(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
     limit = event.getLimit();
+    hasHandle = event.getHandle() != null;
+    if (hasHandle)
+      parseHandleContent(event.getHandle());
   }
 
   @Override
-  protected SQLQuery buildQuery(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
-    if (isCompositeQuery(event)) {
-      SQLQuery extensionQuery = super.buildQuery(event);
-      extensionQuery.setQueryFragment("filterWhereClause", "TRUE"); //TODO: Do not support search on iterate for now
-      extensionQuery.setQueryFragment("iColumn", ", i, dataset");
-
-      if (is2LevelExtendedSpace(event)) {
-        int ds = 3;
-
-        ds--;
-        extensionQuery.setQueryFragment("iColumnBase", buildIColumnFragment(ds));
-        extensionQuery.setQueryFragment("iOffsetBase", buildIOffsetFragment(event, ds));
-
-        ds--;
-        extensionQuery.setQueryFragment("iColumnIntermediate", buildIColumnFragment(ds));
-        extensionQuery.setQueryFragment("iOffsetIntermediate", buildIOffsetFragment(event, ds));
-
-        ds--;
-        extensionQuery.setQueryFragment("iColumnExtension", buildIColumnFragment(ds));
-        extensionQuery.setQueryFragment("iOffsetExtension", buildIOffsetFragment(event, ds));
-      }
-      else {
-        int ds = 2;
-
-        ds--;
-        extensionQuery.setQueryFragment("iColumnBase", buildIColumnFragment(ds));
-        extensionQuery.setQueryFragment("iOffsetBase", buildIOffsetFragment(event, ds));
-
-        ds--;
-        extensionQuery.setQueryFragment("iColumnExtension", buildIColumnFragment(ds));
-        extensionQuery.setQueryFragment("iOffsetExtension", buildIOffsetFragment(event, ds));
-      }
-      extensionQuery.setNamedParameter("currentDataset", getDatasetFromHandle(event));
-
-      SQLQuery query = new SQLQuery(
-          "SELECT * FROM (${{extensionQuery}}) orderQuery ORDER BY dataset, i ${{limit}}");
-      query.setQueryFragment("extensionQuery", extensionQuery);
-      query.setQueryFragment("limit", buildLimitFragment(event.getLimit()));
-
-      return query;
-    }
-    else {
-      //It's not a composite space or only SUPER / EXTENSION is queried
-      SQLQuery query = super.buildQuery(event);
-      query.setQueryFragment("iColumn", ", i");
-
-      boolean hasHandle = event.getHandle() != null;
-      start = hasHandle ? Long.parseLong(event.getHandle()) : 0L;
-
-      if (hasSearch) {
-        if (hasHandle)
-          query.setQueryFragment("offset", "OFFSET #{startOffset}");
-      }
-      else {
-        if (hasHandle)
-          query.setQueryFragment("filterWhereClause", "i > #{startOffset}");
-
-        query.setQueryFragment("orderBy", "ORDER BY i");
-      }
-
-      if (hasHandle)
-        query.setNamedParameter("startOffset", start);
-
-      return query;
-    }
+  protected SQLQuery buildSelectClause(IterateFeaturesEvent event, int dataset) {
+    return new SQLQuery("${{innerSelectClause}}, i")
+        .withQueryFragment("innerSelectClause", super.buildSelectClause(event, dataset));
   }
 
-  protected boolean isCompositeQuery(IterateFeaturesEvent event) {
-    return isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
+  @Override
+  protected SQLQuery buildFiltersFragment(IterateFeaturesEvent event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
+    final SQLQuery filtersFragment = super.buildFiltersFragment(event, isExtension, filterWhereClause, dataset);
+
+    if (!isCompositeQuery(event))
+      return filtersFragment;
+
+    return new SQLQuery("${{innerFilters}} ${{offsetFilter}}")
+        .withQueryFragment("innerFilters", filtersFragment)
+        .withQueryFragment("offsetFilter", buildOffsetFilterFragment(event, dataset));
   }
 
-  private static String buildIColumnFragment(int dataset) {
-    return ", i, " + dataset + " as dataset";
+  @Override
+  protected SQLQuery buildFilterWhereClause(IterateFeaturesEvent event) {
+    if (isCompositeQuery(event))
+      return new SQLQuery("TRUE"); //TODO: Do not support search on iterate for now
+
+    if (!hasSearch && event.getHandle() != null)
+      return new SQLQuery("i > #{startOffset}")
+          .withNamedParameter("startOffset", start);
+
+    return super.buildFilterWhereClause(event);
   }
 
-  private SQLQuery buildIOffsetFragment(IterateFeaturesEvent event, int dataset) {
+  @Override
+  protected String buildOrderByFragment(ContextAwareEvent event) {
+    if (hasSearch && hasHandle)
+      return super.buildOrderByFragment(event);
+
+    return "ORDER BY dataset, i";
+  }
+
+  private SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
     return new SQLQuery("AND " + dataset + " >= #{currentDataset} "
-        + "AND (" + dataset + " > #{currentDataset} OR i > #{startOffset}) ORDER BY i")
-        .withNamedParameter("startOffset", getIOffsetFromHandle(event));
+        + "AND (" + dataset + " > #{currentDataset} OR i > #{startOffset})")
+        .withNamedParameter("currentDataset", startDataset)
+        .withNamedParameter("startOffset", start);
   }
 
-  private int getDatasetFromHandle(IterateFeaturesEvent event) {
-    if (event.getHandle() == null)
-      return -1;
-    return Integer.parseInt(event.getHandle().split("_")[0]);
+  @Override
+  protected SQLQuery buildLimitFragment(IterateFeaturesEvent event) {
+    if (hasSearch && hasHandle)
+      return new SQLQuery("${{innerLimit}} OFFSET #{startOffset}")
+          .withQueryFragment("innerLimit", super.buildLimitFragment(event))
+          .withNamedParameter("startOffset", start);
+
+    return super.buildLimitFragment(event);
   }
 
-  private int getIOffsetFromHandle(IterateFeaturesEvent event) {
-    if (event.getHandle() == null)
-      return 0;
-    return Integer.parseInt(event.getHandle().split("_")[1]);
+  private void parseHandleContent(String handle) {
+    if (handle.contains("_")) {
+      startDataset = getDatasetFromHandle(handle);
+      start = getIOffsetFromHandle(handle);
+    }
+    else
+      start = Long.parseLong(handle);
+  }
+
+  private int getDatasetFromHandle(String handle) {
+    return Integer.parseInt(handle.split("_")[0]);
+  }
+
+  private int getIOffsetFromHandle(String handle) {
+    return Integer.parseInt(handle.split("_")[1]);
   }
 
   @Override

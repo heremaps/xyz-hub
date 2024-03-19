@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.8.14-SNAPSHOT</version>
+    <version>3.8.26-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -46,6 +46,14 @@
     <!-- Vert.x -->
     <dependency>
       <artifactId>vertx-core</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vertx-config</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vertx-web-openapi</artifactId>
       <groupId>io.vertx</groupId>
     </dependency>
 
@@ -73,6 +81,28 @@
       <artifactId>log4j-jcl</artifactId>
     </dependency>
 
+    <!-- AWS SDKs -->
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-kms</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-secretsmanager</artifactId>
+    </dependency>
+    <dependency>
+      <artifactId>aws-java-sdk-dynamodb</artifactId>
+      <groupId>com.amazonaws</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>aws-lambda-java-core</artifactId>
+      <groupId>com.amazonaws</groupId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>lambda</artifactId>
+    </dependency>
+
     <!-- DB utils -->
     <dependency>
       <groupId>com.mchange</groupId>
@@ -87,6 +117,23 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
+    </dependency>
+
+    <!-- Util -->
+    <dependency>
+      <artifactId>guava</artifactId>
+      <groupId>com.google.guava</groupId>
+    </dependency>
+    <dependency>
+      <groupId>com.google.crypto.tink</groupId>
+      <artifactId>tink</artifactId>
+      <version>1.5.0</version>
+    </dependency>
+
+    <!-- Cache -->
+    <dependency>
+      <artifactId>expiringmap</artifactId>
+      <groupId>net.jodah</groupId>
     </dependency>
 
     <dependency>

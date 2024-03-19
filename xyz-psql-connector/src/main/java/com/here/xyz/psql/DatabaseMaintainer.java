@@ -22,8 +22,8 @@ package com.here.xyz.psql;
 import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
 
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.factory.MaintenanceSQL;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.io.BufferedReader;
@@ -49,7 +49,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 185;
+    public static final int XYZ_EXT_VERSION = 191;
 
     public static final int H3_CORE_VERSION = 108;
 

@@ -20,13 +20,13 @@
 package com.here.xyz.httpconnector.task;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
-import com.here.xyz.hub.Core;
-import com.here.xyz.psql.config.ConnectorParameters;
-import com.here.xyz.psql.tools.ECPSTool;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
+import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.JdbcClient;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,7 +53,7 @@ public abstract class JdbcBasedHandler {
   }
 
   private Future<DatabaseSettings> dbSettingsForConnector(String connectorId) {
-    return HubWebClientAsync.getConnectorConfig(connectorId)
+    return LegacyHubWebClient.getConnectorConfig(connectorId)
         .compose(connector -> {
           dbSettings.put(connectorId, new DatabaseSettings(connectorId,
               ECPSTool.decryptToMap(CService.configuration.ECPS_PHRASE, ConnectorParameters.fromMap(connector.params).getEcps()))

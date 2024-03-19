@@ -60,7 +60,6 @@ import org.apache.logging.log4j.Logger;
  */
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
-
   private static final Logger logger = LogManager.getLogger();
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
@@ -79,11 +78,13 @@ public class SQLQuery {
   private int maximumRetries;
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
   private PreparedStatement preparedStatement;
-  private volatile String queryId;
+  private String queryId;
   private Map<String, String> labels = new HashMap<>();
-  private static List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
+  private List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
   private List<SQLQuery> queryBatch;
+
+  private SQLQuery() {} //Only added as workaround for an issue with Jackson's Include.NON_DEFAULT setting
 
   public SQLQuery(String text) {
     if (text != null)
@@ -239,9 +240,9 @@ public class SQLQuery {
     if (paramValue instanceof Boolean)
       return paramValue + "::BOOLEAN";
     if (paramValue instanceof Object[] arrayValue)
-      return "{" + Arrays.stream(arrayValue)
+      return "ARRAY[" + Arrays.stream(arrayValue)
           .map(elementValue -> paramValueToString(elementValue))
-          .collect(Collectors.joining(",")) + "}";
+          .collect(Collectors.joining(",")) + "]";
     return paramValue.toString();
   }
 
@@ -712,38 +713,47 @@ public class SQLQuery {
   }
 
   public void cancel(long timeout) throws SQLException {
-    kill(QUERY_ID, getQueryId(), timeout);
+    killByLabel(QUERY_ID, getQueryId(), timeout);
   }
 
-  public static void cancelByLabel(String labelIdentifier, String labelValue, long timeout)
-      throws SQLException {
-    kill(labelIdentifier, labelValue, timeout);
+  public static void cancelByLabel(String labelIdentifier, String labelValue, long timeout, DataSourceProvider dataSourceProvider,
+      boolean useReplica) throws SQLException {
+    killByLabel(labelIdentifier, labelValue, timeout, dataSourceProvider, useReplica);
   }
 
   public void kill() throws SQLException {
-    kill(QUERY_ID, getQueryId(), 0);
+    killByLabel(QUERY_ID, getQueryId(), 0);
   }
 
-  public static void killByLabel(String labelIdentifier, String labelValue) throws SQLException {
-    kill(labelIdentifier, labelValue, 0);
+  public static void killByQueryId(String queryId, DataSourceProvider dataSourceProvider, boolean useReplica) throws SQLException {
+    killByLabel(QUERY_ID, queryId, dataSourceProvider, useReplica);
   }
 
-  private static void kill(String labelIdentifier, String labelValue, long timeout)
+  public static void killByLabel(String labelIdentifier, String labelValue, DataSourceProvider dataSourceProvider, boolean useReplica)
       throws SQLException {
+    killByLabel(labelIdentifier, labelValue, 0, dataSourceProvider, useReplica);
+  }
+
+  private void killByLabel(String labelIdentifier, String labelValue, long timeout) throws SQLException {
+    for (ExecutionContext execution : executions)
+      killByLabel(labelIdentifier, labelValue, timeout, execution.dataSourceProvider, execution.useReplica);
+  }
+
+  private static void killByLabel(String labelIdentifier, String labelValue, long timeout, DataSourceProvider dataSourceProvider,
+      boolean useReplica) throws SQLException {
     SQLQuery labelMatching = new SQLQuery("substring(query, "
         + "strpos(query, '/*labels(') + 9, "
         + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
         .withNamedParameter("labelIdentifier", labelIdentifier)
         .withNamedParameter("labelValue", labelValue);
 
-    for (ExecutionContext execution : executions)
-      new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-          + "WHERE state = 'active' "
-          + "AND ${{labelMatching}} "
-          + "AND pid != pg_backend_pid()")
-          .withQueryFragment("labelMatching", labelMatching)
-          .withNamedParameter("labelValue", labelValue)
-          .run(execution.dataSourceProvider, execution.useReplica);
+    new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        + "WHERE state = 'active' "
+        + "AND ${{labelMatching}} "
+        + "AND pid != pg_backend_pid()")
+        .withQueryFragment("labelMatching", labelMatching)
+        .withNamedParameter("labelValue", labelValue)
+        .run(dataSourceProvider, useReplica);
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
@@ -814,7 +824,7 @@ public class SQLQuery {
    * @throws SQLException
    */
   public int write(DataSourceProvider dataSourceProvider) throws SQLException {
-    return (int) execute(dataSourceProvider, null, ExecutionOperation.UPDATE,
+    return (int) execute(dataSourceProvider, rs -> -1, ExecutionOperation.UPDATE,
         new ExecutionContext(getTimeout(), getMaximumRetries(), dataSourceProvider, false));
   }
 
@@ -855,6 +865,8 @@ public class SQLQuery {
               ? pooledDataSources.getDatabaseSettings().getId() : "unknown",
           replaceUnnamedParametersForLogging());
 
+      if (isAsync())
+        operation = ExecutionOperation.QUERY;
       return switch (operation) {
         case QUERY -> executeQuery(dataSource, executionContext, handler);
         case UPDATE -> executeUpdate(dataSource, executionContext);
@@ -886,27 +898,28 @@ public class SQLQuery {
     }
   }
 
-  private String prepareQueryText(ExecutionContext executionContext) {
-    String queryText = text();
+  private SQLQuery prepareFinalQuery(ExecutionContext executionContext) {
     if (isAsync()) {
       if (executionContext.dataSourceProvider instanceof PooledDataSources pooledDataSources) {
-        SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
-            .withNamedParameter("query", queryText)
-            .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword());
-        queryText = asyncQuery.substitute().text();
+        return new SQLQuery("SELECT asyncify(#{query}, #{password})")
+            .withNamedParameter("query", text())
+            .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword())
+            .substitute();
       }
       else
         throw new RuntimeException("Async SQLQueries must be performed using an instance of PooledDataSources as DataSourceProvider");
     }
-    return queryText;
+    return this;
   }
 
   private int executeUpdate(DataSource dataSource, ExecutionContext executionContext) throws SQLException {
-    return getRunner(dataSource, executionContext).update(prepareQueryText(executionContext), parameters().toArray());
+    SQLQuery query = prepareFinalQuery(executionContext);
+    return getRunner(dataSource, executionContext).update(query.text(), query.parameters().toArray());
   }
 
   private Object executeQuery(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
-    return getRunner(dataSource, executionContext).query(prepareQueryText(executionContext), handler, parameters().toArray());
+    SQLQuery query = prepareFinalQuery(executionContext);
+    return getRunner(dataSource, executionContext).query(query.text(), handler, query.parameters().toArray());
   }
 
   private static QueryRunner getRunner(DataSource dataSource, ExecutionContext executionContext) {

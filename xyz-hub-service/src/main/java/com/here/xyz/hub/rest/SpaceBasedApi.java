@@ -12,6 +12,7 @@ import com.here.xyz.hub.task.Task;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.ext.web.RoutingContext;
 
 public abstract class SpaceBasedApi extends Api {
@@ -56,9 +57,7 @@ public abstract class SpaceBasedApi extends Api {
     int limit = ApiParam.Query.getInteger(context, ApiParam.Query.LIMIT, defaultLimit);
 
     if (limit < MIN_LIMIT || limit > HARD_LIMIT) {
-      throw new HttpException(BAD_REQUEST,
-              "The parameter limit must be between " + MIN_LIMIT + " and " + HARD_LIMIT
-                      + ".");
+      throw new HttpException(BAD_REQUEST, "The parameter limit must be between " + MIN_LIMIT + " and " + HARD_LIMIT + ".");
     }
     return limit;
   }
@@ -71,9 +70,10 @@ public abstract class SpaceBasedApi extends Api {
 
   protected Ref getRef(RoutingContext context) throws HttpException {
     final String version = Query.getString(context, Query.VERSION, null);
-    try {
+    final String versionRef = Query.getString(context, Query.VERSION_REF, version);
 
-      return new Ref(version);
+    try {
+      return new Ref(versionRef);
     }
     catch (InvalidRef e) {
       throw new HttpException(BAD_REQUEST, "Invalid value for version: " + version, e);

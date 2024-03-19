@@ -26,6 +26,7 @@ import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 
 public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse> extends SearchForFeatures<E, R> {
+  private SQLQuery geoFilter;
 
   public Spatial(E event) throws SQLException, ErrorResponseException {
     super(event);
@@ -33,23 +34,20 @@ public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
-    SQLQuery geoFilter = buildGeoFilter(event);
+    geoFilter = buildGeoFilter(event);
+    return super.buildQuery(event);
+  }
 
-    SQLQuery query = super.buildQuery(event);
-    SQLQuery geoQuery = new SQLQuery("(ST_isvalid( ${{geoFilter}} ) AND ST_Intersects(geo, ${{geoFilter}}))")
+  @Override
+  protected SQLQuery buildFilterWhereClause(E event) {
+    SQLQuery geoQuery = new SQLQuery("(ST_isvalid(${{geoFilter}}) AND ST_Intersects(geo, ${{geoFilter}}))")
         .withQueryFragment("geoFilter", geoFilter);
 
-    SQLQuery filterWhereClause = new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
+    final SQLQuery filterWhereClause = super.buildFilterWhereClause(event);
+    return new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
         .withQueryFragment("geoQuery", geoQuery)
         //Use the existing clause as searchQuery (from the base query)
-        .withQueryFragment("searchQuery", query.getQueryFragment("filterWhereClause"));
-
-    query
-        .withQueryFragment("filterWhereClause", filterWhereClause)
-        //Override the geo fragment by a clipped version
-        .withQueryFragment("geo", buildClippedGeoFragment(event, geoFilter));
-
-    return query;
+        .withQueryFragment("searchQuery", filterWhereClause);
   }
 
   protected abstract SQLQuery buildGeoFilter(E event);
@@ -58,5 +56,13 @@ public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse
    * Returns a geo-fragment, which will return the geometry objects clipped by the provided geoFilter
    * depending on whether clipping is active or not.
    */
-  protected abstract SQLQuery buildClippedGeoFragment(final E event, SQLQuery geoFilter);
+  @Override
+  protected SQLQuery buildRawGeoExpression(E event) {
+    if (!event.getClip())
+      return super.buildRawGeoExpression(event);
+
+    //Override the geo fragment by a clipped version
+    return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ${{geoFilter}})")
+        .withQueryFragment("geoFilter", geoFilter);
+  }
 }

@@ -30,8 +30,8 @@ import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.function.Function;
@@ -96,7 +96,7 @@ public class SpaceConnectorBasedHandler {
   }
 
   private static Future<Long> getMinTag(Marker marker, String space){
-      return Service.tagConfigClient.getTags(marker,space)
+      return Service.tagConfigClient.getTags(marker, space, true)
             .compose(r -> r == null ? Future.succeededFuture(null)
                     : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
             )

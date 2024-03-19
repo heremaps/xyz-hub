@@ -29,11 +29,12 @@ import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.httpconnector.util.web.HubWebClientAsync;
-import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
+import java.util.ConcurrentModificationException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -47,18 +48,20 @@ public class ExportQueue extends JobQueue {
     protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("export-queue"));
 
     protected void process() throws InterruptedException, CannotDecodeException {
+        getQueue().stream().filter(job -> (job instanceof Export || job instanceof CombinedJob)).forEach(job -> processJob(job));
+    }
 
-        getQueue().stream().filter(job -> (job instanceof Export || job instanceof CombinedJob)).forEach(job -> {
-
+    private void processJob(Job job) {
+        try {
             //Check Capacity
             ((Future<Job>) job.isProcessingPossible())
                 .compose(j -> loadCurrentConfig(job))
                 .compose(currentJob -> {
-                    /*
-                    Job-Life-Cycle:
-                    waiting -> (executing) -> executed -> executing_trigger -> trigger_executed -> collecting_trigger_status -> finalized
-                    all stages can end up in failed
-                     */
+                /*
+                Job-Life-Cycle:
+                waiting -> (executing) -> executed -> executing_trigger -> trigger_executed -> collecting_trigger_status -> finalized
+                all stages can end up in failed
+                 */
                     switch (currentJob.getStatus()) {
                         case aborted:
                             //Abort has happened on other node
@@ -74,22 +77,23 @@ public class ExportQueue extends JobQueue {
                             break;
                         case prepared:
                             updateJobStatus(currentJob, Job.Status.executing)
-                                    .onSuccess(f -> currentJob.execute());
+                                .onSuccess(f -> currentJob.execute());
                             break;
                         case executed:
                             updateJobStatus(currentJob, Job.Status.executing_trigger)
                                 .onSuccess(f -> {
                                     if (currentJob instanceof Export export
-                                            && export.getExportTarget() != null
-                                            && export.getExportTarget().getType() == VML
-                                            && export.getStatistic() != null
-                                            && export.getStatistic().getFilesUploaded() > 0
-                                            && export.getStatistic().getBytesUploaded() > 0
-                                            && !export.readParamSkipTrigger())
+                                        && export.getExportTarget() != null
+                                        && export.getExportTarget().getType() == VML
+                                        && export.getStatistic() != null
+                                        && export.getStatistic().getFilesUploaded() > 0
+                                        && export.getStatistic().getBytesUploaded() > 0
+                                        && !export.readParamSkipTrigger())
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
                                     else
-                                        currentJob.finalizeJob();
+                                        currentJob.finalizeJob()
+                                            .onFailure(t -> setFinalizationFailed(currentJob, t));
                                 });
                             break;
                         case trigger_executed:
@@ -100,7 +104,18 @@ public class ExportQueue extends JobQueue {
                     return Future.succeededFuture();
                 })
                 .onFailure(e -> logError(e, job.getId()));
-            });
+        }
+        catch (ConcurrentModificationException e) {
+            /*
+            Catch any ConcurrentModificationException from the actual job execution to not interfere with ConcurrentModificationExceptions
+            being caught for the process-queue.
+             */
+            logger.error("[{}]", job.getId(), e);
+        }
+    }
+
+    private static Future<Job> setFinalizationFailed(Job currentJob, Throwable t) {
+        return setJobFailed(currentJob, t.getMessage(), ERROR_TYPE_FINALIZATION_FAILED);
     }
 
     @Override
@@ -122,7 +137,7 @@ public class ExportQueue extends JobQueue {
     }
 
     protected Future<String> postTrigger(Job job) {
-        return HubWebClientAsync.executeHTTPTrigger((Export) job)
+        return LegacyHubWebClient.executeHTTPTrigger((Export) job)
             .onSuccess(triggerId -> {
                 //Add import ID
                 ((Export) job).setTriggerId(triggerId);
@@ -136,10 +151,10 @@ public class ExportQueue extends JobQueue {
             });
     }
 
-    protected void collectTriggerStatus(Job job) {
+    protected void collectTriggerStatus(Job<?> job) {
         //executeHttpTrigger
         if (((Export) job).getExportTarget().getType() == VML) {
-            HubWebClientAsync.executeHTTPTriggerStatus((Export) job)
+            LegacyHubWebClient.executeHTTPTriggerStatus((Export) job)
                 .onFailure(e -> {
                     if (e instanceof HttpException)
                         setJobFailed(job, Export.ERROR_DESCRIPTION_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
@@ -155,7 +170,7 @@ public class ExportQueue extends JobQueue {
                             return;
                         case "succeeded":
                             logger.info("job[{}] execution of '{}' succeeded ", job.getId(), ((Export) job).getTriggerId());
-                            job.finalizeJob();
+                            job.finalizeJob().onFailure(t -> setFinalizationFailed(job, t));
                             return;
                         case "cancelled":
                         case "failed":
@@ -166,7 +181,7 @@ public class ExportQueue extends JobQueue {
         }
         else
             //Skip collecting Trigger
-            job.finalizeJob();
+            job.finalizeJob().onFailure(t -> setFinalizationFailed(job, t));
     }
 
     /**
@@ -190,8 +205,18 @@ public class ExportQueue extends JobQueue {
                 try {
                     process();
                 }
+                catch (ConcurrentModificationException e) {
+                    /*
+                    Some element of the queue has been removed or added during the runtime of the process method.
+                    Execution can be stopped for this time, and we wait for the next process execution to ensure to not
+                    process any elements that have been removed.
+                     */
+                }
                 catch (InterruptedException | CannotDecodeException ignored) {
                     //Nothing to do here.
+                }
+                catch (Exception e) {
+                    logger.error("Exception in queue:", e);
                 }
             });
         }
