@@ -227,6 +227,15 @@ public class Job implements XyzSerializable {
   }
 
   /**
+   * Retrieves the step from the Job matching the stepId
+   * @param stepId
+   * @return
+   */
+  public Step getStepById(String stepId) {
+    return getSteps().getStep(stepId);
+  }
+
+  /**
    * Updates the status of a step at this job by replacing it with the specified one.
    * @param step
    * @return

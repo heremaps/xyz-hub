@@ -73,6 +73,9 @@ public class JobRouter implements AbstractRouterBuilder {
 
                 final Router router = rb.createRouter();
                 router.route(HttpMethod.GET, "/_jobs/health").handler(ctx -> ctx.response().send("OK"));
+
+                new JobAdminApi(router);
+
                 return Future.succeededFuture(router);
             });
         }

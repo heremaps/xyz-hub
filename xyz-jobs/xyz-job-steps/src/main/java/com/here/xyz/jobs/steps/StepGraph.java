@@ -56,8 +56,22 @@ public class StepGraph implements StepExecution {
     return this;
   }
 
+  public Step getStep(String stepId) {
+    return stepStream()
+            .filter(step -> stepId.equals(step.getId()))
+            .findFirst()
+            .orElse(null);
+  }
+
   public void replaceStep(Step<?> step) {
-    //TODO: Find and replace the step in this graph, throw an exception if the step was not found
+    for(int i=0; i<executions.size(); i++) {
+      StepExecution execution = executions.get(i);
+      if(execution instanceof StepGraph graph) graph.replaceStep(step);
+      if(execution instanceof Step currentStep && currentStep.getId().equals(step.getId())) {
+        executions.set(i, step);
+        return;
+      }
+    }
   }
 
   public boolean isParallel() {
