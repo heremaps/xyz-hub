@@ -64,13 +64,11 @@ public class MetricsReporterService {
                 iterator.remove();
             }
 
-            metricMap.forEach((key, value) -> System.out.println("Key: " + key + ", Value: " + value));
             var eventJson = new JsonObject();
             eventJson.put("type", type);
             eventJson.put("metrics", metricsJsonArray);
-            System.out.println("Aggregated: " + eventJson);
-            logger.info("Aggregated: " + eventJson);
-//            invokeLambda(eventJson.toString());
+            logger.info("Metric of type " + type +" is aggregated: " + eventJson);
+            invokeLambda(eventJson.toString());
         });
     }
 
@@ -81,7 +79,7 @@ public class MetricsReporterService {
                     .withPayload(eventJson);
 
             lambdaClient.invoke(request);
-            logger.info("Lambda invoked");
+            logger.info("Metric reporter has successfully reported the metrics");
         } catch (Exception e) {
             logger.error(e.getLocalizedMessage());
         }
