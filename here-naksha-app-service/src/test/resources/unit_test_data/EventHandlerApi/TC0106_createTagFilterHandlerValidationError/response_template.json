@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "IllegalArgument",
+  "errorMessage": "%s"
+}
