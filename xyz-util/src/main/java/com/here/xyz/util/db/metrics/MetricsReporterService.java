@@ -22,18 +22,17 @@ public class MetricsReporterService {
     private final String lambdaFunctionName;
     private final AWSLambda lambdaClient;
 
-    public MetricsReporterService(AWSLambda lambdaClient, String lambdaFunctionName, int minutesPeriod, List<String> metricTypes) {
+    public MetricsReporterService(AWSLambda lambdaClient, String lambdaFunctionName, int reportIntervalMs, List<String> metricTypes) {
         this.lambdaClient = lambdaClient;
         this.lambdaFunctionName = lambdaFunctionName;
         this.scheduler = Executors.newScheduledThreadPool(1);
         metricTypes.forEach(type -> {
             metricStorage.put(type, new ConcurrentHashMap<>());
         });
-        scheduler.scheduleAtFixedRate(this::aggregateAndInvokeLambda, 1, minutesPeriod, TimeUnit.MINUTES);
+        scheduler.scheduleAtFixedRate(this::aggregateAndInvokeLambda, 1, reportIntervalMs, TimeUnit.MILLISECONDS);
     }
 
     public void consumeMetric(Metric metric) {
-        System.out.println(getKey(metric.dimensions()));
         Optional.ofNullable(metricStorage.get(metric.type()))
                 .ifPresentOrElse(map -> {
                     map.compute(getKey(metric.dimensions()), (key, existingMetric) -> {
