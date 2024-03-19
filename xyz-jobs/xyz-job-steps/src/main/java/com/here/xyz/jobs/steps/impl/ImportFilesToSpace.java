@@ -279,13 +279,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
   @Override
   public void resume() throws Exception {
-    //TODO:
+    //TODO: e.g. reset states of FAILED inputs in tmp table aso.
     execute();
-  }
-
-  @Override
-  public void cancel() throws Exception {
-    super.cancel();
   }
 
   private SQLQuery buildTemporaryTableForImportQuery(String schema, String table){

@@ -196,12 +196,14 @@ public class Job implements XyzSerializable {
 
   public Future<Void> cancel() {
     getStatus().setState(CANCELLING);
+    //FIXME: Let JobExecutor cancel the execution so that steps will be cancelled automatically (step state updates will come in one by one then)
     getSteps().stepStream().forEach(step -> getStatus().setState(CANCELLING)); //TODO: Only cancel the ones which were not succeeded yet
 
     return store()
         //Cancel the execution in any case, to prevent race-conditions
         .compose(v -> JobExecutor.getInstance().cancel(getExecutionId()))
         .compose(cancellingPerformed -> {
+          //TODO: Wait for all steps to be CANCELLED before continuing ...
           //Execution was cancelled successfully (or was not needed). Update the job status that now is CANCELLED and store it.
           getStatus().setState(CANCELLED);
 

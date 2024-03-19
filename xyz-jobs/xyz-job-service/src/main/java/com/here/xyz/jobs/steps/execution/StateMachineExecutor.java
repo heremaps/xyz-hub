@@ -58,10 +58,12 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<Boolean> cancel(String executionId) {
+    //TODO: Asyncify!
     sfnClient().stopExecution(StopExecutionRequest.builder()
             .executionArn(executionId)
             .cause("CANCELLED") //TODO: Infer better cause
         .build());
+    //TODO: Change return type to Future<Void>
     return null;
   }
 

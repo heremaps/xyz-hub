@@ -118,8 +118,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     switch (getExecutionMode()) {
       case SYNC -> execute();
       case ASYNC -> {
+        execute();
         registerStateCheckTrigger();
-        execute(); //TODO: Catch exceptions
       }
     }
   }
@@ -231,6 +231,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     reportAsyncFailure(e);
   }
 
+  //TODO: Implement also sync error reporting
   private void reportAsyncFailure(Exception e) {
     if (isSimulation) //TODO: Remove testing code
       throw new RuntimeException(e);
@@ -314,11 +315,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
             request.getStep().startExecution();
           }
           catch (Exception e) {
-            request.getStep().reportAsyncFailure(e, false);
+            request.getStep().reportAsyncFailure(e, false); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
           }
         }
         case CANCEL_EXECUTION -> {
-          try {
+          try { //TODO: Implement auto-cancellation in STATE_CHECK request (task-token check!)
             request.getStep().cancel();
           }
           catch (Exception e) {
@@ -330,7 +331,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         }
         case STATE_CHECK -> request.getStep().checkAsyncExecutionState();
         case SUCCESS_CALLBACK -> request.getStep().reportAsyncSuccess();
-        //TODO: FAILURE_CALLBACK
+        case FAILURE_CALLBACK -> request.getStep().reportAsyncFailure(null, false); //TODO: Read error information from request payload (once specified)
       }
 
       //The lambda call is complete, call the shutdown hook
