@@ -129,6 +129,7 @@ public class Job implements XyzSerializable {
    * @return Whether submission was done. If submission was not done, the Job remains in state NOT_READY.
    */
   public Future<Boolean> submit() {
+    //TODO: Make sure that all state-transitions are persisted using the JobConfigClient#updateState() method
     //TODO: Do not re-compile if the steps are set already?
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
@@ -420,6 +421,7 @@ public class Job implements XyzSerializable {
     if (keepUntil < 1704067200000l) //Smaller than 2024-01-01 (pre-release)
       //The value was specified in seconds. Translate it into ms.
       keepUntil *= 1000;
+    //TODO: Check that the value is not larger than some allowed max period (e.g. 2yrs or so)
     this.keepUntil = keepUntil;
   }
 

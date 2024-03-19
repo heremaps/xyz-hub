@@ -21,6 +21,7 @@ package com.here.xyz.jobs.config;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +69,11 @@ public class InMemJobConfigClient extends JobConfigClient {
     public Future<Void> storeJob(String resourceKey, Job job) {
         jobMap.put(new JobKey(resourceKey, job.getId()), job);
         return Future.succeededFuture();
+    }
+
+    @Override
+    public Future<Void> updateState(String resourceKey, Job job, State expectedPreviousState) {
+        return storeJob(resourceKey, job);
     }
 
     @Override

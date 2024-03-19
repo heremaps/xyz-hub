@@ -23,6 +23,7 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
+import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Config;
@@ -96,6 +97,22 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return dynamoClient.executeQueryAsync(() -> {
       //TODO: Ensure that concurrent writes do not produce invalid state-transitions using atomic writes
       jobTable.putItem(convertJobToItem(resourceKey, job));
+      return null;
+    });
+  }
+
+  @Override
+  public Future<Void> updateState(String resourceKey, Job job, State expectedPreviousState) {
+    if (expectedPreviousState == job.getStatus().getState())
+      //Nothing to do
+      return Future.succeededFuture();
+
+    return dynamoClient.executeQueryAsync(() -> {
+      jobTable.updateItem(new UpdateItemSpec()
+          .withPrimaryKey("resourceKey", resourceKey, "id", job.getId())
+          .withUpdateExpression("SET status.state = :newState")
+          .withConditionExpression("status.state = :oldState")
+          .withValueMap(Map.of(":newState", job.getStatus().getState().toString(), ":oldState", expectedPreviousState.toString())));
       return null;
     });
   }
