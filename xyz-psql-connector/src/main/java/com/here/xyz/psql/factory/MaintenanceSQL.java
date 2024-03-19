@@ -199,6 +199,7 @@ public class MaintenanceSQL {
                     "  id VARCHAR(255)," +
                     "  space VARCHAR (255)," +
                     "  version BIGINT," +
+                    "  system boolean," +
                     "  PRIMARY KEY(id, space)"+
                     "); ";
 

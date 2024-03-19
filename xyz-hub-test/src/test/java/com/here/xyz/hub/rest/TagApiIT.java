@@ -48,7 +48,7 @@ public class TagApiIT extends TestSpaceWithFeature {
     @BeforeClass
     public static void setupClass() {
         removeSpace(getSpaceId());
-        createdSpaces.stream().forEach(TagApiIT::removeSpace);
+        createdSpaces.forEach(TagApiIT::removeSpace);
     }
 
     @Before
