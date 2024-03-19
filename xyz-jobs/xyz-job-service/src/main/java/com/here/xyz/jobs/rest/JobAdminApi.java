@@ -1,4 +1,27 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.jobs.rest;
+
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -12,67 +35,66 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-
 public class JobAdminApi extends Api {
+  private static final String ADMIN_JOB_STEPS = "/admin/jobs/:jobId/steps";
+  private static final String ADMIN_JOB_STEP_ID = "/admin/jobs/:jobId/steps/:stepId";
 
-    private static final String ADMIN_JOB_STEPS = "/admin/jobs/:jobId/steps";
-    private static final String ADMIN_JOB_STEP_ID = "/admin/jobs/:jobId/steps/:stepId";
-    public JobAdminApi(Router router) {
-        router.route(HttpMethod.POST, ADMIN_JOB_STEPS)
-                .handler(BodyHandler.create())
-                .handler(handleErrors(this::postStep));
+  public JobAdminApi(Router router) {
+    router.route(HttpMethod.POST, ADMIN_JOB_STEPS)
+        .handler(BodyHandler.create())
+        .handler(handleErrors(this::postStep));
 
-        router.route(HttpMethod.GET, ADMIN_JOB_STEP_ID)
-                .handler(handleErrors(this::getStep));
+    router.route(HttpMethod.GET, ADMIN_JOB_STEP_ID)
+        .handler(handleErrors(this::getStep));
+  }
+
+  private void postStep(RoutingContext context) throws HttpException {
+    String jobId = ApiParam.getPathParam(context, ApiParam.Path.JOB_ID);
+    Step step = getStepFromBody(context);
+    Job.load(jobId)
+        .compose(job -> job.updateStep(step).map(job))
+        .onSuccess(res -> sendResponse(context, OK, res))
+        .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  private void getStep(RoutingContext context) {
+    String jobId = ApiParam.getPathParam(context, ApiParam.Path.JOB_ID);
+    String stepId = ApiParam.getPathParam(context, ApiParam.Path.STEP_ID);
+    Job.load(jobId)
+        .compose(job -> {
+          Step step = job.getStepById(stepId);
+          if (step == null)
+            return Future.failedFuture(new HttpException(NOT_FOUND, "Step is not present in the job"));
+          return Future.succeededFuture(step);
+        })
+        .onSuccess(res -> sendResponse(context, OK, res))
+        .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  private Step getStepFromBody(RoutingContext context) throws HttpException {
+    try {
+      return XyzSerializable.deserialize(context.body().asString(), Step.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new HttpException(BAD_REQUEST, "Error parsing request");
+    }
+  }
+
+  public static class ApiParam {
+
+    public static String getPathParam(RoutingContext context, String param) {
+      return context.pathParam(param);
     }
 
-    private void postStep(RoutingContext context) throws HttpException {
-        String jobId = ApiParam.getPathParam(context, ApiParam.Path.JOB_ID);
-        Step step = getStepFromBody(context);
-        Job.load(jobId)
-                .compose(job -> job.updateStep(step).map(job))
-                .onSuccess(res -> sendResponse(context, OK, res))
-                .onFailure(err -> sendErrorResponse(context, err));
+    public static class Path {
+
+      static final String JOB_ID = "jobId";
+      static final String STEP_ID = "stepId";
     }
 
-    private void getStep(RoutingContext context) {
-        String jobId = ApiParam.getPathParam(context, ApiParam.Path.JOB_ID);
-        String stepId = ApiParam.getPathParam(context, ApiParam.Path.STEP_ID);
-        Job.load(jobId)
-                .compose(job -> {
-                    Step step = job.getStepById(stepId);
-                    if(step == null) return Future.failedFuture(new HttpException(NOT_FOUND, "Step is not present in the job"));
-                    return Future.succeededFuture(step);
-                })
-                .onSuccess(res -> sendResponse(context, OK, res))
-                .onFailure(err -> sendErrorResponse(context, err));
-    }
-
-    public static class ApiParam {
-
-        public static class Path {
-            static final String JOB_ID = "jobId";
-            static final String STEP_ID = "stepId";
-        }
-
-        public static class Query {
-
-        }
-        public static String getPathParam(RoutingContext context, String param) {
-            return context.pathParam(param);
-        }
+    public static class Query {
 
     }
 
-    private Step getStepFromBody(RoutingContext context) throws HttpException {
-        try {
-            return XyzSerializable.deserialize(context.body().asString(), Step.class);
-        }
-        catch (JsonProcessingException e) {
-            throw new HttpException(BAD_REQUEST, "Error parsing request");
-        }
-    }
+  }
 }

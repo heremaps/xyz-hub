@@ -58,20 +58,28 @@ public class StepGraph implements StepExecution {
 
   public Step getStep(String stepId) {
     return stepStream()
-            .filter(step -> stepId.equals(step.getId()))
-            .findFirst()
-            .orElse(null);
+        .filter(step -> stepId.equals(step.getId()))
+        .findFirst()
+        .orElse(null);
   }
 
-  public void replaceStep(Step<?> step) {
-    for(int i=0; i<executions.size(); i++) {
+  /**
+   * Replaces a step within this graph by the provided step with the same ID.
+   *
+   * @param step The step to replace the existing step
+   * @return <code>true</code> if a matching step was found in this graph and was actually replaced, <code>false</code> otherwise
+   */
+  public boolean replaceStep(Step<?> step) {
+    for (int i = 0; i < executions.size(); i++) {
       StepExecution execution = executions.get(i);
-      if(execution instanceof StepGraph graph) graph.replaceStep(step);
-      if(execution instanceof Step currentStep && currentStep.getId().equals(step.getId())) {
+      if (execution instanceof StepGraph graph)
+        return graph.replaceStep(step);
+      else if (execution instanceof Step traversedStep && traversedStep.getId().equals(step.getId())) {
         executions.set(i, step);
-        return;
+        return true;
       }
     }
+    return false;
   }
 
   public boolean isParallel() {

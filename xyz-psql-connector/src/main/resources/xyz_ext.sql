@@ -4243,7 +4243,7 @@ CREATE OR REPLACE FUNCTION xyz_import_into_space(schem text, temporary_tbl regcl
 AS $BODY$
 	DECLARE
         retry_count integer := 2;
-		import_config text := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
+		import_config text := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')'; --TODO: Use own quot $...$ for easier escaping here
 		locked_item record;
 		import_results record;
 		target_clomuns text;

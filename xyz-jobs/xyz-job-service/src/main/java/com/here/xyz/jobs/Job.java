@@ -242,7 +242,10 @@ public class Job implements XyzSerializable {
    * @return
    */
   public Future<Void> updateStep(Step<?> step) {
-    getSteps().replaceStep(step);
+    boolean found = getSteps().replaceStep(step);
+    if (!found)
+      throw new IllegalArgumentException("The provided step with ID " + step.getJobId() + "." + step.getId()
+          + " could not be replaced in the StepGraph of job with ID " + getId() + " as it was not found.");
     return store();
   }
 
