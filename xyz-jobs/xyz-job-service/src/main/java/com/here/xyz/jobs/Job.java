@@ -194,39 +194,26 @@ public class Job implements XyzSerializable {
     return JobExecutor.getInstance().startExecution(this, resume ? getExecutionId() : null);
   }
 
-  public Future<Void> cancel() {
+  /**
+   * Cancels the execution of this job.
+   *
+   * @return A future providing a boolean telling whether the action was performed already.
+   */
+  public Future<Boolean> cancel() {
     getStatus().setState(CANCELLING);
-    //FIXME: Let JobExecutor cancel the execution so that steps will be cancelled automatically (step state updates will come in one by one then)
-    getSteps().stepStream().forEach(step -> getStatus().setState(CANCELLING)); //TODO: Only cancel the ones which were not succeeded yet
+    getSteps().stepStream().forEach(step -> {
+      if (getStatus().getState().isValidSuccessor(CANCELLING))
+        getStatus().setState(CANCELLING);
+    });
 
     return store()
         //Cancel the execution in any case, to prevent race-conditions
         .compose(v -> JobExecutor.getInstance().cancel(getExecutionId()))
-        .compose(cancellingPerformed -> {
-          //TODO: Wait for all steps to be CANCELLED before continuing ...
-          //Execution was cancelled successfully (or was not needed). Update the job status that now is CANCELLED and store it.
-          getStatus().setState(CANCELLED);
-
-          Future<Void> resultingFuture = Future.succeededFuture();
-          if (cancellingPerformed)
-            //If a cancellation was actually performed, sync the step status one last time
-            resultingFuture = updateStepStatus();
-          else
-            //If no cancellation was performed, that means the execution was not started yet, so all steps can be set to CANCELLED state.
-            getSteps().stepStream().forEach(step -> getStatus().setState(CANCELLED));
-
-          return resultingFuture
-              .compose(v2 -> store());
-        });
-  }
-
-  /**
-   * Updates the intrinsic status of all steps and caches it on this job.
-   * @return A future which succeeds when all step status has been updated successfully.
-   */
-  public Future<Void> updateStepStatus() {
-    //TODO: Have a method JobExecutor#updateStepStatus(StepGraph, executionId) which will be called here
-    return null;
+        /*
+        NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
+        and update the Job to CANCELED once al cancellations are completed.
+         */
+        .map(false);
   }
 
   /**
@@ -251,7 +238,11 @@ public class Job implements XyzSerializable {
     return store();
   }
 
-  public Future<Void> resume() {
+  /**
+   * Resumes this job after it has previously been canceled or failed, and the failure is retryable.
+   * @return A future providing a boolean telling whether the action was performed already.
+   */
+  public Future<Boolean> resume() {
     if (isResumable()) {
       getStatus().setState(RESUMING);
       getSteps().stepStream().forEach(step -> {
@@ -268,7 +259,7 @@ public class Job implements XyzSerializable {
             });
             return store()
                 .compose(v2 -> startExecution(true));
-          });
+          }).map(true);
     }
     else
       return Future.failedFuture(new IllegalStateException("Job " + getId() + " is not resumable."));

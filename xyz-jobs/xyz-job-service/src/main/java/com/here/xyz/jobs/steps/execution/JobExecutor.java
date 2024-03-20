@@ -19,25 +19,37 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public abstract class JobExecutor {
+public abstract class JobExecutor implements Initializable {
   private static final Logger logger = LogManager.getLogger();
   private static final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
-  private static final JobExecutor instance = new StateMachineExecutor(); //TODO: Use a different impl locally
+  private static final JobExecutor instance = new StateMachineExecutor();
   private static volatile boolean running;
   private static volatile boolean stopRequested;
+  private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
+  private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
+  private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
 
   {
     //TODO: Activate checking for PENDING jobs
@@ -93,13 +105,63 @@ public abstract class JobExecutor {
     }
   }
 
+  @Override
+  public Future<Void> init() {
+    checkCancellations();
+    return Initializable.super.init();
+  }
+
+  /**
+   * Starts a process which performs the following actions *once*:
+   *  - Check if there exist any jobs which are currently in CANCELLING state
+   *  - For each job in CANCELLING state
+   *    - wait until all its steps are in state CANCELLED
+   *    - Once that is the case update the job to state CANCELLED
+   *  - Complete the process once all the affected jobs are in state CANCELLED
+   *  - If the affected jobs are not all in state CANCELLED after a specified timeout do the following:
+   *    - Update the remaining jobs to the FAILED state and set them to be not resumable
+   *    - Throw an exception to stop the process
+   */
+  protected static void checkCancellations() {
+    if (cancellationCheckRunning.compareAndSet(false, true))
+      JobConfigClient.getInstance().loadJobs(CANCELLING)
+          .compose(jobs -> Future.all(jobs.stream().map(job -> {
+            if (job.getSteps().stepStream().allMatch(step -> step.getStatus().getState() == CANCELLED)) {
+              job.getStatus().setState(CANCELLED);
+              return job.store();
+            }
+            return Future.succeededFuture();
+          }).collect(Collectors.toList())).map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).collect(Collectors.toList())))
+          .compose(remainingJobs -> {
+            if (remainingJobs.isEmpty())
+              return Future.succeededFuture(false);
+
+            //Fail all jobs of which the cancellation did not work within <CANCELLATION_TIMEOUT> ms
+            List<Job> jobsToFail = remainingJobs
+                .stream()
+                .filter(job -> job.getStatus().getUpdatedAt() + CANCELLATION_TIMEOUT < Core.currentTimeMillis())
+                .collect(Collectors.toList());
+            jobsToFail.forEach(job -> {
+              //TODO: Set failure cause
+              job.getStatus().setState(FAILED);
+              job.store();
+            });
+
+            //If there are still remaining jobs, run the cancellation check again
+            return Future.succeededFuture(jobsToFail.size() < remainingJobs.size());
+          })
+          .onFailure(t -> logger.error("Error in checkCancellations process:", t))
+          .onSuccess(runAgain -> exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS))
+          .onComplete(ar -> cancellationCheckRunning.set(false));
+  }
+
   protected abstract Future<String> execute(Job job);
 
   protected abstract Future<String> execute(StepGraph formerGraph, Job job);
 
   protected abstract Future<String> resume(Job job, String executionId);
 
-  public abstract Future<Boolean> cancel(String executionId);
+  public abstract Future<Void> cancel(String executionId);
 
   /**
    * Checks for all resource-loads of the specified job whether they can be fulfilled. If yes, the job may be executed.

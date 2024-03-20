@@ -21,20 +21,21 @@ package com.here.xyz.jobs;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.HubWebClientAsync;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import java.util.Date;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.Date;
-import java.util.concurrent.TimeUnit;
-
 public class JobService extends Core {
+
   private static final Logger logger = LogManager.getLogger();
   /**
    * The client to access the Hub REST API
@@ -45,20 +46,25 @@ public class JobService extends Core {
    */
   public static Config configuration;
 
+  static {
+    XyzSerializable.registerSubtypes(StepGraph.class);
+  }
+
   public static void main(String[] args) {
     VertxOptions vertxOptions = new VertxOptions()
-            .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
-            .setPreferNativeTransport(true)
-            .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(15));
+        .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
+        .setPreferNativeTransport(true)
+        .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(15));
 
     initializeVertx(vertxOptions)
-            .compose(Core::initializeConfig)
-            .compose(Core::initializeLogger)
-            .compose(JobService::parseConfiguration)
-            .compose(JobService::initializeClients)
-            .compose(JobService::initializeService)
-            .onFailure(t -> logger.error("CService startup failed", t))
-            .onSuccess(v -> logger.info("Service startup succeeded"));
+        .compose(Core::initializeConfig)
+        .compose(Core::initializeLogger)
+        .compose(JobService::parseConfiguration)
+        .compose(JobService::initializeClients)
+        .compose(JobService::initializeService)
+        .onFailure(t -> logger.error("CService startup failed", t))
+        .onSuccess(v -> logger.info("Service startup succeeded"))
+        .onSuccess(v -> JobExecutor.getInstance().init());
   }
 
   private static Future<JsonObject> parseConfiguration(JsonObject config) {
@@ -74,19 +80,16 @@ public class JobService extends Core {
     }));
     return Future.succeededFuture().map(config);
   }
+
   private static Future<JsonObject> initializeService(JsonObject config) {
     final DeploymentOptions options = new DeploymentOptions()
-            .setConfig(config)
-            .setWorker(false)
-            .setInstances(Runtime.getRuntime().availableProcessors() * 2);
+        .setConfig(config)
+        .setWorker(false)
+        .setInstances(Runtime.getRuntime().availableProcessors() * 2);
 
     return vertx.deployVerticle(JobRESTVerticle.class, options)
-            .onFailure(t -> logger.error("Unable to deploy JobVerticle.", t))
-            .onSuccess(s -> logger.info("Service is up and running on port " + configuration.HTTP_PORT))
-            .map(config);
-  }
-
-  static {
-    XyzSerializable.registerSubtypes(StepGraph.class);
+        .onFailure(t -> logger.error("Unable to deploy JobVerticle.", t))
+        .onSuccess(s -> logger.info("Service is up and running on port " + configuration.HTTP_PORT))
+        .map(config);
   }
 }

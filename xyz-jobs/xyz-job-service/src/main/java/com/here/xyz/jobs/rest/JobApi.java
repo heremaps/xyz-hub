@@ -19,6 +19,14 @@
 
 package com.here.xyz.jobs.rest;
 
+import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
+import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.JOB_ID;
+import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.SPACE_ID;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
@@ -29,17 +37,10 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.commons.lang3.NotImplementedException;
-
-import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.JOB_ID;
-import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.SPACE_ID;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 public class JobApi extends Api {
 
@@ -128,7 +129,7 @@ public class JobApi extends Api {
         RuntimeStatus status = getStatusFromBody(context);
         loadJob(spaceId, jobId)
                 .compose(job -> tryExecuteAction(status, job))
-                .onSuccess(res -> sendResponse(context, OK, res.getStatus()))
+                .onSuccess(patchedStatus -> sendResponse(context, OK, patchedStatus))
                 .onFailure(err -> sendErrorResponse(context, err));
     }
 
@@ -196,22 +197,25 @@ public class JobApi extends Api {
         return JobConfigClient.getInstance().loadJob(spaceId, jobId)
                 .compose(job -> {
                     if(job == null)
-                        return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "The requested job does not exist"));
+                        return Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist"));
                     return Future.succeededFuture(job);
                 });
     }
 
-    private static Future<Job> tryExecuteAction(RuntimeStatus status, Job job) {
+    private static Future<RuntimeStatus> tryExecuteAction(RuntimeStatus status, Job job) {
         job.getStatus().setDesiredAction(status.getDesiredAction());
         return (switch (status.getDesiredAction()) {
-                    case START -> job.submit();
-                    case CANCEL -> job.cancel();
-                    case RESUME -> job.resume();
-        }).map(res -> job)
-        .onSuccess(executedJob -> {
-            executedJob.getStatus().setDesiredAction(null);
-            executedJob.store();
-        });
+            case START -> job.submit();
+            case CANCEL -> job.cancel();
+            case RESUME -> job.resume();
+        })
+            .onSuccess(actionExecuted -> {
+                if (status.getDesiredAction() != CANCEL || actionExecuted) {
+                    job.getStatus().setDesiredAction(null);
+                    job.store();
+                }
+            })
+            .map(res -> job.getStatus());
     }
 
 

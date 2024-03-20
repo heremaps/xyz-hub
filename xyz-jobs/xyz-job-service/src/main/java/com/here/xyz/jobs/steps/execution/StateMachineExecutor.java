@@ -57,14 +57,18 @@ class StateMachineExecutor extends JobExecutor {
   }
 
   @Override
-  public Future<Boolean> cancel(String executionId) {
+  public Future<Void> cancel(String executionId) {
     //TODO: Asyncify!
     sfnClient().stopExecution(StopExecutionRequest.builder()
             .executionArn(executionId)
             .cause("CANCELLED") //TODO: Infer better cause
         .build());
-    //TODO: Change return type to Future<Void>
-    return null;
+    /*
+    Start checking for cancellations to make sure the job config will be updated properly once all its steps have been properly canceled.
+    NOTE: That will also happen once at the startup of the service.
+     */
+    checkCancellations();
+    return Future.succeededFuture();
   }
 
   //TODO: Care about retention of created State Machines! (e.g., automatically delete State Machines one week after having been completed successfully)
