@@ -19,9 +19,6 @@
 
 package com.here.xyz.jobs.steps;
 
-import static com.amazonaws.HttpMethod.GET;
-import static com.amazonaws.HttpMethod.PUT;
-
 import com.amazonaws.HttpMethod;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -30,6 +27,8 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
@@ -40,6 +39,9 @@ import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+
+import static com.amazonaws.HttpMethod.GET;
+import static com.amazonaws.HttpMethod.PUT;
 
 public class S3Client {
   private static final S3Client instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
@@ -127,6 +129,19 @@ public class S3Client {
     putObject(s3Key, contentType, content.getBytes());
   }
 
+  public S3Object getObject(String s3Key) {
+    return getObject(s3Key, null, null);
+  }
+  public S3Object getObject(String s3Key, Long start, Long end) {
+    GetObjectRequest getObjectRequest = new GetObjectRequest(bucketName, s3Key);
+
+    if(start != null && end != null) {
+      getObjectRequest.setRange(start, end);
+    }else if(start != null && end == null)
+      getObjectRequest.setRange(start);
+    return client.getObject(getObjectRequest);
+  }
+
   public void putObject(String s3Key, String contentType, byte[] content) {
     ObjectMetadata metadata = new ObjectMetadata();
     metadata.setContentType(contentType);
@@ -135,5 +150,11 @@ public class S3Client {
 
   public ObjectMetadata loadMetadata(String key) {
     return client.getObjectMetadata(bucketName, key);
+  }
+
+  public void deleteFolder(String folderPath) {
+    for (S3ObjectSummary file : client.listObjects(bucketName, folderPath).getObjectSummaries()){
+      client.deleteObject(bucketName, file.getKey());
+    }
   }
 }
