@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,11 +48,6 @@ public class Config extends BaseConfig {
    * Size of the in-memory cache in megabytes. (Maximum 2GB)
    */
   public int CACHE_SIZE_MB;
-
-  /**
-   * The port of the HTTP server.
-   */
-  public int HTTP_PORT;
 
   /**
    * The hostname, which under instances can use to contact the this service node.

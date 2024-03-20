@@ -19,12 +19,10 @@
 
 package com.here.xyz.jobs.steps;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.util.service.BaseConfig;
 import java.net.URI;
 import java.net.URL;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class Config extends BaseConfig {
   public static Config instance;
 

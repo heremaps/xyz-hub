@@ -29,11 +29,6 @@ public class Config extends com.here.xyz.jobs.steps.Config {
   }
 
   /**
-   * The port of the HTTP server
-   */
-  public int HTTP_PORT;
-
-  /**
    * The router builder class names, separated by comma
    */
   public String ROUTER_BUILDER_CLASS_NAMES;
