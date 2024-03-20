@@ -56,6 +56,12 @@ public class StepGraph implements StepExecution {
     return this;
   }
 
+  /**
+   * Returns a step within this graph matching the provided step ID.
+   *
+   * @param stepId
+   * @return <code>Step</code> if found in the step graph, else return null
+   */
   public Step getStep(String stepId) {
     return stepStream()
         .filter(step -> stepId.equals(step.getId()))
@@ -72,9 +78,10 @@ public class StepGraph implements StepExecution {
   public boolean replaceStep(Step<?> step) {
     for (int i = 0; i < executions.size(); i++) {
       StepExecution execution = executions.get(i);
-      if (execution instanceof StepGraph graph)
-        return graph.replaceStep(step);
-      else if (execution instanceof Step traversedStep && traversedStep.getId().equals(step.getId())) {
+      if (execution instanceof StepGraph graph) {
+        boolean found = graph.replaceStep(step);
+        if(found) return true;
+      } else if (execution instanceof Step traversedStep && traversedStep.getId().equals(step.getId())) {
         executions.set(i, step);
         return true;
       }
