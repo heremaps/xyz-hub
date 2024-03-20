@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import com.here.xyz.jobs.steps.S3QuickValidator;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
@@ -52,7 +53,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
   private static final String JOB_DATA_SUFFIX = "_job_data";
   private static int importThreadCnt = 2;
-  private Format format;
+  private Format format = Format.GEOJSON;
   private Phase phase;
   public enum Format {
     CSV_GEOJSON, CSV_JSONWKB, GEOJSON;
@@ -68,7 +69,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
   }
   public enum Phase {
-    SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, FILL_TMP_TABLE, EXECUTE_IMPORT,
+    VALIDATE, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, FILL_TMP_TABLE, EXECUTE_IMPORT,
     RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
     public static Phase of(String value) {
       if (value == null) {
@@ -132,6 +133,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public boolean validate() throws ValidationException {
+    phase = Phase.VALIDATE;
     try {
       //Check if the space is actually existing
       loadSpace(getSpaceId());
@@ -143,8 +145,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    //TODO: Validate the input files in S3
-    return !loadInputs().isEmpty();
+    List<Input> inputs = loadInputs();
+    /** inputs are missing */
+    if(inputs.isEmpty())
+      return false;
+
+    for (int i = 0; i < inputs.size(); i++) {
+      /** @TODO: Think about how many files we want to quick check */
+      if(i == 2)
+        break;
+      if(inputs.get(0) instanceof UploadUrl uploadUrl)
+        S3QuickValidator.validate(uploadUrl, format);
+    }
+
+    return true;
   }
 
   private int calculateNeededAcus(long featureCount, long byteSize) {
@@ -206,7 +220,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         queryList.add(
                 new SQLQuery("""                
                             INSERT INTO  ${schema}.${table} (s3_uri, state, data)
-                                VALUES (aws_commons.create_s3_uri(#{bucketName},#{s3Key},#{bucketRegion}), #{state}, #{data}::jsonb);
+                                VALUES (aws_commons.create_s3_uri(#{bucketName},#{s3Key},#{bucketRegion}), #{state}, #{data}::jsonb)
+                                ON CONFLICT (s3_uri) DO NOTHING;
                         """)
                         .withVariable("schema", getSchema(db))
                         .withVariable("table", table + JOB_DATA_SUFFIX)
