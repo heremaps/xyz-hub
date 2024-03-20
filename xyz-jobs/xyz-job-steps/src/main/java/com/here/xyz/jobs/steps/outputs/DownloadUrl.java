@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.outputs;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.steps.S3Client;
+import com.here.xyz.jobs.util.S3Client;
 import java.net.URL;
 
 public class DownloadUrl extends Output<DownloadUrl> {

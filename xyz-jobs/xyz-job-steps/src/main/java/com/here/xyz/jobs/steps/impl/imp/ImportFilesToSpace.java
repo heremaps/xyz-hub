@@ -17,15 +17,15 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl;
+package com.here.xyz.jobs.steps.impl.imp;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import com.here.xyz.jobs.steps.S3QuickValidator;
 import com.here.xyz.jobs.steps.execution.db.Database;
+import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
@@ -137,7 +137,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       if(i == 2)
         break;
       if(inputs.get(0) instanceof UploadUrl uploadUrl)
-        S3QuickValidator.validate(uploadUrl, format);
+        ImportFilesQuickValidator.validate(uploadUrl, format);
     }
 
     return true;

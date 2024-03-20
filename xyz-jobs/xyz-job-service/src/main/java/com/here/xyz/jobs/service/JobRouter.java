@@ -18,14 +18,12 @@
  */
 
 
-package com.here.xyz.jobs.rest;
+package com.here.xyz.jobs.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.io.ByteStreams;
-import com.here.xyz.jobs.Config;
-import com.here.xyz.jobs.JobRESTVerticle;
 import com.here.xyz.util.openapi.OpenApiGenerator;
 import com.here.xyz.util.service.AbstractRouterBuilder;
 import io.vertx.core.Future;
@@ -37,10 +35,9 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.openapi.router.OpenAPIRoute;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import io.vertx.openapi.contract.OpenAPIContract;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.Map;
 
 public class JobRouter implements AbstractRouterBuilder {
 

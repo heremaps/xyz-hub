@@ -19,7 +19,7 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
-import com.here.xyz.jobs.steps.S3Client;
+import com.here.xyz.jobs.util.S3Client;
 
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
   @Override

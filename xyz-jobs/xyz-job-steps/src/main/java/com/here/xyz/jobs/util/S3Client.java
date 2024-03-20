@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps;
+package com.here.xyz.jobs.util;
 
 import static com.amazonaws.HttpMethod.GET;
 import static com.amazonaws.HttpMethod.PUT;
@@ -35,6 +35,7 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

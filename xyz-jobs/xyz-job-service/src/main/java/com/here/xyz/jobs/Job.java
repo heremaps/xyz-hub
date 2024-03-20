@@ -45,6 +45,7 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.util.AsyncS3Client;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;

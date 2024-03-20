@@ -17,10 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs;
+package com.here.xyz.jobs.util;
 
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.here.xyz.jobs.steps.S3Client;
+import com.here.xyz.jobs.service.Config;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;

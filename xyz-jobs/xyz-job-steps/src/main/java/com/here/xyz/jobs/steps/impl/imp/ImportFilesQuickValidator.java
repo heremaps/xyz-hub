@@ -17,15 +17,16 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps;
+package com.here.xyz.jobs.steps.impl.imp;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.S3Object;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.impl.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
+import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.BufferedReader;
@@ -41,16 +42,15 @@ import org.json.JSONObject;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
 
-public class S3QuickValidator {
-
+public class ImportFilesQuickValidator {
   private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
 
-  public static void validate(UploadUrl uploadUrl, Format format) throws ValidationException {
+  static void validate(UploadUrl uploadUrl, Format format) throws ValidationException {
     validate(uploadUrl.getS3Key(), format, uploadUrl.isCompressed());
   }
 
-  public static void validate(String s3Key, Format format, boolean isCompressed) throws ValidationException {
+  static void validate(String s3Key, Format format, boolean isCompressed) throws ValidationException {
     S3Client client = S3Client.getInstance();
     try {
       if (isCompressed)
@@ -84,7 +84,7 @@ public class S3QuickValidator {
         line += c;
 
         if (c == '\n' || c == '\r') {
-          S3QuickValidator.validateCSVLine(line, format);
+          ImportFilesQuickValidator.validateCSVLine(line, format);
           return;
         }
       }
@@ -93,7 +93,7 @@ public class S3QuickValidator {
     catch (AmazonServiceException e) {
       if (e.getErrorCode().equalsIgnoreCase("InvalidRange")) {
         /** Did not find a lineBreak - maybe CSV with 1LOC - try to validate */
-        S3QuickValidator.validateCSVLine(line, format);
+        ImportFilesQuickValidator.validateCSVLine(line, format);
         return;
       }
       throw e;
@@ -115,7 +115,7 @@ public class S3QuickValidator {
     }
     else {
       /** Not able to find a newline - could be a oneLiner*/
-      S3QuickValidator.validateCSVLine(line, format);
+      ImportFilesQuickValidator.validateCSVLine(line, format);
     }
   }
 
@@ -141,7 +141,7 @@ public class S3QuickValidator {
         line += c;
         if (c == '\n' || c == '\r') {
           /** Found complete line */
-          S3QuickValidator.validateCSVLine(line, format);
+          ImportFilesQuickValidator.validateCSVLine(line, format);
           return;
         }
       }

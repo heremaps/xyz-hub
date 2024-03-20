@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs;
+package com.here.xyz.jobs.service;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.StepGraph;

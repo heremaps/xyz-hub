@@ -17,11 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.rest;
+package com.here.xyz.jobs.service;
 
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
-import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.JOB_ID;
-import static com.here.xyz.jobs.rest.JobApi.ApiParam.Path.SPACE_ID;
+import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
+import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;

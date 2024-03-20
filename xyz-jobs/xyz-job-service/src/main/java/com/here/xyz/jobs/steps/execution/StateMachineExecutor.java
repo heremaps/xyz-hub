@@ -21,8 +21,8 @@ package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
 
-import com.here.xyz.jobs.Config;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.StepGraph;
 import io.vertx.core.Future;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineRequest;

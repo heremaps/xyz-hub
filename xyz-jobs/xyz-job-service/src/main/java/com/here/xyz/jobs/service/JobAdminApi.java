@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.rest;
+package com.here.xyz.jobs.service;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
@@ -29,7 +29,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
-import com.here.xyz.jobs.rest.JobAdminApi.ApiParam.Path;
+import com.here.xyz.jobs.service.JobAdminApi.ApiParam.Path;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;

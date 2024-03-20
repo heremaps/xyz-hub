@@ -1,17 +1,36 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+package com.here.xyz.jobs.steps.impl.imp;
+
+import static org.junit.Assert.assertEquals;
+
 import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.S3Client;
-import com.here.xyz.jobs.steps.S3QuickValidator;
-import com.here.xyz.jobs.steps.impl.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
+import java.net.URI;
+import java.net.URISyntaxException;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.net.URI;
-import java.net.URISyntaxException;
-
-import static org.junit.Assert.assertEquals;
-public class S3QuickValidatorTest {
+public class QuickValidatorTest {
     private static String TEST_PREXIF = "validation-test/";
     private static S3Client client;
 
@@ -61,12 +80,12 @@ public class S3QuickValidatorTest {
                 "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}\n".getBytes());
 
         /** Should not fail - above are all valid */
-      S3QuickValidator.validate(generateTestS3Key("test_valid_1_jsonwkb.csv"), Format.CSV_JSONWKB, false);
-      S3QuickValidator.validate(generateTestS3Key("test_valid_1_geojson.csv"), Format.CSV_GEOJSON, false);
-      S3QuickValidator.validate(generateTestS3Key("test_valid_1_geojson.txt"), Format.GEOJSON, false);
-      S3QuickValidator.validate(generateTestS3Key("test_valid_2_jsonwkb.csv"), Format.CSV_JSONWKB, false);
-      S3QuickValidator.validate(generateTestS3Key("test_valid_2_geojson.csv"), Format.CSV_GEOJSON, false);
-      S3QuickValidator.validate(generateTestS3Key("test_valid_2_geojson.txt"), Format.GEOJSON, false);
+      ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_1_jsonwkb.csv"), Format.CSV_JSONWKB, false);
+      ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_1_geojson.csv"), Format.CSV_GEOJSON, false);
+      ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_1_geojson.txt"), Format.GEOJSON, false);
+      ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_2_jsonwkb.csv"), Format.CSV_JSONWKB, false);
+      ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_2_geojson.csv"), Format.CSV_GEOJSON, false);
+      ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_2_geojson.txt"), Format.GEOJSON, false);
     }
 
     @Test
@@ -85,17 +104,17 @@ public class S3QuickValidatorTest {
                 "{\"type\":\"Featureinvaid\",\"geometry\":{\"type\":\"Pointinvalid\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}".getBytes());
 
         try{
-            S3QuickValidator.validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, false);
+            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, false);
         }catch (BaseHttpServerVerticle.ValidationException e){
             checkValidationException(e, "Bad JSON encoding! ");
         }
         try{
-            S3QuickValidator.validate(generateTestS3Key("test_invalid_1_geojson.csv"), Format.CSV_GEOJSON, false);
+            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_geojson.csv"), Format.CSV_GEOJSON, false);
         }catch (BaseHttpServerVerticle.ValidationException e){
             checkValidationException(e, "Bad JSON encoding! ");
         }
         try{
-            S3QuickValidator.validate(generateTestS3Key("test_invalid_1_geojson.txt"), Format.GEOJSON, false);
+            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_geojson.txt"), Format.GEOJSON, false);
         }catch (BaseHttpServerVerticle.ValidationException e){
             checkValidationException(e, "Bad JSON encoding! ");
         }
@@ -108,7 +127,7 @@ public class S3QuickValidatorTest {
                 "text/csv",
                 "\"{'\"properties'\": {invalid}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A40000000000000".getBytes());
         try{
-            S3QuickValidator.validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, false);
+            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, false);
         }catch (BaseHttpServerVerticle.ValidationException e){
             checkValidationException(e, "Bad WKB encoding! ");
         }

@@ -17,9 +17,8 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs;
+package com.here.xyz.jobs.service;
 
-import com.here.xyz.jobs.rest.JobRouter;
 import com.here.xyz.util.service.AbstractRouterBuilder;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import io.vertx.core.CompositeFuture;

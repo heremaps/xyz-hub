@@ -31,6 +31,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaBasedStepExecutor;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest;
@@ -38,8 +39,8 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.Reque
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
-import com.here.xyz.jobs.steps.impl.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
+import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
