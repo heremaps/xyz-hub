@@ -121,6 +121,13 @@
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-lambda-java-log4j2</artifactId>
     </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <artifactId>junit</artifactId>
+      <groupId>junit</groupId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
