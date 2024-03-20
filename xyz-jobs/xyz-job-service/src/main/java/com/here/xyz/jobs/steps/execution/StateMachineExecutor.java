@@ -27,6 +27,7 @@ import com.here.xyz.jobs.steps.StepGraph;
 import io.vertx.core.Future;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineRequest;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineResponse;
+import software.amazon.awssdk.services.sfn.model.RedriveExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
@@ -52,23 +53,38 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<String> resume(Job job, String executionId) {
-    //TODO: Research about resuming SFN
-    return null;
+    try {
+      //TODO: Asyncify!
+      sfnClient().redriveExecution(RedriveExecutionRequest.builder()
+          .executionArn(executionId)
+          .build());
+      return Future.succeededFuture();
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   @Override
   public Future<Void> cancel(String executionId) {
-    //TODO: Asyncify!
-    sfnClient().stopExecution(StopExecutionRequest.builder()
-            .executionArn(executionId)
-            .cause("CANCELLED") //TODO: Infer better cause
-        .build());
-    /*
-    Start checking for cancellations to make sure the job config will be updated properly once all its steps have been properly canceled.
-    NOTE: That will also happen once at the startup of the service.
-     */
-    checkCancellations();
-    return Future.succeededFuture();
+    try {
+      //TODO: Asyncify!
+      sfnClient().stopExecution(StopExecutionRequest.builder()
+          .executionArn(executionId)
+          .cause("CANCELLED") //TODO: Infer better cause
+          .build());
+
+      /*
+      Start checking for cancellations to make sure the job config will be updated properly once all its steps have been properly canceled.
+      NOTE: That will also happen once at the startup of the service.
+       */
+      checkCancellations();
+
+      return Future.succeededFuture();
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   //TODO: Care about retention of created State Machines! (e.g., automatically delete State Machines one week after having been completed successfully)
