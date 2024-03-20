@@ -79,9 +79,10 @@ public class StepGraph implements StepExecution {
     for (int i = 0; i < executions.size(); i++) {
       StepExecution execution = executions.get(i);
       if (execution instanceof StepGraph graph) {
-        boolean found = graph.replaceStep(step);
-        if(found) return true;
-      } else if (execution instanceof Step traversedStep && traversedStep.getId().equals(step.getId())) {
+        if (graph.replaceStep(step))
+          return true;
+      }
+      else if (execution instanceof Step traversedStep && traversedStep.getId().equals(step.getId())) {
         executions.set(i, step);
         return true;
       }

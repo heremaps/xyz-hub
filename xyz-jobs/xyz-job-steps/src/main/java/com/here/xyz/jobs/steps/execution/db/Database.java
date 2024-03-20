@@ -38,8 +38,8 @@ import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import com.here.xyz.util.web.HubWebClientAsync;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,7 +112,7 @@ public class Database extends ExecutionResource {
       return dbs.stream()
           .filter(db -> db.getName().equals(name) && role.equals(db.getRole())).findAny().get();
     }
-    catch (NoSuchElementException | HubWebClientException e) {
+    catch (NoSuchElementException | WebClientException e) {
       //The requested database was not found
       throw new RuntimeException("No database was found with name " + name + " and role " + role, e);
     }

@@ -30,7 +30,7 @@ import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
@@ -51,7 +51,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
-    catch (HubWebClientException e) {
+    catch (WebClientException e) {
       //TODO: log error
       //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
@@ -79,7 +79,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   @Override
-  public void execute() throws SQLException, TooManyResourcesClaimed, HubWebClientException {
+  public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
     logger.info("Loading space config for space " + getSpaceId());
     Space space = loadSpace(getSpaceId());
     StatisticsResponse spaceStatistics = loadSpaceStatistics(getSpaceId(), EXTENSION);

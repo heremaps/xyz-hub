@@ -36,8 +36,10 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -55,6 +57,7 @@ import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskSuccessRequest;
+import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DatabaseBasedStep.class)
@@ -178,10 +181,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
     catch (UnknownStateException e) {
       /*
-      The state is not known currently, maybe one of the next heartbeat requests will be able to reveal the state.
+      The state is not known currently, maybe one of the next STATE_CHECK requests will be able to reveal the state.
       If the issue persists, the step will fail after the heartbeat timeout.
        */
-      //TODO: Log this occurrence
+      logger.warn("Unknown execution state for step {}.{}", getJobId(), getId(), e);
+      //NOTE: No heartbeat must be sent to SFN in this case!
     }
     catch (Exception e) {
       //TODO: log exception
@@ -215,8 +219,19 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private void reportAsyncHeartbeat() {
     if (isSimulation)
       return;
-    //Report heartbeat to SFN
-    sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
+    //Report heartbeat to SFN and check for a potential necessary cancellation
+    try {
+      sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
+    }
+    catch (TaskTimedOutException e) {
+      try {
+        cancel();
+      }
+      catch (Exception ex) {
+        logger.error("Error during cancellation of step {}.{}", getJobId(), getId(), ex);
+        reportAsyncFailure(ex, false);
+      }
+    }
   }
 
   protected boolean onAsyncFailure(Exception e) {
@@ -236,8 +251,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (isSimulation) //TODO: Remove testing code
       throw new RuntimeException(e);
 
-    //TODO: synchronize the step state with the framework before?
     unregisterStateCheckTrigger();
+    try {
+      //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
+      JobWebClient.getInstance().postStepUpdate(this);
+    }
+    catch (WebClientException httpError) {
+      logger.error("Error updating the step state of step {}.{} at the job service", getJobId(), getId(), httpError);
+    }
 
     //Report failure to SFN
     SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
@@ -248,7 +269,13 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .error(e != null ? e.getMessage() : null)
           .cause(e.getCause() != null ? e.getCause().getMessage() : null);
 
-    sfnClient().sendTaskFailure(request.build());
+    try {
+      sfnClient().sendTaskFailure(request.build());
+    }
+    catch (TaskTimedOutException ex) {
+      logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}. Original exception was:",
+          getJobId(), getId(), ex);
+    }
   }
 
   public abstract ExecutionMode getExecutionMode();
@@ -318,17 +345,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
             request.getStep().reportAsyncFailure(e, false); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
           }
         }
-        case CANCEL_EXECUTION -> {
-          try { //TODO: Implement auto-cancellation in STATE_CHECK request (task-token check!)
-            request.getStep().cancel();
-          }
-          catch (Exception e) {
-            //TODO: log exception
-            //TODO: report failure?
-            //TODO: is the failure resumable? - most likely not if the cancellation was not properly executed, because the inner state is unknown
-            throw new RuntimeException(e);
-          }
-        }
         case STATE_CHECK -> request.getStep().checkAsyncExecutionState();
         case SUCCESS_CALLBACK -> request.getStep().reportAsyncSuccess();
         case FAILURE_CALLBACK -> request.getStep().reportAsyncFailure(null, false); //TODO: Read error information from request payload (once specified)
@@ -373,7 +389,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     public enum RequestType {
       START_EXECUTION, //Sent by Step Function when the actual execution should be started (ASYNC) / performed (SYNC)
-      CANCEL_EXECUTION, //Sent by Step Function
       STATE_CHECK, //For ASYNC mode only: Sent periodically by a CW Events Rule to check the inner step state and report heartbeats to the Step Function
       SUCCESS_CALLBACK, //For ASYNC mode only: A request, sent by the underlying foreign system to inform the step about its success
       FAILURE_CALLBACK //For ASYNC mode only: A request, sent by the underlying foreign system to inform the step about its failure

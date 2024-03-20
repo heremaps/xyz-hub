@@ -46,8 +46,8 @@ import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.HubWebClient.ErrorResponseException;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
@@ -56,6 +56,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -79,6 +80,7 @@ public class JobPlayground {
   private static LambdaClient lambdaClient;
   private static Space sampleSpace;
   private static boolean simulateExecution = true;
+  private static boolean executeWholeJob = false;
   private static ImportFilesToSpace.Format format = ImportFilesToSpace.Format.GEOJSON;
   private static int uploadFileCount = 2;
 
@@ -109,8 +111,13 @@ public class JobPlayground {
           .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack", "localstack")))
           .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
           .build();
+      Config.instance.JOB_API_ENDPOINT = new URL(simulateExecution && !executeWholeJob ? "http://localhost:9090"
+          : "http://host.docker.internal:9090");
     }
     catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
+    catch (MalformedURLException e) {
       throw new RuntimeException(e);
     }
   }
@@ -119,7 +126,7 @@ public class JobPlayground {
     try {
       sampleSpace = createSampleSpace("TEST");
     }
-    catch (HubWebClientException e) {
+    catch (WebClientException e) {
       throw new RuntimeException(e);
     }
     JobConfigClient.getInstance().init();
@@ -132,8 +139,10 @@ public class JobPlayground {
       .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
 
   public static void main(String[] args) throws IOException, InterruptedException {
-    //startMockJob();
-    startLambdaExecutions();
+    if (executeWholeJob)
+      startMockJob();
+    else
+      startLambdaExecutions();
   }
 
   private static void startLambdaExecutions() throws IOException, InterruptedException {
@@ -157,7 +166,7 @@ public class JobPlayground {
       uploadInputFile(generateContent(format, 10));
   }
 
-  private static byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt){
+  private static byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt) {
     Random rd = new Random();
     String output = "";
     for (int i = 0; i < featureCnt; i++) {
@@ -192,7 +201,7 @@ public class JobPlayground {
         .onFailure(t -> logger.error("Error submitting job:", t));
   }
 
-  private static Space createSampleSpace(String spaceId) throws HubWebClientException {
+  private static Space createSampleSpace(String spaceId) throws WebClientException {
     final String title = "Playground";
     try {
       return hubWebClient.createSpace(spaceId, title);

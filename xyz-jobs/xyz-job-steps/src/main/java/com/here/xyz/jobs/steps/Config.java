@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.util.service.BaseConfig;
 import java.net.URI;
+import java.net.URL;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Config extends BaseConfig {
@@ -63,4 +64,9 @@ public class Config extends BaseConfig {
    * The DB hostname to be used inside the step lambda when running locally
    */
   public String LOCAL_DB_HOST_OVERRIDE;
+
+  /**
+   * The load balancer endpoint of the job API, to be used by other components to call the job API (admin-)endpoints.
+   */
+  public URL JOB_API_ENDPOINT;
 }

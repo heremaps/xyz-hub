@@ -27,8 +27,7 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
@@ -47,7 +46,7 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
 
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
-    catch (HubWebClient.HubWebClientException e) {
+    catch (WebClientException e) {
       //TODO: log error
       //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
@@ -80,7 +79,7 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   }
 
   @Override
-  public void execute() throws HubWebClientException, SQLException, TooManyResourcesClaimed {
+  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
     logger.info("Analyze table of space " + getSpaceId() + " ...");
 
     logger.info("Loading space config for space {}", getSpaceId());

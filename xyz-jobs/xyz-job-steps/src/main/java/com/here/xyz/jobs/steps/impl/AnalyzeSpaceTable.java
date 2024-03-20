@@ -27,7 +27,7 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
@@ -44,7 +44,7 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
 
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
-    catch (HubWebClient.HubWebClientException e) {
+    catch (WebClientException e) {
       //TODO: log error
       //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
@@ -88,7 +88,7 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
       Database db = loadDatabase(space.getStorage().getId(), WRITER);
       runReadQuery(buildAnalyseQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
     }
-    catch (SQLException | TooManyResourcesClaimed | HubWebClient.HubWebClientException e){
+    catch (SQLException | TooManyResourcesClaimed | WebClientException e) {
       //@TODO: ErrorHandling! <- Is it necessary here? Anything that should be catched / transformed?
       logger.warn("Error!",e); //TODO: Can be removed, no need to log here, as the framework will log all exceptions thrown by #execute()
       throw new RuntimeException(e); //TODO: If nothing should be handled here, better rethrow the original exception

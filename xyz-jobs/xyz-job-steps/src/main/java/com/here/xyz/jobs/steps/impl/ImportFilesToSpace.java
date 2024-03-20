@@ -22,7 +22,7 @@ package com.here.xyz.jobs.steps.impl;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-import static com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -107,7 +107,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
-    catch (HubWebClientException e) {
+    catch (WebClientException e) {
       //TODO: log error
       //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
@@ -139,7 +139,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       if (statistics.getCount().getValue() > 0)
         throw new ValidationException("Space is not empty");
     }
-    catch (HubWebClientException e) {
+    catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
@@ -188,7 +188,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
       }
     }
-    catch (SQLException | TooManyResourcesClaimed | HubWebClientException e){
+    catch (SQLException | TooManyResourcesClaimed | WebClientException e) {
       //@TODO: ErrorHandling! <- Is it necessary here? Anything that should be catched / transformed?
       logger.warn("Error!",e); //TODO: Can be removed, no need to log here, as the framework will log all exceptions thrown by #execute()
       throw new RuntimeException(e); //TODO: If nothing should be handled here, better rethrow the original exception
@@ -266,7 +266,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //TODO: Register one output of type {@link FeatureStatistics} as last step using registerOutputs()
 
     }
-    catch (SQLException | TooManyResourcesClaimed | HubWebClientException e){
+    catch (SQLException | TooManyResourcesClaimed | WebClientException e) {
       //@TODO: ErrorHandling!
       logger.warn("Error!",e);
       throw new RuntimeException(e);
