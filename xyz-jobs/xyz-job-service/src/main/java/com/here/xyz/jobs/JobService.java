@@ -23,7 +23,6 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.util.service.Core;
-import com.here.xyz.util.web.HubWebClientAsync;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
@@ -35,16 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JobService extends Core {
-
   private static final Logger logger = LogManager.getLogger();
-  /**
-   * The client to access the Hub REST API
-   */
-  public static HubWebClientAsync hubWebClient;
-  /**
-   * Service Configuration
-   */
-  public static Config configuration;
 
   static {
     XyzSerializable.registerSubtypes(StepGraph.class);
@@ -58,30 +48,29 @@ public class JobService extends Core {
 
     initializeVertx(vertxOptions)
         .compose(Core::initializeConfig)
-        .compose(Core::initializeLogger)
+        //.compose(Core::initializeLogger) Not needed as the default config is set in the resources
         .compose(JobService::parseConfiguration)
-        .compose(JobService::initializeClients)
         .compose(JobService::initializeService)
+        .compose(JobService::registerShutdownHook)
         .onFailure(t -> logger.error("CService startup failed", t))
         .onSuccess(v -> logger.info("Service startup succeeded"))
         .onSuccess(v -> JobExecutor.getInstance().init());
   }
 
   private static Future<JsonObject> parseConfiguration(JsonObject config) {
-    configuration = config.mapTo(Config.class);
+    config.mapTo(Config.class);
     return Future.succeededFuture(config);
   }
 
-  private static Future<JsonObject> initializeClients(JsonObject config) {
-    hubWebClient = HubWebClientAsync.getInstance(configuration.HUB_ENDPOINT);
+  private static Future<Void> registerShutdownHook(Void v) {
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      System.out.println("HTTP Service is going down at " + new Date());
-      // Add operation for shutdown hook
+      System.out.println("Job Service is going down at " + new Date());
+      //Add operation for shutdown hook
     }));
-    return Future.succeededFuture().map(config);
+    return Future.succeededFuture();
   }
 
-  private static Future<JsonObject> initializeService(JsonObject config) {
+  private static Future<Void> initializeService(JsonObject config) {
     final DeploymentOptions options = new DeploymentOptions()
         .setConfig(config)
         .setWorker(false)
@@ -89,7 +78,7 @@ public class JobService extends Core {
 
     return vertx.deployVerticle(JobRESTVerticle.class, options)
         .onFailure(t -> logger.error("Unable to deploy JobVerticle.", t))
-        .onSuccess(s -> logger.info("Service is up and running on port " + configuration.HTTP_PORT))
-        .map(config);
+        .onSuccess(s -> logger.info("Service is up and running on port " + Config.instance.HTTP_PORT))
+        .mapEmpty();
   }
 }
