@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2023 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.9.0-SNAPSHOT</version>
+    <version>3.8.27-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -37,40 +37,67 @@
     </license>
   </licenses>
 
-  <name>XYZ Models</name>
-  <description>XYZ Models</description>
-  <artifactId>xyz-models</artifactId>
+  <name>XYZ Connectors</name>
+  <description>XYZ Connectors</description>
+  <artifactId>xyz-connectors</artifactId>
   <packaging>jar</packaging>
 
   <dependencies>
+    <!-- XYZ libraries -->
     <dependency>
-      <artifactId>guava</artifactId>
-      <groupId>com.google.guava</groupId>
+      <artifactId>xyz-models</artifactId>
+      <groupId>${project.groupId}</groupId>
     </dependency>
     <dependency>
-      <artifactId>commons-lang3</artifactId>
-      <groupId>org.apache.commons</groupId>
+      <artifactId>xyz-util</artifactId>
+      <groupId>${project.groupId}</groupId>
+    </dependency>
+
+    <!-- AWS SDK -->
+    <dependency>
+      <artifactId>aws-lambda-java-core</artifactId>
+      <groupId>com.amazonaws</groupId>
     </dependency>
     <dependency>
-      <artifactId>jts-core</artifactId>
-      <groupId>org.locationtech.jts</groupId>
+      <artifactId>aws-java-sdk-lambda</artifactId>
+      <groupId>com.amazonaws</groupId>
     </dependency>
     <dependency>
-      <artifactId>jackson-core</artifactId>
-      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>aws-java-sdk-s3</artifactId>
+      <groupId>com.amazonaws</groupId>
+    </dependency>
+
+    <!-- PSQL JDBC driver -->
+    <dependency>
+      <artifactId>postgresql</artifactId>
+      <groupId>org.postgresql</groupId>
     </dependency>
     <dependency>
-      <artifactId>jackson-databind</artifactId>
-      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>commons-dbutils</artifactId>
+      <groupId>commons-dbutils</groupId>
     </dependency>
+
+    <!-- Logging libraries -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Util -->
+    <dependency>
+      <groupId>net.jodah</groupId>
+      <artifactId>expiringmap</artifactId>
+    </dependency>
+
     <dependency>
       <artifactId>junit</artifactId>
       <groupId>junit</groupId>
       <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.google.flatbuffers</groupId>
-      <artifactId>flatbuffers-java</artifactId>
     </dependency>
   </dependencies>
 </project>
