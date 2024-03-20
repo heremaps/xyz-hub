@@ -19,6 +19,9 @@
 
 package com.here.xyz.jobs.steps;
 
+import static com.amazonaws.HttpMethod.GET;
+import static com.amazonaws.HttpMethod.PUT;
+
 import com.amazonaws.HttpMethod;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -26,22 +29,20 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-
-import static com.amazonaws.HttpMethod.GET;
-import static com.amazonaws.HttpMethod.PUT;
 
 public class S3Client {
   private static final S3Client instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
@@ -129,17 +130,26 @@ public class S3Client {
     putObject(s3Key, contentType, content.getBytes());
   }
 
-  public S3Object getObject(String s3Key) {
-    return getObject(s3Key, null, null);
+  public byte[] loadObjectContent(String s3Key) throws IOException {
+    return loadObjectContent(s3Key, -1, -1);
   }
-  public S3Object getObject(String s3Key, Long start, Long end) {
+
+  public byte[] loadObjectContent(String s3Key, long offset, long length) throws IOException {
+    return streamObjectContent(s3Key, offset, length).readAllBytes();
+  }
+
+  public InputStream streamObjectContent(String s3Key) {
+    return streamObjectContent(s3Key, -1, -1);
+  }
+
+  public InputStream streamObjectContent(String s3Key, long offset, long length) {
     GetObjectRequest getObjectRequest = new GetObjectRequest(bucketName, s3Key);
 
-    if(start != null && end != null) {
-      getObjectRequest.setRange(start, end);
-    }else if(start != null && end == null)
-      getObjectRequest.setRange(start);
-    return client.getObject(getObjectRequest);
+    if (offset >= 0 && length >= 0)
+      getObjectRequest.setRange(offset, length);
+    else if (offset >= 0)
+      getObjectRequest.setRange(offset);
+    return client.getObject(getObjectRequest).getObjectContent();
   }
 
   public void putObject(String s3Key, String contentType, byte[] content) {
@@ -153,8 +163,7 @@ public class S3Client {
   }
 
   public void deleteFolder(String folderPath) {
-    for (S3ObjectSummary file : client.listObjects(bucketName, folderPath).getObjectSummaries()){
+    for (S3ObjectSummary file : scanFolder(folderPath))
       client.deleteObject(bucketName, file.getKey());
-    }
   }
 }

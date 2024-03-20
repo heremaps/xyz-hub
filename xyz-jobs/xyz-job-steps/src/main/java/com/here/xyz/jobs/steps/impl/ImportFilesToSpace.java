@@ -56,31 +56,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private Format format = Format.GEOJSON;
   private Phase phase;
   public enum Format {
-    CSV_GEOJSON, CSV_JSONWKB, GEOJSON;
-    public static Format of(String value) {
-      if (value == null) {
-        return null;
-      }
-      try {
-        return valueOf(value.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return null;
-      }
-    }
+    CSV_GEOJSON,
+    CSV_JSONWKB,
+    GEOJSON;
   }
   public enum Phase {
     VALIDATE, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, FILL_TMP_TABLE, EXECUTE_IMPORT,
     RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
-    public static Phase of(String value) {
-      if (value == null) {
-        return null;
-      }
-      try {
-        return valueOf(value.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return null;
-      }
-    }
   }
   public Format getFormat() {
     return format;
@@ -146,12 +128,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
 
     List<Input> inputs = loadInputs();
-    /** inputs are missing */
-    if(inputs.isEmpty())
+    //Inputs are missing, the step is not ready to be executed
+    if (inputs.isEmpty())
       return false;
 
     for (int i = 0; i < inputs.size(); i++) {
-      /** @TODO: Think about how many files we want to quick check */
+      //TODO: Think about how many files we want to quick check
       if(i == 2)
         break;
       if(inputs.get(0) instanceof UploadUrl uploadUrl)
@@ -222,7 +204,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                             INSERT INTO  ${schema}.${table} (s3_uri, state, data)
                                 VALUES (aws_commons.create_s3_uri(#{bucketName},#{s3Key},#{bucketRegion}), #{state}, #{data}::jsonb)
                                 ON CONFLICT (s3_uri) DO NOTHING;
-                        """)
+                        """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                         .withVariable("schema", getSchema(db))
                         .withVariable("table", table + JOB_DATA_SUFFIX)
                         .withNamedParameter("s3Key", input.getS3Key())

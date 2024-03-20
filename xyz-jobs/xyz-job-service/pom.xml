@@ -157,6 +157,13 @@
       <artifactId>disruptor</artifactId>
       <groupId>com.lmax</groupId>
     </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <artifactId>junit</artifactId>
+      <groupId>junit</groupId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <properties>
