@@ -31,21 +31,24 @@ import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.BodyHandler;
 
 public class JobAdminApi extends Api {
   private static final String ADMIN_JOB_STEPS = "/admin/jobs/:jobId/steps";
   private static final String ADMIN_JOB_STEP_ID = "/admin/jobs/:jobId/steps/:stepId";
+  private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
     router.route(HttpMethod.POST, ADMIN_JOB_STEPS)
-        .handler(BodyHandler.create())
         .handler(handleErrors(this::postStep));
 
     router.route(HttpMethod.GET, ADMIN_JOB_STEP_ID)
         .handler(handleErrors(this::getStep));
+
+    router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS)
+        .handler(handleErrors(this::postStateEvent));
   }
 
   private void postStep(RoutingContext context) throws HttpException {
@@ -69,6 +72,47 @@ public class JobAdminApi extends Api {
         })
         .onSuccess(res -> sendResponse(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+
+  /**
+   * The sample event format in the request:
+   * {
+   *   "id": "315c1398-40ff-a850-213b-158f73e60175",
+   *   "detail-type": "Step Functions Execution Status Change",
+   *   "source": "aws.states",
+   *   "account": "123456789012",
+   *   "time": "2019-02-26T19:42:21Z",
+   *   "region": "us-east-1",
+   *   "resources": ["arn:aws:states:us-east-1:123456789012:execution:state-machine-name:execution-name"],
+   *   "detail": {
+   *     "executionArn": "arn:aws:states:us-east-1:123456789012:execution:state-machine-name:execution-name",
+   *     "stateMachineArn": "arn:aws:states:us-east-1:123456789012:stateMachine:state-machine",
+   *     "name": "execution-name",
+   *     "status": "RUNNING",
+   *     "startDate": 1551225271984,
+   *     "stopDate": null,
+   *     "input": "{}",
+   *     "output": null
+   *   }
+   * }
+   *
+   */
+  private void postStateEvent(RoutingContext context) throws HttpException {
+    JsonObject event = context.body().asJsonObject();
+
+    String jobId = null, status = null;
+    if(event.containsKey("detail")) {
+      // Right now we set JobId as "name" of the state machine execution.
+      // If for some reason it changes, we should add the jobId to the "input" param and read it from there.
+      jobId = event.getJsonObject("detail").getString("name");
+      status = event.getJsonObject("detail").getString("status");
+    }
+
+    if(jobId == null)
+      throw new IllegalArgumentException("The event does not include Job ID: " + event);
+
+    //TODO: Update the Job based on the "status" of the state machine event
   }
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {
