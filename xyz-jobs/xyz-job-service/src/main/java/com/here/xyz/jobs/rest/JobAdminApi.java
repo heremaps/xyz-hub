@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.rest;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -26,6 +28,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.rest.JobAdminApi.ApiParam.Path;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
@@ -52,7 +56,7 @@ public class JobAdminApi extends Api {
   }
 
   private void postStep(RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, ApiParam.Path.JOB_ID);
+    String jobId = ApiParam.getPathParam(context, Path.JOB_ID);
     Step step = getStepFromBody(context);
     Job.load(jobId)
         .compose(job -> job.updateStep(step).map(job))
@@ -61,8 +65,8 @@ public class JobAdminApi extends Api {
   }
 
   private void getStep(RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, ApiParam.Path.JOB_ID);
-    String stepId = ApiParam.getPathParam(context, ApiParam.Path.STEP_ID);
+    String jobId = ApiParam.getPathParam(context, Path.JOB_ID);
+    String stepId = ApiParam.getPathParam(context, Path.STEP_ID);
     Job.load(jobId)
         .compose(job -> {
           Step step = job.getStepById(stepId);
@@ -101,18 +105,38 @@ public class JobAdminApi extends Api {
   private void postStateEvent(RoutingContext context) throws HttpException {
     JsonObject event = context.body().asJsonObject();
 
-    String jobId = null, status = null;
-    if(event.containsKey("detail")) {
-      // Right now we set JobId as "name" of the state machine execution.
-      // If for some reason it changes, we should add the jobId to the "input" param and read it from there.
-      jobId = event.getJsonObject("detail").getString("name");
-      status = event.getJsonObject("detail").getString("status");
+    if (event.containsKey("detail")) {
+      /*
+      Right now we set JobId as "name" of the state machine execution.
+      If for some reason it changes, we should add the jobId to the "input" param and read it from there.
+       */
+      String jobId = event.getJsonObject("detail").getString("name");
+      String status = event.getJsonObject("detail").getString("status");
+
+      if (jobId == null)
+        logger.error("The state machine event does not include a Job ID: {}", event);
+      else if (status == null)
+        logger.error("The state machine event does not include a status: {}", event);
+      else
+        Job.load(jobId)
+            .compose(job -> {
+              State newJobState = switch (status) {
+                case "SUCCEEDED" -> SUCCEEDED;
+                case "FAILED" -> FAILED;
+                case "TIMED_OUT" -> FAILED;
+                default -> null;
+              };
+              if (newJobState != null) {
+                job.getStatus().setState(newJobState);
+                return job.store();
+              }
+              else
+                return Future.succeededFuture();
+            })
+            .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", t));
     }
-
-    if(jobId == null)
-      throw new IllegalArgumentException("The event does not include Job ID: " + event);
-
-    //TODO: Update the Job based on the "status" of the state machine event
+    else
+      logger.error("The state machine event does not include a detail field: {}", event);
   }
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {
