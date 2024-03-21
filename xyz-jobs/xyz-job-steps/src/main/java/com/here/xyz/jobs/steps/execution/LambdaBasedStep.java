@@ -19,6 +19,10 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
@@ -33,6 +37,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
@@ -116,13 +121,22 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public abstract AsyncExecutionState getExecutionState() throws UnknownStateException;
 
   private void startExecution() throws Exception {
+    updateState(RUNNING);
     switch (getExecutionMode()) {
-      case SYNC -> execute();
+      case SYNC -> {
+        execute();
+        updateState(SUCCEEDED);
+      }
       case ASYNC -> {
         execute();
         registerStateCheckTrigger();
       }
     }
+  }
+
+  private void updateState(State newState) {
+    getStatus().setState(newState);
+    synchronizeStepState();
   }
 
   private void registerStateCheckTrigger() {
@@ -209,7 +223,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
     }
 
-    synchronizeStepState();
+    updateState(SUCCEEDED);
     unregisterStateCheckTrigger();
 
     //Report success to SFN
@@ -234,6 +248,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     catch (TaskTimedOutException e) {
       try {
         cancel();
+        updateState(CANCELLED);
       }
       catch (Exception ex) {
         logger.error("Error during cancellation of step {}.{}", getJobId(), getId(), ex);
@@ -260,7 +275,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       throw new RuntimeException(e);
 
     unregisterStateCheckTrigger();
-    synchronizeStepState();
+    updateState(FAILED);
 
     //Report failure to SFN
     SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
