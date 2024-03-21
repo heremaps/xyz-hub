@@ -52,16 +52,16 @@ public class InMemJobConfigClient extends JobConfigClient {
     @Override
     public Future<List<Job>> loadJobs(RuntimeInfo.State state) {
         List<Job> jobs = jobMap.values().stream()
-                .filter(job -> job.getStatus().getState() == state)
-                .collect(Collectors.toList());
+            .filter(job -> job.getStatus().getState() == state)
+            .collect(Collectors.toList());
         return Future.succeededFuture(jobs);
     }
 
     @Override
     public Future<List<Job>> loadJobs(String resourceKey) {
         List<Job> jobs = jobMap.values().stream()
-                .filter(job -> resourceKey.equals(job.getResourceKey()))
-                .collect(Collectors.toList());
+            .filter(job -> resourceKey.equals(job.getResourceKey()))
+            .collect(Collectors.toList());
         return Future.succeededFuture(jobs);
     }
 

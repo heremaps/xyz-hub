@@ -199,6 +199,7 @@ public class JobApi extends Api {
                 .compose(job -> {
                     if(job == null)
                         return Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist"));
+                    //TODO: Rather have an implementation for Job.load(jobId, resourceKey) again
                     if(!spaceId.equals(job.getResourceKey()))
                         return Future.failedFuture(new AccessDeniedException("Forbidden to access the job"));
                     return Future.succeededFuture(job);
@@ -220,5 +221,4 @@ public class JobApi extends Api {
             })
             .map(res -> job.getStatus());
     }
-
 }

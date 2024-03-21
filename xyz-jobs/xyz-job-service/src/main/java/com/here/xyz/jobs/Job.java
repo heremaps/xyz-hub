@@ -66,8 +66,6 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private String id;
   @JsonView(Static.class)
-  private String resourceKey;
-  @JsonView(Static.class)
   private RuntimeStatus status;
   @JsonView({Public.class, Static.class})
   private long createdAt;
@@ -269,14 +267,7 @@ public class Job implements XyzSerializable {
   }
 
   public Future<Void> store() {
-    if(this.resourceKey == null) {
-      if(this.source instanceof DatasetDescription.Space sourceSpace)
-        this.resourceKey = sourceSpace.getKey();
-      else if(this.target instanceof DatasetDescription.Space targetSpace)
-        this.resourceKey = targetSpace.getKey();
-      else
-        throw new IllegalArgumentException("Unable to map resourceKey to the Job config");
-    }
+    //TODO: Validate changes on the job and make sure the job may be stored in the current state
     return JobConfigClient.getInstance().storeJob(this);
   }
 
@@ -340,7 +331,7 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> deleteInputs() {
-    return AsyncS3Client.getInstance().deleteS3FolderAsync(Input.inputS3Prefix(getId()));
+    return AsyncS3Client.getInstance().deleteS3FolderAsync(inputS3Prefix(getId()));
   }
 
   public Future<List<Input>> loadInputs() {
@@ -377,19 +368,6 @@ public class Job implements XyzSerializable {
 
   public Job withId(String id) {
     setId(id);
-    return this;
-  }
-
-  public String getResourceKey() {
-    return resourceKey;
-  }
-
-  public void setResourceKey(String resourceKey) {
-    this.resourceKey = resourceKey;
-  }
-
-  public Job withResourceKey(String resourceKey) {
-    setResourceKey(resourceKey);
     return this;
   }
 

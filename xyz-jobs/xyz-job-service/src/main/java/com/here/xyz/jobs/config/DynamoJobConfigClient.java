@@ -86,9 +86,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
       jobTable.getIndex("resourceKey-index")
-              .query(new QuerySpec().withHashKey("resourceKey", resourceKey.toString()))
-              .pages()
-              .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
+          .query("resourceKey", resourceKey)
+          .pages()
+          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
       return jobs;
     });
   }
@@ -121,6 +121,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
   private Item convertJobToItem(Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
+    //TODO: Make sure to reflect the correct resource key
     return Item.fromMap(jobItemData);
   }
 
