@@ -20,8 +20,6 @@ paths:
         - Manage Jobs
       summary: Create Job
       operationId: postJob
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
       requestBody:
         $ref: '#/components/requestBodies/JobRequest'
       responses:
