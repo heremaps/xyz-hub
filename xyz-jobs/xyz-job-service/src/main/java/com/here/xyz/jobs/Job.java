@@ -63,8 +63,10 @@ import org.apache.logging.log4j.Logger;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Job implements XyzSerializable {
   //Framework defined properties:
-  @JsonView(Static.class)
+  @JsonView({Public.class, Static.class})
   private String id;
+  @JsonView(Static.class)
+  private String resourceKey;
   @JsonView(Static.class)
   private RuntimeStatus status;
   @JsonView({Public.class, Static.class})
@@ -267,13 +269,23 @@ public class Job implements XyzSerializable {
   }
 
   public Future<Void> store() {
-    //TODO: Validate changes on the job and make sure the job may be stored in the current state
-    //TODO: Make sure to reflect the correct resource key
-    return JobConfigClient.getInstance().storeJob(getTarget().getKey(), this);
+    if(this.resourceKey == null) {
+      if(this.source instanceof DatasetDescription.Space sourceSpace)
+        this.resourceKey = sourceSpace.getKey();
+      else if(this.target instanceof DatasetDescription.Space targetSpace)
+        this.resourceKey = targetSpace.getKey();
+      else
+        throw new IllegalArgumentException("Unable to map resourceKey to the Job config");
+    }
+    return JobConfigClient.getInstance().storeJob(this);
   }
 
   public static Future<Job> load(String jobId) {
-    return JobConfigClient.getInstance().loadJob("", jobId); //TODO: Specify resourceKey
+    return JobConfigClient.getInstance().loadJob(jobId);
+  }
+
+  public static Future<List<Job>> loadByResourceKey(String resourceKey) {
+    return JobConfigClient.getInstance().loadJobs(resourceKey);
   }
 
   public static Future<Void> delete(String jobId) {
@@ -283,7 +295,7 @@ public class Job implements XyzSerializable {
         //Delete the outputs of all involved steps
         .compose(job -> Future.all(Job.<Step, Boolean>forEach(job.getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step))).mapEmpty())
         //Now finally delete this job's configuration
-        .compose(v -> JobConfigClient.getInstance().deleteJob("", jobId).mapEmpty()); //TODO: Specify resourceKey
+        .compose(v -> JobConfigClient.getInstance().deleteJob(jobId).mapEmpty());
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {
@@ -328,8 +340,7 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> deleteInputs() {
-    //TODO: implement
-    return null;
+    return AsyncS3Client.getInstance().deleteS3FolderAsync(Input.inputS3Prefix(getId()));
   }
 
   public Future<List<Input>> loadInputs() {
@@ -366,6 +377,19 @@ public class Job implements XyzSerializable {
 
   public Job withId(String id) {
     setId(id);
+    return this;
+  }
+
+  public String getResourceKey() {
+    return resourceKey;
+  }
+
+  public void setResourceKey(String resourceKey) {
+    this.resourceKey = resourceKey;
+  }
+
+  public Job withResourceKey(String resourceKey) {
+    setResourceKey(resourceKey);
     return this;
   }
 

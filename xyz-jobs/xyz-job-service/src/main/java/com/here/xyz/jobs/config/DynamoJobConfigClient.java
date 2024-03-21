@@ -62,9 +62,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<Job> loadJob(String resourceKey, String jobId) {
+  public Future<Job> loadJob(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
-      Item jobItem = jobTable.getItem("resourceKey", resourceKey, "id", jobId);
+      Item jobItem = jobTable.getItem("id", jobId);
       return jobItem != null ? XyzSerializable.fromMap(jobItem.asMap(), Job.class) : null;
     });
   }
@@ -85,31 +85,32 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<List<Job>> loadJobs(String resourceKey) {
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
-      jobTable.query("resourceKey", resourceKey)
-          .pages()
-          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
+      jobTable.getIndex("resourceKey-index")
+              .query(new QuerySpec().withHashKey("resourceKey", resourceKey.toString()))
+              .pages()
+              .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
       return jobs;
     });
   }
 
   @Override
-  public Future<Void> storeJob(String resourceKey, Job job) {
+  public Future<Void> storeJob(Job job) {
     return dynamoClient.executeQueryAsync(() -> {
       //TODO: Ensure that concurrent writes do not produce invalid state-transitions using atomic writes
-      jobTable.putItem(convertJobToItem(resourceKey, job));
+      jobTable.putItem(convertJobToItem(job));
       return null;
     });
   }
 
   @Override
-  public Future<Void> updateState(String resourceKey, Job job, State expectedPreviousState) {
+  public Future<Void> updateState(Job job, State expectedPreviousState) {
     if (expectedPreviousState == job.getStatus().getState())
       //Nothing to do
       return Future.succeededFuture();
 
     return dynamoClient.executeQueryAsync(() -> {
       jobTable.updateItem(new UpdateItemSpec()
-          .withPrimaryKey("resourceKey", resourceKey, "id", job.getId())
+          .withPrimaryKey("id", job.getId())
           .withUpdateExpression("SET status.state = :newState")
           .withConditionExpression("status.state = :oldState")
           .withValueMap(Map.of(":newState", job.getStatus().getState().toString(), ":oldState", expectedPreviousState.toString())));
@@ -117,17 +118,16 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
-  private Item convertJobToItem(String resourceKey, Job job) {
+  private Item convertJobToItem(Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
-    jobItemData.put("resourceKey", resourceKey);
     return Item.fromMap(jobItemData);
   }
 
   @Override
-  public Future<Void> deleteJob(String resourceKey, String jobId) {
+  public Future<Void> deleteJob(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
-      jobTable.deleteItem(new DeleteItemSpec().withPrimaryKey("resourceKey", resourceKey, "id", jobId));
+      jobTable.deleteItem(new DeleteItemSpec().withPrimaryKey("id", jobId));
       return null;
     });
   }
@@ -137,8 +137,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
     if (dynamoClient.isLocal()) {
       logger.info("DynamoDB running locally, initializing Jobs table.");
       try {
-        List<IndexDefinition> indexes = List.of(new IndexDefinition("state"));
-        dynamoClient.createTable(jobTable.getTableName(), "resourceKey:S,id:S,state:S", "resourceKey,id", indexes, "keepUntil");
+        List<IndexDefinition> indexes = List.of(new IndexDefinition("resourceKey"), new IndexDefinition("state"));
+        dynamoClient.createTable(jobTable.getTableName(), "id:S,resourceKey:S,state:S", "id", indexes, "keepUntil");
         //TODO: Register a dynamo stream (also in CFN) to ensure we're getting informed when a job expires
       }
       catch (Exception e) {

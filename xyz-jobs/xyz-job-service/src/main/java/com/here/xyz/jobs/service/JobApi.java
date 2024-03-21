@@ -31,7 +31,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
-import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
@@ -57,7 +56,9 @@ public class JobApi extends Api {
     }
 
     private void postJob(final RoutingContext context) throws HttpException {
+        String spaceId = ApiParam.getPathParam(context, SPACE_ID);
         Job job = getJobFromBody(context);
+        job.setResourceKey(spaceId);
         job.submit()
                 .map(res -> job)
                 .onSuccess(res -> sendResponse(context, CREATED, res))
@@ -66,7 +67,7 @@ public class JobApi extends Api {
 
     private void getJobs(final RoutingContext context) {
         String spaceId = ApiParam.getPathParam(context, SPACE_ID);
-        JobConfigClient.getInstance().loadJobs(spaceId)
+        Job.loadByResourceKey(spaceId)
                 .onSuccess(res -> sendResponse(context, OK, res))
                 .onFailure(err -> sendErrorResponse(context, err));
     }
@@ -84,7 +85,7 @@ public class JobApi extends Api {
         String spaceId = ApiParam.getPathParam(context, SPACE_ID);
         String jobId = ApiParam.getPathParam(context, JOB_ID);
         loadJob(spaceId, jobId)
-                .compose(job -> JobConfigClient.getInstance().deleteJob(spaceId, jobId).map(job))
+                .compose(job -> Job.delete(jobId).map(job))
                 .onSuccess(res -> sendResponse(context, OK, res))
                 .onFailure(err -> sendErrorResponse(context, err));
     }
@@ -194,10 +195,12 @@ public class JobApi extends Api {
     }
 
     private Future<Job> loadJob(String spaceId, String jobId) {
-        return JobConfigClient.getInstance().loadJob(spaceId, jobId)
+        return Job.load(jobId)
                 .compose(job -> {
                     if(job == null)
                         return Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist"));
+                    if(!spaceId.equals(job.getResourceKey()))
+                        return Future.failedFuture(new AccessDeniedException("Forbidden to access the job"));
                     return Future.succeededFuture(job);
                 });
     }
@@ -217,6 +220,5 @@ public class JobApi extends Api {
             })
             .map(res -> job.getStatus());
     }
-
 
 }

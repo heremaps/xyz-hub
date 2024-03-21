@@ -43,7 +43,7 @@ public abstract class JobConfigClient implements Initializable {
     }
   }
 
-  public abstract Future<Job> loadJob(String resourceKey, String jobId);
+  public abstract Future<Job> loadJob(String jobId);
 
   /**
    * Load all jobs with a specified type.
@@ -59,16 +59,15 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<List<Job>> loadJobs(String resourceKey);
 
-  public abstract Future<Void> storeJob(String resourceKey, Job job);
+  public abstract Future<Void> storeJob(Job job);
 
   /**
    * Atomically updates the state of a job by ensuring the expectedPreviousState is matching just before writing.
-   * @param resourceKey
    * @param job
    * @param expectedPreviousState
    * @return
    */
-  public abstract Future<Void> updateState(String resourceKey, Job job, State expectedPreviousState);
+  public abstract Future<Void> updateState(Job job, State expectedPreviousState);
 
-  public abstract Future<Void> deleteJob(String resourceKey, String jobId);
+  public abstract Future<Void> deleteJob(String jobId);
 }
