@@ -54,9 +54,9 @@ public class ImportFilesQuickValidator {
     S3Client client = S3Client.getInstance();
     try {
       if (isCompressed)
-        validateFirstZippedCSVLine(client, s3Key, format, "", 0);
+        validateFirstCSVLine(client, s3Key, format, "", 0, true);
       else
-        validateFirstCSVLine(client, s3Key, format, "", 0);
+        validateFirstCSVLine(client, s3Key, format, "", 0, false);
     }
     catch (IOException e) {
       //@TODO: Check how we want to handle those errors (not related to the content)
@@ -65,18 +65,21 @@ public class ImportFilesQuickValidator {
     }
   }
 
-  //TODO: Simplify this method
-  private static void validateFirstCSVLine(S3Client client, String s3Key, Format format, String line, int fromKB)
-      throws IOException, ValidationException {
-    int toKB = fromKB + VALIDATE_LINE_KB_STEPS;
+  private static void validateFirstCSVLine(S3Client client, String s3Key, Format format, String line, long fromKB, boolean isZipped)
+          throws IOException, ValidationException {
+    long toKB = fromKB + VALIDATE_LINE_KB_STEPS;
 
     InputStream s3is = null;
     BufferedReader reader = null;
 
     try {
-
-      s3is = client.streamObjectContent(s3Key);
-      reader = new BufferedReader(new InputStreamReader(s3is, StandardCharsets.UTF_8));
+      if (isZipped) {
+        s3is = client.streamObjectContent(s3Key, 0, toKB);
+        reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(s3is)));
+      } else {
+        s3is = client.streamObjectContent(s3Key);
+        reader = new BufferedReader(new InputStreamReader(s3is, StandardCharsets.UTF_8));
+      }
 
       int val;
       while ((val = reader.read()) != -1) {
@@ -88,84 +91,29 @@ public class ImportFilesQuickValidator {
           return;
         }
       }
-
-    }
-    catch (AmazonServiceException e) {
+    } catch (AmazonServiceException e) {
       if (e.getErrorCode().equalsIgnoreCase("InvalidRange")) {
-        /** Did not find a lineBreak - maybe CSV with 1LOC - try to validate */
+        // Did not find a line break - maybe CSV with 1LOC - try to validate
         ImportFilesQuickValidator.validateCSVLine(line, format);
         return;
       }
       throw e;
-    }
-    finally {
+    } finally {
       if (s3is != null) {
         s3is.close();
       }
-      if (reader != null)
+      if (reader != null) {
         reader.close();
+      }
     }
-
-    /** not found a line break */
 
     if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
-      /** not found a line break till now - search further */
-      fromKB = toKB + 1;
-      validateFirstCSVLine(client, s3Key, format, line, fromKB);
-    }
-    else {
-      /** Not able to find a newline - could be a oneLiner*/
+      // Not found a line break till now - search further
+      validateFirstCSVLine(client, s3Key, format, line, toKB, isZipped);
+    } else {
+      // Not able to find a newline - could be a one-liner
       ImportFilesQuickValidator.validateCSVLine(line, format);
     }
-  }
-
-  private static void validateFirstZippedCSVLine(S3Client client, String s3Key, Format format, String line, long toKB)
-      throws IOException, ValidationException {
-    if (toKB == 0)
-      toKB = VALIDATE_LINE_KB_STEPS;
-
-    S3Object o = null;
-    InputStream s3is = null;
-    BufferedReader reader = null;
-
-    int val;
-    //TODO: Deduplicate with method validateFirstCSVLine()
-    try {
-      s3is = client.streamObjectContent(s3Key, 0, toKB);
-
-      reader = new BufferedReader(new InputStreamReader(
-          new GZIPInputStream(s3is)));
-
-      while ((val = reader.read()) != -1) {
-        char c = (char) val;
-        line += c;
-        if (c == '\n' || c == '\r') {
-          /** Found complete line */
-          ImportFilesQuickValidator.validateCSVLine(line, format);
-          return;
-        }
-      }
-    }
-    catch (EOFException e) {
-      /** Ignore incomplete stream */
-    }
-    finally {
-      if (s3is != null) {
-        s3is.close();
-      }
-      if (o != null)
-        o.close();
-      if (reader != null)
-        reader.close();
-    }
-
-    if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
-      /** not found a line break till now - search further */
-      toKB = toKB + VALIDATE_LINE_KB_STEPS;
-      validateFirstZippedCSVLine(client, s3Key, format, line, toKB);
-    }
-    else
-      throw new UnsupportedEncodingException("Not able to find EOL!");
   }
 
   private static void validateCSVLine(String csvLine, Format format) throws ValidationException {
@@ -174,6 +122,9 @@ public class ImportFilesQuickValidator {
       csvLine = csvLine.substring(0, csvLine.length() - 3);
     else if (csvLine != null && (csvLine.endsWith("\n") || csvLine.endsWith("\r")))
       csvLine = csvLine.substring(0, csvLine.length() - 1);
+
+    if (!format.equals(Format.GEOJSON) && csvLine.lastIndexOf(",") != -1)
+      throw new ValidationException("Empty Column detected!");
 
     switch (format) {
       case CSV_GEOJSON -> validateCsvGeoJSON(csvLine);
@@ -205,26 +156,24 @@ public class ImportFilesQuickValidator {
   }
 
   private static void validateCsvJSON_WKB(String csvLine) throws ValidationException {
-    if (csvLine.lastIndexOf(",") != -1) {
-      try {
-        String json = csvLine.substring(1, csvLine.lastIndexOf(",") - 1).replaceAll("'\"", "\"");
-        String wkb = csvLine.substring(csvLine.lastIndexOf(",") + 1);
+    try {
+      String json = csvLine.substring(1, csvLine.lastIndexOf(",") - 1).replaceAll("'\"", "\"");
+      String wkb = csvLine.substring(csvLine.lastIndexOf(",") + 1);
 
-        byte[] aux = WKBReader.hexToBytes(wkb);
-        /** Try to read WKB */
-        new WKBReader().read(aux);
-        /** Try to serialize JSON */
-        new JSONObject(json);
-      }
-      catch (Exception e) {
-        transformException(e);
-      }
+      byte[] aux = WKBReader.hexToBytes(wkb);
+      /** Try to read WKB */
+      new WKBReader().read(aux);
+      /** Try to serialize JSON */
+      new JSONObject(json);
+    }
+    catch (Exception e) {
+      transformException(e);
     }
   }
 
   private static void transformException(Exception e) throws ValidationException {
     Throwable cause = e.getCause();
-    if (e instanceof ParseException)
+    if (e instanceof ParseException || e instanceof IllegalArgumentException)
       throw new ValidationException("Bad WKB encoding! " + (cause != null ? cause.toString() : ""));
     else if (e instanceof JSONException || e instanceof JsonParseException || e instanceof InvalidTypeIdException)
       throw new ValidationException("Bad JSON encoding! " + (cause != null ? cause.toString() : ""));
