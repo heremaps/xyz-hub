@@ -52,11 +52,13 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public static class Provider extends JobConfigClient.Provider {
     @Override
     public boolean chooseMe() {
-      return Config.instance.JOBS_DYNAMODB_TABLE_ARN != null && !"test".equals(System.getProperty("scope"));
+      return !"test".equals(System.getProperty("scope"));
     }
 
     @Override
     protected JobConfigClient getInstance() {
+      if (Config.instance == null || Config.instance.JOBS_DYNAMODB_TABLE_ARN == null)
+        throw new NullPointerException("Config variable JOBS_DYNAMODB_TABLE_ARN is not defined");
       return new DynamoJobConfigClient(Config.instance.JOBS_DYNAMODB_TABLE_ARN);
     }
   }
