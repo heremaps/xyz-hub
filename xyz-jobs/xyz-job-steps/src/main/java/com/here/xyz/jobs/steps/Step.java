@@ -40,7 +40,6 @@ import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,6 +57,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private String id = "s_" + randomAlpha(6);
   private String jobId;
   private String previousStepId;
+  private String errorMessage;
+  private String errorCause;
+  private String errorCode;
   @JsonView({Public.class, Static.class})
   boolean failedRetryable;
   private RuntimeInfo status = new RuntimeInfo();
@@ -279,6 +281,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return (T) this;
   }
 
+  @JsonIgnore
+  protected String getGlobalStepId() {
+    return getJobId() + "." + getId();
+  }
+
   public String getPreviousStepId() {
     return previousStepId;
   }
@@ -290,6 +297,45 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   public T withPreviousStepId(String previousStepId) {
     setPreviousStepId(previousStepId);
     return (T) this;
+  }
+
+  public String getErrorMessage() {
+    return errorMessage;
+  }
+
+  public void setErrorMessage(String errorMessage) {
+    this.errorMessage = errorMessage;
+  }
+
+  public Step<T> withErrorMessage(String errorMessage) {
+    setErrorMessage(errorMessage);
+    return this;
+  }
+
+  public String getErrorCause() {
+    return errorCause;
+  }
+
+  public void setErrorCause(String errorCause) {
+    this.errorCause = errorCause;
+  }
+
+  public Step<T> withErrorCause(String errorCause) {
+    setErrorCause(errorCause);
+    return this;
+  }
+
+  public String getErrorCode() {
+    return errorCode;
+  }
+
+  public void setErrorCode(String errorCode) {
+    this.errorCode = errorCode;
+  }
+
+  public Step<T> withErrorCode(String errorCode) {
+    setErrorCode(errorCode);
+    return this;
   }
 
   public boolean isFailedRetryable() {

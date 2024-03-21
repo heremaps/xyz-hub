@@ -374,7 +374,9 @@ public class Job implements XyzSerializable {
   @JsonView(Static.class)
   public String getResourceKey() {
     //TODO: Identify when to use the key from source vs from target
-    return getSource().getKey();
+    if (getTarget() == null)
+      return null;
+    return getTarget().getKey();
   }
 
   public String getDescription() {

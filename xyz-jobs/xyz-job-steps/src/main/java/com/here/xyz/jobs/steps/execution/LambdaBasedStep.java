@@ -100,8 +100,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
   private String invokersRoleArn; //Will be defined by the framework alongside the START_EXECUTION request being relayed by the Step Function
-  @JsonView(Internal.class)
-  private String stateCheckRuleName; //Will be defined (for ASYNC ExecutionMode) by this step when it created the CW event rule trigger
 
   private static final String INVOKE_SUCCESS = """
       {"status": "OK"}""";
@@ -131,25 +129,27 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (isSimulation)
       return;
 
-    String globalStepId = getJobId() + "." + getId();
-    stateCheckRuleName = "HeartBeat-" + globalStepId;
-
     cloudwatchEventsClient().putRule(PutRuleRequest.builder()
-        .name(stateCheckRuleName)
+        .name(getStateCheckRuleName())
         .state(ENABLED)
         .scheduleExpression("rate(1 minute)")
-        .description("Heartbeat trigger for Step " + globalStepId)
+        .description("Heartbeat trigger for Step " + getGlobalStepId())
         .build());
 
     cloudwatchEventsClient().putTargets(PutTargetsRequest.builder()
-        .rule(stateCheckRuleName)
+        .rule(getStateCheckRuleName())
         .targets(Target.builder()
-            .id(globalStepId)
+            .id(getGlobalStepId())
             .arn(ownLambdaArn.toString())
             .roleArn(invokersRoleArn)
             .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
             .build())
         .build());
+  }
+
+  @JsonIgnore
+  private String getStateCheckRuleName() {
+    return "HeartBeat-" + getGlobalStepId();
   }
 
   //TODO: Also call this on cancel?
@@ -158,17 +158,17 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
 
     //List all targets
-    List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(stateCheckRuleName).build())
+    List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(getStateCheckRuleName()).build())
         .targets()
         .stream()
         .map(target -> target.id())
         .collect(Collectors.toList());
 
     //Remove all targets from the rule
-    cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(stateCheckRuleName).ids(targetIds).build());
+    cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(getStateCheckRuleName()).ids(targetIds).build());
 
     //Remove the rule
-    cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(stateCheckRuleName).build());
+    cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
   }
 
   private void checkAsyncExecutionState() {
@@ -201,14 +201,15 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   protected final void reportAsyncSuccess() {
-    //TODO: synchronize the step state before?
     try {
-        onAsyncSuccess();
-    } catch (Exception e) {
-        reportAsyncFailure(e);
-        return;
+      onAsyncSuccess();
+    }
+    catch (Exception e) {
+      reportAsyncFailure(e);
+      return;
     }
 
+    synchronizeStepState();
     unregisterStateCheckTrigger();
 
     //Report success to SFN
@@ -259,13 +260,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       throw new RuntimeException(e);
 
     unregisterStateCheckTrigger();
-    try {
-      //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
-      JobWebClient.getInstance().postStepUpdate(this);
-    }
-    catch (WebClientException httpError) {
-      logger.error("Error updating the step state of step {}.{} at the job service", getJobId(), getId(), httpError);
-    }
+    synchronizeStepState();
 
     //Report failure to SFN
     SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
@@ -282,6 +277,16 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     catch (TaskTimedOutException ex) {
       logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}. Original exception was:",
           getJobId(), getId(), ex);
+    }
+  }
+
+  private void synchronizeStepState() {
+    try {
+      //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
+      JobWebClient.getInstance().postStepUpdate(this);
+    }
+    catch (WebClientException httpError) {
+      logger.error("Error updating the step state of step {}.{} at the job service", getJobId(), getId(), httpError);
     }
   }
 

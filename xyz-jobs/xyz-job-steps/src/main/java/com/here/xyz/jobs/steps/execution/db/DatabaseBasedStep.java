@@ -184,7 +184,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())  //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
-            //TODO: Inject error message into failureRequestBody using SQLSTATE & SQLERRM
+            //TODO: Inject error message into failureRequestBody using SQLSTATE & SQLERRM and write it into errorMessage, errorCause, errorCode
             .withQueryFragment("failureRequestBody", new LambdaStepRequest().withType(FAILURE_CALLBACK).withStep(this).serialize());
 
     return new SQLQuery("""
