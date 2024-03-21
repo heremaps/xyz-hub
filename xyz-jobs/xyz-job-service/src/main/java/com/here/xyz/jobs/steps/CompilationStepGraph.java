@@ -35,11 +35,20 @@ class CompilationStepGraph extends StepGraph {
   }
 
   @Override
+  public void setExecutions(List<StepExecution> executions) {
+    executions.forEach(execution -> enrichStep(execution));
+    super.setExecutions(executions);
+  }
+
+  @Override
   public StepGraph addExecution(StepExecution execution) {
+    enrichStep(execution);
+    return super.addExecution(execution);
+  }
+
+  private void enrichStep(StepExecution execution) {
     if (execution instanceof Step step)
       step.withJobId(jobId).withPreviousStepId(getPreviousStepId());
-
-    return super.addExecution(execution);
   }
 
   @JsonIgnore
