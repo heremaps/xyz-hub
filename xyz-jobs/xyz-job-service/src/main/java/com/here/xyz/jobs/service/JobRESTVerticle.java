@@ -51,11 +51,11 @@ public class JobRESTVerticle extends BaseHttpServerVerticle {
                 Class<?> cls = Class.forName(r);
                 AbstractRouterBuilder rb = (AbstractRouterBuilder) cls.newInstance();
                 return rb.buildRoutes(vertx)
-                        .compose(router -> {
-                            super.addDefaultHandlers(router); //TODO: Why calling the super method and not the one below?
-                            mainRouter.mountSubRouter("/", router);
-                            return Future.succeededFuture();
-                        });
+                    .compose(router -> {
+                        super.addDefaultHandlers(router); //TODO: Why calling the super method and not the one below?
+                        mainRouter.mountSubRouter("/", router);
+                        return Future.succeededFuture();
+                    });
             } catch (Exception e) {
                 logger.error("Unable to build routes for {}", r);
                 return Future.failedFuture(e);
@@ -65,8 +65,8 @@ public class JobRESTVerticle extends BaseHttpServerVerticle {
         CompositeFuture.all(routeFutures).onSuccess(done -> {
             addDefaultHandlers(mainRouter);
             createHttpServer(Config.instance.HTTP_PORT, mainRouter)
-                    .onSuccess(none -> startPromise.complete())
-                    .onFailure(err -> startPromise.fail(err));
+                .onSuccess(none -> startPromise.complete())
+                .onFailure(err -> startPromise.fail(err));
         }).onFailure(err -> startPromise.fail(err));
 
     }

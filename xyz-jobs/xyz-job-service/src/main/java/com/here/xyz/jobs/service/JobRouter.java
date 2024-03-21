@@ -17,7 +17,6 @@
  * License-Filename: LICENSE
  */
 
-
 package com.here.xyz.jobs.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,47 +40,48 @@ import org.apache.logging.log4j.Logger;
 
 public class JobRouter implements AbstractRouterBuilder {
 
-    private static final Logger logger = LogManager.getLogger();
-    private static String CONTRACT_API;
+  private static final Logger logger = LogManager.getLogger();
+  private static String CONTRACT_API;
 
-    static {
-        try {
-            OpenApiGenerator.getValuesMap().put("SERVER_URL", Config.instance.HUB_ENDPOINT);
-            final byte[] openapi = ByteStreams.toByteArray(JobRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
-            final byte[] recipes = ByteStreams.toByteArray(JobRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml"));
-            CONTRACT_API = new String(OpenApiGenerator.generate(openapi, recipes, "contract"));
-        } catch (Exception e) {
-            logger.error("Unable to generate OpenApi specs.", e);
-        }
+  static {
+    try {
+      OpenApiGenerator.getValuesMap().put("SERVER_URL", Config.instance.HUB_ENDPOINT);
+      final byte[] openapi = ByteStreams.toByteArray(JobRESTVerticle.class.getResourceAsStream("/openapi.yaml"));
+      final byte[] recipes = ByteStreams.toByteArray(JobRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml"));
+      CONTRACT_API = new String(OpenApiGenerator.generate(openapi, recipes, "contract"));
     }
-
-    @Override
-    public Future<Router> buildRoutes(Vertx vertx) {
-        ObjectMapper om = new ObjectMapper(new YAMLFactory());
-
-        try {
-            return OpenAPIContract.from(vertx, new JsonObject(om.readValue(CONTRACT_API, Map.class))).flatMap(contract -> {
-                RouterBuilder rb = RouterBuilder.create(vertx, contract);
-
-                for(OpenAPIRoute route : rb.getRoutes())
-                    route.addHandler(BodyHandler.create());
-
-                initializeJobApi(rb);
-
-                final Router router = rb.createRouter();
-                router.route(HttpMethod.GET, "/_jobs/health").handler(ctx -> ctx.response().send("OK"));
-
-                new JobAdminApi(router);
-
-                return Future.succeededFuture(router);
-            });
-        }
-        catch (JsonProcessingException e) {
-            return Future.failedFuture(e);
-        }
+    catch (Exception e) {
+      logger.error("Unable to generate OpenApi specs.", e);
     }
+  }
 
-    private void initializeJobApi(RouterBuilder rb) {
-        new JobApi(rb);
+  @Override
+  public Future<Router> buildRoutes(Vertx vertx) {
+    ObjectMapper om = new ObjectMapper(new YAMLFactory());
+
+    try {
+      return OpenAPIContract.from(vertx, new JsonObject(om.readValue(CONTRACT_API, Map.class))).flatMap(contract -> {
+        RouterBuilder rb = RouterBuilder.create(vertx, contract);
+
+        for (OpenAPIRoute route : rb.getRoutes())
+          route.addHandler(BodyHandler.create());
+
+        initializeJobApi(rb);
+
+        final Router router = rb.createRouter();
+        router.route(HttpMethod.GET, "/_jobs/health").handler(ctx -> ctx.response().send("OK"));
+
+        new JobAdminApi(router);
+
+        return Future.succeededFuture(router);
+      });
     }
+    catch (JsonProcessingException e) {
+      return Future.failedFuture(e);
+    }
+  }
+
+  private void initializeJobApi(RouterBuilder rb) {
+    new JobApi(rb);
+  }
 }

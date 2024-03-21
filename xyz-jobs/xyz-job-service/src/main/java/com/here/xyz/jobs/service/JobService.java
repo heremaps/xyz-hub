@@ -34,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class JobService extends Core {
+
   private static final Logger logger = LogManager.getLogger();
 
   static {
@@ -62,14 +63,6 @@ public class JobService extends Core {
     return Future.succeededFuture(config);
   }
 
-  private static Future<Void> registerShutdownHook(Void v) {
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      System.out.println("Job Service is going down at " + new Date());
-      //Add operation for shutdown hook
-    }));
-    return Future.succeededFuture();
-  }
-
   private static Future<Void> initializeService(JsonObject config) {
     final DeploymentOptions options = new DeploymentOptions()
         .setConfig(config)
@@ -80,5 +73,13 @@ public class JobService extends Core {
         .onFailure(t -> logger.error("Unable to deploy JobVerticle.", t))
         .onSuccess(s -> logger.info("Service is up and running on port " + Config.instance.HTTP_PORT))
         .mapEmpty();
+  }
+
+  private static Future<Void> registerShutdownHook(Void v) {
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      System.out.println("Job Service is going down at " + new Date());
+      //Add operation for shutdown hook
+    }));
+    return Future.succeededFuture();
   }
 }
