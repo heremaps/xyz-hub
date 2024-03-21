@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.service;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.util.service.Core;
@@ -53,6 +54,7 @@ public class JobService extends Core {
         .compose(JobService::parseConfiguration)
         .compose(JobService::initializeService)
         .compose(JobService::registerShutdownHook)
+        .compose(JobService::initializeClients)
         .onFailure(t -> logger.error("CService startup failed", t))
         .onSuccess(v -> logger.info("Service startup succeeded"))
         .onSuccess(v -> JobExecutor.getInstance().init());
@@ -61,6 +63,11 @@ public class JobService extends Core {
   private static Future<JsonObject> parseConfiguration(JsonObject config) {
     config.mapTo(Config.class);
     return Future.succeededFuture(config);
+  }
+
+  private static Future<Void> initializeClients(Void v) {
+    JobConfigClient.getInstance().init();
+    return Future.succeededFuture();
   }
 
   private static Future<Void> initializeService(JsonObject config) {
