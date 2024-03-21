@@ -196,14 +196,21 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
-  protected void onAsyncSuccess() {
+  protected void onAsyncSuccess() throws Exception {
     //Nothing to do by default (may be overridden in subclasses)
   }
 
   protected final void reportAsyncSuccess() {
     //TODO: synchronize the step state before?
-    onAsyncSuccess();
+    try {
+        onAsyncSuccess();
+    } catch (Exception e) {
+        reportAsyncFailure(e);
+        return;
+    }
+
     unregisterStateCheckTrigger();
+
     //Report success to SFN
     if (!isSimulation) { //TODO: Remove testing code
       sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()

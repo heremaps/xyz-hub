@@ -40,6 +40,8 @@ import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -121,7 +123,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param outputs The list of outputs to be registered for this step
    * @param userOutput Whether the specified outputs should be visible to the user (or just to the system)
    */
-  protected void registerOutputs(List<Output> outputs, boolean userOutput) {
+  protected void registerOutputs(List<Output> outputs, boolean userOutput) throws IOException {
     for (int i = 0; i < outputs.size(); i++)
       outputs.get(i).store(outputS3Prefix(false, userOutput) + "output" + i + ".json"); //TODO: Use proper file name
   }

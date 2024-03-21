@@ -36,6 +36,8 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import io.vertx.core.json.JsonObject;
+
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -149,45 +151,37 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   @Override
-  public void execute(){
+  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
     logger.info("Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
         + " into space " + getSpaceId() + " ...");
 
-    try {
+    logger.info("Loading space config for space {}", getSpaceId());
+    Space space = loadSpace(getSpaceId());
+    logger.info("Getting storage database for space {}", getSpaceId());
+    Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-      logger.info("Loading space config for space {}", getSpaceId());
-      Space space = loadSpace(getSpaceId());
-      logger.info("Getting storage database for space {}", getSpaceId());
-      Database db = loadDatabase(space.getStorage().getId(), WRITER);
+    logAndSetPhase(Phase.SET_READONLY);
+    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-      logAndSetPhase(Phase.SET_READONLY);
-      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
+    logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
+    long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0),
+            rs -> {
+              rs.next();
+              return rs.getLong(1);
+            });
 
-      logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-      long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0),
-              rs -> {
-                rs.next();
-                return rs.getLong(1);
-              });
+    logAndSetPhase(Phase.CREATE_TRIGGER);
+    runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, calculateNeededAcus(0,0));
 
-      logAndSetPhase(Phase.CREATE_TRIGGER);
-      runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, calculateNeededAcus(0,0));
+    logAndSetPhase(Phase.CREATE_TMP_TABLE);
+    runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0));
 
-      logAndSetPhase(Phase.CREATE_TMP_TABLE);
-      runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0));
+    logAndSetPhase(Phase.FILL_TMP_TABLE);
+    fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
 
-      logAndSetPhase(Phase.FILL_TMP_TABLE);
-      fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
-
-      logAndSetPhase(Phase.EXECUTE_IMPORT);
-      for (int i = 0; i < importThreadCnt; i++) {
-        runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
-      }
-    }
-    catch (SQLException | TooManyResourcesClaimed | WebClientException e) {
-      //@TODO: ErrorHandling! <- Is it necessary here? Anything that should be catched / transformed?
-      logger.warn("Error!",e); //TODO: Can be removed, no need to log here, as the framework will log all exceptions thrown by #execute()
-      throw new RuntimeException(e); //TODO: If nothing should be handled here, better rethrow the original exception
+    logAndSetPhase(Phase.EXECUTE_IMPORT);
+    for (int i = 0; i < importThreadCnt; i++) {
+      runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
     }
   }
 
@@ -227,48 +221,38 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   @Override
-  protected void onAsyncSuccess() {
+  protected void onAsyncSuccess() throws WebClientException,
+          SQLException, TooManyResourcesClaimed, IOException {
     /** Finalize Import
      * - cleanUp: remove trigger / delete temporary table
      * - provide getStatistics
      * - release readOnly lock
      */
-    try {
-      logger.info("Loading space config for space {}", getSpaceId());
-      Space space = loadSpace(getSpaceId());
-      logger.info("Getting storage database for space {}", getSpaceId());
-      Database db = loadDatabase(space.getStorage().getId(), WRITER);
+    logger.info("Loading space config for space {}", getSpaceId());
+    Space space = loadSpace(getSpaceId());
+    logger.info("Getting storage database for space {}", getSpaceId());
+    Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-      logAndSetPhase(Phase.RETRIEVE_STATISTICS);
-      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
-              calculateNeededAcus(0, 0), rs -> rs.next()
-                      ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
-                      : new FeatureStatistics());
+    logAndSetPhase(Phase.RETRIEVE_STATISTICS);
+    FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
+            calculateNeededAcus(0, 0), rs -> rs.next()
+                    ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
+                    : new FeatureStatistics());
 
-      logger.info("Statistics: bytes={} rows={}", statistics.getByteSize(), statistics.getFeatureCount());
-      registerOutputs(List.of(statistics), true);
+    logger.info("Statistics: bytes={} rows={}", statistics.getByteSize(), statistics.getFeatureCount());
+    registerOutputs(List.of(statistics), true);
 
-      logAndSetPhase(Phase.WRITE_STATISTICS);
-      registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
+    logAndSetPhase(Phase.WRITE_STATISTICS);
+    registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
 
-      logAndSetPhase(Phase.DROP_TRIGGER);
-      runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
+    logAndSetPhase(Phase.DROP_TRIGGER);
+    runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
 
-      logAndSetPhase(Phase.DROP_TMP_TABLE);
-      runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
+    logAndSetPhase(Phase.DROP_TMP_TABLE);
+    runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
 
-      logAndSetPhase(Phase.RELEASE_READONLY);
-      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
-
-      //TODO: Register one output of type {@link FeatureStatistics} as last step using registerOutputs()
-
-    }
-    catch (SQLException | TooManyResourcesClaimed | WebClientException e) {
-      //@TODO: ErrorHandling!
-      logger.warn("Error!",e);
-      throw new RuntimeException(e);
-    }
-    super.onAsyncSuccess();
+    logAndSetPhase(Phase.RELEASE_READONLY);
+    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
   }
   private void logAndSetPhase(Phase curPhase, String... messages){
     phase = curPhase;
