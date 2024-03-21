@@ -38,12 +38,14 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.zip.GZIPOutputStream;
 
 public class S3Client {
   private static final S3Client instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
@@ -127,10 +129,6 @@ public class S3Client {
     return summaries;
   }
 
-  public void putObject(String s3Key, String contentType, String content) {
-    putObject(s3Key, contentType, content.getBytes());
-  }
-
   public byte[] loadObjectContent(String s3Key) throws IOException {
     return loadObjectContent(s3Key, -1, -1);
   }
@@ -153,10 +151,32 @@ public class S3Client {
     return client.getObject(getObjectRequest).getObjectContent();
   }
 
-  public void putObject(String s3Key, String contentType, byte[] content) {
+  public void putObject(String s3Key, String contentType, String content) throws IOException {
+    putObject(s3Key, contentType, content.getBytes());
+  }
+  public void putObject(String s3Key, String contentType, byte[] content) throws IOException {
+    putObject(s3Key, contentType, content,false);
+  }
+
+  public void putObject(String s3Key, String contentType, byte[] content, boolean gzip) throws IOException {
     ObjectMetadata metadata = new ObjectMetadata();
     metadata.setContentType(contentType);
-    client.putObject(new PutObjectRequest(bucketName, s3Key, new ByteArrayInputStream(content), metadata));
+
+    if (gzip) {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(baos)) {
+        gzipOutputStream.write(content);
+      }
+
+      metadata.setContentEncoding("gzip");
+      metadata.setContentLength(baos.size());
+
+      client.putObject(new PutObjectRequest(bucketName, s3Key,
+              new ByteArrayInputStream(baos.toByteArray()), metadata));
+    } else {
+      metadata.setContentLength(content.length);
+      client.putObject(new PutObjectRequest(bucketName, s3Key, new ByteArrayInputStream(content), metadata));
+    }
   }
 
   public ObjectMetadata loadMetadata(String key) {
