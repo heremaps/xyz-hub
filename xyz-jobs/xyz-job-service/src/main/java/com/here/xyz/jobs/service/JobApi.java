@@ -56,9 +56,7 @@ public class JobApi extends Api {
     }
 
     private void postJob(final RoutingContext context) throws HttpException {
-        String spaceId = ApiParam.getPathParam(context, SPACE_ID);
         Job job = getJobFromBody(context);
-        job.setResourceKey(spaceId);
         job.submit()
                 .map(res -> job)
                 .onSuccess(res -> sendResponse(context, CREATED, res))

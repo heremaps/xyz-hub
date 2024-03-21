@@ -121,7 +121,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
   private Item convertJobToItem(Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
-    //TODO: Make sure to reflect the correct resource key
     return Item.fromMap(jobItemData);
   }
 
