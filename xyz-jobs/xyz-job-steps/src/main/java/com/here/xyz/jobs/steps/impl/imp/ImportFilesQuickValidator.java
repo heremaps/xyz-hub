@@ -123,7 +123,7 @@ public class ImportFilesQuickValidator {
     else if (csvLine != null && (csvLine.endsWith("\n") || csvLine.endsWith("\r")))
       csvLine = csvLine.substring(0, csvLine.length() - 1);
 
-    if (!format.equals(Format.GEOJSON) && csvLine.lastIndexOf(",") != -1)
+    if (!format.equals(Format.GEOJSON) && csvLine.endsWith(","))
       throw new ValidationException("Empty Column detected!");
 
     switch (format) {
