@@ -5,7 +5,7 @@
     "JOBS_S3_BUCKET": "test-bucket",
     "LOCALSTACK_ENDPOINT": "http://localstack:4566",
     "LOCAL_DB_HOST_OVERRIDE": "postgres",
-    "JOB_API_ENDPOINT": "http://host.docker.internal:9090",
+    "JOB_API_ENDPOINT": "http://host.docker.internal:7070",
     "__JAVA_OPTIONS": "-Xshare:off -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=0.0.0.0:5050"
   }
 }

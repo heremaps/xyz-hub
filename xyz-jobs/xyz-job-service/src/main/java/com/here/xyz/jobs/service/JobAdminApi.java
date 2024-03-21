@@ -59,8 +59,8 @@ public class JobAdminApi extends Api {
     String jobId = ApiParam.getPathParam(context, Path.JOB_ID);
     Step step = getStepFromBody(context);
     Job.load(jobId)
-        .compose(job -> job.updateStep(step).map(job))
-        .onSuccess(res -> sendResponse(context, OK, res))
+        .compose(job -> job.updateStep(step).mapEmpty())
+        .onSuccess(v -> sendResponseWithXyzSerialization(context, OK, v))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 

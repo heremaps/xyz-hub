@@ -1,5 +1,5 @@
 {
-  "HTTP_PORT": 9090,
+  "HTTP_PORT": 7070,
   "ECPS_PHRASE": "local",
 
   "DB_STATEMENT_TIMEOUT_IN_S" : 86400,
