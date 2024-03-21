@@ -6,7 +6,7 @@ info:
   contact: {}
   version: 1.0.0
 servers:
-  - url: /hub
+  - url: /
 security:
   - AccessToken: []
   - Bearer: []
@@ -14,7 +14,7 @@ tags:
   - name: Manage Jobs
     description: Job management endpoints for space.
 paths:
-  '/spaces/{spaceId}/jobs':
+  '/jobs':
     post:
       tags:
         - Manage Jobs
@@ -36,7 +36,6 @@ paths:
       description: Retrieve jobs
       operationId: getJobs
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobStatus'
       responses:
         '200':
@@ -45,7 +44,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/jobs/{jobId}':
+  '/jobs/{jobId}':
     get:
       tags:
         - Manage Jobs
@@ -53,7 +52,6 @@ paths:
       description: Retrieve job
       operationId: getJob
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
       responses:
         '200':
@@ -69,7 +67,6 @@ paths:
       description: Delete job
       operationId: deleteJob
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
       responses:
         '200':
@@ -78,7 +75,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  /spaces/{spaceId}/jobs/{jobId}/inputs:
+  /jobs/{jobId}/inputs:
     post:
       tags:
         - "Manage Jobs"
@@ -86,7 +83,6 @@ paths:
       description: "Creates a new input for a job"
       operationId: "postJobInputs"
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: "#/components/parameters/JobId"
       requestBody:
         $ref: "#/components/requestBodies/JobInputRequest"
@@ -104,7 +100,6 @@ paths:
       description: "Lists the available inputs of a job"
       operationId: "getJobInputs"
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
@@ -113,7 +108,7 @@ paths:
           $ref: "#/components/responses/ErrorResponse400"
         "404":
           $ref: "#/components/responses/ErrorResponse404"
-  /spaces/{spaceId}/jobs/{jobId}/outputs:
+  /jobs/{jobId}/outputs:
     get:
       tags:
         - "Manage Jobs"
@@ -121,7 +116,6 @@ paths:
       description: "Lists the outputs of a job"
       operationId: "getJobOutputs"
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
@@ -130,7 +124,7 @@ paths:
           $ref: "#/components/responses/ErrorResponse400"
         "404":
           $ref: "#/components/responses/ErrorResponse404"
-  /spaces/{spaceId}/jobs/{jobId}/status:
+  /jobs/{jobId}/status:
     patch:
       tags:
         - "Manage Jobs"
@@ -138,7 +132,6 @@ paths:
       description: "Update job status using provided action"
       operationId: "patchJobStatus"
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: "#/components/parameters/JobId"
       requestBody:
         $ref: "#/components/requestBodies/JobStatusRequest"
@@ -156,7 +149,6 @@ paths:
       description: "Retrieve job status"
       operationId: "getJobStatus"
       parameters:
-        - $ref: '#/components/parameters/SpaceId'
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
@@ -178,7 +170,7 @@ components:
   parameters:
     SpaceId:
       name: spaceId
-      in: path
+      in: query
       description: The unique identifier of the space.
       required: true
       schema:

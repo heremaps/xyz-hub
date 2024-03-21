@@ -64,37 +64,33 @@ public class JobApi extends Api {
   }
 
   private void getJobs(final RoutingContext context) {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
-    Job.loadByResourceKey(spaceId)
+    Job.loadAll()
         .onSuccess(res -> sendResponse(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJob(final RoutingContext context) {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
     String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(spaceId, jobId)
+    loadJob(jobId)
         .onSuccess(res -> sendResponse(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
 
   }
 
   private void deleteJob(final RoutingContext context) {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
     String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(spaceId, jobId)
+    loadJob(jobId)
         .compose(job -> Job.delete(jobId).map(job))
         .onSuccess(res -> sendResponse(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void postJobInputs(final RoutingContext context) throws HttpException {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     Input input = getJobInputFromBody(context);
 
     if (input instanceof UploadUrl) {
-      loadJob(spaceId, jobId)
+      loadJob(jobId)
           .map(job -> job.createUploadUrl())
           .onSuccess(res -> sendResponse(context, CREATED, res))
           .onFailure(err -> sendErrorResponse(context, err));
@@ -105,39 +101,35 @@ public class JobApi extends Api {
   }
 
   private void getJobInputs(final RoutingContext context) {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
     String jobId = ApiParam.getPathParam(context, JOB_ID);
 
-    loadJob(spaceId, jobId)
+    loadJob(jobId)
         .compose(job -> job.loadInputs())
         .onSuccess(res -> sendResponse(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJobOutputs(final RoutingContext context) {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
     String jobId = ApiParam.getPathParam(context, JOB_ID);
 
-    loadJob(spaceId, jobId)
+    loadJob(jobId)
         .compose(job -> job.loadOutputs())
         .onSuccess(res -> sendResponse(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void patchJobStatus(final RoutingContext context) throws HttpException {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     RuntimeStatus status = getStatusFromBody(context);
-    loadJob(spaceId, jobId)
+    loadJob(jobId)
         .compose(job -> tryExecuteAction(status, job))
         .onSuccess(patchedStatus -> sendResponse(context, OK, patchedStatus))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJobStatus(final RoutingContext context) {
-    String spaceId = ApiParam.getPathParam(context, SPACE_ID);
     String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(spaceId, jobId)
+    loadJob(jobId)
         .onSuccess(res -> sendResponse(context, OK, res.getStatus()))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -160,14 +152,12 @@ public class JobApi extends Api {
 
   }
 
-  private Future<Job> loadJob(String spaceId, String jobId) {
+  private Future<Job> loadJob(String jobId) {
     return Job.load(jobId)
         .compose(job -> {
           if (job == null)
             return Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist"));
-          //TODO: Rather have an implementation for Job.load(jobId, resourceKey) again
-          if (!spaceId.equals(job.getResourceKey()))
-            return Future.failedFuture(new AccessDeniedException("Forbidden to access the job"));
+          //TODO: Auth
           return Future.succeededFuture(job);
         });
   }
