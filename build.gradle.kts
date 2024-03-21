@@ -368,6 +368,8 @@ project(":here-naksha-storage-http") {
         implementation(project(":here-naksha-common-http"))
 
         implementation(commons_lang3)
+
+        testImplementation(mockito)
     }
     setOverallCoverage(0.0) // only increasing allowed!
 

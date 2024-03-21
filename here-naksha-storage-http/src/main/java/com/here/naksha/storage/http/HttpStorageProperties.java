@@ -35,7 +35,9 @@ public class HttpStorageProperties extends XyzProperties {
 
   public static final Long DEF_CONNECTION_TIMEOUT_SEC = 20L;
   public static final Long DEF_SOCKET_TIMEOUT_SEC = 90L;
-  public static final Map<String, String> DEFAULT_HEADERS = Map.of("Content-Type", "application/json");
+  public static final Map<String, String> DEFAULT_HEADERS = Map.of(
+      "Content-Type", "application/json",
+      "Accept-Encoding", "gzip");
 
   private static final String URL = "url";
   private static final String CONNECTION_TIMEOUT = "connectTimeout";

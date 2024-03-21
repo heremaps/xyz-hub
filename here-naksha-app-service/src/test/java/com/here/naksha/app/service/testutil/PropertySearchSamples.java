@@ -1,4 +1,4 @@
-package com.here.naksha.app.service;
+package com.here.naksha.app.service.testutil;
 
 import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import org.apache.commons.lang3.tuple.Pair;
@@ -12,7 +12,7 @@ import static com.here.naksha.app.common.TestUtil.urlEncoded;
 
 public class PropertySearchSamples {
 
-  static Stream<Arguments> queryParams() {
+  public static Stream<Arguments> queryParams() {
     return Stream.of(
             Pair.of("properties.alone_prop=1", "properties.alone_prop=1"),
             Pair.of("properties.alone_prop=1,2,3,4", "properties.alone_prop=1,2,3,4"),

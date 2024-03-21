@@ -1,0 +1,11 @@
+{
+  "id": "tc500-id",
+  "type": "Feature",
+  "properties": {
+    "speedLimit": "60"
+  },
+  "geometry": {
+    "type":"Point",
+    "coordinates":[ 8.68872, 50.0561, 292.94377758]
+  }
+}

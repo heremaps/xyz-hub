@@ -18,11 +18,13 @@
  */
 package com.here.naksha.app.service;
 
+import com.github.tomakehurst.wiremock.client.MappingBuilder;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import com.github.tomakehurst.wiremock.matching.UrlPattern;
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
+import com.here.naksha.app.service.testutil.PropertySearchSamples;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,6 +42,7 @@ import static com.here.naksha.app.common.CommonApiTestSetup.createHandler;
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
+import static com.here.naksha.app.service.testutil.GzipUtil.stubOkGzipEncoded;
 
 @WireMockTest(httpPort = 9090)
 class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
@@ -71,29 +74,28 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     assertThat(response).hasStatus(200);
   }
 
+  private static Stream<Arguments> propSearchTestParams() {
+    return PropertySearchSamples.queryParams();
+  }
+
   @Test
   void tc0700_testGetByBBoxWithSingleTag_willIgnoreTag() throws Exception {
     // Test API : GET /hub/spaces/{spaceId}/bbox
     // Validate features getting returned for given BBox coordinate and given single tag value
     // Given: Features By BBox request (against above space)
-    final String bboxQueryParam = "west=-180&south=-90&east=180&north=90";
     final String tagsQueryParam = "tags=one";
     final String expectedBodyPart =
             loadFileOrFail("ReadFeatures/ByBBoxHttpStorage/TC0700_SingleTag/feature_response_part.json");
     String streamId = UUID.randomUUID().toString();
 
     final UrlPattern endpointPath = urlPathEqualTo(ENDPOINT);
-    stubFor(get(endpointPath)
-            .withQueryParam("west", equalTo("-180.0"))
-            .withQueryParam("south", equalTo("-90.0"))
-            .withQueryParam("east", equalTo("180.0"))
-            .withQueryParam("north", equalTo("90.0"))
+    stubFor(ExampleQueryData.mapping(endpointPath)
             .willReturn(okJson(expectedBodyPart)));
     // Now the tags are not supported and will be ignored.
 
     // When: Get Features By BBox request is submitted to NakshaHub
     HttpResponse<String> response = nakshaClient
-            .get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + tagsQueryParam + "&" + bboxQueryParam, streamId);
+            .get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + tagsQueryParam + "&" + ExampleQueryData.PARAMS, streamId);
 
     // Then: Perform assertions
     assertThat(response)
@@ -111,7 +113,7 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     // Validate features returned match with given BBox condition and limit
 
     // Given: Features By BBox request (against configured space)
-    final String bboxQueryParam = "west=-180&south=-90&east=180&north=90";
+    final String bboxQueryParam = ExampleQueryData.PARAMS;
     final String tagsQueryParam = "tags=one";
     final String limitQueryParam = "limit=2";
     final String expectedBodyPart =
@@ -119,11 +121,7 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     String streamId = UUID.randomUUID().toString();
 
     final UrlPattern endpointPath = urlPathEqualTo(ENDPOINT);
-    stubFor(get(endpointPath)
-            .withQueryParam("west", equalTo("-180.0"))
-            .withQueryParam("south", equalTo("-90.0"))
-            .withQueryParam("east", equalTo("180.0"))
-            .withQueryParam("north", equalTo("90.0"))
+    stubFor(ExampleQueryData.mapping(endpointPath)
             .withQueryParam("limit", equalTo("2"))
             .willReturn(okJson(expectedBodyPart)));
 
@@ -198,14 +196,12 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     verify(0, getRequestedFor(urlPathEqualTo(ENDPOINT)));
   }
 
-
   @Test
   void tc0711_testGetByBBoxOnViewSpace() throws Exception {
     // Test API : GET /hub/spaces/{spaceId}/bbox
     // Validate features returned match with given BBox condition using View space over psql and http storage based spaces
 
     // Given: Features By BBox request (against view space)
-    final String bboxQueryParam = "west=-180&south=-90&east=180&north=90";
     final String httpStorageMockResponse =
             loadFileOrFail("ReadFeatures/ByBBoxHttpStorage/TC0711_BBoxOnViewSpace/http_storage_response.json");
     final String expectedViewResponse =
@@ -213,15 +209,11 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
     String streamId = UUID.randomUUID().toString();
 
     final UrlPattern endpointPath = urlPathEqualTo(ENDPOINT);
-    stubFor(get(endpointPath)
-            .withQueryParam("west", equalTo("-180.0"))
-            .withQueryParam("south", equalTo("-90.0"))
-            .withQueryParam("east", equalTo("180.0"))
-            .withQueryParam("north", equalTo("90.0"))
+    stubFor(ExampleQueryData.mapping(endpointPath)
             .willReturn(okJson(httpStorageMockResponse)));
 
     // When: Get Features By BBox request is submitted to NakshaHub
-    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + VIEW_SPACE_ID + "/bbox?" + bboxQueryParam, streamId);
+    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + VIEW_SPACE_ID + "/bbox?" + ExampleQueryData.PARAMS, streamId);
 
     // Then: Perform assertions
     assertThat(response)
@@ -236,19 +228,49 @@ class ReadFeaturesByBBoxHttpStorageTest extends ApiTest {
   @ParameterizedTest
   @MethodSource("propSearchTestParams")
   void tc800_testPropertySearch(String inputQueryString, RequestPatternBuilder outputQueryPattern) throws Exception {
-    final String bboxQueryParam = "west=-180.0&north=90.0&east=180.0&south=-90.0&limit=30000";
 
     String streamId = UUID.randomUUID().toString();
 
     // When: Get Features By BBox request is submitted to NakshaHub
-    nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + bboxQueryParam + "&" + inputQueryString, streamId);
+    nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + ExampleQueryData.PARAMS + "&" + inputQueryString, streamId);
 
     stubFor(any(anyUrl()).willReturn(ok()));
 
     verify(1, outputQueryPattern);
   }
 
-  private static Stream<Arguments> propSearchTestParams(){
-    return PropertySearchSamples.queryParams();
+  @Test
+  void tc801_testGzipEncodedResponse() throws Exception {
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByBBoxHttpStorage/TC0801_GzipEncodedResponse/feature_response_part.json");
+
+    String streamId = UUID.randomUUID().toString();
+
+    final UrlPattern endpointPath = urlPathEqualTo(ENDPOINT);
+    stubOkGzipEncoded(ExampleQueryData.mapping(endpointPath), expectedBodyPart);
+
+    // When: Get Features By BBox request is submitted to NakshaHub
+    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/bbox?" + ExampleQueryData.PARAMS, streamId);
+
+    // Then: Perform assertions
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
+  private static class ExampleQueryData {
+    private static final String PARAMS = "west=-180.0&north=90.0&east=180.0&south=-90.0";
+
+    private static MappingBuilder mapping(UrlPattern urlPattern) {
+      return get(urlPattern)
+              .withQueryParam("west", equalTo("-180.0"))
+              .withQueryParam("south", equalTo("-90.0"))
+              .withQueryParam("east", equalTo("180.0"))
+              .withQueryParam("north", equalTo("90.0"));
+    }
   }
 }

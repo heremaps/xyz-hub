@@ -22,12 +22,16 @@ import com.github.tomakehurst.wiremock.client.MappingBuilder;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import com.github.tomakehurst.wiremock.matching.UrlPathPattern;
+import com.github.tomakehurst.wiremock.matching.UrlPattern;
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
+import com.here.naksha.app.common.assertions.ResponseAssertions;
+import com.here.naksha.app.service.testutil.PropertySearchSamples;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -43,6 +47,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
+import static com.here.naksha.app.service.testutil.GzipUtil.stubOkGzipEncoded;
 
 @WireMockTest(httpPort = 9092)
 class ReadFeaturesByTileHttpStorageTest extends ApiTest {
@@ -51,6 +56,8 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
 
   private static final String HTTP_SPACE_ID = "read_features_by_tile_http_test_space";
   private static final String TYPE_QUADKEY = "quadkey";
+  private static final String NAKSHA_ENDPOINT = "hub/spaces/" + HTTP_SPACE_ID + "/tile";
+  private static final String STORAGE_ENDPOINT = "/my_env/my_storage/my_feat_type";
 
   @BeforeAll
   static void setup() throws URISyntaxException, IOException, InterruptedException {
@@ -126,7 +133,7 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
                     "not_supported_file_type",
                     "120203302030322200",
                     null,
-                    "ReadFeatures/ByTileHttpStorage/TC0818_InvalidMargin/feature_response_part.json",
+                    "ReadFeatures/ByTileHttpStorage/TC0900_NonQuadkeyTileType/feature_response_part.json",
                     400, // Http storage returns 501 but at Hub level validation is preformed an 400 thrown
                     false,
                     false
@@ -143,6 +150,10 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
                                             final boolean strictChecking,
                                             final boolean shouldReachEndpoint) {
     return Arguments.arguments(tileType, tileId, queryParamList, fPathOfExpectedResBody, expectedResCode, Named.named(testDesc, strictChecking), shouldReachEndpoint);
+  }
+
+  private static Stream<Arguments> propSearchTestParams() {
+    return PropertySearchSamples.queryParams();
   }
 
   @ParameterizedTest
@@ -163,7 +174,7 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
     final String streamId = UUID.randomUUID().toString();
 
     // Given: Http endpoint
-    final UrlPathPattern urlPathPattern = urlPathEqualTo("/my_env/my_storage/my_feat_type/quadkey/" + tileId);
+    final UrlPathPattern urlPathPattern = urlPathEqualTo("%s/%s/%s".formatted(STORAGE_ENDPOINT, tileType, tileId));
     final MappingBuilder mappingBuilder = get(urlPathPattern);
     withQueryParams(mappingBuilder, queryParamList);
 
@@ -175,8 +186,8 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
     }
 
     // When: Get Features By Tile request is submitted to NakshaHub
-    final HttpResponse<String> response = nakshaClient
-            .get("hub/spaces/" + HTTP_SPACE_ID + "/tile/" + tileType + "/" + tileId + "?" + urlQueryParams, streamId);
+    final HttpResponse<String> response = getNakshaClient()
+            .get("%s/%s/%s?%s".formatted(NAKSHA_ENDPOINT, tileType, tileId, urlQueryParams), streamId);
 
     // Then: Perform standard assertions
     assertThat(response)
@@ -202,18 +213,38 @@ class ReadFeaturesByTileHttpStorageTest extends ApiTest {
   @ParameterizedTest
   @MethodSource("propSearchTestParams")
   void tc900_testPropertySearch(String inputQueryString, RequestPatternBuilder outputQueryPattern) throws Exception {
-
+    final String tileId = "1230";
     String streamId = UUID.randomUUID().toString();
 
     // When: Get Features By tile request is submitted to NakshaHub
-    nakshaClient.get("hub/spaces/" + HTTP_SPACE_ID + "/tile/" + TYPE_QUADKEY + "/11111?" + inputQueryString, streamId);
+    getNakshaClient().get("%s/%s/%s?%s".formatted(NAKSHA_ENDPOINT, TYPE_QUADKEY, tileId, inputQueryString), streamId);
 
     stubFor(any(anyUrl()));
 
     verify(1, outputQueryPattern);
   }
 
-  private static Stream<Arguments> propSearchTestParams(){
-    return PropertySearchSamples.queryParams();
+  @Test
+  void tc0901_testGzipEncodedResponse() throws URISyntaxException, IOException, InterruptedException {
+    final String tileId = "1230";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByTileHttpStorage/TC0901_GzipEncodedResponse/feature_response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    final UrlPattern endpointPath = urlPathEqualTo("%s/%s/%s".formatted(STORAGE_ENDPOINT, TYPE_QUADKEY, tileId));
+    stubOkGzipEncoded(get(endpointPath), expectedBodyPart);
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    final HttpResponse<String> response = getNakshaClient().get("%s/%s/%s".formatted(NAKSHA_ENDPOINT, TYPE_QUADKEY, tileId), streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
   }
+
 }

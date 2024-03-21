@@ -18,6 +18,7 @@
  */
 package com.here.naksha.app.service;
 
+import com.github.tomakehurst.wiremock.common.Gzip;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import com.github.tomakehurst.wiremock.matching.UrlPattern;
@@ -48,13 +49,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
 
   public static final String CORRECT_ENDPOINT_RESPONSE = loadFileOrFail("ReadFeatures/WithApiFaultsHttpStorage/correct_response.json");
-  private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
-
-  private static final String SPACE_ID = "read_features_api_faults_http_test_space";
-
-  private static final String ENDPOINT = "/my_env/my_storage/my_feat_type/features";
   public static final int EXCEED_TIMEOUT_MILLIS = 1010;
-
+  public static final int INTERNAL_ERROR = 500;
+  private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
+  private static final String SPACE_ID = "read_features_api_faults_http_test_space";
+  private static final String ENDPOINT = "/my_env/my_storage/my_feat_type/features";
 
   @BeforeAll
   static void setup() throws URISyntaxException, IOException, InterruptedException {
@@ -74,7 +73,7 @@ class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(500)
+            .hasStatus(INTERNAL_ERROR)
             .hasStreamIdHeader(streamId);
 
     assertTrue(response.body().contains("Timeout"));
@@ -95,7 +94,7 @@ class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(500)
+            .hasStatus(INTERNAL_ERROR)
             .hasStreamIdHeader(streamId);
 
     assertTrue(response.body().contains("Timeout"));
@@ -117,7 +116,7 @@ class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(500)
+            .hasStatus(INTERNAL_ERROR)
             .hasStreamIdHeader(streamId);
 
     // Then: Verify request reached endpoint once
@@ -137,7 +136,7 @@ class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(500)
+            .hasStatus(INTERNAL_ERROR)
             .hasStreamIdHeader(streamId);
 
     // Then: Verify request reached endpoint once
@@ -168,6 +167,132 @@ class ReadFeaturesWithApiFaultsHttpStorageTest extends ApiTest {
             .hasStatus(errorCode)
             .hasStreamIdHeader(streamId);
 
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
+  @Test
+  void tc06_testMalformedGzip() throws Exception {
+    String streamId = UUID.randomUUID().toString();
+    String featureId = "/tc06";
+
+    UrlPattern endpointPath = urlPathEqualTo(ENDPOINT + featureId);
+    stubFor(get(endpointPath).willReturn(
+            ok("not_a_gzip").withHeader("Content-Encoding", "gzip")
+    ));
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features" + featureId, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(INTERNAL_ERROR)
+            .hasJsonBody("""
+                    {
+                        "type": "ErrorResponse",
+                        "error": "Exception",
+                        "errorMessage": "java.util.zip.ZipException: Not in GZIP format",
+                        "streamId": "%s"
+                    }
+                    """.formatted(streamId)
+            )
+            .hasStreamIdHeader(streamId);
+
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
+  @Test
+  void tc07_testNotSupportedEncoding() throws Exception {
+    String streamId = UUID.randomUUID().toString();
+    String featureId = "/tc07";
+
+    UrlPattern endpointPath = urlPathEqualTo(ENDPOINT + featureId);
+    stubFor(get(endpointPath).willReturn(
+            ok("encoded_with_not_supported_encoding")
+                    .withHeader("Content-Encoding", "not_supported_encoding")
+    ));
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features" + featureId, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(INTERNAL_ERROR)
+            .hasJsonBody("""
+                    {
+                        "type": "ErrorResponse",
+                        "error": "Exception",
+                        "errorMessage": "Encoding not_supported_encoding not recognized",
+                        "streamId": "%s"
+                    }
+                    """.formatted(streamId))
+            .hasStreamIdHeader(streamId);
+
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
+  @Test
+  void tc08_testMultipleEncodings() throws Exception {
+    String streamId = UUID.randomUUID().toString();
+    String featureId = "/tc08";
+
+    UrlPattern endpointPath = urlPathEqualTo(ENDPOINT + featureId);
+    stubFor(get(endpointPath).willReturn(
+            ok().withBody(Gzip.gzip("""
+                            {
+                              "id": "tc08",
+                              "type": "Feature"
+                            }
+                            """))
+                    .withHeader("Content-Encoding", "not_gzip")
+                    .withHeader("Content-Encoding", "gzip")
+    ));
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features" + featureId, streamId);
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(INTERNAL_ERROR)
+            .hasJsonBody("""
+                    {
+                        "type": "ErrorResponse",
+                        "error": "Exception",
+                        "errorMessage": "There are more than one Content-Encoding value in response",
+                        "streamId": "%s"
+                    }
+                    """.formatted(streamId))
+            .hasStreamIdHeader(streamId);
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
+  @Test
+  void tc09_testGzipEncodedWithoutHeader() throws Exception {
+    String streamId = UUID.randomUUID().toString();
+    String featureId = "/tc09";
+
+    UrlPattern endpointPath = urlPathEqualTo(ENDPOINT + featureId);
+    stubFor(get(endpointPath).willReturn(
+            ok().withBody(Gzip.gzip("""
+                    {
+                      "id": "tc09",
+                      "type": "Feature"
+                    }
+                    """))
+    ));
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features" + featureId, streamId);
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(INTERNAL_ERROR)
+            .hasStreamIdHeader(streamId);
 
     // Then: Verify request reached endpoint once
     verify(1, getRequestedFor(endpointPath));

@@ -36,6 +36,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
+import static com.here.naksha.app.service.testutil.GzipUtil.stubOkGzipEncoded;
 
 /**
  * Tests for GET /hub/spaces/{spaceId}/features/{featureId} against {@link com.here.naksha.storage.http.HttpStorage}
@@ -79,8 +80,8 @@ class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
 
     UrlPattern endpointPath = urlPathEqualTo(ENDPOINT);
     stubFor(get(endpointPath)
-            .withQueryParam("id" ,havingCommaSeparatedValue("my-custom-id-400-1"))
-            .withQueryParam("id" ,havingCommaSeparatedValue("my-custom-id-400-2"))
+            .withQueryParam("id", havingCommaSeparatedValue("my-custom-id-400-1"))
+            .withQueryParam("id", havingCommaSeparatedValue("my-custom-id-400-2"))
             .willReturn(okJson(expectedBodyPart)));
 
     // When: Get Features request is submitted to NakshaHub Space Storage instance
@@ -206,7 +207,30 @@ class ReadFeaturesByIdsHttpStorageTest extends ApiTest {
     verify(1, getRequestedFor(endpointPath));
   }
 
-  private StringValuePattern havingCommaSeparatedValue(String value){
-    return matching(".*(^|,)"+ value + "(,|$).*");
+  @Test
+  void tc0500_testGzipEncodedResponse() throws URISyntaxException, IOException, InterruptedException {
+    final String featureId = "tc500-id";
+    final String expectedBodyPart =
+            loadFileOrFail("ReadFeatures/ByIdsHttpStorage/TC0500_GzipEncodedResponse/feature_response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    final UrlPattern endpointPath = urlPathEqualTo(ENDPOINT + "/" + featureId);
+    stubOkGzipEncoded(get(endpointPath), expectedBodyPart);
+
+    // When: Get Features request is submitted to NakshaHub Space Storage instance
+    final HttpResponse<String> response = getNakshaClient().get("hub/spaces/" + HTTP_SPACE_ID + "/features/" + featureId, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+
+    // Then: Verify request reached endpoint once
+    verify(1, getRequestedFor(endpointPath));
+  }
+
+  private StringValuePattern havingCommaSeparatedValue(String value) {
+    return matching(".*(^|,)" + value + "(,|$).*");
   }
 }
