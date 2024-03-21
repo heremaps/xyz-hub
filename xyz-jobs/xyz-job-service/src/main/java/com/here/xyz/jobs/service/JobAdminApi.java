@@ -40,15 +40,17 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 
 public class JobAdminApi extends Api {
-  private static final String ADMIN_JOB_STEPS = "/admin/jobs/:jobId/steps";
-  private static final String ADMIN_JOB_STEP_ID = "/admin/jobs/:jobId/steps/:stepId";
+  private static final String ADMIN_JOBS = "/admin/jobs";
+  private static final String ADMIN_JOB = ADMIN_JOBS + "/:jobId";
+  private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
+  private static final String ADMIN_JOB_STEP = ADMIN_JOB_STEPS + "/:stepId";
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
     router.route(HttpMethod.POST, ADMIN_JOB_STEPS)
         .handler(handleErrors(this::postStep));
 
-    router.route(HttpMethod.GET, ADMIN_JOB_STEP_ID)
+    router.route(HttpMethod.GET, ADMIN_JOB_STEP)
         .handler(handleErrors(this::getStep));
 
     router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS)

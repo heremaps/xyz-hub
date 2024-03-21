@@ -81,7 +81,7 @@ public class JobPlayground {
   private static LambdaClient lambdaClient;
   private static Space sampleSpace;
   private static boolean simulateExecution = true;
-  private static boolean executeWholeJob = false;
+  private static boolean executeWholeJob = true;
   private static ImportFilesToSpace.Format format = ImportFilesToSpace.Format.GEOJSON;
   private static int uploadFileCount = 2;
 
@@ -112,8 +112,8 @@ public class JobPlayground {
           .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack", "localstack")))
           .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
           .build();
-      Config.instance.JOB_API_ENDPOINT = new URL(simulateExecution && !executeWholeJob ? "http://localhost:9090"
-          : "http://host.docker.internal:9090");
+      Config.instance.JOB_API_ENDPOINT = new URL(simulateExecution && !executeWholeJob ? "http://localhost:7070"
+          : "http://host.docker.internal:7070");
     }
     catch (URISyntaxException e) {
       throw new RuntimeException(e);
