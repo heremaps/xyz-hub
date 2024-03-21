@@ -46,6 +46,12 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<Job> loadJob(String jobId);
 
   /**
+   * Load all jobs.
+   * @return A list of all jobs
+   */
+  public abstract Future<List<Job>> loadJobs();
+
+  /**
    * Load all jobs with a specified type.
    * @param state
    * @return

@@ -279,6 +279,10 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJobs(resourceKey);
   }
 
+  public static Future<List<Job>> loadAll() {
+    return JobConfigClient.getInstance().loadJobs();
+  }
+
   public static Future<Void> delete(String jobId) {
     return load(jobId)
         //Delete the inputs of this job

@@ -22,7 +22,6 @@ package com.here.xyz.jobs.config;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
-import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
@@ -72,11 +71,22 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<List<Job>> loadJobs() {
+    return dynamoClient.executeQueryAsync(() -> {
+      List<Job> jobs = new LinkedList<>();
+      jobTable.scan()
+          .pages()
+          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
+      return jobs;
+    });
+  }
+
+  @Override
   public Future<List<Job>> loadJobs(State state) {
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
       jobTable.getIndex("state-index")
-          .query(new QuerySpec().withHashKey("state", state.toString()))
+          .query("state", state.toString())
           .pages()
           .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
       return jobs;

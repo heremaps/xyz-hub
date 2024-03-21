@@ -50,6 +50,11 @@ public class InMemJobConfigClient extends JobConfigClient {
     }
 
     @Override
+    public Future<List<Job>> loadJobs() {
+        return Future.succeededFuture(List.copyOf(jobMap.values()));
+    }
+
+    @Override
     public Future<List<Job>> loadJobs(RuntimeInfo.State state) {
         List<Job> jobs = jobMap.values().stream()
             .filter(job -> job.getStatus().getState() == state)

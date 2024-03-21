@@ -13,7 +13,7 @@
   "STORAGE_DB_USER": "postgres",
   "STORAGE_DB_PASSWORD": "password",
 
-  "JOBS_DYNAMODB_TABLE_ARN": "arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-jobs",
+  "JOBS_DYNAMODB_TABLE_ARN": "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local",
 
   "LOCALSTACK_ENDPOINT" : "http://localhost:4566",
 
