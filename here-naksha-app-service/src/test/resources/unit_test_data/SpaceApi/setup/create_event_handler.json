@@ -1,5 +1,5 @@
 {
-  "id": "source_id_default_test_handler",
+  "id": "space-api-test-handler",
   "type": "EventHandler",
   "title": "Storage Handler for UniMap Moderation Dev Storage",
   "description": "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage",
@@ -7,6 +7,6 @@
   "active": true,
   "extensionId": null,
   "properties": {
-    "storageId": "source_id_handler_test_storage"
+    "storageId": "space-api-test-storage"
   }
 }

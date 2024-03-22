@@ -1,15 +1,17 @@
 {
-  "id": "non-existent-space",
+  "id": "tc_202_test_space",
   "type": "Space",
   "title": "Space used for testing",
   "description": "Descripion of Space used for testing",
   "eventHandlerIds": [
-    "space-api-test-handler"
+    "space-api-test-handler",
+    "missing-handler"
   ],
   "properties": {
     "collection": {
       "id": "um-mod-dev:test",
-      "type": "NakshaCollection"
+      "type": "NakshaCollection",
+      "autoPurge": true
     }
   }
 }

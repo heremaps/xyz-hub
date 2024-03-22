@@ -30,7 +30,7 @@ import static com.here.naksha.app.common.assertions.ResponseAssertions.assertTha
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.naksha.app.common.ApiTest;
-import com.here.naksha.app.common.CommonApiTestSetup;
+import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.naksha.Space;
@@ -39,12 +39,25 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class SpaceApiTest extends ApiTest {
+
+  private static final NakshaTestWebClient nakshaClient = new NakshaTestWebClient();
+
+  SpaceApiTest() {
+    super(nakshaClient);
+  }
+
+  @BeforeAll
+  static void setup() throws Exception {
+    createStorage(nakshaClient, "SpaceApi/setup/create_storage.json");
+    createHandler(nakshaClient, "SpaceApi/setup/create_event_handler.json");
+  }
 
   @Test
   void tc0200_testCreateSpace() throws Exception {
@@ -79,6 +92,23 @@ class SpaceApiTest extends ApiTest {
     // 3. Perform assertions
     assertThat(response)
         .hasStatus(409)
+        .hasStreamIdHeader(streamId)
+        .hasJsonBody(expectedBodyPart);
+  }
+
+  @Test
+  void tc0202_testCreateSpaceWithMissingHandlers() throws Exception {
+    // Test API : POST /hub/spaces
+    final String spaceJson = loadFileOrFail("SpaceApi/TC0202_createSpaceWithMissingHandlers/create_space.json");
+    final String expectedBodyPart = loadFileOrFail("SpaceApi/TC0202_createSpaceWithMissingHandlers/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpResponse<String> response = getNakshaClient().post("hub/spaces", spaceJson, streamId);
+
+    // 3. Perform assertions
+    assertThat(response)
+        .hasStatus(404)
         .hasStreamIdHeader(streamId)
         .hasJsonBody(expectedBodyPart);
   }

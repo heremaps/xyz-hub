@@ -4,7 +4,7 @@
   "title": "Space used for testing",
   "description": "Descripion of Space used for testing",
   "eventHandlerIds": [
-    "test-handler"
+    "space-api-test-handler"
   ],
   "properties": {
     "collection": {

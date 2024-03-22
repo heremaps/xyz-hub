@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "NotFound",
+  "errorMessage": "Following handlers defined for Space tc_202_test_space don't exist: missing-handler"
+}

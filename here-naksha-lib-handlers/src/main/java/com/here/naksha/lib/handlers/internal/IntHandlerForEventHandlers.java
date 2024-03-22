@@ -19,23 +19,40 @@
 package com.here.naksha.lib.handlers.internal;
 
 import static com.here.naksha.lib.core.NakshaAdminCollection.SPACES;
+import static com.here.naksha.lib.core.NakshaAdminCollection.STORAGES;
+import static com.here.naksha.lib.core.NakshaContext.currentContext;
 import static com.here.naksha.lib.core.models.naksha.EventTarget.EVENT_HANDLER_IDS;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdRequest;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
-import static com.here.naksha.lib.handlers.TagFilterHandlerProperties.*;
+import static com.here.naksha.lib.handlers.TagFilterHandlerProperties.ADD_VALUES;
+import static com.here.naksha.lib.handlers.TagFilterHandlerProperties.CONTAINS_VALUES;
+import static com.here.naksha.lib.handlers.TagFilterHandlerProperties.REMOVE_W_PREFIXES;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.NoCursor;
-import com.here.naksha.lib.core.exceptions.StorageNotFoundException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.EWriteOp;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.here.naksha.lib.handlers.*;
+import com.here.naksha.lib.core.util.storage.ResultHelper;
+import com.here.naksha.lib.handlers.DefaultStorageHandler;
+import com.here.naksha.lib.handlers.DefaultStorageHandlerProperties;
+import com.here.naksha.lib.handlers.DefaultViewHandler;
+import com.here.naksha.lib.handlers.DefaultViewHandlerProperties;
+import com.here.naksha.lib.handlers.TagFilterHandler;
+import com.here.naksha.lib.handlers.TagFilterHandlerProperties;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -139,13 +156,17 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
    * Otherwise returns {@link Optional#empty()}
    */
   private Optional<ErrorResult> errorIfInvalidList(@Nullable List<String> list, String listName) {
-    if (list == null) return Optional.empty();
-    if (list.isEmpty())
+    if (list == null) {
+      return Optional.empty();
+    }
+    if (list.isEmpty()) {
       return Optional.of(new ErrorResult(
           XyzError.ILLEGAL_ARGUMENT, "The %s parameter cannot be an empty list".formatted(listName)));
-    if (list.stream().anyMatch(StringUtils::isBlank))
+    }
+    if (list.stream().anyMatch(StringUtils::isBlank)) {
       return Optional.of(new ErrorResult(
           XyzError.ILLEGAL_ARGUMENT, "The %s parameter contains blank element".formatted(listName)));
+    }
     return Optional.empty();
   }
 
@@ -205,12 +226,16 @@ public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHa
    * @return ErrorResult or null if storage exists
    */
   private @NotNull Result storageExistenceValidation(@NotNull String storageId) {
-    try {
-      nakshaHub().getStorageById(storageId);
-    } catch (StorageNotFoundException snfe) {
-      return snfe.toErrorResult();
+    ReadFeatures findStorageById = readFeaturesByIdRequest(STORAGES, storageId);
+    try (IReadSession readSession = nakshaHub().getSpaceStorage().newReadSession(currentContext(), false)) {
+      try (Result result = readSession.execute(findStorageById)) {
+        List<String> fetchedIds = ResultHelper.readIdsFromResult(result);
+        if (fetchedIds.size() == 1 && fetchedIds.get(0).equals(storageId)) {
+          return new SuccessResult();
+        }
+        return new ErrorResult(XyzError.NOT_FOUND, "Could not find storage with id: " + storageId);
+      }
     }
-    return new SuccessResult();
   }
 
   private Result noActiveSpaceValidation(XyzFeatureCodec codec) {

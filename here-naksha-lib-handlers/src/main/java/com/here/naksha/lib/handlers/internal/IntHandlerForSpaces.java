@@ -18,12 +18,22 @@
  */
 package com.here.naksha.lib.handlers.internal;
 
+import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
+import static com.here.naksha.lib.core.NakshaContext.currentContext;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdsRequest;
+import static com.here.naksha.lib.core.util.storage.ResultHelper.readIdsFromResult;
+
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.storage.EWriteOp;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
+import com.here.naksha.lib.core.storage.IReadSession;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForSpaces extends AdminFeatureEventHandler<Space> {
@@ -37,6 +47,40 @@ public class IntHandlerForSpaces extends AdminFeatureEventHandler<Space> {
     if (EWriteOp.DELETE.toString().equals(featureCodec.getOp())) {
       return new SuccessResult();
     }
-    return super.validateFeature(featureCodec);
+    Result basicValidation = super.validateFeature(featureCodec);
+    if (basicValidation instanceof ErrorResult) {
+      return basicValidation;
+    }
+    Space space = (Space) featureCodec.getFeature();
+    return handlerExistenceValidation(space);
+  }
+
+  private @NotNull Result handlerExistenceValidation(Space space) {
+    List<String> missingHandlerIds = getMissingHandlersFor(space);
+    if (missingHandlerIds.isEmpty()) {
+      return new SuccessResult();
+    } else {
+      return new ErrorResult(
+          XyzError.NOT_FOUND,
+          "Following handlers defined for Space %s don't exist: %s"
+              .formatted(space.getId(), String.join(",", missingHandlerIds)));
+    }
+  }
+
+  private List<String> getMissingHandlersFor(Space space) {
+    List<String> expectedHandlerIds = space.getEventHandlerIds();
+    ReadFeatures getEventHandlersRequest = readFeaturesByIdsRequest(EVENT_HANDLERS, expectedHandlerIds);
+    try (IReadSession readSession = nakshaHub().getSpaceStorage().newReadSession(currentContext(), false)) {
+      try (Result result = readSession.execute(getEventHandlersRequest)) {
+        return missingHandlersIds(result, expectedHandlerIds);
+      }
+    }
+  }
+
+  private List<String> missingHandlersIds(Result fetchedHandlers, List<String> expectedHandlersIds) {
+    List<String> availableHandlerIds = readIdsFromResult(fetchedHandlers);
+    return expectedHandlersIds.stream()
+        .filter(expectedId -> !availableHandlerIds.contains(expectedId))
+        .toList();
   }
 }

@@ -4,7 +4,7 @@
   "title": "Space that should not be used to update `test-space`",
   "description": "Descripion of Space used for testing",
   "eventHandlerIds": [
-    "test-handler"
+    "space-api-test-handler"
   ],
   "properties": {
     "collection": {

@@ -20,7 +20,10 @@ package com.here.naksha.lib.hub;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.models.PluginCache.getStorageConstructor;
-import static com.here.naksha.lib.core.util.storage.RequestHelper.*;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdsRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.upsertFeaturesRequest;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
 
 import com.here.naksha.lib.core.INaksha;
@@ -34,7 +37,12 @@ import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.EExecutedOp;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.ForwardCursor;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
+import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
@@ -276,16 +284,19 @@ public class NakshaHub implements INaksha {
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorage getStorageById(final @NotNull String storageId) {
     try (final IReadSession reader = getAdminStorage().newReadSession(NakshaContext.currentContext(), false)) {
-      final Result result = reader.execute(readFeaturesByIdRequest(NakshaAdminCollection.STORAGES, storageId));
-      if (result instanceof ErrorResult er) {
-        throw unchecked(new Exception(
-            "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
+      try (final Result result =
+          reader.execute(readFeaturesByIdRequest(NakshaAdminCollection.STORAGES, storageId))) {
+        if (result instanceof ErrorResult er) {
+          throw unchecked(new Exception(
+              "Exception fetching storage details for id " + storageId + ". " + er.message,
+              er.exception));
+        }
+        Storage storage = readFeatureFromResult(result, Storage.class);
+        if (storage == null) {
+          throw unchecked(new StorageNotFoundException(storageId));
+        }
+        return storageInstance(storage);
       }
-      Storage storage = readFeatureFromResult(result, Storage.class);
-      if (storage == null) {
-        throw unchecked(new StorageNotFoundException(storageId));
-      }
-      return storageInstance(storage);
     }
   }
 
