@@ -23,6 +23,7 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
@@ -110,12 +111,19 @@ public class Job implements XyzSerializable {
    * On success, that will also persist the job.
    * If the job should be persisted before submission, the {@link Job#store()} method can be used.
    */
-  public Job() {
+  public Job() {}
+
+  /**
+   * Hast to be called at the initial creation of a new job to initialize its ID, status and timestamps.
+   *
+   * @return This job instance for chaining
+   */
+  public Job create() {
     //Define the framework standard properties
-    setId(randomAlpha());
-    setStatus(new RuntimeStatus());
-    setCreatedAt(Core.currentTimeMillis());
-    setUpdatedAt(getCreatedAt());
+    return withId(randomAlpha())
+        .withStatus(new RuntimeStatus().withState(NOT_READY))
+        .withCreatedAt(Core.currentTimeMillis())
+        .withUpdatedAt(getCreatedAt());
   }
 
   //TODO: Make sure also the step states are always set accordingly (prior to execution)
@@ -355,7 +363,10 @@ public class Job implements XyzSerializable {
     return Future.succeededFuture(outputs);
   }
 
+  @JsonView({Public.class})
   public boolean isResumable() {
+    if (getStatus() == null || getSteps() == null)
+      return false;
     return getStatus().getState().isValidSuccessor(RESUMING) && getSteps()
         .stepStream()
         .allMatch(step -> step.getStatus().getState() == CANCELLED || step.getStatus().getState() == FAILED && step.isFailedRetryable());

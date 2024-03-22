@@ -36,6 +36,11 @@ public class RuntimeStatus extends RuntimeInfo<RuntimeStatus> {
     this.desiredAction = desiredAction;
   }
 
+  public RuntimeStatus withDesiredAction(Action desiredAction) {
+    setDesiredAction(desiredAction);
+    return this;
+  }
+
   public enum Action {
     START,
     CANCEL,

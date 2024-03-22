@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.stream.Stream;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CompilationStepGraph.class)
 })
+@JsonTypeName(value = "StepGraph")
 public class StepGraph implements StepExecution {
   private List<StepExecution> executions = new LinkedList<>();
   boolean parallel;

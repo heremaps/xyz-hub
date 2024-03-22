@@ -19,12 +19,16 @@
 
 package com.here.xyz.jobs.steps;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import java.util.List;
 
 /**
  * Only used during compilation to set all common step params
  */
+@JsonTypeName(value = "StepGraph")
 class CompilationStepGraph extends StepGraph {
   private String jobId;
 
@@ -47,8 +51,11 @@ class CompilationStepGraph extends StepGraph {
   }
 
   private void enrichStep(StepExecution execution) {
-    if (execution instanceof Step step)
-      step.withJobId(jobId).withPreviousStepId(getPreviousStepId());
+    if (execution instanceof Step step && step.getJobId() == null)
+      step
+          .withJobId(jobId)
+          .withPreviousStepId(getPreviousStepId())
+          .getStatus().setState(NOT_READY);
   }
 
   @JsonIgnore

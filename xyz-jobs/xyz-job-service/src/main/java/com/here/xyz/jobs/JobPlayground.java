@@ -133,7 +133,7 @@ public class JobPlayground {
     JobConfigClient.getInstance().init();
   }
 
-  private static Job mockJob = new Job()
+  private static Job mockJob = new Job().create()
       .withDescription("Sample import job")
       .withOwner("me")
       .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))

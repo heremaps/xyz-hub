@@ -57,7 +57,7 @@ public class JobApi extends Api {
 
   private void postJob(final RoutingContext context) throws HttpException {
     Job job = getJobFromBody(context);
-    job.submit()
+    job.create().submit()
         .map(res -> job)
         .onSuccess(res -> sendResponse(context, CREATED, res))
         .onFailure(err -> sendErrorResponse(context, err));
@@ -135,7 +135,6 @@ public class JobApi extends Api {
   }
 
   private Job getJobFromBody(RoutingContext context) throws HttpException {
-
     try {
       Job job = XyzSerializable.deserialize(context.body().asString(), Job.class);
 
@@ -149,7 +148,6 @@ public class JobApi extends Api {
     catch (JsonProcessingException e) {
       throw new HttpException(BAD_REQUEST, "Error parsing request");
     }
-
   }
 
   private Future<Job> loadJob(String jobId) {

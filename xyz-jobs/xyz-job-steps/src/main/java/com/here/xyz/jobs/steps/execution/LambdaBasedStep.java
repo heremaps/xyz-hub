@@ -244,6 +244,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     //Report heartbeat to SFN and check for a potential necessary cancellation
     try {
       sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
+      getStatus().touch();
+      synchronizeStepState();
     }
     catch (TaskTimedOutException e) {
       try {

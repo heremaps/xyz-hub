@@ -19,7 +19,8 @@
 
 package com.here.xyz.jobs;
 
-import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
+import static com.here.xyz.jobs.RuntimeInfo.State.NONE;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.collect.ImmutableMap;
@@ -28,10 +29,16 @@ import java.util.Arrays;
 import java.util.Map;
 
 public class RuntimeInfo<T extends RuntimeInfo> {
-
   private long updatedAt;
   private long startedAt;
-  private State state = NOT_READY;
+  private State state = NONE;
+
+  /**
+   * Updates the updatedAt timestamp of this object to the current time.
+   */
+  public void touch() {
+    setUpdatedAt(System.currentTimeMillis());
+  }
 
   @JsonIgnore //TODO: Re-activate once implemented
   public float getEstimatedProgress() {
@@ -83,6 +90,12 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
   public void setState(State state) {
     State.checkTransition(getState(), state);
+    if (this.state != null) { //Do not update timestamps during deserialization
+      if (state == RUNNING)
+        withStartedAt(System.currentTimeMillis()).withUpdatedAt(getStartedAt());
+      else
+        touch();
+    }
     this.state = state;
   }
 
@@ -95,6 +108,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
    * Depicts the state of an executable task / flow from the perspective of the client which submitted it.
    */
   public enum State {
+    NONE, //The initial state of all RuntimeInfo objects. This state is not a valid state and must be overwritten (e.g., by deserialization immediately after the creation of the RuntimeInfo object)
     NOT_READY, //The task is not ready to be submitted to the execution system yet. Not all pre-conditions are met.
     SUBMITTED, //The task is ready for execution, all needed information was provided.
     PENDING, //The task is waiting to get executed by the target system. That could be dependent by execution resources to become available.
@@ -107,6 +121,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
     private final boolean isFinal;
     private static final Map<State, State[]> validSuccessors = ImmutableMap.of(
+        NONE, new State[]{null}, //Allows all transitions at initialization. Needed to allow proper deserialization into the POJO.
         NOT_READY, new State[]{SUBMITTED, FAILED},
         SUBMITTED, new State[]{PENDING, CANCELLING, FAILED},
         PENDING, new State[]{RUNNING, CANCELLING, FAILED},
@@ -132,13 +147,12 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
     public boolean isValidSuccessor(State successorState) {
       return Arrays.stream(validSuccessors.get(this))
-          .anyMatch(validSuccessor -> validSuccessor == successorState);
+          .anyMatch(validSuccessor -> validSuccessor == successorState || validSuccessor == null);
     }
 
     public static void checkTransition(State sourceState, State targetState) {
-      //TODO: Reactivate transition check when the starting value was changed to null
-      //if (sourceState != targetState && !sourceState.isValidSuccessor(targetState))
-      //  throw new IllegalStateTransition(sourceState, targetState);
+      if (sourceState != targetState && !sourceState.isValidSuccessor(targetState))
+        throw new IllegalStateTransition(sourceState, targetState);
     }
 
     public static State of(String value) {
