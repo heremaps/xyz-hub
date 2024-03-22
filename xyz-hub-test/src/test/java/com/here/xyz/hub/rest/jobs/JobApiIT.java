@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -570,7 +570,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         if(expectedFeatureCount != null)
             assertEquals(expectedFeatureCount.intValue(), result.split("'\"id'\"", -1).length-1);
 
-        for (String word : csvMustContain) {
+         for (String word : csvMustContain) {
             if(result.indexOf(word) == -1)
                 fail("CSV is MISSING: "+word);
         }
