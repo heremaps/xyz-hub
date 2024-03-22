@@ -19,7 +19,7 @@
 # License-Filename: LICENSE
 #
 
-state_machine_arn_prefix=arn:aws:states:us-east-1:000000000000:stateMachine:xyz-jobs-sm
+state_machine_arn_prefix=arn:aws:states:us-east-1:000000000000:stateMachine:job-
 
 aws --endpoint http://localhost:4566 events put-rule \
   --name StepFunctionStateChangeRule \
