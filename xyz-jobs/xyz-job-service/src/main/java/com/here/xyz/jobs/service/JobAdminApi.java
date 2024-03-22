@@ -141,8 +141,7 @@ public class JobAdminApi extends Api {
     else
       logger.error("The state machine event does not include a detail field: {}", event);
 
-    context.response().setStatusCode(NO_CONTENT.code()).end();
-
+    sendResponseWithXyzSerialization(context, NO_CONTENT, null);
   }
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {

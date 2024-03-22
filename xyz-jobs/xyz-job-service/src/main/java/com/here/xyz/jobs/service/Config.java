@@ -42,9 +42,4 @@ public class Config extends com.here.xyz.jobs.steps.Config {
    * The ARN of the step lambda being called by the step functions
    */
   public ARN STEP_LAMBDA_ARN;
-
-  /**
-   * The prefix to the name of state-machine
-   */
-  public String STATE_MACHINE_PREFIX;
 }

@@ -33,6 +33,7 @@ import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
 
 class StateMachineExecutor extends JobExecutor {
+  private static final String STATE_MACHINE_NAME_PREFIX = "job-";
   private GraphTransformer graphTransformer = new GraphTransformer(Config.instance.STEP_LAMBDA_ARN);
 
   StateMachineExecutor() {}
@@ -93,7 +94,7 @@ class StateMachineExecutor extends JobExecutor {
     //TODO: Asyncify!
 
     CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
-            .name(Config.instance.STATE_MACHINE_PREFIX + "-" + jobId)
+            .name(STATE_MACHINE_NAME_PREFIX + jobId)
             .definition(stateMachineDefinition)
             //.roleArn(...) TODO: Get from env vars
         .build());
