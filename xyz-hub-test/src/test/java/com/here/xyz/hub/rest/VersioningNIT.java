@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,7 +141,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
   public void testNamespacePropertiesCorrect() {
     write(TEST_FEATURE, "create", "patch")
         .statusCode(OK.code())
-        .body("features[0].properties.'@ns:com:here:xyz'.size()", equalTo(6))
+        .body("features[0].properties.'@ns:com:here:xyz'.size()", equalTo(4))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0))
         .body("features[0].properties.'@ns:com:here:xyz'.createdAt", notNullValue())
         .body("features[0].properties.'@ns:com:here:xyz'.updatedAt", notNullValue());
