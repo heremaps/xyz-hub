@@ -13,12 +13,12 @@
   "STORAGE_DB_USER": "postgres",
   "STORAGE_DB_PASSWORD": "password",
 
-  "JOBS_DYNAMODB_TABLE_ARN": "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local",
-
   "LOCALSTACK_ENDPOINT" : "http://localhost:4566",
+  "AWS_REGION" : "us-east-1",
 
+  "STEP_LAMBDA_ARN" : "arn:aws:lambda:us-east-1:000000000000:function:job-step",
+  "JOBS_DYNAMODB_TABLE_ARN": "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local",
   "JOBS_S3_BUCKET": "test-bucket",
-  "JOBS_REGION": "eu-west-1",
 
   "HUB_ENDPOINT" : "http://localhost:8080/hub"
 }
