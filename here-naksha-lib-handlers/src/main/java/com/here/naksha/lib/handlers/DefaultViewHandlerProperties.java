@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @AvailableSince(NakshaVersion.v2_0_12)
@@ -35,6 +36,9 @@ public class DefaultViewHandlerProperties extends XyzProperties {
   @AvailableSince(NakshaVersion.v2_0_12)
   public static final String SPACE_IDS = "spaceIds";
 
+  @AvailableSince(NakshaVersion.v2_0_15)
+  public static final String VIEW_TYPE = "viewType";
+
   @AvailableSince(NakshaVersion.v2_0_12)
   @JsonProperty(STORAGE_ID)
   private @Nullable String storageId;
@@ -43,6 +47,10 @@ public class DefaultViewHandlerProperties extends XyzProperties {
   @JsonProperty(SPACE_IDS)
   private @Nullable List<String> spaceIds;
 
+  @AvailableSince(NakshaVersion.v2_0_15)
+  @JsonProperty(VIEW_TYPE)
+  private @NotNull ViewType viewType;
+
   @AvailableSince(NakshaVersion.v2_0_12)
   @JsonCreator
   public DefaultViewHandlerProperties(
@@ -50,6 +58,7 @@ public class DefaultViewHandlerProperties extends XyzProperties {
       final @JsonProperty(SPACE_IDS) @Nullable List<String> spaceIds) {
     this.storageId = storageId;
     this.spaceIds = spaceIds;
+    this.viewType = ViewType.LAYERED;
   }
 
   public @Nullable String getStorageId() {
@@ -66,5 +75,18 @@ public class DefaultViewHandlerProperties extends XyzProperties {
 
   public void setSpaceIds(@Nullable List<String> spaceIds) {
     this.spaceIds = spaceIds;
+  }
+
+  public @NotNull ViewType getViewType() {
+    return viewType;
+  }
+
+  public void setViewType(@NotNull ViewType viewType) {
+    this.viewType = viewType;
+  }
+
+  public enum ViewType {
+    LAYERED,
+    UNION
   }
 }

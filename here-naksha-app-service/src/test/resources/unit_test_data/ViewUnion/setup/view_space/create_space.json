@@ -1,0 +1,11 @@
+{
+  "id": "view_union_view_space",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "view_union_view_handler"
+  ],
+  "properties": {
+  }
+}

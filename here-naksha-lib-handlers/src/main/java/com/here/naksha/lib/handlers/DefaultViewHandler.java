@@ -24,17 +24,17 @@ import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.EventTarget;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.view.IView;
-import com.here.naksha.lib.view.ViewLayer;
-import com.here.naksha.lib.view.ViewLayerCollection;
-import com.here.naksha.lib.view.ViewReadSession;
+import com.here.naksha.lib.handlers.DefaultViewHandlerProperties.ViewType;
+import com.here.naksha.lib.view.*;
 import com.here.naksha.lib.view.merge.MergeByStoragePriority;
+import com.here.naksha.lib.view.missing.IgnoreMissingResolver;
 import com.here.naksha.lib.view.missing.ObligatoryLayersResolver;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -131,14 +131,15 @@ public class DefaultViewHandler extends AbstractEventHandler {
 
   private Result forwardReadFeatures(NakshaContext ctx, IView view, ReadFeatures rf) {
 
-    Set<ViewLayer> obligatoryLayers = getObligatoryLayers(view.getViewCollection());
-
     try (final ViewReadSession reader = (ViewReadSession) view.newReadSession(ctx, false)) {
-      return reader.execute(
-          rf,
-          XyzFeatureCodecFactory.get(),
-          new MergeByStoragePriority<>(),
-          new ObligatoryLayersResolver<>(obligatoryLayers));
+      final MissingIdResolver<XyzFeature, XyzFeatureCodec> resolver;
+      if (properties.getViewType() == ViewType.UNION) {
+        resolver = new IgnoreMissingResolver<>();
+      } else {
+        final Set<ViewLayer> obligatoryLayers = getObligatoryLayers(view.getViewCollection());
+        resolver = new ObligatoryLayersResolver<>(obligatoryLayers);
+      }
+      return reader.execute(rf, XyzFeatureCodecFactory.get(), new MergeByStoragePriority<>(), resolver);
     }
   }
 
