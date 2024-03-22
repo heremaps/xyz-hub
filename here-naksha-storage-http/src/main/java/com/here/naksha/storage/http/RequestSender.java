@@ -55,9 +55,10 @@ public class RequestSender {
    * Send a request configured based on enclosing {@link HttpStorage}.
    *
    * @param endpoint does not contain host:port part, starts with "/".
+   * @param addHeaders headers to be added to the ones defines {@link KeyProperties#defaultHeaders}.
    */
-  HttpResponse<byte[]> sendRequest(@NotNull String endpoint, @Nullable Map<String, String> headers) {
-    return sendRequest(endpoint, true, headers, null, null);
+  HttpResponse<byte[]> sendRequest(@NotNull String endpoint, @Nullable Map<String, String> addHeaders) {
+    return sendRequest(endpoint, true, addHeaders, null, null);
   }
 
   HttpResponse<byte[]> sendRequest(

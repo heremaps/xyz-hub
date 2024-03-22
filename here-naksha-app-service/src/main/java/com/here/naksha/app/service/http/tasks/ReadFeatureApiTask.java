@@ -322,8 +322,13 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     limit = handle.getLimit();
     limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
 
+    final Map<String, Object> queryParamsMap = Map.of(LIMIT, limit);
+
     // Prepare read request based on parameters supplied
-    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId);
+    final ReadFeatures rdRequest = new ReadFeaturesProxyWrapper()
+        .withReadRequestType(ReadRequestType.ITERATE)
+        .withQueryParameters(queryParamsMap)
+        .addCollection(spaceId);
 
     // Forward request to NH Space Storage reader instance
     final Result result = executeReadRequestFromSpaceStorage(rdRequest);

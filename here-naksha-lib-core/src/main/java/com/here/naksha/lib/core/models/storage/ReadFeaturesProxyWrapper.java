@@ -31,7 +31,8 @@ public class ReadFeaturesProxyWrapper extends ReadFeatures {
     GET_BY_ID,
     GET_BY_IDS,
     GET_BY_BBOX,
-    GET_BY_TILE
+    GET_BY_TILE,
+    ITERATE
   }
 
   public ReadFeaturesProxyWrapper() {
