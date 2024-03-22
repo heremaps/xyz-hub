@@ -63,14 +63,15 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if (isCompositeQuery(event)) {
       int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
       query = new SQLQuery(
-          "SELECT * FROM ("
-          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}})"
+          "SELECT * FROM (SELECT * FROM ("
+          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
           + "   ${{unionAll}} "
           + "     SELECT * FROM (${{baseQuery}}) a"
           + "       WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} WHERE ${{idComparison}})"
-          + ") limitQuery ${{orderBy}} ${{limit}}")
+          + ") limitQuery ${{limit}}) orderQuery ${{outerOrderBy}}")
           .withQueryFragment("selectClause", buildSelectClause(event, dataset))
           .withQueryFragment("filters", buildFiltersFragment(event, true, filterWhereClause, dataset))
+          .withQueryFragment("orderBy", buildOrderByFragment(event))
           .withQueryFragment("idComparison", buildIdComparisonFragment(event, "a.", versionCheckFragment))
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
           .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION ? "" : "NOT")
@@ -80,7 +81,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     }
     else {
       query = new SQLQuery(
-          "SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}} ${{limit}}")
+          "SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{outerOrderBy}} ${{limit}}")
           .withQueryFragment("selectClause", buildSelectClause(event, 0))
           .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, 0));
     }
@@ -89,7 +90,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, getDefaultTable(event))
         .withQueryFragment("versionCheck", versionCheckFragment)
-        .withQueryFragment("orderBy", buildOrderByFragment(event))
+        .withQueryFragment("outerOrderBy", buildOuterOrderByFragment(event))
         .withQueryFragment("limit", buildLimitFragment(event));
   }
 
@@ -178,11 +179,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery build1LevelBaseQuery(E event, SQLQuery filterWhereClause) {
     int dataset = compositeDatasetNo(event, CompositeDataset.SUPER);
-    return new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${extendedTable} WHERE ${{filters}} ${{versionCheck}}")
+    return new SQLQuery("SELECT ${{selectClause}} FROM ${schema}.${extendedTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}")
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("selectClause", buildSelectClause(event, dataset))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the base space is not an extended one
-        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment("base1Version"));
+        .withQueryFragment("versionCheck", buildBaseVersionCheckFragment("base1Version"))
+        .withQueryFragment("orderBy", buildOrderByFragment(event));
   }
 
   private SQLQuery build2LevelBaseQuery(E event, SQLQuery filterWhereClause) {
@@ -190,7 +192,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     int dataset = compositeDatasetNo(event, CompositeDataset.INTERMEDIATE);
     return new SQLQuery("(SELECT ${{selectClause}}"
-        + "  FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}}) "
+        + "  FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}) "
         + "UNION ALL"
         + "  SELECT * FROM (${{baseQuery}}) b"
         + "    WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
@@ -198,6 +200,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("selectClause", buildSelectClause(event, dataset))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the intermediate space is an extended one
         .withQueryFragment("versionCheck", versionCheckFragment)
+        .withQueryFragment("orderBy", buildOrderByFragment(event))
         .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
         .withQueryFragment("idComparison", buildIdComparisonFragment(event, "b.", versionCheckFragment));
   }
@@ -286,6 +289,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "END "
         + "FROM prj_build(#{selection}, " + jsonDataWithVersion + ")) AS jsondata")
         .withNamedParameter("selection", selection.toArray(new String[0]));
+  }
+
+  protected String buildOuterOrderByFragment(ContextAwareEvent event) {
+    return buildOrderByFragment(event);
   }
 
   protected String buildOrderByFragment(ContextAwareEvent event) {
