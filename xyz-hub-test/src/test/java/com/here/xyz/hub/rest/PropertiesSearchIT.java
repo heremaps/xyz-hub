@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -328,7 +328,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/illegal_argument/search?p.capacity=gt=50000").prettyPeek().
+        get(getSpacesPath() + "/illegal_argument/search?p.capacity=gt=50000").
         then().
         statusCode(400);
 
@@ -432,7 +432,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
               accept(APPLICATION_JSON).
               headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
               when().
-              get(getSpacesPath() + "/x-psql-test/statistics").prettyPeek().
+              get(getSpacesPath() + "/x-psql-test/statistics").
               then().extract().body().path("properties.searchable")
         ));
 
