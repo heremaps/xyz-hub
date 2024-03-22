@@ -23,6 +23,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -139,6 +140,9 @@ public class JobAdminApi extends Api {
     }
     else
       logger.error("The state machine event does not include a detail field: {}", event);
+
+    context.response().setStatusCode(NO_CONTENT.code()).end();
+
   }
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {
