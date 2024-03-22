@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,11 +78,19 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   }
 
   @Override
-  protected String buildOrderByFragment(ContextAwareEvent event) {
+  protected String buildOuterOrderByFragment(ContextAwareEvent event) {
     if (hasSearch && hasHandle)
       return super.buildOrderByFragment(event);
 
     return "ORDER BY dataset, i";
+  }
+
+  @Override
+  protected String buildOrderByFragment(ContextAwareEvent event) {
+    if (hasSearch && hasHandle)
+      return super.buildOrderByFragment(event);
+
+    return "ORDER BY i";
   }
 
   private SQLQuery buildOffsetFilterFragment(IterateFeaturesEvent event, int dataset) {
