@@ -21,11 +21,14 @@ package com.here.xyz.jobs.datasets.filters;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Filters {
 
   @JsonView({Public.class})

@@ -68,6 +68,8 @@ import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileBasedTarget;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
+import com.here.xyz.jobs.datasets.Identifiable;
+import com.here.xyz.jobs.datasets.VersionRefSource;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
 import com.here.xyz.jobs.datasets.files.GeoJson;
@@ -75,11 +77,13 @@ import com.here.xyz.jobs.datasets.files.GeoParquet;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -210,7 +214,7 @@ public class Export extends JDBCBasedJob<Export> {
         //TODO: Do field initialization at instance initialization time
         return super.setDefaults()
             .compose(job -> {
-                if (   getExportTarget() != null && getExportTarget().getType() == VML
+                if (getExportTarget() != null && getExportTarget().getType() == VML
                     && (getCsvFormat() == null || ( getCsvFormat() != PARTITIONID_FC_B64 && getCsvFormat() != PARTITIONED_JSON_WKB ))) {
                     setCsvFormat(TILEID_FC_B64);
                     if (getMaxTilesPerFile() == 0)
@@ -263,6 +267,20 @@ public class Export extends JDBCBasedJob<Export> {
 
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
+
+                if (getSource() instanceof VersionRefSource<?> versionRefSource
+                    && getSource() instanceof Identifiable<?> identifiable
+                    && versionRefSource.getVersionRef() != null
+                    && !versionRefSource.getVersionRef().isResolved()) {
+                  final Ref ref = versionRefSource.getVersionRef();
+                  try {
+                    long version = CService.hubWebClient.getTag(identifiable.getId(), ref.getVersionRef()).getVersion();
+                    ref.setVersion(version);
+                    setTargetVersion(String.valueOf(version));
+                  } catch (HubWebClientException e) {
+                    return Future.failedFuture(e);
+                  }
+                }
 
                 return Future.succeededFuture();
             }).compose(f -> {

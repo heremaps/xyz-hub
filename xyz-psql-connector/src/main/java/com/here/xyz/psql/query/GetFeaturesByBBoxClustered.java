@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
 public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R extends XyzResponse> extends GetFeaturesByBBox<E, R> {
@@ -308,7 +309,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
   private static String substituteCompletely(SQLQuery query) {
     String sql = query.substitute().text();
     for (Object param : query.parameters())
-      sql = sql.replaceFirst("\\?", "'" + param + "'");
+      sql = sql.replaceFirst("\\?", Matcher.quoteReplacement("'" + param + "'"));
     return sql;
   }
 

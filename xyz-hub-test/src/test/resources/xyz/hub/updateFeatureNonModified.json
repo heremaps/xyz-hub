@@ -1,0 +1,21 @@
+{
+    "type": "Feature",
+    "id": "A",
+    "geometry": {
+        "type": "Point",
+        "coordinates": [
+            0.0,
+            0.0,
+            0.0
+        ]
+    },
+    "properties": {
+        "@ns:com:here:xyz": {
+            "space": "x-psql-test",
+            "createdAt": 1711038285360,
+            "updatedAt": 1711038285360,
+            "version": 1
+        },
+        "name": "test"
+    }
+}
