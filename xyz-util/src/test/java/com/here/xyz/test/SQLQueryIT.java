@@ -108,9 +108,9 @@ public class SQLQueryIT {
   public void runAsyncQueryWithParameter() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
-        new SQLQuery("DROP TABLE IF EXISTS SQLQueryIT;").write(dsp);
+        dropTmpTable(dsp);
         //Prepare an empty test table
-        new SQLQuery("CREATE TABLE SQLQueryIT (col TEXT);").write(dsp);
+        createTmpTable(dsp);
 
         //Run an async query with parameter
         final String fancyString = """
@@ -126,7 +126,52 @@ public class SQLQueryIT {
       }
       finally {
         //Delete the test table again
-        new SQLQuery("DROP TABLE IF EXISTS SQLQueryIT;").write(dsp);
+        dropTmpTable(dsp);
+      }
+    }
+  }
+
+  private static int dropTmpTable(DataSourceProvider dsp) throws SQLException {
+    return new SQLQuery("DROP TABLE IF EXISTS SQLQueryIT;").write(dsp);
+  }
+
+  private static int createTmpTable(DataSourceProvider dsp) throws SQLException {
+    return new SQLQuery("CREATE TABLE SQLQueryIT (col TEXT);").write(dsp);
+  }
+
+  @Test
+  public void runAsyncQueryWithRecursion() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        createTmpTable(dsp);
+
+        new SQLQuery("""
+            CREATE OR REPLACE FUNCTION test_func(value TEXT, depth INTEGER) RETURNS VOID AS
+            $BODY$
+            BEGIN
+                IF depth = 10 THEN
+                  INSERT INTO SQLQueryIT VALUES ('' || depth);
+                ELSE
+                  PERFORM asyncify($R$SELECT test_func('$R$ || value || $R$', $R$ || depth + 1 || $R$)$R$);
+                END IF;
+            END
+            $BODY$
+            LANGUAGE plpgsql VOLATILE;
+            """).write(dsp);
+
+        new SQLQuery("SELECT test_func(#{value}, #{depth})")
+            .withNamedParameter("value", "testValue")
+            .withNamedParameter("depth", 1)
+            .withAsync(true)
+            .run(dsp);
+
+        Thread.sleep(200);
+
+        assertEquals("10", new SQLQuery("SELECT col FROM SQLQueryIT")
+            .run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+      }
+      finally {
+        dropTmpTable(dsp);
       }
     }
   }

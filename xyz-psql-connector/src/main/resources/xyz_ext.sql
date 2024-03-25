@@ -3247,7 +3247,7 @@ LANGUAGE plpgsql VOLATILE;
 CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT) RETURNS VOID AS
 $BODY$
 BEGIN
-    SET xyz.password = password;
+    PERFORM set_config('xyz.password', password, false);
     PERFORM asyncify(query);
 END
 $BODY$
@@ -3261,7 +3261,7 @@ DECLARE
 BEGIN
     PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
     PERFORM dblink_connect('conn', 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
-    PERFORM dblink_send_query('conn', query || '; COMMIT; SELECT pg_terminate_backend(pg_backend_pid())');
+    PERFORM dblink_send_query('conn', 'SELECT set_config(''xyz.password'', ''' || password || ''', false); ' || query || '; COMMIT; SELECT pg_terminate_backend(pg_backend_pid())');
 END
 $BODY$
     LANGUAGE plpgsql VOLATILE;
