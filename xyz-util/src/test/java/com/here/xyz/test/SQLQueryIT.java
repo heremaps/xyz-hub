@@ -143,6 +143,8 @@ public class SQLQueryIT {
   public void runAsyncQueryWithRecursion() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
+        dropTmpTable(dsp);
+        //Prepare an empty test table
         createTmpTable(dsp);
 
         new SQLQuery("""
