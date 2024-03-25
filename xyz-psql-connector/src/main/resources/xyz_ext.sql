@@ -3247,12 +3247,24 @@ LANGUAGE plpgsql VOLATILE;
 CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT) RETURNS VOID AS
 $BODY$
 BEGIN
+    SET xyz.password = password;
+    PERFORM asyncify(query);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION asyncify(query TEXT) RETURNS VOID AS
+$BODY$
+DECLARE
+    password TEXT := current_setting('xyz.password');
+BEGIN
     PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
     PERFORM dblink_connect('conn', 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
     PERFORM dblink_send_query('conn', query || '; COMMIT; SELECT pg_terminate_backend(pg_backend_pid())');
 END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+    LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile(qk text, isbase4encoded boolean) RETURNS TABLE(rowy integer, colx integer, lev integer, hkey bigint)
