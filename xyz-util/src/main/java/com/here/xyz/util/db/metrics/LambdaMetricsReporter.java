@@ -1,6 +1,7 @@
 package com.here.xyz.util.db.metrics;
 
 import com.amazonaws.services.lambda.AWSLambda;
+import com.amazonaws.services.lambda.model.InvocationType;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -13,16 +14,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class MetricsReporterService {
+public class LambdaMetricsReporter implements MetricsReporter {
 
-    private final Map<String, ConcurrentHashMap<String, StorageMetric>> metricStorage = new HashMap<>();
+    private final Map<String, ConcurrentHashMap<String, AggregatedMetric>> metricStorage = new HashMap<>();
     private final ScheduledExecutorService scheduler;
 
     private static final Logger logger = LogManager.getLogger();
     private final String lambdaFunctionName;
     private final AWSLambda lambdaClient;
 
-    public MetricsReporterService(AWSLambda lambdaClient, String lambdaFunctionName, int reportIntervalMs, List<String> metricTypes) {
+    public LambdaMetricsReporter(AWSLambda lambdaClient, String lambdaFunctionName, int reportIntervalMs, List<String> metricTypes) {
         this.lambdaClient = lambdaClient;
         this.lambdaFunctionName = lambdaFunctionName;
         this.scheduler = Executors.newScheduledThreadPool(1);
@@ -32,7 +33,8 @@ public class MetricsReporterService {
         scheduler.scheduleAtFixedRate(this::aggregateAndInvokeLambda, 1, reportIntervalMs, TimeUnit.MILLISECONDS);
     }
 
-    public void consumeMetric(Metric metric) {
+    @Override
+    public void reportMetric(Metric metric) {
         Optional.ofNullable(metricStorage.get(metric.type()))
                 .ifPresentOrElse(map -> {
                     map.compute(getKey(metric.dimensions()), (key, existingMetric) -> {
@@ -40,20 +42,25 @@ public class MetricsReporterService {
                             existingMetric.addToValue(metric.value());
                             return existingMetric;
                         } else {
-                            return new StorageMetric(metric.dimensions(), metric.value());
+                            return new AggregatedMetric(metric.dimensions(), metric.value());
                         }
                     });
                 }, () -> logger.error("Unknown metric"));
+    }
+
+    @Override
+    public void flush() {
+        aggregateAndInvokeLambda();
     }
 
     private void aggregateAndInvokeLambda() {
         metricStorage.forEach((type, metricMap) -> {
             var metricsJsonArray = new JsonArray();
 
-            Iterator<Map.Entry<String, StorageMetric>> iterator = metricMap.entrySet().iterator();
+            Iterator<Map.Entry<String, AggregatedMetric>> iterator = metricMap.entrySet().iterator();
             while (iterator.hasNext()) {
-                Map.Entry<String, StorageMetric> entry = iterator.next();
-                StorageMetric metric = entry.getValue();
+                Map.Entry<String, AggregatedMetric> entry = iterator.next();
+                AggregatedMetric metric = entry.getValue();
 
                 var jsonObject = new JsonObject();
                 metric.getDimensions().forEach(jsonObject::put);
@@ -75,7 +82,8 @@ public class MetricsReporterService {
         try {
             InvokeRequest request = new InvokeRequest()
                     .withFunctionName(lambdaFunctionName)
-                    .withPayload(eventJson);
+                    .withPayload(eventJson)
+                    .withInvocationType(InvocationType.Event);
 
             lambdaClient.invoke(request);
             logger.info("Metric reporter has successfully reported the metrics");

@@ -3,13 +3,13 @@ package com.here.xyz.util.db.metrics;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
-public class StorageMetric {
+public class AggregatedMetric {
 
     private final Map<String, String> dimensions;
 
     private final LongAdder value;
 
-    public StorageMetric(Map<String, String> dimensions, long value) {
+    public AggregatedMetric(Map<String, String> dimensions, long value) {
         this.dimensions = dimensions;
         var adder = new LongAdder();
         adder.add(value);
