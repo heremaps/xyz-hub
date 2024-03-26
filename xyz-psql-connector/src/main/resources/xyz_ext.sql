@@ -20,36 +20,7 @@
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-DROP FUNCTION IF EXISTS xyz_statistic_space( text, text);
 
-DROP FUNCTION IF EXISTS qk_inhabited(text, integer, geometry);
-DROP FUNCTION IF EXISTS qk_inhabited_g(text, integer, geometry);
-
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles(boolean, text[], regclass,boolean, boolean );
-DROP FUNCTION IF EXISTS exp_build_sql_inhabited(boolean, text, integer, regclass);
-DROP FUNCTION IF EXISTS exp_build_sql_inhabited(boolean, text, integer, regclass, integer);
-
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v1(
-	boolean,
-	text[],
-	text,
-	boolean,
-	boolean);
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v2(boolean, text[], text, boolean, boolean );
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v3(
-	boolean,
-	text[],
-	text,
-	boolean,
-	boolean,
-        boolean);
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
-	boolean,
-	text[],
-	text,
-	boolean,
-	boolean,
-        boolean);
 
 --
 ------ SAMPLE QUERIES ----
@@ -140,19 +111,9 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 191
+ select 192
 $BODY$
   LANGUAGE sql IMMUTABLE;
-----------
--- ADD NEW COLUMN TO IDX_STATUS TABLE
-DO $$
-BEGIN
-ALTER TABLE IF EXISTS xyz_config.xyz_idxs_status
-    ADD COLUMN auto_indexing BOOLEAN;
-EXCEPTION
-	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';
-END;
-$$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger()
@@ -3598,26 +3559,7 @@ end
 $_$;
 ------------------------------------------------
 ------------------------------------------------
-------------------------------------------------
-------------------------------------------------
-------------------------------------------------
-------------------------------------------------
 
-/*
-select * from exp_build_sql_inhabited(false, '1200232', 15, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass ) -- mercator tiles
-select * from exp_build_sql_inhabited(true, '12201201011111', 15, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass ) -- here tiles
-
-select * from exp_build_sql_inhabited(false, '1202011320', 14, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 3)
-select * from exp_build_sql_inhabited(true, '12201201011111', 15, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 3)
-
-sample usage:
-
-select
- (aws_s3.query_export_to_s3( o.s3sql , 'iml-http-connector-sit-s3bucket-9bnjg7jo97un', format('test-mnah-499/space/%s/%s/%s-%s', replace(o._tble::text,'"','') ,o.qk,o.bucket,o.nrbuckets) ,'eu-west-1','format text')).* ,
- o.*
-from
- exp_build_sql_inhabited(false, '1202011320', 14, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 13) o
-*/
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_inhabited_txt(iqk text, mlevel integer, sql_with_geo text) RETURNS TABLE(qk text)
