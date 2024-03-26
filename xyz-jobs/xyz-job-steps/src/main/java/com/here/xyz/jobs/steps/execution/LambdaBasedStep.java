@@ -349,7 +349,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
       //Initialize Config from environment variables
       if (Config.instance == null)
-        XyzSerializable.fromMap(Map.copyOf(System.getenv()), Config.class);
+        XyzSerializable.fromMap(getEnvironmentVariables(), Config.class);
       //Read the incoming request
       LambdaStepRequest request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
@@ -383,6 +383,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       request.getStep().onRuntimeShutdown();
 
       outputStream.write(INVOKE_SUCCESS.getBytes());
+    }
+
+    protected Map<String, Object> getEnvironmentVariables() {
+      return Map.copyOf(System.getenv());
     }
   }
 
