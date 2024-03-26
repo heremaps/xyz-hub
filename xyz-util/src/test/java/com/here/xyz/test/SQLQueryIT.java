@@ -151,9 +151,9 @@ public class SQLQueryIT {
             CREATE OR REPLACE FUNCTION test_func(value TEXT, depth INTEGER) RETURNS VOID AS
             $BODY$
             BEGIN
-                IF depth = 10 THEN
-                  INSERT INTO SQLQueryIT VALUES ('' || depth);
-                ELSE
+                INSERT INTO SQLQueryIT VALUES ('' || depth);
+                
+                IF depth < 10 THEN
                   PERFORM asyncify($R$SELECT test_func('$R$ || value || $R$', $R$ || depth + 1 || $R$)$R$);
                 END IF;
             END
@@ -166,15 +166,24 @@ public class SQLQueryIT {
             .withNamedParameter("depth", 1)
             .withAsync(true)
             .run(dsp);
+      }
+      catch (Exception e) {
+        dropTmpTable(dsp);
+        throw e;
+      }
+    }
 
         Thread.sleep(200);
 
-        assertEquals("10", new SQLQuery("SELECT col FROM SQLQueryIT")
-            .run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        assertEquals(10, (int) new SQLQuery("SELECT count(1) as count FROM SQLQueryIT")
+            .run(dsp, rs -> rs.next() ? rs.getInt("count") : null));
       }
       finally {
         dropTmpTable(dsp);
       }
     }
+
   }
 }
