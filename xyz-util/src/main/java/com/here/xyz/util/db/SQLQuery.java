@@ -165,13 +165,9 @@ public class SQLQuery {
     if (queries.size() == 0)
       throw new IllegalArgumentException("A batch of queries cannot be empty.");
 
-    SQLQuery result = null;
-    for (SQLQuery query : queries) {
-      if (result == null)
-        result = query;
-      else
-        result.addBatch(query);
-    }
+    SQLQuery result = new SQLQuery();
+    for (SQLQuery query : queries)
+      result.addBatch(query);
 
     return result;
   }

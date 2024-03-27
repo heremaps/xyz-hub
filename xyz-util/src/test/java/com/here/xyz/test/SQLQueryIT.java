@@ -136,7 +136,11 @@ public class SQLQueryIT {
   }
 
   private static int createTmpTable(DataSourceProvider dsp) throws SQLException {
-    return new SQLQuery("CREATE TABLE SQLQueryIT (col TEXT);").write(dsp);
+    return buildTableCreationQuery().write(dsp);
+  }
+
+  private static SQLQuery buildTableCreationQuery() {
+    return new SQLQuery("CREATE TABLE SQLQueryIT (col TEXT);");
   }
 
   @Test
@@ -189,5 +193,43 @@ public class SQLQueryIT {
       }
     }
 
+  }
+
+  @Test
+  public void runBatchWriteQuery() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        dropTmpTable(dsp);
+
+        SQLQuery tableCreationQuery = buildTableCreationQuery();
+        SQLQuery insertQuery = new SQLQuery("INSERT INTO SQLQueryIT VALUES ('test')");
+
+        SQLQuery.batchOf(tableCreationQuery, insertQuery).writeBatch(dsp);
+
+        assertEquals("test", new SQLQuery("SELECT col FROM SQLQueryIT").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+      }
+      finally {
+        dropTmpTable(dsp);
+      }
+    }
+  }
+
+  @Test
+  public void runBatchWriteQueryOfSizeOne() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        dropTmpTable(dsp);
+        createTmpTable(dsp);
+
+        SQLQuery insertQuery = new SQLQuery("INSERT INTO SQLQueryIT VALUES ('test')");
+
+        SQLQuery.batchOf(insertQuery).writeBatch(dsp);
+
+        assertEquals("test", new SQLQuery("SELECT col FROM SQLQueryIT").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+      }
+      finally {
+        dropTmpTable(dsp);
+      }
+    }
   }
 }
