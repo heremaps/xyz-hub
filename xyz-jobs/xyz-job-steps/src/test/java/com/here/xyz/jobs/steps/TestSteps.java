@@ -28,6 +28,12 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.lambda.LambdaClient;
+import software.amazon.awssdk.services.lambda.model.InvokeRequest;
 
 import java.io.IOException;
 import java.net.URI;
@@ -41,6 +47,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropInd
 public class TestSteps {
   private static final HubWebClient hubWebClient;
   private static final S3Client s3Client;
+  private static LambdaClient lambdaClient;
   private static final String PG_HOST = "localhost";
   private static final String PG_DB = "postgres";
   private static final String PG_USER = "postgres";
@@ -58,6 +65,11 @@ public class TestSteps {
       Config.instance.JOB_API_ENDPOINT = new URL("http://localhost:7070");
       hubWebClient = HubWebClient.getInstance("http://localhost:8080/hub");
       s3Client = S3Client.getInstance();
+      lambdaClient = LambdaClient.builder()
+              .region(Region.of(Config.instance.AWS_REGION))
+              .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack", "localstack")))
+              .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
+              .build();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -129,6 +141,13 @@ public class TestSteps {
 
   protected void cleanS3Files(String s3Prefix) {
     s3Client.deleteFolder(s3Prefix);
+  }
+
+  protected void invokeLambda(String lambdaArn, byte[] payload) {
+    lambdaClient.invoke(InvokeRequest.builder()
+            .functionName(lambdaArn)
+            .payload(SdkBytes.fromByteArray(payload))
+            .build());
   }
 
 }

@@ -39,14 +39,15 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
+import static java.lang.Thread.sleep;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class JobStepsTest extends TestSteps {
+  private static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final String SPACE_ID = "test-space-" + randomAlpha(5);
   private static final String JOB_ID = "test-job-" + randomAlpha(5);
 
@@ -66,8 +67,11 @@ public class JobStepsTest extends TestSteps {
     assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
-    simulateLambdaStepRequest(step, START_EXECUTION);
-    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+//    simulateLambdaStepRequest(step, START_EXECUTION);
+//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+
+    sendLambdaStepRequest(step, START_EXECUTION);
+    sleep(2000);
 
     assertEquals(0, listExistingIndexes(SPACE_ID).size());
   }
@@ -78,8 +82,12 @@ public class JobStepsTest extends TestSteps {
     assertEquals(0, listExistingIndexes(SPACE_ID).size());
 
     LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(GEO);
-    simulateLambdaStepRequest(step, START_EXECUTION);
-    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+
+//    simulateLambdaStepRequest(step, START_EXECUTION);
+//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+
+    sendLambdaStepRequest(step, START_EXECUTION);
+    sleep(2000);
 
     List<String> indexes = listExistingIndexes(SPACE_ID);
     assertEquals(1, indexes.size());
@@ -93,9 +101,12 @@ public class JobStepsTest extends TestSteps {
 
     uploadInputFile(JOB_ID);
     LambdaBasedStep step = new ImportFilesToSpace().withSpaceId(SPACE_ID);
-//    FieldUtils.writeField(step, "jobId", JOB_ID, true);
-    simulateLambdaStepRequest(step, START_EXECUTION);
-    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+
+//    simulateLambdaStepRequest(step, START_EXECUTION);
+//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+
+    sendLambdaStepRequest(step, START_EXECUTION);
+    sleep(2000);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
     assertEquals(2L, (Object) statsAfter.getCount().getValue());
@@ -112,6 +123,16 @@ public class JobStepsTest extends TestSteps {
 
     LambdaBasedStep.LambdaStepRequest request = new LambdaBasedStep.LambdaStepRequest().withStep(enrichedStep).withType(requestType);
     new LambdaBasedStep.LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
+  }
+
+  private void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType) {
+    Map<String, Object> stepMap = step.toMap();
+    stepMap.put("taskToken.$", "test123");
+    stepMap.put("jobId", JOB_ID);
+    LambdaBasedStep enrichedStep = XyzSerializable.fromMap(stepMap, LambdaBasedStep.class);
+    LambdaBasedStep.LambdaStepRequest request = new LambdaBasedStep.LambdaStepRequest().withStep(enrichedStep).withType(requestType);
+
+    invokeLambda(LAMBDA_ARN, request.toByteArray());
   }
 
   private void uploadInputFile(String jobId) throws IOException {

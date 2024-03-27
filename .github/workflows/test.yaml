@@ -20,5 +20,7 @@ jobs:
           java-version: '17'
       - name: Start the XYZ Hub stack
         run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
+      - name: Deploy StepLambda for Job API
+        run: ./xyz-jobs/xyz-job-steps/src/main/bash/deployLocalLambda.sh
       - name: Run tests
         run: mvn verify -DskipTests=false

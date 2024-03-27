@@ -20,10 +20,7 @@
 #
 
 scriptBasePath="$(dirname $(realpath $0))"
-
-if [ "$(basename $(pwd))" != 'target' ]; then
-  cd ../../../target
-fi
+cd $scriptBasePath/../../../target
 
 rm -rf lib > /dev/null 2>&1
 mkdir lib
