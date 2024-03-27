@@ -153,16 +153,12 @@ public class SQLQueryIT {
             DECLARE
               v INT;
             BEGIN
-                --PERFORM pg_sleep(1);
-                
                 SELECT coalesce(max(col::int), 0) FROM SQLQueryIT INTO v;
                 RAISE NOTICE 'previous value: %', v;
                 INSERT INTO SQLQueryIT VALUES ('' || depth);
                 
-                --PERFORM pg_sleep(3);
-                
                 IF depth < 10 THEN
-                  PERFORM asyncify($R$SELECT test_func('$R$ || value || $R$', $R$ || depth + 1 || $R$)$R$);
+                  PERFORM asyncify(format('SELECT test_func(%L , %s)', value, depth + 1));
                 END IF;
             END
             $BODY$
@@ -182,7 +178,6 @@ public class SQLQueryIT {
     }
 
     Thread.sleep(200);
-    //Thread.sleep(300_000);
 
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
