@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,16 +27,20 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.decryptors.EventDecryptor;
 import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 public class EventDecryptorTest {
+
+  private static final Logger logger = LogManager.getLogger();
+
   @SuppressWarnings("unchecked")
   @Test
   public void testEnDecryption() throws JsonProcessingException {
@@ -58,14 +62,14 @@ public class EventDecryptorTest {
     // make copy of params for later comparison
     String original = mapper.writeValueAsString(params);
 
-    System.out.println("Original params:");
-    System.out.println(original);
+    logger.info("Original params:");
+    logger.info(original);
 
     Map<String, Object> result = decryptor.encryptParams(params, fieldsToEncrypt, "mySpaceId");
 
     String encrypted = mapper.writeValueAsString(result);
-    System.out.println("Encrypted params:");
-    System.out.println(encrypted);
+    logger.info("Encrypted params:");
+    logger.info(encrypted);
 
     assertTrue(decryptor.isEncrypted((String) result.get("secret")));
     assertTrue(decryptor.isEncrypted((String) ((Map<String, Object>) result.get("object")).get("secret")));
@@ -79,16 +83,16 @@ public class EventDecryptorTest {
 
     String tmp = mapper.writeValueAsString(result);
 
-    System.out.println("Decrypted params:");
-    System.out.println(tmp);
+    logger.info("Decrypted params:");
+    logger.info(tmp);
 
     assertEquals(original, tmp);
 
     // check if decryption fails if spaceId does not match
     result = decryptor.decryptParams(mapper.readValue(encrypted, new TypeReference<Map<String, Object>>() {}), "invalidSpaceId");
 
-    System.out.println("Decrypted params with invalid space ID:");
-    System.out.println(mapper.writeValueAsString(result));
+    logger.info("Decrypted params with invalid space ID:");
+    logger.info(mapper.writeValueAsString(result));
 
     assertEquals("invalid", result.get("secret"));
   }

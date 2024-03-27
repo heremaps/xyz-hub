@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(fcUpdate.serialize()).
         when().
-        post(getSpacesPath() + "/x-psql-test/features?ne=retain&e=error&transactional=false").prettyPeek().
+        post(getSpacesPath() + "/x-psql-test/features?ne=retain&e=error&transactional=false").
         then().
         statusCode(OK.code()).
         body("failed[0].id", equalTo("T1"));

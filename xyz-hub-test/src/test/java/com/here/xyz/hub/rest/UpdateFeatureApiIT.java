@@ -389,26 +389,18 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
 
   @Test
   public void updateFeatureById_putNonModified() {
-    given().
-        accept(APPLICATION_GEO_JSON).
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(content("/xyz/hub/updateFeatureNonModified.json")).
-        when().
-        put(getSpacesPath() + "/x-psql-test/features")
-        .prettyPeek().
-        then().
-        statusCode(OK.code()).
-        body("features[0].properties.'@ns:com:here:xyz'.createdAt", notNullValue());
+    storeNonModified();
+    storeNonModified();
+  }
 
+  private static void storeNonModified() {
     given().
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         body(content("/xyz/hub/updateFeatureNonModified.json")).
         when().
-        put(getSpacesPath() + "/x-psql-test/features")
-        .prettyPeek().
+        put(getSpacesPath() + "/x-psql-test/features").
         then().
         statusCode(OK.code()).
         body("features[0].properties.'@ns:com:here:xyz'.createdAt", notNullValue());

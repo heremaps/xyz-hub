@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ public abstract class JobQueue implements Runnable {
     }
 
     public static Future<Job> setJobFailed(Job job, String errorDescription) {
-        System.out.println("job["+job.getId()+"] has failed!");
+        logger.info("job["+job.getId()+"] has failed!");
         return updateJobStatus(job, failed, errorDescription, null);
     }
 
