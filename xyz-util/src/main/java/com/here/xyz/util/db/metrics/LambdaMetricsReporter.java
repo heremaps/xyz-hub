@@ -71,7 +71,7 @@ public class LambdaMetricsReporter implements MetricsReporter {
             }
 
             var eventJson = new JsonObject();
-            eventJson.put("type", "REPORT_METRIC");
+            eventJson.put("type", "METRIC_REPORT");
             eventJson.put("metricType", type);
             eventJson.put("metrics", metricsJsonArray);
             logger.info("Metric of type " + type +" is aggregated: " + eventJson);
