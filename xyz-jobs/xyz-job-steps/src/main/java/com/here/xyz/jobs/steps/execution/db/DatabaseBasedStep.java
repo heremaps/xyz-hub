@@ -22,8 +22,11 @@ package com.here.xyz.jobs.steps.execution.db;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.FAILURE_CALLBACK;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
@@ -31,9 +34,7 @@ import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.LogManager;
@@ -46,7 +47,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   private static final Logger logger = LogManager.getLogger();
   private double claimedAcuLoad;
   @JsonView(Internal.class)
-  private List<String> runningQueryIds = new ArrayList<>();
+  private Map<DatabaseRef, String> runningQueryIds = new HashMap<>();
   private Map<Database, DataSourceProvider> usedDataSourceProviders;
 
   @Override
@@ -114,7 +115,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
     if (async)
       query = (withCallbacks ? wrapQuery(query) : query).withAsync(true);
-    runningQueryIds.add(query.getQueryId());
+    runningQueryIds.put(new DatabaseRef(db.getName(), db.getId()), query.getQueryId());
 
     if (query.isBatch() && isWriteQuery)
       return query.writeBatch(requestResource(db, estimatedMaxAcuLoad));
@@ -205,7 +206,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   @Override
   public void cancel() throws Exception {
     //Cancel all running queries
-    runningQueryIds.stream().forEach(queryId -> {
+    runningQueryIds.values().stream().forEach(queryId -> {
       try {
         SQLQuery.killByQueryId(queryId);
       }
@@ -218,8 +219,28 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
     logger.info("Checking execution state of step {}.{} ...", getJobId(), getId());
-    //TODO: Check running state of all queries
-    //TODO: If the heartbeat is called, but the query is not running anymore, it might be a failure => throw UnknownStateException
+    boolean someQueryIsRunning = runningQueryIds.entrySet()
+        .stream()
+        .anyMatch(queryRef -> {
+          DatabaseRef dbRef = queryRef.getKey();
+          try {
+            return SQLQuery.isRunning(Database.loadDatabase(dbRef.name, dbRef.id).getDataSources(), false, queryRef.getValue());
+          }
+          catch (SQLException e) {
+            /*
+            Ignore it if we cannot check the state for (one of) the queries (for now).
+            In the worst case, this will lead to an UnknownStateException.
+             */
+            return false;
+          }
+        });
+
+    //If the heartbeat is called, but the query is not running anymore, it might be a failure => throw UnknownStateException
+    if (!someQueryIsRunning)
+      throw new UnknownStateException("No query is running anymore for step " + getGlobalStepId() + ". "
+          + "Either the step is completed or failed.");
+
+    //If there was at least one running query, the state should be still RUNNING
     return AsyncExecutionState.RUNNING;
   }
 
@@ -242,5 +263,26 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     if (dsp == null)
       usedDataSourceProviders.put(db, dsp = db.getDataSources());
     return dsp;
+  }
+
+  private static class DatabaseRef implements XyzSerializable {
+    public String name;
+    public String id;
+
+    public DatabaseRef(String name, String id) {
+      this.name = name;
+      this.id = id;
+    }
+
+    @JsonCreator
+    public DatabaseRef(String jsonValue) {
+      this(jsonValue.split("_")[0], jsonValue.split("_")[1]);
+    }
+
+    @JsonValue
+    @Override
+    public String toString() {
+      return name + "_" + id;
+    }
   }
 }

@@ -118,6 +118,19 @@ public class Database extends ExecutionResource {
     }
   }
 
+  protected static Database loadDatabase(String name, String id) {
+    try {
+      List<Database> dbs = loadDatabasesForConnector(HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadConnector(name));
+
+      return dbs.stream()
+          .filter(db -> db.getName().equals(name) && db.getId().equals(id)).findAny().get();
+    }
+    catch (NoSuchElementException | WebClientException e) {
+      //The requested database was not found
+      throw new RuntimeException("No database was found with name " + name + " and id " + id, e);
+    }
+  }
+
   private static Future<List<Database>> initializeDatabases() {
     return HubWebClientAsync.getInstance(Config.instance.HUB_ENDPOINT).loadConnectorsAsync()
         .compose(connectors -> {
