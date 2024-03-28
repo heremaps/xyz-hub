@@ -23,6 +23,8 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
+import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
@@ -40,6 +42,8 @@ public class JobService extends Core {
 
   static {
     XyzSerializable.registerSubtypes(StepGraph.class);
+    XyzSerializable.registerSubtypes(Input.class);
+    XyzSerializable.registerSubtypes(Output.class);
   }
 
   public static void main(String[] args) {

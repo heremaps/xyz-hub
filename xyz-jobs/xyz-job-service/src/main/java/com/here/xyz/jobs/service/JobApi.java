@@ -59,20 +59,20 @@ public class JobApi extends Api {
     Job job = getJobFromBody(context);
     job.create().submit()
         .map(res -> job)
-        .onSuccess(res -> sendResponse(context, CREATED, res))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, CREATED, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJobs(final RoutingContext context) {
     Job.loadAll()
-        .onSuccess(res -> sendResponse(context, OK, res))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJob(final RoutingContext context) {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     loadJob(jobId)
-        .onSuccess(res -> sendResponse(context, OK, res))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
 
   }
@@ -81,7 +81,7 @@ public class JobApi extends Api {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     loadJob(jobId)
         .compose(job -> Job.delete(jobId).map(job))
-        .onSuccess(res -> sendResponse(context, OK, res))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
@@ -92,7 +92,7 @@ public class JobApi extends Api {
     if (input instanceof UploadUrl) {
       loadJob(jobId)
           .map(job -> job.createUploadUrl())
-          .onSuccess(res -> sendResponse(context, CREATED, res))
+          .onSuccess(res -> sendResponseWithXyzSerialization(context, CREATED, res))
           .onFailure(err -> sendErrorResponse(context, err));
     }
     else {
@@ -105,7 +105,7 @@ public class JobApi extends Api {
 
     loadJob(jobId)
         .compose(job -> job.loadInputs())
-        .onSuccess(res -> sendResponse(context, OK, res))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
@@ -114,7 +114,7 @@ public class JobApi extends Api {
 
     loadJob(jobId)
         .compose(job -> job.loadOutputs())
-        .onSuccess(res -> sendResponse(context, OK, res))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
@@ -123,14 +123,14 @@ public class JobApi extends Api {
     RuntimeStatus status = getStatusFromBody(context);
     loadJob(jobId)
         .compose(job -> tryExecuteAction(status, job))
-        .onSuccess(patchedStatus -> sendResponse(context, OK, patchedStatus))
+        .onSuccess(patchedStatus -> sendResponseWithXyzSerialization(context, OK, patchedStatus))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJobStatus(final RoutingContext context) {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     loadJob(jobId)
-        .onSuccess(res -> sendResponse(context, OK, res.getStatus()))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res.getStatus()))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 

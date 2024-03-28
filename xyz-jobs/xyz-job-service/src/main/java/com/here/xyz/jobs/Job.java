@@ -466,6 +466,7 @@ public class Job implements XyzSerializable {
     return this;
   }
 
+  @JsonView(Static.class)
   public StepGraph getSteps() {
     return steps;
   }
