@@ -183,6 +183,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     for (int i = 0; i < importThreadCnt; i++) {
       runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
     }
+    //TODO: only till we found a solution
+    try {
+      Thread.sleep(15000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private void fillTemporaryTableWithInputs(Database db, String table, List<Input> inputs, String bucketName, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
@@ -209,6 +215,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         );
       }
     }
+    //Add final entry
+    queryList.add(
+            new SQLQuery("""                
+                            INSERT INTO  ${schema}.${table} (s3_uri, state, data)
+                                VALUES (aws_commons.create_s3_uri(#{bucketName},#{s3Key},#{bucketRegion}), #{state}, #{data}::jsonb)
+                                ON CONFLICT (s3_uri) DO NOTHING;
+                        """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
+                    .withVariable("schema", getSchema(db))
+                    .withVariable("table", table + JOB_DATA_SUFFIX)
+                    .withNamedParameter("s3Key", "SUCCESS_MARKER")
+                    .withNamedParameter("bucketName", bucketName)
+                    .withNamedParameter("state", "SUCCESS_MARKER")
+                    .withNamedParameter("bucketRegion", bucketRegion)
+                    .withNamedParameter("data", "{}"));
     runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, calculateNeededAcus(0, 0));
   }
 
@@ -253,6 +273,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     logAndSetPhase(Phase.RELEASE_READONLY);
     hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
+    //TODO: only till we found a solution
+    try {
+      Thread.sleep(15000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
   private void logAndSetPhase(Phase curPhase, String... messages){
     phase = curPhase;
@@ -311,7 +337,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("""
             SELECT sum((data->'filesize')::bigint) as imported_bytes,
             	count(1) as imported_files,
-            	sum(SUBSTRING((data->>'import_statistics'),0,POSITION('rows' in data->>'import_statistics'))::bigint) as imported_rows
+            	sum(SUBSTRING((data->'import_statistics'->>'table_import_from_s3'),0,POSITION('rows' in data->'import_statistics'->>'table_import_from_s3'))::bigint) as imported_rows
             	from ${schema}.${table};
           """)
             .withVariable("schema", schema)
@@ -321,12 +347,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private SQLQuery buildImportQuery(String schema, String table, int i) {
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
-    return new SQLQuery("SELECT xyz_import_into_space(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}', #{i})")
+    return new SQLQuery("SELECT xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}')")
             .withNamedParameter("schema", schema)
             .withNamedParameter("target_tbl", schema+".\""+table+"\"")
             .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
             .withNamedParameter("format", format.toString())
-            .withNamedParameter("i", i) //TODO: Now that SQLQuery escaping is fixed, workarounds can be removed
             .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
             .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
   }

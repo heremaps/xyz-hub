@@ -3261,7 +3261,8 @@ DECLARE
 BEGIN
     PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
     PERFORM dblink_connect('conn', 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
-    PERFORM dblink_send_query('conn', 'SELECT set_config(''xyz.password'', ''' || password || ''', false); START TRANSACTION; ' || query || '; COMMIT;  SELECT pg_terminate_backend(pg_backend_pid())');
+    --TODO: remove pg_cancel
+    PERFORM dblink_send_query('conn', 'SELECT set_config(''xyz.password'', ''' || password || ''', false); START TRANSACTION; ' || query || '; COMMIT;  SELECT pg_cancel_backend(pg_backend_pid())');
 END
 $BODY$
     LANGUAGE plpgsql VOLATILE;
@@ -4102,25 +4103,6 @@ begin
     end if;
 end
 $BODY$;
-/*
- * Copyright (C) 2017-2024 HERE Europe B.V.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-License-Identifier: Apache-2.0
- * License-Filename: LICENSE
- */
-
 ------------------------------------------------
 ------------------------------------------------
 
@@ -4331,8 +4313,10 @@ AS $BODY$
                     RAISE NOTICE 'Last Worker reports ... %',import_results;
                     IF import_results.total_count = import_results.failed_count  THEN
                         RAISE EXCEPTION 'All imports are failed!';
+                        EXECUTE failure_callback;
                     ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
                         RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count,import_results.total_count;
+                        EXECUTE failure_callback;
                     ELSE
 						RAISE NOTICE 'ALL DONE! %',success_callback;
                         EXECUTE success_callback;
@@ -4372,10 +4356,8 @@ AS $BODY$
                         json_build_object('import_statistics', import_statistics),
                         locked_item.i);
 
-             i := i+1;
-
             --recursive call for next work-item
-            EXECUTE xyz_import_into_space(schem, temporary_tbl, target_tbl, format, success_callback, failure_callback, i);
+            EXECUTE xyz_import_into_space(schem, temporary_tbl, target_tbl, format, success_callback, failure_callback, i+1);
 
             EXCEPTION
                 WHEN SQLSTATE '55P03' THEN
@@ -4384,7 +4366,7 @@ AS $BODY$
                     */
                     i := i+1;
                     --recursive call for next work-item
-                    EXECUTE xyz_import_into_space(schem, temporary_tbl, target_tbl, format, success_callback, failure_callback, i);
+                    EXECUTE xyz_import_into_space(schem, temporary_tbl, target_tbl, format, success_callback, failure_callback, i+1);
                 WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
                     /** Retryable errors:
                             23505 (duplicate key value violates unique constraint)
@@ -4422,4 +4404,285 @@ AS $BODY$
                         EXECUTE failure_callback;
         END;
 END
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
+    RETURNS TABLE(s3_uri aws_commons._s3_uri_1, state text, data jsonb)
+    LANGUAGE 'plpgsql'
+AS $BODY$
+DECLARE
+    retry_count integer := 2;
+    success_marker text := 'SUCCESS_MARKER';
+    target_state text := 'RUNNING';
+    work_item record;
+    result record;
+BEGIN
+    work_item := null;
+
+    PERFORM pg_sleep(2);
+
+    EXECUTE format('SELECT s3_uri, state, i, execution_count, data FROM %1$s '
+                       ||'WHERE state=%2$L OR (state=%3$L AND execution_count < %4$L ) ORDER by s3_uri LIMIT 1;',
+                   temporary_tbl,
+                   'SUBMITTED',
+                   'FAILED',
+                   retry_count) into work_item;
+
+    IF work_item.state IS NOT NULL THEN
+        --target_state := (CASE WHEN (work_item.state = success_marker) THEN (work_item.state || '_' || target_state) ELSE target_state END);
+
+        RAISE NOTICE 'FOUND WORK ITEM %-%',work_item.s3_uri, work_item.state;
+
+        EXECUTE format('UPDATE %1$s '
+                           ||'set state = %2$L '
+                           ||'WHERE s3_uri = %3$L::aws_commons._s3_uri_1 AND state = %4$L RETURNING *'
+            ,temporary_tbl,
+                       work_item.state,
+                       work_item.s3_uri,
+                       work_item.state) INTO result;
+
+        IF result is NULL THEN
+            RAISE NOTICE 'RESULT IS NULL.%',work_item.i;
+        ELSE
+            RAISE NOTICE 'RESULT NOT NULL.  DELIVER WORK ITEM  %',work_item.i;
+
+            s3_uri = result.s3_uri;
+            data = result.data;
+            state = result.state;
+
+            RETURN NEXT;
+        END IF;
+    ELSE
+        -- no items left
+        EXECUTE format('SELECT s3_uri, state, i, execution_count, data FROM %1$s '
+                           ||'WHERE state=%2$L ;',
+                       temporary_tbl,
+                       success_marker) into work_item;
+        IF work_item.state IS NOT NULL THEN
+            EXECUTE format('UPDATE %1$s '
+                               ||'set state = %2$L, execution_count = execution_count + 1 '
+                               ||'WHERE s3_uri = %3$L::aws_commons._s3_uri_1 AND state = %4$L RETURNING *'
+                ,temporary_tbl,
+                           work_item.state || '_' || target_state,
+                           work_item.s3_uri,
+                           work_item.state) INTO result;
+            IF result is NULL THEN
+                RAISE NOTICE 'RESULT IS NULL. DELIVER WORK ITEM %',work_item.i;
+            ELSE
+                RAISE NOTICE 'RESULT NOT NULL %',work_item.i;
+
+                s3_uri = result.s3_uri;
+                data = result.data;
+                state = result.state;
+
+                RETURN NEXT;
+            END IF;
+        END IF;
+    END IF;
+    RETURN;
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_perform(schem text, temporary_tbl regclass ,target_tbl regclass,
+                                              s3_uri aws_commons._s3_uri_1, format text, filesize bigint)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+AS $BODY$
+DECLARE
+    import_statistics record;
+    config record;
+BEGIN
+    RAISE NOTICE '>>>>>>>> import %',s3_uri;
+
+    select * from xyz_import_get_import_config(format) into config;
+
+    RAISE NOTICE 'import of s3_url:% ', s3_uri;
+    EXECUTE format(
+            'SELECT/*lables({"type": "ImortFilesToSpace","bytes":%1$L})*/ aws_s3.table_import_from_s3( '
+                ||' ''%2$s.%3$s'', '
+                ||'	%4$L, '
+                ||'	%5$L, '
+                ||'	%6$L) ',
+            filesize,
+            schem,
+            target_tbl,
+            config.target_clomuns,
+            config.import_config,
+            s3_uri) INTO import_statistics;
+
+    RAISE NOTICE 'import_statistics %',import_statistics;
+
+
+    --PERFORM pg_sleep((random() * 4)::INT);
+    --Update success
+    EXECUTE format('UPDATE %1$s '
+                       ||'set state = %2$L, '
+                       ||'execution_count = execution_count + 1,'
+                       ||'data = data || %3$L'
+                       ||'WHERE s3_uri = %4$L::aws_commons._s3_uri_1 ',
+                   temporary_tbl,
+                   'FINISHED',
+                   json_build_object('import_statistics', import_statistics),
+                   s3_uri);
+
+    RAISE NOTICE 'SET WORK ITEM % to FISHED!', s3_uri ;
+
+EXCEPTION
+    WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR SQLSTATE '38000' THEN
+        /** Retryable errors:
+                23505 (duplicate key value violates unique constraint)
+                22P02 (invalid input syntax for type json)
+                22P04 (extra data after last expected column)
+        */
+        EXECUTE format('UPDATE %1$s '
+                           ||'set state = %2$L, '
+                           ||'execution_count = execution_count +1 '
+                           ||'WHERE s3_uri = %3$L::aws_commons._s3_uri_1 ',
+                       temporary_tbl,
+                       'FAILED',
+                       s3_uri);
+    --next recursive call will retry if execution_count <= retry_count
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_get_import_config(format text)
+    RETURNS TABLE(target_clomuns text, import_config text)
+    LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+    --default
+    import_config := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
+    format := lower(format);
+
+    IF format = 'csv_jsonwkb' THEN
+        target_clomuns := 'jsondata,geo';
+    ELSEIF format = 'csv_geojson' THEN
+        target_clomuns := 'jsondata';
+    ELSEIF format = 'geojson' THEN
+        target_clomuns := 'jsondata';
+        import_config := '(FORMAT TEXT, ENCODING ''UTF8'')';
+    ELSE
+        RAISE EXCEPTION 'Format ''%'' not supported! ',format
+            USING HINT = 'geojson | csv_geojson | csv_jsonwkb are available',
+                ERRCODE = 'XYZ51';
+    END IF;
+
+    RETURN NEXT;
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_report_success(temporary_tbl regclass, success_callback text, failure_callback text)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    VOLATILE PARALLEL SAFE
+AS $BODY$
+DECLARE
+    import_results record;
+    retry_count integer := 2;
+BEGIN
+    EXECUTE format('SELECT '
+                       || '   COUNT(*) FILTER (WHERE state = %1$L) AS finished_count,'
+                       || '   COUNT(*) FILTER (WHERE state = %2$L and execution_count=%3$L) AS failed_count,'
+                       || '   COUNT(*) AS total_count '
+                       || 'FROM %4$s WHERE NOT starts_with(state,''SUCCESS_MARKER'');',
+                   'FINISHED',
+                   'FAILED',
+                   retry_count,
+                   temporary_tbl
+            ) INTO import_results;
+
+    IF  (import_results.finished_count+import_results.failed_count) = import_results.total_count THEN
+        -- Will only be executed from last worker
+        RAISE NOTICE 'Last Worker reports ... %',import_results;
+        IF import_results.total_count = import_results.failed_count  THEN
+            RAISE NOTICE 'All imports are failed! INVOKE %', success_callback;
+            EXECUTE failure_callback;
+            RAISE NOTICE 'PERFORMED INVOKE';
+        ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
+            RAISE NOTICE '% of % imports are failed! INVOKE %',import_results.failed_count, import_results.total_count, success_callback;
+            EXECUTE failure_callback;
+            RAISE NOTICE 'PERFORMED INVOKE';
+        ELSE
+            RAISE NOTICE 'ALL DONE! INVOKE %',success_callback;
+            EXECUTE success_callback;
+            RAISE NOTICE 'PERFORMED INVOKE';
+        END IF;
+    ELSE
+        RAISE NOTICE 'Import still in progress!';
+    END IF;
+
+EXCEPTION
+    WHEN SQLSTATE '38000' THEN
+        RAISE NOTICE 'Lambda not available!';
+
+        RETURN;
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE
+    OR REPLACE FUNCTION xyz_import_start(schem text, temporary_tbl regclass, target_tbl regclass, format text,
+                                         success_callback text, failure_callback text)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    --VOLATILE PARALLEL SAFE
+AS
+$BODY$
+DECLARE
+    work_item record;
+    exeception_msg
+              text;
+    exeception_detail
+              text;
+    exeception_hint
+              text;
+BEGIN
+    RAISE
+        NOTICE '########################################### START';
+    SELECT *
+    from xyz_import_get_work_item(temporary_tbl)
+    into work_item;
+    RAISE
+        NOTICE '######### RECEIVED work_item %', work_item;
+
+    IF
+        work_item.state IS NOT NULL THEN
+        IF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
+            RAISE NOTICE '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>START REPORT %',pg_backend_pid();
+            EXECUTE xyz_import_report_success(temporary_tbl, success_callback, failure_callback);
+            RETURN;
+        END IF;
+
+        BEGIN
+            PERFORM
+                xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_uri, format,
+                                   (work_item.data ->> 'filesize')::bigint);
+
+        EXCEPTION
+            WHEN SQLSTATE '38000' THEN
+                RAISE NOTICE 'Lambda not available!';
+            WHEN OTHERS THEN
+                GET STACKED DIAGNOSTICS exeception_msg = MESSAGE_TEXT,
+                    exeception_detail = PG_EXCEPTION_DETAIL,
+                    exeception_hint = PG_EXCEPTION_HINT;
+                RAISE
+                    NOTICE 'Import has failed % % %', exeception_msg, exeception_msg, exeception_detail;
+                BEGIN
+                    EXECUTE failure_callback;
+                EXCEPTION
+                    WHEN SQLSTATE '38000' THEN
+                        RAISE NOTICE 'Lambda not available!';
+                        RETURN;
+                END;
+        END;
+
+        PERFORM
+            asyncify(format('SELECT xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
+                            schem, temporary_tbl, target_tbl, format,  success_callback, failure_callback));
+    END IF;
+END;
 $BODY$;
