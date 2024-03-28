@@ -76,6 +76,8 @@ services:
         hostname: localstack
         ports:
             - "4563-4599:4563-4599"
+        extra_hosts:
+            - host.docker.internal:host-gateway
         environment:
             - PERSISTENCE=0
             - DEBUG=1
