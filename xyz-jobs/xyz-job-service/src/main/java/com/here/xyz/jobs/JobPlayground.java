@@ -69,11 +69,14 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -183,9 +186,32 @@ public class JobPlayground {
   private static void uploadFilesToRealJob(String jobId) throws IOException, InterruptedException {
     //Generate N Files with M features
     for (int i = 0; i < uploadFileCount; i++) {
-      HttpResponse<byte[]> inputResponse = post("/jobs/" + jobId + "/inputs", Map.of("type", "UploadUrl"));
+      HttpResponse<byte[]> inputResponse = request("POST","/jobs/" + jobId + "/inputs", Map.of("type", "UploadUrl"));
       String uploadUrl = (String) XyzSerializable.deserialize(inputResponse.body(), Map.class).get("url");
       uploadInputFile(generateContent(format, 10), new URL(uploadUrl));
+    }
+
+  }
+
+  private static void pollRealJobStatus(String jobId) throws InterruptedException {
+    int timeoutSeconds = 120;
+    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
+    // Poll job status every 5 seconds
+    executor.scheduleAtFixedRate(() -> {
+      try {
+        HttpResponse<byte[]> statusResponse = request("GET", "/jobs/" + jobId + "/status", null);
+        RuntimeStatus status = XyzSerializable.deserialize(statusResponse.body(), RuntimeStatus.class);
+        System.out.println("Job status for " + jobId + " : " + status.getState());
+        if(status.getState().isFinal()) executor.shutdownNow();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }, 0, 5, TimeUnit.SECONDS);
+
+    if(!executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
+      executor.shutdownNow();
+      System.out.println("Stopped polling status for job " + jobId + " after timeout " + timeoutSeconds + " seconds");
     }
 
   }
@@ -234,27 +260,34 @@ public class JobPlayground {
         .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
         .withTarget(new DatasetDescription.Space<>().withId(spaceId));
 
-    HttpResponse<byte[]> jobResponse = post("/jobs", job);
+    HttpResponse<byte[]> jobResponse = request("POST", "/jobs", job);
 
     System.out.println("Got response:");
     System.out.println(new String(jobResponse.body()));
 
     Job createdJob = XyzSerializable.deserialize(jobResponse.body(), Job.class);
+    String jobId = createdJob.getId();
 
     //Uploading files
-    uploadFilesToRealJob(createdJob.getId());
+    uploadFilesToRealJob(jobId);
 
-    //To be continued ...
+    //Start the job execution
+    request("PATCH", "/jobs/" + jobId + "/status", Map.of("desiredAction", "START"));
+
+    pollRealJobStatus(jobId);
 
   }
 
-  private static HttpResponse<byte[]> post(String path, Object requestPayload) throws IOException, InterruptedException {
+  private static HttpResponse<byte[]> request(String method, String path, Object requestPayload) throws IOException, InterruptedException {
     String baseUrl = "http://localhost:7070";
+
+    BodyPublisher bodyPublisher = requestPayload == null ? BodyPublishers.noBody()
+            : BodyPublishers.ofByteArray(XyzSerializable.serialize(requestPayload).getBytes());
 
     HttpRequest request = HttpRequest.newBuilder()
         .uri(URI.create(baseUrl + path))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
-        .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(requestPayload).getBytes()))
+        .method(method, bodyPublisher)
         .build();
 
     HttpClient client = HttpClient.newBuilder().followRedirects(NORMAL).build();
