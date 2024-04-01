@@ -27,6 +27,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.util.Random.randomAlpha;
@@ -143,6 +144,7 @@ public class Job implements XyzSerializable {
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
           setSteps(stepGraph);
+          getStatus().setOverallStepCount((int) stepGraph.stepStream().count());
           return validate();
         })
         .compose(isReady -> {
@@ -244,6 +246,11 @@ public class Job implements XyzSerializable {
     if (!found)
       throw new IllegalArgumentException("The provided step with ID " + step.getJobId() + "." + step.getId()
           + " could not be replaced in the StepGraph of job with ID " + getId() + " as it was not found.");
+
+    //If applicable, update the number of succeeded steps at the runtime status
+    if (step.getStatus().getState() == SUCCEEDED)
+      getStatus().setSucceededSteps((int) getSteps().stepStream().filter(s -> s.getStatus().getState() == SUCCEEDED).count());
+
     return store();
   }
 

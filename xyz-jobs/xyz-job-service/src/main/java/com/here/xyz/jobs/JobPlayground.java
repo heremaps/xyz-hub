@@ -201,7 +201,8 @@ public class JobPlayground {
       try {
         HttpResponse<byte[]> statusResponse = get("/jobs/" + jobId + "/status");
         RuntimeStatus status = XyzSerializable.deserialize(statusResponse.body(), RuntimeStatus.class);
-        System.out.println("Job state for " + jobId + " : " + status.getState());
+        logger.info("Job state for {}: {} ({}/{} steps succeeded)", jobId, status.getState(), status.getSucceededSteps(),
+            status.getOverallStepCount());
         if (status.getState().isFinal())
           executor.shutdownNow();
       }
@@ -213,7 +214,7 @@ public class JobPlayground {
     int timeoutSeconds = 120;
     if (!executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
       executor.shutdownNow();
-      System.out.println("Stopped polling status for job " + jobId + " after timeout " + timeoutSeconds + " seconds");
+      logger.info("Stopped polling status for job {} after timeout {} seconds", jobId, timeoutSeconds);
     }
   }
 

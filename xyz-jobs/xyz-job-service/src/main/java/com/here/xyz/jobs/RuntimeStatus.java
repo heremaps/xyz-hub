@@ -21,6 +21,8 @@ package com.here.xyz.jobs;
 
 public class RuntimeStatus extends RuntimeInfo<RuntimeStatus> {
   private Action desiredAction;
+  private int overallStepCount;
+  private int succeededSteps;
 
   /**
    * The desired action can be set by the user to define the intent of executing some action on the status of
@@ -38,6 +40,32 @@ public class RuntimeStatus extends RuntimeInfo<RuntimeStatus> {
 
   public RuntimeStatus withDesiredAction(Action desiredAction) {
     setDesiredAction(desiredAction);
+    return this;
+  }
+
+  public int getOverallStepCount() {
+    return overallStepCount;
+  }
+
+  public void setOverallStepCount(int overallStepCount) {
+    this.overallStepCount = overallStepCount;
+  }
+
+  public RuntimeStatus withOverallStepCount(int overallStepCount) {
+    setOverallStepCount(overallStepCount);
+    return this;
+  }
+
+  public int getSucceededSteps() {
+    return succeededSteps;
+  }
+
+  public void setSucceededSteps(int succeededSteps) {
+    this.succeededSteps = succeededSteps;
+  }
+
+  public RuntimeStatus withSucceededSteps(int succeededSteps) {
+    setSucceededSteps(succeededSteps);
     return this;
   }
 
