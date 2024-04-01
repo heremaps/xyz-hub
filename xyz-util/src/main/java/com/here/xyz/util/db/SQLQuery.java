@@ -60,7 +60,6 @@ import org.apache.logging.log4j.Logger;
  */
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
-
   private static final Logger logger = LogManager.getLogger();
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
@@ -221,7 +220,7 @@ public class SQLQuery {
     String text = text();
     for (Object paramValue : parameters()) {
       Pattern p = Pattern.compile("\\?");
-      text = text.replaceFirst(p.pattern(), Matcher.quoteReplacement(paramValueToString(paramValue)));
+      text = text.replaceFirst(p.pattern(), paramValueToString(paramValue));
     }
     return text;
   }
@@ -366,7 +365,7 @@ public class SQLQuery {
       namedParams2Positions.get(nParam).add(parameters.size());
       parameters.add(namedParameters.get(nParam));
       if (!usePlaceholders) {
-        statement = m.replaceFirst(Matcher.quoteReplacement(paramValueToString(namedParameters.get(nParam))));
+        statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
         m = p.matcher(text());
       }
     }
