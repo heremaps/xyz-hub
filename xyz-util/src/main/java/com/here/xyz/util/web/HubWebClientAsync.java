@@ -77,6 +77,10 @@ public class HubWebClientAsync extends HubWebClient {
     return async.run(() -> postTag(spaceId, tag));
   }
 
+  public Future<Tag> loadTagAsync(String spaceId, String tagId) {
+    return async.run(() -> loadTag(spaceId, tagId));
+  }
+
   public Future<Void> deleteTagAsync(String spaceId, String tagId) {
     return async.run(() -> {
       deleteTag(spaceId, tagId);

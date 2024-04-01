@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
 import com.wdtinc.mapbox_vector_tile.adapt.jts.MvtReader;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.TagKeyValueMapConverter;
@@ -660,7 +659,6 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
     assertEquals("association football", t.get(FIELD_PREFIX + "sport"));
     assertEquals(51500l, t.get(FIELD_PREFIX + "capacity"));
     assertEquals("Eintracht Frankfurt", t.get(FIELD_PREFIX + "occupant"));
-    assertNotNull(t.get(FIELD_PREFIX + "@ns:com:here:xyz" + (flattened ? ".space" : "")));
 
     Coordinate[] coordinates = geom.getCoordinates();
 

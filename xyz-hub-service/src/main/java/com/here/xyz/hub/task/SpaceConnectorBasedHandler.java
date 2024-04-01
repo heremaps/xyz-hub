@@ -96,7 +96,7 @@ public class SpaceConnectorBasedHandler {
   }
 
   private static Future<Long> getMinTag(Marker marker, String space){
-      return Service.tagConfigClient.getTags(marker,space)
+      return Service.tagConfigClient.getTags(marker, space, true)
             .compose(r -> r == null ? Future.succeededFuture(null)
                     : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
             )

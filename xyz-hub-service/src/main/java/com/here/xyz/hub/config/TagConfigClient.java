@@ -46,7 +46,7 @@ public abstract class TagConfigClient implements Initializable {
 
   public abstract Future<List<Tag>> getTagsByTagId(Marker marker, String tagId);
 
-  public abstract Future<List<Tag>> getTags(Marker marker, String spaceId);
+  public abstract Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags);
 
   public abstract Future<List<Tag>> getTags(Marker marker, List<String> spaceIds);
 

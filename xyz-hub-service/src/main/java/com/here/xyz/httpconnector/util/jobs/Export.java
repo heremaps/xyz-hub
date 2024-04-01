@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,6 +68,8 @@ import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileBasedTarget;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
+import com.here.xyz.jobs.datasets.Identifiable;
+import com.here.xyz.jobs.datasets.VersionedSource;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
 import com.here.xyz.jobs.datasets.files.GeoJson;
@@ -75,11 +77,13 @@ import com.here.xyz.jobs.datasets.files.GeoParquet;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -210,7 +214,7 @@ public class Export extends JDBCBasedJob<Export> {
         //TODO: Do field initialization at instance initialization time
         return super.setDefaults()
             .compose(job -> {
-                if (   getExportTarget() != null && getExportTarget().getType() == VML
+                if (getExportTarget() != null && getExportTarget().getType() == VML
                     && (getCsvFormat() == null || ( getCsvFormat() != PARTITIONID_FC_B64 && getCsvFormat() != PARTITIONED_JSON_WKB ))) {
                     setCsvFormat(TILEID_FC_B64);
                     if (getMaxTilesPerFile() == 0)
@@ -263,6 +267,21 @@ public class Export extends JDBCBasedJob<Export> {
 
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
+
+                if (getSource() instanceof VersionedSource<?> versionRefSource
+                    && getSource() instanceof Identifiable<?> identifiable
+                    && versionRefSource.getVersionRef() != null
+                    && versionRefSource.getVersionRef().isTag()) {
+                  final Ref ref = versionRefSource.getVersionRef();
+                  try {
+                    long version = CService.hubWebClient.loadTag(identifiable.getId(), ref.getTag()).getVersion();
+                    versionRefSource.setVersionRef(new Ref(version));
+                    setTargetVersion(String.valueOf(version));
+                  }
+                  catch (HubWebClientException e) {
+                    return Future.failedFuture(e);
+                  }
+                }
 
                 return Future.succeededFuture();
             }).compose(f -> {
@@ -1174,30 +1193,8 @@ public class Export extends JDBCBasedJob<Export> {
 
     protected Future<Void> finalizeJob(boolean finalizeAfterCompletion) {
         if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
-            final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
-            String sourceS3Url = sourceS3UrlWithoutSlash + "/";
-            String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
             return updateJobStatus(this, finalizing)
-                .compose(job -> {
-                    //Start EMR Job, return jobId
-                    List<String> scriptParams = new ArrayList<>();
-                    scriptParams.add(sourceS3Url);
-                    scriptParams.add(targetS3Url);
-                    scriptParams.add("--type=" + getEmrType());
-                    if (readParamCompositeMode() == FULL_OPTIMIZED) {
-                      scriptParams.add("--delta");
-                      if ("geoparquet".equals(getEmrType())) {
-                        final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
-                        String targetSuperS3Url = sourceSuperS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
-                        scriptParams.add("--baseInputDir=" + targetSuperS3Url);
-                      }
-                    }
-
-                    String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
-                        EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
-                    this.emrJobId = emrJobId;
-                    return Future.succeededFuture(emrJobId);
-                })
+                .compose(job -> startEmrJob(job))
                 .onFailure(err -> {
                     logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
                     setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
@@ -1208,6 +1205,31 @@ public class Export extends JDBCBasedJob<Export> {
             return super.finalizeJob();
         else
             return Future.succeededFuture();
+    }
+
+    private Future<String> startEmrJob(Job job) {
+        final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
+        String sourceS3Url = sourceS3UrlWithoutSlash + "/";
+        String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+
+        //Start EMR Job, return jobId
+        List<String> scriptParams = new ArrayList<>();
+        scriptParams.add(sourceS3Url);
+        scriptParams.add(targetS3Url);
+        scriptParams.add("--type=" + getEmrType());
+        if (readParamCompositeMode() == FULL_OPTIMIZED) {
+          scriptParams.add("--delta");
+          if ("geoparquet".equals(getEmrType())) {
+            final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
+            String targetSuperS3Url = sourceSuperS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+            scriptParams.add("--baseInputDir=" + targetSuperS3Url);
+          }
+        }
+
+        String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
+            EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
+        this.emrJobId = emrJobId;
+        return store().map(emrJobId);
     }
 
     private String buildEmrJsonConfig(String inputDirectory, String outputDirectory) {

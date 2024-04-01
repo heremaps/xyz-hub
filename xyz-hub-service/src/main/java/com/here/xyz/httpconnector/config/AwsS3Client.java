@@ -35,12 +35,15 @@ import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
  * A client for reading and writing from and to S3
  */
 public class AwsS3Client {
+    private static final Logger logger = LogManager.getLogger();
     protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
 
     protected final AmazonS3 client;
@@ -100,6 +103,8 @@ public class AwsS3Client {
     }
 
     public List<S3ObjectSummary> scanFolder(String bucketName, String folderPath) {
+        logger.info("Scanning folder for bucket {} and path {} ...", bucketName, folderPath);
+
         ListObjectsRequest listObjects = new ListObjectsRequest()
             .withPrefix(folderPath)
             .withBucketName(bucketName);

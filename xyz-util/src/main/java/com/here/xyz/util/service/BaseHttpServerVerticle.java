@@ -48,6 +48,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import com.google.common.base.Strings;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.util.service.logging.LogUtil;
+import com.here.xyz.util.web.HubWebClient.ErrorResponseException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
@@ -68,6 +69,8 @@ import io.vertx.ext.web.validation.BadRequestException;
 import io.vertx.ext.web.validation.BodyProcessorException;
 import io.vertx.ext.web.validation.ParameterProcessorException;
 import io.vertx.ext.web.validation.impl.ParameterLocation;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -133,17 +136,24 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
    * Creates and sends an error response to the client.
    */
   public static void sendErrorResponse(final RoutingContext context, Throwable exception) {
+    final Marker marker = LogUtil.getMarker(context);
+
     //If the request was canceled, neither a response has to be sent nor the error should be logged.
     if (exception instanceof RequestCancelledException)
       return;
     if (exception instanceof IllegalStateException && exception.getMessage().startsWith("Request method must be one of"))
       exception = new HttpException(METHOD_NOT_ALLOWED, exception.getMessage(), exception);
+    if (exception instanceof ErrorResponseException errorResponseException) {
+      final HttpResponse<byte[]> errorResponse = errorResponseException.getErrorResponse();
+      final HttpRequest failedRequest = errorResponse.request();
+      logger.error("Error during upstream request - Performing {} {}. Upstream-ID: {}, Response:\n{}",
+          failedRequest.method(), failedRequest.uri(), errorResponse.headers().firstValue(STREAM_ID).orElse(null),
+          new String(errorResponse.body()));
+    }
 
     ErrorMessage error;
 
     try {
-      final Marker marker = LogUtil.getMarker(context);
-
       error = new ErrorMessage(context, exception);
       if (error.statusCode == 500) {
         error.message = null;

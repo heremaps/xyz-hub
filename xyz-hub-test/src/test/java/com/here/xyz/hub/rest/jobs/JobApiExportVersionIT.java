@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,7 +154,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000,", "id001,", "id002,", "aWQwMDAi","aWQwMDIi","aWQwMDEi"); // ids + b64(~ids)
 
-        downloadAndCheckFC(urls, 1645, 3, mustContain, 3);
+        downloadAndCheckFC(urls, 1445, 3, mustContain, 3);
     }
 
     @Test
@@ -172,7 +172,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("deltaonly","movedFromEmpty","shouldBeEmpty","deletedInDelta");
 
-        downloadAndCheckFC(urls, 1138, 2, mustContain, 4);
+        downloadAndCheckFC(urls, 1002, 2, mustContain, 4);
     }
 
     @Test
@@ -192,7 +192,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("23600771","23600774","23600775", "AwMiIs","AwMCIs");
 
-        downloadAndCheckFC(urls, 1586, 3, mustContain, 3);
+        downloadAndCheckFC(urls, 1390, 3, mustContain, 3);
     }
 
     @Test
@@ -206,7 +206,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000", "id002", "id003", "movedFromEmpty", "deltaonly", "'\"deleted'\": true");
 
-        downloadAndCheck(urls, 916, 3, mustContain);
+        downloadAndCheck(urls, 802, 3, mustContain);
     }
 
     @Test
@@ -223,7 +223,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000", "id002", "movedFromEmpty", "deltaonly");
 
-        downloadAndCheck(urls, 796, 2, mustContain);
+        downloadAndCheck(urls, 682, 2, mustContain);
     }
 
 
@@ -245,7 +245,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("23600771,,","23600774","23600775", "deltaonly","baseonly","movedFromEmpty");
 
-        downloadAndCheck(urls, 1220, 3, mustContain);
+        downloadAndCheck(urls, 1053, 3, mustContain);
     }
 
     @Test
@@ -264,7 +264,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000,","id002,","id003,,", "deltaonly","movedFromEmpty");
 
-        downloadAndCheck(urls, 813, 2, mustContain);
+        downloadAndCheck(urls, 699, 2, mustContain);
     }
 
     @Test
@@ -283,7 +283,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("deletedInDelta,,","deltaonly,","movedFromEmpty,", "deltaonly","shouldBeEmpty,,");
 
-        downloadAndCheck(urls, 851, 2, mustContain);
+        downloadAndCheck(urls, 737, 2, mustContain);
     }
 
 }

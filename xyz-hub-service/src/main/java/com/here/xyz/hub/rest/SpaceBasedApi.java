@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.hub.rest;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -57,9 +76,7 @@ public abstract class SpaceBasedApi extends Api {
     int limit = ApiParam.Query.getInteger(context, ApiParam.Query.LIMIT, defaultLimit);
 
     if (limit < MIN_LIMIT || limit > HARD_LIMIT) {
-      throw new HttpException(BAD_REQUEST,
-              "The parameter limit must be between " + MIN_LIMIT + " and " + HARD_LIMIT
-                      + ".");
+      throw new HttpException(BAD_REQUEST, "The parameter limit must be between " + MIN_LIMIT + " and " + HARD_LIMIT + ".");
     }
     return limit;
   }
@@ -72,12 +89,13 @@ public abstract class SpaceBasedApi extends Api {
 
   protected Ref getRef(RoutingContext context) throws HttpException {
     final String version = Query.getString(context, Query.VERSION, null);
-    try {
+    final String versionRef = Query.getString(context, Query.VERSION_REF, version);
 
-      return new Ref(version);
+    try {
+      return new Ref(versionRef);
     }
     catch (InvalidRef e) {
-      throw new HttpException(BAD_REQUEST, "Invalid value for version: " + version, e);
+      throw new HttpException(BAD_REQUEST, "Invalid value for versionRef: " + versionRef, e);
     }
   }
 }

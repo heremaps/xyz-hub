@@ -167,4 +167,16 @@ public class HubWebClient extends XyzWebClient {
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .build());
   }
+
+  public Tag loadTag(String spaceId, String tagId) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+          .GET()
+          .uri(uri("/spaces/" + spaceId + "/tags/" + tagId))
+          .build()).body(), Tag.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
 }

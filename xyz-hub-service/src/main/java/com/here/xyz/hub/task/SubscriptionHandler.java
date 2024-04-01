@@ -118,7 +118,7 @@ public class SubscriptionHandler {
                 return Future.failedFuture(
                     "Unable to increase versionsToKeep value on space " + subscription.getSource() + " during subscription registration.");
               });
-          final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, subscription.getId(), subscription.getSource())
+          final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, Service.configuration.SUBSCRIPTION_TAG, subscription.getSource())
               .compose(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
               .recover(t -> {
                 logger.warn("tagFuture for tag creation failed with cause: " + t.getMessage(), t);

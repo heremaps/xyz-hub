@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.config.dynamo;
 
-import com.amazonaws.services.dynamodbv2.document.DeleteItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
@@ -30,19 +29,17 @@ import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
-import com.amazonaws.util.CollectionUtils;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
-import io.vertx.core.json.Json;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -50,8 +47,8 @@ import org.apache.logging.log4j.Marker;
 public class DynamoTagConfigClient extends TagConfigClient {
 
   private static final Logger logger = LogManager.getLogger();
-  private DynamoClient dynamoClient;
-  private Table tagTable;
+  private final DynamoClient dynamoClient;
+  private final Table tagTable;
 
   public DynamoTagConfigClient(String tableArn) {
     dynamoClient = new DynamoClient(tableArn, null);
@@ -70,6 +67,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public Future<Tag> getTag(Marker marker, String id, String spaceId) {
     try {
+      //TODO: Replace PartiQL query by actual query
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
           .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ? and \"spaceId\" = ?")
           .withParameters(new AttributeValue(id), new AttributeValue(spaceId));
@@ -85,7 +83,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String tagId, List<String> spaceIds) {
-    if (CollectionUtils.isNullOrEmpty(spaceIds))
+    if (spaceIds == null || spaceIds.isEmpty())
       return Future.succeededFuture(Collections.emptyList());
 
     return dynamoClient.executeQueryAsync(() -> {
@@ -112,6 +110,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
 
   public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
     try {
+      //TODO: Replace PartiQL query by actual query
       ExecuteStatementRequest request = new ExecuteStatementRequest()
           .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ?")
           .withParameters(new AttributeValue(tagId));
@@ -125,10 +124,13 @@ public class DynamoTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String spaceId) {
+  public Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags) {
     try {
+      final String includeSystemTagsQuery = includeSystemTags ? "" : " AND (\"system\" is MISSING OR \"system\" = false)";
+
+      //TODO: Replace PartiQL query by actual query
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
-          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\".\"spaceId-index\" WHERE \"spaceId\" = ?")
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\".\"spaceId-index\" WHERE \"spaceId\" = ?" + includeSystemTagsQuery)
           .withParameters(new AttributeValue(spaceId));
 
       return dynamoClient.executeStatement(request)
@@ -142,9 +144,10 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public Future<List<Tag>> getTags(Marker marker, List<String> spaceIds) {
     try {
-      String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
+      String spaceParamsSt = String.join(",", Collections.nCopies(spaceIds.size(), "?"));
       List<AttributeValue> params = spaceIds.stream().map(AttributeValue::new).collect(Collectors.toList());
 
+      //TODO: Replace PartiQL query by actual query
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
           .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"spaceId\" IN [" + spaceParamsSt + "]")
           .withParameters(params);
@@ -160,6 +163,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public Future<List<Tag>> getAllTags(Marker marker) {
     try {
+      //TODO: Replace PartiQL query by actual query
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
           .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\"");
 
@@ -174,11 +178,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public Future<Void> storeTag(Marker marker, Tag tag) {
     return dynamoClient.executeQueryAsync(() -> {
-      tagTable.putItem(new Item()
-          .withString("id", tag.getId())
-          .withString("spaceId", tag.getSpaceId())
-          .withLong("version", tag.getVersion())
-          .withBoolean("system", tag.isSystem()));
+      tagTable.putItem(Item.fromMap(XyzSerializable.toMap(tag)));
       return null;
     });
   }
@@ -189,21 +189,18 @@ public class DynamoTagConfigClient extends TagConfigClient {
       DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
           .withPrimaryKey("id", id, "spaceId", spaceId)
           .withReturnValues(ReturnValue.ALL_OLD);
-      DeleteItemOutcome response = tagTable.deleteItem(deleteItemSpec);
-      if (response.getItem() != null)
-        return Json.decodeValue(response.getItem().toJSON(), Tag.class);
-      else
-        return null;
+      Item tagItem = tagTable.deleteItem(deleteItemSpec).getItem();
+      return tagItem == null ? null : XyzSerializable.fromMap(tagItem.asMap(), Tag.class);
     });
   }
 
   @Override
   public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
-    return getTags(marker, spaceId)
+    return getTags(marker, spaceId, true)
         .compose(tags -> {
           try {
-            if (tags.size() == 0)
-              Future.succeededFuture();
+            if (tags.isEmpty())
+              return Future.succeededFuture();
 
             List<ParameterizedStatement> statements = new ArrayList<>();
             tags.forEach(r -> statements.add(new ParameterizedStatement()
@@ -220,8 +217,8 @@ public class DynamoTagConfigClient extends TagConfigClient {
   }
 
   private static List<Tag> tagDataToTags(List<Map<String, AttributeValue>> items) {
-    if (items == null || items.size() == 0)
-      return new ArrayList<>();
+    if (items == null || items.isEmpty())
+      return Collections.emptyList();
 
     return items.stream().map(tagData -> new Tag()
         .withId(tagData.get("id").getS())

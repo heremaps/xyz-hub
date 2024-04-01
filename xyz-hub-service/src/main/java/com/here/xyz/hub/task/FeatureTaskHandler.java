@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.cache.CacheClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -774,6 +775,33 @@ public class FeatureTaskHandler {
     callback.call(task);
   }
 
+  static <X extends FeatureTask> void resolveVersionRef(final X task, final Callback<X> callback) {
+    if (!(task.getEvent() instanceof SelectiveEvent event)) {
+      callback.call(task);
+      return;
+    }
+
+    if (event.getRef() == null || !event.getRef().isTag()) {
+      callback.call(task);
+      return;
+    }
+
+    TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
+        .onSuccess(tag -> {
+          if (tag == null) {
+            callback.exception(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
+            return;
+          }
+
+          event.setRef(new Ref(tag.getVersion()));
+          callback.call(task);
+        })
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Error while resolving version ref.", t);
+          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
+        });
+  }
+
   private static class RpcContextHolder {
     RpcContext rpcContext;
   }
@@ -1262,8 +1290,8 @@ public class FeatureTaskHandler {
         if( task.hasNonModified ){
           task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
             try {
-              if(e.result != null)
-                fc.getFeatures().add(e.result);
+              if(e.base != null)
+                fc.getFeatures().add(e.base);
             } catch (JsonProcessingException ignored) {}
           });
         }

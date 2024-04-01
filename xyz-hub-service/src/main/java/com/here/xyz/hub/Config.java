@@ -28,7 +28,6 @@ import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.BaseConfig;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -357,7 +356,7 @@ public class Config extends BaseConfig {
    * List of fields, separated by comma, which are optional on feature's namespace property.
    */
   @Deprecated
-  public List<String> FEATURE_NAMESPACE_OPTIONAL_FIELDS = Collections.emptyList();
+  public List<String> FEATURE_NAMESPACE_OPTIONAL_FIELDS = Arrays.asList("tags","space");
   @Deprecated
   private Map<String, Object> FEATURE_NAMESPACE_OPTIONAL_FIELDS_MAP;
 

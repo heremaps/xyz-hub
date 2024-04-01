@@ -202,7 +202,7 @@ public abstract class Job<T extends Job> extends Payload {
     public abstract Future<T> init();
 
     protected static String generateRandomId() {
-        return RandomStringUtils.randomAlphanumeric(6);
+        return RandomStringUtils.randomAlphabetic(1) + RandomStringUtils.randomAlphanumeric(5);
     }
 
     public Future<Job> injectConfigValues() {
@@ -768,7 +768,7 @@ public abstract class Job<T extends Job> extends Payload {
                 Ref ref = space.getVersionRef();
 
                 if (ref != null && ref.isSingleVersion() && !ref.isHead())
-                export.setTargetVersion("" + ref.getVersion());
+                  export.setTargetVersion("" + ref.getVersion());
 
                 export.setFilters(space.getFilters());
                 if (export.getFilters() != null) {
