@@ -25,6 +25,8 @@ import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
+import com.here.naksha.lib.core.models.naksha.Space;
+import com.here.naksha.lib.core.models.naksha.SpaceProperties;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.Result;
@@ -35,6 +37,7 @@ import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.hub.EventPipelineFactory;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +102,8 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
     addSpaceIdToStreamInfo(spaceId);
     if (isDeleteSpaceRequest(wf, spaceId)) {
       return executeDeleteSpace(wf);
+    } else if (isUpdateSpaceRequest(wf, spaceId)) {
+      return executeUpdateSpace(wf);
     } else if (virtualSpaces.containsKey(spaceId)) {
       // Request is to write to Naksha Admin space
       return executeWriteToAdminSpaces(wf, spaceId);
@@ -143,6 +148,30 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
       return executeWriteToAdminSpaces(deleteSpaceEntryReq, deleteSpaceEntryReq.getCollectionId());
     } else {
       return deleteSpaceRes;
+    }
+  }
+
+  private boolean isUpdateSpaceRequest(@NotNull WriteFeatures<?, ?, ?> wf, @NotNull String spaceId) {
+    return NakshaAdminCollection.SPACES.equals(spaceId)
+        && wf.features.size() == 1
+        && EWriteOp.UPDATE.toString().equals(wf.features.get(0).getOp());
+  }
+
+  private @NotNull Result executeUpdateSpace(@NotNull WriteFeatures<?, ?, ?> updateSpaceEntryReq) {
+    final Space space = ((Space) updateSpaceEntryReq.features.get(0).getFeature());
+    final SpaceProperties spaceProperties = JsonSerializable.convert(space.getProperties(), SpaceProperties.class);
+    final XyzCollection collection = spaceProperties.getXyzCollection();
+    Result updateSpaceRes = null;
+    if (collection != null) {
+      // submit Update Collection request to Custom Space based pipeline
+      WriteXyzCollections updateCollectionReq = new WriteXyzCollections().put(collection);
+      updateSpaceRes = executeWriteCollections(updateCollectionReq, space.getId());
+    }
+    if (collection == null || updateSpaceRes instanceof SuccessResult) {
+      // submit Update Space request to Admin Space based pipeline
+      return executeWriteToAdminSpaces(updateSpaceEntryReq, updateSpaceEntryReq.getCollectionId());
+    } else {
+      return updateSpaceRes;
     }
   }
 

@@ -1416,7 +1416,7 @@ components:
                 id: "custom_collection_id"
                 type: "NakshaCollection"
                 maxAge: 0
-                history: true
+                disableHistory: false
                 autoPurge: false
               autoCreateCollection: true
               autoDeleteCollection: true
@@ -1440,7 +1440,7 @@ components:
                     id: "um-mod-dev:topology"
                     type: "NakshaCollection"
                     maxAge: 0
-                    history: true
+                    disableHistory: false
                     autoPurge: false
   responses:
     EmptyResponse:
@@ -1742,7 +1742,7 @@ components:
                 id: "custom_collection_id"
                 type: "NakshaCollection"
                 maxAge: 0
-                history: true
+                disableHistory: false
                 autoPurge: false
               autoCreateCollection: true
               autoDeleteCollection: true
@@ -1769,7 +1769,7 @@ components:
                     id: "custom_collection_id"
                     type: "NakshaCollection"
                     maxAge: 0
-                    history: true
+                    disableHistory: false
                     autoPurge: false
                   autoCreateCollection: true
                   autoDeleteCollection: true
@@ -1793,7 +1793,7 @@ components:
                     id: "um-mod-dev:topology"
                     type: "NakshaCollection"
                     maxAge: 0
-                    history: true
+                    disableHistory: false
                     autoPurge: false
     SpacesResponse:
       description: The list of spaces.
@@ -1817,7 +1817,7 @@ components:
                       id: "um-mod-dev:topology"
                       type: "NakshaCollection"
                       maxAge: 0
-                      history: true
+                      disableHistory: false
                       autoPurge: false
   schemas:
     Error:
@@ -2152,7 +2152,7 @@ components:
             id: "custom_collection_id"
             type: "NakshaCollection"
             maxAge: 0
-            history: true
+            disableHistory: false
             autoPurge: false
           autoCreateCollection: true
           autoDeleteCollection: true
@@ -2226,8 +2226,8 @@ components:
         maxAge:
           description: The maximum age of the history entries in days. Zero means no history.
           type: number
-        history:
-          description: Toggle if the history is enabled.
+        disableHistory:
+          description: Toggle if the history is disabled.
           type: boolean
         deletedAt:
           description: A value greater than zero implies that the collection shall be treated as deleted and represents the UTC Epoch timestamp in

@@ -1,0 +1,12 @@
+{
+  "id": "regular_collection_mod_test_handler",
+  "type": "EventHandler",
+  "title": "Typical Handler",
+  "description": "Typical Handler used for tests",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "storageId": "collection_mod_test_storage"
+  }
+}

@@ -44,7 +44,7 @@ public class SpaceAuthorization extends Authorization {
       "license",
       "shared",
       "enableUUID",
-      "enableHistory",
+      "disableHistory",
       "maxVersionCount",
       "cacheTTL",
       "readOnly",

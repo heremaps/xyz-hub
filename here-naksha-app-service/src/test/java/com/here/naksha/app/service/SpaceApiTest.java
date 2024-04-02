@@ -175,15 +175,15 @@ class SpaceApiTest extends ApiTest {
   void tc0260_testUpdateSpace() throws Exception {
     // Test API : PUT /hub/spaces/{spaceId}
     // Given: registered space
-    final String createStorageJson = loadFileOrFail("SpaceApi/TC0260_updateSpace/create_space.json");
-    final String updateStorageJson = loadFileOrFail("SpaceApi/TC0260_updateSpace/update_space.json");
+    final String createSpaceJson = loadFileOrFail("SpaceApi/TC0260_updateSpace/create_space.json");
+    final String updateSpaceJson = loadFileOrFail("SpaceApi/TC0260_updateSpace/update_space.json");
     final String expectedRespBody = loadFileOrFail("SpaceApi/TC0260_updateSpace/response.json");
     final String streamId = UUID.randomUUID().toString();
-    getNakshaClient().post("hub/spaces", createStorageJson, streamId);
+    getNakshaClient().post("hub/spaces", createSpaceJson, streamId);
 
     // When: updating existing space
     final HttpResponse<String> response =
-        getNakshaClient().put("hub/spaces/tc_260_test_space", updateStorageJson, streamId);
+        getNakshaClient().put("hub/spaces/tc_260_test_space", updateSpaceJson, streamId);
 
     // Then: space got updated
     assertThat(response)
@@ -212,6 +212,28 @@ class SpaceApiTest extends ApiTest {
   }
 
   @Test
+  void tc0262_testUpdateSpaceWithNoProperties() throws Exception {
+    // Test API : PUT /hub/spaces/{spaceId}
+    // Given: registered space
+    final String createSpaceJson = loadFileOrFail("SpaceApi/TC0262_updateSpaceNoProperties/create_space.json");
+    final String updateSpaceJson = loadFileOrFail("SpaceApi/TC0262_updateSpaceNoProperties/update_space.json");
+    final String expectedRespBody = loadFileOrFail("SpaceApi/TC0262_updateSpaceNoProperties/response.json");
+    final String streamId = UUID.randomUUID().toString();
+    final HttpResponse<String> postResponse = getNakshaClient().post("hub/spaces", createSpaceJson, streamId);
+    assertThat(postResponse).hasStatus(200);
+
+    // When: updating existing space
+    final HttpResponse<String> response =
+            getNakshaClient().put("hub/spaces/tc_262_test_space", updateSpaceJson, streamId);
+
+    // Then: space got updated
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedRespBody);
+  }
+
+  @Test
   void tc0263_testUpdateSpaceWithWithMismatchingId() throws Exception {
     // Test API : PUT /hub/spaces/{spaceId}
     // Given:
@@ -228,6 +250,34 @@ class SpaceApiTest extends ApiTest {
         .hasStatus(400)
         .hasStreamIdHeader(streamId)
         .hasJsonBody(expectedErrorResponse);
+  }
+
+  @Test
+  void tc0264_testUpdateSpaceAddingCollectionLater() throws Exception {
+    // Test API : PUT /hub/spaces/{spaceId}
+    // Given: registered space
+    final String createSpaceJson = loadFileOrFail("SpaceApi/TC0264_updateSpaceAddCollectionLater/create_space.json");
+    final String updateSpaceJson = loadFileOrFail("SpaceApi/TC0264_updateSpaceAddCollectionLater/update_space.json");
+    final String expectedRespBody = loadFileOrFail("SpaceApi/TC0264_updateSpaceAddCollectionLater/response.json");
+    final String createFeatureJson = loadFileOrFail("SpaceApi/TC0264_updateSpaceAddCollectionLater/create_features.json");
+
+    final String streamId = UUID.randomUUID().toString();
+    final HttpResponse<String> postResponse = getNakshaClient().post("hub/spaces", createSpaceJson, streamId);
+    assertThat(postResponse).hasStatus(200);
+
+    // When: updating existing space
+    final HttpResponse<String> response =
+            getNakshaClient().put("hub/spaces/tc_264_test_space", updateSpaceJson, streamId);
+
+    // Then: space got updated, collection is added in the space properties
+    assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedRespBody);
+
+    // Creating features should succeed
+    final HttpResponse<String> createFeatureResp = getNakshaClient().post("hub/spaces/tc_264_test_space/features", createFeatureJson, streamId);
+    assertThat(createFeatureResp).hasStatus(200);
   }
 
   @ParameterizedTest

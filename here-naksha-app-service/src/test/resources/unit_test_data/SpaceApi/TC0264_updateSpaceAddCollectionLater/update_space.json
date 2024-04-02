@@ -1,0 +1,15 @@
+{
+  "id": "tc_264_test_space",
+  "type": "Space",
+  "title": "Modified Space used for testing",
+  "description": "Descripion of Modified Space used for testing",
+  "eventHandlerIds": [
+    "space-api-test-handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "newly-added-collection-by-update",
+      "type": "NakshaCollection"
+    }
+  }
+}

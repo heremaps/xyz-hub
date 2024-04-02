@@ -113,7 +113,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     final IStorage storageImpl = nakshaHub().getStorageById(storageId);
     logger.info("Using storage implementation [{}]", storageImpl.getClass().getName());
 
-    XyzCollection collection = chooseCollection();
+    XyzCollection collection = chooseCollection(request);
     applyCollectionId(request, collection.getId());
     return forwardRequestToStorage(ctx, request, storageImpl, collection, FIRST_ATTEMPT);
   }
@@ -170,7 +170,19 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @NotNull WriteCollections<?, ?, ?> wc,
       final OperationAttempt operationAttempt) {
     logger.info("Processing WriteCollections against {}", collection.getId());
-    if (isPurgeCollectionRequest(wc)) {
+    if (isUpdateCollectionRequest(wc)) {
+      if (properties.getAutoCreateCollection()) {
+        return forwardWriteRequest(
+            ctx,
+            storageImpl,
+            wc,
+            re -> reattemptCollectionRequest(ctx, storageImpl, collection, wc, operationAttempt, re));
+      } else {
+        logger.info(
+            "Received update collection request but autoCreate is not enabled, returning success without any action");
+        return new SuccessResult();
+      }
+    } else if (isPurgeCollectionRequest(wc)) {
       if (properties.getAutoDeleteCollection()) {
         return forwardWriteRequest(
             ctx,
@@ -192,6 +204,13 @@ public class DefaultStorageHandler extends AbstractEventHandler {
   private boolean isPurgeCollectionRequest(@NotNull WriteCollections<?, ?, ?> wc) {
     return wc.features.size() == 1
         && EWriteOp.PURGE.toString().equals(wc.features.get(0).getOp());
+  }
+
+  private boolean isUpdateCollectionRequest(@NotNull WriteCollections<?, ?, ?> wc) {
+    final String op = wc.features.get(0).getOp();
+    return wc.features.size() == 1
+        && (EWriteOp.UPDATE.toString().equals(op)
+            || EWriteOp.PUT.toString().equals(op));
   }
 
   private @NotNull Result forwardWriteRequest(
@@ -334,7 +353,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
   }
 
   // TODO: collectionId at handler level can be potentially removed in the future
-  private @NotNull XyzCollection chooseCollection() {
+  private @NotNull XyzCollection chooseCollection(final Request<?> request) {
     final XyzCollection collectionDefinedInHandler = properties.getXyzCollection();
     if (collectionDefinedInHandler != null) {
       logger.info(
@@ -344,8 +363,17 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       return collectionDefinedInHandler;
     }
     if (eventTarget instanceof Space s) {
-      final SpaceProperties spaceProperties = JsonSerializable.convert(s.getProperties(), SpaceProperties.class);
-      final XyzCollection collectionDefinedInSpace = spaceProperties.getXyzCollection();
+      XyzCollection collectionDefinedInSpace = null;
+      if (request instanceof WriteCollections<?, ?, ?> wc && isUpdateCollectionRequest(wc)) {
+        // use newly provided collection in the Update request itself
+        // to make sure that the newer collection id (if it has been changed) is used
+        collectionDefinedInSpace = (XyzCollection) wc.features.get(0).getFeature();
+      } else {
+        // use existing Space collection (as it is not an Update request)
+        final SpaceProperties spaceProperties =
+            JsonSerializable.convert(s.getProperties(), SpaceProperties.class);
+        collectionDefinedInSpace = spaceProperties.getXyzCollection();
+      }
       if (collectionDefinedInSpace != null) {
         logger.info(
             "Using collection with id {} that is associated with Space(id={})",

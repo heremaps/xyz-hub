@@ -1,0 +1,127 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "action": "DELETE",
+          "tags": [
+            "three",
+            "four",
+            "five"
+          ],
+          "version": 3
+        },
+        "@ns:com:here:xyz:log": {
+          "action": "DELETE",
+          "original": {
+            "space": "regular_collection_mod_test_space"
+          }
+        },
+        "speedLimit": "80"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "action": "UPDATE",
+          "tags": [
+            "three",
+            "four",
+            "five"
+          ],
+          "version": 2
+        },
+        "@ns:com:here:xyz:log": {
+          "action": "UPDATE",
+          "diff": {
+            "add": 1,
+            "remove": 1,
+            "replace": 3,
+            "ops": [
+              {
+                "op": "replace",
+                "path": "/properties/@ns:com:here:xyz/tags/0",
+                "value": "one"
+              },
+              {
+                "op": "replace",
+                "path": "/properties/@ns:com:here:xyz/tags/1",
+                "value": "two"
+              },
+              {
+                "op": "remove",
+                "path": "/properties/@ns:com:here:xyz/tags/2"
+              },
+              {
+                "op": "replace",
+                "path": "/properties/speedLimit",
+                "value": "60"
+              },
+              {
+                "op": "add",
+                "path": "/properties/toBeDeleted",
+                "value": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          },
+          "original": {
+            "space": "regular_collection_mod_test_space"
+          }
+        },
+        "speedLimit": "80"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "action": "CREATE",
+          "tags": [
+            "one",
+            "two"
+          ],
+          "version": 1
+        },
+        "@ns:com:here:xyz:log": {
+          "action": "CREATE",
+          "original": {
+            "space": "regular_collection_mod_test_space"
+          }
+        },
+        "toBeDeleted": {
+          "foo": "bar"
+        },
+        "speedLimit": "60"
+      }
+    }
+  ]
+}

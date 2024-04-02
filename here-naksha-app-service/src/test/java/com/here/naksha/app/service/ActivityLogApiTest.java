@@ -1,12 +1,5 @@
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.CommonApiTestSetup.createHandler;
-import static com.here.naksha.app.common.CommonApiTestSetup.createSpace;
-import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
-import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.CommonApiTestSetup;
 import com.here.naksha.app.common.NakshaTestWebClient;
@@ -16,17 +9,22 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollecti
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+
+import static com.here.naksha.app.common.CommonApiTestSetup.*;
+import static com.here.naksha.app.common.TestUtil.urlEncoded;
+import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ActivityLogApiTest extends ApiTest {
 
@@ -196,7 +194,7 @@ class ActivityLogApiTest extends ApiTest {
 
     // And: This feature is deleted
     HttpResponse<String> deleteResp = nakshaClient.delete("hub/spaces/" + REGULAR_SPACE_ID + "/features/" + featureId, streamId);
-    assertThat(updateResp).hasStatus(200);
+    assertThat(deleteResp).hasStatus(200);
     FeatureMetadata deletedFeature = featureMetadataFromFeatureResp(deleteResp.body());
 
     // And: Client queries activity log space for this feature
@@ -409,10 +407,6 @@ class ActivityLogApiTest extends ApiTest {
         .map(XyzProperties::getXyzNamespace)
         .map(FeatureMetadata::from)
         .toList();
-  }
-
-  private static String urlEncoded(String text) {
-    return URLEncoder.encode(text, UTF_8);
   }
 
   private static Map mapOf(Object... args) {

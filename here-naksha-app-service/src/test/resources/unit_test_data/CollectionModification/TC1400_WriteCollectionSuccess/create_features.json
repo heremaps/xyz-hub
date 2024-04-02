@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "TC1400_feature",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60",
+        "toBeDeleted": {
+          "foo": "bar"
+        },
+        "@ns:com:here:xyz": {
+          "tags": [
+            "one",
+            "two"
+          ]
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      }
+    }
+  ]
+}

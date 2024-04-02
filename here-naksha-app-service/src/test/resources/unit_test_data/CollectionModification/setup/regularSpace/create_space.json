@@ -1,0 +1,15 @@
+{
+  "id": "regular_collection_mod_test_space",
+  "type": "Space",
+  "title": "Space for testing Activity BHistory",
+  "description": "Sample Space description",
+  "eventHandlerIds": [
+    "regular_collection_mod_test_handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "collection_mod_test",
+      "type": "NakshaCollection"
+    }
+  }
+}

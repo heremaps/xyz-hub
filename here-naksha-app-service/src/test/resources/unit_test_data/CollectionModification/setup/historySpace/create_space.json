@@ -1,0 +1,9 @@
+{
+  "id": "history_collection_mod_test_space",
+  "type": "Space",
+  "title": "Space for testing Activity History",
+  "description": "Sample Space description",
+  "eventHandlerIds": [
+    "collection_mod_test_history_handler"
+  ]
+}
