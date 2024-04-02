@@ -37,18 +37,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.LineStringCoordinates;
 import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
@@ -87,16 +84,14 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.operation.buffer.BufferOp;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.distance.GeodesicSphereDistCalc;
-import com.spatial4j.core.shape.jts.JtsPoint;
 
 import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -1037,6 +1032,33 @@ public class PsqlStorageTests extends PsqlTests {
       assertEquals(request.features.get(1).getId(), cursor.getId());
     } finally {
       session.commit(true);
+    }
+  }
+
+  @Test
+  @Order(74)
+  @EnabledIf("runTest")
+  void limitedRead() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    limitToN(1L);
+    limitToN(2L);
+  }
+
+  private void limitToN(final long limit) throws NoCursor {
+    final ReadFeatures request = new ReadFeatures(collectionId());
+    request.limit = limit;
+    try (final @NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+                 session.execute(request).getXyzFeatureCursor()) {
+
+      for (long row = 1; row <= limit; row++) {
+        assertTrue(cursor.hasNext());
+        assertTrue(cursor.next());
+        assertNotNull(cursor.getFeature());
+      }
+
+      assertFalse(cursor.hasNext());
+      assertThrowsExactly(NoSuchElementException.class, cursor::next);
     }
   }
 

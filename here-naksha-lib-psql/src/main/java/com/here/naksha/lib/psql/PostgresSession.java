@@ -462,9 +462,9 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       if (props_where.length() > 0) {
         query.add(props_where);
       }
-      if (limit != null) {
-        query.add(" LIMIT ").add(limit);
-      }
+    }
+    if (limit != null) {
+      query.add(" LIMIT ").add(limit);
     }
     query.add(")");
     return query;
