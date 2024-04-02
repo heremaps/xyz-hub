@@ -59,7 +59,7 @@ public class S3Client {
 
     final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
 
-    if (isLocal()) {
+    if (Config.instance != null && Config.instance.LOCALSTACK_ENDPOINT != null) {
       builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
               Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.AWS_REGION))
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
@@ -73,19 +73,11 @@ public class S3Client {
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
       synchronized (S3Client.class) {
         builder.setCredentials(new SecretManagerCredentialsProvider(Config.instance.AWS_REGION,
-            Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.JOB_BOT_SECRET_ARN));
+           Config.instance.LOCALSTACK_ENDPOINT == null ? null : Config.instance.LOCALSTACK_ENDPOINT.toString(),
+                Config.instance.JOB_BOT_SECRET_ARN));
       }
     }
     client = builder.build();
-  }
-
-  public boolean isLocal() {
-    //TODO: Rather encapsulate this in a "local" sub-implementation of S3Client
-    if(Config.instance.HUB_ENDPOINT.contains("localhost") ||
-            Config.instance.HUB_ENDPOINT.contains("xyz-hub:8080") ||
-            Config.instance.HUB_ENDPOINT.contains("host.docker.internal"))
-      return true;
-    return false;
   }
 
   public static S3Client getInstance() {
