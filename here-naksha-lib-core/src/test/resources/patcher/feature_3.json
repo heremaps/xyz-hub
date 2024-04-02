@@ -16,5 +16,13 @@
       "willBeDeletedProperty": "not yet"
     },
     "willBeDeletedElement"
+  ],
+  "speedLimit": [
+    {
+      "valueKph": 50
+    },
+    {
+      "valueKph": 60
+    }
   ]
 }

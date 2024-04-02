@@ -555,34 +555,54 @@ project(":here-naksha-app-service") {
 //} catch (ignore: UnknownProjectException) {
 //}
 
-// Ensure that libraries published to artifactory, while the application generates a shadow-jar.
 subprojects {
-    if (project.name.contains("here-naksha-lib-")) {
-        // This is library, publish to maven artifactory
-        apply(plugin = "maven-publish")
-        publishing {
-            repositories {
-                maven {
-                    url = URI(mavenUrl)
-                    credentials.username = mavenUser
-                    credentials.password = mavenPassword
-                }
+    apply(plugin = "maven-publish")
+    publishing {
+        repositories {
+            maven {
+                url = URI(mavenUrl)
+                credentials.username = mavenUser
+                credentials.password = mavenPassword
+            }
+        }
+
+        publications {
+            create<MavenPublication>("maven") {
+                groupId = project.group.toString()
+                artifactId = project.name
+                version = project.version.toString()
+                from(components["java"])
             }
 
-            publications {
-                create<MavenPublication>("maven") {
-                    groupId = project.group.toString()
-                    artifactId = project.name
-                    version = project.version.toString()
-                    from(components["java"])
-                }
-
-                artifacts {
-                    file("build/libs/${project.name}-${project.version}.jar")
-                    file("build/libs/${project.name}-${project.version}-javadoc.jar")
-                    file("build/libs/${project.name}-${project.version}-sources.jar")
-                }
+            artifacts {
+                file("build/libs/${project.name}-${project.version}.jar")
+                file("build/libs/${project.name}-${project.version}-javadoc.jar")
+                file("build/libs/${project.name}-${project.version}-sources.jar")
             }
+        }
+    }
+}
+// For publishing root project (including shaded jar)
+publishing {
+    repositories {
+        maven {
+            url = URI(mavenUrl)
+            credentials.username = mavenUser
+            credentials.password = mavenPassword
+        }
+    }
+
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = project.group.toString()
+            artifactId = project.name
+            version = project.version.toString()
+            from(components["java"])
+        }
+
+        artifacts {
+            file("build/libs/${project.name}-${project.version}.jar")
+            file("build/libs/${project.name}-${project.version}-all.jar")
         }
     }
 }

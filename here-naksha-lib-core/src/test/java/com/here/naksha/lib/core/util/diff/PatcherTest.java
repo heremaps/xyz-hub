@@ -90,6 +90,7 @@ class PatcherTest {
     assertTrue(mapDiff34.get("firstToBeDeleted") instanceof RemoveOp);
     assertTrue(mapDiff34.get("map") instanceof MapDiff);
     assertTrue(mapDiff34.get("array") instanceof ListDiff);
+    assertTrue(mapDiff34.get("speedLimit") instanceof RemoveOp);
 
     // Assert nested layer
     final MapDiff nestedMapDiff34 = (MapDiff) mapDiff34.get("map");
@@ -122,7 +123,7 @@ class PatcherTest {
     assertNotNull(expectedPatchedf3);
 
     // Check that the patched feature 3 has the correct content as 4 but no JSON properties deleted
-    JSONAssert.assertEquals(patchedf3.serialize(),expectedPatchedf3.serialize(), JSONCompareMode.STRICT);
+    JSONAssert.assertEquals(expectedPatchedf3.serialize(), patchedf3.serialize(), JSONCompareMode.STRICT);
     final Difference newDiff = Patcher.getDifference(patchedf3, expectedPatchedf3);
     assertNull(newDiff);
   }
@@ -139,8 +140,9 @@ class PatcherTest {
     assertNotNull(diff35);
     assert (diff35 instanceof MapDiff);
     final MapDiff mapDiff35 = (MapDiff) diff35;
-    assertEquals(1,mapDiff35.size());
+    assertEquals(2,mapDiff35.size());
     assertTrue(mapDiff35.get("array") instanceof ListDiff);
+    assertTrue(mapDiff35.get("speedLimit") instanceof RemoveOp);
     final ListDiff nestedArrayDiff35 = (ListDiff) mapDiff35.get("array");
     // The patcher compares array element by element in order,
     // so the nested JSON in feature 3 is compared against the string in feature 5
@@ -176,7 +178,7 @@ class PatcherTest {
             JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_3_patched_with_6_no_remove_op.json"), JsonObject.class);
     assertNotNull(expectedPatchedf3);
 
-    JSONAssert.assertEquals(patchedf3Tof6.serialize(),expectedPatchedf3.serialize(), JSONCompareMode.STRICT);
+    JSONAssert.assertEquals(expectedPatchedf3.serialize(),patchedf3Tof6.serialize(), JSONCompareMode.STRICT);
     final Difference newDiff36 = Patcher.getDifference(patchedf3Tof6, expectedPatchedf3);
     assertNull(newDiff36);
   }

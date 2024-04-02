@@ -8,5 +8,13 @@
       "nestedShouldBeUpdated": "not yet",
       "willBeDeletedProperty": "not yet"
     }
+  ],
+  "speedLimit": [
+    {
+      "valueKph": 40
+    },
+    {
+      "valueKph": 60
+    }
   ]
 }

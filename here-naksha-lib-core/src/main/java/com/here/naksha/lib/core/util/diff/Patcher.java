@@ -541,7 +541,7 @@ public class Patcher {
       for (int i = listDiff.size() - 1; i >= 0; i--) {
         Difference diff = listDiff.get(i);
         if (diff == null) {
-          return;
+          continue;
         }
 
         if (diff instanceof UpdateOp) {
