@@ -100,7 +100,6 @@ public class TagApiIT extends TestSpaceWithFeature {
       _createTag()
               .statusCode(OK.code())
               .body("id", equalTo("XYZ_1"))
-              .body("spaceId", equalTo(getSpaceId()))
               .body("version", equalTo(-1));
 
       given()
@@ -243,7 +242,6 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .body("size()", is(1))
         .body( "[0].tags.XYZ_1.id", equalTo("XYZ_1"))
-        .body( "[0].tags.XYZ_1.spaceId", equalTo("x-psql-test"))
         .body( "[0].tags.XYZ_1.version", equalTo(-1));
   }
 
@@ -400,7 +398,6 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("XYZ_1"))
-        .body("spaceId", equalTo(getSpaceId()))
         .body("version", equalTo(-1))
         .body("$", not(hasKey("system")));
 
@@ -410,7 +407,6 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("XYZ_2"))
-        .body("spaceId", equalTo(getSpaceId()))
         .body("version", equalTo(-1))
         .body("$", hasKey("system"))
         .body("system", equalTo(true));

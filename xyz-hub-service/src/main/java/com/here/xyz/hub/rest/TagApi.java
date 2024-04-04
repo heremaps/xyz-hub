@@ -58,7 +58,7 @@ public class TagApi extends SpaceBasedApi {
             tag.getId(),
             tag.getVersion(),
             tag.isSystem()))
-        .onSuccess(result -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, result))
+        .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK.code(), result))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -72,7 +72,7 @@ public class TagApi extends SpaceBasedApi {
         .compose(result -> result != null
             ? Future.succeededFuture(result)
             : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found.")))
-        .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
+        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK.code(), r))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -84,7 +84,7 @@ public class TagApi extends SpaceBasedApi {
 
     getSpace(marker, spaceId)
         .compose(s -> Service.tagConfigClient.getTags(marker, spaceId, includeSystemTags))
-        .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
+        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK.code(), r))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -99,7 +99,7 @@ public class TagApi extends SpaceBasedApi {
         .compose(r -> r == null ? Future.failedFuture(
             new HttpException(HttpResponseStatus.NOT_FOUND, "Tag " + tagId + " with space " + spaceId + " not found"))
             : Future.succeededFuture(r))
-        .onSuccess(r -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, r))
+        .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK.code(), r))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
@@ -111,7 +111,7 @@ public class TagApi extends SpaceBasedApi {
 
     deserializeTag(context.body().asString())
         .compose(tag -> updateTag(marker, spaceId, tagId, tag.getVersion()))
-        .onSuccess(tag -> sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, tag))
+        .onSuccess(tag -> sendResponse(context, HttpResponseStatus.OK.code(), tag))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
