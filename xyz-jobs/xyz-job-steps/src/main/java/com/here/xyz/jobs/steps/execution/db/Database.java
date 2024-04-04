@@ -24,7 +24,6 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.util.db.DatabaseSettings.PSQL_HOST;
 import static com.here.xyz.util.db.DatabaseSettings.PSQL_REPLICA_HOST;
 
-import com.amazonaws.services.rds.model.DBCluster;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.here.xyz.jobs.steps.Config;
@@ -57,6 +56,7 @@ import org.apache.logging.log4j.Logger;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Name;
 import org.xbill.DNS.Record;
+import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
   private static final Logger logger = LogManager.getLogger();
@@ -189,11 +189,11 @@ public class Database extends ExecutionResource {
         }
         else {
           DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
-          dbCluster.getDBClusterMembers().forEach(instance -> {
+          dbCluster.dbClusterMembers().forEach(instance -> {
             final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
 
-            databases.add(new Database(rdsClusterId, instance.getDBInstanceIdentifier(),
-                dbCluster.getServerlessV2ScalingConfiguration().getMaxCapacity(), connectorDbSettingsMap)
+            databases.add(new Database(rdsClusterId, instance.dbInstanceIdentifier(),
+                dbCluster.serverlessV2ScalingConfiguration().maxCapacity(), connectorDbSettingsMap)
                 .withName(connector.id)
                 .withRole(role));
           });
