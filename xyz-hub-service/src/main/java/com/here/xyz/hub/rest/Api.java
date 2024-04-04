@@ -78,6 +78,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.Collections;
+import java.util.List;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
@@ -595,6 +596,19 @@ public abstract class Api {
     }
 
     sendResponseBytes(context, httpResponse, response);
+  }
+
+  protected void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
+    serializeAndSendResponse(context, statusCode, object);
+  }
+
+  protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> object) {
+    serializeAndSendResponse(context, statusCode, object);
+  }
+
+  private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object) {
+    HttpServerResponse httpResponse = context.response().setStatusCode(statusCode);
+    sendResponseBytes(context, httpResponse, XyzSerializable.serializeWithView(object, Public.class).getBytes());
   }
 
   private void sendResponseBytes(RoutingContext context, HttpServerResponse httpResponse, byte[] response) {
