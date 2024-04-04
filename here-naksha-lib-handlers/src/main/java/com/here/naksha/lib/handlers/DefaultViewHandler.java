@@ -65,7 +65,7 @@ public class DefaultViewHandler extends AbstractEventHandler {
   @Override
   protected EventProcessingStrategy processingStrategyFor(IEvent event) {
     final Request<?> request = event.getRequest();
-    if (request instanceof ReadFeatures || request instanceof WriteXyzFeatures) {
+    if (request instanceof ReadFeatures || request instanceof WriteFeatures) {
       return PROCESS;
     } else if (request instanceof WriteXyzCollections) {
       return SUCCEED_WITHOUT_PROCESSING;

@@ -52,6 +52,13 @@ public final class PluginCache {
       new EventHandlerConstructorByClassNameMap();
   static final StorageConstructorByClassNameMap storageConstructors = new StorageConstructorByClassNameMap();
 
+  // **********Extension cache****************
+  static class ExtensionConstructorByClassNameMap
+      extends ConcurrentHashMap<String, EventHandlerConstructorByTarget> {}
+
+  static ConcurrentHashMap<String, ExtensionConstructorByClassNameMap> extensionCache = new ConcurrentHashMap<>();
+  // ******************************************
+
   /**
    * Wraps the given constructor of an event-handler into a standard function call.
    *
@@ -345,5 +352,104 @@ public final class PluginCache {
         throw unchecked(t);
       }
     }
+  }
+
+  /**
+   * Returns the constructor for the Extensions loaded via event handler.
+   *
+   * @param className   The classname to search for.
+   * @param configClass The configuration-type class, for example {@code EventHandler.class}.
+   * @param targetClass The target-type class, for example {@code Space.class}.
+   * @param extClassLoader Extension class loader
+   * @param extensionId Extension identifier
+   * @param <CONFIG>    The config-type.
+   * @param <TARGET>    The target-type.
+   * @return the constructor for the event handler.
+   * @throws ClassNotFoundException If no such class exists (invalid {@code className}).
+   * @throws ClassCastException     If the class does not implement the {@link IEventHandler} interface.
+   * @throws NoSuchMethodException  If the class does not have a matching constructor.
+   */
+  public static <CONFIG, TARGET> @NotNull Fe3<IEventHandler, INaksha, CONFIG, TARGET> getEventHandlerConstructor(
+      final @NotNull String className,
+      Class<CONFIG> configClass,
+      Class<TARGET> targetClass,
+      final @NotNull String extensionId,
+      final @NotNull ClassLoader extClassLoader) {
+
+    final ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>> constructorByTarget =
+        extensionConstructorMap(extensionId, className);
+    Fe3<IEventHandler, INaksha, CONFIG, TARGET> c = constructorByTarget.get(targetClass);
+    if (c != null) {
+      return c;
+    }
+    synchronized (PluginCache.class) {
+      c = constructorByTarget.get(targetClass);
+      if (c != null) {
+        return c;
+      }
+      try {
+        final Class<?> theClass = extClassLoader.loadClass(className);
+        if (!IEventHandler.class.isAssignableFrom(theClass)) {
+          throw new ClassCastException(
+              "The class " + theClass.getName() + " does not implement the IEventHandler interface");
+        }
+        //noinspection unchecked
+        final Constructor<? extends IEventHandler>[] constructors =
+            (Constructor<IEventHandler>[]) theClass.getConstructors();
+        int cParameterCount = -1;
+        for (final Constructor<? extends IEventHandler> constructor : constructors) {
+          if (constructor.getParameterCount() < cParameterCount) {
+            continue;
+          }
+          if (constructor.getParameterCount() > 3) {
+            continue;
+          }
+          c = wrapEventHandlerConstructor(constructor, configClass, targetClass);
+          if (c != null) {
+            cParameterCount = constructor.getParameterCount();
+          }
+        }
+        if (c == null) {
+          throw new NoSuchMethodException(
+              "The class " + theClass.getName() + " does not have a valid constructor");
+        }
+        constructorByTarget.put(targetClass, c);
+        return c;
+      } catch (Throwable t) {
+        throw unchecked(t);
+      }
+    }
+  }
+
+  static <CONFIG, TARGET> @NotNull
+      ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>> extensionConstructorMap(
+          final @NotNull String extensionId, final @NotNull String className) {
+    ExtensionConstructorByClassNameMap byClassNameMap = extensionCache.get(extensionId);
+    if (byClassNameMap == null) {
+      byClassNameMap = new ExtensionConstructorByClassNameMap();
+      final ExtensionConstructorByClassNameMap existing = extensionCache.putIfAbsent(extensionId, byClassNameMap);
+      if (existing != null) {
+        byClassNameMap = existing;
+      }
+    }
+    EventHandlerConstructorByTarget byTarget = byClassNameMap.get(className);
+    if (byTarget == null) {
+      byTarget = new EventHandlerConstructorByTarget();
+      final EventHandlerConstructorByTarget existing = byClassNameMap.putIfAbsent(className, byTarget);
+      if (existing != null) {
+        byTarget = existing;
+      }
+    }
+    //noinspection unchecked,rawtypes
+    return (ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>>)
+        (ConcurrentHashMap) byTarget;
+  }
+
+  /**
+   * Method to remove cached extension of given extensionId
+   * @param extensionId Extension identifier
+   */
+  public static void removeExtensionCache(final @NotNull String extensionId) {
+    extensionCache.remove(extensionId);
   }
 }

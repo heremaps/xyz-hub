@@ -96,7 +96,7 @@ public final class HandlerUtil {
           checkInstanceOf(inputCodec, XyzFeatureCodec.class, "Unsupported feature codec type");
       final XyzFeature feature =
           HandlerUtil.checkInstanceOf(xyzCodec.getFeature(), XyzFeature.class, "Unsupported feature type");
-      cwf.add(EWriteOp.PUT, feature);
+      cwf.add(EWriteOp.get(xyzCodec.getOp()), feature);
     }
 
     // add context to write request

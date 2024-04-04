@@ -34,6 +34,8 @@ import com.here.naksha.lib.core.models.PluginCache;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A configured event handler.
@@ -41,6 +43,7 @@ import org.jetbrains.annotations.Nullable;
 @AvailableSince(NakshaVersion.v2_0_3)
 @JsonTypeName(value = "EventHandler")
 public class EventHandler extends Plugin<IEventHandler, EventHandler> {
+  private static final @NotNull Logger logger = LoggerFactory.getLogger(EventHandler.class);
 
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final String EXTENSION_ID = "extensionId";
@@ -107,28 +110,37 @@ public class EventHandler extends Plugin<IEventHandler, EventHandler> {
   @AvailableSince(NakshaVersion.v2_0_7)
   @Override
   public @NotNull IEventHandler newInstance(@NotNull INaksha naksha) {
-    final Fe3<IEventHandler, INaksha, EventHandler, Space> constructor =
-        getEventHandlerConstructor(getClassName(), EventHandler.class, Space.class);
-    try {
-      return constructor.call(naksha, this, null);
-    } catch (Exception e) {
-      throw unchecked(e);
-    }
+    return newInstance(naksha, null);
   }
 
   /**
    * Do not use anymore, please call {@link PluginCache#getEventHandlerConstructor(String, Class, Class)} and create the instance yourself.
+   * @param naksha the reference to the Naksha-Hub that wants to have the instance.
+   * @param eventTarget Type of EventTarget object. If null then Space(Space.class) type will be used as default value
    */
   @Deprecated
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull IEventHandler newInstance(@NotNull INaksha naksha, @NotNull EventTarget<?> eventTarget) {
-    //noinspection unchecked
-    final Fe3<IEventHandler, INaksha, EventHandler, EventTarget<?>> constructor =
-        (Fe3<IEventHandler, INaksha, EventHandler, EventTarget<?>>)
-            getEventHandlerConstructor(getClassName(), EventHandler.class, eventTarget.getClass());
+  public @NotNull IEventHandler newInstance(@NotNull INaksha naksha, @Nullable EventTarget<?> eventTarget) {
+    Class<?> eventTargetClass = eventTarget == null ? Space.class : eventTarget.getClass();
+    final Fe3<IEventHandler, INaksha, EventHandler, EventTarget<?>> constructor;
     try {
+      if (this.extensionId == null || this.extensionId.isEmpty() || "null".equalsIgnoreCase(this.extensionId)) {
+        //noinspection unchecked
+        constructor = (Fe3<IEventHandler, INaksha, EventHandler, EventTarget<?>>)
+            getEventHandlerConstructor(getClassName(), EventHandler.class, eventTargetClass);
+      } else {
+        ClassLoader extClassLoader = naksha.getClassLoader(this.extensionId);
+        //noinspection unchecked
+        constructor = (Fe3<IEventHandler, INaksha, EventHandler, EventTarget<?>>) getEventHandlerConstructor(
+            getClassName(), EventHandler.class, eventTargetClass, extensionId, extClassLoader);
+      }
       return constructor.call(naksha, this, eventTarget);
     } catch (Exception e) {
+      logger.error(
+          "Exception loading constructor for EventHandler id {}, extensionId {}.",
+          getId(),
+          this.extensionId,
+          e);
       throw unchecked(e);
     }
   }

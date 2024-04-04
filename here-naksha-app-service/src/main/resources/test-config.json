@@ -12,5 +12,6 @@
   "storageParams": {
     "pg_hint_plan": false,
     "pg_stat_statements": false
-  }
+  },
+  "extensionConfigParams": null
 }

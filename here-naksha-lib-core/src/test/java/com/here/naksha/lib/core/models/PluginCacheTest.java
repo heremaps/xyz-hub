@@ -19,9 +19,11 @@
 package com.here.naksha.lib.core.models;
 
 import static com.here.naksha.lib.core.models.PluginCache.eventHandlerConstructors;
+import static com.here.naksha.lib.core.models.PluginCache.extensionCache;
 import static com.here.naksha.lib.core.models.PluginCache.storageConstructors;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.here.naksha.lib.core.IEvent;
@@ -30,6 +32,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.lambdas.Fe3;
 import com.here.naksha.lib.core.models.PluginCache.EventHandlerConstructorByConfig;
 import com.here.naksha.lib.core.models.PluginCache.EventHandlerConstructorByTarget;
+import com.here.naksha.lib.core.models.PluginCache.ExtensionConstructorByClassNameMap;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
 import org.jetbrains.annotations.NotNull;
@@ -67,6 +70,7 @@ class PluginCacheTest {
   static void beforeAll() {
     storageConstructors.clear();
     eventHandlerConstructors.clear();
+    extensionCache.clear();
   }
 
   @Test
@@ -84,5 +88,27 @@ class PluginCacheTest {
     assertNotNull(byTarget);
     Fe3<IEventHandler, INaksha, ?, ?> c2 = byTarget.get(TestTarget.class);
     assertSame(c, c2);
+  }
+  @Test
+  void testExtensionCache() throws Exception {
+    String extensionId="ExtensionId";
+    ClassLoader classLoader=this.getClass().getClassLoader();
+    Fe3<IEventHandler, INaksha, TestConfig, TestTarget> c =
+        PluginCache.getEventHandlerConstructor(TestHandler.class.getName(), TestConfig.class, TestTarget.class,extensionId,classLoader);
+    assertNotNull(c);
+    IEventHandler handler = c.call(null, null, null);
+    assertNotNull(handler);
+    assertInstanceOf(SuccessResult.class, handler.processEvent(null));
+
+    ExtensionConstructorByClassNameMap byName = extensionCache.get(extensionId);
+    assertNotNull(byName);
+    EventHandlerConstructorByTarget byTarget = byName.get(TestHandler.class.getName());
+    assertNotNull(byTarget);
+    Fe3<IEventHandler, INaksha, ?, ?> c2 = byTarget.get(TestTarget.class);
+    assertSame(c, c2);
+
+    PluginCache.removeExtensionCache(extensionId);
+    assertNull(extensionCache.get(extensionId));
+
   }
 }

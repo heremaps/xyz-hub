@@ -8,5 +8,6 @@
   "maintenanceInitialDelayInMins": 60,
   "maintenanceIntervalInMins": 720,
   "maintenancePoolCoreSize": 5,
-  "maintenancePoolMaxSize": 20
+  "maintenancePoolMaxSize": 20,
+  "extensionConfigParams": null
 }
