@@ -97,7 +97,7 @@ public class TagApi extends SpaceBasedApi {
     getSpace(marker, spaceId)
         .compose(s -> Service.tagConfigClient.getTag(marker, tagId, spaceId))
         .compose(r -> r == null ? Future.failedFuture(
-            new HttpException(HttpResponseStatus.NOT_FOUND, "Tag " + tagId + " with space " + spaceId + " not found"))
+            new HttpException(HttpResponseStatus.NOT_FOUND, "Tag " + tagId + " not found"))
             : Future.succeededFuture(r))
         .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK.code(), r))
         .onFailure(t -> sendErrorResponse(context, t));
@@ -117,7 +117,7 @@ public class TagApi extends SpaceBasedApi {
 
   public static Future<Tag> updateTag(Marker marker, String spaceId, String tagId, long version) {
     if (spaceId == null) {
-      return Future.failedFuture(new ValidationException("Invalid spaceId parameter"));
+      return Future.failedFuture(new ValidationException("Invalid parameter"));
     }
 
     //FIXME: Neither -2 nor -1 are valid versions
@@ -128,11 +128,15 @@ public class TagApi extends SpaceBasedApi {
     final Future<Space> spaceFuture = getSpace(marker, spaceId);
     final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, tagId, spaceId)
         .compose(r -> r == null ? Future.failedFuture(
-            new HttpException(HttpResponseStatus.NOT_FOUND, "Tag " + tagId + " with space " + spaceId + " not found"))
+            new HttpException(HttpResponseStatus.NOT_FOUND, "Tag " + tagId + " not found"))
             : Future.succeededFuture(r));
 
     return Future.all(spaceFuture, tagFuture)
-        .compose(cf -> Service.tagConfigClient.storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
+        .compose(cf -> Service.tagConfigClient.storeTag(marker, new Tag()
+            .withId(tagId)
+            .withSpaceId(spaceId)
+            .withVersion(version)
+            .withSystem(tagFuture.result().isSystem())))
         .map(v -> tagFuture.result().withVersion(version));
   }
 
@@ -143,7 +147,7 @@ public class TagApi extends SpaceBasedApi {
   // TODO auth
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version, boolean system) {
     if (spaceId == null) {
-      return Future.failedFuture(new ValidationException("Invalid spaceId parameter"));
+      return Future.failedFuture(new ValidationException("Invalid parameter"));
     }
 
     if (!Tag.isValidId(tagId)) {
@@ -173,7 +177,7 @@ public class TagApi extends SpaceBasedApi {
   // TODO auth
   public static Future<Tag> deleteTag(Marker marker, String spaceId, String tagId) {
     if (spaceId == null || tagId == null) {
-      return Future.failedFuture(new ValidationException("Invalid spaceId or tagId parameters"));
+      return Future.failedFuture(new ValidationException("Invalid parameters"));
     }
 
     return Service.spaceConfigClient.get(marker, spaceId)
