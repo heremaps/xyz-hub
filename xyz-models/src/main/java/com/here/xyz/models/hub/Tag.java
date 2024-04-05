@@ -113,6 +113,6 @@ public class Tag implements XyzSerializable {
 
   public static boolean isValidId(String tagId) {
     return !Strings.isNullOrEmpty(tagId) && !HEAD.equals(tagId) && !ALL_VERSIONS.equals(tagId)
-        && Pattern.matches("^[^0-9\s][^\s]{0,49}$", tagId);
+        && Pattern.matches("^[a-zA-Z][a-zA-Z0-9_-]{0,49}$", tagId);
   }
 }
