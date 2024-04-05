@@ -13,7 +13,6 @@
           "changeState": "UPDATED",
           "reviewState": "UNPUBLISHED",
           "changeCounter": 0,
-          "dueTs": 0,
           "potentialValue": 0,
           "priorityCategory": 0
         },
@@ -38,7 +37,6 @@
           "changeState": "UPDATED",
           "reviewState": "UNPUBLISHED",
           "changeCounter": 0,
-          "dueTs": 0,
           "potentialValue": 0,
           "priorityCategory": 0
         },

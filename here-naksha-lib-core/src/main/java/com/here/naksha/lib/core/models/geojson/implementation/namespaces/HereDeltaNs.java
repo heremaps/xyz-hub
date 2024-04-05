@@ -224,5 +224,5 @@ public class HereDeltaNs extends JsonObject {
    * milliseconds.
    */
   @JsonProperty
-  private long dueTs;
+  private String dueTS;
 }
