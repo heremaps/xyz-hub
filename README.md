@@ -81,6 +81,8 @@ java -jar build/libs/naksha-2.0.6-all.jar test-config-with-extensions 'jdbc:post
 
 ### Run App
 
+#### Running local fat jar
+
 The service could also be started directly from a fat jar. In this case Postgres and the other optional dependencies need to be started separately.
 
 To build the fat jar, at the root project directory, run one of the following:
@@ -109,6 +111,10 @@ java -jar build/libs/naksha-2.0.6-all.jar custom-config
 ```
 
 Then use a web browser to connect to `localhost:8080`, an OK message should be displayed if the service is up and running.
+
+#### Running Naksha in container
+
+To run Naksha in container, take a look at [these docs](docker/README.md)
 
 ### OpenAPI specification
 
