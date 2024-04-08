@@ -96,7 +96,7 @@ class StateMachineExecutor extends JobExecutor {
     CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
             .name(STATE_MACHINE_NAME_PREFIX + jobId)
             .definition(stateMachineDefinition)
-            //.roleArn(...) TODO: Get from env vars
+            .roleArn(Config.instance.STATE_MACHINE_ROLE)
         .build());
 
     StartExecutionResponse startExecutionResponse = sfnClient().startExecution(StartExecutionRequest.builder()
