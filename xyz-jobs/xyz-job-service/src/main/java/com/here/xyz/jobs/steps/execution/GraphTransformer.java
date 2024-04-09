@@ -25,6 +25,7 @@ import static com.here.xyz.util.Random.randomAlpha;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -216,6 +217,7 @@ public class GraphTransformer {
   private void compile(LambdaBasedStep<?> lambdaStep, NamedState<TaskState.Builder> state) {
     //TODO: Also support synchronous integration
     String taskResource = LAMBDA_INVOKE_RESOURCE + (lambdaStep.getExecutionMode() == ASYNC ? ".waitForTaskToken" : "");
+    lambdaStep.invokersRoleArn = Config.instance.STEP_LAMBDA_CALLER_ROLE_ARN.toString();
     LambdaStepRequest payload = new LambdaStepRequest()
         .withType(START_EXECUTION)
         .withStep(lambdaStep);
