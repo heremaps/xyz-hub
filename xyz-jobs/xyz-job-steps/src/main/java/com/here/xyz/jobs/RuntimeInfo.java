@@ -90,7 +90,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
   public void setState(State state) {
     State.checkTransition(getState(), state);
-    if (this.state != null) { //Do not update timestamps during deserialization
+    if (this.state != NONE) { //Do not update timestamps during deserialization
       if (state == RUNNING)
         withStartedAt(System.currentTimeMillis()).withUpdatedAt(getStartedAt());
       else
