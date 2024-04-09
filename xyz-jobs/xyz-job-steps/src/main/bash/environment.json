@@ -6,6 +6,7 @@
     "LOCALSTACK_ENDPOINT": "http://localstack:4566",
     "LOCAL_DB_HOST_OVERRIDE": "postgres",
     "JOB_API_ENDPOINT": "http://host.docker.internal:7070",
+    "CALLER_ROLE_ARN": "arn:aws:iam::000000000000:role/lambda-role",
     "_JAVA_OPTIONS": "-Xshare:off -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:5050"
   }
 }

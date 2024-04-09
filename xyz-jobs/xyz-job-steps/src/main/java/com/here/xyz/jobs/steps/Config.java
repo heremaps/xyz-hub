@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps;
 
+import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.BaseConfig;
 import java.net.URI;
 import java.net.URL;
@@ -67,4 +68,10 @@ public class Config extends BaseConfig {
    * The load balancer endpoint of the job API, to be used by other components to call the job API (admin-)endpoints.
    */
   public URL JOB_API_ENDPOINT;
+
+  /**
+   * The role which allows calling this lambda function.
+   * This is needed to pass it to the state check CloudWatch event rule, which needs to call the lambda function back.
+   */
+  public ARN CALLER_ROLE_ARN;
 }

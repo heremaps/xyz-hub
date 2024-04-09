@@ -117,6 +117,7 @@ public class JobPlayground {
     Config.instance.AWS_REGION = "us-east-1";
     Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
     Config.instance.STEP_LAMBDA_ARN = new ARN("arn:aws:lambda:us-east-1:000000000000:function:job-step");
+    Config.instance.CALLER_ROLE_ARN = new ARN("arn:aws:iam::000000000000:role/lambda-role");
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
     try {
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
