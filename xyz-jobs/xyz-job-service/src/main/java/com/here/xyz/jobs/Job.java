@@ -115,7 +115,7 @@ public class Job implements XyzSerializable {
   public Job() {}
 
   /**
-   * Hast to be called at the initial creation of a new job to initialize its ID, status and timestamps.
+   * Has to be called at the initial creation of a new job to initialize its ID, status and timestamps.
    *
    * @return This job instance for chaining
    */
