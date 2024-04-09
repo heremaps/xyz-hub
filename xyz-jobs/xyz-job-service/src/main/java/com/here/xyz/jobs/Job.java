@@ -251,6 +251,12 @@ public class Job implements XyzSerializable {
     if (step.getStatus().getState() == SUCCEEDED)
       getStatus().setSucceededSteps((int) getSteps().stepStream().filter(s -> s.getStatus().getState() == SUCCEEDED).count());
 
+    //TODO: Remove the following workaround once the state-transition-event-rule is working
+    if (step.getStatus().getState() == FAILED)
+      getStatus().setState(FAILED);
+    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount())
+      getStatus().setState(SUCCEEDED);
+
     return store();
   }
 

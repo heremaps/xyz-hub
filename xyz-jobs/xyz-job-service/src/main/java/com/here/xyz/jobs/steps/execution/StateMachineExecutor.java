@@ -93,17 +93,22 @@ class StateMachineExecutor extends JobExecutor {
   private Future<String> executeStateMachine(String jobId, String stateMachineDefinition) {
     //TODO: Asyncify!
 
-    CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
-            .name(STATE_MACHINE_NAME_PREFIX + jobId)
-            .definition(stateMachineDefinition)
-            .roleArn(Config.instance.STATE_MACHINE_ROLE)
-        .build());
+    try {
+      CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
+              .name(STATE_MACHINE_NAME_PREFIX + jobId)
+              .definition(stateMachineDefinition)
+              .roleArn(Config.instance.STATE_MACHINE_ROLE)
+          .build());
 
-    StartExecutionResponse startExecutionResponse = sfnClient().startExecution(StartExecutionRequest.builder()
-            .stateMachineArn(creationResponse.stateMachineArn())
-            .name(jobId)
-        .build());
+      StartExecutionResponse startExecutionResponse = sfnClient().startExecution(StartExecutionRequest.builder()
+              .stateMachineArn(creationResponse.stateMachineArn())
+              .name(jobId)
+          .build());
 
-    return Future.succeededFuture(startExecutionResponse.executionArn());
+      return Future.succeededFuture(startExecutionResponse.executionArn());
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 }
