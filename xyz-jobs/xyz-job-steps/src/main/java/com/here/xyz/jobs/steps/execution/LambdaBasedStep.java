@@ -58,6 +58,7 @@ import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleR
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
@@ -87,20 +88,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
      see: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL-Lambda.html
    */
 
-  /*
-  TODO: The Lambda execution role (not invokers role) must have the following permissions:
-
-  - Create CW rule
-  - Add CW rule targets
-  - Remove CW rule targets
-  - Delete CW rule
-
-  - Send step success to SFN
-  - Send step failure to SFN
-  - Send step heartbeat to SFN
-
-  - Assume other roles?
-   */
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
@@ -171,18 +158,24 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (isSimulation)
       return;
 
-    //List all targets
-    List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(getStateCheckRuleName()).build())
-        .targets()
-        .stream()
-        .map(target -> target.id())
-        .collect(Collectors.toList());
+    try {
+      //List all targets
+      List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(
+              ListTargetsByRuleRequest.builder().rule(getStateCheckRuleName()).build())
+          .targets()
+          .stream()
+          .map(target -> target.id())
+          .collect(Collectors.toList());
 
-    //Remove all targets from the rule
-    cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(getStateCheckRuleName()).ids(targetIds).build());
+      //Remove all targets from the rule
+      cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(getStateCheckRuleName()).ids(targetIds).build());
 
-    //Remove the rule
-    cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
+      //Remove the rule
+      cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
+    }
+    catch (ResourceNotFoundException e) {
+      //Ignore the exception, as the rule is not existing (yet)
+    }
   }
 
   private void checkAsyncExecutionState() {
