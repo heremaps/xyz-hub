@@ -278,8 +278,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     if (e != null)
       request
-          .error(e.getMessage().substring(0, 255))
-          .cause(e.getCause() != null ? e.getCause().getMessage().substring(0, 255) : null);
+          .error(truncate(e.getMessage(), 256))
+          .cause(e.getCause() != null ? truncate(e.getCause().getMessage(), 256) : null);
 
     try {
       sfnClient().sendTaskFailure(request.build());
@@ -288,6 +288,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}. Original exception was:",
           getJobId(), getId(), ex);
     }
+  }
+
+  private String truncate(String string, int length) {
+    return string.length() < length ? string : string.substring(0, length);
   }
 
   private void synchronizeStepState() {
