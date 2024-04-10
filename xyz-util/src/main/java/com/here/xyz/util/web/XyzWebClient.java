@@ -51,7 +51,7 @@ public abstract class XyzWebClient {
       return response;
     }
     catch (IOException e) {
-      throw new WebClientException("Error sending the request to hub or receiving the response", e);
+      throw new WebClientException("Error sending the request or receiving the response", e);
     }
     catch (InterruptedException e) {
       throw new WebClientException("Request was interrupted.", e);
