@@ -97,6 +97,7 @@ public class JobPlayground {
   private static boolean executeWholeJob = true;
   private static ImportFilesToSpace.Format format = ImportFilesToSpace.Format.GEOJSON;
   private static int uploadFileCount = 2;
+  private static String jobServiceBaseUrl = "http://localhost:7070";
 
   static {
     VertxOptions vertxOptions = new VertxOptions()
@@ -137,7 +138,7 @@ public class JobPlayground {
     }
   }
 
-  static {
+  private static void init() {
     try {
       sampleSpace = createSampleSpace("TEST");
     }
@@ -145,18 +146,28 @@ public class JobPlayground {
       throw new RuntimeException(e);
     }
     JobConfigClient.getInstance().init();
+
+    mockJob = new Job().create()
+        .withDescription("Sample import job")
+        .withOwner("me")
+        .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
+        .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
   }
 
-  private static Job mockJob = new Job().create()
-      .withDescription("Sample import job")
-      .withOwner("me")
-      .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
-      .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
+  private static Job mockJob;
 
   public static void main(String[] args) throws IOException, InterruptedException {
+    String realJobSpaceId = "TEST";
 
-    startRealJob();
+    if (args.length > 0) {
+      realJobSpaceId = args[0];
+      if (args.length > 1)
+        jobServiceBaseUrl = args[1];
+    }
 
+    startRealJob(realJobSpaceId);
+
+    //init();
     //if (executeWholeJob)
     //  startMockJob();
     //else
@@ -254,9 +265,7 @@ public class JobPlayground {
         .onFailure(t -> logger.error("Error submitting job:", t));
   }
 
-  private static void startRealJob() throws IOException, InterruptedException {
-    String spaceId = "TEST";
-
+  private static void startRealJob(String spaceId) throws IOException, InterruptedException {
     Job job = new Job().create()
         .withDescription("Sample import job")
         .withOwner("me")
@@ -293,13 +302,11 @@ public class JobPlayground {
   }
 
   private static HttpResponse<byte[]> request(String method, String path, Object requestPayload) throws IOException, InterruptedException {
-    String baseUrl = "http://localhost:7070";
-
     BodyPublisher bodyPublisher = requestPayload == null ? BodyPublishers.noBody()
             : BodyPublishers.ofByteArray(XyzSerializable.serialize(requestPayload).getBytes());
 
     HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create(baseUrl + path))
+        .uri(URI.create(jobServiceBaseUrl + path))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method(method, bodyPublisher)
         .build();
