@@ -167,7 +167,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   protected final SQLQuery buildSuccessCallbackQuery() {
     SQLQuery lambdaSuccessInvoke = isSimulation
         ? new SQLQuery("PERFORM 'Success callback will be simulated';")
-        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::JSON, '${{lambdaRegion}}', 'Event');")
+        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{successRequestBody}}'::JSON, 'Event');")
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString()) //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
@@ -187,7 +187,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   protected final SQLQuery buildFailureCallbackQuery() {
     SQLQuery lambdaFailureInvoke = isSimulation
         ? new SQLQuery("PERFORM 'Failure callback will be simulated';")
-        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, '${{lambdaRegion}}', 'Event');")
+        : new SQLQuery("PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'), '${{failureRequestBody}}'::json, 'Event');")
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())  //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
