@@ -20,6 +20,7 @@
 package com.here.xyz.util.web;
 
 import static java.net.http.HttpClient.Redirect.NORMAL;
+import static java.time.temporal.ChronoUnit.SECONDS;
 
 import java.io.IOException;
 import java.net.URI;
@@ -27,6 +28,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
 
 public abstract class XyzWebClient {
   protected final String baseUrl;
@@ -38,7 +40,7 @@ public abstract class XyzWebClient {
   }
 
   private HttpClient client() {
-    return HttpClient.newBuilder().followRedirects(NORMAL).build();
+    return HttpClient.newBuilder().followRedirects(NORMAL).connectTimeout(Duration.of(10, SECONDS)).build();
   }
 
   protected HttpResponse<byte[]> request(HttpRequest request) throws WebClientException {
