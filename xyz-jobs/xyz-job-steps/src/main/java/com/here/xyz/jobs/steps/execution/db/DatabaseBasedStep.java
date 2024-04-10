@@ -115,10 +115,13 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
       boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
     if (async) {
-      query = (withCallbacks ? wrapQuery(query) : query).withAsync(true);
+      query = (withCallbacks ? wrapQuery(query) : query)
+          .withAsync(true)
+          .withTimeout(10);
       runningQueries.add(new RunningQuery(query.getQueryId(), db.getName(), db.getId()));
     }
-    //TODO: Apply feasible default timeout for all sync queries (default may differ for different execution modes of the lambda)!
+    else if (query.getTimeout() == Integer.MAX_VALUE)
+      query.setTimeout(300);
 
     if (query.isBatch() && isWriteQuery)
       return query.writeBatch(requestResource(db, estimatedMaxAcuLoad));
