@@ -353,6 +353,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       //Read the incoming request
       LambdaStepRequest request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
+      if (request.getStep() == null)
+        throw new NullPointerException("Malformed step request, missing step definition.");
+
       //Set the own lambda ARN accordingly
       if (context instanceof SimulatedContext) {
         request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.AWS_REGION + ":000000000000:function:job-step");
@@ -365,18 +368,33 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
       //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method
       //IF the incoming event is a cancellation event (check if SF is sending one) call the cancel method!
-      switch (request.getType()) {
-        case START_EXECUTION -> {
-          try {
+      try {
+        switch (request.getType()) {
+          case START_EXECUTION -> {
+            logger.info("Starting the execution of step {} ...", request.getStep().getGlobalStepId());
             request.getStep().startExecution();
+            logger.info("Execution of step {} has been started successfully ...", request.getStep().getGlobalStepId());
           }
-          catch (Exception e) {
-            request.getStep().reportAsyncFailure(e, false); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
+          case STATE_CHECK -> {
+            logger.info("Checking async execution state of step {} ...", request.getStep().getGlobalStepId());
+            request.getStep().checkAsyncExecutionState();
+            logger.info("Async execution state of step {} has been checked & reported successfully.", request.getStep().getGlobalStepId());
+          }
+          case SUCCESS_CALLBACK -> {
+            logger.info("Reporting async success for step {} ...", request.getStep().getGlobalStepId());
+            request.getStep().reportAsyncSuccess();
+            logger.info("Reported async success for step {} successfully.", request.getStep().getGlobalStepId());
+          }
+          case FAILURE_CALLBACK -> {
+            logger.info("Reporting async failure for step {} ...", request.getStep().getGlobalStepId());
+            request.getStep().reportAsyncFailure(null, false); //TODO: Read error information from request payload (once specified)
+            logger.info("Reported async failure for step {} failure successfully.", request.getStep().getGlobalStepId());
           }
         }
-        case STATE_CHECK -> request.getStep().checkAsyncExecutionState();
-        case SUCCESS_CALLBACK -> request.getStep().reportAsyncSuccess();
-        case FAILURE_CALLBACK -> request.getStep().reportAsyncFailure(null, false); //TODO: Read error information from request payload (once specified)
+      }
+      catch (Exception e) {
+        request.getStep().reportAsyncFailure(e, false); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
+        throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
       }
 
       //The lambda call is complete, call the shutdown hook
