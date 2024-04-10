@@ -276,10 +276,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
         .taskToken(taskToken);
 
-    if (e!= null)
+    if (e != null)
       request
-          .error(e != null ? e.getMessage() : null)
-          .cause(e.getCause() != null ? e.getCause().getMessage() : null);
+          .error(e.getMessage().substring(0, 255))
+          .cause(e.getCause() != null ? e.getCause().getMessage().substring(0, 255) : null);
 
     try {
       sfnClient().sendTaskFailure(request.build());
