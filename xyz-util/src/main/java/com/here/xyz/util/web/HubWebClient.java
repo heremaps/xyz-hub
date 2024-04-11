@@ -60,8 +60,7 @@ public class HubWebClient extends XyzWebClient {
   public Space loadSpace(String spaceId) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/spaces/" + spaceId))
-          .build()).body(), Space.class);
+          .uri(uri("/spaces/" + spaceId))).body(), Space.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
@@ -81,8 +80,7 @@ public class HubWebClient extends XyzWebClient {
       return deserialize(request(HttpRequest.newBuilder()
               .uri(uri("/spaces"))
               .header(CONTENT_TYPE, JSON_UTF_8.toString())
-              .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceConfig).getBytes()))
-              .build()).body(), Space.class);
+              .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceConfig).getBytes()))).body(), Space.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
@@ -93,22 +91,19 @@ public class HubWebClient extends XyzWebClient {
     request(HttpRequest.newBuilder()
         .uri(uri("/spaces/" + spaceId))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
-        .method("PATCH", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceUpdates).getBytes()))
-        .build());
+        .method("PATCH", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceUpdates).getBytes())));
   }
 
   public void deleteSpace(String spaceId) throws WebClientException {
     request(HttpRequest.newBuilder()
             .DELETE()
-            .uri(uri("/spaces/" + spaceId))
-            .build());
+            .uri(uri("/spaces/" + spaceId)));
   }
 
   public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/spaces/" + spaceId + "/statistics" + (context == null ? "" : "?context=" + context)))
-          .build()).body(), StatisticsResponse.class);
+          .uri(uri("/spaces/" + spaceId + "/statistics" + (context == null ? "" : "?context=" + context)))).body(), StatisticsResponse.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
@@ -125,8 +120,7 @@ public class HubWebClient extends XyzWebClient {
       return cachedConnector;
     try {
       Connector connector = deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/connectors/" + connectorId))
-          .build()).body(), Connector.class);
+          .uri(uri("/connectors/" + connectorId))).body(), Connector.class);
       connectorCache.put(connectorId, connector);
       return connector;
     }
@@ -139,8 +133,7 @@ public class HubWebClient extends XyzWebClient {
     //TODO: Add caching also here
     try {
       return deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/connectors"))
-          .build()).body(), new TypeReference<>() {});
+          .uri(uri("/connectors"))).body(), new TypeReference<>() {});
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
@@ -152,8 +145,7 @@ public class HubWebClient extends XyzWebClient {
       return deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/spaces/" + spaceId + "/tags"))
           .header(CONTENT_TYPE, JSON_UTF_8.toString())
-          .method("POST", BodyPublishers.ofByteArray(tag.serialize().getBytes()))
-          .build()).body(), Tag.class);
+          .method("POST", BodyPublishers.ofByteArray(tag.serialize().getBytes()))).body(), Tag.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
@@ -164,16 +156,14 @@ public class HubWebClient extends XyzWebClient {
     request(HttpRequest.newBuilder()
         .DELETE()
         .uri(uri("/spaces/" + spaceId + "/tags/" + tagId ))
-        .header(CONTENT_TYPE, JSON_UTF_8.toString())
-        .build());
+        .header(CONTENT_TYPE, JSON_UTF_8.toString()));
   }
 
   public Tag loadTag(String spaceId, String tagId) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
           .GET()
-          .uri(uri("/spaces/" + spaceId + "/tags/" + tagId))
-          .build()).body(), Tag.class);
+          .uri(uri("/spaces/" + spaceId + "/tags/" + tagId))).body(), Tag.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);

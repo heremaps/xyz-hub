@@ -44,8 +44,9 @@ public abstract class XyzWebClient {
     return HttpClient.newBuilder().version(Version.HTTP_1_1).followRedirects(NORMAL).connectTimeout(Duration.of(10, SECONDS)).build();
   }
 
-  protected HttpResponse<byte[]> request(HttpRequest request) throws WebClientException {
+  protected HttpResponse<byte[]> request(HttpRequest.Builder requestBuilder) throws WebClientException {
     try {
+      HttpRequest request = requestBuilder.version(Version.HTTP_1_1).build();
       HttpResponse<byte[]> response = client().send(request, BodyHandlers.ofByteArray());
       if (response.statusCode() >= 400)
         throw new ErrorResponseException("Received error response with status code: " + response.statusCode(), response);

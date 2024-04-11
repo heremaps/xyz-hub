@@ -26,7 +26,6 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.web.XyzWebClient;
-import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 
@@ -40,9 +39,7 @@ public class JobWebClient extends XyzWebClient {
     request(HttpRequest.newBuilder()
         .uri(uri("/admin/jobs/" + step.getJobId() + "/steps"))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
-        .version(Version.HTTP_1_1)
-        .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(step).getBytes()))
-        .build());
+        .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(step).getBytes())));
   }
 
   public static JobWebClient getInstance() {
