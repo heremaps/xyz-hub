@@ -23,6 +23,7 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepReques
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
@@ -274,5 +275,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return dsp;
   }
 
-  private record RunningQuery(String queryId, String dbName, String dbId) implements XyzSerializable {}
+  private record RunningQuery(@JsonProperty("queryId") String queryId, @JsonProperty("dbName") String dbName,
+                              @JsonProperty("dbId") String dbId) implements XyzSerializable {}
 }
