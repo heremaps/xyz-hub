@@ -294,8 +294,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
-  private String truncate(String string, int length) {
-    return string.length() < length ? string : string.substring(0, length);
+  private String truncate(String string, int maxLength) {
+    return string.length() < maxLength ? string : string.substring(0, maxLength - 4) + " ...";
   }
 
   private void synchronizeStepState() {

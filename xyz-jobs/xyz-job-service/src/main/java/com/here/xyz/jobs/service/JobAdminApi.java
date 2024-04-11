@@ -149,7 +149,7 @@ public class JobAdminApi extends Api {
       return XyzSerializable.deserialize(context.body().asString(), Step.class);
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request");
+      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
     }
   }
 
