@@ -142,7 +142,7 @@ public class Api {
 
                 //This is an exception sent by intention and nothing special, no need for stacktrace logging.
                 logger.warn(Api.getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
-                //logger.debug(Api.getMarker(context), "Handled exception was:", httpException);
+                logger.info(Api.getMarker(context), "Handled exception was:", httpException);
                 sendErrorResponse(context, httpException, error);
                 return;
             }
