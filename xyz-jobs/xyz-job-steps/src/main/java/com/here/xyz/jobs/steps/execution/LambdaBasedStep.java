@@ -26,6 +26,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
 import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.ENABLED;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -44,10 +45,13 @@ import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -299,8 +303,16 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
       JobWebClient.getInstance().postStepUpdate(this);
     }
+    catch (ErrorResponseException httpError) {
+      HttpResponse<byte[]> errorResponse = httpError.getErrorResponse();
+      final HttpRequest failedRequest = errorResponse.request();
+      logger.error("Error updating the step state of step {} - Performing {} {}. Upstream-ID: {}, Response:\n{}",
+          getGlobalStepId(),
+          failedRequest.method(), failedRequest.uri(), errorResponse.headers().firstValue(STREAM_ID).orElse(null),
+          new String(errorResponse.body()));
+    }
     catch (WebClientException httpError) {
-      logger.error("Error updating the step state of step {}.{} at the job service", getJobId(), getId(), httpError);
+      logger.error("Error updating the step state of step {} at the job service", getGlobalStepId(), httpError);
     }
   }
 
