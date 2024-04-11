@@ -44,7 +44,7 @@ public class JobCompiler {
           //TODO: Create *some* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
           .addExecution(new CompilationStepGraph(job.getId()) // Create all the base indices in parallel
               .withExecutions(Stream.of(XyzSpaceTableHelper.Index.values())
-                  .map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList())).withParallel(false))
+                  .map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList())).withParallel(true))
           .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
           .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
 

@@ -181,7 +181,8 @@ public class GraphTransformer {
   }
 
   private NamedState<TaskState.Builder> compile(Step<?> step, State.Builder previousState) {
-    NamedState<TaskState.Builder> state = new NamedState<>(step.getId(), TaskState.builder());
+    NamedState<TaskState.Builder> state = new NamedState<>(step.getClass().getSimpleName() + "." + step.getId(),
+        TaskState.builder());
     if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
     else
