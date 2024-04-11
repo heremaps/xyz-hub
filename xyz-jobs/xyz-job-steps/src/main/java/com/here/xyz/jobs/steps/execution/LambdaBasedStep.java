@@ -299,6 +299,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void synchronizeStepState() {
+    logger.info("Synchronizing step state for {} with job service ...", getGlobalStepId());
     try {
       //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
       JobWebClient.getInstance().postStepUpdate(this);

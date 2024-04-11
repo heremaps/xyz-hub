@@ -25,6 +25,7 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -40,7 +41,7 @@ public abstract class XyzWebClient {
   }
 
   private HttpClient client() {
-    return HttpClient.newBuilder().followRedirects(NORMAL).connectTimeout(Duration.of(10, SECONDS)).build();
+    return HttpClient.newBuilder().version(Version.HTTP_1_1).followRedirects(NORMAL).connectTimeout(Duration.of(10, SECONDS)).build();
   }
 
   protected HttpResponse<byte[]> request(HttpRequest request) throws WebClientException {

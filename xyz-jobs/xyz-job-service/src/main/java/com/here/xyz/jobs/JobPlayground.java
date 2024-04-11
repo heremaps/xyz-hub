@@ -68,6 +68,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpClient;
+import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
@@ -310,6 +311,7 @@ public class JobPlayground {
         .uri(URI.create(jobServiceBaseUrl + path))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method(method, bodyPublisher)
+        .version(Version.HTTP_1_1)
         .build();
 
     HttpClient client = HttpClient.newBuilder().followRedirects(NORMAL).build();
