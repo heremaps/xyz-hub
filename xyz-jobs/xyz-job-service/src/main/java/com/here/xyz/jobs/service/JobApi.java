@@ -28,17 +28,20 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.util.List;
 import org.apache.commons.lang3.NotImplementedException;
 
 public class JobApi extends Api {
@@ -114,7 +117,7 @@ public class JobApi extends Api {
 
     loadJob(jobId)
         .compose(job -> job.loadOutputs())
-        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res))
+        .onSuccess(res -> sendResponseWithXyzSerialization(context, OK, res, new TypeReference<List<Output>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 

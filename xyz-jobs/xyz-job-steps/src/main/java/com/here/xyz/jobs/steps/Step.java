@@ -36,6 +36,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.ModelBasedOutput;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
@@ -65,6 +66,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Public.class, Static.class})
   boolean failedRetryable;
   private RuntimeInfo status = new RuntimeInfo();
+  private final String MODEL_BASED_PREFIX = "/modelBased";
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -112,8 +114,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return Input.inputS3Prefix(jobId);
   }
 
-  protected final String outputS3Prefix(boolean previousStep, boolean userOutput) {
-    return stepS3Prefix(previousStep) + "/outputs" + (userOutput ? "/user" : "/system");
+  protected final String outputS3Prefix(boolean previousStep, boolean userOutput, boolean onlyModelBased) {
+    return stepS3Prefix(previousStep) + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
   }
 
   /**
@@ -129,7 +131,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   protected void registerOutputs(List<Output> outputs, boolean userOutput) throws IOException {
     for (int i = 0; i < outputs.size(); i++)
-      outputs.get(i).store(outputS3Prefix(false, userOutput) + "output" + i + ".json"); //TODO: Use proper file name
+      outputs.get(i).store(outputS3Prefix(false, userOutput, outputs.get(i) instanceof ModelBasedOutput)
+          + "/output" + i + ".json"); //TODO: Use proper file name
   }
 
   protected List<Output> loadPreviousOutputs(boolean userOutput) {
@@ -141,9 +144,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   private List<Output> loadOutputs(boolean previousStep, boolean userOutput) {
-    return S3Client.getInstance().scanFolder(outputS3Prefix(previousStep, userOutput))
+    return S3Client.getInstance().scanFolder(outputS3Prefix(previousStep, userOutput, false))
         .stream()
-        .map(s3ObjectSummary -> new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize()))
+        .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
+            ? ModelBasedOutput.load(s3ObjectSummary.getKey())
+            : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize()))
         .collect(Collectors.toList());
   }
 

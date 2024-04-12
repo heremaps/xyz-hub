@@ -24,14 +24,13 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DownloadUrl.class, name = "DownloadUrl"),
-    @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics")
+    @JsonSubTypes.Type(value = ModelBasedOutput.class, name = "ModelBasedOutput")
 })
 public abstract class Output<T extends Output> implements Typed {
   @JsonAnySetter

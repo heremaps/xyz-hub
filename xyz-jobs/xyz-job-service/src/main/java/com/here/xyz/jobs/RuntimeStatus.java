@@ -61,6 +61,7 @@ public class RuntimeStatus extends RuntimeInfo<RuntimeStatus> {
   }
 
   public void setSucceededSteps(int succeededSteps) {
+    touch();
     this.succeededSteps = succeededSteps;
   }
 

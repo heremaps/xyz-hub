@@ -165,6 +165,8 @@ public class JobPlayground {
       if (args.length > 1)
         jobServiceBaseUrl = args[1];
     }
+    else
+      init();
 
     startRealJob(realJobSpaceId);
 

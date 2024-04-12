@@ -19,14 +19,29 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.util.S3Client;
-
 import java.io.IOException;
 
+@JsonTypeInfo(use = Id.NAME, property = "type")
+@JsonSubTypes({
+    @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics")
+})
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
   @Override
   public void store(String s3Key) throws IOException {
       S3Client.getInstance().putObject(s3Key, "application/json", serialize());
-      //TODO: Update the object metadata in a separate metadata file (e.g. register all ModelBasedOutput s3Keys in there, e.g. append?)
+  }
+
+  public static ModelBasedOutput load(String s3Key) {
+    try {
+      return XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(s3Key), ModelBasedOutput.class);
+    }
+    catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 }
