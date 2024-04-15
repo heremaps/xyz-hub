@@ -1,0 +1,19 @@
+{
+    "id": "000YofljPAC0bLYg",
+    "type": "Feature",
+    "geometry": {
+        "type": "LineString",
+        "coordinates": [
+            [
+                7.51154,
+                46.90068,
+                562.36
+            ],
+            [
+                7.51139,
+                46.90042,
+                562.76
+            ]
+        ]
+    }
+}

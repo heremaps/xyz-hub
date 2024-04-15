@@ -68,6 +68,19 @@ public class PropertySelectionUtilTest {
                         )
                 ),
                 selectionTestSpec(
+                        "Select only part of geometry",
+                        "selection=p.status"
+                                + "&selection=g.type" // select part of geometry
+                        ,
+                        Set.of(
+                                "id",
+                                "type",
+                                //"geometry", // full geometry object should be skipped in this case
+                                "properties.status",
+                                "geometry.type"
+                        )
+                ),
+                selectionTestSpec(
                         "No selection param",
                         "tags=tag_1,tag_2"
                         ,

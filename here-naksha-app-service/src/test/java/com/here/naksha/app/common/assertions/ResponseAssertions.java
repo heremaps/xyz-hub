@@ -96,6 +96,13 @@ public class ResponseAssertions {
     return this;
   }
 
+  public ResponseAssertions hasResBodySizeGTE(long minExpBodySize) {
+    final long actualSize = subject.body().length();
+    assertTrue(actualSize >= minExpBodySize,
+            "Response body size not big enough. Expected %s bytes, actual %s bytes".formatted(minExpBodySize, actualSize));
+    return this;
+  }
+
   public ResponseAssertions hasInsertedCountMatchingWithFeaturesInRequest(final @NotNull String reqBody) throws JSONException {
     final FeatureCollectionRequest collectionRequest = parseJson(reqBody, FeatureCollectionRequest.class);
     return hasMatchingInsertedCount(collectionRequest.getFeatures().size());

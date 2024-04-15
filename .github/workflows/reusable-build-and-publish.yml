@@ -19,6 +19,8 @@ env:
   CODEDEPLOY_DIR: ${{ github.workspace }}/deployment/codedeploy
   GITHUB_CODEDEPLOY_ARTIFACT_NAME: codedeploy-artifact
   NAKSHA_LOCAL_TEST_CONTEXT: LOCAL_STANDALONE
+  # TODO - Disabling tests that are too big to succeed for Github free pipeline capacity
+  DISABLE_BIG_PAYLOAD_TESTS: true
 
 jobs:
   main:

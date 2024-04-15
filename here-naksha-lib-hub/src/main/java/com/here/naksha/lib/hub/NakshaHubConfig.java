@@ -55,6 +55,16 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
   private static final String NAKSHA_ENV = "ENV";
 
   /**
+   * The default Http request body limit in MB.
+   */
+  public static final Integer DEF_REQ_BODY_LIMIT = 25;
+
+  /**
+   * The maximum Http request body limit in MB.
+   */
+  public static final Integer MAX_REQ_BODY_LIMIT = Math.max(25, DEF_REQ_BODY_LIMIT);
+
+  /**
    * Returns a default application name used at many placed.
    *
    * @return The default application name.
@@ -91,7 +101,8 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       @JsonProperty("maintenancePoolCoreSize") @Nullable Integer maintenancePoolCoreSize,
       @JsonProperty("maintenancePoolMaxSize") @Nullable Integer maintenancePoolMaxSize,
       @JsonProperty("storageParams") @Nullable Map<String, Object> storageParams,
-      @JsonProperty("extensionConfigParams") @Nullable ExtensionConfigParams extensionConfigParams) {
+      @JsonProperty("extensionConfigParams") @Nullable ExtensionConfigParams extensionConfigParams,
+      @JsonProperty("requestBodyLimit") @Nullable Integer requestBodyLimit) {
     super(id);
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {
       logger.atError()
@@ -169,6 +180,17 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
         maintenancePoolMaxSize != null ? maintenancePoolMaxSize : defaultMaintenancePoolMaxSize();
     this.storageParams = storageParams;
     this.extensionConfigParams = extensionConfigParams;
+    if (requestBodyLimit == null) {
+      this.requestBodyLimit = DEF_REQ_BODY_LIMIT;
+    } else if (requestBodyLimit > MAX_REQ_BODY_LIMIT) {
+      logger.warn(
+          "Configured request body limit {} MB not supported. Falling back to default limit of {} MB",
+          requestBodyLimit,
+          DEF_REQ_BODY_LIMIT);
+      this.requestBodyLimit = DEF_REQ_BODY_LIMIT;
+    } else {
+      this.requestBodyLimit = requestBodyLimit;
+    }
   }
 
   private String getEnv() {
@@ -333,4 +355,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
    * Optional extension-manager parameters
    */
   public final ExtensionConfigParams extensionConfigParams;
+
+  /**
+   * Optional Http request body limit in MB. Default is {@link #DEF_REQ_BODY_LIMIT}.
+   */
+  public final Integer requestBodyLimit;
 }

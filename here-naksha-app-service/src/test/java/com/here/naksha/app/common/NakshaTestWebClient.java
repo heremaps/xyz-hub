@@ -65,30 +65,40 @@ public class NakshaTestWebClient {
     this(chooseSocketTimeout());
   }
 
+  public HttpResponse<String> get(String subPath, String streamId, Duration timeout)
+          throws URISyntaxException, IOException, InterruptedException {
+    HttpRequest getRequest = requestBuilder(timeout)
+            .uri(nakshaPath(subPath))
+            .GET()
+            .header(HDR_STREAM_ID, streamId)
+            .build();
+    return sendOnce(getRequest);
+  }
+
   public HttpResponse<String> get(String subPath, String streamId)
       throws URISyntaxException, IOException, InterruptedException {
-    HttpRequest getRequest = requestBuilder()
-        .uri(nakshaPath(subPath))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    return sendOnce(getRequest);
+    return this.get(subPath, streamId, SOCKET_TIMEOUT);
+  }
+
+  public HttpResponse<String> post(String subPath, String jsonBody, String streamId, Duration timeout)
+          throws URISyntaxException, IOException, InterruptedException {
+    HttpRequest postRequest = requestBuilder(timeout)
+            .uri(nakshaPath(subPath))
+            .POST(BodyPublishers.ofString(jsonBody))
+            .header("Content-Type", "application/json")
+            .header(HDR_STREAM_ID, streamId)
+            .build();
+    return sendOnce(postRequest);
   }
 
   public HttpResponse<String> post(String subPath, String jsonBody, String streamId)
       throws URISyntaxException, IOException, InterruptedException {
-    HttpRequest postRequest = requestBuilder()
-        .uri(nakshaPath(subPath))
-        .POST(BodyPublishers.ofString(jsonBody))
-        .header("Content-Type", "application/json")
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    return sendOnce(postRequest);
+    return this.post(subPath, jsonBody, streamId, SOCKET_TIMEOUT);
   }
 
   public HttpResponse<String> put(String subPath, String jsonBody, String streamId)
       throws URISyntaxException, IOException, InterruptedException {
-    HttpRequest putRequest = requestBuilder()
+    HttpRequest putRequest = requestBuilder(SOCKET_TIMEOUT)
         .uri(nakshaPath(subPath))
         .PUT(BodyPublishers.ofString(jsonBody))
         .header("Content-Type", "application/json")
@@ -99,7 +109,7 @@ public class NakshaTestWebClient {
 
   public HttpResponse<String> patch(String subPath, String jsonBody, String streamId)
           throws URISyntaxException, IOException, InterruptedException {
-    HttpRequest patchRequest = requestBuilder()
+    HttpRequest patchRequest = requestBuilder(SOCKET_TIMEOUT)
             .uri(nakshaPath(subPath))
             .method("PATCH",BodyPublishers.ofString(jsonBody))
             .header("Content-Type", "application/json")
@@ -110,7 +120,7 @@ public class NakshaTestWebClient {
 
   public HttpResponse<String> delete(String subPath, String streamId)
       throws URISyntaxException, IOException, InterruptedException {
-    HttpRequest deleteRequest = requestBuilder()
+    HttpRequest deleteRequest = requestBuilder(SOCKET_TIMEOUT)
         .uri(nakshaPath(subPath))
         .DELETE()
         .header("Content-Type", "application/json")
@@ -124,8 +134,8 @@ public class NakshaTestWebClient {
     return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
-  private HttpRequest.Builder requestBuilder() {
-    return HttpRequest.newBuilder().version(Version.HTTP_1_1).timeout(SOCKET_TIMEOUT);
+  private HttpRequest.Builder requestBuilder(Duration soTimeout) {
+    return HttpRequest.newBuilder().version(Version.HTTP_1_1).timeout(soTimeout);
   }
 
   private URI nakshaPath(String subPath) throws URISyntaxException {

@@ -44,6 +44,8 @@ public class PropertySelectionUtil {
   private static final String XYZ_PROP_ID = "f.id";
   private static final String PROP_ID = "id";
   private static final String PROP_FEATURE_TYPE = "type";
+  private static final String SHORT_GEOM_PREFIX = "g.";
+  private static final String FULL_GEOM_PREFIX = XyzFeature.GEOMETRY + ".";
 
   private PropertySelectionUtil() {}
 
@@ -66,6 +68,9 @@ public class PropertySelectionUtil {
    *    id
    *    type
    *    geometry
+   *
+   * Note - Entire 'geometry' object is added by default, UNLESS it is partially requested.
+   *
    * </pre>
    *
    * @param queryParams API query parameter from where property selection params need to be extracted
@@ -108,7 +113,12 @@ public class PropertySelectionUtil {
           gPropPathSet.add(PROP_FEATURE_TYPE);
           gPropPathSet.add(XyzFeature.GEOMETRY);
         }
-        gPropPathSet.add(expandPropSelectionPath(path));
+        final String expandedPath = expandPropSelectionPath(path);
+        // remove entire "geometry" object, if it is already (partially) requested
+        if (expandedPath.startsWith(FULL_GEOM_PREFIX)) {
+          gPropPathSet.remove(XyzFeature.GEOMETRY);
+        }
+        gPropPathSet.add(expandedPath);
       }
       propParams = propParams.next();
     }
@@ -124,6 +134,8 @@ public class PropertySelectionUtil {
       str.append(PROP_ID);
     } else if (propPath.startsWith(SHORT_XYZ_PROP_PREFIX)) {
       str.append(FULL_XYZ_PROP_PREFIX).append(propPath.substring(SHORT_XYZ_PROP_PREFIX.length()));
+    } else if (propPath.startsWith(SHORT_GEOM_PREFIX)) {
+      str.append(FULL_GEOM_PREFIX).append(propPath.substring(SHORT_GEOM_PREFIX.length()));
     } else {
       str.append(propPath);
     }

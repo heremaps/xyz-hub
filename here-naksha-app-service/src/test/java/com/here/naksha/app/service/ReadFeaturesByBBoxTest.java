@@ -818,7 +818,7 @@ class ReadFeaturesByBBoxTest extends ApiTest {
             urlEncoded("{\"id\":\"urn:here::here:Topology:1\"}"),
             urlEncoded("{\"id\":\"urn:here::here:Topology:2\"}")
     );
-    final String selectQueryParam = "selection=p.unknown_prop";
+    final String selectQueryParam = "selection=p.unknown_prop,g.none";
     final String expectedBodyPart =
             loadFileOrFail("ReadFeatures/ByBBox/TC0732_BBox2_PropSelectionMismatch/feature_response_part.json");
     String streamId = UUID.randomUUID().toString();

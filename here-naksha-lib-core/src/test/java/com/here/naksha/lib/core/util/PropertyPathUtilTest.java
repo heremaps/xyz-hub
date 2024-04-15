@@ -72,6 +72,38 @@ class PropertyPathUtilTest {
                         )
                 ),
                 propPathTestSpec(
+                        "Select multiple parts of Geometry",
+                        COMMON_INPUT_FILE,
+                        "PartOfGeometry/WithTypeAndCoordinates.json",
+                        Set.of(
+                                "id",
+                                "type",
+                                "geometry.type",
+                                "geometry.coordinates.0",
+                                "geometry.coordinates.2"
+                        )
+                ),
+                propPathTestSpec(
+                        "Select only Geometry type",
+                        COMMON_INPUT_FILE,
+                        "PartOfGeometry/WithOnlyType.json",
+                        Set.of(
+                                "id",
+                                "type",
+                                "geometry.type"
+                        )
+                ),
+                propPathTestSpec(
+                        "Skip Geometry completely",
+                        COMMON_INPUT_FILE,
+                        "PartOfGeometry/EmptyGeometry.json",
+                        Set.of(
+                                "id",
+                                "type",
+                                "geometry.none"
+                        )
+                ),
+                propPathTestSpec(
                         "Empty map",
                         COMMON_INPUT_FILE,
                         "EmptyMap/Expected.json",

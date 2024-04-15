@@ -35,7 +35,7 @@ For each entry in the ARM at least one entry being greater or equal to the ARM e
 ```json
 {
     "urm": {
-        "xyz-hub": { // ---> ARM is defined at this level with set of Actions 
+        "naksha": { // ---> ARM is defined at this level with set of Actions 
             // zero or more Actions
             "<action>": [
                 // one or more Attribute-Map's (atleast one should match against ARM)
@@ -59,7 +59,7 @@ Sample URM:
 ```json
 {
     "urm": {
-        "xyz-hub": {
+        "naksha": {
             // zero or more Actions
             "readFeatures": [
                 // one or more Attribute-Map's (atleast one should match against each ARM AttributeMap)
@@ -243,14 +243,14 @@ The sample encoded JWT (can be viewed on [jwt.io](https://jwt.io)):
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IndlYi1jbGllbnQtYXBwLWlkIiwiYXV0aG9yIjoibXktdXNlci1pZCIsInVybSI6eyJ4eXotaHViIjp7InJlYWRGZWF0dXJlcyI6W3sic3RvcmFnZUlkIjoiZGV2LSoifV19fSwiaWF0IjoxNzA0MDYzNTk5LCJleHAiOjE3MDQwNjcxOTl9.g7maKIpDQ6d8MoC7lPQDa_6BLKV5HhpN9t1BkcdFmNSetc-dHIcor_mhvc4GNpJELEMCBiTiF8RdlY_PEOooJc4Ixx5yWFoeIEaKv-aunvf6TZsOlD8F5KX8CmL8QzEO7t8YrSVz-F3WYrw1rmnl_1WC2tscMUBvfFHRifq3h7F46ZMswO6fm8AGHW0bbSeDCwK2VcjkYOwGVYWmSPodtxT7ie8uxJlAFxaCGzxV1WkVnrqIZFdPcnq3hM_FjbSw01MxOD3qdiL47HRXQnvOzsKjhi5ihClihwiua4N9xOeq2I8nX5_2YJIRWjS8pAozRp7cfnhb15Sm8JevqEwz1A
 ```
 
-JWT payload is expected to have custom claims `appId`, `author` and `urm`, which is then populated into [NakshaContext](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/NakshaContext.java) whenever REST API request is picked up for processing.
+JWT payload is expected to have custom claims `appId`, `userId` and `urm`, which is then populated into [NakshaContext](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/NakshaContext.java) whenever REST API request is picked up for processing.
 
 ```json
 {
     "appId": "web-client-app-id",
-    "author": "my-user-id",
+    "userId": "my-user-id",
     "urm": {
-        "xyz-hub": {
+        "naksha": {
             "readFeatures": [
                 {
                     "storageId": "dev-*"

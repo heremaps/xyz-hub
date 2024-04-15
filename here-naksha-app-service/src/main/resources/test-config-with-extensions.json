@@ -4,6 +4,7 @@
 
   "httpPort": 8080,
   "env": "local",
+  "requestBodyLimit": 25,
   "jwtName": "jwt",
   "maintenanceInitialDelayInMins": 60,
   "maintenanceIntervalInMins": 720,

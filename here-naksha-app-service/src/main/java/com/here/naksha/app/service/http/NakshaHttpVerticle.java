@@ -79,11 +79,7 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.RequestBody;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.AuthenticationHandler;
-import io.vertx.ext.web.handler.CorsHandler;
-import io.vertx.ext.web.handler.FileSystemAccess;
-import io.vertx.ext.web.handler.HttpException;
-import io.vertx.ext.web.handler.StaticHandler;
+import io.vertx.ext.web.handler.*;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import io.vertx.ext.web.openapi.RouterBuilderOptions;
 import io.vertx.ext.web.validation.BadRequestException;
@@ -220,6 +216,15 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
         // If any error happened that was not handled otherwise.
         router.route().failureHandler(this::failureHandler);
+
+        // add handler to set max allowed request payload size
+        log.info("Setting Http request body limit to {} MB", hubConfig.requestBodyLimit);
+        router.route()
+            .order(-1) // we add this before any other handler
+            .handler(BodyHandler.create()
+                .setBodyLimit(hubConfig.requestBodyLimit * 1024 * 1024)
+                .setHandleFileUploads(false)
+                .setPreallocateBodyBuffer(true));
 
         // starts at the 2nd route, since the first one is automatically added from openapi's
         // RouterBuilder.createRouter
