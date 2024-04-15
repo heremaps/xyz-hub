@@ -21,6 +21,7 @@ package com.here.xyz.jobs;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.NONE;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.collect.ImmutableMap;
@@ -32,6 +33,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   private long updatedAt;
   private long startedAt;
   private State state = NONE;
+  private float estimatedProgress;
   private String errorMessage;
   private String errorCause;
   private String errorCode;
@@ -43,11 +45,9 @@ public class RuntimeInfo<T extends RuntimeInfo> {
     setUpdatedAt(System.currentTimeMillis());
   }
 
-  @JsonIgnore //TODO: Re-activate once implemented
-  public float getEstimatedProgress() {
-    return 0.5f; //TODO: Deduct from statistics, start time & e.g. estimated row count
-  }
-
+  /**
+   * @return The estimated timestamp of when the process will be completed in milliseconds.
+   */
   @JsonIgnore //TODO: Re-activate once implemented
   public long getEstimatedEndTime() {
     long executionTime = Core.currentTimeMillis() - getStartedAt();
@@ -59,7 +59,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   }
 
   /**
-   * Returns the time of the last status update of the job in milliseconds.
+   * @return The timestamp of the last status update in milliseconds.
    */
   public long getUpdatedAt() {
     return updatedAt;
@@ -98,12 +98,32 @@ public class RuntimeInfo<T extends RuntimeInfo> {
         withStartedAt(System.currentTimeMillis()).withUpdatedAt(getStartedAt());
       else
         touch();
+
+      if (state == SUCCEEDED)
+        setEstimatedProgress(1);
     }
     this.state = state;
   }
 
   public T withState(State state) {
     setState(state);
+    return (T) this;
+  }
+
+  /**
+   * @return The estimated progress. A value from 0.0 to 1.0 (inclusive).
+   */
+  @JsonIgnore //TODO: Re-activate once implemented
+  public float getEstimatedProgress() {
+    return estimatedProgress;
+  }
+
+  public void setEstimatedProgress(float estimatedProgress) {
+    this.estimatedProgress = estimatedProgress;
+  }
+
+  public T withEstimatedProgress(float estimatedProgress) {
+    setEstimatedProgress(estimatedProgress);
     return (T) this;
   }
 
