@@ -77,21 +77,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
-  //TODO: Allow the implementations to define their heartbeat interval & timeout?
-
-  /*
-  TODO: The Lambda invokers role (not execution role) must have the following permissions:
-
-   - Invoke the Lambda function
-
-   It must be assumable (trust-policy) by:
-
-   - The Step Function which should call the step
-   - The CW Event Rule which triggers the state checks / heartbeats
-   - Any foreign system's role that wants to invoke the lambda for callbacks (e.g. RDS instances, also add it to the instance accordingly!)
-     see: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL-Lambda.html
-   */
-
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
@@ -184,6 +169,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void checkAsyncExecutionState() {
     try {
+      onStateCheck();
       switch (getExecutionState()) {
         case RUNNING -> reportAsyncHeartbeat();
         case SUCCEEDED -> reportAsyncSuccess();
@@ -256,6 +242,24 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
+  /**
+   * Will be called for every STATE_CHECK request being performed for the step.
+   * Subclasses may override this method to implement tasks which should be performed on a regular basis during the STAT_CHECK.
+   * E.g., overriding implementations can update the estimatedProgress at the step's status object.
+   */
+  protected void onStateCheck() {
+    //Nothing to do by default (may be overridden in subclasses)
+  }
+
+  /**
+   * Will be called for every failure occurring for this step prior to reporting it to SFN or the Job Framework.
+   * This method may inspect the causing exception to decide whether the exception depicts an error which is or is not retryable.
+   *
+   * If all failed steps of a job are marked being retryable, the user can retry the execution of the job at a later time.
+   *
+   * @param e The causing exception
+   * @return Whether the specified exception depicts a retryable error or not.
+   */
   protected boolean onAsyncFailure(Exception e) {
     //Nothing to do by default (may be overridden in subclasses)
     return false;
