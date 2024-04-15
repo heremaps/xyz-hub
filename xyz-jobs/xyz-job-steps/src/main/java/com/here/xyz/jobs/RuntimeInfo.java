@@ -32,6 +32,9 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   private long updatedAt;
   private long startedAt;
   private State state = NONE;
+  private String errorMessage;
+  private String errorCause;
+  private String errorCode;
 
   /**
    * Updates the updatedAt timestamp of this object to the current time.
@@ -101,6 +104,45 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
   public T withState(State state) {
     setState(state);
+    return (T) this;
+  }
+
+  public String getErrorMessage() {
+    return errorMessage;
+  }
+
+  public void setErrorMessage(String errorMessage) {
+    this.errorMessage = errorMessage;
+  }
+
+  public T withErrorMessage(String errorMessage) {
+    setErrorMessage(errorMessage);
+    return (T) this;
+  }
+
+  public String getErrorCause() {
+    return errorCause;
+  }
+
+  public void setErrorCause(String errorCause) {
+    this.errorCause = errorCause;
+  }
+
+  public T withErrorCause(String errorCause) {
+    setErrorCause(errorCause);
+    return (T) this;
+  }
+
+  public String getErrorCode() {
+    return errorCode;
+  }
+
+  public void setErrorCode(String errorCode) {
+    this.errorCode = errorCode;
+  }
+
+  public T withErrorCode(String errorCode) {
+    setErrorCode(errorCode);
     return (T) this;
   }
 
