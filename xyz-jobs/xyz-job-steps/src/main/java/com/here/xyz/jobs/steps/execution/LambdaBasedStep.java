@@ -264,7 +264,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private void reportAsyncFailure(Exception e, boolean retryable) {
     retryable = retryable && onAsyncFailure(e);
     logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}.{}:", getJobId(), getId(), e);
-    setFailedRetryable(retryable);
+    getStatus().setFailedRetryable(retryable);
     reportAsyncFailure(e);
   }
 

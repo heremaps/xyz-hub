@@ -382,7 +382,8 @@ public class Job implements XyzSerializable {
       return false;
     return getStatus().getState().isValidSuccessor(RESUMING) && getSteps()
         .stepStream()
-        .allMatch(step -> step.getStatus().getState() == CANCELLED || step.getStatus().getState() == FAILED && step.isFailedRetryable());
+        .allMatch(step -> step.getStatus().getState() == CANCELLED
+            || step.getStatus().getState() == FAILED && step.getStatus().isFailedRetryable());
   }
 
   public String getId() {

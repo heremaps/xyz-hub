@@ -60,8 +60,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private String id = "s_" + randomAlpha(6);
   private String jobId;
   private String previousStepId;
-  @JsonView({Public.class, Static.class})
-  boolean failedRetryable;
   private RuntimeInfo status = new RuntimeInfo();
   private final String MODEL_BASED_PREFIX = "/modelBased";
 
@@ -301,18 +299,5 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   public T withPreviousStepId(String previousStepId) {
     setPreviousStepId(previousStepId);
     return (T) this;
-  }
-
-  public boolean isFailedRetryable() {
-    return failedRetryable;
-  }
-
-  public void setFailedRetryable(boolean failedRetryable) {
-    this.failedRetryable = failedRetryable;
-  }
-
-  public Step withFailedRetryable(boolean failedRetryable) {
-    setFailedRetryable(failedRetryable);
-    return this;
   }
 }

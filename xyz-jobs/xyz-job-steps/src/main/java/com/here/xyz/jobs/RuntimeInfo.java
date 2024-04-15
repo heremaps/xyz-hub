@@ -24,7 +24,10 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.collect.ImmutableMap;
+import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.util.service.Core;
 import java.util.Arrays;
 import java.util.Map;
@@ -37,6 +40,8 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   private String errorMessage;
   private String errorCause;
   private String errorCode;
+  @JsonView({Public.class, Static.class})
+  boolean failedRetryable;
 
   /**
    * Updates the updatedAt timestamp of this object to the current time.
@@ -163,6 +168,19 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
   public T withErrorCode(String errorCode) {
     setErrorCode(errorCode);
+    return (T) this;
+  }
+
+  public boolean isFailedRetryable() {
+    return failedRetryable;
+  }
+
+  public void setFailedRetryable(boolean failedRetryable) {
+    this.failedRetryable = failedRetryable;
+  }
+
+  public T withFailedRetryable(boolean failedRetryable) {
+    setFailedRetryable(failedRetryable);
     return (T) this;
   }
 
