@@ -58,10 +58,15 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -79,6 +84,8 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -234,17 +241,47 @@ public class JobPlayground {
   }
 
   private static byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt) {
-    Random rd = new Random();
     String output = "";
-    for (int i = 0; i < featureCnt; i++) {
-      if(format.equals(ImportFilesToSpace.Format.CSV_JSONWKB))
-        output += "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000\n";
-      else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
-        output += "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":[8,50."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\"\n";
-      else
-        output += "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}\n";
+
+    for (int i = 1; i <= featureCnt; i++) {
+      output += generateContentLine(format, i);
     }
     return output.getBytes();
+  }
+
+  private static void generateContentToFile(ImportFilesToSpace.Format format, int featureCnt, boolean beZipped) throws IOException {
+    String outputFile = "/tmp/output.file" + (beZipped ? ".gz" : "");
+
+    BufferedWriter writer = null;
+    try {
+      if(!beZipped)
+        writer = new BufferedWriter(new FileWriter(outputFile, true));
+      else{
+        GZIPOutputStream zip = new GZIPOutputStream(
+                new FileOutputStream(outputFile));
+
+        writer = new BufferedWriter(
+                new OutputStreamWriter(zip, "UTF-8"));
+      }
+      for (int i = 1; i <= featureCnt; i++) {
+        writer.write(generateContentLine(format, i));
+      }
+    }finally {
+      if (writer != null)
+        writer.close();
+    }
+  }
+
+  private static String generateContentLine(ImportFilesToSpace.Format format, int i){
+    Random rd = new Random();
+    String lineSeparator = "\n";
+
+    if(format.equals(ImportFilesToSpace.Format.CSV_JSONWKB))
+      return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
+    else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
+      return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
+    else
+      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}"+lineSeparator;
   }
 
   private static void startMockJob() {
