@@ -1167,14 +1167,23 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
+    private long targetToVersion( String targetVersion )
+    {
+     if( targetVersion == null ) return -1;
+     String[] s = targetVersion.split("\\.\\.");
+     return Long.parseLong( (s.length == 1 ? s[0] : s[1]) );
+    }
+
     @Override
     public Future<Job> prepareStart() {
 
       String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
 
-      Future<Tag> pushVersionTag = ( getTargetVersion() == null )
+      long targetVersion = targetToVersion( getTargetVersion() );
+
+      Future<Tag> pushVersionTag = ( targetVersion < 0 )
        ? Future.succeededFuture()
-       : CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
+       : CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion( targetVersion ).withSystem(true) );
 
       return pushVersionTag.compose( v -> super.prepareStart() );
     }

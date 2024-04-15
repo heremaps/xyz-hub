@@ -59,17 +59,38 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     SQLQuery versionCheckFragment = buildVersionCheckFragment(event);
     SQLQuery filterWhereClause = buildFilterWhereClause(event);
 
+    boolean calculateTilesForIncremntal = ( event.getContext() == COMPOSITE_EXTENSION && isVersionRange(event) );
+
     SQLQuery query;
-    if (isCompositeQuery(event)) {
+    
+    if (calculateTilesForIncremntal)
+    {
+      if( event instanceof SelectiveEvent selectiveEvent ) // in case of incremental && tilecalculation replace internal versionComparison
+       versionCheckFragment.withQueryFragment("versionComparison", buildVersionComparisonTileCalculation(selectiveEvent))
+                           .withQueryFragment("nextVersion", new SQLQuery(""))   // remove standard fragment s. buildVersionComparisonTileCalculation
+                           .withQueryFragment("minVersion", new SQLQuery(""));   // remove standard fragment
+ 
+      query = new SQLQuery(
+          """ 
+           SELECT ${{selectClause}} FROM ${schema}.${table} 
+           WHERE ${{filters}} ${{versionCheck}} ${{outerOrderBy}} ${{limit}}
+          """
+          ).withQueryFragment("selectClause", buildSelectClause(event, 0))
+           .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, 0));
+
+    }
+    else if (isCompositeQuery(event) ) {
       int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
       query = new SQLQuery(
-          "SELECT * FROM (SELECT * FROM ("
-          + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
-          + "   ${{unionAll}} "
-          + "     SELECT * FROM (${{baseQuery}}) a"
-          + "       WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} WHERE ${{idComparison}})"
-          + ") limitQuery ${{limit}}) orderQuery ${{outerOrderBy}}")
-          .withQueryFragment("selectClause", buildSelectClause(event, dataset))
+         """
+          SELECT * FROM (SELECT * FROM (
+               (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})
+             ${{unionAll}} 
+               SELECT * FROM (${{baseQuery}}) a 
+                 WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} WHERE ${{idComparison}}) 
+          ) limitQuery ${{limit}}) orderQuery ${{outerOrderBy}} 
+         """
+         ).withQueryFragment("selectClause", buildSelectClause(event, dataset))
           .withQueryFragment("filters", buildFiltersFragment(event, true, filterWhereClause, dataset))
           .withQueryFragment("orderBy", buildOrderByFragment(event))
           .withQueryFragment("idComparison", buildIdComparisonFragment(event, "a.", versionCheckFragment))
@@ -123,13 +144,39 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
   }
 
+  private boolean isVersionRange(E event) {
+   return !(event instanceof SelectiveEvent selectiveEvent) ? false : selectiveEvent.getRef().isRange() ;
+  }
+
+  private SQLQuery buildVersionComparisonTileCalculation(SelectiveEvent event) {
+    Ref ref = event.getRef();
+
+    if( ref == null || !ref.isRange() ) 
+     return new SQLQuery("");
+
+    return new SQLQuery(  // e.g. all features that where visible either in version "fromVersion" or "toVersion" and have changed between fromVersion and toVersion
+                 """
+                  AND (    ( version <= #{toVersion} and next_version > #{toVersion} )
+                        OR ( version <= #{fromVersion} and next_version > #{fromVersion} )
+                      )
+                  AND id in ( select distinct id FROM ${schema}.${table} WHERE version between #{fromVersion} and #{toVersion} )   
+                 """
+               ).withNamedParameter("fromVersion", ref.getFromVersion())
+                .withNamedParameter("toVersion", ref.getToVersion());
+  }
+
   private SQLQuery buildVersionComparison(SelectiveEvent event) {
     Ref ref = event.getRef();
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
+    
+    if( ref.isRange() )
+     return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
+                 .withNamedParameter("fromVersion", ref.getFromVersion())
+                 .withNamedParameter("toVersion", ref.getToVersion());
 
     return new SQLQuery("AND version <= #{requestedVersion}")
-        .withNamedParameter("requestedVersion", ref.getVersion());
+                .withNamedParameter("requestedVersion", ref.getVersion()); 
   }
 
   private SQLQuery buildNextVersionFragment(SelectiveEvent event) {

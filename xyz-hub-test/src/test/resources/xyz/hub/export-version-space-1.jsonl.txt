@@ -1,0 +1,10 @@
+{"id": "id000","type": "Feature","properties": {"group": "shouldBeEmpty","vflag": "oldest"},   "geometry":{"type": "Point","coordinates": [8.61,50.020093,0]}} // htile 122001322003 , 23600771
+{"id": "id000","type": "Feature","properties": {"group": "shouldBeEmpty","vflag": "inbetween"},"geometry":{"type": "Point","coordinates": [8.61,50.020093,0]}} // htile 122001322003 , 23600771
+{"id": "id000","type": "Feature","properties": {"group": "shouldBeEmpty","vflag": "newest"},   "geometry":{"type": "Point","coordinates": [8.61,50.020093,0]}} // htile 122001322003 , 23600771
+{"id": "id001","type": "Feature","properties": {"group": "baseonly","vflag": "oldest"},   "geometry":{"type": "Point","coordinates": [8.6199615,50.020093,0]}} // htile 122001322012 , 23600774
+{"id": "id001","type": "Feature","properties": {"group": "baseonly","vflag": "inbetween"},"geometry":{"type": "Point","coordinates": [8.6199615,50.020093,0]}} // htile 122001322012 , 23600774
+{"id": "id001","type": "Feature","properties": {"group": "baseonly","vflag": "newest"},   "geometry":{"type": "Point","coordinates": [8.6199615,50.020093,0]}} // htile 122001322012 , 23600774
+{"id": "id003","type": "Feature","properties": {"group": "deletedInDelta","vflag": "oldest"},   "geometry":{"type": "Point","coordinates": [8.6199615,50.020093,0]}} // htile 122001322012 , 23600774
+{"id": "id003","type": "Feature","properties": {"group": "deletedInDelta","vflag": "inbetween"},"geometry":{"type": "Point","coordinates": [8.6199615,50.020093,0]}} // htile 122001322012 , 23600774
+{"id": "id003","type": "Feature","properties": {"group": "deletedInDelta","vflag": "newest"},   "geometry":{"type": "Point","coordinates": [8.6199615,50.020093,0]}} // htile 122001322012 , 23600774
+{"id": "id007","type": "Feature","properties": {"group": "jumpPoint base","vflag": "base", "tile":"122001322000"}, "geometry":{"type": "Point","coordinates": [8.4814453125, 49.9658203125,0]}} // htile 122001322012 , 23600774

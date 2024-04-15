@@ -278,9 +278,10 @@ public class JDBCExporter extends JdbcBasedHandler {
                                           );
 
               switch ( pseudoCsvFormat ) {
-                  case PARTITIONID_FC_B64:                      exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                              job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
-                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
+                  case PARTITIONID_FC_B64:
+                            exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                 job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
+                                 compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
                       return calculateThreadCountForDownload(job, schema, exportQuery)
                               .compose(threads -> {
                                   try {
@@ -664,13 +665,15 @@ public class JDBCExporter extends JdbcBasedHandler {
           throw new SQLException(e);
         }
 
+        char cFlag = isForCompositeContentDetection ? 'C' : 'P'; // fix/prevent name clash for namedparameter during export
+
         switch (csvFormat) {
           case GEOJSON :
           {
             SQLQuery geoJson = new SQLQuery("select jsondata || jsonb_build_object('geometry', ST_AsGeoJSON(geo, 8)::jsonb) "
                 + "from (${{contentQuery}}) X")
                 .withQueryFragment("contentQuery", contentQuery);
-            return queryToText(geoJson);
+            return queryToText(geoJson,"va" + cFlag );
           }
 
          case PARTITIONED_JSON_WKB :
@@ -737,15 +740,15 @@ public class JDBCExporter extends JdbcBasedHandler {
               .withQueryFragment("customWhereCondition", partitionByPropertyValue && customWhereCondition != null ? customWhereCondition : new SQLQuery(""))
               .withQueryFragment("contentQuery", contentQuery);
 
-           return queryToText(geoJson);
+           return queryToText(geoJson,"vb" + cFlag);
          }
 
             default:
             {
-              //TODO: Why is it important here to not have the id selected?
+              // JSON_WKB, DOWNLOAD
               contentQuery = new SQLQuery("SELECT jsondata, geo FROM (${{innerContentQuery}}) contentQuery")
                   .withQueryFragment("innerContentQuery", contentQuery);
-                return queryToText(contentQuery);
+                return queryToText(contentQuery,"vc" + cFlag);
             }
         }
 
@@ -779,7 +782,7 @@ public class JDBCExporter extends JdbcBasedHandler {
    * @return
    */
     @Deprecated
-    private static SQLQuery queryToText(SQLQuery q) {
+    private static SQLQuery queryToText(SQLQuery q,String prefixParamName) {
         /*
       FIXME:
        The following works only for very specific kind of queries, do not try to compile dynamic queries in software,
@@ -793,7 +796,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         String formatArgs = "";
         Map<String, Object> newParams = new HashMap<>();
         for (Object paramValue : q.parameters()) {
-            String paramName = "var" + i++;
+            String paramName = prefixParamName + i++;
             formatArgs += ",(#{" + paramName + "}::" + getType(paramValue) + ")";
             newParams.put(paramName, paramValue);
         }

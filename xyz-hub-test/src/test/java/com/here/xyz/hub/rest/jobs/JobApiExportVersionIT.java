@@ -22,13 +22,16 @@ import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWN
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Properties;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.AfterClass;
@@ -41,88 +44,39 @@ public class JobApiExportVersionIT extends JobApiIT {
     protected static String scope = "export";
     protected static String testVersionedSpaceId1 = "version-space-1";
     protected static String testVersionedSpaceId1Ext = testVersionedSpaceId1 + "-ext";
-    private static int versionsToKeep = 10;
+    private static int versionsToKeep = 29;
+
+    private static void addSomeData(String spaceId, String filename) throws Exception
+    {
+     try 
+     {
+      URL url = JobApiExportVersionIT.class.getResource(filename);
+            
+      for( String line : Files.readAllLines(Paths.get(url.toURI()), StandardCharsets.UTF_8))
+      { String geojsonLine = line.split("//")[0].trim();
+        if( geojsonLine == null || geojsonLine.isBlank() ) 
+         continue;
+        Feature ft = XyzSerializable.deserialize(geojsonLine);
+        postFeature(spaceId, ft, AuthProfile.ACCESS_OWNER_1_ADMIN );
+      }
+      } catch (IOException | URISyntaxException e) {
+          e.printStackTrace();
+          throw e;
+      }
+    }
 
     @BeforeClass
-    public static void init(){
+    public static void init() throws Exception {
 
-        final Feature[]
-        baseFeatures =
-        { newFeature().withId("id000")
-                      .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.61,50.020093)))  // base  - htile 122001322003 , 23600771
-                      .withProperties(new Properties().with("group", "shouldBeEmpty")
-                                                      .with("vflag", "oldest")),
-          newFeature().withId("id000")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.61,50.020093)))  // base  - htile 122001322003 , 23600771
-                        .withProperties(new Properties().with("group", "shouldBeEmpty")
-                                                        .with("vflag", "inbetween")),
-          newFeature().withId("id000")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.61,50.020093)))  // base  - htile 122001322003 , 23600771
-                        .withProperties(new Properties().with("group", "shouldBeEmpty")
-                                                        .with("vflag", "newest")),
-          newFeature().withId("id001")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "baseonly")
-                                                        .with("vflag", "oldest")),
-          newFeature().withId("id001")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "baseonly")
-                                                        .with("vflag", "inbetween")),
-          newFeature().withId("id001")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "baseonly")
-                                                        .with("vflag", "newest")),
-          newFeature().withId("id003")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "deletedInDelta")
-                                                        .with("vflag", "oldest")),
-          newFeature().withId("id003")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "deletedInDelta")
-                                                        .with("vflag", "inbetween")),
-          newFeature().withId("id003")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "deletedInDelta")
-                                                        .with("vflag", "newest"))
-        },
-
-        deltaFeatures =
-        { newFeature().withId("id000")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.71,50.020093))) // delta - htile 122001322013 , 23600775
-                        .withProperties(new Properties().with("group", "movedFromEmpty")
-                                                        .with("vflag", "oldest")),
-          newFeature().withId("id000")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.71,50.020093))) // delta - htile 122001322013 , 23600775
-                        .withProperties(new Properties().with("group", "movedFromEmpty")
-                                                        .with("vflag", "inbetween")),
-          newFeature().withId("id000")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.71,50.020093))) // delta - htile 122001322013 , 23600775
-                        .withProperties(new Properties().with("group", "movedFromEmpty")
-                                                        .with("vflag", "newest")),
-          newFeature().withId("id002")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "deltaonly")
-                                                        .with("vflag", "oldest")),
-          newFeature().withId("id002")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "deltaonly")
-                                                        .with("vflag", "inbetween")),
-          newFeature().withId("id002")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
-                        .withProperties(new Properties().with("group", "deltaonly")
-                                                        .with("vflag", "newest"))
-        };
-
+        String baseDataFile  = "/xyz/hub/export-version-space-1.jsonl.txt",
+               deltaDataFile = "/xyz/hub/export-version-space-1-ext.jsonl.txt";
+               
         /** Create test space with CompostitSpace, Version and content */
         createSpaceWithCustomStorage(getScopedSpaceId(testVersionedSpaceId1, scope), "psql", null, versionsToKeep);
-
-        for( Feature bft : baseFeatures )
-         postFeature(getScopedSpaceId(testVersionedSpaceId1,scope), bft, AuthProfile.ACCESS_OWNER_1_ADMIN );
+        addSomeData( getScopedSpaceId(testVersionedSpaceId1,scope), baseDataFile);
 
         createSpaceWithExtension(getScopedSpaceId(testVersionedSpaceId1, scope),versionsToKeep);
-
-        for( Feature dft : deltaFeatures )
-         postFeature(getScopedSpaceId(testVersionedSpaceId1Ext,scope), dft, AuthProfile.ACCESS_OWNER_1_ADMIN );
+        addSomeData( getScopedSpaceId(testVersionedSpaceId1Ext,scope), deltaDataFile);
 
         deleteFeature(getScopedSpaceId(testVersionedSpaceId1Ext,scope), "id003");  // feature in base got deleted in delta
 
@@ -154,7 +108,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000,", "id001,", "id002,", "aWQwMDAi","aWQwMDIi","aWQwMDEi"); // ids + b64(~ids)
 
-        downloadAndCheckFC(urls, 1445, 3, mustContain, 3);
+        downloadAndCheckFC(urls, 1968, 4, mustContain, 4);
     }
 
     @Test
@@ -172,7 +126,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("deltaonly","movedFromEmpty","shouldBeEmpty","deletedInDelta");
 
-        downloadAndCheckFC(urls, 1002, 2, mustContain, 4);
+        downloadAndCheckFC(urls, 1547, 3, mustContain, 6);
     }
 
     @Test
@@ -192,7 +146,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("23600771","23600774","23600775", "AwMiIs","AwMCIs");
 
-        downloadAndCheckFC(urls, 1390, 3, mustContain, 3);
+        downloadAndCheckFC(urls, 1926, 4, mustContain, 5);
     }
 
     @Test
@@ -206,7 +160,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000", "id002", "id003", "movedFromEmpty", "deltaonly", "'\"deleted'\": true");
 
-        downloadAndCheck(urls, 802, 3, mustContain);
+        downloadAndCheck(urls, 1172, 4, mustContain);
     }
 
     @Test
@@ -226,7 +180,6 @@ public class JobApiExportVersionIT extends JobApiIT {
         downloadAndCheck(urls, 682, 2, mustContain);
     }
 
-
     @Test
     public void compositeL1Export_Changes_tileid_partitionedJsonWkb() throws Exception {
 
@@ -245,8 +198,35 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("23600771,,","23600774","23600775", "deltaonly","baseonly","movedFromEmpty");
 
-        downloadAndCheck(urls, 1053, 3, mustContain);
+        downloadAndCheck(urls, 1442, 4, mustContain);
     }
+
+    @Test    
+    public void A_compositeL1Export_VersionRange_tileid_partitionedJsonWkb() throws Exception {
+
+            int targetLevel = 12;
+            int maxTilesPerFile= 300;
+    
+            Export.ExportTarget exportTarget = new Export.ExportTarget()
+                    .withType(Export.ExportTarget.Type.VML)
+                    .withTargetId(testVersionedSpaceId1Ext+":dummy");
+    
+            /** Create job */
+            Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile)
+                          .withPartitionKey("tileid");
+
+            /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
+             job.setTargetVersion("9..13"); // from,to
+            /* */
+  
+            List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
+    
+            List<String> mustContain = Arrays.asList("23600772,,","jumpPoint delta","122001322020");
+    
+            downloadAndCheck(urls, 389, 1, mustContain);
+
+    }
+
 
     @Test
     public void compositeL1Export_Changes_id_partitionedJsonWkb() throws Exception {
@@ -264,7 +244,30 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000,","id002,","id003,,", "deltaonly","movedFromEmpty");
 
-        downloadAndCheck(urls, 699, 2, mustContain);
+        downloadAndCheck(urls, 1074, 3, mustContain);
+    }
+
+    @Test
+    public void compositeL1Export_VersionRange_id_partitionedJsonWkb() throws Exception {
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testVersionedSpaceId1Ext+":dummy");
+
+        /** Create job */
+        Export job = buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB)
+                     .withPartitionKey("id");
+        job.addParam("skipTrigger", true);
+
+        /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
+          job.setTargetVersion("9..13"); // from,to
+        /* */
+
+        List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("id007,","jumpPoint delta","122001322020");
+
+        downloadAndCheck(urls, 375, 1, mustContain);
     }
 
     @Test
@@ -283,7 +286,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("deletedInDelta,,","deltaonly,","movedFromEmpty,", "deltaonly","shouldBeEmpty,,");
 
-        downloadAndCheck(urls, 737, 2, mustContain);
+        downloadAndCheck(urls, 1139, 3, mustContain);
     }
 
 }
