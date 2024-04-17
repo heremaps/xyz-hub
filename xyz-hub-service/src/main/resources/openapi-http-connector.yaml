@@ -914,6 +914,8 @@ components:
           properties:
             filters:
               $ref: '#/components/schemas/Filters'
+            versionRef:
+              $ref: '#/components/schemas/VersionRef'
     Filters:
       type: object
       description: An object to describe filters to be applied when reading data from a space
@@ -957,6 +959,24 @@ components:
           $ref: '#/components/schemas/SpatialFilter'
         context:
           $ref: '#/components/schemas/Context'
+    VersionRef:
+      type: string
+      description: >-
+        Limit the dataset to a specific version or range.
+
+        Value can be either
+
+        - HEAD : most recent version of layer
+
+        - \* : all versions for features in layer
+
+        - tag : user provided string of tagged version of layer
+
+        - N : a specific version number N of layer
+
+        - M..N : range (M,N] of versions from layer
+
+
     Context:
       type: string
       description: >-
