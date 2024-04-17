@@ -321,6 +321,31 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
+  /**
+   * Informs the framework in which mode to execute this LambdaBasedStep.
+   * This method might be called multiple times during the execution of this step.
+   * This method should be implemented in a way to make sure that all calls will always return the same value for the same step
+   * configuration.
+   *
+   * SYNC:
+   *  Returning SYNC depicts the intent of the step to start its *whole execution* inside the Lambda Function's runtime environment directly.
+   *  The step's execute() method will be called, and it might run as long as defined by the timeout for this step. Once the execution is
+   *  completed (which basically means that the execute() method returns), the whole execution is depicted as being complete and
+   *  the orchestration of the containing job can continue.
+   *
+   * ASYNC:
+   *  Returning ASYNC depicts the intent of the step to only *start the execution* and *not completing it* in the runtime environment
+   *  completely.
+   *  The step's execute() method will be called, and it should only start the execution inside some remote system and return very quickly
+   *  right after that. From that point on, the step is depicted to be in RUNNING state until a SUCCESS_CALLBACK or a FAILURE_CALLBACK
+   *  request is sent back to this Lambda Function. For remote systems that do not support sending back a callback request to this
+   *  Lambda Function, the STATE_CHECK request can be used to implement a polling mechanism to check the remote system.
+   *  STATE_CHECK requests are sent to this Lambda Function in regular intervals automatically. Subclasses can react on such checks
+   *  by implementing the method {@link #getExecutionState()} and act accordingly inside. That is, returning the according state of the
+   *  task within the remote system, or throwing an {@link UnknownStateException} in case the state is (temporarily) unknown.
+   *
+   * @return The execution mode. SYNC vs ASYNC.
+   */
   public abstract ExecutionMode getExecutionMode();
 
   @JsonIgnore
