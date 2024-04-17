@@ -241,6 +241,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   public abstract void deleteOutputs();
 
+  public void prepare(String owner, Map<String, Object> ownerAuth) {
+    //Nothing to do by default. May be overridden.
+  }
+
   /**
    * Checks if all pre-conditions are met.
    * Throws a {@link ValidationException} if some parameters are invalid.

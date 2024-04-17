@@ -32,6 +32,7 @@ import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.util.Random.randomAlpha;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -78,6 +79,8 @@ public class Job implements XyzSerializable {
   //Caller defined properties:
   @JsonView(Static.class)
   private String owner;
+  @JsonIgnore
+  private Map<String, Object> ownerAuth;
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Public.class, Static.class})
@@ -145,7 +148,7 @@ public class Job implements XyzSerializable {
         .compose(stepGraph -> {
           setSteps(stepGraph);
           getStatus().setOverallStepCount((int) stepGraph.stepStream().count());
-          return validate();
+          return prepare().compose(v -> validate());
         })
         .compose(isReady -> {
           if (isReady) {
@@ -164,6 +167,21 @@ public class Job implements XyzSerializable {
     for (E element : elements)
       futures.add(action.apply(element));
     return futures;
+  }
+
+  /**
+   * Calls {@link Step#prepare(String, Map<String, Object>)} on all steps belonging to this job.
+   * @return
+   */
+  protected Future<Void> prepare() {
+    return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> prepareStep(step))).mapEmpty();
+  }
+
+  private Future<Void> prepareStep(Step step) {
+    return async.run(() -> {
+      step.prepare(getOwner(), getOwnerAuth());
+      return null;
+    });
   }
 
   /**
@@ -477,6 +495,19 @@ public class Job implements XyzSerializable {
 
   public Job withOwner(String owner) {
     setOwner(owner);
+    return this;
+  }
+
+  public Map<String, Object> getOwnerAuth() {
+    return ownerAuth;
+  }
+
+  public void setOwnerAuth(Map<String, Object> ownerAuth) {
+    this.ownerAuth = ownerAuth;
+  }
+
+  public Job withOwnerAuth(Map<String, Object> ownerAuth) {
+    setOwnerAuth(ownerAuth);
     return this;
   }
 
