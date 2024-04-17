@@ -36,7 +36,6 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import io.vertx.core.json.JsonObject;
-
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -233,11 +232,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   @Override
-  protected boolean onAsyncFailure(Exception e) {
+  protected boolean onAsyncFailure() {
+    //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
     /** Failed Import
      *  onFailure (take retryable into account)
      */
-    return super.onAsyncFailure(e);
+    return false;
   }
 
   @Override

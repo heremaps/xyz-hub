@@ -23,6 +23,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
@@ -173,7 +174,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       switch (getExecutionState()) {
         case RUNNING -> reportAsyncHeartbeat();
         case SUCCEEDED -> reportAsyncSuccess();
-        case FAILED -> reportAsyncFailure(null);
+        case FAILED -> reportFailure(null, true);
       }
     }
     catch (UnknownStateException e) {
@@ -185,11 +186,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       //NOTE: No heartbeat must be sent to SFN in this case!
     }
     catch (Exception e) {
-      //TODO: log exception
       //Unexpected exception, there is an issue in the implementation of the step, so cancel & report non-retryable failure
       //TODO: Check if calling cancel makes sense here
       //cancel();
-      reportAsyncFailure(e, false);
+      throw e;
     }
   }
 
@@ -202,7 +202,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       onAsyncSuccess();
     }
     catch (Exception e) {
-      reportAsyncFailure(e);
+      reportFailure(e, true);
       return;
     }
 
@@ -236,8 +236,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         updateState(CANCELLED);
       }
       catch (Exception ex) {
-        logger.error("Error during cancellation of step {}.{}", getJobId(), getId(), ex);
-        reportAsyncFailure(ex, false);
+        logger.error("Error during cancellation of step {}", getGlobalStepId(), ex);
+        reportFailure(ex, false, true);
       }
     }
   }
@@ -252,50 +252,71 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   /**
-   * Will be called for every failure occurring for this step prior to reporting it to SFN or the Job Framework.
-   * This method may inspect the causing exception to decide whether the exception depicts an error which is or is not retryable.
+   * Will be called for every async failure callback occurring for this step prior to reporting it to SFN or the Job Framework.
+   * This method may inspect the causing error description in the step status to decide whether the exception depicts
+   * an error that is or is not retryable.
    *
    * If all failed steps of a job are marked being retryable, the user can retry the execution of the job at a later time.
    *
-   * @param e The causing exception
    * @return Whether the specified exception depicts a retryable error or not.
    */
-  protected boolean onAsyncFailure(Exception e) {
+  protected boolean onAsyncFailure() {
     //Nothing to do by default (may be overridden in subclasses)
     return false;
   }
 
-  private void reportAsyncFailure(Exception e, boolean retryable) {
-    retryable = retryable && onAsyncFailure(e);
-    logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}.{}:", getJobId(), getId(), e);
+  private void reportFailure(Exception e, boolean retryable, boolean async) {
+    if (async)
+      retryable = retryable && onAsyncFailure();
+
+    logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}:", getGlobalStepId(), e);
     getStatus().setFailedRetryable(retryable);
-    reportAsyncFailure(e);
+    reportFailure(e, async);
   }
 
-  //TODO: Implement also sync error reporting
-  private void reportAsyncFailure(Exception e) {
+  private void reportFailure(Exception e, boolean async) {
     if (isSimulation) //TODO: Remove testing code
       throw new RuntimeException(e);
 
-    unregisterStateCheckTrigger();
+    if (async)
+      unregisterStateCheckTrigger();
+
+    if (e != null) {
+      getStatus()
+          .withErrorMessage(e.getMessage())
+          .withErrorCause(e.getCause() != null ? e.getCause().getMessage() : null);
+
+      if (e instanceof ErrorResponseException responseException)
+        getStatus().setErrorCode("HTTP-" + responseException.getErrorResponse().statusCode());
+    }
+
     updateState(FAILED);
 
-    //Report failure to SFN
-    SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
-        .taskToken(taskToken);
+    if (async) {
+      //Report failure to SFN
+      SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
+          .taskToken(taskToken);
 
-    if (e != null)
-      request
-          .error(truncate(e.getMessage(), 256))
-          .cause(e.getCause() != null ? truncate(e.getCause().getMessage(), 256) : null);
+      if (getStatus().getErrorMessage() != null)
+        request.error(truncate(getStatus().getErrorMessage(), 256));
 
-    try {
-      sfnClient().sendTaskFailure(request.build());
+      if (getStatus().getErrorCause() != null || getStatus().getErrorCode() != null) {
+        String errCauseForSfn = (getStatus().getErrorCode() != null ? "Error code: " + getStatus().getErrorCode() + ", " : "")
+            + (getStatus().getErrorCause() != null ? getStatus().getErrorCause() : "");
+        request.cause(truncate(errCauseForSfn, 256));
+      }
+
+      try {
+        sfnClient().sendTaskFailure(request.build());
+      }
+      catch (TaskTimedOutException ex) {
+        logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}.", getJobId(), getId());
+      }
     }
-    catch (TaskTimedOutException ex) {
-      logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}. Original exception was:",
-          getJobId(), getId(), ex);
-    }
+
+    //Finally, log the error also to the lambda log
+    logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
+        getStatus().getErrorCause(), getStatus().getErrorCode());
   }
 
   private String truncate(String string, int maxLength) {
@@ -406,14 +427,22 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
       //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
       //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method
-      //IF the incoming event is a cancellation event (check if SF is sending one) call the cancel method!
+
+      if (request.getType() == START_EXECUTION) {
+        try {
+          logger.info("Starting the execution of step {} ...", request.getStep().getGlobalStepId());
+          request.getStep().startExecution();
+          logger.info("Execution of step {} has been started successfully ...", request.getStep().getGlobalStepId());
+        }
+        catch (Exception e) {
+          //Report error synchronously
+          request.getStep().reportFailure(e, false, false);
+          throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
+        }
+      }
+
       try {
         switch (request.getType()) {
-          case START_EXECUTION -> {
-            logger.info("Starting the execution of step {} ...", request.getStep().getGlobalStepId());
-            request.getStep().startExecution();
-            logger.info("Execution of step {} has been started successfully ...", request.getStep().getGlobalStepId());
-          }
           case STATE_CHECK -> {
             logger.info("Checking async execution state of step {} ...", request.getStep().getGlobalStepId());
             request.getStep().checkAsyncExecutionState();
@@ -426,13 +455,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           }
           case FAILURE_CALLBACK -> {
             logger.info("Reporting async failure for step {} ...", request.getStep().getGlobalStepId());
-            request.getStep().reportAsyncFailure(null, false); //TODO: Read error information from request payload (once specified)
+            //NOTE: Assume that the error information has been injected into the status object by the callback caller already
+            request.getStep().reportFailure(null, false, true);
             logger.info("Reported async failure for step {} failure successfully.", request.getStep().getGlobalStepId());
           }
         }
       }
       catch (Exception e) {
-        request.getStep().reportAsyncFailure(e, false); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
+        request.getStep().reportFailure(e, false, true); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
         throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
       }
 
