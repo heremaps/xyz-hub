@@ -49,13 +49,28 @@ import org.apache.logging.log4j.Logger;
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space.
  * This step produces exactly one output of type {@link FeatureStatistics}.
+ *
+ * @TODO:
+ *     TBD -Calculate needed ACUs
+ *     FIRST ITERATION DONE -Calculate according thread count*
+ *     PARTIAL DONE - Cleanup code
+ *     DONE - Progress estimation
  */
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
+
   private static final String JOB_DATA_SUFFIX = "_job_data";
-  private static int importThreadCnt = 2;
+
+  private static final int MAX_DB_THREAD_CNT = 10;
+
   private Format format = Format.GEOJSON;
+
   private Phase phase;
+
+  private long totalBytes;
+
+  private long featureCount;
+
   public enum Format {
     CSV_GEOJSON,
     CSV_JSONWKB,
@@ -82,6 +97,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return phase;
   }
 
+  public long getTotalBytes() {
+    return totalBytes;
+  }
+
+  public long getFeatureCount() {
+    return featureCount;
+  }
+
   @Override
   public List<Load> getNeededResources() {
     try {
@@ -92,8 +115,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
     catch (WebClientException e) {
-      //TODO: log error
-      //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
     }
   }
@@ -116,12 +137,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public boolean validate() throws ValidationException {
-    phase = Phase.VALIDATE;
     try {
+      logAndSetPhase(Phase.VALIDATE);
       //Check if the space is actually existing
       loadSpace(getSpaceId());
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      if (statistics.getCount().getValue() > 0)
+      featureCount = statistics.getCount().getValue();
+
+      if (featureCount > 0)
         throw new ValidationException("Space is not empty");
     }
     catch (WebClientException e) {
@@ -146,17 +169,22 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private int calculateNeededAcus(long featureCount, long byteSize) {
     // TODO: Calculate based on file size
+    // We are importing N Threads in parallel. So only the parallel execution has to get taken into account.
+    //Compressed csv 8x smaller as raw
+    //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
+    //128
+
     return 0;
   }
 
   @Override
   public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    logger.info("Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
+    logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
         + " into space " + getSpaceId() + " ...");
 
-    logger.info("Loading space config for space {}", getSpaceId());
+    logAndSetPhase(null, "Loading space config for space "+getSpaceId());
     Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space {}", getSpaceId());
+    logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
     logAndSetPhase(Phase.SET_READONLY);
@@ -179,7 +207,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
 
     logAndSetPhase(Phase.EXECUTE_IMPORT);
-    for (int i = 0; i < importThreadCnt; i++) {
+
+    int dbThreadCnt = calculateDBThreadCount();
+
+    for (int i = 0; i < dbThreadCnt; i++) {
       runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
     }
     //TODO: only till we found a solution
@@ -194,8 +225,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     List<SQLQuery> queryList = new ArrayList<>();
     for (Input input : inputs){
       if(input instanceof UploadUrl uploadUrl) {
+        totalBytes += uploadUrl.getByteSize();
         JsonObject data = new JsonObject()
-                //.put("compressed", inputs.isCompressed())
+                .put("compressed", uploadUrl.isCompressed())
                 .put("filesize", uploadUrl.getByteSize());
 
         queryList.add(
@@ -241,6 +273,36 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   @Override
+  protected void onStateCheck() {
+    try {
+      logAndSetPhase(null, "Loading space config for space "+getSpaceId());
+      Space space = loadSpace(getSpaceId());
+      logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
+      Database db = loadDatabase(space.getStorage().getId(), WRITER);
+
+      runReadQuerySync(buildProgressQuery(getSchema(db), getRootTableName(space)), db, 0,
+               rs -> {
+                rs.next();
+                int totalCnt = rs.getInt("total_cnt");
+                long processedBytes = rs.getLong("processed_bytes");
+                int submittedCnt = rs.getInt("submitted_cnt");
+                int finishedCnt = rs.getInt("finished_cnt");
+                int failedCnt = rs.getInt("failed_cnt");
+
+                float progress = Float.valueOf(processedBytes) / Float.valueOf(getTotalBytes());
+                getStatus().setEstimatedProgress(progress);
+
+                logAndSetPhase(null, "Progress["+progress+"] => totalCnt:"+totalCnt
+                        +" ,processedBytes:"+processedBytes+" ,submittedCnt:"+submittedCnt+" ,finishedCnt:"+finishedCnt+" ,failedCnt:"+failedCnt);
+                return progress;
+              });
+    }catch (Exception e){
+      //TODO: What to do? Only log? Report Status is not that important. Further Ignore "table does not exists error" - report 0 in this case.
+      logger.error(e);
+    }
+  }
+
+  @Override
   protected void onAsyncSuccess() throws WebClientException,
           SQLException, TooManyResourcesClaimed, IOException {
     /** Finalize Import
@@ -248,18 +310,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
      * - provide getStatistics
      * - release readOnly lock
      */
-    logger.info("Loading space config for space {}", getSpaceId());
+
+    logAndSetPhase(null, "Loading space config for space "+getSpaceId());
     Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space {}", getSpaceId());
+
+    logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
     logAndSetPhase(Phase.RETRIEVE_STATISTICS);
     FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
-            calculateNeededAcus(0, 0), rs -> rs.next()
+            0, rs -> rs.next()
                     ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
                     : new FeatureStatistics());
 
-    logger.info("Statistics: bytes={} rows={}", statistics.getByteSize(), statistics.getFeatureCount());
+    logAndSetPhase(null, "Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
+
     registerOutputs(List.of(statistics), true);
 
     logAndSetPhase(Phase.WRITE_STATISTICS);
@@ -273,27 +338,32 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     logAndSetPhase(Phase.RELEASE_READONLY);
     hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
-    //TODO: only till we found a solution
+
+    //TODO: only till we found a solution. Very Important to solve!
     try {
       Thread.sleep(15000);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
   }
+
   private void logAndSetPhase(Phase curPhase, String... messages){
-    phase = curPhase;
+    if(curPhase != null)
+      phase = curPhase;
     logger.info("[{}@{}] ON/INTO '{}' {}",getId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
   }
+
   @Override
   public void resume() throws Exception {
     //TODO: e.g. reset states of FAILED inputs in tmp table aso.
+    //Clean up SUCCESS_MARKER
     execute();
   }
 
   private SQLQuery buildTemporaryTableForImportQuery(String schema, String table){
     return new SQLQuery("""
                     CREATE TABLE IF NOT EXISTS ${schema}.${table}
-                           (                                                            
+                           (
                                 s3_uri aws_commons._s3_uri_1 NOT NULL, --s3uri
                                 state text NOT NULL, --jobtype
                                 execution_count int DEFAULT 0, --amount of retries
@@ -338,7 +408,24 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             SELECT sum((data->'filesize')::bigint) as imported_bytes,
             	count(1) as imported_files,
             	sum(SUBSTRING((data->'import_statistics'->>'table_import_from_s3'),0,POSITION('rows' in data->'import_statistics'->>'table_import_from_s3'))::bigint) as imported_rows
-            	from ${schema}.${table};
+            	FROM ${schema}.${table}
+            WHERE POSITION('SUCCESS_MARKER' in state) = 0;
+          """)
+            .withVariable("schema", schema)
+            .withVariable("table", table + JOB_DATA_SUFFIX);
+  }
+
+  private SQLQuery buildProgressQuery(String schema, String table) {
+    return new SQLQuery("""
+            SELECT
+                sum(1::int) as total_cnt,
+                sum((data->'filesize')::bigint) as processed_bytes,	
+                sum((state = 'SUBMITTED')::int) as submitted_cnt,
+                sum((state = 'FINISHED')::int) as finished_cnt,
+                sum((state = 'FAILED')::int) as failed_cnt
+              FROM public."TEST_job_data"
+            	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
+            	 AND STATE != 'SUBMITTED';
           """)
             .withVariable("schema", schema)
             .withVariable("table", table + JOB_DATA_SUFFIX);
@@ -354,5 +441,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withNamedParameter("format", format.toString())
             .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
             .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
+  }
+
+  private int calculateDBThreadCount(){
+    int featureCountForMaxThreads = 10_000_000;
+
+    if (featureCount >= featureCountForMaxThreads) {
+      return MAX_DB_THREAD_CNT;
+    } else {
+      // Calculate linearly scaled thread count
+      int threadCnt = (int) ((double) featureCount / featureCountForMaxThreads * MAX_DB_THREAD_CNT);
+      return threadCnt == 0 ? 1 : threadCnt;
+    }
   }
 }
