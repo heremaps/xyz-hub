@@ -244,6 +244,35 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     executorService.awaitTermination(10, TimeUnit.SECONDS);
   }
 
+  static void add10ThousandFeatures2()  {
+
+
+    for (int i = 0; i < 50; i++) {
+
+        FeatureCollection f = new FeatureCollection();
+        for (int j = 0; j < 200; j++) 
+          try {
+            f.getFeatures().add(new Feature().withProperties(new Properties().with("ticketPrice", 200 * i + j))
+                .withGeometry(new Point().withCoordinates(new PointCoordinates(i, j % 90))));
+          }
+          catch (JsonProcessingException ignored) 
+          {
+            int aInt = 13;
+          }
+
+        given()
+            .contentType(APPLICATION_GEO_JSON)
+            .accept(APPLICATION_GEO_JSON)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+            .body(f.serialize())
+            .when()
+            .post(getSpacesPath() + "/x-psql-test/features")
+            .then()
+            .statusCode(OK.code());
+    }
+  }
+
+
   @SuppressWarnings("SameParameterValue")
   static void publishSpace(String spaceId) {
     given()
