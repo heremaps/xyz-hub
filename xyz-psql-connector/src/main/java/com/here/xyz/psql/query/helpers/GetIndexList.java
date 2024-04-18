@@ -50,6 +50,11 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
 
   @Override
   public List<String> run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+
+    try { getDataSourceProvider(); }
+    catch (NullPointerException e)
+    { setDataSourceProvider(dataSourceProvider);  }  // this.dataSourceProvider must not be null in order to use "getSchema()" in buildQuery()
+
     IndexList indexList = cachedIndices.get(tableName);
     if (indexList != null && indexList.expiry >= System.currentTimeMillis())
       return indexList.indices;
