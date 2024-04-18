@@ -255,10 +255,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             f.getFeatures().add(new Feature().withProperties(new Properties().with("ticketPrice", 200 * i + j))
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(i, j % 90))));
           }
-          catch (JsonProcessingException ignored) 
-          {
-            int aInt = 13;
-          }
+          catch (JsonProcessingException ignored){}
 
         given()
             .contentType(APPLICATION_GEO_JSON)
