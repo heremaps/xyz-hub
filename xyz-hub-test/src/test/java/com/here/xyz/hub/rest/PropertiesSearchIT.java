@@ -452,4 +452,34 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         then().
         body("features.size()", equalTo(1));
   }
+
+/*
+ * Test is commented out because it takes too long to execute. s. testCreatedAtAndUpdatedAtWith10ThousandFeaturesPlus
+ */
+//@Test   // test for DS-380  - search on none indexed propery not allowed - uncommented due to runtime.
+public void test_DS380()  throws Exception {
+    add10ThousandFeatures2();
+
+    await()
+        .atMost(3, TimeUnit.MINUTES)
+        .pollInterval(Durations.TEN_SECONDS)
+        .until(() ->
+          "PARTIAL".equals(given().
+              accept(APPLICATION_JSON).
+              headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+              when().
+              get(getSpacesPath() + "/x-psql-test/statistics").prettyPeek().
+              then().extract().body().path("properties.searchable")
+        ));
+
+// test search not allowd for p.NonIndexed 
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get(getSpacesPath() + "/x-psql-test/search?p.NonIndexed>800?limit=1").
+        then().statusCode(400);
+
+  }
 }
+
