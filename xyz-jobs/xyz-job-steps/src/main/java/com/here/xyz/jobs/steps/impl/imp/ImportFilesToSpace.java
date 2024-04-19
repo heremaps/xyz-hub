@@ -49,12 +49,6 @@ import org.apache.logging.log4j.Logger;
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space.
  * This step produces exactly one output of type {@link FeatureStatistics}.
- *
- * @TODO:
- *     TBD -Calculate needed ACUs
- *     FIRST ITERATION DONE -Calculate according thread count*
- *     PARTIAL DONE - Cleanup code
- *     DONE - Progress estimation
  */
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
@@ -77,7 +71,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     GEOJSON;
   }
   public enum Phase {
-    VALIDATE, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, FILL_TMP_TABLE, EXECUTE_IMPORT,
+    VALIDATE, CALCULATE_ACUS, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, FILL_TMP_TABLE, EXECUTE_IMPORT,
     RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
   }
   public Format getFormat() {
@@ -108,8 +102,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      int acus = calculateNeededAcus(statistics.getCount().getValue(), statistics.getDataSize().getValue());
+
+      double acus = calculateNeededAcus();
       Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
@@ -167,14 +161,40 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return true;
   }
 
-  private int calculateNeededAcus(long featureCount, long byteSize) {
-    // TODO: Calculate based on file size
-    // We are importing N Threads in parallel. So only the parallel execution has to get taken into account.
-    //Compressed csv 8x smaller as raw
-    //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
-    //128
+  private double calculateNeededAcus() {
+    // Each ACU needs 2GB RAM
+    final double GB_TO_BYTES = 1024 * 1024 * 1024;
+    final int ACU_RAM = 2; // GB
 
-    return 0;
+    int zippingFactor = 10;
+    int threadCount = calculateDBThreadCount();
+    long expectedMemoryConsumption = 0;
+    long bytesPerThread;
+    List<Input> inputs = loadInputs();
+    int fileCount = inputs.size();
+
+    if(fileCount == 0)
+      return 0;
+
+    for (int i = 0; i < inputs.size(); i++) {
+      if(inputs.get(0) instanceof UploadUrl uploadUrl) {
+        expectedMemoryConsumption += uploadUrl.isCompressed() ?
+                uploadUrl.getByteSize() * zippingFactor : uploadUrl.getByteSize();
+      }
+    }
+
+    //Only take into account the parallel execution
+    bytesPerThread = (expectedMemoryConsumption / fileCount ) * threadCount;
+
+    //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
+    // Calculate the needed ACUs
+    double requiredRAMPerThread = bytesPerThread / GB_TO_BYTES;
+    double neededACUsPerThread =  requiredRAMPerThread / ACU_RAM;
+
+    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+expectedMemoryConsumption
+        +", bytesPerThread:"+bytesPerThread+", requiredRAMPerThread:"+requiredRAMPerThread
+        +", neededACUsPerThread:"+neededACUsPerThread);
+    return neededACUsPerThread;
   }
 
   @Override
@@ -191,17 +211,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
     logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-    long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0),
+    long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
             rs -> {
               rs.next();
               return rs.getLong(1);
             });
 
     logAndSetPhase(Phase.CREATE_TRIGGER);
-    runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, calculateNeededAcus(0,0));
+    runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, 0);
 
     logAndSetPhase(Phase.CREATE_TMP_TABLE);
-    runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0,0));
+    runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
 
     logAndSetPhase(Phase.FILL_TMP_TABLE);
     fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
@@ -210,8 +230,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     int dbThreadCnt = calculateDBThreadCount();
 
-    for (int i = 0; i < dbThreadCnt; i++) {
-      runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space), i), db, calculateNeededAcus(0,0), false);
+    for (int i = 1; i <= dbThreadCnt; i++) {
+      logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
+      runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(), false);
     }
     //TODO: only till we found a solution
     try {
@@ -260,7 +281,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                     .withNamedParameter("state", "SUCCESS_MARKER")
                     .withNamedParameter("bucketRegion", bucketRegion)
                     .withNamedParameter("data", "{}"));
-    runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, calculateNeededAcus(0, 0));
+    runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
   }
 
   @Override
@@ -331,10 +352,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
 
     logAndSetPhase(Phase.DROP_TRIGGER);
-    runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
+    runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, 0);
 
     logAndSetPhase(Phase.DROP_TMP_TABLE);
-    runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(0, 0));
+    runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
 
     logAndSetPhase(Phase.RELEASE_READONLY);
     hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
@@ -431,7 +452,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", table + JOB_DATA_SUFFIX);
   }
 
-  private SQLQuery buildImportQuery(String schema, String table, int i) {
+  private SQLQuery buildImportQuery(String schema, String table) {
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
     return new SQLQuery("SELECT xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}')")
