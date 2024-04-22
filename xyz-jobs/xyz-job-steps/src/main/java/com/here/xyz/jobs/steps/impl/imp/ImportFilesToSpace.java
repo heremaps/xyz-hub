@@ -368,10 +368,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
   }
 
-  private void logAndSetPhase(Phase curPhase, String... messages){
-    if(curPhase != null)
-      phase = curPhase;
-    logger.info("[{}@{}] ON/INTO '{}' {}",getId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
+  private void logAndSetPhase(Phase newPhase, String... messages){
+    if (newPhase != null)
+      phase = newPhase;
+    logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
   }
 
   @Override

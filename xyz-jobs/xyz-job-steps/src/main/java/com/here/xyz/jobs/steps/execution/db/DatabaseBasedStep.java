@@ -190,16 +190,19 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         ? new SQLQuery("PERFORM 'Failure callback will be simulated';")
         : new SQLQuery("""             
              PERFORM aws_lambda.invoke(aws_commons.create_lambda_function_arn('${{lambdaArn}}', '${{lambdaRegion}}'),
-                  jsonb_set('${{failureRequestBody}}'::JSONB, '{step,status}',
-                  ('${{failureRequestBody}}'::JSONB->'step'->'status' || format('{"errorCode" : "%1$s", "errorMessage": "%2$s"}',SQLSTATE, SQLERRM)::JSONB), true)::JSON, 
-                  'Event');
-            """)
+                  jsonb_set(
+                    '${{failureRequestBody}}'::JSONB,
+                    '{step, status}',
+                    ('${{failureRequestBody}}'::JSONB->'step'->'status' || format('{"errorCode": "%1$s", "errorMessage": "%2$s"}', SQLSTATE, SQLERRM)::JSONB),
+                    true
+                  )::JSON, 'Event');
+            """) //TODO: Inject fields directly in memory rather than writing and deserializing new JSON object
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())  //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
             .withQueryFragment("failureRequestBody", new LambdaStepRequest().withType(FAILURE_CALLBACK).withStep(this).serialize());
 
-    return new SQLQuery("""       
+    return new SQLQuery("""
             RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
             ${{performLambdaFailureInvoke}}
         """)
