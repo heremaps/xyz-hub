@@ -18,11 +18,8 @@
  */
 package com.here.naksha.lib.core.models.naksha;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Copyright;
 import com.here.naksha.lib.core.models.License;
@@ -166,6 +163,7 @@ public final class Space extends EventTarget<Space> implements Typed {
    *
    * @return the collection identifier.
    */
+  @JsonIgnore
   public @NotNull String getCollectionId() {
     String collectionIdFromProps = null;
     Object collectionProps = getProperties().get(SpaceProperties.XYZ_COLLECTION);
