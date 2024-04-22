@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -366,5 +367,172 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
         .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=999")
         .then()
         .statusCode(OK.code());
+  }
+
+  @Test
+  public void pageThroughChangesetCollectionVersion0To1() {
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=1&limit=2")
+            .then()
+            .statusCode(OK.code())
+            .body("startVersion", equalTo(0))
+            .body("endVersion", equalTo(0))
+            .body("versions.0.inserted.features.size()", equalTo(2))
+            .body("1", nullValue())
+            .body("nextPageToken", notNullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=1&limit=1&pageToken=0_B")
+            .then()
+            .statusCode(OK.code())
+            .body("startVersion", equalTo(1))
+            .body("endVersion", equalTo(1))
+            .body("versions.0", nullValue())
+            .body("versions.1.updated.features.size()", equalTo(1))
+            .body("nextPageToken", notNullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=1&limit=1&pageToken=1_A")
+            .then()
+            .statusCode(OK.code())
+            .body("startVersion", equalTo(1))
+            .body("endVersion", equalTo(1))
+            .body("versions.1.inserted.features.size()", equalTo(1))
+            .body("versions.1.updated.features.size()", equalTo(0))
+            .body("nextPageToken", nullValue());
+
+  }
+
+  @Test
+  public void pageThroughChangesetVersion0To1() {
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/0?limit=1")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(0))
+            .body("inserted.features.size()", equalTo(1))
+            .body("nextPageToken", notNullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/1?limit=2")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(1))
+            .body("inserted.features.size()", equalTo(1))
+            .body("updated.features.size()", equalTo(1))
+            .body("nextPageToken", nullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/2?limit=1")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(2))
+            .body("inserted.features.size()", equalTo(1))
+            .body("nextPageToken", notNullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/2?pageToken=2_D&limit=1")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(2))
+            .body("inserted.features.size()", equalTo(1))
+            .body("nextPageToken", nullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/3?limit=10")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(3))
+            .body("updated.features.size()", equalTo(1))
+            .body("nextPageToken", nullValue());
+  }
+
+  @Test
+  public void validateChangesetVersions() {
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/0")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(0))
+            .body("inserted.features.size()", equalTo(2))
+            .body("updated.features.size()", equalTo(0))
+            .body("deleted.features.size()", equalTo(0))
+            .body("nextPageToken", nullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/1")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(1))
+            .body("inserted.features.size()", equalTo(1))
+            .body("updated.features.size()", equalTo(1))
+            .body("deleted.features.size()", equalTo(0))
+            .body("nextPageToken", nullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/9")
+            .then()
+            .statusCode(OK.code())
+            .body("version", equalTo(9))
+            .body("inserted.features.size()", equalTo(0))
+            .body("updated.features.size()", equalTo(0))
+            .body("deleted.features.size()", equalTo(1))
+            .body("nextPageToken", nullValue());
+  }
+
+  @Test
+  public void validateCompleteChangesetCollection() {
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=12")
+            .then()
+            .statusCode(OK.code())
+            .body("startVersion", equalTo(0))
+            .body("endVersion", equalTo(10))
+
+            .body("versions.0.inserted.features.size()", equalTo(2))
+            .body("versions.0.updated.features.size()", equalTo(0))
+            .body("versions.0.deleted.features.size()", equalTo(0))
+
+            .body("versions.1.inserted.features.size()", equalTo(1))
+            .body("versions.1.updated.features.size()", equalTo(1))
+            .body("versions.1.deleted.features.size()", equalTo(0))
+
+            .body("versions.2.inserted.features.size()", equalTo(2))
+            .body("versions.2.updated.features.size()", equalTo(0))
+            .body("versions.2.deleted.features.size()", equalTo(0))
+
+            .body("versions.3.inserted.features.size()", equalTo(0))
+            .body("versions.3.updated.features.size()", equalTo(1))
+            .body("versions.3.deleted.features.size()", equalTo(0))
+
+            .body("versions.4.inserted.features.size()", equalTo(0))
+            .body("versions.4.updated.features.size()", equalTo(1))
+            .body("versions.4.deleted.features.size()", equalTo(0))
+
+            .body("versions.5.inserted.features.size()", equalTo(0))
+            .body("versions.5.updated.features.size()", equalTo(1))
+            .body("versions.5.deleted.features.size()", equalTo(0))
+
+            .body("versions.6.inserted.features.size()", equalTo(0))
+            .body("versions.6.updated.features.size()", equalTo(1))
+            .body("versions.6.deleted.features.size()", equalTo(0))
+
+            .body("versions.7.inserted.features.size()", equalTo(0))
+            .body("versions.7.updated.features.size()", equalTo(1))
+            .body("versions.7.deleted.features.size()", equalTo(0))
+
+            .body("versions.8.inserted.features.size()", equalTo(1))
+            .body("versions.8.updated.features.size()", equalTo(0))
+            .body("versions.8.deleted.features.size()", equalTo(0))
+
+            .body("versions.9.inserted.features.size()", equalTo(0))
+            .body("versions.9.updated.features.size()", equalTo(0))
+            .body("versions.9.deleted.features.size()", equalTo(1))
+
+            .body("versions.10.inserted.features.size()", equalTo(0))
+            .body("versions.10.updated.features.size()", equalTo(1))
+            .body("versions.10.deleted.features.size()", equalTo(0))
+
+            .body("nextPageToken", nullValue());
   }
 }
