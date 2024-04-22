@@ -58,7 +58,6 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
-
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -85,7 +84,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -126,7 +124,6 @@ public class JobPlayground {
     Config.instance.AWS_REGION = "us-east-1";
     Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
     Config.instance.STEP_LAMBDA_ARN = new ARN("arn:aws:lambda:us-east-1:000000000000:function:job-step");
-    Config.instance.STEP_LAMBDA_CALLER_ROLE_ARN = new ARN("arn:aws:iam::000000000000:role/lambda-role");
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
     try {
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");

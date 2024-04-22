@@ -81,8 +81,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
-  @JsonView(Internal.class)
-  String invokersRoleArn; //Will be defined by the framework alongside the START_EXECUTION request being relayed by the Step Function
 
   private static final String INVOKE_SUCCESS = """
       {"status": "OK"}""";
@@ -133,7 +131,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         .targets(Target.builder()
             .id(getGlobalStepId())
             .arn(ownLambdaArn.toString())
-            .roleArn(invokersRoleArn)
             .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
             .build())
         .build());
