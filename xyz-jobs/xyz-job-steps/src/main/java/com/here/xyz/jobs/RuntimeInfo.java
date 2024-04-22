@@ -23,15 +23,15 @@ import static com.here.xyz.jobs.RuntimeInfo.State.NONE;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
-import com.here.xyz.util.service.Core;
 import java.util.Arrays;
 import java.util.Map;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RuntimeInfo<T extends RuntimeInfo> {
   private long updatedAt;
   private long startedAt;
@@ -53,9 +53,11 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   /**
    * @return The estimated timestamp of when the process will be completed in milliseconds.
    */
-  @JsonIgnore //TODO: Re-activate once implemented
   public long getEstimatedEndTime() {
-    long executionTime = Core.currentTimeMillis() - getStartedAt();
+    if (getState().isFinal())
+      return getUpdatedAt();
+
+    long executionTime = System.currentTimeMillis() - getStartedAt();
     float estimatedProgress = getEstimatedProgress();
     if (estimatedProgress == 0)
       return -1;
@@ -118,7 +120,6 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   /**
    * @return The estimated progress. A value from 0.0 to 1.0 (inclusive).
    */
-  @JsonIgnore //TODO: Re-activate once implemented
   public float getEstimatedProgress() {
     return estimatedProgress;
   }

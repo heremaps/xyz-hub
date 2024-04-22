@@ -120,6 +120,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   @Override
+  public int getEstimatedExecutionSeconds() {
+    //TODO: Return an estimation based on the input data size
+    return 60;
+  }
+
+  @Override
   public String getDescription() {
     return "Imports the data to space " + getSpaceId();
   }

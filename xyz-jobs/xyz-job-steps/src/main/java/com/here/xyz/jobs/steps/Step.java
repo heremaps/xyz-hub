@@ -91,7 +91,23 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return status;
   }
 
+  /**
+   * This method might be called multiple times during the execution of this step.
+   * This method should be implemented in a way to make sure that all calls will always return the same value for the same step
+   * configuration.
+   *
+   * @return A feasible maximum execution. Steps that are exceeding their timeout will fail.
+   */
   public abstract int getTimeoutSeconds();
+
+  /**
+   * This method might be called multiple times during the execution of this step.
+   * This method should be implemented in a way to make sure that all calls will always return the same value for the same step
+   * configuration.
+   *
+   * @return An estimation for the execution time in seconds that should be calculated once prior to the execution.
+   */
+  public abstract int getEstimatedExecutionSeconds();
 
   protected String bucketName() {
     return Config.instance.JOBS_S3_BUCKET;
@@ -288,7 +304,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   @JsonIgnore
-  protected String getGlobalStepId() {
+  public String getGlobalStepId() {
     return getJobId() + "." + getId();
   }
 

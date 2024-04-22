@@ -423,7 +423,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         request.getStep().ownLambdaArn = new ARN(context.getInvokedFunctionArn());
       Config.instance.AWS_REGION = request.getStep().ownLambdaArn.getRegion();
 
-      logger.info("[{}] Received Request {}", request.getStep().getGlobalStepId(), XyzSerializable.serialize(request));
+      logger.debug("[{}] Received Request {}", request.getStep().getGlobalStepId(), XyzSerializable.serialize(request));
 
       //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
       //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method

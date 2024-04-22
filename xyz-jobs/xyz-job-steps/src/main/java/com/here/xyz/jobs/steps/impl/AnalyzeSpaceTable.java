@@ -58,6 +58,11 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   }
 
   @Override
+  public int getEstimatedExecutionSeconds() {
+    return 10;
+  }
+
+  @Override
   public String getDescription() {
     return "Analyzes the underlying PostgreSQL table of a space after major changes in the contained data "
         + "to ensure acceptable results of internal statistics calls";

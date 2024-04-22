@@ -62,6 +62,11 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   }
 
   @Override
+  public int getEstimatedExecutionSeconds() {
+    return 10;
+  }
+
+  @Override
   public String getDescription() {
     return "Drops all the indexes on space " + getSpaceId();
   }

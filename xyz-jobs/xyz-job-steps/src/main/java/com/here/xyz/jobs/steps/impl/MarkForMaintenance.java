@@ -60,6 +60,11 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   }
 
   @Override
+  public int getEstimatedExecutionSeconds() {
+    return 3;
+  }
+
+  @Override
   public String getDescription() {
     return "Flag space " + getSpaceId() + " to be taken into account for next maintenance schedule.";
   }

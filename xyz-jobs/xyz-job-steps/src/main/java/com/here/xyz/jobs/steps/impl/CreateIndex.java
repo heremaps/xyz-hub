@@ -64,6 +64,11 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   @Override
+  public int getEstimatedExecutionSeconds() {
+    return 60; //TODO: Return value dependent on index type & feature count
+  }
+
+  @Override
   public String getDescription() {
     return "Creates the " + index + " index on space " + getSpaceId();
   }

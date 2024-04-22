@@ -262,16 +262,27 @@ public class Job implements XyzSerializable {
   public Future<Void> updateStep(Step<?> step) {
     boolean found = getSteps().replaceStep(step);
     if (!found)
-      throw new IllegalArgumentException("The provided step with ID " + step.getJobId() + "." + step.getId()
+      throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId()
           + " could not be replaced in the StepGraph of job with ID " + getId() + " as it was not found.");
 
     //If applicable, update the number of succeeded steps at the runtime status
     if (step.getStatus().getState() == SUCCEEDED)
       getStatus().setSucceededSteps((int) getSteps().stepStream().filter(s -> s.getStatus().getState() == SUCCEEDED).count());
 
-    //TODO: Remove the following workaround once the state-transition-event-rule is working
-    if (step.getStatus().getState() == FAILED)
-      getStatus().setState(FAILED);
+    //Update the job's progress with respect to the step's progress (weighted by the initial execution time estimation of each step)
+    int completedWorkUnits = getSteps().stepStream()
+        .mapToInt(s -> (int) (s.getEstimatedExecutionSeconds() * s.getStatus().getEstimatedProgress())).sum();
+    int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
+    getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
+
+    //TODO: Remove the following workaround once the state-transition-event-rule (HTTPS) is working
+    if (step.getStatus().getState() == FAILED) {
+      getStatus()
+          .withState(FAILED)
+          .withErrorMessage(step.getStatus().getErrorMessage())
+          .withErrorCause(step.getStatus().getErrorCause())
+          .withErrorCode(step.getStatus().getErrorCode());
+    }
     else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount())
       getStatus().setState(SUCCEEDED);
 
