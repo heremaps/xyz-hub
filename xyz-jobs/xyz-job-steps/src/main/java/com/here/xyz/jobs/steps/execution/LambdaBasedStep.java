@@ -181,6 +181,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       If the issue persists, the step will fail after the heartbeat timeout.
        */
       logger.warn("Unknown execution state for step {}.{}", getJobId(), getId(), e);
+      synchronizeStepState();
       //NOTE: No heartbeat must be sent to SFN in this case!
     }
     catch (Exception e) {

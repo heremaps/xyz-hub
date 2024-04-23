@@ -236,7 +236,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
-    logger.info("Checking execution state of step {}.{} ...", getJobId(), getId());
+    logger.info("Checking execution state of step {} ...", getGlobalStepId());
     boolean someQueryIsRunning = runningQueries
         .stream()
         .anyMatch(runningQuery -> {
