@@ -671,6 +671,7 @@ public class SQLQuery {
   }
 
   public String getQueryId() {
+    //TODO: Call initQueryId() here?
     return queryId;
   }
 
@@ -747,9 +748,9 @@ public class SQLQuery {
   }
 
   private static SQLQuery buildLabelMatchQuery(String labelIdentifier, String labelValue) {
-    return new SQLQuery("substring(query, "
+    return new SQLQuery("strpos(query, '/*labels(') > 0 AND substring(query, "
         + "strpos(query, '/*labels(') + 9, "
-        + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
+        + "strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::json->>#{labelIdentifier} = #{labelValue}")
         .withNamedParameter("labelIdentifier", labelIdentifier)
         .withNamedParameter("labelValue", labelValue);
   }

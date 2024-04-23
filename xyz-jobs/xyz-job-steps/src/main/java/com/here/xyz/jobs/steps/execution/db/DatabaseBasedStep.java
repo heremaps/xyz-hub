@@ -119,17 +119,22 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       query = (withCallbacks ? wrapQuery(query) : query)
           .withAsync(true)
           .withTimeout(10);
-      runningQueries.add(new RunningQuery(query.getQueryId(), db.getName(), db.getId()));
     }
     else if (query.getTimeout() == Integer.MAX_VALUE)
       query.setTimeout(300);
 
+    Object result;
     if (query.isBatch() && isWriteQuery)
-      return query.writeBatch(requestResource(db, estimatedMaxAcuLoad));
+      result = query.writeBatch(requestResource(db, estimatedMaxAcuLoad));
 
-    return isWriteQuery
+    result = isWriteQuery
             ? query.write(requestResource(db, estimatedMaxAcuLoad))
             : query.run(requestResource(db, estimatedMaxAcuLoad), resultSetHandler);
+
+    if (async)
+      runningQueries.add(new RunningQuery(query.getQueryId(), db.getName(), db.getId()));
+
+    return result;
   }
 
   /**

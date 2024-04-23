@@ -20,8 +20,8 @@
 package com.here.xyz.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
@@ -45,19 +45,10 @@ public class SQLQueryIT {
         .withDbMaxPoolSize(2));
   }
 
-  private static String getQueryTextByQueryId(SQLQuery longRunningQuery, DataSourceProvider dsp) throws SQLException {
-    return new SQLQuery("SELECT query FROM pg_stat_activity "
-        + "WHERE state = 'active' "
-        + "AND strpos(query, #{labelValue}) > 0 "
-        + "AND pid != pg_backend_pid()")
-        .withNamedParameter("labelValue", longRunningQuery.getQueryId())
-        .run(dsp, rs -> rs.next() ? rs.getString("query") : null);
-  }
-
   @Test
   public void startAndKillQuery() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      SQLQuery longRunningQuery = new SQLQuery("SELECT pg_sleep(30)");
+      SQLQuery longRunningQuery = new SQLQuery("SELECT pg_sleep(500)");
 
       new Thread(() -> {
         try {
@@ -77,13 +68,13 @@ public class SQLQueryIT {
       }
 
       //Check that the long-running query is actually running
-      assertEquals(longRunningQuery.text(), getQueryTextByQueryId(longRunningQuery, dsp));
+      assertTrue(SQLQuery.isRunning(dsp, false, longRunningQuery.getQueryId()));
 
       //Kill the long-running query
       longRunningQuery.kill();
 
       //Check that the original query is not running anymore
-      assertNull(getQueryTextByQueryId(longRunningQuery, dsp));
+      assertFalse(SQLQuery.isRunning(dsp, false, longRunningQuery.getQueryId()));
     }
   }
 
@@ -100,7 +91,7 @@ public class SQLQueryIT {
 
     //The query should still be running on the database
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      assertNotNull(getQueryTextByQueryId(longRunningAsyncQuery, dsp));
+      assertTrue(SQLQuery.isRunning(dsp, false, longRunningAsyncQuery.getQueryId()));
     }
   }
 
