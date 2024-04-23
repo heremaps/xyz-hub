@@ -450,7 +450,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 sum((state = 'SUBMITTED')::int) as submitted_cnt,
                 sum((state = 'FINISHED')::int) as finished_cnt,
                 sum((state = 'FAILED')::int) as failed_cnt
-              FROM public."TEST_job_data"
+              FROM ${schema}.${table}
             	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
             	 AND STATE != 'SUBMITTED';
           """)
