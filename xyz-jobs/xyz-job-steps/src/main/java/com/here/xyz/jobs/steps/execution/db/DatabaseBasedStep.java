@@ -126,10 +126,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     Object result;
     if (query.isBatch() && isWriteQuery)
       result = query.writeBatch(requestResource(db, estimatedMaxAcuLoad));
-
-    result = isWriteQuery
-            ? query.write(requestResource(db, estimatedMaxAcuLoad))
-            : query.run(requestResource(db, estimatedMaxAcuLoad), resultSetHandler);
+    else
+      result = isWriteQuery
+          ? query.write(requestResource(db, estimatedMaxAcuLoad))
+          : query.run(requestResource(db, estimatedMaxAcuLoad), resultSetHandler);
 
     if (async)
       runningQueries.add(new RunningQuery(query.getQueryId(), db.getName(), db.getId()));
