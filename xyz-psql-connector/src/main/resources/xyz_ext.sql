@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 --
 -- Copyright (C) 2017-2023 HERE Europe B.V.
 --
@@ -3258,14 +3277,31 @@ CREATE OR REPLACE FUNCTION asyncify(query TEXT) RETURNS VOID AS
 $BODY$
 DECLARE
     password TEXT := current_setting('xyz.password');
+    labelsComment TEXT := '';
 BEGIN
     PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
     PERFORM dblink_connect('conn', 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
+    IF strpos(query, '/*labels(') != 1 THEN
+        --Attach the same labels to the recursive async call
+        labelsComment = '/*labels(' || get_query_labels() || ')*/ ';
+    END IF;
     --TODO: remove pg_cancel
-    PERFORM dblink_send_query('conn', 'SELECT set_config(''xyz.password'', ''' || password || ''', false); START TRANSACTION; ' || query || '; COMMIT;  SELECT pg_cancel_backend(pg_backend_pid())');
+    PERFORM dblink_send_query('conn', labelsComment || 'SELECT set_config(''xyz.password'', ''' || password || ''', false); START TRANSACTION; ' || query || '; COMMIT;  SELECT pg_cancel_backend(pg_backend_pid())');
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION get_query_labels() RETURNS JSON AS
+$BODY$
+DECLARE
+    labels JSON;
+BEGIN
+    SELECT substring(query, strpos(query, '/*labels(') + 9, strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::JSON FROM pg_stat_activity WHERE strpos(query, '/*labels(') > 0 AND pid = pg_backend_pid() INTO labels;
+    return labels;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile(qk text, isbase4encoded boolean) RETURNS TABLE(rowy integer, colx integer, lev integer, hkey bigint)

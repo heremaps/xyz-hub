@@ -149,7 +149,7 @@ public class SQLQueryIT {
               v INT;
             BEGIN
                 SELECT coalesce(max(col::int), 0) FROM SQLQueryIT INTO v;
-                RAISE NOTICE 'previous value: %', v;
+                RAISE NOTICE 'previous value: %, labels: %', v, get_query_labels();
                 INSERT INTO SQLQueryIT VALUES ('' || depth);
                 
                 IF depth < 10 THEN
