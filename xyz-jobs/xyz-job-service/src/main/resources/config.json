@@ -17,7 +17,6 @@
   "AWS_REGION" : "us-east-1",
 
   "STEP_LAMBDA_ARN" : "arn:aws:lambda:us-east-1:000000000000:function:job-step",
-  "STEP_LAMBDA_CALLER_ROLE_ARN": "arn:aws:iam::000000000000:role/lambda-role",
 
   "JOBS_DYNAMODB_TABLE_ARN": "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local",
   "JOBS_S3_BUCKET": "test-bucket",
