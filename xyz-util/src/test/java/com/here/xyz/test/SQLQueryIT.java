@@ -123,44 +123,95 @@ public class SQLQueryIT {
   }
 
   private static int dropTmpTable(DataSourceProvider dsp) throws SQLException {
-    return new SQLQuery("DROP TABLE IF EXISTS SQLQueryIT;").write(dsp);
+    return dropTmpTable(dsp, "SQLQueryIT");
+  }
+
+  private static int dropTmpTable(DataSourceProvider dsp, String tableName) throws SQLException {
+    return new SQLQuery("DROP TABLE IF EXISTS ${tableName};").withVariable("tableName", tableName).write(dsp);
   }
 
   private static int createTmpTable(DataSourceProvider dsp) throws SQLException {
-    return buildTableCreationQuery().write(dsp);
+    return createTmpTable(dsp, "SQLQueryIT");
+  }
+
+  private static int createTmpTable(DataSourceProvider dsp, String tableName) throws SQLException {
+    return buildTableCreationQuery(tableName).write(dsp);
   }
 
   private static SQLQuery buildTableCreationQuery() {
-    return new SQLQuery("CREATE TABLE SQLQueryIT (col TEXT);");
+    return buildTableCreationQuery("SQLQueryIT");
+  }
+
+  private static SQLQuery buildTableCreationQuery(String tableName) {
+    return new SQLQuery("CREATE TABLE ${tableName} (col TEXT);").withVariable("tableName", tableName);
   }
 
   @Test
   public void runAsyncQueryWithRecursion() throws Exception {
+    int waitTime = 0;
+    String chainATableName = "chain_A";
+    String chainBTableName = "chain_B";
+
+    startThreadChain(chainATableName, waitTime);
+    //Thread.sleep(500);
+    startThreadChain(chainBTableName, waitTime);
+
+    Thread.sleep(10 * waitTime * 1_000 + 500);
+
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
-        dropTmpTable(dsp);
+        assertTableSize(dsp, chainATableName, 10);
+        assertTableSize(dsp, chainBTableName, 10);
+      }
+      finally {
+        dropTmpTable(dsp, chainATableName);
+        dropTmpTable(dsp, chainBTableName);
+      }
+    }
+  }
+
+  private static void assertTableSize(DataSourceProvider dsp, String chainATableName, int itemCount) throws SQLException {
+    assertEquals(itemCount, (int) new SQLQuery("SELECT count(1) as count FROM ${tableName}")
+        .withVariable("tableName", chainATableName)
+        .run(dsp, rs -> rs.next() ? rs.getInt("count") : null));
+  }
+
+  private static void startThreadChain(String tableName, int waitTime) throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        dropTmpTable(dsp, tableName);
         //Prepare an empty test table
-        createTmpTable(dsp);
+        createTmpTable(dsp, tableName);
 
         new SQLQuery("""
-            CREATE OR REPLACE FUNCTION test_func(value TEXT, depth INTEGER) RETURNS VOID AS
+            CREATE OR REPLACE FUNCTION test_func_${{tableName}}(value TEXT, depth INTEGER) RETURNS VOID AS
             $BODY$
             DECLARE
               v INT;
             BEGIN
-                SELECT coalesce(max(col::int), 0) FROM SQLQueryIT INTO v;
-                RAISE NOTICE 'previous value: %, labels: %', v, get_query_labels();
-                INSERT INTO SQLQueryIT VALUES ('' || depth);
+                SELECT coalesce(max(col::int), 0) FROM ${tableName} INTO v;
+                RAISE NOTICE '############## Table: ${tableName}, previous value: %, labels: %', v, get_query_labels();
+                --RAISE NOTICE '** %', 'TEST';
+                INSERT INTO ${tableName} VALUES ('' || depth);
+                
+                PERFORM pg_sleep(${{waitTime}});
                 
                 IF depth < 10 THEN
-                  PERFORM asyncify(format('SELECT test_func(%L , %s)', value, depth + 1));
+                  PERFORM asyncify(format('SELECT test_func_${{tableName}}(%L , %s)', value, depth + 1));
                 END IF;
+                
+                
             END
             $BODY$
             LANGUAGE plpgsql VOLATILE;
-            """).write(dsp);
+            """)
+            .withVariable("tableName", tableName)
+            .withQueryFragment("tableName", tableName)
+            .withQueryFragment("waitTime", "" + waitTime)
+            .write(dsp);
 
-        new SQLQuery("SELECT test_func(#{value}, #{depth})")
+        new SQLQuery("SELECT test_func_${{tableName}}(#{value}, #{depth})")
+            .withQueryFragment("tableName", tableName)
             .withNamedParameter("value", "testValue")
             .withNamedParameter("depth", 1)
             .withAsync(true)
@@ -171,19 +222,6 @@ public class SQLQueryIT {
         throw e;
       }
     }
-
-    Thread.sleep(200);
-
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
-      try {
-        assertEquals(10, (int) new SQLQuery("SELECT count(1) as count FROM SQLQueryIT")
-            .run(dsp, rs -> rs.next() ? rs.getInt("count") : null));
-      }
-      finally {
-        dropTmpTable(dsp);
-      }
-    }
-
   }
 
   @Test

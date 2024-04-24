@@ -17,23 +17,25 @@
  * License-Filename: LICENSE
  */
 
---
--- Copyright (C) 2017-2023 HERE Europe B.V.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
--- http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
---
--- SPDX-License-Identifier: Apache-2.0
--- License-Filename: LICENSE
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 --
 -- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
@@ -3263,30 +3265,65 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from JDBC
 CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT) RETURNS VOID AS
 $BODY$
 BEGIN
     PERFORM set_config('xyz.password', password, false);
-    PERFORM asyncify(query);
+    PERFORM _asyncify(query, false);
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from within other async functions (that have been called through asyncify themselves)
 CREATE OR REPLACE FUNCTION asyncify(query TEXT) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM _asyncify(query, true);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from within other async functions (that have been called through asyncify themselves)
+CREATE OR REPLACE FUNCTION asyncify(query TEXT, deferAfterCommit BOOLEAN) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM _asyncify(query, deferAfterCommit);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is private and should only be called by the other two variants of the asyncify function
+CREATE OR REPLACE FUNCTION _asyncify(query TEXT, deferAfterCommit BOOLEAN) RETURNS VOID AS
 $BODY$
 DECLARE
     password TEXT := current_setting('xyz.password');
     labelsComment TEXT := '';
+    connectionName TEXT := xyz_random_string(6);
 BEGIN
-    PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
-    PERFORM dblink_connect('conn', 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
-    IF strpos(query, '/*labels(') != 1 THEN
-        --Attach the same labels to the recursive async call
-        labelsComment = '/*labels(' || get_query_labels() || ')*/ ';
+    IF deferAfterCommit THEN
+        --Defer the execution (spawn-point) of the query to the end of this thread's execution, to make sure that this thread's transaction has been fully completed / committed before
+        PERFORM set_config('xyz.next_thread', query, false);
+    ELSE
+--         PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
+--         RAISE NOTICE '~~~~~~~~~~~ Connection name %', connectionName;
+        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
+--         PERFORM pg_sleep(1);
+        IF strpos(query, '/*labels(') != 1 THEN
+            --Attach the same labels to the recursive async call
+            labelsComment = '/*labels(' || get_query_labels() || ')*/ ';
+        END IF;
+        PERFORM dblink_send_query(connectionName, labelsComment || 'SELECT set_config(''xyz.password'', ''' || password || ''', false); ' ||
+                                          'START TRANSACTION; ' ||
+                                          query || '; ' ||
+                                          'COMMIT; ' ||
+                                          --Start the follow up thread if one has been registered
+                                          'SELECT CASE WHEN current_setting(''xyz.next_thread'', true) IS NOT NULL THEN asyncify(current_setting(''xyz.next_thread''), false) END; ' ||
+                                          'SELECT pg_terminate_backend(pg_backend_pid())');
     END IF;
-    --TODO: remove pg_cancel
-    PERFORM dblink_send_query('conn', labelsComment || 'SELECT set_config(''xyz.password'', ''' || password || ''', false); START TRANSACTION; ' || query || '; COMMIT;  SELECT pg_cancel_backend(pg_backend_pid())');
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -4012,27 +4049,6 @@ begin
     end if;
 end
 $_$;
-
-
-/*
- * Copyright (C) 2017-2024 HERE Europe B.V.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-License-Identifier: Apache-2.0
- * License-Filename: LICENSE
- */
-
 
 ------------------------------------------------
 ------------------------------------------------
