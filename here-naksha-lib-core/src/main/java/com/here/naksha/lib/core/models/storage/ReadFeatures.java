@@ -178,6 +178,12 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
     return this;
   }
 
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull ReadFeatures withLimit(@NotNull Long limit) {
+    this.limit = limit;
+    return this;
+  }
+
   @Override
   public ReadFeatures shallowClone() {
     // If you are updating this method, remember to update its overrides

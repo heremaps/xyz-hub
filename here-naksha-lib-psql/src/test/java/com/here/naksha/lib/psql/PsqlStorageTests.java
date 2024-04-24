@@ -974,8 +974,7 @@ public class PsqlStorageTests extends PsqlTests {
   void seekableCursorRead() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
-    final ReadFeatures request = new ReadFeatures(collectionId());
-    request.limit = null;
+    final ReadFeatures request = new ReadFeatures(collectionId()).withLimit(null);
     try (final SeekableCursor<XyzFeature, XyzFeatureCodec> cursor =
              session.execute(request).getXyzSeekableCursor()) {
 
@@ -1046,8 +1045,7 @@ public class PsqlStorageTests extends PsqlTests {
   }
 
   private void limitToN(final long limit) throws NoCursor {
-    final ReadFeatures request = new ReadFeatures(collectionId());
-    request.limit = limit;
+    final ReadFeatures request = new ReadFeatures(collectionId()).withLimit(limit);
     try (final @NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
                  session.execute(request).getXyzFeatureCursor()) {
 

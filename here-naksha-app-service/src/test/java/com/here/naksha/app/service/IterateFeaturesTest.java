@@ -18,21 +18,22 @@
  */
 package com.here.naksha.app.service;
 
+import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
+import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
+import static com.here.naksha.app.common.TestUtil.parseJson;
+import static com.here.naksha.app.common.TestUtil.urlEncoded;
+
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.app.common.assertions.ResponseAssertions;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
-import org.json.JSONException;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
 import java.util.UUID;
-
-import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
-import static com.here.naksha.app.common.TestUtil.*;
+import org.json.JSONException;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 class IterateFeaturesTest extends ApiTest {
 
@@ -84,9 +85,9 @@ class IterateFeaturesTest extends ApiTest {
     HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + limitQueryParam, firstStreamId);
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(200)
-            .hasStreamIdHeader(firstStreamId)
-            .hasJsonBody(firstExpectedBodyPart, "First Iterate response body doesn't match");
+        .hasStatus(200)
+        .hasStreamIdHeader(firstStreamId)
+        .hasJsonBody(firstExpectedBodyPart, "First Iterate response body doesn't match");
 
     // Given: iterate parameters for second request
     final String handleQueryParam = "handle=" + urlEncoded(parseJson(response.body(), XyzFeatureCollection.class).getNextPageToken());
@@ -97,10 +98,10 @@ class IterateFeaturesTest extends ApiTest {
     response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + handleQueryParam, secondStreamId);
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(200)
-            .hasStreamIdHeader(secondStreamId)
-            .hasJsonBody(secondExpectedBodyPart, "Final Iterate response body doesn't match")
-            .hasNoNextPageToken();
+        .hasStatus(200)
+        .hasStreamIdHeader(secondStreamId)
+        .hasJsonBody(secondExpectedBodyPart, "Final Iterate response body doesn't match")
+        .hasNoNextPageToken();
   }
 
   @Test
@@ -119,9 +120,9 @@ class IterateFeaturesTest extends ApiTest {
     HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + limitQueryParam, firstStreamId);
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(200)
-            .hasStreamIdHeader(firstStreamId)
-            .hasJsonBody(firstExpectedBodyPart, "First Iterate response body doesn't match");
+        .hasStatus(200)
+        .hasStreamIdHeader(firstStreamId)
+        .hasJsonBody(firstExpectedBodyPart, "First Iterate response body doesn't match");
 
     // Given: iterate parameters for second request
     final String secondHandleQueryParam = "handle=" + urlEncoded(parseJson(response.body(), XyzFeatureCollection.class).getNextPageToken());
@@ -131,9 +132,9 @@ class IterateFeaturesTest extends ApiTest {
     response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + secondHandleQueryParam, secondStreamId);
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(200)
-            .hasStreamIdHeader(secondStreamId)
-            .hasJsonBody(secondExpectedBodyPart, "Second Iterate response body doesn't match");
+        .hasStatus(200)
+        .hasStreamIdHeader(secondStreamId)
+        .hasJsonBody(secondExpectedBodyPart, "Second Iterate response body doesn't match");
 
     // Given: iterate parameters for third request
     final String thirdHandleQueryParam = "handle=" + urlEncoded(parseJson(response.body(), XyzFeatureCollection.class).getNextPageToken());
@@ -143,10 +144,10 @@ class IterateFeaturesTest extends ApiTest {
     response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + thirdHandleQueryParam, thirdStreamId);
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(200)
-            .hasStreamIdHeader(thirdStreamId)
-            .hasJsonBody(thirdExpectedBodyPart, "Final Iterate response body doesn't match")
-            .hasNoNextPageToken();
+        .hasStatus(200)
+        .hasStreamIdHeader(thirdStreamId)
+        .hasJsonBody(thirdExpectedBodyPart, "Final Iterate response body doesn't match")
+        .hasNoNextPageToken();
   }
 
 
@@ -165,9 +166,9 @@ class IterateFeaturesTest extends ApiTest {
 
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(400)
-            .hasStreamIdHeader(streamId)
-            .hasJsonBody(expectedBodyPart, "Iterate Feature Error response body doesn't match");
+        .hasStatus(400)
+        .hasStreamIdHeader(streamId)
+        .hasJsonBody(expectedBodyPart, "Iterate Feature Error response body doesn't match");
   }
 
   @Test
@@ -180,31 +181,34 @@ class IterateFeaturesTest extends ApiTest {
     // Given: iterate parameters for first request
     final String limitQueryParam = "limit=3";
     final String firstStreamId = UUID.randomUUID().toString();
-    final String firstExpectedBodyPart = loadFileOrFail("ReadFeatures/Iterate/TC1104_testIterateInTwoPagesWithPropSelection/iterate_response_1.json")
-            .replaceAll("\\{\\{streamId}}",firstStreamId);
+    final String firstExpectedBodyPart = loadFileOrFail(
+        "ReadFeatures/Iterate/TC1104_testIterateInTwoPagesWithPropSelection/iterate_response_1.json")
+        .replaceAll("\\{\\{streamId}}", firstStreamId);
     final String selectionParams = "selection=p.speedLimit,p.unknown_prop,%s".formatted(urlEncoded("p.@ns:com:here:xyz.tags"));
 
     // When: First iterate Features request is submitted to NakshaHub
-    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + limitQueryParam + "&" + selectionParams, firstStreamId);
+    HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + limitQueryParam + "&" + selectionParams,
+        firstStreamId);
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(200)
-            .hasStreamIdHeader(firstStreamId)
-            .hasJsonBody(firstExpectedBodyPart, "First Iterate response body doesn't match", true);
+        .hasStatus(200)
+        .hasStreamIdHeader(firstStreamId)
+        .hasJsonBody(firstExpectedBodyPart, "First Iterate response body doesn't match", true);
 
     // Given: iterate parameters for second request
     final String handleQueryParam = "handle=" + urlEncoded(parseJson(response.body(), XyzFeatureCollection.class).getNextPageToken());
-    final String secondExpectedBodyPart = loadFileOrFail("ReadFeatures/Iterate/TC1104_testIterateInTwoPagesWithPropSelection/iterate_response_2.json");
+    final String secondExpectedBodyPart = loadFileOrFail(
+        "ReadFeatures/Iterate/TC1104_testIterateInTwoPagesWithPropSelection/iterate_response_2.json");
     final String secondStreamId = UUID.randomUUID().toString();
     final String selectionWrongDelimiterParams = "selection=p.speedLimit+p.unknown_prop";
 
     // When: Second iterate Features request is submitted to NakshaHub
-    response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + handleQueryParam + "&" + selectionWrongDelimiterParams, secondStreamId);
+    response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/iterate" + "?" + handleQueryParam + "&" + selectionWrongDelimiterParams,
+        secondStreamId);
     // Then: Perform assertions
     ResponseAssertions.assertThat(response)
-            .hasStatus(400)
-            .hasStreamIdHeader(secondStreamId)
-            .hasJsonBody(secondExpectedBodyPart, "Final Iterate response body doesn't match");
+        .hasStatus(400)
+        .hasStreamIdHeader(secondStreamId)
+        .hasJsonBody(secondExpectedBodyPart, "Final Iterate response body doesn't match");
   }
-
 }

@@ -141,7 +141,6 @@ class HttpStorageReadExecute {
         .map(k -> k + "=" + readRequest.getQueryParameter(k))
         .collect(Collectors.joining("&"));
   }
-  ;
 
   private static String baseEndpoint(ReadFeaturesProxyWrapper request) {
     return request.getCollections().get(0);

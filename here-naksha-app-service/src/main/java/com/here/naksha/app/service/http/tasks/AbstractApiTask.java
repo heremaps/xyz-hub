@@ -181,15 +181,6 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       final @NotNull Class<R> type,
       final long offset,
       final long maxLimit,
-      final @Nullable IterateHandle handle) {
-    return transformReadResultToXyzCollectionResponse(rdResult, type, offset, maxLimit, handle, null);
-  }
-
-  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
-      final @Nullable Result rdResult,
-      final @NotNull Class<R> type,
-      final long offset,
-      final long maxLimit,
       final @Nullable IterateHandle handle,
       final @Nullable F1<R, R> preResponseProcessing) {
     final XyzResponse validatedErrorResponse = validateErrorResultEmptyCollection(rdResult);

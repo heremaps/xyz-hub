@@ -52,7 +52,7 @@ public class ReadRequest<SELF extends ReadRequest<SELF>> extends Request<SELF> {
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonInclude(Include.NON_DEFAULT)
   @JsonProperty
-  public int fetchSize = 1000;
+  protected int fetchSize = 1000;
 
   /**
    * The total amount of features to fetch from the storage. This value will be included in SELECT statement.
@@ -64,5 +64,13 @@ public class ReadRequest<SELF extends ReadRequest<SELF>> extends Request<SELF> {
   @AvailableSince(NakshaVersion.v2_0_9)
   @JsonInclude(Include.NON_DEFAULT)
   @JsonProperty
-  public Long limit = LibraryConstants.DEFAULT_READ_LIMIT;
+  protected Long limit = LibraryConstants.DEFAULT_READ_LIMIT;
+
+  public int getFetchSize() {
+    return fetchSize;
+  }
+
+  public Long getLimit() {
+    return limit;
+  }
 }

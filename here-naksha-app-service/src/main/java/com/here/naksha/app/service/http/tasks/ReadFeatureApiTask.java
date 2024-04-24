@@ -18,8 +18,30 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.*;
-import static com.here.naksha.common.http.apis.ApiParamsConst.*;
+import static com.here.naksha.app.service.http.apis.ApiParams.extractMandatoryPathParam;
+import static com.here.naksha.app.service.http.apis.ApiParams.extractParamAsStringList;
+import static com.here.naksha.app.service.http.apis.ApiParams.queryParamsFromRequest;
+import static com.here.naksha.common.http.apis.ApiParamsConst.CLIP_GEO;
+import static com.here.naksha.common.http.apis.ApiParamsConst.DEF_FEATURE_LIMIT;
+import static com.here.naksha.common.http.apis.ApiParamsConst.EAST;
+import static com.here.naksha.common.http.apis.ApiParamsConst.FEATURE_ID;
+import static com.here.naksha.common.http.apis.ApiParamsConst.FEATURE_IDS;
+import static com.here.naksha.common.http.apis.ApiParamsConst.HANDLE;
+import static com.here.naksha.common.http.apis.ApiParamsConst.LAT;
+import static com.here.naksha.common.http.apis.ApiParamsConst.LIMIT;
+import static com.here.naksha.common.http.apis.ApiParamsConst.LON;
+import static com.here.naksha.common.http.apis.ApiParamsConst.MARGIN;
+import static com.here.naksha.common.http.apis.ApiParamsConst.NORTH;
+import static com.here.naksha.common.http.apis.ApiParamsConst.NULL_COORDINATE;
+import static com.here.naksha.common.http.apis.ApiParamsConst.PROPERTY_SEARCH_OP;
+import static com.here.naksha.common.http.apis.ApiParamsConst.RADIUS;
+import static com.here.naksha.common.http.apis.ApiParamsConst.REF_FEATURE_ID;
+import static com.here.naksha.common.http.apis.ApiParamsConst.REF_SPACE_ID;
+import static com.here.naksha.common.http.apis.ApiParamsConst.SOUTH;
+import static com.here.naksha.common.http.apis.ApiParamsConst.SPACE_ID;
+import static com.here.naksha.common.http.apis.ApiParamsConst.TILE_ID;
+import static com.here.naksha.common.http.apis.ApiParamsConst.TILE_TYPE;
+import static com.here.naksha.common.http.apis.ApiParamsConst.WEST;
 import static com.here.naksha.lib.core.models.storage.transformation.BufferTransformation.bufferInMeters;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
@@ -39,8 +61,15 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.OpType;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.ReadFeaturesProxyWrapper;
 import com.here.naksha.lib.core.models.storage.ReadFeaturesProxyWrapper.ReadRequestType;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SOp;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.util.storage.ResultHelper;
 import io.vertx.ext.web.RoutingContext;
@@ -196,11 +225,14 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     queryParamsMap.put(EAST, east);
     queryParamsMap.put(SOUTH, south);
     queryParamsMap.put(LIMIT, limit);
-    if (propSearchOp != null) queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
+    if (propSearchOp != null) {
+      queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
+    }
 
     final ReadFeatures rdRequest = new ReadFeaturesProxyWrapper()
         .withReadRequestType(ReadRequestType.GET_BY_BBOX)
         .withQueryParameters(queryParamsMap)
+        .withLimit(limit)
         .addCollection(spaceId)
         .withSpatialOp(SOp.intersects(bbox));
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
@@ -243,11 +275,14 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     queryParamsMap.put(LIMIT, limit);
     queryParamsMap.put(TILE_TYPE, tileType);
     queryParamsMap.put(TILE_ID, tileId);
-    if (propSearchOp != null) queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
+    if (propSearchOp != null) {
+      queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
+    }
 
     final ReadFeatures rdRequest = new ReadFeaturesProxyWrapper()
         .withReadRequestType(ReadRequestType.GET_BY_TILE)
         .withQueryParameters(queryParamsMap)
+        .withLimit(limit)
         .addCollection(spaceId)
         .withSpatialOp(SOp.intersects(geo));
     RequestHelper.combineOperationsForRequestAs(rdRequest, OpType.AND, tagsOp, propSearchOp);
@@ -281,7 +316,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // Prepare read request based on parameters supplied
     final POp tagsOp = TagsUtil.buildOperationForTagsQueryParam(queryParams);
     final POp propSearchOp = PropertySearchUtil.buildOperationForPropertySearchParams(queryParams);
-    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId);
+    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withLimit(limit);
     if (tagsOp == null && propSearchOp == null) {
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, "Atleast Tags or Prop search parameters required.");
@@ -311,23 +346,23 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
 
     // extract limit parameter
     long offset = 0;
-    long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
+    long clientLimit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
     // extract handle parameter
     IterateHandle handle = ApiParams.extractQueryParamAsIterateHandle(queryParams, HANDLE);
     // create new "handle" if not already provided, or overwrite parameters based on "handle"
     if (handle == null) {
-      handle = new IterateHandle().withLimit(limit);
+      handle = new IterateHandle().withLimit(clientLimit);
     }
     offset = handle.getOffset();
-    limit = handle.getLimit();
-    limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
-
-    final Map<String, Object> queryParamsMap = Map.of(LIMIT, limit);
+    clientLimit = handle.getLimit();
+    clientLimit = (clientLimit < 0 || clientLimit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : clientLimit;
+    final Map<String, Object> queryParamsMap = Map.of(LIMIT, clientLimit);
 
     // Prepare read request based on parameters supplied
     final ReadFeatures rdRequest = new ReadFeaturesProxyWrapper()
         .withReadRequestType(ReadRequestType.ITERATE)
         .withQueryParameters(queryParamsMap)
+        .withLimit(clientLimit + offset)
         .addCollection(spaceId);
 
     // Forward request to NH Space Storage reader instance
@@ -337,7 +372,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // transform Result to Http FeatureCollection response,
     // restricted by given feature limit and by adding "handle" attribute to support subsequent iteration
     return transformReadResultToXyzCollectionResponse(
-        result, XyzFeature.class, offset, limit, handle, preResponseProcessing);
+        result, XyzFeature.class, offset, clientLimit, handle, preResponseProcessing);
   }
 
   private @NotNull XyzResponse executeFeaturesByRadius() {
@@ -438,7 +473,6 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final long radius = ApiParams.extractQueryParamAsLong(queryParams, RADIUS, false, 0);
     long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
     final Set<String> propPaths = PropertySelectionUtil.buildPropPathSetFromQueryParams(queryParams);
-    final boolean clip = ApiParams.extractQueryParamAsBoolean(queryParams, CLIP_GEO, false);
     // validate values
     limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
     ApiParams.validateParamRange(RADIUS, radius, 0, Long.MAX_VALUE);
