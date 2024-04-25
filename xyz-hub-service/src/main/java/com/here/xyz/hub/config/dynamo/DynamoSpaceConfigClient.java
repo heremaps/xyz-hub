@@ -28,7 +28,6 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
-import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
@@ -38,6 +37,7 @@ import com.amazonaws.services.dynamodbv2.model.GetItemResult;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
+import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
@@ -58,7 +58,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -107,12 +106,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
       try {
         List<IndexDefinition> indexes = List.of(
+                new IndexDefinition("extendsFrom"),
                 new IndexDefinition("owner"),
                 new IndexDefinition("shared"),
                 new IndexDefinition("region"),
                 new IndexDefinition("type", "contentUpdatedAt")
         );
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N", "id", indexes, "exp");
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N,extendsFrom:S", "id", indexes, "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -174,6 +174,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
       itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
       itemData.put("type", "SPACE");
+
+      if (space.getExtension() != null && !Strings.isNullOrEmpty(space.getExtension().getSpaceId()))
+        itemData.put("extendsFrom", space.getExtension().getSpaceId());
+
       sanitize(itemData);
       spaces.putItem(Item.fromMap(itemData));
       return null;
@@ -348,6 +352,18 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return getSelectedSpacesSync(marker, authorizedCondition, selectedCondition, propsQuery)
         .onSuccess(spaces -> logger.info(marker, "Number of spaces retrieved from DynamoDB: {}", spaces.size()))
         .onFailure(t -> logger.error(marker, "Failure getting authorized spaces", t));
+  }
+
+  @Override
+  public Future<List<Space>> getSpacesFromSuper(Marker marker, String superSpaceId) {
+    return dynamoClient.executeQueryAsync(() -> {
+      final List<Space> resultSpaces = new ArrayList<>();
+      spaces.getIndex("extendsFrom-index")
+          .query(new QuerySpec().withHashKey("extendsFrom", superSpaceId))
+          .pages()
+          .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem))));
+      return resultSpaces;
+    });
   }
 
   private Future<List<Space>> getSelectedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition,
@@ -585,57 +601,6 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
     itemData.putIfAbsent("versionsToKeep", 0);
     return DatabindCodec.mapper().convertValue(itemData, Space.class);
-  }
-
-  private Set<String> getAuthorizedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition) throws AmazonDynamoDBException {
-    final Set<String> authorizedSpaces = new LinkedHashSet<>();
-
-    logger.info(marker, "Getting authorized spaces by condition");
-
-    try {
-      //Get the space ids which are authorized by the authorizedCondition
-      if (authorizedCondition.spaceIds != null) {
-        authorizedSpaces.addAll(authorizedCondition.spaceIds);
-        logger.debug(marker, "Number of space IDs after addition from authorized condition space IDs: {}", authorizedSpaces.size());
-      }
-
-      //Then get the owners which are authorized by the authorizedCondition
-      if (authorizedCondition.ownerIds != null) {
-        authorizedCondition.ownerIds.forEach(owner ->
-            spaces.getIndex("owner-index").query("owner", owner).pages().forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("id"));
-            }))
-        );
-        logger.debug(marker, "Number of space IDs after addition from owners: {}", authorizedSpaces.size());
-      }
-
-      //Then get the packages which are authorized by the authorizedCondition
-      if (authorizedCondition.packages != null) {
-        authorizedCondition.packages.forEach(packageName ->
-            packages.query("packageName", packageName).pages().forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("spaceId"));
-            }))
-        );
-        logger.debug(marker, "Number of space IDs after addition from packages: {}", authorizedSpaces.size());
-      }
-
-      //Then get the "empty" case, when no spaceIds or ownerIds os packages are provided, meaning select ALL spaces
-      if (CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds)
-          && CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds)
-          && CollectionUtils.isNullOrEmpty(authorizedCondition.packages)) {
-        spaces
-            .scan(new ScanSpec().withProjectionExpression("id"))
-            .pages()
-            .forEach(p -> p.forEach(i -> authorizedSpaces.add(i.getString("id"))));
-      }
-    }
-    catch (AmazonDynamoDBException e) {
-      logger.error(marker, "Failure to get the authorized spaces", e);
-      throw e;
-    }
-
-    logger.info(marker, "Returning the list of authorized spaces with size of: {}", authorizedSpaces.size());
-    return authorizedSpaces;
   }
 
   /**

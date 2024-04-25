@@ -417,5 +417,25 @@
         "className": "com.here.xyz.hub.connectors.test.EvalConnector"
       }
     }
+  },
+  {
+    "id": "client-throttling",
+    "connectionSettings": {
+      "maxConnections": 1024,
+      "maxConnectionsPerClient": 10,
+      "minConnections": 10
+    },
+    "params": {
+      "connectorId" : "client-throttling"
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-client-throttling-local",
+        "warmUp": 0,
+        "className": "com.here.xyz.hub.connectors.test.InMemoryThrottlingStorage",
+        "protocolVersion": "0.5.0"
+      }
+    }
   }
 ]

@@ -126,7 +126,6 @@ public class SpaceApi extends SpaceBasedApi {
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
         .execute(this::sendResponse, this::sendErrorResponse);
-
   }
 
   /**

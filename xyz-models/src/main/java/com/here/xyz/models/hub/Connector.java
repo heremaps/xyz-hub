@@ -158,13 +158,15 @@ public class Connector {
     public int maxConnections = 32;
     private int minConnections = 0;
 
+    public int maxConnectionsPerClient = 0;
+
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
       ConnectionSettings that = (ConnectionSettings) o;
       return minConnections == that.minConnections &&
-          maxConnections == that.maxConnections;
+          maxConnections == that.maxConnections && maxConnectionsPerClient == that.maxConnectionsPerClient;
     }
 
     /**

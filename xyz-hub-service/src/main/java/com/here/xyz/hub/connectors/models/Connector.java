@@ -146,6 +146,12 @@ public class Connector extends com.here.xyz.models.hub.Connector {
     return connectionSettings.maxConnections / Node.count();
   }
 
+  @JsonIgnore
+  public int getMaxConnectionsPerClient() {
+    int connections = connectionSettings.maxConnectionsPerClient == 0 ? 60 : connectionSettings.maxConnectionsPerClient;
+    return (int) Math.ceil((double) connections / Node.count());
+  }
+
   @JsonIgnoreProperties(ignoreUnknown = true)
   @JsonTypeInfo(use = Id.NAME, property = "type")
   @JsonSubTypes({

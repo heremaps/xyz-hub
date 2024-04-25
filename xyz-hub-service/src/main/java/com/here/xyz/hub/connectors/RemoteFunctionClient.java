@@ -19,8 +19,6 @@
 
 package com.here.xyz.hub.connectors;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
-
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
 import com.here.xyz.hub.Service;
@@ -34,17 +32,24 @@ import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.impl.ConcurrentHashSet;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
+
+import static com.here.xyz.hub.util.ConnectorUtils.compareAndDecrement;
+import static com.here.xyz.hub.util.ConnectorUtils.compareAndIncrementUpTo;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 public abstract class RemoteFunctionClient {
   /**
@@ -81,6 +86,7 @@ public abstract class RemoteFunctionClient {
   private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
+  private static final ConcurrentHashMap<String, AtomicInteger> clientIdToConnectionsMap =  new ConcurrentHashMap<>();
 
 //  /**
 //   * Sliding average request execution time in seconds.
@@ -144,7 +150,7 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback) {
+  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext context) {
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
@@ -159,14 +165,24 @@ public abstract class RemoteFunctionClient {
       callback.handle(Future.succeededFuture(r.result()));
     });
 
+
     if (!hasPriority){
-      if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
+        if(context.getClientId() != null) {
+          AtomicInteger connectionCount = clientIdToConnectionsMap.computeIfAbsent(context.getClientId(), (key) -> new AtomicInteger(0));
+          if(!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerClient(), connectionCount)) {
+            callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node, throttling. "
+                    + "Max connections per node limit: " + context.getConnector().getMaxConnectionsPerClient()
+                    + ", connections: " + connectionCount)));
+          }
+        }
+
+       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
         enqueue(fc);
         return fc;
       }
     }
 
-    _invoke(fc);
+    _invoke(fc, context);
     return fc;
   }
 
@@ -278,17 +294,6 @@ public abstract class RemoteFunctionClient {
     return ByteStreams.toByteArray(Payload.prepareInputStream(new ByteArrayInputStream(bytes)));
   }
 
-  private static boolean compareAndIncrementUpTo(int maxExpect, AtomicInteger i) {
-    int currentValue = i.get();
-    while (currentValue < maxExpect) {
-      if (i.compareAndSet(currentValue, currentValue + 1)) {
-        return true;
-      }
-      currentValue = i.get();
-    }
-    return false;
-  }
-
   /**
    * (Re-)Adjusts the maximum byte sizes of the queues of all existing RemoteFunctionClients. When calling this method while there are
    * requests in the queues this could result in discards of those requests.
@@ -340,7 +345,7 @@ public abstract class RemoteFunctionClient {
     return Collections.unmodifiableSet(clientInstances);
   }
 
-  private void _invoke(final FunctionCall fc) {
+  private void _invoke(final FunctionCall fc, RpcClient.RpcContext context) {
     //long start = System.nanoTime();
     invoke(fc, r -> {
       //long end = System.nanoTime();
@@ -351,6 +356,9 @@ public abstract class RemoteFunctionClient {
       if (nextFc == null && !fc.hasPriority) {
         if(usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
+          Optional.ofNullable(context.getClientId())
+                  .map(clientIdToConnectionsMap::get)
+                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
         }
       }
       try {
@@ -362,7 +370,7 @@ public abstract class RemoteFunctionClient {
       }
       //In case there has been an enqueued element invoke it
       if (nextFc != null) {
-        _invoke(nextFc);
+        _invoke(nextFc, context);
       }
     });
   }
@@ -485,7 +493,7 @@ public abstract class RemoteFunctionClient {
       this.cancelHandler = cancelHandler;
     }
 
-    public void cancel() {
+    public void cancel(String clientId) {
       cancelled = true;
       try {
         if (cancelHandler != null) {
@@ -498,6 +506,9 @@ public abstract class RemoteFunctionClient {
       finally {
         if(!hasPriority && usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection
+          Optional.ofNullable(clientId)
+                  .map(clientIdToConnectionsMap::get)
+                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
         }
       }
     }

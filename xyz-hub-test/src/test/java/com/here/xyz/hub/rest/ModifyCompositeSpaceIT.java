@@ -23,6 +23,7 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -199,5 +200,32 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
         .patch("/spaces/x-psql-test")
         .then()
         .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void deactivateCompositeSpacesOnParentDelete() {
+    removeSpace("x-psql-test");
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-ext")
+        .then()
+        .statusCode(OK.code())
+        .body("active", equalTo(false));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-ext/iterate")
+        .then()
+        .statusCode(PRECONDITION_REQUIRED.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-ext-ext/iterate")
+        .then()
+        .statusCode(PRECONDITION_REQUIRED.code());
   }
 }

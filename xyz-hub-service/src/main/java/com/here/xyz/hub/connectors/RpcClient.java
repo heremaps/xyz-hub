@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,18 +18,6 @@
  */
 
 package com.here.xyz.hub.connectors;
-
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
-import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
-import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -50,11 +38,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.responses.*;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
@@ -62,16 +46,24 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
 
 public class RpcClient {
 
@@ -192,11 +184,11 @@ public class RpcClient {
             callback.handle(Future.failedFuture(ar.cause()));
             return;
           }
-          context.functionCall = functionClient.submit(marker, ar.result(), fireAndForget, hasPriority, callback);
+          context.functionCall = functionClient.submit(marker, ar.result(), fireAndForget, hasPriority, callback, context);
         });
       }
       else {
-        context.functionCall = functionClient.submit(marker, bytes, fireAndForget, hasPriority, callback);
+        context.functionCall = functionClient.submit(marker, bytes, fireAndForget, hasPriority, callback, context);
       }
     }
     catch (Exception e) {
@@ -261,14 +253,14 @@ public class RpcClient {
    * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
-  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
+  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String clientId) {
     tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
     injectConnectorParams(event, connector);
     final boolean expectBinaryResponse = expectBinaryResponse(event);
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
-    final RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
+    final RpcContext context = new RpcContext(connector).withRequestSize(eventBytes.length);
 
     //Check whether the event type is allowed on the connector
     String region = Service.configuration == null ? null : Service.configuration.AWS_REGION;
@@ -281,6 +273,8 @@ public class RpcClient {
 
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
             preview(eventJson, 4092));
+
+    context.setClientId(clientId);
 
     invokeWithRelocation(marker, context, eventBytes, false, hasPriority, bytesResult -> {
       if (functionClient == null) {
@@ -317,7 +311,7 @@ public class RpcClient {
   }
 
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
-    return execute(marker, event, hasPriority, callback, null);
+    return execute(marker, event, hasPriority, callback, null, null);
   }
 
   /**
@@ -330,11 +324,15 @@ public class RpcClient {
    */
   @SuppressWarnings("rawtypes")
   public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
-    return execute(marker, event, false, callback, tmpSpace);
+    return execute(marker, event, false, callback, tmpSpace, null);
   }
 
   public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
     return execute(marker, event, callback, null);
+  }
+
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String clientId) {
+    return execute(marker, event, false, callback, tmpSpace, clientId);
   }
 
   private String preview(String eventJson, @SuppressWarnings("SameParameterValue") int previewLength) {
@@ -358,7 +356,7 @@ public class RpcClient {
     final Connector connector = getConnector();
     injectConnectorParams(event, connector);
     final byte[] eventBytes = event.toByteArray();
-    RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
+    RpcContext context = new RpcContext(connector).withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, false, r -> {
       if (r.failed()) {
         if (r.cause() instanceof HttpException
@@ -621,11 +619,20 @@ public class RpcClient {
     private int requestSize = -1;
     private int responseSize = -1;
     private volatile boolean cancelled = false;
+
+    private final Connector connector;
+
+    private String clientId;
+
     private FunctionCall functionCall;
+
+    public RpcContext(Connector connector) {
+      this.connector = connector;
+    }
 
     public void cancelRequest() {
       cancelled = true;
-      functionCall.cancel();
+      functionCall.cancel(clientId);
     }
 
     public int getRequestSize() {
@@ -652,6 +659,18 @@ public class RpcClient {
     public RpcContext withResponseSize(int responseSize) {
       setResponseSize(responseSize);
       return this;
+    }
+
+    public String getClientId() {
+      return clientId;
+    }
+
+    public void setClientId(String clientId) {
+      this.clientId = clientId;
+    }
+
+    public Connector getConnector() {
+      return connector;
     }
   }
 }

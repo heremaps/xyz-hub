@@ -19,13 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.Task.TaskState.CANCELLED;
-import static com.here.xyz.hub.task.Task.TaskState.ERROR;
-import static com.here.xyz.hub.task.Task.TaskState.INIT;
-import static com.here.xyz.hub.task.Task.TaskState.IN_PROGRESS;
-import static com.here.xyz.hub.task.Task.TaskState.RESPONSE_SENT;
-import static com.here.xyz.hub.task.Task.TaskState.STARTED;
-
 import com.here.xyz.events.Event;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.rest.ApiResponseType;
@@ -38,11 +31,14 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
-import java.util.Objects;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+
+import java.util.Objects;
+import java.util.function.Consumer;
+
+import static com.here.xyz.hub.task.Task.TaskState.*;
 
 /**
  * A task for processing of an event.
@@ -111,6 +107,8 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   private ConcurrentSet<Consumer<Task<T, X>>> cancellingHandlers = new ConcurrentSet<>();
 
+  private String clientId;
+
   /**
    * @throws NullPointerException if the given context or responseType are null.
    */
@@ -130,6 +128,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     context.put(TASK, this);
     this.responseType = responseType;
     this.skipCache = skipCache;
+    this.clientId = BaseHttpServerVerticle.getAuthor(context);
   }
 
   public T getEvent() throws IllegalStateException {
@@ -252,6 +251,10 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   public void addCancellingHandler(Consumer<Task<T, X>> cancellingHandler) {
     Objects.requireNonNull(cancellingHandler);
     cancellingHandlers.add(cancellingHandler);
+  }
+
+  public String getClientId() {
+    return clientId;
   }
 
   /**

@@ -24,6 +24,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -544,9 +545,14 @@ public class JobApiIT extends TestSpaceWithFeature {
 
     protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContain) throws IOException, InterruptedException {
         String result = "";
+        boolean isGeojson = false;
         long totalByteSize = 0;
 
         for (URL url : urls) {
+            if(url.toString().contains(".geojson")) {
+                isGeojson = true;
+            }
+
             System.out.println("Download: "+url);
             url = new URL(url.toString().replace("localstack","localhost"));
             BufferedInputStream bis = new BufferedInputStream(url.openStream());
@@ -567,13 +573,15 @@ public class JobApiIT extends TestSpaceWithFeature {
         if(expectedByteSize != null)
             assertEquals(expectedByteSize.intValue(), totalByteSize);
 
+
         if(expectedFeatureCount != null)
-            assertEquals(expectedFeatureCount.intValue(), result.split("'\"id'\"", -1).length-1);
+            assertEquals(expectedFeatureCount.intValue(), result.split(isGeojson ? "\"id\"" : "'\"id'\"", -1).length-1);
 
          for (String word : csvMustContain) {
             if(result.indexOf(word) == -1)
                 fail("CSV is MISSING: "+word);
         }
+
 
         return result;
     }
