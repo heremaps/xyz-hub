@@ -22,6 +22,7 @@ package com.here.xyz.jobs.config;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.steps.Step;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,16 @@ public class InMemJobConfigClient extends JobConfigClient {
 
     @Override
     public Future<Void> updateState(Job job, State expectedPreviousState) {
+        return storeJob(job);
+    }
+
+    @Override
+    public Future<Void> updateStatus(Job job, State expectedPreviousState) {
+        return storeJob(job);
+    }
+
+    @Override
+    public Future<Void> updateStep(Job job, Step<?> newStep) {
         return storeJob(job);
     }
 

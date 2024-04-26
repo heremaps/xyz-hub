@@ -26,13 +26,12 @@ import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.collect.ImmutableMap;
-import com.here.xyz.XyzSerializable.Public;
-import com.here.xyz.XyzSerializable.Static;
+import com.here.xyz.XyzSerializable;
 import java.util.Arrays;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class RuntimeInfo<T extends RuntimeInfo> {
+public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
   private long updatedAt;
   private long startedAt;
   private State state = NONE;

@@ -21,6 +21,7 @@ package com.here.xyz.jobs.config;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
@@ -74,6 +75,10 @@ public abstract class JobConfigClient implements Initializable {
    * @return
    */
   public abstract Future<Void> updateState(Job job, State expectedPreviousState);
+
+  public abstract Future<Void> updateStatus(Job job, State expectedPreviousState);
+
+  public abstract Future<Void> updateStep(Job job, Step<?> newStep);
 
   public abstract Future<Void> deleteJob(String jobId);
 }

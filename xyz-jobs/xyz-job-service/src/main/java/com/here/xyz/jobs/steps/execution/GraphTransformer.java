@@ -78,6 +78,19 @@ public class GraphTransformer {
         else
           fixLambdaTaskStates(subMap);
       }
+      else if (e.getValue() instanceof List subList)
+        fixLambdaTaskStates(subList);
+  }
+
+  private void fixLambdaTaskStates(List<Object> machineParts) {
+    machineParts.forEach(machinePart -> fixLambdaTaskStates(machinePart));
+  }
+
+  private void fixLambdaTaskStates(Object machinePart) {
+    if (machinePart instanceof List machineParts)
+      fixLambdaTaskStates(machineParts);
+    else if (machinePart instanceof Map machineParts)
+      fixLambdaTaskStates(machineParts);
   }
 
   //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions

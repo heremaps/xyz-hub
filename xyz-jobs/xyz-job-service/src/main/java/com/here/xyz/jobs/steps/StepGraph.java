@@ -92,6 +92,29 @@ public class StepGraph implements StepExecution {
     return false;
   }
 
+  /**
+   * Finds the step by its ID within this graph and returns the full attribute path to it.
+   *
+   * Sample attribute path:
+   *  <code>executions[2].executions[0].executions[0]</code>
+   *
+   * @param stepId The ID of the step to find within this graph
+   * @return The attribute path to the step if it was found, <code>null</code> otherwise.
+   */
+  public String findStepPath(String stepId) {
+    for (int i = 0; i < executions.size(); i++) {
+      StepExecution execution = executions.get(i);
+      if (execution instanceof StepGraph graph) {
+        String stepPath = graph.findStepPath(stepId);
+        if (stepPath != null)
+          return "executions[" + i + "]." + stepPath;
+      }
+      else if (execution instanceof Step traversedStep && traversedStep.getId().equals(stepId))
+        return "executions[" + i + "]";
+    }
+    return null;
+  }
+
   public boolean isParallel() {
     return parallel;
   }

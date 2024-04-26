@@ -28,12 +28,16 @@ import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -123,11 +127,65 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return dynamoClient.executeQueryAsync(() -> {
       jobTable.updateItem(new UpdateItemSpec()
           .withPrimaryKey("id", job.getId())
-          .withUpdateExpression("SET status.state = :newState")
-          .withConditionExpression("status.state = :oldState")
+          .withUpdateExpression("SET #state = :newState")
+          .withConditionExpression("#state = :oldState")
+          .withNameMap(Map.of("#state", "status.state"))
           .withValueMap(Map.of(":newState", job.getStatus().getState().toString(), ":oldState", expectedPreviousState.toString())));
       return null;
     });
+  }
+
+  @Override
+  public Future<Void> updateStatus(Job job, State expectedPreviousState) {
+    return dynamoClient.executeQueryAsync(() -> {
+      try {
+        jobTable.updateItem(new UpdateItemSpec()
+            .withPrimaryKey("id", job.getId())
+            .withUpdateExpression("SET #status = :newStatus")
+            //TODO: Reactivate the state check / allow multiple expected previous steps? Allow passing null to be expected, meaning to not check at all?
+            //.withConditionExpression("#state = :oldState")
+            .withNameMap(Map.of("#status", "status"/*, "#state", "status.state"*/))
+            .withValueMap(Map.of(":newStatus", job.getStatus().toMap()/*, ":oldState", expectedPreviousState.toString()*/)));
+        return null;
+      }
+      catch (Exception e) {
+        logger.error(e);
+        return null;
+      }
+    });
+  }
+
+  @Override
+  public Future<Void> updateStep(Job job, Step<?> newStep) {
+    final String stepPath = buildStepPath(job, newStep);
+    final List<State> finalStates = Stream.of(State.values())
+        .filter(state -> state.isFinal())
+        .collect(Collectors.toUnmodifiableList());
+    Map<String, Object> valueMap = new HashMap<>(Map.of(":newStep", newStep.toMap()));
+    finalStates.forEach(state -> valueMap.put(":" + state, state.toString()));
+
+    return dynamoClient.executeQueryAsync(() -> {
+      try {
+        jobTable.updateItem(new UpdateItemSpec()
+            .withPrimaryKey("id", job.getId())
+            .withUpdateExpression("SET " + stepPath + " = :newStep")
+            //NOTE: The condition ensures that we're not further updating a step that has a final state
+            .withConditionExpression(finalStates.stream()
+                .map(state -> "#state <> :" + state)
+                .collect(Collectors.joining(" AND ")))
+            .withNameMap(Map.of("#state", stepPath + ".status.state"))
+            .withValueMap(valueMap));
+        return null;
+      }
+      catch (Exception e) {
+        logger.error(e);
+        return null;
+      }
+    });
+  }
+
+  private String buildStepPath(Job job, Step<?> step) {
+    return "steps." + job.getSteps().findStepPath(step.getId());
   }
 
   private Item convertJobToItem(Job job) {

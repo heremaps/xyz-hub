@@ -37,6 +37,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.JobCompiler;
@@ -294,7 +295,8 @@ public class Job implements XyzSerializable {
     else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount())
       getStatus().setState(SUCCEEDED);
 
-    return store();
+    return storeUpdatedStep(step)
+        .compose(v -> storeStatus(null));
   }
 
   /**
