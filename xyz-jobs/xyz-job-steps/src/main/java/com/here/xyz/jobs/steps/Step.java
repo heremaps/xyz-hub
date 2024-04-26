@@ -118,7 +118,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   private String stepS3Prefix(boolean previousStep) {
-    return jobId + "/" + (previousStep ? previousStepId : id);
+    return jobId + "/" + (previousStep ? getPreviousStepId() : getId());
   }
 
   protected final String inputS3Prefix() {
