@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@
 package com.here.xyz.connectors.runtime;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.aws.SimulatedContext;
+import java.util.List;
 
 public class LambdaConnectorRuntime extends ConnectorRuntime {
 
@@ -55,6 +57,35 @@ public class LambdaConnectorRuntime extends ConnectorRuntime {
   @Override
   public boolean isRunningLocally() {
     return context instanceof SimulatedContext;
+  }
+
+  @Override
+  public String getSoftwareVersion() {
+    if (context instanceof SimulatedContext)
+      return null;
+    String version = getVersionFromArn(context.getInvokedFunctionArn());
+    return isValidVersion(version) ? version : null;
+  }
+
+  private static String getVersionFromArn(String arn) {
+    String resourceWithAlias = new ARN(arn).getResourceWithoutType();
+    if (!resourceWithAlias.contains(":"))
+      return null;
+    String[] aliasParts = resourceWithAlias.split("-");
+    if (aliasParts.length < 3)
+      return null;
+    List<String> versionParts = List.of(aliasParts[aliasParts.length - 3], aliasParts[aliasParts.length - 2], aliasParts[aliasParts.length - 1]);
+    return String.join(".", versionParts);
+  }
+
+  private boolean isValidVersion(String version) {
+    try {
+      Integer.parseInt(version.substring(0, 1));
+      return version.contains(".");
+    }
+    catch (NumberFormatException e) {
+      return false;
+    }
   }
 
   @Override

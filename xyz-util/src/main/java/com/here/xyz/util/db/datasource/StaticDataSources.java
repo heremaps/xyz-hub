@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,21 +19,42 @@
 
 package com.here.xyz.util.db.datasource;
 
+import com.here.xyz.util.db.DatabaseSettings;
 import com.mchange.v2.c3p0.PooledDataSource;
 import javax.sql.DataSource;
+import org.postgresql.ds.PGSimpleDataSource;
 
 public class StaticDataSources extends DataSourceProvider implements AutoCloseable {
 
   private final DataSource reader;
   private final DataSource writer;
 
+  public StaticDataSources(DatabaseSettings dbSettings) {
+    super(dbSettings);
+    writer = createDataSource(false);
+    reader = dbSettings.hasReplica() ? createDataSource(true) : writer;
+  }
+
   public StaticDataSources(DataSource writer) {
     this(writer, writer);
   }
 
   public StaticDataSources(DataSource reader, DataSource writer) {
+    super(null);
     this.reader = reader;
     this.writer = writer;
+  }
+
+  private DataSource createDataSource(boolean replica) {
+    PGSimpleDataSource ds = new PGSimpleDataSource();
+    ds.setServerNames(new String[] {replica ? dbSettings.getReplicaHost() : dbSettings.getHost()});
+    ds.setDatabaseName(dbSettings.getDb());
+    ds.setUser(replica ? dbSettings.getReplicaUser() : dbSettings.getUser());
+    ds.setPassword(dbSettings.getPassword());
+    ds.setApplicationName(dbSettings.getApplicationName());
+    ds.setConnectTimeout(dbSettings.getDbCheckoutTimeout());
+    ds.setCurrentSchema(dbSettings.getSchema());
+    return ds;
   }
 
   @Override

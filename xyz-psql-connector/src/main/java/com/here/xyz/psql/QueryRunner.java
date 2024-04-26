@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -137,8 +136,8 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   private DatabaseSettings getDbSettings() {
-    if (getDataSourceProvider() instanceof PooledDataSources sourceProvider)
-      return sourceProvider.getDatabaseSettings();
+    if (getDataSourceProvider().getDatabaseSettings() != null)
+      return getDataSourceProvider().getDatabaseSettings();
     throw new IllegalStateException("The DataSourceProvider does not provide database settings.");
   }
 

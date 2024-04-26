@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.util.Hasher;
+import java.util.List;
 import java.util.Map;
 
 public class DatabaseSettings extends Payload {
@@ -94,6 +95,7 @@ public class DatabaseSettings extends Payload {
     private String schema = "public";
     private int port = 5432;
     private String applicationName;
+    private List<String> searchPath;
 
     /**
      * Connection Pool settings
@@ -271,6 +273,19 @@ public class DatabaseSettings extends Payload {
 
     public DatabaseSettings withApplicationName(String applicationName) {
         setApplicationName(applicationName);
+        return this;
+    }
+
+    public List<String> getSearchPath() {
+        return searchPath;
+    }
+
+    public void setSearchPath(List<String> searchPath) {
+        this.searchPath = searchPath;
+    }
+
+    public DatabaseSettings withSearchPath(List<String> searchPath) {
+        setSearchPath(searchPath);
         return this;
     }
 
