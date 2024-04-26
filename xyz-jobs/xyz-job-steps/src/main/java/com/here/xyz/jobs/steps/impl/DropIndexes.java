@@ -103,7 +103,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
       logger.info("Dropping the following indices for space " + getSpaceId() + ": " + indexes);
       List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(getSchema(db), indexes);
       SQLQuery dropIndexesQuery = SQLQuery.join(dropQueries, ";");
-      runWriteQuery(dropIndexesQuery, db, calculateNeededAcus());
+      runWriteQueryAsync(dropIndexesQuery, db, calculateNeededAcus());
     }
   }
 

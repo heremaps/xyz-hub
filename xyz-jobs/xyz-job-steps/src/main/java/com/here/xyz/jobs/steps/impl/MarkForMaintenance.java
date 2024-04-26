@@ -91,7 +91,7 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
     Space space = loadSpace(getSpaceId());
     logger.info("Getting storage database for space {}", getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
-    runReadQuery(buildMarkForMaintenanceQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
+    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
   }
 
   public SQLQuery buildMarkForMaintenanceQuery(String schema, String table) {

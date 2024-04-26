@@ -238,7 +238,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     for (int i = 1; i <= dbThreadCnt; i++) {
       logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
-      runAsyncProcedure(buildImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
+      runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(), false);
     }
   }
 
@@ -459,12 +459,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
     return new SQLQuery("CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
-            .withNamedParameter("schema", schema)
-            .withNamedParameter("target_tbl", schema+".\""+table+"\"")
-            .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
-            .withNamedParameter("format", format.toString())
-            .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
-            .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
+        .withAsyncProcedure(true)
+        .withNamedParameter("schema", schema)
+        .withNamedParameter("target_tbl", schema+".\""+table+"\"")
+        .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")
+        .withNamedParameter("format", format.toString())
+        .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
+        .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
   }
 
   private int calculateDBThreadCount(){

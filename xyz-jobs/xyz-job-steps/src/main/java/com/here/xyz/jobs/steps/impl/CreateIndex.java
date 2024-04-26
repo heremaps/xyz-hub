@@ -93,7 +93,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     logger.info("Getting storage database for space " + getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
     logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
-    runWriteQuery(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db, calculateNeededAcus(featureCount, byteSize));
+    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db, calculateNeededAcus(featureCount, byteSize));
   }
 
   @Override

@@ -606,8 +606,8 @@ public class SQLQuery {
   }
 
   public void setAsyncProcedure(boolean asyncProcedure) {
+    setAsync(true);
     this.asyncProcedure = asyncProcedure;
-    this.async = true;
   }
 
   public SQLQuery withAsyncProcedure(boolean asyncProcedure) {
