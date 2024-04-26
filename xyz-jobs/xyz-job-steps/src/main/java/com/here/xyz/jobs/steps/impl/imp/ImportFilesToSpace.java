@@ -238,13 +238,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     for (int i = 1; i <= dbThreadCnt; i++) {
       logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
-      runReadQuery(buildImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(), false);
-    }
-    //TODO: only till we found a solution
-    try {
-      Thread.sleep(15000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
+      runAsyncProcedure(buildImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
     }
   }
 
@@ -259,9 +253,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
         queryList.add(
                 new SQLQuery("""                
-                            INSERT INTO  ${schema}.${table} (s3_uri, state, data)
-                                VALUES (aws_commons.create_s3_uri(#{bucketName},#{s3Key},#{bucketRegion}), #{state}, #{data}::jsonb)
-                                ON CONFLICT (s3_uri) DO NOTHING;
+                            INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
+                                VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
+                                ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                         .withVariable("schema", getSchema(db))
                         .withVariable("table", table + JOB_DATA_SUFFIX)
@@ -276,9 +270,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //Add final entry
     queryList.add(
             new SQLQuery("""                
-                            INSERT INTO  ${schema}.${table} (s3_uri, state, data)
-                                VALUES (aws_commons.create_s3_uri(#{bucketName},#{s3Key},#{bucketRegion}), #{state}, #{data}::jsonb)
-                                ON CONFLICT (s3_uri) DO NOTHING;
+                            INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
+                                VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
+                                ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                     .withVariable("schema", getSchema(db))
                     .withVariable("table", table + JOB_DATA_SUFFIX)
@@ -391,12 +385,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("""
                     CREATE TABLE IF NOT EXISTS ${schema}.${table}
                            (
-                                s3_uri aws_commons._s3_uri_1 NOT NULL, --s3uri
+                                --s3_uri aws_commons._s3_uri_1 NOT NULL, --s3uri
+                                s3_bucket text NOT NULL,
+                                s3_path text NOT NULL,
+                                s3_region text NOT NULL,
                                 state text NOT NULL, --jobtype
                                 execution_count int DEFAULT 0, --amount of retries
                                 data jsonb COMPRESSION lz4, --statistic data
                                 i SERIAL,
-                                CONSTRAINT ${primaryKey} PRIMARY KEY (s3_uri)
+                                CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
                            );
                     """)
             .withVariable("table", table + JOB_DATA_SUFFIX)
@@ -461,7 +458,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private SQLQuery buildImportQuery(String schema, String table) {
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
-    return new SQLQuery("SELECT xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}')")
+    return new SQLQuery("CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
             .withNamedParameter("schema", schema)
             .withNamedParameter("target_tbl", schema+".\""+table+"\"")
             .withNamedParameter("temporary_tbl",  schema+".\""+(table + JOB_DATA_SUFFIX)+"\"")

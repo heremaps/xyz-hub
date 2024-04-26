@@ -3295,6 +3295,17 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from JDBC
+CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT, procedureCall BOOLEAN) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM set_config('xyz.password', password, false);
+    PERFORM _asyncify(query, false, procedureCall);
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 -- **NOTE:** This variant of the asyncify function is only to be called from within other async functions (that have been called through asyncify themselves)
 CREATE OR REPLACE FUNCTION asyncify(query TEXT) RETURNS VOID AS
 $BODY$
@@ -4358,7 +4369,7 @@ LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
-    RETURNS TABLE(s3_uri aws_commons._s3_uri_1, state text, data jsonb)
+    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint)
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
@@ -4370,10 +4381,8 @@ DECLARE
 BEGIN
     work_item := null;
 
-    PERFORM pg_sleep(2);
-
-    EXECUTE format('SELECT s3_uri, state, i, execution_count, data FROM %1$s '
-                       ||'WHERE state=%2$L OR (state=%3$L AND execution_count < %4$L ) ORDER by s3_uri LIMIT 1;',
+    EXECUTE format('SELECT state, s3_path FROM %1$s '
+                       ||'WHERE state=%2$L OR (state=%3$L AND execution_count < %4$L ) ORDER by s3_path LIMIT 1;',
                    temporary_tbl,
                    'SUBMITTED',
                    'FAILED',
@@ -4381,49 +4390,49 @@ BEGIN
 
     IF work_item.state IS NOT NULL THEN
         --target_state := (CASE WHEN (work_item.state = success_marker) THEN (work_item.state || '_' || target_state) ELSE target_state END);
-
-        RAISE NOTICE 'FOUND WORK ITEM %-%',work_item.s3_uri, work_item.state;
+        --RAISE NOTICE 'FOUND WORK ITEM %-%',work_item.s3_path, work_item.state;
 
         EXECUTE format('UPDATE %1$s '
                            ||'set state = %2$L '
-                           ||'WHERE s3_uri = %3$L::aws_commons._s3_uri_1 AND state = %4$L RETURNING *',
+                           ||'WHERE s3_path = %3$L AND state = %4$L RETURNING *',
                         temporary_tbl,
-                        work_item.state,
-                        work_item.s3_uri,
+                        target_state,
+                        work_item.s3_path,
                         work_item.state) INTO result;
 
-        IF result is NULL THEN
-            RAISE NOTICE 'RESULT IS NULL.%',work_item.i;
-        ELSE
-            RAISE NOTICE 'RESULT NOT NULL.  DELIVER WORK ITEM  %',work_item.i;
+        IF result is NOT NULL THEN
+            --RAISE NOTICE 'RESULT NOT NULL.  DELIVER WORK ITEM  %',work_item.i;
 
-            s3_uri = result.s3_uri;
-            data = result.data;
+            s3_bucket = result.s3_bucket;
+            s3_path = result.s3_path;
+            s3_region = result.s3_region;
+            filesize = result.data->'filesize';
             state = result.state;
 
             RETURN NEXT;
         END IF;
     ELSE
         -- no items left
-        EXECUTE format('SELECT s3_uri, state, i, execution_count, data FROM %1$s '
-                           ||'WHERE state=%2$L ;',
+        EXECUTE format('SELECT s3_path, state FROM %1$s '
+                           ||'WHERE state = %2$L ;',
                        temporary_tbl,
                        success_marker) into work_item;
+
         IF work_item.state IS NOT NULL THEN
             EXECUTE format('UPDATE %1$s '
                                ||'set state = %2$L, execution_count = execution_count + 1 '
-                               ||'WHERE s3_uri = %3$L::aws_commons._s3_uri_1 AND state = %4$L RETURNING *',
+                               ||'WHERE s3_path = %3$L AND state = %4$L RETURNING *',
                             temporary_tbl,
                             work_item.state || '_' || target_state,
-                            work_item.s3_uri,
+                            work_item.s3_path,
                             work_item.state) INTO result;
-            IF result is NULL THEN
-                RAISE NOTICE 'RESULT IS NULL. DELIVER WORK ITEM %',work_item.i;
-            ELSE
-                RAISE NOTICE 'RESULT NOT NULL %',work_item.i;
+            IF result is NOT NULL THEN
+                --RAISE NOTICE 'RESULT NOT NULL %',work_item.i;
 
-                s3_uri = result.s3_uri;
-                data = result.data;
+                s3_bucket = result.s3_bucket;
+                s3_path = result.s3_path;
+                s3_region = result.s3_region;
+                filesize = result.data->'filesize';
                 state = result.state;
 
                 RETURN NEXT;
@@ -4436,7 +4445,7 @@ $BODY$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_perform(schem text, temporary_tbl regclass ,target_tbl regclass,
-                                              s3_uri aws_commons._s3_uri_1, format text, filesize bigint)
+                                              s3_bucket text, s3_path text, s3_region text, format text, filesize bigint)
     RETURNS void
     LANGUAGE 'plpgsql'
 AS $BODY$
@@ -4446,34 +4455,37 @@ DECLARE
 BEGIN
     select * from xyz_import_get_import_config(format) into config;
 
-    RAISE NOTICE '>>>>>>>> import of s3_url:% ', s3_uri;
+    --RAISE NOTICE '>>>>>>>> import of s3_path:% ', s3_path;
 
     EXECUTE format(
             'SELECT/*lables({"type": "ImortFilesToSpace","bytes":%1$L})*/ aws_s3.table_import_from_s3( '
                 ||' ''%2$s.%3$s'', '
                 ||'	%4$L, '
                 ||'	%5$L, '
-                ||'	%6$L) ',
+                ||' aws_commons.create_s3_uri(%6$L,%7$L,%8$L)) ',
             filesize,
             schem,
             target_tbl,
             config.target_clomuns,
             config.import_config,
-            s3_uri) INTO import_statistics;
+            s3_bucket,
+            s3_path,
+            s3_region
+            ) INTO import_statistics;
 
     --PERFORM pg_sleep((random() * 4)::INT);
     --Update success
     EXECUTE format('UPDATE %1$s '
                        ||'set state = %2$L, '
-                       ||'execution_count = execution_count + 1,'
-                       ||'data = data || %3$L'
-                       ||'WHERE s3_uri = %4$L::aws_commons._s3_uri_1 ',
+                       ||'execution_count = execution_count + 1, '
+                       ||'data = data || %3$L '
+                       ||'WHERE s3_path = %4$L ',
                    temporary_tbl,
                    'FINISHED',
                    json_build_object('import_statistics', import_statistics),
-                   s3_uri);
+                   s3_path);
 
-    RAISE NOTICE 'SET WORK ITEM % to FISHED!', s3_uri ;
+    --RAISE NOTICE 'SET WORK ITEM % to FISHED!', s3_uri ;
 
 EXCEPTION
     WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR SQLSTATE '38000' THEN
@@ -4485,10 +4497,10 @@ EXCEPTION
         EXECUTE format('UPDATE %1$s '
                            ||'set state = %2$L, '
                            ||'execution_count = execution_count +1 '
-                           ||'WHERE s3_uri = %3$L::aws_commons._s3_uri_1 ',
+                           ||'WHERE s3_path = %3$L ',
                        temporary_tbl,
                        'FAILED',
-                       s3_uri);
+                       s3_path);
     --next recursive call will retry if execution_count <= retry_count
 END;
 $BODY$;
@@ -4549,17 +4561,17 @@ BEGIN
 
 	    IF  (import_results.finished_count+import_results.failed_count) = import_results.total_count THEN
 	        -- Will only be executed from last worker
-	        RAISE NOTICE 'Last Worker reports ... %',import_results;
+	        --RAISE NOTICE 'Last Worker reports ... %',import_results;
 	        IF import_results.total_count = import_results.failed_count  THEN
-	            RAISE EXCEPTION 'All imports are failed!';
+	            --RAISE EXCEPTION 'All imports are failed!';
 	        ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
-	            RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count, import_results.total_count;
+	            --RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count, import_results.total_count;
 	        ELSE
-	            RAISE NOTICE 'ALL DONE! INVOKE LAMBDA';
+	            --RAISE NOTICE 'ALL DONE! INVOKE LAMBDA';
 	            $wrappedouter$ || success_callback || $wrappedouter$
 	        END IF;
 	    ELSE
-	        RAISE NOTICE 'Import still in progress!';
+	        --RAISE NOTICE 'Import still in progress!';
 	    END IF;
 	END;
 	$wrappedinner$ $wrappedouter$;
@@ -4568,28 +4580,34 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE
-    OR REPLACE FUNCTION xyz_import_start(schem text, temporary_tbl regclass, target_tbl regclass, format text,
+CREATE OR REPLACE PROCEDURE xyz_import_start(schem text, temporary_tbl regclass, target_tbl regclass, format text,
                                          success_callback text, failure_callback text)
-    RETURNS void
     LANGUAGE 'plpgsql'
 AS
 $BODY$
 DECLARE
+    work_item record;
     sql_text text;
 BEGIN
-    RAISE NOTICE '########################################### START';
+    --RAISE NOTICE '########################################### START';
+    SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
+    COMMIT;
+
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
         work_item record;
+        work_item_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
 		schem text := '$wrappedouter$||schem||$wrappedouter$'::text;
 		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
 		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
 		format text := '$wrappedouter$||format||$wrappedouter$'::text;
     BEGIN
-        SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
-        RAISE NOTICE '######### RECEIVED work_item %', work_item;
+        EXECUTE format('SELECT * FROM %1$s WHERE s3_path = %2$L;',
+               temporary_tbl,
+               work_item_path) into work_item;
+
+        --RAISE NOTICE '######### RECEIVED work_item %', work_item;
 
         IF work_item.state IS NOT NULL THEN
 			BEGIN
@@ -4600,28 +4618,28 @@ BEGIN
 	                RETURN;
 	            END IF;
 
-				PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_uri, format,
-									 (work_item.data ->> 'filesize')::bigint);
+				PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_bucket ,work_item.s3_path, work_item.s3_region,
+				                     format, (work_item.data ->> 'filesize')::bigint);
 
 				EXCEPTION
 					WHEN SQLSTATE '38000' THEN
-						RAISE NOTICE 'Lambda not available!';
+						--RAISE NOTICE 'Lambda not available!';
 						RETURN;
 					WHEN OTHERS THEN
-						RAISE NOTICE '-----------------------------Import has failed ';
+						--RAISE NOTICE '-----------------------------Import has failed ';
 						BEGIN
 							$wrappedouter$ || failure_callback || $wrappedouter$
 							RETURN;
 						EXCEPTION
 							WHEN SQLSTATE '38000' THEN
-								RAISE NOTICE 'Lambda not available!';
+								--RAISE NOTICE 'Lambda not available!';
 								RETURN;
 						END;
 			END;
-	 		PERFORM asyncify(format('SELECT xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
+	 		PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
 					schem, temporary_tbl, target_tbl, format,
 					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
-					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text));
+					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), true, true );
         END IF;
     END;
 	$wrappedinner$ $wrappedouter$;

@@ -73,9 +73,9 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     runReadQuery(query, db, estimatedMaxAcuLoad, rs -> null);
   }
 
-  protected final void runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, boolean withCallbacks)
+  protected final void runAsyncProcedure(SQLQuery query, Database db, double estimatedMaxAcuLoad)
       throws TooManyResourcesClaimed, SQLException {
-    runReadQuery(query, db, estimatedMaxAcuLoad, rs -> null, withCallbacks);
+    executeQuery(query, db, estimatedMaxAcuLoad,  rs -> null, false, true,true, false);
   }
 
   protected final <R> R runReadQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<R> resultSetHandler)
@@ -87,7 +87,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
     return (R) executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler, false, true, withCallbacks);
   }
-
 
   protected final <R> R runReadQuerySync(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<R> resultSetHandler)
       throws SQLException, TooManyResourcesClaimed {
@@ -115,10 +114,18 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
       boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+
+    return executeQuery(query, db, estimatedMaxAcuLoad, resultSetHandler,
+            isWriteQuery, async, false, withCallbacks);
+  }
+
+  private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
+                              boolean isWriteQuery, boolean async, boolean isProcedure, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
     if (async) {
       query = (withCallbacks ? wrapQuery(query) : query)
-          .withAsync(true)
-          .withTimeout(10);
+              .withAsync(true)
+              .withAsyncProcedure(isProcedure)
+              .withTimeout(10);
     }
     else if (query.getTimeout() == Integer.MAX_VALUE)
       query.setTimeout(300);
@@ -128,8 +135,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       result = query.writeBatch(requestResource(db, estimatedMaxAcuLoad));
     else
       result = isWriteQuery
-          ? query.write(requestResource(db, estimatedMaxAcuLoad))
-          : query.run(requestResource(db, estimatedMaxAcuLoad), resultSetHandler);
+              ? query.write(requestResource(db, estimatedMaxAcuLoad))
+              : query.run(requestResource(db, estimatedMaxAcuLoad), resultSetHandler);
 
     if (async)
       runningQueries.add(new RunningQuery(query.getQueryId(), db.getName(), db.getId()));

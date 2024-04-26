@@ -74,6 +74,7 @@ public class SQLQuery {
   private Map<String, String> variables;
   private Map<String, SQLQuery> queryFragments;
   private boolean async = false;
+  private boolean asyncProcedure = false;
   private String lock;
   private int timeout = Integer.MAX_VALUE;
   private int maximumRetries;
@@ -600,6 +601,20 @@ public class SQLQuery {
     return this;
   }
 
+  public boolean isAsyncProcedure() {
+    return asyncProcedure;
+  }
+
+  public void setAsyncProcedure(boolean asyncProcedure) {
+    this.asyncProcedure = asyncProcedure;
+    this.async = true;
+  }
+
+  public SQLQuery withAsyncProcedure(boolean asyncProcedure) {
+    setAsyncProcedure(asyncProcedure);
+    return this;
+  }
+
   /**
    * The advisory lock key which was provided to be applied during the runtime of this query.
    *
@@ -920,9 +935,10 @@ public class SQLQuery {
   private SQLQuery prepareFinalQuery(ExecutionContext executionContext) {
     if (isAsync()) {
       if (executionContext.dataSourceProvider instanceof PooledDataSources pooledDataSources) {
-        return new SQLQuery("SELECT asyncify(#{query}, #{password})")
+        return new SQLQuery("SELECT asyncify(#{query}, #{password}, #{procedureCall})")
             .withNamedParameter("query", text())
             .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword())
+            .withNamedParameter("procedureCall", isAsyncProcedure())
             .substitute();
       }
       else
