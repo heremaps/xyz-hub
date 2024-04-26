@@ -36,6 +36,25 @@
  * License-Filename: LICENSE
  */
 
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 --
 -- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
@@ -3270,7 +3289,7 @@ CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT) RETURNS VOID AS
 $BODY$
 BEGIN
     PERFORM set_config('xyz.password', password, false);
-    PERFORM _asyncify(query, false);
+    PERFORM _asyncify(query, false, false);
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -3280,7 +3299,7 @@ LANGUAGE plpgsql VOLATILE;
 CREATE OR REPLACE FUNCTION asyncify(query TEXT) RETURNS VOID AS
 $BODY$
 BEGIN
-    PERFORM _asyncify(query, true);
+    PERFORM _asyncify(query, true, false);
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -3290,18 +3309,27 @@ LANGUAGE plpgsql VOLATILE;
 CREATE OR REPLACE FUNCTION asyncify(query TEXT, deferAfterCommit BOOLEAN) RETURNS VOID AS
 $BODY$
 BEGIN
-    PERFORM _asyncify(query, deferAfterCommit);
+    PERFORM _asyncify(query, deferAfterCommit, false);
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from within other async functions (that have been called through asyncify themselves)
+CREATE OR REPLACE FUNCTION asyncify(query TEXT, deferAfterCommit BOOLEAN, procedureCall BOOLEAN) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM _asyncify(query, deferAfterCommit, procedureCall);
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 -- **NOTE:** This variant of the asyncify function is private and should only be called by the other two variants of the asyncify function
-CREATE OR REPLACE FUNCTION _asyncify(query TEXT, deferAfterCommit BOOLEAN) RETURNS VOID AS
+CREATE OR REPLACE FUNCTION _asyncify(query TEXT, deferAfterCommit BOOLEAN, procedureCall BOOLEAN) RETURNS VOID AS
 $BODY$
 DECLARE
     password TEXT := current_setting('xyz.password');
-    labelsComment TEXT := '';
     connectionName TEXT := xyz_random_string(6);
 BEGIN
     IF deferAfterCommit THEN
@@ -3314,15 +3342,41 @@ BEGIN
 --         PERFORM pg_sleep(1);
         IF strpos(query, '/*labels(') != 1 THEN
             --Attach the same labels to the recursive async call
-            labelsComment = '/*labels(' || get_query_labels() || ')*/ ';
+            query = '/*labels(' || get_query_labels() || ')*/ ' || query;
         END IF;
-        PERFORM dblink_send_query(connectionName, labelsComment || 'SELECT set_config(''xyz.password'', ''' || password || ''', false); ' ||
-                                          'START TRANSACTION; ' ||
-                                          query || '; ' ||
-                                          'COMMIT; ' ||
-                                          --Start the follow up thread if one has been registered
-                                          'SELECT CASE WHEN current_setting(''xyz.next_thread'', true) IS NOT NULL THEN asyncify(current_setting(''xyz.next_thread''), false) END; ' ||
-                                          'SELECT pg_terminate_backend(pg_backend_pid())');
+        PERFORM dblink_send_query(connectionName, _create_asyncify_query_block(query, password, procedureCall));
+    END IF;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+CREATE OR REPLACE FUNCTION _create_asyncify_query_block(query TEXT, password TEXT, procedureCall BOOLEAN) RETURNS TEXT AS
+$BODY$
+BEGIN
+    IF procedureCall THEN
+        RETURN $outer$
+            DO
+            $block$
+            BEGIN
+                PERFORM set_config('xyz.password', '$outer$ || password || $outer$', false);
+                $outer$ || query || $outer$
+                COMMIT;
+                --Start the follow up thread if one has been registered
+                PERFORM CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
+                PERFORM pg_terminate_backend(pg_backend_pid());
+            END
+            $block$;
+        $outer$;
+    ELSE
+        RETURN $block$
+            SELECT set_config('xyz.password', '$block$ || password || $block$', false);
+            START TRANSACTION;
+            $block$ || query || $block$;
+            COMMIT;
+            --Start the follow up thread if one has been registered
+            SELECT CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
+            SELECT pg_terminate_backend(pg_backend_pid());
+        $block$;
     END IF;
 END
 $BODY$
