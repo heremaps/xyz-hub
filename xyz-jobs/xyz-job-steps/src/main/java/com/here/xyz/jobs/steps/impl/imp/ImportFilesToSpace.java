@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -61,9 +62,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private Phase phase;
 
+  @JsonView({Internal.class})
   private long totalBytes;
 
-  private long featureCount;
+  @JsonView({Internal.class, Static.class})
+  private long expectedMemoryConsumptionInBytes;
+
+  @JsonView({Internal.class, Static.class})
+  private int fileCount;
+
+  @JsonView({Internal.class, Static.class})
+  private int calculatedThreadCount;
 
   public enum Format {
     CSV_GEOJSON,
@@ -89,14 +98,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   public Phase getPhase() {
     return phase;
-  }
-
-  public long getTotalBytes() {
-    return totalBytes;
-  }
-
-  public long getFeatureCount() {
-    return featureCount;
   }
 
   @Override
@@ -142,7 +143,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //Check if the space is actually existing
       loadSpace(getSpaceId());
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      featureCount = statistics.getCount().getValue();
+      long featureCount = statistics.getCount().getValue();
 
       if (featureCount > 0)
         throw new ValidationException("Space is not empty");
@@ -174,33 +175,37 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     int zippingFactor = 10;
     int threadCount = calculateDBThreadCount();
-    long expectedMemoryConsumption = 0;
-    long bytesPerThread;
-    List<Input> inputs = loadInputs();
-    int fileCount = inputs.size();
+    long bytesPerThreads;
+
+    if(expectedMemoryConsumptionInBytes == 0) {
+      // Only first call should load files
+      List<Input> inputs = loadInputs();
+      fileCount = inputs.size();
+
+      for (int i = 0; i < inputs.size(); i++) {
+        if (inputs.get(0) instanceof UploadUrl uploadUrl) {
+          expectedMemoryConsumptionInBytes += uploadUrl.isCompressed() ?
+                  uploadUrl.getByteSize() * zippingFactor : uploadUrl.getByteSize();
+        }
+      }
+    }
 
     if(fileCount == 0)
       return 0;
 
-    for (int i = 0; i < inputs.size(); i++) {
-      if(inputs.get(0) instanceof UploadUrl uploadUrl) {
-        expectedMemoryConsumption += uploadUrl.isCompressed() ?
-                uploadUrl.getByteSize() * zippingFactor : uploadUrl.getByteSize();
-      }
-    }
-
-    //Only take into account the parallel execution
-    bytesPerThread = (expectedMemoryConsumption / fileCount ) * threadCount;
+    //Only take into account the max parallel execution
+    bytesPerThreads = (expectedMemoryConsumptionInBytes / fileCount ) * threadCount;
 
     //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
-    // Calculate the needed ACUs
-    double requiredRAMPerThread = bytesPerThread / GB_TO_BYTES;
-    double neededACUsPerThread =  requiredRAMPerThread / ACU_RAM;
+    //Calculate the needed ACUs
+    double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
+    double neededACUs=  requiredRAMPerThreads / ACU_RAM;
 
-    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+expectedMemoryConsumption
-        +", bytesPerThread:"+bytesPerThread+", requiredRAMPerThread:"+requiredRAMPerThread
-        +", neededACUsPerThread:"+neededACUsPerThread);
-    return neededACUsPerThread;
+    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+ expectedMemoryConsumptionInBytes
+        +", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
+        +", neededACUs:"+neededACUs);
+
+    return neededACUs;
   }
 
   @Override
@@ -310,7 +315,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 int finishedCnt = rs.getInt("finished_cnt");
                 int failedCnt = rs.getInt("failed_cnt");
 
-                float progress = Float.valueOf(processedBytes) / Float.valueOf(getTotalBytes());
+                float progress = Float.valueOf(processedBytes) / Float.valueOf(totalBytes);
                 getStatus().setEstimatedProgress(progress);
 
                 logAndSetPhase(null, "Progress["+progress+"] => totalCnt:"+totalCnt
@@ -469,14 +474,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private int calculateDBThreadCount(){
-    int featureCountForMaxThreads = 10_000_000;
+    //1GB for maxThreads
+    long uncompressedByteSizeForMaxThreads = 1024L * 1024 * 1024;
 
-    if (featureCount >= featureCountForMaxThreads) {
-      return MAX_DB_THREAD_CNT;
+    if (expectedMemoryConsumptionInBytes >= uncompressedByteSizeForMaxThreads) {
+      calculatedThreadCount = MAX_DB_THREAD_CNT;
     } else {
       // Calculate linearly scaled thread count
-      int threadCnt = (int) ((double) featureCount / featureCountForMaxThreads * MAX_DB_THREAD_CNT);
-      return threadCnt == 0 ? 1 : threadCnt;
+      int threadCnt = (int) ((double) expectedMemoryConsumptionInBytes / uncompressedByteSizeForMaxThreads * MAX_DB_THREAD_CNT);
+      calculatedThreadCount = threadCnt == 0 ? 1 : threadCnt;
     }
+
+    return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
   }
 }
