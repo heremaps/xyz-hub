@@ -219,7 +219,7 @@ public class Job implements XyzSerializable {
   private Future<Void> startExecution(boolean resume) {
     /*
     Execute the step graph of this job. From now on the intrinsic state updates
-    will be updated on-demand (using #updateStepStatus() either by the user or the framework) and cached in the job's step graph.
+    will be synchronized from the step executions back to the service and cached in the job's step graph.
      */
     return JobExecutor.getInstance().startExecution(this, resume ? getExecutionId() : null);
   }

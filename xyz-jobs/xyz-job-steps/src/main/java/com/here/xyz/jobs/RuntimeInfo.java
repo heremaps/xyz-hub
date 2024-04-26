@@ -57,12 +57,12 @@ public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
     if (getState().isFinal())
       return getUpdatedAt();
 
-    long executionTime = System.currentTimeMillis() - getStartedAt();
+    long passedExecutionTime = getUpdatedAt() - getStartedAt();
     float estimatedProgress = getEstimatedProgress();
     if (estimatedProgress == 0)
         return initialEndTimeEstimation;
-    long estimatedDuration = (long) (executionTime / estimatedProgress);
-    return getStartedAt() + estimatedDuration;
+    long estimatedOverallDuration = (long) (passedExecutionTime / estimatedProgress);
+    return getStartedAt() + estimatedOverallDuration;
   }
 
   public T withInitialEndTimeEstimation(long initialEndTimeEstimation) {
@@ -130,6 +130,7 @@ public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
   }
 
   public void setEstimatedProgress(float estimatedProgress) {
+    touch();
     this.estimatedProgress = estimatedProgress;
   }
 
