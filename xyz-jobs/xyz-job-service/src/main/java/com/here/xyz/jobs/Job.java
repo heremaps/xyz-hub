@@ -260,6 +260,14 @@ public class Job implements XyzSerializable {
    * @return
    */
   public Future<Void> updateStep(Step<?> step) {
+    final Step existingStep = getStepById(step.getId());
+    if (existingStep == null)
+      throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
+
+    if (!step.getStatus().getState().isFinal() && existingStep.getStatus().getState().isFinal())
+      //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
+      return Future.succeededFuture();
+
     boolean found = getSteps().replaceStep(step);
     if (!found)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId()

@@ -42,6 +42,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   private String errorCode;
   @JsonView({Public.class, Static.class})
   boolean failedRetryable;
+  private long initialEndTimeEstimation = -1;
 
   /**
    * Updates the updatedAt timestamp of this object to the current time.
@@ -60,9 +61,14 @@ public class RuntimeInfo<T extends RuntimeInfo> {
     long executionTime = System.currentTimeMillis() - getStartedAt();
     float estimatedProgress = getEstimatedProgress();
     if (estimatedProgress == 0)
-      return -1;
+        return initialEndTimeEstimation;
     long estimatedDuration = (long) (executionTime / estimatedProgress);
     return getStartedAt() + estimatedDuration;
+  }
+
+  public T withInitialEndTimeEstimation(long initialEndTimeEstimation) {
+    this.initialEndTimeEstimation = initialEndTimeEstimation;
+    return (T) this;
   }
 
   /**

@@ -71,7 +71,10 @@ public abstract class JobExecutor implements Initializable {
             return Future.succeededFuture();
 
           //Update the job status atomically, that now is RUNNING to make sure no other node will try to start it.
-          job.getStatus().setState(RUNNING);
+          job.getStatus()
+              .withState(RUNNING)
+              .withInitialEndTimeEstimation(Core.currentTimeMillis()
+                  + job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000);
           //TODO: Update / invalidate the reserved unit maps?
           return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
