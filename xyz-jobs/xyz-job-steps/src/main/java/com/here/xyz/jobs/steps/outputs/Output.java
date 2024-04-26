@@ -73,4 +73,9 @@ public abstract class Output<T extends Output> implements Typed {
     getMetadata().put(key, value);
     return (T) this;
   }
+
+  @JsonIgnore
+  protected boolean hasMetadata() {
+    return false;
+  }
 }

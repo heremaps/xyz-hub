@@ -52,4 +52,10 @@ public class DownloadUrl extends Output<DownloadUrl> {
     setByteSize(byteSize);
     return this;
   }
+
+  @Override
+  protected boolean hasMetadata() {
+    //For all instances created by subclasses of DownloadUrl, extra fields could be expected
+    return !this.getClass().equals(DownloadUrl.class);
+  }
 }
