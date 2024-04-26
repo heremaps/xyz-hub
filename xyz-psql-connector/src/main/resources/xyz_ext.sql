@@ -4373,6 +4373,7 @@ CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
+    work_items_left integer := 1;
     retry_count integer := 2;
     success_marker text := 'SUCCESS_MARKER';
     target_state text := 'RUNNING';
@@ -4412,6 +4413,17 @@ BEGIN
             RETURN NEXT;
         END IF;
     ELSE
+        EXECUTE format('SELECT count(1) FROM %1$s WHERE state IN (''RUNNING'',''SUBMITTED'');',
+                       temporary_tbl) into work_items_left;
+
+        IF work_items_left > 0 THEN
+            -- Last Threads are running no work items left, wait for success report
+            state = 'LAST_ONES_RUNNING';
+            s3_path = 'SUCCESS_MARKER';
+            PERFORM PG_SLEEP(5);
+            RETURN NEXT;
+        END If;
+
         -- no items left
         EXECUTE format('SELECT s3_path, state FROM %1$s '
                            ||'WHERE state = %2$L ;',
@@ -4592,6 +4604,10 @@ BEGIN
     --RAISE NOTICE '########################################### START';
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
+    IF work_item IS NULL THEN
+        RAISE NOTICE 'TEST';
+        RETURN;
+    END IF;
 
     sql_text = $wrappedouter$ DO
     $wrappedinner$
@@ -4616,10 +4632,10 @@ BEGIN
 						temporary_tbl,
 						'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text);
 	                RETURN;
+                ELSEIF work_item.state != 'LAST_ONES_RUNNING' THEN
+					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_bucket ,work_item.s3_path, work_item.s3_region,
+														 format, (work_item.data ->> 'filesize')::bigint);
 	            END IF;
-
-				PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_bucket ,work_item.s3_path, work_item.s3_region,
-				                     format, (work_item.data ->> 'filesize')::bigint);
 
 				EXCEPTION
 					WHEN SQLSTATE '38000' THEN
@@ -4639,7 +4655,7 @@ BEGIN
 	 		PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
 					schem, temporary_tbl, target_tbl, format,
 					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
-					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), true, true );
+					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), false, true );
         END IF;
     END;
 	$wrappedinner$ $wrappedouter$;
