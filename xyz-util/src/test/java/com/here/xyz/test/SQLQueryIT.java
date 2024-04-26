@@ -108,11 +108,11 @@ public class SQLQueryIT {
             so''meF'ancy"String
             """;
 
-        new SQLQuery("INSERT INTO SQLQueryIT VALUES (#{param});").withNamedParameter("param", fancyString).withAsync(true).write(dsp);
+        new SQLQuery("INSERT INTO \"SQLQueryIT\" VALUES (#{param});").withNamedParameter("param", fancyString).withAsync(true).write(dsp);
 
         Thread.sleep(1_000);
 
-        assertEquals(fancyString, new SQLQuery("SELECT col FROM SQLQueryIT")
+        assertEquals(fancyString, new SQLQuery("SELECT col FROM \"SQLQueryIT\"")
             .run(dsp, rs -> rs.next() ? rs.getString("col") : null));
       }
       finally {
@@ -231,11 +231,11 @@ public class SQLQueryIT {
         dropTmpTable(dsp);
 
         SQLQuery tableCreationQuery = buildTableCreationQuery();
-        SQLQuery insertQuery = new SQLQuery("INSERT INTO SQLQueryIT VALUES ('test')");
+        SQLQuery insertQuery = new SQLQuery("INSERT INTO \"SQLQueryIT\" VALUES ('test')");
 
         SQLQuery.batchOf(tableCreationQuery, insertQuery).writeBatch(dsp);
 
-        assertEquals("test", new SQLQuery("SELECT col FROM SQLQueryIT").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+        assertEquals("test", new SQLQuery("SELECT col FROM \"SQLQueryIT\"").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
       }
       finally {
         dropTmpTable(dsp);
@@ -250,11 +250,11 @@ public class SQLQueryIT {
         dropTmpTable(dsp);
         createTmpTable(dsp);
 
-        SQLQuery insertQuery = new SQLQuery("INSERT INTO SQLQueryIT VALUES ('test')");
+        SQLQuery insertQuery = new SQLQuery("INSERT INTO \"SQLQueryIT\" VALUES ('test')");
 
         SQLQuery.batchOf(insertQuery).writeBatch(dsp);
 
-        assertEquals("test", new SQLQuery("SELECT col FROM SQLQueryIT").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
+        assertEquals("test", new SQLQuery("SELECT col FROM \"SQLQueryIT\"").run(dsp, rs -> rs.next() ? rs.getString("col") : null));
       }
       finally {
         dropTmpTable(dsp);
