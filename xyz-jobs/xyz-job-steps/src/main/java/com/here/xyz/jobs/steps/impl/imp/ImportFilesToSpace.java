@@ -240,10 +240,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logAndSetPhase(Phase.EXECUTE_IMPORT);
 
     int dbThreadCnt = calculateDBThreadCount();
+    double neededAcusForOneThread = calculateNeededAcus() / dbThreadCnt;
 
     for (int i = 1; i <= dbThreadCnt; i++) {
       logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
-      runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(), false);
+      runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread , false);
     }
   }
 
@@ -486,5 +487,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
 
     return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
+  }
+
+  public static void main(String[] args) {
+    ImportFilesToSpace f = new ImportFilesToSpace();
+    f.fileCount = 8;
+    f.expectedMemoryConsumptionInBytes = 391952960;
+    System.out.println(f.calculateDBThreadCount());
   }
 }
