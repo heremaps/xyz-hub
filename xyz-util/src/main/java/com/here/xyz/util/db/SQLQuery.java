@@ -28,7 +28,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -895,8 +894,8 @@ public class SQLQuery {
     try {
       logger.info("Sending query to database {} {}, substituted query-text: {}",
           executionContext.useReplica ? "reader" : "writer",
-          dataSourceProvider instanceof PooledDataSources pooledDataSources
-              ? pooledDataSources.getDatabaseSettings().getId() : "unknown",
+          dataSourceProvider.getDatabaseSettings() != null
+              ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
           replaceUnnamedParametersForLogging());
 
       if (isAsync())
@@ -934,10 +933,10 @@ public class SQLQuery {
 
   private SQLQuery prepareFinalQuery(ExecutionContext executionContext) {
     if (isAsync()) {
-      if (executionContext.dataSourceProvider instanceof PooledDataSources pooledDataSources) {
+      if (executionContext.dataSourceProvider.getDatabaseSettings() != null) {
         return new SQLQuery("SELECT asyncify(#{query}, #{password}, #{procedureCall})")
             .withNamedParameter("query", text())
-            .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword())
+            .withNamedParameter("password", executionContext.dataSourceProvider.getDatabaseSettings().getPassword())
             .withNamedParameter("procedureCall", isAsyncProcedure())
             .substitute();
       }

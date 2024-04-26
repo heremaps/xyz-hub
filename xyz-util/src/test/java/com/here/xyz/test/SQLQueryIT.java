@@ -23,27 +23,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.sql.SQLException;
 import org.junit.Test;
 
-public class SQLQueryIT {
-  protected static final String PG_HOST = "localhost";
-  protected static final String PG_DB = "postgres";
-  protected static final String PG_USER = "postgres";
-  protected static final String PG_PW = "password";
-
-  private static DataSourceProvider getDataSourceProvider() {
-    return new PooledDataSources(new DatabaseSettings("testPSQL")
-        .withHost(PG_HOST)
-        .withDb(PG_DB)
-        .withUser(PG_USER)
-        .withPassword(PG_PW)
-        .withDbMaxPoolSize(2));
-  }
+public class SQLQueryIT extends SQLITBase {
 
   @Test
   public void startAndKillQuery() throws Exception {
