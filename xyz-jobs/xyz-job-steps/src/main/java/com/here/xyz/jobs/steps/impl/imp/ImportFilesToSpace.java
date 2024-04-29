@@ -80,8 +80,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     GEOJSON;
   }
   public enum Phase {
-    VALIDATE, CALCULATE_ACUS, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, FILL_TMP_TABLE, EXECUTE_IMPORT,
-    RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
+    VALIDATE, CALCULATE_ACUS, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, RESET_SUCCESS_MARKER,
+    FILL_TMP_TABLE, EXECUTE_IMPORT, RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
   }
   public Format getFormat() {
     return format;
@@ -168,46 +168,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return true;
   }
 
-  private double calculateNeededAcus() {
-    // Each ACU needs 2GB RAM
-    final double GB_TO_BYTES = 1024 * 1024 * 1024;
-    final int ACU_RAM = 2; // GB
-
-    int zippingFactor = 10;
-    int threadCount = calculateDBThreadCount();
-    long bytesPerThreads;
-
-    if(expectedMemoryConsumptionInBytes == 0) {
-      // Only first call should load files
-      List<Input> inputs = loadInputs();
-      fileCount = inputs.size();
-
-      for (int i = 0; i < inputs.size(); i++) {
-        if (inputs.get(0) instanceof UploadUrl uploadUrl) {
-          expectedMemoryConsumptionInBytes += uploadUrl.isCompressed() ?
-                  uploadUrl.getByteSize() * zippingFactor : uploadUrl.getByteSize();
-        }
-      }
-    }
-
-    if(fileCount == 0)
-      return 0;
-
-    //Only take into account the max parallel execution
-    bytesPerThreads = (expectedMemoryConsumptionInBytes / fileCount ) * threadCount;
-
-    //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
-    //Calculate the needed ACUs
-    double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
-    double neededACUs=  requiredRAMPerThreads / ACU_RAM;
-
-    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+ expectedMemoryConsumptionInBytes
-        +", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
-        +", neededACUs:"+neededACUs);
-
-    return neededACUs;
-  }
-
   @Override
   public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
     logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
@@ -231,16 +191,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logAndSetPhase(Phase.CREATE_TRIGGER);
     runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, 0);
 
-    logAndSetPhase(Phase.CREATE_TMP_TABLE);
-    runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
-
-    logAndSetPhase(Phase.FILL_TMP_TABLE);
-    fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
-
-    logAndSetPhase(Phase.EXECUTE_IMPORT);
+    createAndFillTemporaryTable(db, space);
 
     int dbThreadCnt = calculateDBThreadCount();
     double neededAcusForOneThread = calculateNeededAcus() / dbThreadCnt;
+
+    logAndSetPhase(Phase.EXECUTE_IMPORT);
 
     for (int i = 1; i <= dbThreadCnt; i++) {
       logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
@@ -248,55 +204,35 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
   }
 
-  private void fillTemporaryTableWithInputs(Database db, String table, List<Input> inputs, String bucketName, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
-    List<SQLQuery> queryList = new ArrayList<>();
-    for (Input input : inputs){
-      if(input instanceof UploadUrl uploadUrl) {
-        totalBytes += uploadUrl.getByteSize();
-        JsonObject data = new JsonObject()
-                .put("compressed", uploadUrl.isCompressed())
-                .put("filesize", uploadUrl.getByteSize());
+  private void createAndFillTemporaryTable(Database db, Space space) throws SQLException, TooManyResourcesClaimed, WebClientException {
+    boolean tmpTableNotExistsAndHasNoData = true;
+    try {
+      //Check if temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
+      tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db), getRootTableName(space)), db, 0,
+              rs -> {
+                rs.next();
+                if(rs.getLong("count") == 0 )
+                  return true;
+                return false;
+              });
 
-        queryList.add(
-                new SQLQuery("""                
-                            INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
-                                VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
-                                ON CONFLICT (s3_path) DO NOTHING;
-                        """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-                        .withVariable("schema", getSchema(db))
-                        .withVariable("table", table + JOB_DATA_SUFFIX)
-                        .withNamedParameter("s3Key", input.getS3Key())
-                        .withNamedParameter("bucketName", bucketName)
-                        .withNamedParameter("bucketRegion", bucketRegion)
-                        .withNamedParameter("state", "SUBMITTED")
-                        .withNamedParameter("data", data.toString())
-        );
+    }catch (SQLException e){
+      //We expect that
+      if(e.getSQLState() != null && !e.getSQLState().equals("42P01")) {
+        throw e;
       }
     }
-    //Add final entry
-    queryList.add(
-            new SQLQuery("""                
-                            INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
-                                VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
-                                ON CONFLICT (s3_path) DO NOTHING;
-                        """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-                    .withVariable("schema", getSchema(db))
-                    .withVariable("table", table + JOB_DATA_SUFFIX)
-                    .withNamedParameter("s3Key", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketName", bucketName)
-                    .withNamedParameter("state", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketRegion", bucketRegion)
-                    .withNamedParameter("data", "{}"));
-    runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
-  }
 
-  @Override
-  protected boolean onAsyncFailure() {
-    //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
-    /** Failed Import
-     *  onFailure (take retryable into account)
-     */
-    return false;
+    if(!tmpTableNotExistsAndHasNoData) {
+      logAndSetPhase(Phase.RESET_SUCCESS_MARKER);
+      runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db), getRootTableName(space)), db, 0);
+    }else {
+      logAndSetPhase(Phase.CREATE_TMP_TABLE);
+      runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
+
+      logAndSetPhase(Phase.FILL_TMP_TABLE);
+      fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
+    }
   }
 
   @Override
@@ -377,16 +313,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
   }
 
-  private void logAndSetPhase(Phase newPhase, String... messages){
-    if (newPhase != null)
-      phase = newPhase;
-    logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
+  @Override
+  protected boolean onAsyncFailure() {
+    //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
+    /** Failed Import
+     *  onFailure (take retryable into account)
+     */
+    return false;
   }
 
   @Override
   public void resume() throws Exception {
-    //TODO: e.g. reset states of FAILED inputs in tmp table aso.
-    //Clean up SUCCESS_MARKER
     execute();
   }
 
@@ -409,6 +346,49 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("schema", schema)
             .withVariable("primaryKey", table + JOB_DATA_SUFFIX + "_primKey");
   }
+
+  private void fillTemporaryTableWithInputs(Database db, String table, List<Input> inputs, String bucketName, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
+    List<SQLQuery> queryList = new ArrayList<>();
+    for (Input input : inputs){
+      if(input instanceof UploadUrl uploadUrl) {
+        totalBytes += uploadUrl.getByteSize();
+        JsonObject data = new JsonObject()
+                .put("compressed", uploadUrl.isCompressed())
+                .put("filesize", uploadUrl.getByteSize());
+
+        queryList.add(
+                new SQLQuery("""                
+                            INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
+                                VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
+                                ON CONFLICT (s3_path) DO NOTHING;
+                        """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
+                        .withVariable("schema", getSchema(db))
+                        .withVariable("table", table + JOB_DATA_SUFFIX)
+                        .withNamedParameter("s3Key", input.getS3Key())
+                        .withNamedParameter("bucketName", bucketName)
+                        .withNamedParameter("bucketRegion", bucketRegion)
+                        .withNamedParameter("state", "SUBMITTED")
+                        .withNamedParameter("data", data.toString())
+        );
+      }
+    }
+    //Add final entry
+    queryList.add(
+            new SQLQuery("""                
+                            INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
+                                VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
+                                ON CONFLICT (s3_path) DO NOTHING;
+                        """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
+                    .withVariable("schema", getSchema(db))
+                    .withVariable("table", table + JOB_DATA_SUFFIX)
+                    .withNamedParameter("s3Key", "SUCCESS_MARKER")
+                    .withNamedParameter("bucketName", bucketName)
+                    .withNamedParameter("state", "SUCCESS_MARKER")
+                    .withNamedParameter("bucketRegion", bucketRegion)
+                    .withNamedParameter("data", "{}"));
+    runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
+  }
+
   private SQLQuery buildDropTemporaryTableForImportQuery(String schema, String table){
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
             .withVariable("table", table + JOB_DATA_SUFFIX)
@@ -477,6 +457,66 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
   }
 
+  private SQLQuery buildTableCheckQuery(String schema, String table) {
+    return new SQLQuery("SELECT count(1) FROM ${schema}.${table};")
+            .withVariable("schema", schema)
+            .withVariable("table", table + JOB_DATA_SUFFIX);
+  }
+
+  private SQLQuery resetSuccessMarkerAndRunningOnes(String schema, String table) {
+    return new SQLQuery("""
+            UPDATE ${schema}.${table}
+              SET state =
+                CASE
+                  WHEN state = 'SUCCESS_MARKER_RUNNING' THEN 'SUCCESS_MARKER'
+                  WHEN state = 'RUNNING' THEN 'SUBMITTED'
+                END
+              WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
+            """)
+            .withVariable("schema", schema)
+            .withVariable("table", table + JOB_DATA_SUFFIX);
+  }
+
+  private double calculateNeededAcus() {
+    // Each ACU needs 2GB RAM
+    final double GB_TO_BYTES = 1024 * 1024 * 1024;
+    final int ACU_RAM = 2; // GB
+
+    int zippingFactor = 10;
+    int threadCount = calculateDBThreadCount();
+    long bytesPerThreads;
+
+    if(expectedMemoryConsumptionInBytes == 0) {
+      // Only first call should load files
+      List<Input> inputs = loadInputs();
+      fileCount = inputs.size();
+
+      for (int i = 0; i < inputs.size(); i++) {
+        if (inputs.get(0) instanceof UploadUrl uploadUrl) {
+          expectedMemoryConsumptionInBytes += uploadUrl.isCompressed() ?
+                  uploadUrl.getByteSize() * zippingFactor : uploadUrl.getByteSize();
+        }
+      }
+    }
+
+    if(fileCount == 0)
+      return 0;
+
+    //Only take into account the max parallel execution
+    bytesPerThreads = (expectedMemoryConsumptionInBytes / fileCount ) * threadCount;
+
+    //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
+    //Calculate the needed ACUs
+    double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
+    double neededACUs = requiredRAMPerThreads / ACU_RAM;
+
+    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+ expectedMemoryConsumptionInBytes
+            +", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
+            +", neededACUs:"+neededACUs);
+
+    return neededACUs;
+  }
+
   private int calculateDBThreadCount(){
     //1GB for maxThreads
     long uncompressedByteSizeForMaxThreads = 1024L * 1024 * 1024;
@@ -490,5 +530,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
 
     return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
+  }
+
+  private void logAndSetPhase(Phase newPhase, String... messages){
+    if (newPhase != null)
+      phase = newPhase;
+    logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
   }
 }
