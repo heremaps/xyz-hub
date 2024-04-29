@@ -98,6 +98,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void startExecution() throws Exception {
     updateState(RUNNING);
+    //TODO: Check at the according StepFunction whether this execution is a "redrive" and call #resume() instead of execute() in such a case
     switch (getExecutionMode()) {
       case SYNC -> {
         execute();

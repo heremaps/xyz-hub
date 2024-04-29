@@ -76,18 +76,21 @@ public abstract class JobExecutor implements Initializable {
               .withInitialEndTimeEstimation(Core.currentTimeMillis()
                   + job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000);
           //TODO: Update / invalidate the reserved unit maps?
-          return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic
+          return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic using new method JobConfigClient#updateState()
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
         });
   }
 
+  //TODO: Start the following thread implementation at service as scheduled recurring task (e.g, run once every minute)
   private void checkPendingJobs() {
     running = true;
-    if (stopRequested)
+    if (stopRequested) {
       //Do not start an execution if a stop was requested
+      running = false;
       return;
+    }
 
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)

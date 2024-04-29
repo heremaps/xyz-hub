@@ -56,6 +56,7 @@ class StateMachineExecutor extends JobExecutor {
   public Future<String> resume(Job job, String executionId) {
     try {
       //TODO: Asyncify!
+      //TODO: Add necessary states:RedriveExecution permission to the service' role, see: https://docs.aws.amazon.com/step-functions/latest/dg/redrive-executions.html#redrive-iam-permission
       sfnClient().redriveExecution(RedriveExecutionRequest.builder()
           .executionArn(executionId)
           .build());
