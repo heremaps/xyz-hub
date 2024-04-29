@@ -4350,12 +4350,11 @@ LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
-    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint)
+    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint, execution_count int)
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
     work_items_left integer := 1;
-    retry_count integer := 2;
     success_marker text := 'SUCCESS_MARKER';
     target_state text := 'RUNNING';
     work_item record;
@@ -4363,12 +4362,11 @@ DECLARE
 BEGIN
     work_item := null;
 
-    EXECUTE format('SELECT state, s3_path FROM %1$s '
-                       ||'WHERE state=%2$L OR (state=%3$L AND execution_count < %4$L ) ORDER by s3_path LIMIT 1;',
+    EXECUTE format('SELECT state, s3_path, execution_count FROM %1$s '
+                       ||'WHERE state IN( %2$L,%3$L) ORDER by s3_path LIMIT 1;',
                    temporary_tbl,
                    'SUBMITTED',
-                   'FAILED',
-                   retry_count) into work_item;
+                   'FAILED') into work_item;
 
     IF work_item.state IS NOT NULL THEN
         --target_state := (CASE WHEN (work_item.state = success_marker) THEN (work_item.state || '_' || target_state) ELSE target_state END);
@@ -4390,6 +4388,7 @@ BEGIN
             s3_region = result.s3_region;
             filesize = result.data->'filesize';
             state = result.state;
+            execution_count = result.execution_count;
 
             RETURN NEXT;
         END IF;
@@ -4427,6 +4426,7 @@ BEGIN
                 s3_region = result.s3_region;
                 filesize = result.data->'filesize';
                 state = result.state;
+                execution_count = result.execution_count;
 
                 RETURN NEXT;
             END IF;
@@ -4480,14 +4480,14 @@ BEGIN
 
     --RAISE NOTICE 'SET WORK ITEM % to FISHED!', s3_uri ;
 
-EXCEPTION
-    WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR SQLSTATE '38000' THEN
-        /** Retryable errors:
-                23505 (duplicate key value violates unique constraint)
-                22P02 (invalid input syntax for type json)
-                22P04 (extra data after last expected column)
-        */
-        EXECUTE format('UPDATE %1$s '
+    EXCEPTION
+        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR SQLSTATE '38000' THEN
+            /** Retryable errors:
+                    23505 (duplicate key value violates unique constraint)
+                    22P02 (invalid input syntax for type json)
+                    22P04 (extra data after last expected column)
+            */
+            EXECUTE format('UPDATE %1$s '
                            ||'set state = %2$L, '
                            ||'execution_count = execution_count +1 '
                            ||'WHERE s3_path = %3$L ',
@@ -4537,7 +4537,7 @@ BEGIN
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
-		 temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
+		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
 	    import_results record;
 	    retry_count integer := 2;
 	BEGIN
@@ -4553,7 +4553,7 @@ BEGIN
 	            ) INTO import_results;
 
 	    IF  (import_results.finished_count+import_results.failed_count) = import_results.total_count THEN
-	        -- Will only be executed from last worker
+	        --Will only be executed from last worker
 	        --RAISE NOTICE 'Last Worker reports ... %',import_results;
 	        IF import_results.total_count = import_results.failed_count  THEN
 	            --RAISE EXCEPTION 'All imports are failed!';
@@ -4599,6 +4599,7 @@ BEGIN
 		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
 		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
 		format text := '$wrappedouter$||format||$wrappedouter$'::text;
+		retry_count integer := 2;
     BEGIN
         EXECUTE format('SELECT * FROM %1$s WHERE s3_path = %2$L;',
                temporary_tbl,
@@ -4614,6 +4615,10 @@ BEGIN
 						'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text);
 	                RETURN;
                 ELSEIF work_item.state != 'LAST_ONES_RUNNING' THEN
+                    IF work_item.execution_count = retry_count THEN
+                        RAISE EXCEPTION 'File ''%'' failed non retryable!',work_item.s3_path
+                            USING ERRCODE = 'XYZ52';
+                    END IF;
 					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_bucket ,work_item.s3_path, work_item.s3_region,
 														 format, (work_item.data ->> 'filesize')::bigint);
 	            END IF;
