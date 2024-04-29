@@ -54,6 +54,8 @@ import org.apache.logging.log4j.Logger;
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
+  private static final String JOB_DATA_PREFIX = "job_data_";
+
   private static final int MAX_DB_THREAD_CNT = 10;
 
   private Format format = Format.GEOJSON;
@@ -131,7 +133,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public void deleteOutputs() {
-    //Nothing to do here as no outputs are produced by this step
+    //TODO: Delete the temporary step table if it exists regardless of its content or the state of the job / step / space
   }
 
   @Override
@@ -206,7 +208,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     boolean tmpTableNotExistsAndHasNoData = true;
     try {
       //Check if temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
-      tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db), getRootTableName(space)), db, 0,
+      tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db)), db, 0,
               rs -> {
                 rs.next();
                 if(rs.getLong("count") == 0 )
@@ -223,13 +225,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     if(!tmpTableNotExistsAndHasNoData) {
       logAndSetPhase(Phase.RESET_SUCCESS_MARKER);
-      runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db), getRootTableName(space)), db, 0);
+      runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db)), db, 0);
     }else {
       logAndSetPhase(Phase.CREATE_TMP_TABLE);
-      runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
+      runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
 
       logAndSetPhase(Phase.FILL_TMP_TABLE);
-      fillTemporaryTableWithInputs(db, getRootTableName(space), loadInputs(), bucketName(), bucketRegion());
+      fillTemporaryTableWithInputs(db, loadInputs(), bucketName(), bucketRegion());
     }
   }
 
@@ -241,7 +243,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
       Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-      runReadQuerySync(buildProgressQuery(getSchema(db), getRootTableName(space)), db, 0,
+      runReadQuerySync(buildProgressQuery(getSchema(db)), db, 0,
                rs -> {
                 rs.next();
                 int totalCnt = rs.getInt("total_cnt");
@@ -280,7 +282,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     try {
       logAndSetPhase(Phase.RETRIEVE_STATISTICS);
-      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
+      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db)), db,
               0, rs -> rs.next()
                       ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
                       : new FeatureStatistics());
@@ -296,7 +298,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, 0);
 
       logAndSetPhase(Phase.DROP_TMP_TABLE);
-      runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
+      runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db)), db, 0);
 
       logAndSetPhase(Phase.RELEASE_READONLY);
       hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
@@ -325,7 +327,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     execute();
   }
 
-  private SQLQuery buildTemporaryTableForImportQuery(String schema, String table){
+  private SQLQuery buildTemporaryTableForImportQuery(String schema) {
     return new SQLQuery("""
                     CREATE TABLE IF NOT EXISTS ${schema}.${table}
                            (
@@ -340,12 +342,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
                            );
                     """)
-            .withVariable("table", getTemporaryTableName(table))
+            .withVariable("table", getTemporaryTableName())
             .withVariable("schema", schema)
-            .withVariable("primaryKey", getTemporaryTableName(table) + "_primKey");
+            .withVariable("primaryKey", getTemporaryTableName() + "_primKey");
   }
 
-  private void fillTemporaryTableWithInputs(Database db, String table, List<Input> inputs, String bucketName, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
+  private void fillTemporaryTableWithInputs(Database db, List<Input> inputs, String bucketName, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
     List<SQLQuery> queryList = new ArrayList<>();
     for (Input input : inputs){
       if(input instanceof UploadUrl uploadUrl) {
@@ -361,7 +363,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                         .withVariable("schema", getSchema(db))
-                        .withVariable("table", getTemporaryTableName(table))
+                        .withVariable("table", getTemporaryTableName())
                         .withNamedParameter("s3Key", input.getS3Key())
                         .withNamedParameter("bucketName", bucketName)
                         .withNamedParameter("bucketRegion", bucketRegion)
@@ -378,7 +380,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                     .withVariable("schema", getSchema(db))
-                    .withVariable("table", getTemporaryTableName(table))
+                    .withVariable("table", getTemporaryTableName())
                     .withNamedParameter("s3Key", "SUCCESS_MARKER")
                     .withNamedParameter("bucketName", bucketName)
                     .withNamedParameter("state", "SUCCESS_MARKER")
@@ -387,9 +389,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
   }
 
-  private SQLQuery buildDropTemporaryTableForImportQuery(String schema, String table){
+  private SQLQuery buildDropTemporaryTableForImportQuery(String schema) {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", getTemporaryTableName(table))
+            .withVariable("table", getTemporaryTableName())
             .withVariable("schema", schema);
   }
 
@@ -414,7 +416,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("sequence", table + "_version_seq");
   }
 
-  private SQLQuery buildStatisticDataOfTemporaryTableQuery(String schema, String table) {
+  private SQLQuery buildStatisticDataOfTemporaryTableQuery(String schema) {
     return new SQLQuery("""
             SELECT sum((data->'filesize')::bigint) as imported_bytes,
             	count(1) as imported_files,
@@ -423,10 +425,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             WHERE POSITION('SUCCESS_MARKER' in state) = 0;
           """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryTableName(table));
+            .withVariable("table", getTemporaryTableName());
   }
 
-  private SQLQuery buildProgressQuery(String schema, String table) {
+  private SQLQuery buildProgressQuery(String schema) {
     return new SQLQuery("""
             SELECT
                 sum(1::int) as total_cnt,
@@ -439,7 +441,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             	 AND STATE != 'SUBMITTED';
           """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryTableName(table));
+            .withVariable("table", getTemporaryTableName());
   }
 
   private SQLQuery buildImportQuery(String schema, String table) {
@@ -449,19 +451,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withAsyncProcedure(true)
         .withNamedParameter("schema", schema)
         .withNamedParameter("target_tbl", schema+".\""+table+"\"")
-        .withNamedParameter("temporary_tbl",  schema+".\""+(getTemporaryTableName(table))+"\"")
+        .withNamedParameter("temporary_tbl",  schema+".\""+(getTemporaryTableName())+"\"")
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
         .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
   }
 
-  private SQLQuery buildTableCheckQuery(String schema, String table) {
+  private SQLQuery buildTableCheckQuery(String schema) {
     return new SQLQuery("SELECT count(1) FROM ${schema}.${table};")
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryTableName(table));
+            .withVariable("table", getTemporaryTableName());
   }
 
-  private SQLQuery resetSuccessMarkerAndRunningOnes(String schema, String table) {
+  private SQLQuery resetSuccessMarkerAndRunningOnes(String schema) {
     return new SQLQuery("""
             UPDATE ${schema}.${table}
               SET state =
@@ -472,7 +474,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
             """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryTableName(table));
+            .withVariable("table", getTemporaryTableName());
   }
 
   private double calculateNeededAcus() {
@@ -536,7 +538,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
   }
 
-  private String getTemporaryTableName(String tableName){
-    return tableName+"_"+getId();
+  private String getTemporaryTableName() {
+    return JOB_DATA_PREFIX + getId();
   }
 }

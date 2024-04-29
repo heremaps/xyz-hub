@@ -361,7 +361,6 @@ public class Job implements XyzSerializable {
         .compose(job -> Future.all(Job.<Step, Boolean>forEach(job.getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step))).mapEmpty())
         //Now finally delete this job's configuration
         .compose(v -> JobConfigClient.getInstance().deleteJob(jobId).mapEmpty());
-        //@TODO: Clean possible existing temporary tables
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {
