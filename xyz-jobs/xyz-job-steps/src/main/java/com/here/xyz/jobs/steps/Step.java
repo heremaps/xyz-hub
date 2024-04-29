@@ -22,7 +22,6 @@ package com.here.xyz.jobs.steps;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
 
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -34,7 +33,6 @@ import com.here.xyz.Typed;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
-import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.ModelBasedOutput;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -169,21 +167,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return
    */
   protected List<Input> loadInputs() {
-    return S3Client.getInstance().scanFolder(inputS3Prefix())
-        .stream()
-        .map(s3ObjectSummary -> new UploadUrl()
-            .withS3Key(s3ObjectSummary.getKey())
-            .withByteSize(s3ObjectSummary.getSize())
-            .withCompressed(inputIsCompressed(s3ObjectSummary.getKey())))
-        .collect(Collectors.toList());
-
-    //TODO: Run metadata retrieval requests partially in parallel in multiple threads
+    return Input.loadInputs(getJobId());
   }
 
-  private boolean inputIsCompressed(String s3Key) {
-    ObjectMetadata metadata = S3Client.getInstance().loadMetadata(s3Key);
-    return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
-  }
+
 
   @JsonIgnore
   public abstract String getDescription();
