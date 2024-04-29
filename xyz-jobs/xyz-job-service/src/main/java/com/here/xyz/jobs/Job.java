@@ -331,6 +331,16 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().storeJob(this);
   }
 
+  public Future<Void> storeStatus(State expectedPreviousState) {
+    logger.info("Status:", getStatus().serialize(true));
+    return JobConfigClient.getInstance().updateStatus(this, expectedPreviousState);
+  }
+
+  public Future<Void> storeUpdatedStep(Step<?> step) {
+    logger.info("Status:", step.serialize(true));
+    return JobConfigClient.getInstance().updateStep(this, step);
+  }
+
   public static Future<Job> load(String jobId) {
     return JobConfigClient.getInstance().loadJob(jobId);
   }
