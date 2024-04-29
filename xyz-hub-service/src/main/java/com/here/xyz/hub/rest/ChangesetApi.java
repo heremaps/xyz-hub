@@ -32,6 +32,7 @@ import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
+import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
@@ -98,7 +99,7 @@ public class ChangesetApi extends SpaceBasedApi {
 
   private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, final boolean useChangesetCollection) throws HttpException {
     final String pageToken = Query.getString(context, Query.PAGE_TOKEN, null);
-    final long limit = Query.getLong(context, Query.LIMIT, 10_000L);
+    final long limit = Query.getLong(context, Query.LIMIT, IterateChangesets.DEFAULT_LIMIT);
 
     final Long startVersion, endVersion;
 

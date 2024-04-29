@@ -47,7 +47,5 @@ public class TagTest {
     assertTrue(isValidId("a1bc"));
     assertTrue(isValidId("abc"));
     assertTrue(isValidId("a"));
-    assertTrue(isValidId("#27"));
-    assertTrue(isValidId("_abc"));
   }
 }

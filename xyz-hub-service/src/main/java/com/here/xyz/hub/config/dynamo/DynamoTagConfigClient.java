@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import com.here.xyz.XyzSerializable.Static;
 
 public class DynamoTagConfigClient extends TagConfigClient {
 
@@ -178,7 +179,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public Future<Void> storeTag(Marker marker, Tag tag) {
     return dynamoClient.executeQueryAsync(() -> {
-      tagTable.putItem(Item.fromMap(XyzSerializable.toMap(tag)));
+      tagTable.putItem(Item.fromMap(XyzSerializable.toMap(tag, Static.class)));
       return null;
     });
   }
