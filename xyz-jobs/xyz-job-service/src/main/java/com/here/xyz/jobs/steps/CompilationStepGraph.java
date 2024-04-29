@@ -29,12 +29,12 @@ import java.util.List;
  * Only used during compilation to set all common step params
  */
 @JsonTypeName(value = "StepGraph")
-class CompilationStepGraph extends StepGraph {
+public class CompilationStepGraph extends StepGraph {
   private String jobId;
 
   private CompilationStepGraph() {}
 
-  CompilationStepGraph(String jobId) {
+  public CompilationStepGraph(String jobId) {
     this.jobId = jobId;
   }
 
