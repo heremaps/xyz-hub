@@ -20,6 +20,7 @@
 package com.here.xyz;
 
 import static com.here.xyz.XyzSerializable.Mappers.getDefaultMapper;
+import static com.here.xyz.XyzSerializable.Mappers.getMapper;
 import static com.here.xyz.XyzSerializable.Mappers.getMapperForView;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -44,6 +45,8 @@ public interface XyzSerializable {
   class Mappers {
     public static final ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(
         () -> registerNewMapper(new ObjectMapper().setSerializationInclusion(Include.NON_NULL)));
+    private static final ThreadLocal<ObjectMapper> PUBLIC_MAPPER = ThreadLocal.withInitial(
+        () -> registerNewMapper(new ObjectMapper().setConfig(DEFAULT_MAPPER.get().getSerializationConfig().withView(Public.class))));
     private static final ThreadLocal<ObjectMapper> STATIC_MAPPER = ThreadLocal.withInitial(
         () -> registerNewMapper(new ObjectMapper().setConfig(DEFAULT_MAPPER.get().getSerializationConfig().withView(Static.class))));
     protected static final ThreadLocal<ObjectMapper> SORTED_MAPPER = ThreadLocal.withInitial(
@@ -65,11 +68,29 @@ public interface XyzSerializable {
       ALL_MAPPERS.forEach(om -> om.registerSubtypes(classes));
     }
 
+    // FIXME Public views are not taken in consideration, replace existing usage to @code{getMapper} when possible
     protected static ObjectMapper getMapperForView(Class<? extends SerializationView> view) {
       if (Static.class.isAssignableFrom(view))
         return STATIC_MAPPER.get();
       else
         return getDefaultMapper();
+    }
+
+    /**
+     * Returns the ObjectMapper for the given view.
+     * ExampleL If the view is a {@link Static} view or extends from {@link Static}, the static mapper is returned.
+     * @param view the view to get the mapper for
+     * @throws NullPointerException if the view is null
+     * @return the ObjectMapper for the given view
+     */
+    protected static ObjectMapper getMapper(Class<? extends SerializationView> view) {
+      if (Static.class.isAssignableFrom(view))
+        return STATIC_MAPPER.get();
+
+      if (Public.class.isAssignableFrom(view))
+        return PUBLIC_MAPPER.get();
+
+      return getDefaultMapper();
     }
 
     protected static ObjectMapper getDefaultMapper() {
@@ -115,6 +136,14 @@ public interface XyzSerializable {
     }
     catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to encode as JSON: " + e.getMessage(), e);
+    }
+  }
+
+  static String serializeWithView(Object object, Class<? extends SerializationView> view) {
+    try {
+      return getMapper(view).writeValueAsString(object);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException("Failed to write value as string using view " + view.getSimpleName() + ": " + e.getMessage(), e);
     }
   }
 

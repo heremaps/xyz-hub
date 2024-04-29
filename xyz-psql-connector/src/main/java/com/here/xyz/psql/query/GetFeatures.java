@@ -25,6 +25,7 @@ import static com.here.xyz.models.hub.Ref.HEAD;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
+import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
@@ -34,6 +35,7 @@ import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
@@ -302,7 +304,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     featureCollection._setFeatures(result.toString());
 
     if (result.length() > MAX_RESULT_SIZE)
-      throw new SQLException("Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
+      return (R) new ErrorResponse().withError(PAYLOAD_TO_LARGE)
+          .withErrorMessage("Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
 
     return (R) featureCollection;
   }

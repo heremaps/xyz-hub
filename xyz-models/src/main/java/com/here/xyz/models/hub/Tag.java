@@ -23,20 +23,25 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.models.hub.Ref.ALL_VERSIONS;
 import static com.here.xyz.models.hub.Ref.HEAD;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
 import java.util.regex.Pattern;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Tag implements XyzSerializable {
   /**
    * The reader id.
    */
+  @JsonView({Public.class, Static.class})
   private String id;
 
   /**
    * The space id.
    */
+  @JsonView(Static.class)
   private String spaceId;
 
   /**
@@ -44,11 +49,13 @@ public class Tag implements XyzSerializable {
    *
    * @see Ref#getVersion()
    */
+  @JsonView({Public.class, Static.class})
   private long version = -2;
 
   /**
    * The indicator that this tag is a system tag, which is not allowed to be deleted or modified by users.
    */
+  @JsonView({Public.class, Static.class})
   @JsonInclude(NON_DEFAULT)
   private boolean system;
 
@@ -106,6 +113,6 @@ public class Tag implements XyzSerializable {
 
   public static boolean isValidId(String tagId) {
     return !Strings.isNullOrEmpty(tagId) && !HEAD.equals(tagId) && !ALL_VERSIONS.equals(tagId)
-        && Pattern.matches("^[^0-9\s][^\s]{0,49}$", tagId);
+        && Pattern.matches("^[a-zA-Z][a-zA-Z0-9_-]{0,49}$", tagId);
   }
 }

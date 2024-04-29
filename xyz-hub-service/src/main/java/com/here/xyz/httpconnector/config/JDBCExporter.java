@@ -102,7 +102,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             FROM
               (${{contentQuery}} ) idata
               LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint())
-              RETURNING id, version
+              RETURNING id, version, (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint as bytes_size
             ),
             upd_data as
             (UPDATE ${schema}.${table}
@@ -120,7 +120,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                 AND version < (SELECT version FROM ins_data LIMIT 1)
               RETURNING id, version
             )
-            SELECT count(1) AS rows_uploaded, 0::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded,
+            SELECT count(1) AS rows_uploaded, sum(bytes_size)::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded,
                   (SELECT count(1) FROM upd_data) AS version_updated,
                   (SELECT count(1) FROM del_data) AS version_deleted
             FROM ins_data l

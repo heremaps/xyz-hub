@@ -1068,8 +1068,7 @@ public class Export extends JDBCBasedJob<Export> {
         public static final String APPLICATION_ID = System.getenv("EMR_APPLICATION_ID");
         public static final String EMR_RUNTIME_ROLE_ARN = System.getenv("EMR_RUNTIME_ROLE_ARN");
         public static final String JAR_PATH = System.getenv("EMR_JAR_PATH");
-        public static final String SPARK_PARAMS = "--class com.here.ds.geowarp.FeatureAggregator " +
-            "--conf spark.hadoop.hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory";
+        public static final String SPARK_PARAMS = System.getenv("EMR_SPARK_PARAMS");
         public static final String S3_PATH_SUFFIX = "-transformed";
     }
 
