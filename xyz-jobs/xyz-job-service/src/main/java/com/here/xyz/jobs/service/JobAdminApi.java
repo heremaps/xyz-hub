@@ -21,6 +21,7 @@ package com.here.xyz.jobs.service;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -30,7 +31,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
-import com.here.xyz.jobs.service.JobAdminApi.ApiParam.Path;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
@@ -48,37 +48,37 @@ public class JobAdminApi extends Api {
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
-    router.route(HttpMethod.POST, ADMIN_JOB_STEPS)
-        .handler(handleErrors(this::postStep));
+    router.route(HttpMethod.GET, ADMIN_JOB).handler(handleErrors(this::getJob));
+    router.route(HttpMethod.POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
+    router.route(HttpMethod.GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
+    router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
+  }
 
-    router.route(HttpMethod.GET, ADMIN_JOB_STEP)
-        .handler(handleErrors(this::getStep));
-
-    router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS)
-        .handler(handleErrors(this::postStateEvent));
+  private void getJob(RoutingContext context) {
+    Job.load(jobId(context))
+        //TODO: Use internal serialization here
+        .onSuccess(job -> sendResponseWithXyzSerialization(context, OK, job))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   private void postStep(RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, Path.JOB_ID);
     Step step = getStepFromBody(context);
-    Job.load(jobId)
+    Job.load(jobId(context))
         .compose(job -> job.updateStep(step).mapEmpty())
-        .onSuccess(v -> sendResponseWithXyzSerialization(context, OK, v))
-        .onFailure(err -> sendErrorResponse(context, err));
+        .onSuccess(v -> sendResponseWithXyzSerialization(context, OK, null))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   private void getStep(RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, Path.JOB_ID);
-    String stepId = ApiParam.getPathParam(context, Path.STEP_ID);
-    Job.load(jobId)
+    Job.load(jobId(context))
         .compose(job -> {
-          Step step = job.getStepById(stepId);
-          if (step == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "Step is not present in the job"));
-          return Future.succeededFuture(step);
+          Step step = job.getStepById(stepId(context));
+          return step == null
+              ? Future.failedFuture(new HttpException(NOT_FOUND, "Step is not present in the job"))
+              : Future.succeededFuture(step);
         })
-        .onSuccess(res -> sendResponse(context, OK, res))
-        .onFailure(err -> sendErrorResponse(context, err));
+        .onSuccess(step -> sendResponse(context, OK, step))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
 
@@ -153,21 +153,11 @@ public class JobAdminApi extends Api {
     }
   }
 
-  public static class ApiParam {
+  private static String jobId(RoutingContext context) {
+    return context.pathParam(JOB_ID);
+  }
 
-    public static String getPathParam(RoutingContext context, String param) {
-      return context.pathParam(param);
-    }
-
-    public static class Path {
-
-      static final String JOB_ID = "jobId";
-      static final String STEP_ID = "stepId";
-    }
-
-    public static class Query {
-
-    }
-
+  private static String stepId(RoutingContext context) {
+    return context.pathParam("stepId");
   }
 }
