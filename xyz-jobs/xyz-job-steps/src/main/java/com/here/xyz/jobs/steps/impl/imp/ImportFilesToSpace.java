@@ -344,33 +344,36 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-    logAndSetPhase(Phase.RETRIEVE_STATISTICS);
-    FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
-            0, rs -> rs.next()
-                    ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
-                    : new FeatureStatistics());
-
-    logAndSetPhase(null, "Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
-
-    registerOutputs(List.of(statistics), true);
-
-    logAndSetPhase(Phase.WRITE_STATISTICS);
-    registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
-
-    logAndSetPhase(Phase.DROP_TRIGGER);
-    runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, 0);
-
-    logAndSetPhase(Phase.DROP_TMP_TABLE);
-    runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
-
-    logAndSetPhase(Phase.RELEASE_READONLY);
-    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
-
-    //TODO: only till we found a solution. Very Important to solve!
     try {
-      Thread.sleep(15000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
+      logAndSetPhase(Phase.RETRIEVE_STATISTICS);
+      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db), getRootTableName(space)), db,
+              0, rs -> rs.next()
+                      ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
+                      : new FeatureStatistics());
+
+      logAndSetPhase(null, "Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
+
+      registerOutputs(List.of(statistics), true);
+
+      logAndSetPhase(Phase.WRITE_STATISTICS);
+      registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
+
+      logAndSetPhase(Phase.DROP_TRIGGER);
+      runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, 0);
+
+      logAndSetPhase(Phase.DROP_TMP_TABLE);
+      runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db), getRootTableName(space)), db, 0);
+
+      logAndSetPhase(Phase.RELEASE_READONLY);
+      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
+
+    }catch (SQLException e){
+      //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
+      if(e.getSQLState() != null && e.getSQLState().equals("42P01")) {
+        logAndSetPhase(null,"_job_data table got already deleted!");
+        return;
+      }
+      throw e;
     }
   }
 
@@ -487,12 +490,5 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
 
     return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
-  }
-
-  public static void main(String[] args) {
-    ImportFilesToSpace f = new ImportFilesToSpace();
-    f.fileCount = 8;
-    f.expectedMemoryConsumptionInBytes = 391952960;
-    System.out.println(f.calculateDBThreadCount());
   }
 }
