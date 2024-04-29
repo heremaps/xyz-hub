@@ -33,6 +33,7 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -51,6 +52,7 @@ import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -252,6 +254,19 @@ public class Api {
             httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
             httpResponse.end(Buffer.buffer(response));
         }
+    }
+
+    protected void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
+        serializeAndSendResponse(context, statusCode, object);
+    }
+
+    protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> object) {
+        serializeAndSendResponse(context, statusCode, object);
+    }
+
+    private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object) {
+        HttpServerResponse httpResponse = context.response().setStatusCode(statusCode);
+        sendResponseBytes(context, httpResponse, XyzSerializable.serializeWithView(object, Public.class).getBytes());
     }
 
     public interface ThrowingHandler<E> {
