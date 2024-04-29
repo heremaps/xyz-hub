@@ -202,7 +202,7 @@ public class JobApiExportVersionIT extends JobApiIT {
     }
 
     @Test    
-    public void A_compositeL1Export_VersionRange_tileid_partitionedJsonWkb() throws Exception {
+    public void compositeL1Export_VersionRange_tileid_partitionedJsonWkb() throws Exception {
 
             int targetLevel = 12;
             int maxTilesPerFile= 300;

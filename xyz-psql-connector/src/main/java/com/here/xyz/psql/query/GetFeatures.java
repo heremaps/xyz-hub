@@ -190,10 +190,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   private SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
-
+   
+//todo: review semantic of "NextVersionFragment" in case of ref.isRange 
+    boolean opEqual = ref.isHead() || ( ref.isRange() && ref.getToVersion() == MAX_BIGINT );
+      
     return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
-        .withQueryFragment("op", ref.isHead() ? "=" : ">")
-        .withNamedParameter(versionParamName, ref.isHead() ? MAX_BIGINT : ref.getVersion());
+        .withQueryFragment("op", opEqual ? "=" : ">")
+        .withNamedParameter(versionParamName, opEqual ? MAX_BIGINT : ( ref.isRange() ? ref.getToVersion() : ref.getVersion() ));
   }
 
   private SQLQuery buildBaseVersionCheckFragment(String versionParamName) {
