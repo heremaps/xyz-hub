@@ -54,11 +54,12 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   @Override
   public int getTimeoutSeconds() {
     //TODO: Return an estimation based on the input data size
-    return 24 * 3600;
+    return 3600;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
+    //TODO: Should be taking around 15 mins max, interpolate linearly by: bytesize of all (relevant) inputs
     return 10;
   }
 
@@ -75,10 +76,11 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
 
   @Override
   public void deleteOutputs() {
-
+    //Nothing to do, as this step does not produce any outputs
   }
 
   private int calculateNeededAcus() {
+    //TODO: Check max ACUs during tests to find correct interpolation
     return 0;
   }
 

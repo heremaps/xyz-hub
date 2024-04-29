@@ -60,11 +60,13 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @Override
   public int getTimeoutSeconds() {
+    //GEO > VIZ ... very rough estimation for the maximum time
     return 5 * 3600; //TODO: Return value dependent on index type & feature count
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
+    //TODO: Interpolate by feature count & byte size differently per index type
     return 60; //TODO: Return value dependent on index type & feature count
   }
 
@@ -79,7 +81,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   private int calculateNeededAcus(long featureCount, long byteSize) {
-    //TODO: Also take into account the index type
+    //TODO: Interpolate by feature count & byte size differently per index type
     return 1;
   }
 

@@ -115,7 +115,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public int getTimeoutSeconds() {
     //TODO: Return an estimation based on the input data size
-    return 24 * 3600;
+    return 15 * 3600;
   }
 
   @Override

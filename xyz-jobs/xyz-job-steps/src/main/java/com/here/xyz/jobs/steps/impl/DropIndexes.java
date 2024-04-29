@@ -58,7 +58,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 60;
+    return 10 * 60;
   }
 
   @Override

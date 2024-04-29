@@ -55,13 +55,12 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
 
   @Override
   public int getTimeoutSeconds() {
-    //TODO: Return an estimation based on the input data size
-    return 24 * 3600;
+    return 30 * 60;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    return 3;
+    return 5;
   }
 
   @Override
