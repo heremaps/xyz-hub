@@ -88,7 +88,7 @@ public class Ref implements XyzSerializable {
     if (allVersions)
       return ALL_VERSIONS;
     if( isRange() )  
-      return String.format("[%d..%d]",version, fromVersion);
+      return String.format("%d..%d",fromVersion,version);
 
     return String.valueOf(version);
   }
@@ -131,7 +131,7 @@ public class Ref implements XyzSerializable {
   }
 
   public long getToVersion() {
-    return getVersion();
+    return version;
   }
 
   public boolean isHead() {
@@ -143,7 +143,7 @@ public class Ref implements XyzSerializable {
   }
 
   public boolean isSingleVersion() {
-    return !isAllVersions();
+    return !isAllVersions() && !isRange();
   }
 
   public boolean isRange() {

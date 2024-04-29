@@ -169,6 +169,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildVersionComparison(SelectiveEvent event) {
     Ref ref = event.getRef();
+
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
     
@@ -205,8 +206,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
     Ref ref = event.getRef();
-    boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions();
-    long version = isHeadOrAllVersions ? Long.MAX_VALUE : ref.getVersion();
+
+    long version = Long.MAX_VALUE; // => ref.isHead() || ref.isAllVersions();
+
+    if( ref.isSingleVersion() && !ref.isHead() )
+     version = ref.getVersion();
+    else if( ref.isRange() )
+     version = ref.getToVersion(); // HEAD -> Long.MAX_VALUE;
 
     if (event.getVersionsToKeep() > 1)
       return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) - #{versionsToKeep} FROM ${schema}.${table})) <= #{version}")
@@ -214,7 +220,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withNamedParameter("minVersion", event.getMinVersion())
           .withNamedParameter("version", version);
 
-    return isHeadOrAllVersions ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${table})")
+    return version == Long.MAX_VALUE ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${table})")
         .withNamedParameter("version", version);
   }
 
