@@ -455,7 +455,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
             logger.info("Reported async success for step {} successfully.", request.getStep().getGlobalStepId());
           }
           case FAILURE_CALLBACK -> {
-            logger.info("Reporting async failure for step {} ...", request.getStep().getGlobalStepId());
+            logger.info("Cancelling and reporting async failure for step {} ...", request.getStep().getGlobalStepId());
+            request.getStep().cancel();
             //NOTE: Assume that the error information has been injected into the status object by the callback caller already
             request.getStep().reportFailure(null, false, true);
             logger.info("Reported async failure for step {} failure successfully.", request.getStep().getGlobalStepId());
