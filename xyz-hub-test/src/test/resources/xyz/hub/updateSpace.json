@@ -1,9 +1,0 @@
-{
-    "title": "My Demo Space Updated",
-    "tileMinLevel": 1,
-    "tileMaxLevel": 21,
-    "ISOCountryCodesAsProperty": true,
-    "insertBBox": true,
-    "client": {},
-    "tags": ["a", "b"]
-}

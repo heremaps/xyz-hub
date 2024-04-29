@@ -1023,6 +1023,7 @@ components:
         type: array
         items:
           type: string
+        maxItems: 10000000
     Clip:
       name: clip
       in: query
@@ -1194,6 +1195,7 @@ components:
         type: array
         items:
           type: string
+        maxItems: 10000000
     Radius:
       name: radius
       in: query
@@ -1229,6 +1231,7 @@ components:
         type: array
         items:
           type: string
+        maxItems: 10000000
     RequiredIds:
       name: id
       in: query
@@ -1242,6 +1245,7 @@ components:
         type: array
         items:
           type: string
+        maxItems: 10000000
     South:
       name: south
       in: query
@@ -1291,6 +1295,7 @@ components:
         type: array
         items:
           type: string
+        maxItems: 10000000
     TileId:
       name: tileId
       in: path
@@ -1722,9 +1727,10 @@ components:
       content:
         application/json:
           schema:
+            type: array
             items:
               $ref: '#/components/schemas/Storage'
-            type: array
+            maxItems: 10000000
           examples:
             response:
               value:
@@ -1761,9 +1767,10 @@ components:
       content:
         application/json:
           schema:
+            type: array
             items:
               $ref: '#/components/schemas/EventHandler'
-            type: array
+            maxItems: 10000000
           examples:
             response:
               value:
@@ -1810,9 +1817,10 @@ components:
       content:
         application/json:
           schema:
+            type: array
             items:
               $ref: '#/components/schemas/Space'
-            type: array
+            maxItems: 10000000
           examples:
             response:
               value:
@@ -1926,6 +1934,7 @@ components:
               description: Features included in the collection.
               items:
                 $ref: '#/components/schemas/Feature'
+              maxItems: 10000000
     FeatureCollectionIterable:
       description: A FeatureCollection GeoJSON object, with handle to support iterate operation.
       allOf:
@@ -1945,16 +1954,19 @@ components:
               description: List of inserted feature IDs.
               items:
                 type: string
+              maxItems: 10000000
             updated:
               type: array
               description: List of updated features IDs.
               items:
                 type: string
+              maxItems: 10000000
             deleted:
               type: array
               description: List of deleted features IDs.
               items:
                 type: string
+              maxItems: 10000000
             violations:
               type: array
               description: >-
@@ -1962,6 +1974,7 @@ components:
                 This part is applicable in response ONLY when violations are found on calling validation handler driven API endpoint.
               items:
                 $ref: '#/components/schemas/Feature'
+              maxItems: 10000000
     LineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'
@@ -1977,6 +1990,7 @@ components:
                 maxItems: 3
                 minItems: 2
               minItems: 2
+              maxItems: 10000000
     MultiLineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'
@@ -1994,6 +2008,8 @@ components:
                   maxItems: 3
                   minItems: 2
                 minItems: 2
+                maxItems: 10000000
+              maxItems: 10000000
     MultiPoint:
       allOf:
         - $ref: '#/components/schemas/Geometry'
@@ -2008,6 +2024,7 @@ components:
                   type: number
                 maxItems: 3
                 minItems: 2
+              maxItems: 10000000
     MultiPolygon:
       allOf:
         - $ref: '#/components/schemas/Geometry'
@@ -2027,6 +2044,9 @@ components:
                     maxItems: 3
                     minItems: 2
                   minItems: 4
+                  maxItems: 10000000
+                maxItems: 10000000
+              maxItems: 10000000
     Nullable:
       type: object
       nullable: true
@@ -2059,6 +2079,8 @@ components:
                   maxItems: 3
                   minItems: 2
                 minItems: 4
+                maxItems: 10000000
+              maxItems: 10000000
     Storage:
       type: object
       description: A physical storage to perform read/write interaction with collections.
@@ -2096,6 +2118,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PsqlInstanceConfig'
+          maxItems: 100
         appName:
           description: >-
             The application name to be used when connecting to the database.
@@ -2189,6 +2212,7 @@ components:
           type: array
           items:
             type: string
+          maxItems: 100
         properties:
           $ref: '#/components/schemas/SpaceProperties'
     SpaceProperties:
@@ -2258,6 +2282,7 @@ components:
           items:
             type: string
           type: array
+          maxItems: 10000000
         createdAt:
           description: >-
             The UNIX Epoch time of when this feature has been created (in

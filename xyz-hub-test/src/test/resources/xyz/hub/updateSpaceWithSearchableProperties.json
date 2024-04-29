@@ -1,7 +1,0 @@
-{
-  "title": "My Demo Space updated with searchableProperties",
-  "searchableProperties": {
-    "name": true,
-    "other": false
-  }
-}

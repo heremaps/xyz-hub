@@ -1,7 +1,0 @@
-{
-  "id": "x-psql-extending-test",
-  "title": "My Demo Space",
-  "extends": {
-    "spaceId": "x-psql-test-extensible"
-  }
-}

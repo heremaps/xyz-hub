@@ -1,22 +1,24 @@
 curations:
   license_findings:
-    - path: "xyz-models/src/main/java/com/here/xyz/models/hub/Space.java"
-      reason: "DATA_OF"
-      comment: "The file contains all possible license identifiers for the content of a space."
-      concluded_license: "Apache-2.0"
-    - path: "xyz-hub-service/src/main/resources/openapi.*"
-      reason: "DATA_OF"
-      comment: "The files found in this directory are part of the OpenAPI specification which contains various license keywords, see e.g. \
-        https://github.com/heremaps/xyz-hub/blob/master/xyz-hub-service/src/main/resources/webroot/openapi.yaml#L1172-L1205."
-      concluded_license: "Apache-2.0"
+    - path: "here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/License.java"
+      start_lines: "56"
+      line_count: 1
+      detected_license: "OSL-3.0"
+      reason: "CODE"
+      comment: "The scanner matches an enumerator `OSL-3.0`."
+      concluded_license: "NONE"
+    - path: "here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/License.java"
+      start_lines: "62"
+      line_count: 1
+      detected_license: "ODbL-1.0"
+      reason: "CODE"
+      comment: "The scanner matches an enumerator `ODbL-1.0`."
+      concluded_license: "NONE"
 excludes:
-  paths:
-  - pattern: "*/src/test/**"
-    reason: "TEST_TOOL_OF"
-    comment: "This directory only contains tests to verify correct functioning of XYZ Hub. Not included in released artifacts."
-  - pattern: "xyz-hub-test/**"
-    reason: "TEST_TOOL_OF"
-    comment: "This directory only contains tests to verify correct functioning of XYZ Hub. Not included in released artifacts."
+  #paths:
+  #- pattern: "**/src/test/**"
+  #  reason: "TEST_TOOL_OF"
+  #  comment: "This directory only contains tests to verify correct functioning of XYZ Hub. Not included in released artifacts."
   scopes:
   - pattern: "provided"
     reason: "PROVIDED_DEPENDENCY_OF"
@@ -24,13 +26,3 @@ excludes:
   - pattern: "test"
     reason: "TEST_DEPENDENCY_OF"
     comment: "Scope with dependencies only used for testing. Not included in released artifacts."
-resolutions:
-  issues:
-  - message: "ERROR: Timeout after 300 seconds while scanning file 'csv/samples/f_5500_2010_first9999.csv'."
-    reason: "SCANNER_ISSUE"
-    comment: "This error can be ignored as the file does not introduce any new licenses \
-      compared to what is already detected for this package."
-  - message: "ERROR: Timeout after 300 seconds while scanning file 'jts/testdata/polygon.wkb'."
-    reason: "SCANNER_ISSUE"
-    comment: "This error can be ignored as the file does not introduce any new licenses \
-      compared to what is already detected for this package."

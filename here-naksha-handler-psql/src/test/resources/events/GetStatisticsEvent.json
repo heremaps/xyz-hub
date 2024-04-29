@@ -1,9 +1,0 @@
-{
-  "type": "GetStatisticsEvent",
-  "space": "foo",
-  "params": {},
-  "connectorParams": {
-    "propertySearch": true,
-    "connectorId": "test-connector"
-  }
-}

@@ -440,36 +440,6 @@ project(":here-naksha-handler-http") {
 }
 */
 
-/*
-project(":here-naksha-handler-psql") {
-    description = "Naksha PostgresQL Handler"
-    dependencies {
-        implementation(project(":here-naksha-lib-core"))
-        implementation(project(":here-naksha-lib-psql"))
-
-        implementation(commons_lang3)
-        implementation(commons_dbutils)
-        implementation(jts_core)
-        implementation(aws_kms)
-        implementation(mchange_commons)
-        implementation(mchange_c3p0)
-        implementation(postgres)
-        //implementation(zaxxer_hikari)
-        implementation(google_tink)
-        implementation(google_protobuf)
-        implementation(vertx_core)
-
-        testImplementation(jayway_jsonpath)
-    }
-
-    tasks {
-        test {
-            enabled = false
-        }
-    }
-}
-*/
-
 configurations.implementation {
     exclude(module = "commons-logging")
 }
@@ -537,7 +507,6 @@ project(":here-naksha-app-service") {
         implementation(project(":here-naksha-lib-psql"))
         implementation(project(":here-naksha-storage-http"))
         //implementation(project(":here-naksha-lib-extension"))
-        //implementation(project(":here-naksha-handler-psql"))
         implementation(project(":here-naksha-lib-hub"))
         implementation(project(":here-naksha-common-http"))
 
