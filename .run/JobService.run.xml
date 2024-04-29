@@ -18,12 +18,12 @@
   -->
 
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="JobService" type="Application" factoryName="Application" nameIsGenerated="true">
+  <configuration default="false" name="JobService" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="com.here.xyz.jobs.service.JobService" />
     <module name="xyz-job-service" />
     <extension name="coverage">
       <pattern>
-        <option name="PATTERN" value="com.here.xyz.jobs.util.*" />
+        <option name="PATTERN" value="com.here.xyz.jobs.*" />
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>
