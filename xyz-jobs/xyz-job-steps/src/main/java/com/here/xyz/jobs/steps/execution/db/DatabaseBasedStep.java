@@ -196,8 +196,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
             .withQueryFragment("failureRequestBody", new LambdaStepRequest().withType(FAILURE_CALLBACK).withStep(this).serialize());
 
-    return new SQLQuery("""
-            RAISE WARNING 'Step %.% failed with SQL state % and message %', '${{jobId}}', '${{stepId}}', SQLSTATE, SQLERRM;
+    return new SQLQuery("""            
             ${{performLambdaFailureInvoke}}
         """)
         .withQueryFragment("performLambdaFailureInvoke", lambdaFailureInvoke);
