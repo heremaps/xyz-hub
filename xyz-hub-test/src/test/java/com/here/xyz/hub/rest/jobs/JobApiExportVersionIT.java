@@ -44,6 +44,7 @@ public class JobApiExportVersionIT extends JobApiIT {
     protected static String scope = "export";
     protected static String testVersionedSpaceId1 = "version-space-1";
     protected static String testVersionedSpaceId1Ext = testVersionedSpaceId1 + "-ext";
+    protected static String testVersionedSpaceId2 = "version-space-2";
     private static int versionsToKeep = 29;
 
     private static void addSomeData(String spaceId, String filename) throws Exception
@@ -80,8 +81,13 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         deleteFeature(getScopedSpaceId(testVersionedSpaceId1Ext,scope), "id003");  // feature in base got deleted in delta
 
+        createSpaceWithCustomStorage(getScopedSpaceId(testVersionedSpaceId2, scope), "psql", null, versionsToKeep);
+        addSomeData( getScopedSpaceId(testVersionedSpaceId2,scope), deltaDataFile);
+
         deleteAllJobsOnSpace(getScopedSpaceId(testVersionedSpaceId1, scope));
         deleteAllJobsOnSpace(getScopedSpaceId(testVersionedSpaceId1Ext, scope));
+
+        deleteAllJobsOnSpace(getScopedSpaceId(testVersionedSpaceId2, scope));
     }
 
     @AfterClass
@@ -89,9 +95,11 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         deleteAllJobsOnSpace(getScopedSpaceId(testVersionedSpaceId1, scope));
         deleteAllJobsOnSpace(getScopedSpaceId(testVersionedSpaceId1Ext, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testVersionedSpaceId2, scope));
 
         removeSpace(getScopedSpaceId(testVersionedSpaceId1, scope));
         removeSpace(getScopedSpaceId(testVersionedSpaceId1Ext, scope));
+        removeSpace(getScopedSpaceId(testVersionedSpaceId2, scope));
     }
 
     @Test
@@ -227,6 +235,31 @@ public class JobApiExportVersionIT extends JobApiIT {
 
     }
 
+    @Test    
+    public void export_VersionRange_tileid_partitionedJsonWkb() throws Exception {
+/* non composite */ /* check semantic for next_version with range ? */
+            int targetLevel = 12;
+            int maxTilesPerFile= 300;
+    
+            Export.ExportTarget exportTarget = new Export.ExportTarget()
+                    .withType(Export.ExportTarget.Type.VML)
+                    .withTargetId(testVersionedSpaceId2+":dummy");
+    
+            /** Create job */
+            Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile)
+                          .withPartitionKey("tileid");
+
+            /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
+             job.setTargetVersion("9..13"); // from,to
+            /* */
+  
+            List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId2, scope), finalized, failed,  Export.CompositeMode.CHANGES );
+    
+            List<String> mustContain = Arrays.asList("23600776,","jumpPoint delta","122001322020");
+    
+            downloadAndCheck(urls, 378, 1, mustContain);
+    }
+
 
     @Test
     public void compositeL1Export_Changes_id_partitionedJsonWkb() throws Exception {
@@ -264,6 +297,29 @@ public class JobApiExportVersionIT extends JobApiIT {
         /* */
 
         List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("id007,","jumpPoint delta","122001322020");
+
+        downloadAndCheck(urls, 375, 1, mustContain);
+    }
+
+    @Test
+    public void export_VersionRange_id_partitionedJsonWkb() throws Exception {
+/* non composite */ /* check semantic for next_version with range ? */
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testVersionedSpaceId2+":dummy");
+
+        /** Create job */
+        Export job = buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB)
+                     .withPartitionKey("id");
+        job.addParam("skipTrigger", true);
+
+        /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
+          job.setTargetVersion("9..13"); // from,to
+        /* */
+
+        List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId2, scope), finalized, failed,  Export.CompositeMode.CHANGES );
 
         List<String> mustContain = Arrays.asList("id007,","jumpPoint delta","122001322020");
 
