@@ -41,6 +41,10 @@ public class JobService extends Core {
   private static final Logger logger = LogManager.getLogger();
 
   static {
+    CONFIG_FILE = "jobs.config.json";
+  }
+
+  static {
     XyzSerializable.registerSubtypes(StepGraph.class);
     XyzSerializable.registerSubtypes(Input.class);
     XyzSerializable.registerSubtypes(Output.class);
