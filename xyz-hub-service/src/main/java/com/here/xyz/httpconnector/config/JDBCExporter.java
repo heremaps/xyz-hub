@@ -261,6 +261,8 @@ public class JDBCExporter extends JdbcBasedHandler {
     //Space-Copy End
 
     public Future<ExportStatistic> executeExport(Export job, String s3Bucket, String s3Path, String s3Region) {
+      logger.info("job[{}] Execute Export-legacy csvFormat({}) ParamCompositeMode({}) PartitionKey({})", job.getId(), job.getCsvFormat(), job.readParamCompositeMode(), job.getPartitionKey() ); 
+      
       return getClient(job.getTargetConnector())
           .compose(client -> {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
