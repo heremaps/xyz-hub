@@ -1,0 +1,25 @@
+{
+    "id": "feature_1",
+    "type": "Feature",
+    "properties": {
+        "speedLimit": "40",
+        "@ns:com:here:mom:meta": {
+            "sourceId": "some_source_id"
+        },
+        "@ns:com:here:xyz": {
+            "tags": [
+                "existing_tag",
+                "another_tag",
+                "xyz_source_id_some_source_id"
+            ]
+        }
+    },
+    "geometry": {
+        "type": "Point",
+        "coordinates": [
+            8.6123,
+            50.1234,
+            0.0
+        ]
+    }
+}

@@ -51,11 +51,12 @@ public class FileUtil {
   private FileUtil() {}
 
   public static String loadFileOrFail(final @NotNull String rootPath, final @NotNull String fileName) {
+    final String filePath = rootPath + fileName;
     try {
-      String json = new String(Files.readAllBytes(Paths.get(rootPath + fileName)));
+      String json = new String(Files.readAllBytes(Paths.get(filePath)));
       return json;
     } catch (IOException e) {
-      Assertions.fail("Unable to read test file " + fileName, e);
+      Assertions.fail("Unable to read test file " + filePath, e);
       return null;
     }
   }

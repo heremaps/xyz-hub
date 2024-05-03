@@ -27,14 +27,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.EventTarget;
-import com.here.naksha.lib.core.models.storage.POp;
-import com.here.naksha.lib.core.models.storage.POpType;
-import com.here.naksha.lib.core.models.storage.PRef;
-import com.here.naksha.lib.core.models.storage.ReadFeatures;
-import com.here.naksha.lib.core.models.storage.Request;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
-import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.handlers.util.PropertyOperationUtil;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +54,9 @@ public class SourceIdHandler extends AbstractEventHandler {
   @Override
   protected EventProcessingStrategy processingStrategyFor(IEvent event) {
     final Request<?> request = event.getRequest();
-    if (request instanceof ReadFeatures || request instanceof WriteXyzFeatures) {
+    if (request instanceof ReadFeatures
+        || request instanceof WriteXyzFeatures
+        || request instanceof ContextWriteXyzFeatures) {
       return PROCESS;
     }
     return SEND_UPSTREAM_WITHOUT_PROCESSING;
@@ -72,12 +67,22 @@ public class SourceIdHandler extends AbstractEventHandler {
     final Request<?> request = event.getRequest();
     logger.info("Handler received request {}", request.getClass().getSimpleName());
     if (request instanceof ReadFeatures readRequest) {
+      // Read request
       transformPropertyOperation(readRequest);
-    } else if (request instanceof WriteXyzFeatures writeRequest) {
-      writeRequest.features.stream()
-          .map(XyzFeatureCodec::getFeature)
-          .filter(Objects::nonNull)
-          .forEachOrdered(this::setSourceIdTags);
+    } else if (request instanceof WriteFeatures<?, ?, ?> wr) {
+      // Write request
+      List<XyzFeatureCodec> codecList = null;
+      if (wr instanceof WriteXyzFeatures wf) {
+        codecList = wf.features;
+      } else if (wr instanceof ContextWriteXyzFeatures cwf) {
+        codecList = cwf.features;
+      }
+      if (codecList != null) {
+        codecList.stream()
+            .map(XyzFeatureCodec::getFeature)
+            .filter(Objects::nonNull)
+            .forEachOrdered(this::setSourceIdTags);
+      }
     }
 
     return event.sendUpstream(request);
