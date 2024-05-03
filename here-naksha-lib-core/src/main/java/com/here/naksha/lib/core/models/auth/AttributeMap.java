@@ -16,9 +16,8 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.app.service.http.auth;
+package com.here.naksha.lib.core.models.auth;
 
-import io.vertx.core.json.JsonArray;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,18 +57,14 @@ public class AttributeMap extends LinkedHashMap<String, Object> {
   }
 
   /**
-   * A helper method to test if the given value is a valid value for the attribute map, therefore either being a scalar value, a {@link
-   * List} or a {@link JsonArray} only containing valid scalar values.
+   * A helper method to test if the given value is a valid value for the attribute map, therefore either being a scalar value, or a {@link
+   * List} only containing valid scalar values.
    *
    * @param value the value to test.
    * @return true if the value is allowed in the attributes map; false otherwise.
    */
   @SuppressWarnings("unchecked")
   public static boolean isValidValue(Object value) {
-    if (value instanceof JsonArray) {
-      value = ((JsonArray) value).getList();
-    }
-
     if (value instanceof List) {
       final List<Object> list = (List<Object>) value;
       for (final Object v : list) {
@@ -221,12 +216,6 @@ public class AttributeMap extends LinkedHashMap<String, Object> {
 
       Object accessValue = accessAttributesMap.get(key);
       Object objectValue = resourceAttributesMap.get(key);
-      if (accessValue instanceof JsonArray) {
-        accessValue = ((JsonArray) accessValue).getList();
-      }
-      if (objectValue instanceof JsonArray) {
-        objectValue = ((JsonArray) objectValue).getList();
-      }
 
       if (accessValue instanceof List) {
         final List<Object> accessValues = (List<Object>) accessValue;
@@ -365,9 +354,7 @@ public class AttributeMap extends LinkedHashMap<String, Object> {
 
     List<Object> list;
     final Object raw = get(key);
-    if (raw instanceof JsonArray) {
-      list = ((JsonArray) raw).getList();
-    } else if (raw instanceof List) {
+    if (raw instanceof List) {
       list = (List<Object>) raw;
     } else {
       if (Objects.equals(raw, value)) {

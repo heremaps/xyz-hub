@@ -1,0 +1,18 @@
+{
+  "appId": "web-client-custom-app-id",
+  "userId": "my-custom-user-id",
+  "urm": {
+    "naksha": {
+      "readFeatures": [
+        {
+          "storageId": "dev-*"
+        }
+      ],
+      "createFeatures": [
+        {}
+      ]
+    }
+  },
+  "iat": 1704063599,
+  "exp": 3000000000
+}

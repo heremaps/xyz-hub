@@ -1,0 +1,15 @@
+{
+  "appId": "web-client-app-id",
+  "userId": "my-user-id",
+  "urm": {
+    "naksha": {
+      "readFeatures": [
+        {
+          "storageId": "dev-*"
+        }
+      ]
+    }
+  },
+  "iat": 1704063599,
+  "exp": 1704063599
+}

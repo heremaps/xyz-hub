@@ -1,6 +1,6 @@
 package com.here.naksha.app.auth;
 
-import com.here.naksha.app.service.http.auth.ActionMatrix;
+import com.here.naksha.lib.core.models.auth.ActionMatrix;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Named;

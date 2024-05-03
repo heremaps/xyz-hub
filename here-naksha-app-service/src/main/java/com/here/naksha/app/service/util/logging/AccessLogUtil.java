@@ -19,21 +19,15 @@
 package com.here.naksha.app.service.util.logging;
 
 import static com.here.naksha.app.service.http.NakshaHttpHeaders.STREAM_ID;
+import static com.here.naksha.app.service.http.auth.actions.JwtUtil.extractJwtPayloadFromContext;
 import static com.here.naksha.common.http.apis.ApiParamsConst.ACCESS_TOKEN;
-import static io.vertx.core.http.HttpHeaders.ACCEPT;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
-import static io.vertx.core.http.HttpHeaders.ORIGIN;
-import static io.vertx.core.http.HttpHeaders.REFERER;
-import static io.vertx.core.http.HttpHeaders.USER_AGENT;
-import static io.vertx.core.http.HttpMethod.PATCH;
-import static io.vertx.core.http.HttpMethod.POST;
-import static io.vertx.core.http.HttpMethod.PUT;
+import static io.vertx.core.http.HttpHeaders.*;
+import static io.vertx.core.http.HttpMethod.*;
 
 import com.here.naksha.app.service.http.auth.JWTPayload;
 import com.here.naksha.lib.core.util.StreamInfo;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
@@ -51,7 +45,6 @@ public class AccessLogUtil {
   private static final org.slf4j.Logger logger = LoggerFactory.getLogger(AccessLogUtil.class);
   private static final String REALM = "rlm";
 
-  private static final String JWT = "jwt";
   public static final String STREAM_INFO_CTX_KEY = "streamInfo";
   private static final String ACCESS_LOG = "accessLog";
   public static final String X_FORWARDED_FOR = "X-Forwarded-For";
@@ -138,19 +131,6 @@ public class AccessLogUtil {
     return (context == null) ? null : context.get(ACCESS_LOG);
   }
 
-  public static @Nullable JWTPayload getOrCreateJWT(final @Nullable RoutingContext context) {
-    if (context == null) {
-      return null;
-    }
-    JWTPayload payload = context.get(JWT);
-    if (payload == null && context.user() != null) {
-      payload = DatabindCodec.mapper().convertValue(context.user().principal(), JWTPayload.class);
-      context.put(JWT, payload);
-    }
-
-    return payload;
-  }
-
   public static @Nullable StreamInfo getStreamInfo(final @Nullable RoutingContext context) {
     return (context == null) ? null : context.get(STREAM_INFO_CTX_KEY);
   }
@@ -208,10 +188,10 @@ public class AccessLogUtil {
     accessLog.respInfo.size = context.response().bytesWritten();
     accessLog.respInfo.contentType = context.response().headers().get(CONTENT_TYPE);
 
-    final JWTPayload tokenPayload = getOrCreateJWT(context);
+    final JWTPayload tokenPayload = extractJwtPayloadFromContext(context);
     if (tokenPayload != null) {
-      accessLog.clientInfo.userId = tokenPayload.aid;
-      accessLog.clientInfo.appId = tokenPayload.cid;
+      accessLog.clientInfo.userId = tokenPayload.userId;
+      accessLog.clientInfo.appId = tokenPayload.appId;
     }
     return accessLog;
   }

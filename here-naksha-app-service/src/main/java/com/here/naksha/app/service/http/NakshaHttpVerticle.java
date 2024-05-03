@@ -20,6 +20,7 @@ package com.here.naksha.app.service.http;
 
 import static com.here.naksha.app.service.http.NakshaHttpHeaders.STREAM_ID;
 import static com.here.naksha.app.service.http.NakshaHttpHeaders.STREAM_INFO;
+import static com.here.naksha.app.service.http.auth.actions.JwtUtil.*;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
 import static com.here.naksha.lib.core.models.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.naksha.lib.core.util.MIMEType.APPLICATION_JSON;
@@ -49,6 +50,7 @@ import com.here.naksha.app.service.http.apis.ReadFeatureApi;
 import com.here.naksha.app.service.http.apis.SpaceApi;
 import com.here.naksha.app.service.http.apis.StorageApi;
 import com.here.naksha.app.service.http.apis.WriteFeatureApi;
+import com.here.naksha.app.service.http.auth.JWTPayload;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.app.service.util.logging.AccessLog;
 import com.here.naksha.app.service.util.logging.AccessLogUtil;
@@ -72,10 +74,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpConnection;
-import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerOptions;
-import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.http.*;
 import io.vertx.ext.web.RequestBody;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -174,8 +173,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         //                .setHandleFileUploads(false)
         //                .setPreallocateBodyBuffer(true));
 
-        // TODO: Port the JWT authentication handler.
-        final AuthenticationHandler jwtHandler = new NakshaJwtAuthHandler(app().authProvider, null);
+        final AuthenticationHandler jwtHandler = new NakshaJwtAuthHandler(app().authProvider, hubConfig, null);
         rb.securityHandler("Bearer", jwtHandler);
 
         final List<@NotNull Api> apiControllers = List.of(
@@ -513,7 +511,11 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       assert streamId.equals(response.getStreamId());
       assert response.getError() != null;
       assert response.getErrorMessage() != null;
-      httpStatus = mapErrorToHttpStatus(response.getError());
+      if (throwable instanceof HttpException e) {
+        httpStatus = HttpResponseStatus.valueOf(e.getStatusCode());
+      } else {
+        httpStatus = mapErrorToHttpStatus(response.getError());
+      }
       sendRawResponse(routingContext, httpStatus, APPLICATION_JSON, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {
       log.atError()
@@ -702,11 +704,19 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
   public @NotNull NakshaContext createNakshaContext(final @NotNull RoutingContext routingContext) {
     final NakshaContext ctx = new NakshaContext(AccessLogUtil.getStreamId(routingContext));
-    ctx.setAppId(hubConfig.appId);
     // add streamInfo object to NakshaContext, which will be populated later during pipeline execution
     ctx.attachStreamInfo(AccessLogUtil.getStreamInfo(routingContext));
-    // TODO : Author to be set based on JWT token.
-    // ctx.setAuthor();
+    // extract the JWT from authorization header
+    final JWTPayload jwtPayload = extractJwtPayloadFromContext(routingContext);
+    if (jwtPayload == null) {
+      log.error("Cannot detect JWT payload in routing context: {}", routingContext);
+      sendErrorResponse(routingContext, XyzError.UNAUTHORIZED, "No JWT payload found.");
+    } else {
+      // attach authorization info into context
+      ctx.setAppId(jwtPayload.appId);
+      ctx.setAuthor(jwtPayload.userId);
+      ctx.setUrm(jwtPayload.urm);
+    }
     return ctx;
   }
 }

@@ -19,18 +19,16 @@
 package com.here.naksha.app.service.http.auth;
 
 import com.here.naksha.lib.core.util.IoHelp;
-import com.here.naksha.lib.core.util.json.JsonObject;
-import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.hub.NakshaHubConfig;
+import com.here.naksha.lib.hub.NakshaHubConfig.AuthorizationMode;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.HttpException;
 import io.vertx.ext.web.handler.impl.JWTAuthHandlerImpl;
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -40,57 +38,28 @@ public class NakshaJwtAuthHandler extends JWTAuthHandlerImpl {
 
   protected static final Logger logger = LoggerFactory.getLogger(NakshaJwtAuthHandler.class);
 
-  final String RAW_TOKEN = "RAW_TOKEN";
-
+  private final NakshaHubConfig hubConfig;
+  private static final String MASTER_JWT_RESOURCE_FILE = "auth/dummyMasterJwt.json";
+  private static final JsonObject MASTER_JWT_PAYLOAD = new JsonObject(IoHelp.readResource(MASTER_JWT_RESOURCE_FILE));
   /**
-   * Indicates, if compressed JWTs are allowed.
+   * The master JWT used for testing.
    */
-  final boolean ALLOW_COMPRESSED_JWT = true;
+  private final String MASTER_JWT = authProvider.generateToken(MASTER_JWT_PAYLOAD);
 
-  /**
-   * Indicates, if the bearer token could be sent in the request URI query component as defined in <a
-   * href="https://datatracker.ietf.org/doc/html/rfc6750#section-2.3">RFC-6750 Section 2.3</a>
-   */
-  final boolean ALLOW_URI_QUERY_PARAMETER = true;
-
-  /**
-   * Indicates, if anonymous access is allowed.
-   */
-  final boolean ALLOW_ANONYMOUS_ACCESS = true; // TODO: Should be read from Naksha config!
-
-  private static final String ANONYMOUS_JWT_RESOURCE_FILE = "auth/dummyJwt.json";
-  private static final String ANONYMOUS_JWT = JsonSerializable.serialize(
-      JsonSerializable.deserialize(IoHelp.readResource(ANONYMOUS_JWT_RESOURCE_FILE), JsonObject.class));
-
-  public NakshaJwtAuthHandler(@NotNull JWTAuth authProvider, @Nullable String realm) {
+  public NakshaJwtAuthHandler(
+      @NotNull JWTAuth authProvider, @NotNull NakshaHubConfig hubConfig, @Nullable String realm) {
     super(authProvider, realm);
+    this.hubConfig = hubConfig;
   }
 
   @Override
   public void authenticate(@NotNull RoutingContext context, @NotNull Handler<@NotNull AsyncResult<User>> handler) {
-    String jwt = getFromAuthHeader(context.request().headers().get(HttpHeaders.AUTHORIZATION));
-
-    // TODO: Fix me!
-    // Try to get the token from the query parameter
-    //    if (ALLOW_URI_QUERY_PARAMETER && jwt == null) {
-    //      final List<String> accessTokenParam = Query.queryParam(ACCESS_TOKEN, context);
-    //      if (accessTokenParam != null && accessTokenParam.size() > 0) {
-    //        jwt = accessTokenParam.get(0);
-    //        if (jwt != null) context.put(ACCESS_TOKEN, jwt);
-    //      }
-    //    }
-
-    // If anonymous access is allowed, use the default anonymous JWT token
-    if (ALLOW_ANONYMOUS_ACCESS && jwt == null) {
-      jwt = ANONYMOUS_JWT;
+    if (hubConfig.authMode == AuthorizationMode.DUMMY
+        && !context.request().headers().contains(HttpHeaders.AUTHORIZATION)) {
+      // Use the master JWT for testing in DUMMY auth mode with no JWT provided in request
+      context.request().headers().set(HttpHeaders.AUTHORIZATION, "Bearer " + MASTER_JWT);
     }
-
-    // stores the token (raw, as it was received) temporarily in the context
-    context.put(RAW_TOKEN, jwt);
-
-    // TODO: Fix me!
-    jwt = ANONYMOUS_JWT;
-    // If compressed JWTs are supported
+    // TODO: If compressed JWTs are supported
     //    if (ALLOW_COMPRESSED_JWT && jwt != null && !isJWT(jwt)) {
     //      try {
     //        byte[] bytearray = Base64.getDecoder().decode(jwt.getBytes());
@@ -102,27 +71,6 @@ public class NakshaJwtAuthHandler extends JWTAuthHandlerImpl {
     //        return;
     //      }
     //    }
-
-    if (jwt != null) {
-      final String encoded = authProvider.generateToken(new io.vertx.core.json.JsonObject(jwt));
-      context.request().headers().set(HttpHeaders.AUTHORIZATION, "Bearer " + encoded);
-    }
-
-    super.authenticate(context, authn -> {
-      if (authn.failed()) {
-        handler.handle(Future.failedFuture(new HttpException(401, authn.cause())));
-      } else {
-        authn.result().principal().put("jwt", context.remove(RAW_TOKEN));
-        handler.handle(authn);
-      }
-    });
-  }
-
-  private @Nullable String getFromAuthHeader(@Nullable String authHeader) {
-    return (authHeader != null && authHeader.startsWith("Bearer ")) ? authHeader.substring(7) : null;
-  }
-
-  private boolean isJWT(final @Nullable String jwt) {
-    return StringUtils.countMatches(jwt, ".") == 2;
+    super.authenticate(context, handler);
   }
 }

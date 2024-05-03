@@ -18,6 +18,7 @@
  */
 package com.here.naksha.app.service.http.auth;
 
+import com.here.naksha.lib.core.models.auth.ActionMatrix;
 import io.vertx.core.json.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

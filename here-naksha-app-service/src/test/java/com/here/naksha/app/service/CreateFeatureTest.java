@@ -439,7 +439,7 @@ class CreateFeatureTest extends ApiTest {
     // When: We query the same Feature from NakshaHub
     streamId = UUID.randomUUID().toString();
     final String idQueryParam = "id=%s".formatted(urlEncoded("feature-id-20485579"));
-    response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?"+idQueryParam, streamId, timeout);
+    response = getNakshaClient().get("hub/spaces/" + SPACE_ID + "/features?"+idQueryParam, streamId, timeout, null);
 
     // Then: Perform assertions that we get success (and not 413 - Request Entity Too Large)
     assertThat(response)

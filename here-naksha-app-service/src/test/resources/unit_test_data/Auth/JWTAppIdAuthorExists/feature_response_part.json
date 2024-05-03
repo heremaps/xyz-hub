@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:xyz": {
+          "appId": "web-client-custom-app-id",
+          "author": "my-custom-user-id"
+        },
+        "speedLimit": "60"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.68872, 50.0561, 292.94377758]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:xyz": {
+          "appId": "web-client-custom-app-id",
+          "author": "my-custom-user-id"
+        },
+        "speedLimit": "80"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 9.68872, 51.0561, 293.94377758]
+      }
+    }
+  ]
+}

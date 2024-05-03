@@ -18,9 +18,6 @@
  */
 package com.here.naksha.app.common;
 
-import com.here.naksha.app.service.NakshaApp;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**

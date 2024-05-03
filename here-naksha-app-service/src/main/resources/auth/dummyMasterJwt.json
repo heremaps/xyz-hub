@@ -1,0 +1,52 @@
+{
+  "appId": "naksha",
+  "userId": "master-test-user",
+  "urm": {
+    "naksha": {
+      "useStorages": [
+        {}
+      ],
+      "manageStorages": [
+        {}
+      ],
+      "useEventHandlers": [
+        {}
+      ],
+      "manageEventHandlers": [
+        {}
+      ],
+      "useSpaces": [
+        {}
+      ],
+      "manageSpaces": [
+        {}
+      ],
+      "readFeatures": [
+        {}
+      ],
+      "createFeatures": [
+        {}
+      ],
+      "updateFeatures": [
+        {}
+      ],
+      "deleteFeatures": [
+        {}
+      ],
+      "readCollections": [
+        {}
+      ],
+      "createCollections": [
+        {}
+      ],
+      "updateCollections": [
+        {}
+      ],
+      "deleteCollections": [
+        {}
+      ]
+    }
+  },
+  "iat": 1577833200,
+  "exp": 2000000000
+}

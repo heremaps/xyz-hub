@@ -22,8 +22,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.here.naksha.lib.core.models.auth.ActionMatrix;
+import com.here.naksha.lib.core.models.auth.ServiceMatrix;
 import io.vertx.core.json.jackson.DatabindCodec;
-import java.util.Map;
 import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -31,62 +32,45 @@ import org.jetbrains.annotations.Nullable;
 public class JWTPayload {
 
   /**
-   * The token identifier; if any.
-   */
-  public String tid;
-  /**
    * The authenticated application identifier; if any.
    */
-  public String aid;
+  public String appId;
   /**
-   * The authenticated user; if any.
+   * The authenticated user ID; if any.
    */
-  public String user;
-  /**
-   * The ownership identifier; if any. When creating new objects, then owner receives the ownership. Without an owner, no new objects can be
-   * created, except for features, where the owner of the space is then used as owner.
-   */
-  public String owner;
-  // TODO: ???
-  public String cid;
+  public String userId;
 
-  public Map<String, Object> metadata;
-
+  public int iat;
   public int exp;
   public ServiceMatrix urm;
-  public XYZUsageLimits limits;
-  public boolean anonymous;
-
-  public String jwt;
 
   @JsonIgnore
-  private XyzHubActionMatrix __xyzHubMatrix;
+  private XyzHubActionMatrix __nakshaMatrix; // TODO NakshaActionMatrix
 
   /**
-   * Returns the XYZ Hub action matrix, if there is any for this JWT token.
+   * Returns the Naksha action matrix, if there is any for this JWT token.
    *
-   * @return the XYZ Hub action matrix or null.
+   * @return the Naksha action matrix or null.
    */
   @JsonIgnore
-  public @Nullable XyzHubActionMatrix getXyzHubMatrix() {
-    if (__xyzHubMatrix != null) {
-      return __xyzHubMatrix;
+  public @Nullable XyzHubActionMatrix getNakshaMatrix() {
+    if (__nakshaMatrix != null) {
+      return __nakshaMatrix;
     }
     if (urm == null) {
       return null;
     }
-    final ActionMatrix hereActionMatrix = urm.get(URMServiceId.XYZ_HUB);
+    final ActionMatrix hereActionMatrix = urm.get(URMServiceId.NAKSHA);
     if (hereActionMatrix == null) {
       return null;
     }
-    return __xyzHubMatrix = DatabindCodec.mapper().convertValue(hereActionMatrix, XyzHubActionMatrix.class);
+    return __nakshaMatrix = DatabindCodec.mapper().convertValue(hereActionMatrix, XyzHubActionMatrix.class);
   }
 
   /**
    * Constants for all services that may be part of the JWT token.
    */
   public static final class URMServiceId {
-
-    static final String XYZ_HUB = "xyz-hub";
+    static final String NAKSHA = "naksha";
   }
 }

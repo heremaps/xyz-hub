@@ -154,7 +154,7 @@ public final class ApiParams {
     }
   }
 
-  public static QueryParameterList queryParamsFromRequest(final @NotNull RoutingContext routingContext) {
+  public static @Nullable QueryParameterList queryParamsFromRequest(final @NotNull RoutingContext routingContext) {
     return (routingContext.request().query() != null)
         ? new QueryParameterList(routingContext.request().query())
         : null;

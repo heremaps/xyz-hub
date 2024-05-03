@@ -20,6 +20,7 @@ package com.here.naksha.app.common;
 
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
+import static org.apache.hc.core5.http.HttpHeaders.AUTHORIZATION;
 
 import java.io.IOException;
 import java.net.URI;
@@ -28,9 +29,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,35 +68,54 @@ public class NakshaTestWebClient {
     this(chooseSocketTimeout());
   }
 
-  public HttpResponse<String> get(String subPath, String streamId, Duration timeout)
+  public HttpResponse<String> get(String subPath, String streamId, Duration timeout, @Nullable String jwt)
           throws URISyntaxException, IOException, InterruptedException {
-    HttpRequest getRequest = requestBuilder(timeout)
+    Builder requestBuilder = requestBuilder(timeout)
             .uri(nakshaPath(subPath))
             .GET()
-            .header(HDR_STREAM_ID, streamId)
-            .build();
-    return sendOnce(getRequest);
+            .header(HDR_STREAM_ID, streamId);
+    if (jwt != null) {
+      requestBuilder.header(AUTHORIZATION,jwt);
+    }
+    return sendOnce(requestBuilder.build());
   }
 
   public HttpResponse<String> get(String subPath, String streamId)
       throws URISyntaxException, IOException, InterruptedException {
-    return this.get(subPath, streamId, SOCKET_TIMEOUT);
+    return this.get(subPath, streamId, SOCKET_TIMEOUT, null);
   }
 
-  public HttpResponse<String> post(String subPath, String jsonBody, String streamId, Duration timeout)
+  public HttpResponse<String> get(String subPath, String streamId, String jwt)
           throws URISyntaxException, IOException, InterruptedException {
-    HttpRequest postRequest = requestBuilder(timeout)
+    return this.get(subPath, streamId, SOCKET_TIMEOUT, jwt);
+  }
+
+  public HttpResponse<String> post(String subPath, String jsonBody, String streamId, Duration timeout, @Nullable String jwt)
+          throws URISyntaxException, IOException, InterruptedException {
+    Builder requestBuilder = requestBuilder(timeout)
             .uri(nakshaPath(subPath))
             .POST(BodyPublishers.ofString(jsonBody))
             .header("Content-Type", "application/json")
-            .header(HDR_STREAM_ID, streamId)
-            .build();
-    return sendOnce(postRequest);
+            .header(HDR_STREAM_ID, streamId);
+    if (jwt != null) {
+      requestBuilder.header(AUTHORIZATION,jwt);
+    }
+    return sendOnce(requestBuilder.build());
   }
 
   public HttpResponse<String> post(String subPath, String jsonBody, String streamId)
       throws URISyntaxException, IOException, InterruptedException {
-    return this.post(subPath, jsonBody, streamId, SOCKET_TIMEOUT);
+    return this.post(subPath, jsonBody, streamId, SOCKET_TIMEOUT, null);
+  }
+
+  public HttpResponse<String> post(String subPath, String jsonBody, String streamId, String jwt)
+          throws URISyntaxException, IOException, InterruptedException {
+    return this.post(subPath, jsonBody, streamId, SOCKET_TIMEOUT, jwt);
+  }
+
+  public HttpResponse<String> post(String subPath, String jsonBody, String streamId, Duration timeout)
+          throws URISyntaxException, IOException, InterruptedException {
+    return this.post(subPath, jsonBody, streamId, timeout, null);
   }
 
   public HttpResponse<String> put(String subPath, String jsonBody, String streamId)

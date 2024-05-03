@@ -19,6 +19,7 @@
 package com.here.naksha.app.service.http.auth;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.auth.AttributeMap;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;

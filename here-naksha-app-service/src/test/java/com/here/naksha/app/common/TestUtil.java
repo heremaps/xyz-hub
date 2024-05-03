@@ -21,7 +21,10 @@ package com.here.naksha.app.common;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.here.naksha.app.init.TestPsqlStorageConfigs;
+import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.util.IoHelp;
+import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.hub.NakshaHubConfig;
@@ -29,9 +32,16 @@ import com.here.naksha.lib.psql.PsqlStorageConfig;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+
+import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.JWTOptions;
+import io.vertx.ext.auth.PubSecKeyOptions;
+import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 
@@ -111,5 +121,23 @@ public class TestUtil {
   public static String getEnvOrDefault(final String envKey, final String defValue) {
     final String envValue = System.getenv(envKey);
     return (envValue == null || envValue.isEmpty()) ? defValue : envValue;
+  }
+
+  public static String generateJWT(String payload) {
+    return generateJWT(payload, "auth/jwt.key");
+  }
+
+  public static String generateJWT(String payload, String privateKeyPath) {
+    // Load private key
+    final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(privateKeyPath, false, NakshaHubConfig.APP_NAME);
+    final String jwtKey = new String(loaded.getBytes(), StandardCharsets.UTF_8);
+
+    final JWTAuthOptions authOptions = new JWTAuthOptions()
+            .setJWTOptions(new JWTOptions().setAlgorithm("RS256"))
+            .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtKey))
+            ;
+    final NakshaAuthProvider nakshaAuthProvider = new NakshaAuthProvider(Vertx.vertx(), authOptions);
+    // Sign the following JWT payload
+    return nakshaAuthProvider.generateToken(new JsonObject(payload));
   }
 }

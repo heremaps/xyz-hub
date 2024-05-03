@@ -1,0 +1,15 @@
+{
+  "id": "auth_test_space",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "auth_test_handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "um-mod-dev:topology",
+      "type": "NakshaCollection"
+    }
+  }
+}
