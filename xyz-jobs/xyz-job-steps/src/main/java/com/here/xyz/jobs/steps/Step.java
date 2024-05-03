@@ -242,7 +242,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *
    * @return
    */
-  public abstract void deleteOutputs();
+  public void deleteOutputs() {
+    /*
+    TODO: Respect re-usability of outputs. If other steps are re-using (some) outputs of this step, check the reference counter of
+      the according steps and only delete the outputs if their reference counter drops to 0
+     */
+    S3Client.getInstance().deleteFolder(stepS3Prefix(false));
+  }
 
   public void prepare(String owner, Map<String, Object> ownerAuth) {
     //Nothing to do by default. May be overridden.

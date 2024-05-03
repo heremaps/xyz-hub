@@ -75,11 +75,6 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     return "Creates the " + index + " index on space " + getSpaceId();
   }
 
-  @Override
-  public void deleteOutputs() {
-    //Nothing to do here as no outputs are produced by this step
-  }
-
   private int calculateNeededAcus(long featureCount, long byteSize) {
     //TODO: Interpolate by feature count & byte size differently per index type
     return 1;

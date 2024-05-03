@@ -71,11 +71,6 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
     return "Drops all the indexes on space " + getSpaceId();
   }
 
-  @Override
-  public void deleteOutputs() {
-    //Nothing to do here as no outputs are produced by this step
-  }
-
   private int calculateNeededAcus() {
     return 0;
   }

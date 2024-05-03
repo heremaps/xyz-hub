@@ -73,11 +73,6 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
 
   }
 
-  @Override
-  public void deleteOutputs() {
-
-  }
-
   private int calculateNeededAcus() {
     return 0;
   }

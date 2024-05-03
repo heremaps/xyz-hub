@@ -74,11 +74,6 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
 
   }
 
-  @Override
-  public void deleteOutputs() {
-    //Nothing to do, as this step does not produce any outputs
-  }
-
   private int calculateNeededAcus() {
     //TODO: Check max ACUs during tests to find correct interpolation
     return 0;
