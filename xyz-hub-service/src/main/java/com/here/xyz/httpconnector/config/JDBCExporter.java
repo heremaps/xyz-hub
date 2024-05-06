@@ -761,9 +761,13 @@ public class JDBCExporter extends JdbcBasedHandler {
 
   private static SQLQuery buildGeoFragment(SpatialFilter spatialFilter) {
     if (spatialFilter != null && spatialFilter.isClipped()) {
+     if( spatialFilter.getRadius() != 0 ) 
       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo")
           .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()))
           .withNamedParameter("radius", spatialFilter.getRadius());
+     else
+      return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometry} ),4326 )) as geo")
+          .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
     }
     else
         return new SQLQuery("geo");
