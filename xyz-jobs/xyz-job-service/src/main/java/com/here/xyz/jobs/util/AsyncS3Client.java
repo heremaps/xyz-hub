@@ -40,9 +40,9 @@ public class AsyncS3Client extends S3Client {
 
   //NOTE: Only the long-blocking methods are added as async variants
 
-  public Future<Void> deleteS3FolderAsync(String folderPath) {
+  public Future<Void> deleteFolderAsync(String folderPath) {
     return async.run(() -> {
-      deleteS3Folder(folderPath);
+      deleteFolder(folderPath);
       return null;
     });
   }

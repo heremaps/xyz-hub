@@ -101,11 +101,6 @@ public class S3Client {
     return generatePresignedUrl(key, PUT);
   }
 
-  public void deleteS3Folder(String folderPath) {
-    for (S3ObjectSummary objectSummary : scanFolder(folderPath))
-      client.deleteObject(bucketName, objectSummary.getKey()); //TODO: Run partially in parallel in multiple threads
-  }
-
   public List<S3ObjectSummary> scanFolder(String folderPath) {
     ListObjectsRequest listObjects = new ListObjectsRequest()
         .withPrefix(folderPath)
@@ -176,7 +171,9 @@ public class S3Client {
   }
 
   public void deleteFolder(String folderPath) {
+    //TODO: Run partially in parallel in multiple threads
     for (S3ObjectSummary file : scanFolder(folderPath))
+      //TODO: Delete multiple objects (batches of 1000) with one request instead
       client.deleteObject(bucketName, file.getKey());
   }
 }

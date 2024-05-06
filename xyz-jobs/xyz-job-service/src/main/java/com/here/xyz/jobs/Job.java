@@ -405,7 +405,7 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> deleteInputs() {
-    return AsyncS3Client.getInstance().deleteS3FolderAsync(inputS3Prefix(getId()));
+    return AsyncS3Client.getInstance().deleteFolderAsync(inputS3Prefix(getId()));
   }
 
   public Future<List<Input>> loadInputs() {
