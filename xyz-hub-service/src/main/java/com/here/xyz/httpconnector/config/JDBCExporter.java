@@ -758,7 +758,7 @@ public class JDBCExporter extends JdbcBasedHandler {
           .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()))
           .withNamedParameter("radius", spatialFilter.getRadius());
      else
-      return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_GeomFromText(#{wktGeometry}) ) as geo")
+      return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometry} ),4326 )) as geo")
           .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
     }
     else
