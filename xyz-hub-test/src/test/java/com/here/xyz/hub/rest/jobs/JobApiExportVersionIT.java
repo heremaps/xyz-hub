@@ -257,7 +257,7 @@ public class JobApiExportVersionIT extends JobApiIT {
     
             List<String> mustContain = Arrays.asList("23600776,","jumpPoint delta","122001322020");
     
-            downloadAndCheck(urls, 378, 1, mustContain);
+            downloadAndCheck(urls, 389, 1, mustContain);
     }
 
 
