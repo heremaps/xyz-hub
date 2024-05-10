@@ -65,8 +65,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     SQLQuery query;
     
-    if (calculateTilesForIncremntal)
-    {
+    if (calculateTilesForIncremntal) {
       if( event instanceof SelectiveEvent selectiveEvent ) // in case of incremental && tilecalculation replace internal versionComparison
        versionCheckFragment.withQueryFragment("versionComparison", buildVersionComparisonTileCalculation(selectiveEvent))
                            .withQueryFragment("nextVersion", new SQLQuery(""))   // remove standard fragment s. buildVersionComparisonTileCalculation
@@ -79,7 +78,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           """
           ).withQueryFragment("selectClause", buildSelectClause(event, 0))
            .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, 0));
-
     }
     else if (isCompositeQuery(event) ) {
       int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
@@ -161,7 +159,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
                   AND (    ( version <= #{toVersion} and next_version > #{toVersion} )
                         OR ( version <= #{fromVersion} and next_version > #{fromVersion} )
                       )
-                  AND id in ( select distinct id FROM ${schema}.${table} WHERE version between #{fromVersion} and #{toVersion} )   
+                  AND id in ( select distinct id FROM ${schema}.${table} WHERE version > #{fromVersion} and version <= #{toVersion} )
                  """
                ).withNamedParameter("fromVersion", ref.getFromVersion())
                 .withNamedParameter("toVersion", ref.getToVersion());
