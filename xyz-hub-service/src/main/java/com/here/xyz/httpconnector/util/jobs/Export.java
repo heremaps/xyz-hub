@@ -181,6 +181,8 @@ public class Export extends JDBCBasedJob<Export> {
     private static final long UNKNOWN_MAX_SPACE_VERSION = -42;
     @JsonView(Public.class)
     private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+    @JsonView(Public.class)
+    private long minSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
 
     @JsonView(Public.class)
     private long maxSuperSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
@@ -306,6 +308,7 @@ public class Export extends JDBCBasedJob<Export> {
                         .compose(statistics ->{
                             //Set version of target space
                             setMaxSpaceVersion(statistics.getMaxVersion().getValue());
+                            setMinSpaceVersion(statistics.getMinVersion().getValue());
                             return Future.succeededFuture(statistics);
                         });
             })
@@ -1147,6 +1150,20 @@ public class Export extends JDBCBasedJob<Export> {
         setMaxSuperSpaceVersion(maxSuperSpaceVersion);
         return this;
     }
+
+    public long getMinSpaceVersion() {
+        return minSpaceVersion;
+    }
+
+    public void setMinSpaceVersion(long minSpaceVersion) {
+        this.minSpaceVersion = minSpaceVersion;
+    }
+
+    public Export withMinSpaceVersion(long minSpaceVersion) {
+        setMinSpaceVersion(minSpaceVersion);
+        return this;
+    }
+
 
     @Deprecated
     public String getEmrJobId() {
