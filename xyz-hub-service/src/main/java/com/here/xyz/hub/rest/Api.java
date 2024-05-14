@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,16 +57,13 @@ import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
-import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.Collections;
-import java.util.List;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -237,12 +234,14 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
   }
 
   /**
+   * @deprecated Please only use {@link XyzSerializable#serialize(Object, Class)} directly instead.
    * Helper method which returns the marker for the JSON writer depending on which parameters the user has access in the response. These
    * output parameters are controlled by the task.view property and additionally by the accessConnectors
    *
    * @param view the view
    * @return the type
    */
+  @Deprecated
   private Class<? extends Public> getViewType(final SpaceTask.View view) {
     switch (view) {
       case FULL:

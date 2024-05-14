@@ -201,10 +201,10 @@ public class Api {
     }
 
     /**
+     * @deprecated Use {@link #sendResponse(RoutingContext, int, XyzSerializable)} instead!
      * @param context
      * @param status
      * @param o
-     * @deprecated Use {@link #sendResponseWithXyzSerialization(RoutingContext, HttpResponseStatus, Object)} instead!
      */
     @Deprecated
     protected void sendResponse(RoutingContext context, HttpResponseStatus status, Object o) {
@@ -216,7 +216,8 @@ public class Api {
                 response = baos.toByteArray();
             else
                 response = Json.encode(o).getBytes();
-        } catch (EncodeException e) {
+        }
+        catch (EncodeException e) {
             sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
             return;
         }
@@ -224,10 +225,24 @@ public class Api {
         sendResponseBytes(context, httpResponse, response);
     }
 
+    /**
+     * @deprecated Please use {@link #sendResponse(RoutingContext, int, XyzSerializable)} or {@link #sendResponse(RoutingContext, int, List)} instead.
+     * @param context
+     * @param status
+     * @param o
+     */
     protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o) {
         sendResponseWithXyzSerialization(context, status, o, null);
     }
 
+    /**
+     * @deprecated Please use {@link #sendResponse(RoutingContext, int, XyzSerializable)} or {@link #sendResponse(RoutingContext, int, List)} instead.
+     * @param context
+     * @param status
+     * @param o
+     * @param type
+     */
+    @Deprecated
     protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o, TypeReference type) {
         HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
 
@@ -237,7 +252,8 @@ public class Api {
                 response = new byte[]{};
             else
                 response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o) : XyzSerializable.serialize(o, type)).getBytes();
-        } catch (EncodeException e) {
+        }
+        catch (EncodeException e) {
             sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
             return;
         }
@@ -260,13 +276,13 @@ public class Api {
         serializeAndSendResponse(context, statusCode, object);
     }
 
-    protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> object) {
-        serializeAndSendResponse(context, statusCode, object);
+    protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
+        serializeAndSendResponse(context, statusCode, list);
     }
 
     private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object) {
         HttpServerResponse httpResponse = context.response().setStatusCode(statusCode);
-        sendResponseBytes(context, httpResponse, XyzSerializable.serializeWithView(object, Public.class).getBytes());
+        sendResponseBytes(context, httpResponse, XyzSerializable.serialize(object, Public.class).getBytes());
     }
 
     public interface ThrowingHandler<E> {

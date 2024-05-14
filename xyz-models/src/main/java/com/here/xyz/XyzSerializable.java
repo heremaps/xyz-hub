@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,7 @@
 
 package com.here.xyz;
 
-import static com.here.xyz.XyzSerializable.Mappers.getDefaultMapper;
-import static com.here.xyz.XyzSerializable.Mappers.getMapper;
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.XyzSerializable.Mappers.getMapperForView;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -68,32 +67,22 @@ public interface XyzSerializable {
       ALL_MAPPERS.forEach(om -> om.registerSubtypes(classes));
     }
 
-    // FIXME Public views are not taken in consideration, replace existing usage to @code{getMapper} when possible
-    protected static ObjectMapper getMapperForView(Class<? extends SerializationView> view) {
-      if (Static.class.isAssignableFrom(view))
-        return STATIC_MAPPER.get();
-      else
-        return getDefaultMapper();
-    }
-
     /**
      * Returns the ObjectMapper for the given view.
-     * ExampleL If the view is a {@link Static} view or extends from {@link Static}, the static mapper is returned.
+     * E.g., If the view is a {@link Static} view or extends from {@link Static}, the static mapper is returned.
      * @param view the view to get the mapper for
-     * @throws NullPointerException if the view is null
-     * @return the ObjectMapper for the given view
+     * @return the {@link ObjectMapper} for the given view, the "default mapper" if <code>null</code> is passed as view
      */
-    protected static ObjectMapper getMapper(Class<? extends SerializationView> view) {
+    protected static ObjectMapper getMapperForView(Class<? extends SerializationView> view) {
+      if (view == null)
+        return DEFAULT_MAPPER.get();
+
       if (Static.class.isAssignableFrom(view))
         return STATIC_MAPPER.get();
 
       if (Public.class.isAssignableFrom(view))
         return PUBLIC_MAPPER.get();
 
-      return getDefaultMapper();
-    }
-
-    protected static ObjectMapper getDefaultMapper() {
       return DEFAULT_MAPPER.get();
     }
   }
@@ -117,12 +106,16 @@ public interface XyzSerializable {
 
   @SuppressWarnings("unused")
   default String serialize(boolean pretty) {
-    return serialize(this, Public.class, pretty);
+    return serialize(this, null, pretty); //TODO: Switch to use Public mapper as default in future (rather than using the default mapper)
+  }
+
+  default String serialize(Class<? extends SerializationView> view, boolean pretty) {
+    return serialize(this, view, pretty);
   }
 
   @SuppressWarnings("unused")
   static String serialize(Object object) {
-    return serialize(object, Public.class, false);
+    return serialize(object, null, false); //TODO: Switch to use Public mapper as default in future (rather than using the default mapper)
   }
 
   static String serialize(Object object, Class<? extends SerializationView> view) {
@@ -143,14 +136,6 @@ public interface XyzSerializable {
     }
   }
 
-  static String serializeWithView(Object object, Class<? extends SerializationView> view) {
-    try {
-      return getMapper(view).writeValueAsString(object);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException("Failed to write value as string using view " + view.getSimpleName() + ": " + e.getMessage(), e);
-    }
-  }
-
   /**
    * @deprecated Please use {@link #serialize(Object)} instead.
    * @param object
@@ -161,7 +146,7 @@ public interface XyzSerializable {
   @SuppressWarnings("unused")
   static String serialize(Object object, TypeReference typeReference) {
     try {
-      return getDefaultMapper().writerFor(typeReference).writeValueAsString(object);
+      return DEFAULT_MAPPER.get().writerFor(typeReference).writeValueAsString(object);
     }
     catch (JsonProcessingException e) {
       throw new RuntimeException(e);
@@ -177,7 +162,7 @@ public interface XyzSerializable {
   }
 
   static byte[] toByteArray(Object object) {
-    return toByteArray(object, Public.class);
+    return toByteArray(object, null); //TODO: Switch to use Public mapper as default in future (rather than using the default mapper)
   }
 
   static byte[] toByteArray(Object object, Class<? extends SerializationView> view) {
@@ -195,7 +180,7 @@ public interface XyzSerializable {
   }
 
   static Map<String, Object> toMap(Object object) {
-    return toMap(object, Public.class);
+    return toMap(object, null); //TODO: Switch to use Public mapper as default in future (rather than using the default mapper)
   }
 
   static Map<String, Object> toMap(Object object, Class<? extends SerializationView> view) {
@@ -213,7 +198,7 @@ public interface XyzSerializable {
   }
 
   static List<Object> toList(Object object) {
-    return toList(object, Public.class);
+    return toList(object, null); //TODO: Switch to use Public mapper as default in future (rather than using the default mapper)
   }
 
   static List<Object> toList(Object object, Class<? extends SerializationView> view) {
@@ -260,7 +245,7 @@ public interface XyzSerializable {
     To circumvent that, wrap the source string with a custom string reader, which provides access to the input string.
      */
     try {
-      return getDefaultMapper().readValue(new ProxyStringReader(string), klass);
+      return DEFAULT_MAPPER.get().readValue(new ProxyStringReader(string), klass);
     }
     catch (JsonProcessingException e) {
       //NOTE: This catch block must stay, because JsonProcessingException extends IOException
@@ -273,7 +258,7 @@ public interface XyzSerializable {
 
   @SuppressWarnings("unused")
   static <T> T deserialize(String string, TypeReference<T> type) throws JsonProcessingException {
-    return getDefaultMapper().readerFor(type).readValue(string);
+    return DEFAULT_MAPPER.get().readerFor(type).readValue(string);
   }
 
   static <T extends Typed> T fromMap(Map<String, Object> map) {
@@ -282,11 +267,11 @@ public interface XyzSerializable {
 
   @SuppressWarnings("unused")
   static <T> T fromMap(Map<String, Object> map, Class<T> klass) {
-    return getDefaultMapper().convertValue(map, klass);
+    return DEFAULT_MAPPER.get().convertValue(map, klass);
   }
 
   static <T> T fromMap(Map<String, Object> map, TypeReference<T> type) {
-    return getDefaultMapper().convertValue(map, type);
+    return DEFAULT_MAPPER.get().convertValue(map, type);
   }
 
   @SuppressWarnings("unchecked")
