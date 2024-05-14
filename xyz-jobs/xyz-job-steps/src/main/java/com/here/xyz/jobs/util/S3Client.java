@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.zip.GZIPOutputStream;
 
 public class S3Client {
-  private static final S3Client instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
+  private static S3Client instance;
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
 
@@ -81,6 +81,8 @@ public class S3Client {
   }
 
   public static S3Client getInstance() {
+    if (instance == null)
+      instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
     return instance;
   }
 
@@ -160,7 +162,8 @@ public class S3Client {
 
       client.putObject(new PutObjectRequest(bucketName, s3Key,
               new ByteArrayInputStream(baos.toByteArray()), metadata));
-    } else {
+    }
+    else {
       metadata.setContentLength(content.length);
       client.putObject(new PutObjectRequest(bucketName, s3Key, new ByteArrayInputStream(content), metadata));
     }
