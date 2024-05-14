@@ -78,6 +78,7 @@ import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
@@ -183,6 +184,8 @@ public class Export extends JDBCBasedJob<Export> {
     private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
     @JsonView(Public.class)
     private long minSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+    @JsonView(Public.class)
+    private long spaceCreatedAt = 0;
 
     @JsonView(Public.class)
     private long maxSuperSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
@@ -284,6 +287,18 @@ public class Export extends JDBCBasedJob<Export> {
                     return Future.failedFuture(e);
                   }
                 }
+
+                if (getSource() instanceof Identifiable<?> identifiable) {
+
+                  try {
+                    Space space = CService.hubWebClient.loadSpace(identifiable.getId());
+                    setSpaceCreatedAt( space.getCreatedAt() );
+                  }
+                  catch (HubWebClientException e) {
+                    return Future.failedFuture(e);
+                  }
+                }
+
 
                 return Future.succeededFuture();
             }).compose(f -> {
@@ -1164,6 +1179,18 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
+    public long getSpaceCreatedAt() {
+        return spaceCreatedAt;
+    }
+
+    public void setSpaceCreatedAt(long spaceCreatedAt) {
+        this.spaceCreatedAt = spaceCreatedAt;
+    }
+
+    public Export withSpaceCreatedAt(long spaceCreatedAt) {
+        setSpaceCreatedAt(spaceCreatedAt);
+        return this;
+    }
 
     @Deprecated
     public String getEmrJobId() {
