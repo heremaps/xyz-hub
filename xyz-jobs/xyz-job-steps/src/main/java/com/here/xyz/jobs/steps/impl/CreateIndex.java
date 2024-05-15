@@ -50,7 +50,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public List<Load> getNeededResources() {
     try{
-      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getTotalUncompressedUploadBytes(), index);
+      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index);
       logger.info("[{}] {} neededACUs {}", getGlobalStepId(), index, acus);
 
       Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
@@ -65,7 +65,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @Override
   public int getTimeoutSeconds() {
-    int timeoutSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexTimeoutSeconds(getTotalUncompressedUploadBytes(), index);
+    int timeoutSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexTimeoutSeconds(getUncompressedUploadBytesEstimation(), index);
     logger.info("[{}] {} timeoutSeconds {}",getGlobalStepId(), index, timeoutSeconds);
     return timeoutSeconds;
   }
@@ -73,7 +73,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public int getEstimatedExecutionSeconds() {
     if(estimatedSeconds == null ) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getTotalUncompressedUploadBytes() , index);
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , index);
       logger.info("[{}] {} estimatedSeconds {}",getGlobalStepId(), index, estimatedSeconds);
     }
     return estimatedSeconds;

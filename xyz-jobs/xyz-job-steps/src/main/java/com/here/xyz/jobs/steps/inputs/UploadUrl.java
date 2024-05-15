@@ -59,4 +59,8 @@ public class UploadUrl extends Input<UploadUrl> {
     setCompressed(compressed);
     return this;
   }
+
+  public long getEstimatedUncompressedByteSize() {
+    return compressed ? byteSize * 10 : byteSize;
+  }
 }

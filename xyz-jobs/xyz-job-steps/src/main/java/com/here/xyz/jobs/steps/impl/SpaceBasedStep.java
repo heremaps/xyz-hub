@@ -100,19 +100,4 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     //Return true as no user inputs are needed
     return true;
   }
-
-  @JsonIgnore
-  public long getTotalUncompressedUploadBytes(){
-    if(totalUploadBytes != 0)
-      return totalUploadBytes;
-
-    List<Input> inputs = loadInputs();
-
-    for (int i = 0; i < inputs.size(); i++) {
-      if(inputs.get(0) instanceof UploadUrl uploadUrl) {
-        totalUploadBytes += uploadUrl.isCompressed() ? uploadUrl.getByteSize() * 10 : uploadUrl.getByteSize();
-      }
-    }
-    return totalUploadBytes;
-  }
 }

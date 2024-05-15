@@ -123,7 +123,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public int getEstimatedExecutionSeconds() {
     if(estimatedSeconds == null ) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateImportTimeInSeconds(getSpaceId(), getTotalUncompressedUploadBytes());
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
       logger.info("[{}] Import estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
     }
     return estimatedSeconds;
@@ -164,7 +164,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (inputs.isEmpty())
       return false;
 
-    uncompressedTotalBytes = getTotalUncompressedUploadBytes();
+    uncompressedTotalBytes = getUncompressedUploadBytesEstimation();
 
     for (int i = 0; i < inputs.size(); i++) {
       if(inputs.get(i) instanceof UploadUrl uploadUrl) {
@@ -500,14 +500,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     int threadCount = calculateDBThreadCount();
 
     //Only take into account the max parallel execution
-    bytesPerThreads = (getTotalUncompressedUploadBytes() / fileCount ) * threadCount;
+    bytesPerThreads = (getUncompressedUploadBytesEstimation() / fileCount ) * threadCount;
 
     //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
     //Calculate the needed ACUs
     double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
     double neededACUs = requiredRAMPerThreads / ACU_RAM;
 
-    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+ getTotalUncompressedUploadBytes()
+    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+ getUncompressedUploadBytesEstimation()
             +", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
             +", neededACUs:"+neededACUs);
 
@@ -518,11 +518,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //1GB for maxThreads
     long uncompressedByteSizeForMaxThreads = 1024L * 1024 * 1024;
 
-    if (getTotalUncompressedUploadBytes() >= uncompressedByteSizeForMaxThreads) {
+    if (getUncompressedUploadBytesEstimation() >= uncompressedByteSizeForMaxThreads) {
       calculatedThreadCount = MAX_DB_THREAD_CNT;
     } else {
       // Calculate linearly scaled thread count
-      int threadCnt = (int) ((double) getTotalUncompressedUploadBytes() / uncompressedByteSizeForMaxThreads * MAX_DB_THREAD_CNT);
+      int threadCnt = (int) ((double) getUncompressedUploadBytesEstimation() / uncompressedByteSizeForMaxThreads * MAX_DB_THREAD_CNT);
       calculatedThreadCount = threadCnt == 0 ? 1 : threadCnt;
     }
 

@@ -33,6 +33,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.ModelBasedOutput;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -54,6 +55,7 @@ import java.util.stream.Collectors;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
+  private long estimatedUploadBytes = 0;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
@@ -313,5 +315,24 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   public T withPreviousStepId(String previousStepId) {
     setPreviousStepId(previousStepId);
     return (T) this;
+  }
+
+  /**
+   * Helper which returns an estimation of uncompressed byte size of all available uploads.
+   * @return sum of uncompressed bytes of all uploaded files
+   */
+  @JsonIgnore
+  public long getUncompressedUploadBytesEstimation(){
+    if(estimatedUploadBytes != 0)
+      return estimatedUploadBytes;
+
+    List<Input> inputs = loadInputs();
+
+    for (int i = 0; i < inputs.size(); i++) {
+      if(inputs.get(0) instanceof UploadUrl uploadUrl) {
+        estimatedUploadBytes += uploadUrl.getEstimatedUncompressedByteSize();
+      }
+    }
+    return estimatedUploadBytes;
   }
 }
