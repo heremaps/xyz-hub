@@ -21,23 +21,18 @@ package com.here.xyz.jobs.steps.impl;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.inputs.Input;
-import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
-import java.util.List;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateIndex.class),
@@ -75,7 +70,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected void validateSpaceExists() throws ValidationException {
     try {
       //Check if the space is actually existing
-      if(getSpaceId() == null)
+      if (getSpaceId() == null)
         throw new ValidationException("SpaceId is missing!");
       loadSpace(getSpaceId());
     }

@@ -124,7 +124,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    if(estimatedSeconds == -1 && getSpaceId() != null) {
+    if (estimatedSeconds == -1 && getSpaceId() != null) {
       estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
       logger.info("[{}] Import estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
     }
@@ -497,7 +497,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     final int ACU_RAM = 2; // GB
     long bytesPerThreads;
 
-    if(fileCount == -1)
+    if (fileCount == -1)
       fileCount = loadInputs().size();
 
     if(fileCount == 0)
