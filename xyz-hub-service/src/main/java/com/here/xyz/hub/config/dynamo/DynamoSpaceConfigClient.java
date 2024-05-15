@@ -587,57 +587,6 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return DatabindCodec.mapper().convertValue(itemData, Space.class);
   }
 
-  private Set<String> getAuthorizedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition) throws AmazonDynamoDBException {
-    final Set<String> authorizedSpaces = new LinkedHashSet<>();
-
-    logger.info(marker, "Getting authorized spaces by condition");
-
-    try {
-      //Get the space ids which are authorized by the authorizedCondition
-      if (authorizedCondition.spaceIds != null) {
-        authorizedSpaces.addAll(authorizedCondition.spaceIds);
-        logger.debug(marker, "Number of space IDs after addition from authorized condition space IDs: {}", authorizedSpaces.size());
-      }
-
-      //Then get the owners which are authorized by the authorizedCondition
-      if (authorizedCondition.ownerIds != null) {
-        authorizedCondition.ownerIds.forEach(owner ->
-            spaces.getIndex("owner-index").query("owner", owner).pages().forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("id"));
-            }))
-        );
-        logger.debug(marker, "Number of space IDs after addition from owners: {}", authorizedSpaces.size());
-      }
-
-      //Then get the packages which are authorized by the authorizedCondition
-      if (authorizedCondition.packages != null) {
-        authorizedCondition.packages.forEach(packageName ->
-            packages.query("packageName", packageName).pages().forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("spaceId"));
-            }))
-        );
-        logger.debug(marker, "Number of space IDs after addition from packages: {}", authorizedSpaces.size());
-      }
-
-      //Then get the "empty" case, when no spaceIds or ownerIds os packages are provided, meaning select ALL spaces
-      if (CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds)
-          && CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds)
-          && CollectionUtils.isNullOrEmpty(authorizedCondition.packages)) {
-        spaces
-            .scan(new ScanSpec().withProjectionExpression("id"))
-            .pages()
-            .forEach(p -> p.forEach(i -> authorizedSpaces.add(i.getString("id"))));
-      }
-    }
-    catch (AmazonDynamoDBException e) {
-      logger.error(marker, "Failure to get the authorized spaces", e);
-      throw e;
-    }
-
-    logger.info(marker, "Returning the list of authorized spaces with size of: {}", authorizedSpaces.size());
-    return authorizedSpaces;
-  }
-
   /**
    * Fills the result list transforming the raw elements from the outcome into real Space objects
    *
