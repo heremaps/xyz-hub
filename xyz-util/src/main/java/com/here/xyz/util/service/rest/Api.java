@@ -251,7 +251,8 @@ public class Api {
             if (o == null)
                 response = new byte[]{};
             else
-                response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o) : XyzSerializable.serialize(o, type)).getBytes();
+                response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o)
+                    : XyzSerializable.serialize(o, type)).getBytes();
         }
         catch (EncodeException e) {
             sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
@@ -273,16 +274,41 @@ public class Api {
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
-        serializeAndSendResponse(context, statusCode, object);
+        serializeAndSendResponse(context, statusCode, object, null);
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
-        serializeAndSendResponse(context, statusCode, list);
+        serializeAndSendResponse(context, statusCode, list, null);
     }
 
-    private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object) {
+    protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
+        TypeReference listItemTypeReference) {
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference);
+    }
+
+    private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object,
+        TypeReference listItemTypeReference) {
+        if (listItemTypeReference != null && !(object instanceof List))
+            throw new IllegalArgumentException("Type info for list items may only be specified if the object to be serialized is a list.");
+
         HttpServerResponse httpResponse = context.response().setStatusCode(statusCode);
-        sendResponseBytes(context, httpResponse, XyzSerializable.serialize(object, Public.class).getBytes());
+
+        byte[] response;
+        try {
+            if (object == null)
+                response = new byte[]{};
+            else
+                response = object instanceof ByteArrayOutputStream bos ? bos.toByteArray()
+                    : (listItemTypeReference == null
+                        ? XyzSerializable.serialize(object, Public.class)
+                        : XyzSerializable.serialize((List<?>) object, Public.class, listItemTypeReference)).getBytes();
+        }
+        catch (EncodeException e) {
+            sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
+            return;
+        }
+
+        sendResponseBytes(context, httpResponse, response);
     }
 
     public interface ThrowingHandler<E> {

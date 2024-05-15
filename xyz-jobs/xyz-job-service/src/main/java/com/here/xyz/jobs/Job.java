@@ -96,6 +96,7 @@ public class Job implements XyzSerializable {
 
   public static final Async async = new Async(20, Core.vertx, Job.class);
   private static final Logger logger = LogManager.getLogger();
+  private static final long DEFAULT_JOB_TTL = 2 * 7 * 24 * 3600 * 1000; //2 weeks
 
   /**
    * Creates a new Job.
@@ -128,7 +129,8 @@ public class Job implements XyzSerializable {
     return withId(randomAlpha())
         .withStatus(new RuntimeStatus().withState(NOT_READY))
         .withCreatedAt(Core.currentTimeMillis())
-        .withUpdatedAt(getCreatedAt());
+        .withUpdatedAt(getCreatedAt())
+        .withKeepUntil(getKeepUntil() <= 0 ? getCreatedAt() + DEFAULT_JOB_TTL : getKeepUntil());
   }
 
   //TODO: Make sure also the step states are always set accordingly (prior to execution)

@@ -149,7 +149,35 @@ public interface XyzSerializable {
       return DEFAULT_MAPPER.get().writerFor(typeReference).writeValueAsString(object);
     }
     catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
+      throw new RuntimeException("Failed to encode as JSON: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Used to serialize lists of XyzSerializable objects with additional type info to keep polymorph type information that would
+   * be lost otherwise, because generic type information erasure.
+   * @param list The list of objects to be serialized
+   * @param itemTypeReference The type reference to be applied for the items of the list
+   * @return The serialized JSON string
+   */
+  static String serialize(List<?> list, TypeReference itemTypeReference) {
+    return serialize(list, null, itemTypeReference); //TODO: Switch to use Public mapper as default in future (rather than using the default mapper)
+  }
+
+  /**
+   * Used to serialize lists of XyzSerializable objects with additional type info to keep polymorph type information that would
+   * be lost otherwise, because generic type information erasure.
+   * @param list The list of objects to be serialized
+   * @param view The view to be used for serialization
+   * @param itemTypeReference The type reference to be applied for the items of the list
+   * @return The serialized JSON string
+   */
+  static String serialize(List<?> list, Class<? extends SerializationView> view, TypeReference itemTypeReference) {
+    try {
+      return getMapperForView(view).writerFor(itemTypeReference).writeValueAsString(list);
+    }
+    catch (JsonProcessingException e) {
+      throw new RuntimeException("Failed to encode as JSON: " + e.getMessage(), e);
     }
   }
 
