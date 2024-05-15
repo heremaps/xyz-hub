@@ -21,17 +21,22 @@ package com.here.xyz.jobs.steps.impl;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
+import java.util.List;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateIndex.class),
@@ -41,6 +46,8 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
     @JsonSubTypes.Type(value = MarkForMaintenance.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
+  private long totalUploadBytes = 0;
+
   private String spaceId;
 
   public String getSpaceId() {
@@ -92,5 +99,20 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     validateSpaceExists();
     //Return true as no user inputs are needed
     return true;
+  }
+
+  @JsonIgnore
+  public long getTotalUncompressedUploadBytes(){
+    if(totalUploadBytes != 0)
+      return totalUploadBytes;
+
+    List<Input> inputs = loadInputs();
+
+    for (int i = 0; i < inputs.size(); i++) {
+      if(inputs.get(0) instanceof UploadUrl uploadUrl) {
+        totalUploadBytes += uploadUrl.isCompressed() ? uploadUrl.getByteSize() * 10 : uploadUrl.getByteSize();
+      }
+    }
+    return totalUploadBytes;
   }
 }

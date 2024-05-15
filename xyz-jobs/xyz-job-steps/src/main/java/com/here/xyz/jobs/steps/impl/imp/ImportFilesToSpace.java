@@ -27,6 +27,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
@@ -63,16 +64,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private Phase phase;
 
   @JsonView({Internal.class})
-  private long totalBytes;
+  private long uncompressedTotalBytes;
 
   @JsonView({Internal.class, Static.class})
-  private long expectedMemoryConsumptionInBytes;
-
-  @JsonView({Internal.class, Static.class})
-  private int fileCount;
+  private Integer fileCount;
 
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount;
+
+  @JsonView({Internal.class, Static.class})
+  private Integer estimatedSeconds;
 
   public enum Format {
     CSV_GEOJSON,
@@ -116,14 +117,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    //TODO: Return an estimation based on the input data size
     return 15 * 3600;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    //TODO: Return an estimation based on the input data size
-    return 60;
+    if(estimatedSeconds == null ) {
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateImportTimeInSeconds(getSpaceId(), getTotalUncompressedUploadBytes());
+      logger.info("[{}] Import estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
+    }
+    return estimatedSeconds;
   }
 
   @Override
@@ -133,7 +136,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public void deleteOutputs() {
-    //TODO: Delete the temporary step table if it exists regardless of its content or the state of the job / step / space
+      try {
+          onAsyncSuccess();
+      } catch (Exception e) {
+          throw new RuntimeException(e);
+      }
   }
 
   @Override
@@ -157,12 +164,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (inputs.isEmpty())
       return false;
 
+    uncompressedTotalBytes = getTotalUncompressedUploadBytes();
+
     for (int i = 0; i < inputs.size(); i++) {
-      //TODO: Think about how many files we want to quick check
-      if(i == 2)
-        break;
-      if(inputs.get(0) instanceof UploadUrl uploadUrl)
-        ImportFilesQuickValidator.validate(uploadUrl, format);
+      if(inputs.get(i) instanceof UploadUrl uploadUrl) {
+        //TODO: Think about how many files we want to quick check
+        if(i < 2)
+          ImportFilesQuickValidator.validate(uploadUrl, format);
+      }
     }
 
     return true;
@@ -191,7 +200,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logAndSetPhase(Phase.CREATE_TRIGGER);
     runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, 0);
 
-    createAndFillTemporaryTable(db, space);
+    createAndFillTemporaryTable(db);
 
     int dbThreadCnt = calculateDBThreadCount();
     double neededAcusForOneThread = calculateNeededAcus() / dbThreadCnt;
@@ -204,7 +213,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
   }
 
-  private void createAndFillTemporaryTable(Database db, Space space) throws SQLException, TooManyResourcesClaimed, WebClientException {
+  private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed, WebClientException {
     boolean tmpTableNotExistsAndHasNoData = true;
     try {
       //Check if temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
@@ -252,7 +261,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 int finishedCnt = rs.getInt("finished_cnt");
                 int failedCnt = rs.getInt("failed_cnt");
 
-                float progress = Float.valueOf(processedBytes) / Float.valueOf(totalBytes);
+                float progress = Float.valueOf(processedBytes) / Float.valueOf(uncompressedTotalBytes);
                 getStatus().setEstimatedProgress(progress);
 
                 logAndSetPhase(null, "Progress["+progress+"] => totalCnt:"+totalCnt
@@ -351,7 +360,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     List<SQLQuery> queryList = new ArrayList<>();
     for (Input input : inputs){
       if(input instanceof UploadUrl uploadUrl) {
-        totalBytes += uploadUrl.getByteSize();
         JsonObject data = new JsonObject()
                 .put("compressed", uploadUrl.isCompressed())
                 .put("filesize", uploadUrl.getByteSize());
@@ -481,36 +489,25 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     // Each ACU needs 2GB RAM
     final double GB_TO_BYTES = 1024 * 1024 * 1024;
     final int ACU_RAM = 2; // GB
-
-    int zippingFactor = 10;
-    int threadCount = calculateDBThreadCount();
     long bytesPerThreads;
 
-    if(expectedMemoryConsumptionInBytes == 0) {
-      // Only first call should load files
-      List<Input> inputs = loadInputs();
-      fileCount = inputs.size();
-
-      for (int i = 0; i < inputs.size(); i++) {
-        if (inputs.get(0) instanceof UploadUrl uploadUrl) {
-          expectedMemoryConsumptionInBytes += uploadUrl.isCompressed() ?
-                  uploadUrl.getByteSize() * zippingFactor : uploadUrl.getByteSize();
-        }
-      }
-    }
+    if(fileCount == null)
+      fileCount = loadInputs().size();
 
     if(fileCount == 0)
       return 0;
 
+    int threadCount = calculateDBThreadCount();
+
     //Only take into account the max parallel execution
-    bytesPerThreads = (expectedMemoryConsumptionInBytes / fileCount ) * threadCount;
+    bytesPerThreads = (getTotalUncompressedUploadBytes() / fileCount ) * threadCount;
 
     //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
     //Calculate the needed ACUs
     double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
     double neededACUs = requiredRAMPerThreads / ACU_RAM;
 
-    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+ expectedMemoryConsumptionInBytes
+    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: "+ getTotalUncompressedUploadBytes()
             +", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
             +", neededACUs:"+neededACUs);
 
@@ -521,11 +518,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //1GB for maxThreads
     long uncompressedByteSizeForMaxThreads = 1024L * 1024 * 1024;
 
-    if (expectedMemoryConsumptionInBytes >= uncompressedByteSizeForMaxThreads) {
+    if (getTotalUncompressedUploadBytes() >= uncompressedByteSizeForMaxThreads) {
       calculatedThreadCount = MAX_DB_THREAD_CNT;
     } else {
       // Calculate linearly scaled thread count
-      int threadCnt = (int) ((double) expectedMemoryConsumptionInBytes / uncompressedByteSizeForMaxThreads * MAX_DB_THREAD_CNT);
+      int threadCnt = (int) ((double) getTotalUncompressedUploadBytes() / uncompressedByteSizeForMaxThreads * MAX_DB_THREAD_CNT);
       calculatedThreadCount = threadCnt == 0 ? 1 : threadCnt;
     }
 

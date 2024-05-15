@@ -24,7 +24,9 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
+import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
@@ -42,13 +44,16 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private Index index;
   private Space space;
 
+  @JsonView({Internal.class, Static.class})
+  private Integer estimatedSeconds;
+
   @Override
   public List<Load> getNeededResources() {
-    try {
-      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      int acus = calculateNeededAcus(statistics.getCount().getValue(), statistics.getDataSize().getValue());
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
+    try{
+      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getTotalUncompressedUploadBytes(), index);
+      logger.info("[{}] {} neededACUs {}", getGlobalStepId(), index, acus);
 
+      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
     catch (WebClientException e) {
@@ -60,24 +65,23 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @Override
   public int getTimeoutSeconds() {
-    //GEO > VIZ ... very rough estimation for the maximum time
-    return 5 * 3600; //TODO: Return value dependent on index type & feature count
+    int timeoutSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexTimeoutSeconds(getTotalUncompressedUploadBytes(), index);
+    logger.info("[{}] {} timeoutSeconds {}",getGlobalStepId(), index, timeoutSeconds);
+    return timeoutSeconds;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    //TODO: Interpolate by feature count & byte size differently per index type
-    return 60; //TODO: Return value dependent on index type & feature count
+    if(estimatedSeconds == null ) {
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getTotalUncompressedUploadBytes() , index);
+      logger.info("[{}] {} estimatedSeconds {}",getGlobalStepId(), index, estimatedSeconds);
+    }
+    return estimatedSeconds;
   }
 
   @Override
   public String getDescription() {
     return "Creates the " + index + " index on space " + getSpaceId();
-  }
-
-  private int calculateNeededAcus(long featureCount, long byteSize) {
-    //TODO: Interpolate by feature count & byte size differently per index type
-    return 1;
   }
 
   @Override
@@ -90,7 +94,8 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     logger.info("Getting storage database for space " + getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
     logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
-    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db, calculateNeededAcus(featureCount, byteSize));
+    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db,
+            ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(byteSize, index));
   }
 
   @Override
