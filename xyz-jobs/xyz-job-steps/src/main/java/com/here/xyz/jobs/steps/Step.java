@@ -96,6 +96,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *
    * @return A feasible maximum execution. Steps that are exceeding their timeout will fail.
    */
+  @JsonIgnore
   public abstract int getTimeoutSeconds();
 
   /**
@@ -105,6 +106,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *
    * @return An estimation for the execution time in seconds that should be calculated once prior to the execution.
    */
+  @JsonIgnore
   public abstract int getEstimatedExecutionSeconds();
 
   protected String bucketName() {
