@@ -67,13 +67,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private long uncompressedTotalBytes;
 
   @JsonView({Internal.class, Static.class})
-  private Integer fileCount;
+  private int fileCount = -1;
 
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount;
 
   @JsonView({Internal.class, Static.class})
-  private Integer estimatedSeconds;
+  private int estimatedSeconds = -1;
 
   public enum Format {
     CSV_GEOJSON,
@@ -122,7 +122,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    if(estimatedSeconds == null ) {
+    if(estimatedSeconds == -1 && getSpaceId() != null) {
       estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
       logger.info("[{}] Import estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
     }
@@ -145,6 +145,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public boolean validate() throws ValidationException {
+    super.validate();
     try {
       logAndSetPhase(Phase.VALIDATE);
       //Check if the space is actually existing
@@ -491,7 +492,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     final int ACU_RAM = 2; // GB
     long bytesPerThreads;
 
-    if(fileCount == null)
+    if(fileCount == -1)
       fileCount = loadInputs().size();
 
     if(fileCount == 0)

@@ -23,6 +23,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceP
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
@@ -46,8 +47,7 @@ import java.util.List;
     @JsonSubTypes.Type(value = MarkForMaintenance.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
-  private long totalUploadBytes = 0;
-
+  @JsonView({Internal.class, Static.class})
   private String spaceId;
 
   public String getSpaceId() {
@@ -75,6 +75,8 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected void validateSpaceExists() throws ValidationException {
     try {
       //Check if the space is actually existing
+      if(getSpaceId() == null)
+        throw new ValidationException("SpaceId is missing!");
       loadSpace(getSpaceId());
     }
     catch (WebClientException e) {
