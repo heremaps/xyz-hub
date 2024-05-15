@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
-  private long estimatedUploadBytes = 0;
+  private long estimatedUploadBytes = -1;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
@@ -319,20 +319,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   /**
    * Helper which returns an estimation of uncompressed byte size of all available uploads.
-   * @return sum of uncompressed bytes of all uploaded files
+   * @return The sum of uncompressed bytes of all uploaded input files
    */
   @JsonIgnore
-  public long getUncompressedUploadBytesEstimation(){
-    if(estimatedUploadBytes != 0)
-      return estimatedUploadBytes;
-
-    List<Input> inputs = loadInputs();
-
-    for (int i = 0; i < inputs.size(); i++) {
-      if(inputs.get(0) instanceof UploadUrl uploadUrl) {
-        estimatedUploadBytes += uploadUrl.getEstimatedUncompressedByteSize();
-      }
-    }
-    return estimatedUploadBytes;
+  public long getUncompressedUploadBytesEstimation() {
+    return estimatedUploadBytes != -1 ? estimatedUploadBytes
+        : loadInputs()
+            .stream()
+            .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
+            .sum();
   }
 }

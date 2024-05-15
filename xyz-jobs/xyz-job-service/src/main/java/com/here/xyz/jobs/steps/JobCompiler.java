@@ -22,9 +22,7 @@ package com.here.xyz.jobs.steps;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
 import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
-import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.util.Async;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
@@ -69,10 +67,6 @@ public class JobCompiler {
           + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")), errors);
 
     return async.run(() -> interceptorCandidates.get(0).compile(job));
-  }
-
-  private static List<StepExecution> toSequentialSteps(String spaceId, List<Index> indices) {
-    return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
   }
 
   public static JobCompiler getInstance() {

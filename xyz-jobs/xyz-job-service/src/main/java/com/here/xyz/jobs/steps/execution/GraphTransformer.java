@@ -63,7 +63,7 @@ public class GraphTransformer {
     try {
       Map<String, Object> machineDefinition = XyzSerializable.deserialize(stateMachine.toJson(), Map.class);
       fixLambdaTaskStates(machineDefinition);
-      return XyzSerializable.serialize(machineDefinition);
+      return XyzSerializable.serialize(machineDefinition); //TODO: Use Internal view for serialization here!
     }
     catch (JsonProcessingException e) {
       throw new RuntimeException(e);
