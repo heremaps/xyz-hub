@@ -101,4 +101,9 @@ public class BaseConfig {
    * Flag indicating whether the author should be retrieved from the custom header Author.
    */
   public boolean USE_AUTHOR_FROM_HEADER = false;
+
+  /**
+   * Additional application name variable.
+   */
+  public String APP_NAME;
 }
