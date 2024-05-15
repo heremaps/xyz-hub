@@ -90,23 +90,22 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   /**
-   * This method might be called multiple times during the execution of this step.
+   * This method might be called multiple times prior to the execution of this step.
    * This method should be implemented in a way to make sure that all calls will always return the same value for the same step
-   * configuration.
+   * configuration. E.g., the calculated value should be stored inside a private field of this step.
    *
-   * @return A feasible maximum execution. Steps that are exceeding their timeout will fail.
+   * @return A feasible maximum execution time. Steps that are exceeding their timeout will fail.
    */
   @JsonIgnore
   public abstract int getTimeoutSeconds();
 
   /**
-   * This method might be called multiple times during the execution of this step.
-   * This method should be implemented in a way to make sure that all calls will always return the same value for the same step
-   * configuration.
+   * This method might be called multiple times during the preparation and the execution of this step.
+   * This method should not perform any heavy operations. It should return quickly.
+   * If applicable, the calculated value should be stored inside a private field of this step.
    *
    * @return An estimation for the execution time in seconds that should be calculated once prior to the execution.
    */
-  @JsonIgnore
   public abstract int getEstimatedExecutionSeconds();
 
   protected String bucketName() {
