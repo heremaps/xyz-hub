@@ -72,6 +72,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -705,20 +706,42 @@ public class SpaceTaskHandler {
     return p.future();
   }
 
-    public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-      if (task.isDelete()) {
-        String spaceId = task.responseSpaces.get(0).getId();
-        Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
-            .onSuccess(a-> callback.call(task))
-            .onFailure(a->{
-              logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, a);
-              callback.call(task);
-            });
-      }
-      else {
-        callback.call(task);
-      }
+  public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (!task.isDelete()) {
+      callback.call(task);
+      return;
     }
+
+    final String spaceId = task.responseSpaces.get(0).getId();
+
+    final Future<List<Tag>> tagsFuture = Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
+        .onFailure(e->logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, e));
+
+    final Future<Void> deactivateFuture = getAllDependentSpaces(task.getMarker(), spaceId)
+        .map(spaces -> spaces.stream().map(space -> Service.spaceConfigClient.store(task.getMarker(), (Space) space.withActive(false))).collect(Collectors.toList()))
+        .map(Future::all)
+        .mapEmpty();
+
+    Future.all(tagsFuture, deactivateFuture)
+        .onComplete(v -> {
+          if (v.failed())
+            logger.error(task.getMarker(), "Failed to complete clean dependent resources for space {}", spaceId, v.cause());
+          callback.call(task);
+        });
+  }
+
+  private static Future<List<Space>> getAllDependentSpaces(Marker marker, String spaceId) {
+    return Service.spaceConfigClient.getSpacesFromParent(marker, spaceId)
+        .compose(spaces -> {
+          final List<Future<List<Space>>> childrenFutures = spaces.stream().map(space ->
+              Service.spaceConfigClient.getSpacesFromParent(marker, space.getId())).toList();
+
+          return Future.all(childrenFutures).map(cf -> {
+            spaces.addAll(cf.<List<Space>>list().stream().flatMap(Collection::stream).toList());
+            return spaces;
+          });
+        });
+  }
 
   static void invokeConditionally(final ModifySpaceQuery task, final Callback<ModifySpaceQuery> callback) {
     if (task.getEvent().isDryRun() && Payload.compareVersions(task.storage.getRemoteFunction().protocolVersion, DRY_RUN_SUPPORT_VERSION) < 0) {
