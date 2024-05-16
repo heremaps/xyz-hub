@@ -28,7 +28,6 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
-import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
@@ -58,7 +57,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -107,12 +105,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
       try {
         List<IndexDefinition> indexes = List.of(
+                new IndexDefinition("extendsFrom"),
                 new IndexDefinition("owner"),
                 new IndexDefinition("shared"),
                 new IndexDefinition("region"),
                 new IndexDefinition("type", "contentUpdatedAt")
         );
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N", "id", indexes, "exp");
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N,extendsFrom:S", "id", indexes, "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -348,6 +347,18 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return getSelectedSpacesSync(marker, authorizedCondition, selectedCondition, propsQuery)
         .onSuccess(spaces -> logger.info(marker, "Number of spaces retrieved from DynamoDB: {}", spaces.size()))
         .onFailure(t -> logger.error(marker, "Failure getting authorized spaces", t));
+  }
+
+  @Override
+  public Future<List<Space>> getSpacesFromParent(Marker marker, String parentSpaceId) {
+    return dynamoClient.executeQueryAsync(() -> {
+      final List<Space> resultSpaces = new ArrayList<>();
+      spaces.getIndex("extendsFrom-index")
+          .query(new QuerySpec().withHashKey("extendsFrom", parentSpaceId))
+          .pages()
+          .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem))));
+      return resultSpaces;
+    });
   }
 
   private Future<List<Space>> getSelectedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition,
