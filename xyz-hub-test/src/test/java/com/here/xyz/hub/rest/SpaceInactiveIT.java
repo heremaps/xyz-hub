@@ -23,6 +23,7 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -123,42 +124,42 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/features?id=1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/features/1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/statistics")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=1&north=1&east=1&south=1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/0")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=0&lon=0&radius=1000")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -171,21 +172,21 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
             """)
         .post(getSpacesPath() + "/" + SPACE_ID + "/spatial")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?f.id=1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/iterate")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
   }
 
   @Test
@@ -205,7 +206,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
             """)
         .put(getSpacesPath() + "/" + SPACE_ID + "/features")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .contentType(APPLICATION_GEO_JSON)
@@ -222,7 +223,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
             """)
         .post(getSpacesPath() + "/" + SPACE_ID + "/features")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .contentType(APPLICATION_GEO_JSON)
@@ -230,7 +231,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .when()
         .delete(getSpacesPath() + "/" + SPACE_ID + "/features?id=1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .contentType(APPLICATION_GEO_JSON)
@@ -247,7 +248,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
             """)
         .put(getSpacesPath() + "/" + SPACE_ID + "/features/F1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .contentType(APPLICATION_GEO_JSON)
@@ -262,7 +263,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
             """)
         .patch(getSpacesPath() + "/" + SPACE_ID + "/features/F1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
 
     given()
         .contentType(APPLICATION_GEO_JSON)
@@ -270,7 +271,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .when()
         .delete(getSpacesPath() + "/" + SPACE_ID + "/features/F1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(PRECONDITION_REQUIRED.code());
   }
 
   @Test
