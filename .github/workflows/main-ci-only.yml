@@ -9,10 +9,7 @@ on:
       - reopened
       - synchronize
     branches:
-      - master
-      - int
-      - develop
-      - Naksha_maintenance
+      - v2
 
 permissions:
   checks: write         # for junit reporting

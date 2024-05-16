@@ -4,9 +4,7 @@ name: Dev Workflow
 on:
   push:
     branches:
-      - develop
-      - Naksha_maintenance
-      - MCPODS-6260_dev_deployment
+      - v2
 
 permissions:
   checks: write         # for junit reporting

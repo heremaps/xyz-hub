@@ -4,7 +4,7 @@ name: E2E Workflow
 on:
   push:
     branches:
-      - int
+      - v2-int
 
 permissions:
   checks: write         # for junit reporting
