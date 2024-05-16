@@ -7,6 +7,8 @@ Naksha supports various out-of-box authorization checks while performing read/wr
 - [Space](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/naksha/Space.java)
 - [XyzFeature](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/geojson/implementation/XyzFeature.java)
 - [XyzCollection](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/naksha/XyzCollection.java)
+- [Subscription](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/features/Subscription.java)
+- [SubscriptionState](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/naksha/SubscriptionState.java)
 
 based on User's access profile supplied using following attributes as part of [NakshaContext](../here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/NakshaContext.java):
 
@@ -309,14 +311,16 @@ Matrix of all supported **Actions** and **Attributes** for validating authorizat
 * `className`
 * **Space** related:
   * `spaceId` - wild-card supported
+* **Subscription** related:
+  * `subscriptionId` - wild-card supported
 
 #### Actions
 
-| Action        | Allowed operations                                                                     | Remarks |
-|---------------|----------------------------------------------------------------------------------------|---------|
-| `useStorages` | Get Storage Implementation for a given storageId (and also check spaceId, if supplied) |         |
-| `useStorages` | Limited view - Read Features from virtual space (`naksha:storages`)                    |         |
-| `manageStorages` | Full control - Read/Write Features from/to virtual space (`naksha:storages`)           |         |
+| Action        | Allowed operations                                                                                                                                   | Remarks |
+|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `useStorages` | Get Storage Implementation for a given storageId (additional auth check on spaceId / subscriptionId, for Space / Subscription modification requests) |         |
+| `useStorages` | Limited view - Read Features from virtual space (`naksha:storages`)                                                                                  |         |
+| `manageStorages` | Full control - Read/Write Features from/to virtual space (`naksha:storages`)                                                                         |         |
 
 
 
@@ -411,6 +415,52 @@ Matrix of all supported **Actions** and **Attributes** for validating authorizat
 | `createCollections` | Create specific Collections in Storage         |         |
 | `updateCollections` | Update specific Collections in Storage         |         |
 | `deleteCollections` | Delete/Drop specific Collections from Storage  |         |
+
+
+
+
+### 3.6 Resource - Subscriptions
+
+#### Attributes
+
+* `id` - wild-card supported
+* `tags` - wild-card supported - prop path `properties.@ns:com:here:xyz.tags`
+* `appId` - `properties.@ns:com:here:xyz.appId`
+* `author` - `properties.@ns:com:here:xyz.author`
+* **Storage** related:
+  * `storageId` - wild-card supported
+* **EventHandler** related:
+  * `eventHandlerIds` - wild-card supported
+* **XyzCollection** related:
+  * `collectionIds` - wild-card supported
+
+#### Actions
+
+| Action                | Allowed operations                                                                | Remarks |
+|-----------------------|-----------------------------------------------------------------------------------|---------|
+| `useSubscriptions`    | Limited view - Read Features from virtual space (`naksha:subscriptions`)          |         |
+| `manageSubscriptions` | Full control - Read/Write Features from/to virtual space (`naksha:subscriptions`) |         |
+
+
+
+
+### 3.7 Resource - SubscriptionStates
+
+#### Attributes
+
+* `id` - wild-card supported - this id MUST be same as `subscriptionId`
+* `tags` - wild-card supported - prop path `properties.@ns:com:here:xyz.tags`
+* `appId` - `properties.@ns:com:here:xyz.appId`
+* `author` - `properties.@ns:com:here:xyz.author`
+
+#### Actions
+
+| Action                     | Allowed operations                                                        | Remarks |
+|----------------------------|---------------------------------------------------------------------------|---------|
+| `readSubscriptionStates`   | Read Features from virtual space (`naksha:subscription_states`)           |         |
+| `createSubscriptionStates` | Read/Create Features from/in virtual space (`naksha:subscription_states`) |         |
+| `updateSubscriptionStates` | Read/Update Features from/in virtual space (`naksha:subscription_states`) |         |
+| `deleteSubscriptionStates` | Read/Delete Features from virtual space (`naksha:subscription_states`)    |         |
 
 
 

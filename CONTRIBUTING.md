@@ -29,7 +29,12 @@ Git has the `-s` flag that can sign a commit for you, see example below:
 
 # Branching strategy
 
-As per the [Branching strategy](docs/BRANCHING.md), contributors are expected to make changes into their own `feature_*` branches, created out of `develop` branch. 
+Depending on whether your contribution is towards Naksha v1 or v2+, refer respective Branching/Versioning strategy:
+
+* [v1.x.x Branching/Versioning strategy](docs/BRANCHING_v1.md)
+* [v2+ Branching/Versioning strategy](docs/BRANCHING.md)
+
+Contributors are expected to make changes into their own `feature_*` branches, created out of respective main branch. 
 
 # Local execution
 

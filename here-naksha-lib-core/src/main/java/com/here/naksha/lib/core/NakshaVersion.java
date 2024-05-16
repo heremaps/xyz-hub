@@ -56,7 +56,7 @@ public class NakshaVersion implements Comparable<NakshaVersion> {
    * The latest version of the naksha-extension stored in the resources.
    */
   @AvailableSince(v2_0_5)
-  public static final NakshaVersion latest = of(v2_0_15);
+  public static final NakshaVersion latest = of(v2_0_16);
 
   private final int major;
   private final int minor;

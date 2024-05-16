@@ -33,7 +33,7 @@ Naksha features are:
 * Use default PostgresQL implementation with your own database.
 * Build a real-time geo-data pipeline with processors.
 
-Naksha uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospatial data exchange format. Tiled data can also be provided as [MVT](https://github.com/mapbox/vector-tile-spec/blob/master/2.1/README.md).
+Naksha uses [GeoJSON](https://www.rfc-editor.org/rfc/rfc7946.html) as the main geospatial data exchange format.
 
 # Prerequisites
 
