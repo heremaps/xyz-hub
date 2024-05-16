@@ -99,8 +99,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
       });
     }
 
-    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery == null || contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList,
-        1);
+    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery == null || contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1);
 
     List<Space> spaces = spaceMap.values().stream()
         .filter(authorizationFilter)
@@ -108,6 +107,17 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
         .filter(contentUpdatedAtFilter)
         .collect(Collectors.toList());
     return Future.succeededFuture(spaces);
+  }
+
+  @Override
+  public Future<List<Space>> getSpacesFromParent(Marker marker, String parentSpaceId) {
+    final List<Space> result = new ArrayList<>();
+    spaceMap.forEach((id, space) -> {
+      if (space.getExtendsFrom() != null && parentSpaceId.equals(space.getExtendsFrom())) {
+        result.add(space);
+      }
+    });
+    return Future.succeededFuture(result);
   }
 
   private boolean contentUpdatedAtOperation(long contentUpdatedAt, List<String> contentUpdatedAtList, int idx) {

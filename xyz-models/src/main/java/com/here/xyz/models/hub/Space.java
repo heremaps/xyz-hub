@@ -34,6 +34,7 @@ import com.here.xyz.XyzSerializable.Static;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The space configuration.
@@ -90,11 +91,18 @@ public class Space {
   private License license;
 
   /**
-   * The space extension configuration which allows the space's content to override another space's content.
+   * Use extendsFrom instead
    */
+  @Deprecated
   @JsonView({Public.class, Static.class})
   @JsonProperty("extends")
   private Extension extension;
+
+  /**
+   * The space id in which the current space extends from, allowing the space's content to override another space's content.
+   */
+  @JsonView({Static.class})
+  private String extendsFrom;
 
   /**
    * The storage connector configuration.
@@ -317,10 +325,28 @@ public class Space {
 
   public void setExtension(final Extension extension) {
     this.extension = extension;
+    if (extension != null) {
+      setExtendsFrom(extension.getSpaceId());
+    }
   }
 
   public Space withExtension(final Extension extension) {
     setExtension(extension);
+    return this;
+  }
+
+  public String getExtendsFrom() {
+    return Optional.ofNullable(extendsFrom)
+        .or(() -> Optional.ofNullable(extension).map(Extension::getSpaceId))
+        .orElse(null);
+  }
+
+  public void setExtendsFrom(final String extendsFrom) {
+    this.extendsFrom = extendsFrom;
+  }
+
+  public Space withExtendsFrom(final String extendsFrom) {
+    setExtendsFrom(extendsFrom);
     return this;
   }
 
