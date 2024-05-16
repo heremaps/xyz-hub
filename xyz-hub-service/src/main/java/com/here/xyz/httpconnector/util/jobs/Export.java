@@ -182,6 +182,7 @@ public class Export extends JDBCBasedJob<Export> {
     private static final long UNKNOWN_MAX_SPACE_VERSION = -42;
     @JsonView(Public.class)
     private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+
     @JsonView(Public.class)
     private long minSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
     @JsonView(Public.class)
@@ -198,6 +199,7 @@ public class Export extends JDBCBasedJob<Export> {
     private static String PARAM_SCOPE = "scope";
     private static String PARAM_EXTENDS = "extends";
     private static String PARAM_SKIP_TRIGGER = "skipTrigger";
+    private static String PARAM_INCREMENTAL_MODE = "incrementalMode";
 
     public static String PARAM_CONTEXT = "context";
 
@@ -725,6 +727,28 @@ public class Export extends JDBCBasedJob<Export> {
     public SpaceContext readParamContext() {
         return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf(this.params.get(PARAM_CONTEXT).toString()) : null;
     }
+
+/* incremental */
+    public boolean isIncrementalMode() { 
+     return params != null && params.containsKey(PARAM_INCREMENTAL_MODE);
+    }
+
+    public void setIncrementalValid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.VALID); 
+    }
+
+    public void setIncrementalInvalid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.INVALID); 
+    }
+    
+    public boolean isIncrementalValid() { 
+     return isIncrementalMode() && (IncrementalMode.VALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+
+    public boolean isIncrementalInvalid() { 
+     return isIncrementalMode() && (IncrementalMode.INVALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+/* incremental */
 
     public CompositeMode readParamCompositeMode() {
         return params != null && params.containsKey(PARAM_COMPOSITE_MODE)
@@ -1390,6 +1414,23 @@ public class Export extends JDBCBasedJob<Export> {
         DEACTIVATED;
 
         public static CompositeMode of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
+    public enum IncrementalMode {
+
+        VALID,
+        INVALID;
+
+        public static IncrementalMode of(String value) {
             if (value == null) {
                 return null;
             }
