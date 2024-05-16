@@ -109,7 +109,6 @@
     },
     "@ns:com:here:xyz": {
       "action": "UPDATE",
-      "appId": "ChangeSetPublisher",
       "app_id": "ChangeSetPublisher",
       "author": "DEMO_APP_ID",
       "authorTime": 1706017408414,
@@ -119,7 +118,6 @@
       "grid": "eycs8s9",
       "puuid": "test_app:topology_delta:2024:02:28:843606",
       "rt_ts": 1709129603731,
-      "streamId": "wvp9EFi5P81f",
       "stream_id": "wvp9EFi5P81f",
       "tags": [
         "@:review-state:ENDORSED"

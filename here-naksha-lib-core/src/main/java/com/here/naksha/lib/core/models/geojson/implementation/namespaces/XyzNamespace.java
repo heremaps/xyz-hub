@@ -824,11 +824,13 @@ public class XyzNamespace extends JsonObject {
   }
 
   @AvailableSince(NakshaVersion.v2_0_7)
+  @JsonProperty(APP_ID)
   public @Nullable String getAppId() {
     return app_id;
   }
 
   @AvailableSince(NakshaVersion.v2_0_7)
+  @JsonProperty(APP_ID)
   public void setAppId(@Nullable String app_id) {
     this.app_id = app_id;
   }
@@ -840,11 +842,13 @@ public class XyzNamespace extends JsonObject {
   }
 
   @AvailableSince(NakshaVersion.v2_0_8)
+  @JsonProperty(STREAM_ID)
   public @Nullable String getStreamId() {
     return stream_id;
   }
 
   @AvailableSince(NakshaVersion.v2_0_8)
+  @JsonProperty(STREAM_ID)
   public void setStreamId(@Nullable String streamId) {
     this.stream_id = streamId;
   }

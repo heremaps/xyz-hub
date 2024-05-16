@@ -5,7 +5,7 @@
       "type": "Feature",
       "properties": {
         "@ns:com:here:xyz": {
-          "appId": "web-client-custom-app-id",
+          "app_id": "web-client-custom-app-id",
           "author": "my-custom-user-id"
         },
         "speedLimit": "60"
@@ -19,7 +19,7 @@
       "type": "Feature",
       "properties": {
         "@ns:com:here:xyz": {
-          "appId": "web-client-custom-app-id",
+          "app_id": "web-client-custom-app-id",
           "author": "my-custom-user-id"
         },
         "speedLimit": "80"
