@@ -293,9 +293,19 @@ public class Job implements XyzSerializable {
           .withErrorMessage(step.getStatus().getErrorMessage())
           .withErrorCause(step.getStatus().getErrorCause())
           .withErrorCode(step.getStatus().getErrorCode());
+
+      //TODO: Decide if we really want to delete the state-machines directly. This would remove
+      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
+//      if(!isResumable() && getStateMachineArn() != null){
+//        JobExecutor.getInstance().delete(getStateMachineArn());
+//      }
     }
-    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount())
+    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount()) {
       getStatus().setState(SUCCEEDED);
+      //TODO: Decide if we really want to delete the state-machines directly. This would remove
+      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
+//      JobExecutor.getInstance().delete(getStateMachineArn());
+    }
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null));
