@@ -331,11 +331,12 @@ public class JDBCExporter extends JdbcBasedHandler {
                       Is used for incremental exports (tiles) - here we have to export modified tiles.
                       Those tiles we need to calculate separately
                        */
-                      boolean isIncrementalOnNonCompositeTileCalculation = isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation);
+                      boolean isIncrementalExport =   job.isIncrementalMode() 
+                                                   || isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation) ;
 
-                      final SQLQuery qkQuery = ( compositeCalculation || isIncrementalOnNonCompositeTileCalculation )
+                      final SQLQuery qkQuery = ( compositeCalculation || isIncrementalExport )
                               ? generateFilteredExportQueryForCompositeTileCalculation(client, schema, job.getTargetSpaceId(),
-                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat(), isIncrementalOnNonCompositeTileCalculation)
+                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat(), isIncrementalExport)
                               : null;
 
                       return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
@@ -610,17 +611,17 @@ public class JDBCExporter extends JdbcBasedHandler {
 
 
     private SQLQuery generateFilteredExportQueryForCompositeTileCalculation(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isIncrementalOnNonComposite) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false, isIncrementalOnNonComposite);
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isIncrementalExport) throws SQLException {
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false, isIncrementalExport);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
         SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, 
-        boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalOnNonCompositeTileCalculation
+        boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalExport
         )
         throws SQLException {
 
-        if( isIncrementalOnNonCompositeTileCalculation ) // in this case, behave like "isForCompositeContentDetection" for tile calculations
+        if( isIncrementalExport ) // in this case, behave like "isForCompositeContentDetection" for tile calculations
          isForCompositeContentDetection = true;
 
         csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );

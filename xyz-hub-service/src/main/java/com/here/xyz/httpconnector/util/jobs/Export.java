@@ -729,6 +729,7 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
 /* incremental */
+    @JsonIgnore
     public boolean isIncrementalMode() { 
      return params != null && params.containsKey(PARAM_INCREMENTAL_MODE);
     }
@@ -741,10 +742,12 @@ public class Export extends JDBCBasedJob<Export> {
      addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.INVALID); 
     }
     
+    @JsonIgnore
     public boolean isIncrementalValid() { 
      return isIncrementalMode() && (IncrementalMode.VALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
     }
 
+    @JsonIgnore
     public boolean isIncrementalInvalid() { 
      return isIncrementalMode() && (IncrementalMode.INVALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
     }
