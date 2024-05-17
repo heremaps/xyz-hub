@@ -369,12 +369,21 @@ public class Job implements XyzSerializable {
 
   public static Future<Void> delete(String jobId) {
     return load(jobId)
-        //Delete the inputs of this job
-        .compose(job -> job.deleteInputs().map(job))
-        //Delete the outputs of all involved steps
-        .compose(job -> Future.all(Job.<Step, Boolean>forEach(job.getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step))).mapEmpty())
+        //First delete all the inputs / outputs of the job
+        .compose(job -> job.deleteJobResources())
         //Now finally delete this job's configuration
         .compose(v -> JobConfigClient.getInstance().deleteJob(jobId).mapEmpty());
+  }
+
+  /*
+  NOTE: This method should **only** be called by the ADMIN API as reaction to a deletion outside the service directly in the job config DB.
+  E.g., when a job config was deleted due to a Dynamo TTL
+   */
+  public Future<Void> deleteJobResources() {
+    return deleteInputs() //Delete the inputs of this job
+        //Delete the outputs of all involved steps
+        .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
+            .mapEmpty());
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {

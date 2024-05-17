@@ -49,6 +49,7 @@ public class JobAdminApi extends Api {
 
   public JobAdminApi(Router router) {
     router.route(HttpMethod.GET, ADMIN_JOB).handler(handleErrors(this::getJob));
+    router.route(HttpMethod.DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
     router.route(HttpMethod.POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(HttpMethod.GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
     router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
@@ -59,6 +60,10 @@ public class JobAdminApi extends Api {
         //TODO: Use internal serialization here
         .onSuccess(job -> sendResponseWithXyzSerialization(context, OK, job))
         .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private void deleteJob(RoutingContext context) throws HttpException {
+    getJobFromBody(context).deleteJobResources();
   }
 
   private void postStep(RoutingContext context) throws HttpException {
@@ -145,11 +150,19 @@ public class JobAdminApi extends Api {
   }
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {
+    return deserializeFromBody(context, Step.class);
+  }
+
+  private Job getJobFromBody(RoutingContext context) throws HttpException {
+    return deserializeFromBody(context, Job.class);
+  }
+
+  private <T extends XyzSerializable> T deserializeFromBody(RoutingContext context, Class<T> type) throws HttpException {
     try {
-      return XyzSerializable.deserialize(context.body().asString(), Step.class);
+      return XyzSerializable.deserialize(context.body().asString(), type);
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw new HttpException(BAD_REQUEST, "Error parsing request body", e);
     }
   }
 
