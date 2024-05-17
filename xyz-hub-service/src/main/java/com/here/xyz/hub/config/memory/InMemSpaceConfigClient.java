@@ -110,10 +110,10 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
-  public Future<List<Space>> getSpacesFromParent(Marker marker, String parentSpaceId) {
+  public Future<List<Space>> getSpacesFromSuper(Marker marker, String superSpaceId) {
     final List<Space> result = new ArrayList<>();
     spaceMap.forEach((id, space) -> {
-      if (space.getExtendsFrom() != null && parentSpaceId.equals(space.getExtendsFrom())) {
+      if (space.getExtension() != null && superSpaceId.equals(space.getExtension().getSpaceId())) {
         result.add(space);
       }
     });

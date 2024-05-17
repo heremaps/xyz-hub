@@ -350,11 +350,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
-  public Future<List<Space>> getSpacesFromParent(Marker marker, String parentSpaceId) {
+  public Future<List<Space>> getSpacesFromSuper(Marker marker, String superSpaceId) {
     return dynamoClient.executeQueryAsync(() -> {
       final List<Space> resultSpaces = new ArrayList<>();
       spaces.getIndex("extendsFrom-index")
-          .query(new QuerySpec().withHashKey("extendsFrom", parentSpaceId))
+          .query(new QuerySpec().withHashKey("extendsFrom", superSpaceId))
           .pages()
           .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem))));
       return resultSpaces;

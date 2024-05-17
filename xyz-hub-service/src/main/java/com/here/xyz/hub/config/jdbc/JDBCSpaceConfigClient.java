@@ -148,8 +148,8 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
-  public Future<List<Space>> getSpacesFromParent(Marker marker, String parentSpaceId) {
-    return client.run(client.getQuery("SELECT config FROM ${schema}.${table} WHERE config->'extendsFrom' = to_jsonb(#{parentSpaceId}::text)").withNamedParameter("parentSpaceId", parentSpaceId), configListParser(Space.class));
+  public Future<List<Space>> getSpacesFromSuper(Marker marker, String superSpaceId) {
+    return client.run(client.getQuery("SELECT config FROM ${schema}.${table} WHERE config->'extends'->>'spaceId' = #{superSpaceId}").withNamedParameter("superSpaceId", superSpaceId), configListParser(Space.class));
   }
 
   private List<String> generateWhereClausesFor(SpaceAuthorizationCondition condition) {
