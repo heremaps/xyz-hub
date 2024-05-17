@@ -489,7 +489,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private double calculateNeededAcus() {
-    if(neededACUs != -1)
+    if (neededACUs != -1)
       return neededACUs;
 
     // Each ACU needs 2GB RAM

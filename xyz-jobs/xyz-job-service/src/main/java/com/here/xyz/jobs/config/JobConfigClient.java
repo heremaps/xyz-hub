@@ -26,7 +26,6 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -84,6 +83,13 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<Void> updateStep(Job job, Step<?> newStep);
 
   public abstract Future<Void> deleteJob(String jobId);
+
+
+  /*
+  TODO: Provide a more generic variant of the method #loadJobs ...
+  E.g.:
+  public abstract Future<List<Job>> loadJobs(State[] state, long completedBefore);
+   */
 
   public Future<List<Job>> loadFailedAndSucceededJobsOlderThan(Integer olderThanInMs) {
     List<Job> jobList = new ArrayList<>();

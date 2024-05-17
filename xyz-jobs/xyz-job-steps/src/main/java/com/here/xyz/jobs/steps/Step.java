@@ -63,6 +63,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private String previousStepId;
   private RuntimeInfo status = new RuntimeInfo();
   private final String MODEL_BASED_PREFIX = "/modelBased";
+  @JsonIgnore
   private List<Input> inputs;
 
   /**
@@ -172,7 +173,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return
    */
   protected List<Input> loadInputs() {
-    if(inputs == null)
+    if (inputs == null)
       inputs = Input.loadInputs(getJobId());
     return inputs;
   }
@@ -328,9 +329,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonIgnore
   public long getUncompressedUploadBytesEstimation() {
     return estimatedUploadBytes != -1 ? estimatedUploadBytes
-        : loadInputs()
+        : (estimatedUploadBytes = loadInputs()
             .stream()
             .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
-            .sum();
+            .sum());
   }
 }

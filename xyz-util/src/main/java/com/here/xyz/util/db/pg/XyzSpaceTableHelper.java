@@ -61,17 +61,6 @@ public class XyzSpaceTableHelper {
     CREATED_AT,
     VIZ,
     AUTHOR;
-
-    public static Index of(String value) {
-      if (value == null) {
-        return null;
-      }
-      try {
-        return valueOf(value.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return null;
-      }
-    }
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {

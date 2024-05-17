@@ -42,13 +42,12 @@ public abstract class XyzWebClient {
 
   private HttpClient client() {
     HttpClient.Builder builder = HttpClient.newBuilder()
-            .followRedirects(NORMAL)
-            .connectTimeout(Duration.of(10, SECONDS));
+        .followRedirects(NORMAL)
+        .connectTimeout(Duration.of(10, SECONDS));
 
     //Use HTTP/1.1 protocol for HTTP request
-    if(baseUrl != null && baseUrl.startsWith("http://")) {
+    if (baseUrl != null && baseUrl.startsWith("http://"))
       builder.version(Version.HTTP_1_1);
-    }
 
     return builder.build();
   }

@@ -46,7 +46,8 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = SpaceBasedStep.class)
 })
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
-  /** Threshold which defines when we scale to maximum */
+  //Threshold which defines when we scale to maximum
+  //TODO: Move this out of this generic place into some resource calculator class
   public static long BYTES_FOR_MAXIMUM_RESOURCE_SCALE = 1_646_526_201_856l;
 
   private static final Logger logger = LogManager.getLogger();
