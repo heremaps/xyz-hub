@@ -62,6 +62,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private String previousStepId;
   private RuntimeInfo status = new RuntimeInfo();
   private final String MODEL_BASED_PREFIX = "/modelBased";
+  private List<Input> inputs;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -170,7 +171,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return
    */
   protected List<Input> loadInputs() {
-    return Input.loadInputs(getJobId());
+    if(inputs == null)
+      inputs = Input.loadInputs(getJobId());
+    return inputs;
   }
 
 

@@ -57,11 +57,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private static final String JOB_DATA_PREFIX = "job_data_";
 
-  private static final int MAX_DB_THREAD_CNT = 10;
+  private static final int MAX_DB_THREAD_CNT = 20;
 
   private Format format = Format.GEOJSON;
 
   private Phase phase;
+
+  private double neededACUs = -1;
 
   @JsonView({Internal.class})
   private long uncompressedTotalBytes;
@@ -487,6 +489,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private double calculateNeededAcus() {
+    if(neededACUs != -1)
+      return neededACUs;
+
     // Each ACU needs 2GB RAM
     final double GB_TO_BYTES = 1024 * 1024 * 1024;
     final int ACU_RAM = 2; // GB
@@ -506,7 +511,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
     //Calculate the needed ACUs
     double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
-    double neededACUs = requiredRAMPerThreads / ACU_RAM;
+    neededACUs = requiredRAMPerThreads / ACU_RAM;
 
     logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: " + getUncompressedUploadBytesEstimation()
         + ", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
