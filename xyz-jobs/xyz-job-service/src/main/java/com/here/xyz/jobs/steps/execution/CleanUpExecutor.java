@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 
 public class CleanUpExecutor {
     private static final Logger logger = LogManager.getLogger();
@@ -43,7 +43,7 @@ public class CleanUpExecutor {
     }
 
     public void start(){
-        exec.scheduleAtFixedRate(() -> cleanUp(), 0, CHECK_PERIOD_IN_MIN, SECONDS);
+        exec.scheduleAtFixedRate(() -> cleanUp(), 0, CHECK_PERIOD_IN_MIN, MINUTES);
     }
 
     protected void cleanUp() {
