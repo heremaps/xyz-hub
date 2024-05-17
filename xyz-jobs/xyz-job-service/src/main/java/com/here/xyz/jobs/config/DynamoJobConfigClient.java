@@ -32,6 +32,7 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
+
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -191,6 +192,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
   private Item convertJobToItem(Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
+    jobItemData.put("state", job.getStatus().getState().toString());
     return Item.fromMap(jobItemData);
   }
 
