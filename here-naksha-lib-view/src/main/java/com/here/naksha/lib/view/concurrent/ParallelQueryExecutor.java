@@ -22,6 +22,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.storage.FeatureCodec;
 import com.here.naksha.lib.core.models.storage.FeatureCodecFactory;
@@ -57,7 +58,8 @@ public class ParallelQueryExecutor {
     List<Future<List<ViewLayerRow<FEATURE, CODEC>>>> futures = new ArrayList<>();
 
     for (LayerReadRequest layerReadRequest : requests) {
-      QueryTask<List<ViewLayerRow<FEATURE, CODEC>>> singleTask = new QueryTask<>();
+      QueryTask<List<ViewLayerRow<FEATURE, CODEC>>> singleTask =
+          new QueryTask<>(null, NakshaContext.currentContext());
 
       Future<List<ViewLayerRow<FEATURE, CODEC>>> futureResult = singleTask.start(() -> executeSingle(
               layerReadRequest.getViewLayer(),

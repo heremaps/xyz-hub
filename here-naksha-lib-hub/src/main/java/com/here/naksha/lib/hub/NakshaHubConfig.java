@@ -103,7 +103,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       @JsonProperty("maintenancePoolMaxSize") @Nullable Integer maintenancePoolMaxSize,
       @JsonProperty("storageParams") @Nullable Map<String, Object> storageParams,
       @JsonProperty("extensionConfigParams") @Nullable ExtensionConfigParams extensionConfigParams,
-      @JsonProperty("requestBodyLimit") @Nullable Integer requestBodyLimit) {
+      @JsonProperty("requestBodyLimit") @Nullable Integer requestBodyLimit,
+      @JsonProperty("maxParallelRequestsPerCPU") @Nullable Integer maxParallelRequestsPerCPU,
+      @JsonProperty("maxPctParallelRequestsPerActor") @Nullable Integer maxPctParallelRequestsPerActor) {
     super(id);
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {
       logger.atError()
@@ -193,6 +195,11 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
     } else {
       this.requestBodyLimit = requestBodyLimit;
     }
+    this.maxParallelRequestsPerCPU =
+        maxParallelRequestsPerCPU != null ? maxParallelRequestsPerCPU : defaultMaxParallelRequestsPerCPU();
+    this.maxPctParallelRequestsPerActor = maxPctParallelRequestsPerActor != null
+        ? maxPctParallelRequestsPerActor
+        : defaultMaxPctParallelRequestsPerActor();
   }
 
   private String getEnv() {
@@ -350,6 +357,23 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
   }
 
   /**
+   * Returns a default threshold per processor for concurrency
+   *
+   * @return the default threshold per processor
+   */
+  public static int defaultMaxParallelRequestsPerCPU() {
+    return 30;
+  }
+
+  /**
+   * Returns a default percentage threshold per principal for concurrency
+   *
+   * @return the default percentage threshold per principal
+   */
+  public static int defaultMaxPctParallelRequestsPerActor() {
+    return 25;
+  }
+  /**
    * Optional storage-specific parameters
    */
   public final Map<String, Object> storageParams;
@@ -362,6 +386,16 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
    * Optional Http request body limit in MB. Default is {@link #DEF_REQ_BODY_LIMIT}.
    */
   public final Integer requestBodyLimit;
+
+  /**
+   * Optional Total Concurrency Limit
+   */
+  public final Integer maxParallelRequestsPerCPU;
+
+  /**
+   * Optional Total Author Concurrency Threshold
+   */
+  public final Integer maxPctParallelRequestsPerActor;
 
   public static final String NAKSHA_AUTH = "authMode";
 

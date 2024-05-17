@@ -27,10 +27,7 @@ import static com.here.naksha.lib.core.util.storage.RequestHelper.upsertFeatures
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.NakshaAdminCollection;
-import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.*;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.exceptions.StorageNotFoundException;
 import com.here.naksha.lib.core.lambdas.Fe1;
@@ -123,6 +120,13 @@ public class NakshaHub implements INaksha {
     } else {
       logger.warn("ExtensionManager is not initialised due to extensionConfigParams not found.");
     }
+    // Setting Concurrency Thresholds
+    logger.info("Value of maxParallelRequestsPerCPU is {}", nakshaHubConfig.maxParallelRequestsPerCPU);
+    logger.info("Value of maxPctParallelRequestsPerActor is {}", nakshaHubConfig.maxPctParallelRequestsPerActor);
+    IRequestLimitManager requestLimitManager = new DefaultRequestLimitManager(
+        nakshaHubConfig.maxParallelRequestsPerCPU, nakshaHubConfig.maxPctParallelRequestsPerActor);
+    AbstractTask.setConcurrencyLimitManager(requestLimitManager);
+
     logger.info("NakshaHub initialization done!");
   }
 

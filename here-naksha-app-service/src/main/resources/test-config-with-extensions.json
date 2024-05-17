@@ -11,6 +11,8 @@
   "maintenanceIntervalInMins": 720,
   "maintenancePoolCoreSize": 5,
   "maintenancePoolMaxSize": 20,
+  "maxParallelRequestsPerCPU": 30,
+  "maxPctParallelRequestsPerActor": 100,
   "storageParams": {
     "pg_hint_plan": true,
     "pg_stat_statements": true

@@ -325,6 +325,14 @@ public final class NakshaContext {
   }
 
   /**
+   * Returns the  value of author. If author is null then it returns the appId.
+   */
+  @AvailableSince(NakshaVersion.v2_0_15)
+  public String getActor() {
+    return author != null ? author : app_id;
+  }
+
+  /**
    * Returns the raw application identifier.
    *
    * @return the raw application identifier.

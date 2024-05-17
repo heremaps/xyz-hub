@@ -20,10 +20,15 @@ package com.here.naksha.lib.view.concurrent;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
+import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.SimpleTask;
 import org.jetbrains.annotations.NotNull;
 
 class QueryTask<RESULT> extends SimpleTask<RESULT> {
+  public QueryTask(INaksha naksha, NakshaContext context) {
+    super(naksha, context);
+  }
 
   @Override
   protected @NotNull RESULT errorResponse(@NotNull Throwable throwable) {

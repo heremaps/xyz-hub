@@ -43,13 +43,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaApp;
-import com.here.naksha.app.service.http.apis.Api;
-import com.here.naksha.app.service.http.apis.EventHandlerApi;
-import com.here.naksha.app.service.http.apis.HealthApi;
-import com.here.naksha.app.service.http.apis.ReadFeatureApi;
-import com.here.naksha.app.service.http.apis.SpaceApi;
-import com.here.naksha.app.service.http.apis.StorageApi;
-import com.here.naksha.app.service.http.apis.WriteFeatureApi;
+import com.here.naksha.app.service.http.apis.*;
 import com.here.naksha.app.service.http.auth.JWTPayload;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.app.service.util.logging.AccessLog;

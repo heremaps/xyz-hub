@@ -18,9 +18,7 @@
  */
 package com.here.naksha.lib.view;
 
-import com.here.naksha.lib.core.AbstractTask;
-import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.SimpleTask;
+import com.here.naksha.lib.core.*;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.exceptions.TooManyTasks;
 import com.here.naksha.lib.core.exceptions.UncheckedException;
@@ -239,8 +237,10 @@ public class ViewTest {
   @Test
   void shouldThrowTooManyTasksException() {
     IStorage mockStorage = mock(IStorage.class);
-    int limit = AbstractTask.limit.intValue();
-    ViewLayer[] layerDS = new ViewLayer[limit + 10];
+    IRequestLimitManager requestLimitManager= new DefaultRequestLimitManager(30,100);
+    AbstractTask.setConcurrencyLimitManager(requestLimitManager);
+    long limit = requestLimitManager.getInstanceLevelLimit();
+    ViewLayer[] layerDS = new ViewLayer[(int) (limit + 10)];
     //Create ThreadFactory Limit + 10 layers
     for (int ind = 0; ind < layerDS.length; ind++) {
       layerDS[ind] = new ViewLayer(mockStorage, "collection" + ind);
@@ -255,7 +255,7 @@ public class ViewTest {
         public Object answer(InvocationOnMock invocation) throws Throwable {
           List<LayerReadRequest> requests = invocation.getArgument(0);
           for (LayerReadRequest layerReadRequest : requests) {
-            SimpleTask singleTask = new SimpleTask<>();
+            SimpleTask singleTask = new SimpleTask<>(null,nc);
             tasks.add(singleTask);
             singleTask.start(() -> {
               Thread.sleep(1000);

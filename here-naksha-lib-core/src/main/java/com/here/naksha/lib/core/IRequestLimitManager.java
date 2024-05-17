@@ -16,17 +16,24 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.exceptions;
-
-import com.here.naksha.lib.core.AbstractTask;
+package com.here.naksha.lib.core;
 
 /**
- * Thrown when the maximum amount of tasks, defined in {@link AbstractTask#limit}, are reached, and yet another task should be executed. The
- * system ignores this limit for internal tasks.
+ * The IRequestLimitManager interface defines methods for retrieving request limits
+ * at different levels - instance level and actor level.
  */
-public class TooManyTasks extends RuntimeException {
-
-  public TooManyTasks(String errorMessage) {
-    super(errorMessage);
-  }
+public interface IRequestLimitManager {
+  /**
+   * Retrieves the instance-level request limit.
+   *
+   * @return The instance-level request limit.
+   */
+  long getInstanceLevelLimit();
+  /**
+   * Retrieves the request limit for a specific actor within the given context.
+   *
+   * @param context The NakshaContext representing the context in which the actor operates.
+   * @return The request limit for the actor within the given context.
+   */
+  long getActorLevelLimit(NakshaContext context);
 }
