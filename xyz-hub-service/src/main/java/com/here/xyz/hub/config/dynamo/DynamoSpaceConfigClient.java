@@ -37,6 +37,7 @@ import com.amazonaws.services.dynamodbv2.model.GetItemResult;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
+import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
@@ -173,6 +174,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
       itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
       itemData.put("type", "SPACE");
+
+      if (space.getExtension() != null && !Strings.isNullOrEmpty(space.getExtension().getSpaceId()))
+        itemData.put("extendsFrom", space.getExtension().getSpaceId());
+
       sanitize(itemData);
       spaces.putItem(Item.fromMap(itemData));
       return null;
