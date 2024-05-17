@@ -21,10 +21,14 @@ package com.here.xyz.jobs;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.Static;
 import java.util.Map;
 
 public class JobClientInfo {
 
+  @JsonView({Public.class, Static.class})
   private Map<String, Object> clientProvidedData;
 
   @JsonAnyGetter
