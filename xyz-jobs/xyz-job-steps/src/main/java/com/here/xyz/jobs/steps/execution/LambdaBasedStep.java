@@ -75,6 +75,7 @@ import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
   public static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
+  public static final String HEART_BEAT_PREFIX = "HeartBeat-";
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
@@ -139,7 +140,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   @JsonIgnore
   private String getStateCheckRuleName() {
-    return "HeartBeat-" + getGlobalStepId();
+    return HEART_BEAT_PREFIX + getGlobalStepId();
   }
 
   //TODO: Also call this on cancel?
