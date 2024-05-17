@@ -30,6 +30,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
+import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -256,7 +257,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     S3Client.getInstance().deleteFolder(stepS3Prefix(false));
   }
 
-  public void prepare(String owner, Map<String, Object> ownerAuth) {
+  public void prepare(String owner, JobClientInfo ownerAuth) {
     //Nothing to do by default. May be overridden.
   }
 

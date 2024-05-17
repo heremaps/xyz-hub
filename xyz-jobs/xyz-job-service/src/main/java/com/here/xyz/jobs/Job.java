@@ -80,8 +80,6 @@ public class Job implements XyzSerializable {
   //Caller defined properties:
   @JsonView(Static.class)
   private String owner;
-  @JsonIgnore
-  private Map<String, Object> ownerAuth;
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Public.class, Static.class})
@@ -94,7 +92,7 @@ public class Job implements XyzSerializable {
   @JsonView(Static.class)
   private String executionId;
   @JsonView({Public.class, Static.class})
-  private Map<String, Object> clientInfo;
+  private JobClientInfo clientInfo;
 
   public static final Async async = new Async(20, Core.vertx, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -175,7 +173,7 @@ public class Job implements XyzSerializable {
   }
 
   /**
-   * Calls {@link Step#prepare(String, Map<String, Object>)} on all steps belonging to this job.
+   * Calls {@link Step#prepare(String, JobClientInfo)} on all steps belonging to this job.
    * @return
    */
   protected Future<Void> prepare() {
@@ -184,7 +182,7 @@ public class Job implements XyzSerializable {
 
   private Future<Void> prepareStep(Step step) {
     return async.run(() -> {
-      step.prepare(getOwner(), getOwnerAuth());
+      step.prepare(getOwner(), getClientInfo());
       return null;
     });
   }
@@ -546,19 +544,6 @@ public class Job implements XyzSerializable {
     return this;
   }
 
-  public Map<String, Object> getOwnerAuth() {
-    return ownerAuth;
-  }
-
-  public void setOwnerAuth(Map<String, Object> ownerAuth) {
-    this.ownerAuth = ownerAuth;
-  }
-
-  public Job withOwnerAuth(Map<String, Object> ownerAuth) {
-    setOwnerAuth(ownerAuth);
-    return this;
-  }
-
   @JsonView(Static.class)
   public StepGraph getSteps() {
     return steps;
@@ -588,21 +573,16 @@ public class Job implements XyzSerializable {
     return this;
   }
 
-  public Map<String, Object> getClientInfo() {
+  public JobClientInfo getClientInfo() {
     return clientInfo;
   }
 
-  public void setClientInfo(Map<String, Object> clientInfo) {
+  public void setClientInfo(JobClientInfo clientInfo) {
     this.clientInfo = clientInfo;
   }
 
-  public Job withClientInfo(Map<String, Object> clientInfo) {
+  public Job withClientInfo(JobClientInfo clientInfo) {
     setClientInfo(clientInfo);
-    return this;
-  }
-
-  public Job putClientInfo(String key, Object value) {
-    clientInfo.put(key, value);
     return this;
   }
 
