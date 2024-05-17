@@ -93,6 +93,8 @@ public class Job implements XyzSerializable {
   private StepGraph steps;
   @JsonView(Static.class)
   private String executionId;
+  @JsonView({Public.class, Static.class})
+  private Map<String, Object> clientInfo;
 
   public static final Async async = new Async(20, Core.vertx, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -574,6 +576,24 @@ public class Job implements XyzSerializable {
 
   public Job withExecutionId(String executionId) {
     setExecutionId(executionId);
+    return this;
+  }
+
+  public Map<String, Object> getClientInfo() {
+    return clientInfo;
+  }
+
+  public void setClientInfo(Map<String, Object> clientInfo) {
+    this.clientInfo = clientInfo;
+  }
+
+  public Job withClientInfo(Map<String, Object> clientInfo) {
+    setClientInfo(clientInfo);
+    return this;
+  }
+
+  public Job putClientInfo(String key, Object value) {
+    clientInfo.put(key, value);
     return this;
   }
 
