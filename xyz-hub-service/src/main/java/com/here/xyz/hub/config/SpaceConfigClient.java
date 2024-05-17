@@ -173,7 +173,7 @@ public abstract class SpaceConfigClient implements Initializable {
   protected abstract Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery);
 
-  public abstract Future<List<Space>> getSpacesFromParent(Marker marker, String parentSpaceId);
+  public abstract Future<List<Space>> getSpacesFromSuper(Marker marker, String parentSpaceId);
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
