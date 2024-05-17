@@ -608,4 +608,25 @@ public class Job implements XyzSerializable {
     setStatus(status);
     return this;
   }
+
+  @JsonIgnore
+  public String getStateMachineArn(){
+    if(executionId == null)
+      return null;
+
+    String[] parts = executionId.split(":");
+
+    if (parts.length == 8) {
+      StringBuilder stringBuilder = new StringBuilder();
+      for (int i = 0; i < 5; i++) {
+        stringBuilder.append(parts[i]);
+        stringBuilder.append(":");
+      }
+      stringBuilder.append("stateMachine:");
+      stringBuilder.append(parts[6]);
+      return stringBuilder.toString();
+    }else {
+      throw new IllegalArgumentException("Invalid execution ID format");
+    }
+  }
 }
