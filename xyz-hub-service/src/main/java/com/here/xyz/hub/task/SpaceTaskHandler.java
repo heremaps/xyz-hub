@@ -731,10 +731,10 @@ public class SpaceTaskHandler {
   }
 
   private static Future<List<Space>> getAllDependentSpaces(Marker marker, String spaceId) {
-    return Service.spaceConfigClient.getSpacesFromParent(marker, spaceId)
+    return Service.spaceConfigClient.getSpacesFromSuper(marker, spaceId)
         .compose(spaces -> {
           final List<Future<List<Space>>> childrenFutures = spaces.stream().map(space ->
-              Service.spaceConfigClient.getSpacesFromParent(marker, space.getId())).toList();
+              Service.spaceConfigClient.getSpacesFromSuper(marker, space.getId())).toList();
 
           return Future.all(childrenFutures).map(cf -> {
             spaces.addAll(cf.<List<Space>>list().stream().flatMap(Collection::stream).toList());
