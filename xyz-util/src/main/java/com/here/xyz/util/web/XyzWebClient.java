@@ -41,12 +41,21 @@ public abstract class XyzWebClient {
   }
 
   private HttpClient client() {
-    return HttpClient.newBuilder().version(Version.HTTP_1_1).followRedirects(NORMAL).connectTimeout(Duration.of(10, SECONDS)).build();
+    HttpClient.Builder builder = HttpClient.newBuilder()
+            .followRedirects(NORMAL)
+            .connectTimeout(Duration.of(10, SECONDS));
+
+    //Use HTTP/1.1 protocol for HTTP request
+    if(baseUrl != null && baseUrl.startsWith("http://")) {
+      builder.version(Version.HTTP_1_1);
+    }
+
+    return builder.build();
   }
 
   protected HttpResponse<byte[]> request(HttpRequest.Builder requestBuilder) throws WebClientException {
     try {
-      HttpRequest request = requestBuilder.version(Version.HTTP_1_1).build();
+      HttpRequest request = requestBuilder.build();
       HttpResponse<byte[]> response = client().send(request, BodyHandlers.ofByteArray());
       if (response.statusCode() >= 400)
         throw new ErrorResponseException("Received error response with status code: " + response.statusCode(), response);
