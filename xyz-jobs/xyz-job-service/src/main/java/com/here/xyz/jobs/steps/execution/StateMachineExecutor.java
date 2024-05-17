@@ -27,10 +27,16 @@ import com.here.xyz.jobs.steps.StepGraph;
 import io.vertx.core.Future;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineRequest;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineResponse;
+import software.amazon.awssdk.services.sfn.model.DeleteStateMachineRequest;
+import software.amazon.awssdk.services.sfn.model.ListStateMachinesRequest;
+import software.amazon.awssdk.services.sfn.model.ListStateMachinesResponse;
 import software.amazon.awssdk.services.sfn.model.RedriveExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
+import software.amazon.awssdk.services.sfn.model.StateMachineListItem;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
+
+import java.util.List;
 
 class StateMachineExecutor extends JobExecutor {
   private static final String STATE_MACHINE_NAME_PREFIX = "job-";
@@ -83,6 +89,36 @@ class StateMachineExecutor extends JobExecutor {
       checkCancellations();
 
       return Future.succeededFuture();
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
+    }
+  }
+
+  @Override
+  public Future<Void> delete(String executionId) {
+    try {
+      sfnClient().deleteStateMachine(DeleteStateMachineRequest.builder()
+              .stateMachineArn(executionId)
+              .build());
+      return Future.succeededFuture();
+    }
+    catch (Exception e) {
+      return Future.failedFuture(e);
+    }
+  }
+
+  @Override
+  public Future<List<String>> list() {
+    try {
+      ListStateMachinesResponse listStateMachinesResponse = sfnClient().listStateMachines(ListStateMachinesRequest.builder()
+              .build());
+
+      return Future.succeededFuture(listStateMachinesResponse
+              .stateMachines()
+              .stream()
+              .map(StateMachineListItem::stateMachineArn)
+              .toList());
     }
     catch (Exception e) {
       return Future.failedFuture(e);

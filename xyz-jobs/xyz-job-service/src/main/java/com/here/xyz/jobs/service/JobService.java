@@ -22,6 +22,7 @@ package com.here.xyz.jobs.service;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.execution.CleanUpExecutor;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -63,6 +64,7 @@ public class JobService extends Core {
         .compose(JobService::initializeService)
         .compose(JobService::registerShutdownHook)
         .compose(JobService::initializeClients)
+        .compose(JobService::startCleanUpThread)
         .onFailure(t -> logger.error("CService startup failed", t))
         .onSuccess(v -> logger.info("Service startup succeeded"))
         .onSuccess(v -> JobExecutor.getInstance().init());
@@ -75,6 +77,11 @@ public class JobService extends Core {
 
   private static Future<Void> initializeClients(Void v) {
     JobConfigClient.getInstance().init();
+    return Future.succeededFuture();
+  }
+
+  private static Future<Void> startCleanUpThread(Void v) {
+    CleanUpExecutor.getInstance().start();
     return Future.succeededFuture();
   }
 

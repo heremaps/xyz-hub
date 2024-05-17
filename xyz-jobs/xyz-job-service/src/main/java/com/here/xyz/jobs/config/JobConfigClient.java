@@ -21,10 +21,13 @@ package com.here.xyz.jobs.config;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+
+import java.util.ArrayList;
 import java.util.List;
 
 public abstract class JobConfigClient implements Initializable {
@@ -81,4 +84,22 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<Void> updateStep(Job job, Step<?> newStep);
 
   public abstract Future<Void> deleteJob(String jobId);
+
+  public Future<List<Job>> loadFailedAndSucceededJobsOlderThan(Integer olderThanInMs) {
+    List<Job> jobList = new ArrayList<>();
+
+    return loadJobs(State.SUCCEEDED)
+            .compose(succeedJobs -> { jobList.addAll(succeedJobs); return loadJobs(State.FAILED);})
+            .compose(failedJobs -> Future.succeededFuture(failedJobs.stream().filter(job -> !job.isResumable()).toList()))
+            .compose(notResumableFailedJobs -> { jobList.addAll(notResumableFailedJobs); return Future.succeededFuture(jobList);})
+            .compose(result -> {
+                      if (olderThanInMs != null)
+                        /** Filter all results which are older than provided timestamp */
+                        return Future.succeededFuture(
+                                result.stream().filter(job -> (JobService.currentTimeMillis() - job.getCreatedAt()) > olderThanInMs).toList()
+                        );
+                      return Future.succeededFuture(result);
+                    }
+            );
+  }
 }

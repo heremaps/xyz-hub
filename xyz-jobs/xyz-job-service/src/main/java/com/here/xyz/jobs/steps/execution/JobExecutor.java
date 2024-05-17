@@ -169,6 +169,10 @@ public abstract class JobExecutor implements Initializable {
 
   public abstract Future<Void> cancel(String executionId);
 
+  public abstract Future<Void> delete(String executionId);
+
+  public abstract Future<List<String>> list();
+
   /**
    * Checks for all resource-loads of the specified job whether they can be fulfilled. If yes, the job may be executed.
    *
