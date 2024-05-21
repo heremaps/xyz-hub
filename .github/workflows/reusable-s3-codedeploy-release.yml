@@ -21,6 +21,10 @@ on:
         type: string
         description: 'A version (or suffix) to be used in artifact name while uploading it to AWS S3 bucket'
         required: true
+      extension-s3-bucket-name:
+        type: string
+        description: 'AWS S3 bucket name, where extension artifacts are uploaded'
+        required: true
     secrets:
       aws-key:
         description: 'AWS Access key of a user, who is allowed to upload artifact to S3 bucket'
@@ -55,6 +59,10 @@ jobs:
         run: |
           BUNDLE_NAME=deployment_${{ inputs.s3-artifact-version }}.tar.gz
           echo "name=$BUNDLE_NAME" >> "$GITHUB_OUTPUT"
+      - name: Set extension s3 bucket name in cloud-config.json
+        run: |
+          export ACTUAL_BUCKET=${{ inputs.extension-s3-bucket-name }}
+          sed -i "s+SOME_S3_BUCKET+${ACTUAL_BUCKET}+g" download/contents/naksha-hub/.config/cloud-config.json
       - name: Preparing S3 artifact bundle
         run: |
           cd download

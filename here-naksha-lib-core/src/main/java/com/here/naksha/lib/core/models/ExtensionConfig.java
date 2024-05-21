@@ -32,6 +32,7 @@ public class ExtensionConfig {
   public static final String EXPIRY = "expiry";
   public static final String EXTENSIONS = "extensions";
   public static final String WHITELIST_DELEGATE_CLASSES = "whitelistDelegateClasses";
+  public static final String ENV_NAME = "env";
 
   @JsonProperty(EXPIRY)
   long expiry;
@@ -42,14 +43,19 @@ public class ExtensionConfig {
   @JsonProperty(WHITELIST_DELEGATE_CLASSES)
   List<String> whitelistDelegateClasses;
 
+  @JsonProperty(ENV_NAME)
+  String env;
+
   @JsonCreator
   public ExtensionConfig(
       @JsonProperty(EXPIRY) @NotNull Long expiry,
       @JsonProperty(EXTENSIONS) @Nullable List<Extension> extensions,
-      @JsonProperty(WHITELIST_DELEGATE_CLASSES) @Nullable List<String> whitelistDelegateClasses) {
+      @JsonProperty(WHITELIST_DELEGATE_CLASSES) @Nullable List<String> whitelistDelegateClasses,
+      @JsonProperty(ENV_NAME) @NotNull String env) {
     this.expiry = expiry;
     this.extensions = extensions;
     this.whitelistDelegateClasses = whitelistDelegateClasses;
+    this.env = env;
   }
 
   public long getExpiry() {
@@ -62,5 +68,9 @@ public class ExtensionConfig {
 
   public List<String> getWhilelistDelegateClass() {
     return whitelistDelegateClasses;
+  }
+
+  public String getEnv() {
+    return env;
   }
 }

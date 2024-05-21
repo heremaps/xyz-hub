@@ -300,7 +300,8 @@ public class NakshaHub implements INaksha {
     return new ExtensionConfig(
         System.currentTimeMillis() + extensionConfigParams.getIntervalMs(),
         extList,
-        extensionConfigParams.getWhiteListClasses());
+        extensionConfigParams.getWhiteListClasses(),
+        this.nakshaHubConfig.env.toLowerCase());
   }
 
   private List<Extension> loadExtensionConfigFromS3(String extensionRootPath) {

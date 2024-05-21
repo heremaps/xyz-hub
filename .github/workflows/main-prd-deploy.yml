@@ -4,8 +4,7 @@ name: Prod Workflow
 on:
   push:
     tags:
-      - '2.[0-9]+.[0-9]+'
-      - '!*rc*'
+      - '2.[0-9]+.[0-9]+-preprod'
 
 permissions:
   checks: write         # for junit reporting
@@ -34,6 +33,7 @@ jobs:
       s3-bucket-name: ${{ vars.RELEASE_S3_BUCKET_NAME }}
       s3-bucket-dir-path: ${{ needs.Build-and-Publish.outputs.app-version }}
       s3-artifact-version: ${{ needs.Build-and-Publish.outputs.codedeploy-artifact-version }}
+      extension-s3-bucket-name: ${{ vars.PRD_PVT_RELEASE_S3_BUCKET_NAME }}
     secrets:
       aws-key: ${{ secrets.AWS_KEY }}
       aws-secret: ${{ secrets.AWS_SECRET }}
@@ -46,7 +46,7 @@ jobs:
     uses: ./.github/workflows/reusable-codedeploy-deployment.yml
     with:
       aws-region: ${{ vars.PRD_AWS_REGION }}
-      codedeploy-app-name: ${{ vars.CODEDEPLOY_APP_NAME }}
+      codedeploy-app-name: Naksha_v2_App
       codedeploy-group-name: ${{ vars.CODEDEPLOY_PRD_GROUP_NAME }}
       deployment-description: 'Deployment triggered by ${{ github.triggering_actor }} from Github repo [${{ github.repository }}], ${{ github.ref_type }} [${{ github.ref_name }}], commit sha [${{ github.sha }}]'
       # we use Prod access point (eu-west-1) to fetch deployment artifacts from E2E S3 bucket (us-east-1)

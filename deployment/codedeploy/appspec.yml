@@ -26,7 +26,7 @@ file_exists_behavior: OVERWRITE
 files:
   - source: /contents
     destination: /home/admin
-  - source: /contents/naksha-hub/xyz-hub.service
+  - source: /contents/naksha-hub/naksha-hub.service
     destination: /etc/systemd/system
 # For deployments to Amazon Linux, Ubuntu Server, or RHEL instances,
 #   you can specify a "permissions"
@@ -68,9 +68,9 @@ permissions:
     mode: 755
     type:
       - file
-  # change permission for file xyz-hub.service
+  # change permission for file naksha-hub.service
   - object: /etc/systemd/system
-    pattern: "xyz-hub.service"
+    pattern: "naksha-hub.service"
     owner: admin
     group: admin
     type:

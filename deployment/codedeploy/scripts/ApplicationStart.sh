@@ -2,5 +2,5 @@
 
 # Start application
 echo "Starting Naksha service..."
-sudo systemctl start xyz-hub
+sudo systemctl start naksha-hub
 echo "Start triggered!"

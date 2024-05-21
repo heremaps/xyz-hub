@@ -19,7 +19,7 @@ if [ ! -d logs ]; then
 fi
 
 # Set local parameters
-export OTEL_RESOURCE_ATTRIBUTES=service.name=${EC2_INSTANCE_NAME},service.namespace=Naksha-${EC2_ENV_UPPER}
+export OTEL_RESOURCE_ATTRIBUTES=service.name=${EC2_INSTANCE_NAME},service.namespace=Naksha-v2-${EC2_ENV_UPPER}
 
 # Print basic parameters (avoid printing secrets)
 echo "NAKSHA_CONFIG_PATH : $NAKSHA_CONFIG_PATH"

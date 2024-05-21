@@ -10,7 +10,7 @@ Description=Naksha-Hub
 [Service]
 User=admin
 Type=simple
-PIDFile=/run/xyz-hub.pid
+PIDFile=/run/naksha-hub.pid
 WorkingDirectory=/home/admin/naksha-hub
 ExecStart=/home/admin/naksha-hub/start-app.sh
 # ExecReload=/home/transang/startup.sh reload
