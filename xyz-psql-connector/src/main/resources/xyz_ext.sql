@@ -16,26 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
-/*
- * Copyright (C) 2017-2024 HERE Europe B.V.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-License-Identifier: Apache-2.0
- * License-Filename: LICENSE
- */
-
 --
 -- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
@@ -4339,40 +4319,39 @@ BEGIN
                        temporary_tbl) into work_items_left;
 
         IF work_items_left > 0 THEN
-            -- Last Threads are running no work items left, wait for success report
+            -- Last Threads are running no work items left, wait till we are the last one which can do success report
             state = 'LAST_ONES_RUNNING';
             s3_path = 'SUCCESS_MARKER';
-            PERFORM PG_SLEEP(5);
             RETURN NEXT;
-        END If;
+        ELSE
+            -- no items left
+            EXECUTE format('SELECT s3_path, state FROM %1$s '
+                               ||'WHERE state = %2$L ;',
+                           temporary_tbl,
+                           success_marker) into work_item;
 
-        -- no items left
-        EXECUTE format('SELECT s3_path, state FROM %1$s '
-                           ||'WHERE state = %2$L ;',
-                       temporary_tbl,
-                       success_marker) into work_item;
+            IF work_item.state IS NOT NULL THEN
+                EXECUTE format('UPDATE %1$s '
+                                   ||'set state = %2$L, execution_count = execution_count + 1 '
+                                   ||'WHERE s3_path = %3$L AND state = %4$L RETURNING *',
+                               temporary_tbl,
+                               work_item.state || '_' || target_state,
+                               work_item.s3_path,
+                               work_item.state) INTO result;
+                IF result is NOT NULL THEN
+                    --RAISE NOTICE 'RESULT NOT NULL %',work_item.i;
 
-        IF work_item.state IS NOT NULL THEN
-            EXECUTE format('UPDATE %1$s '
-                               ||'set state = %2$L, execution_count = execution_count + 1 '
-                               ||'WHERE s3_path = %3$L AND state = %4$L RETURNING *',
-                            temporary_tbl,
-                            work_item.state || '_' || target_state,
-                            work_item.s3_path,
-                            work_item.state) INTO result;
-            IF result is NOT NULL THEN
-                --RAISE NOTICE 'RESULT NOT NULL %',work_item.i;
+                    s3_bucket = result.s3_bucket;
+                    s3_path = result.s3_path;
+                    s3_region = result.s3_region;
+                    filesize = result.data->'filesize';
+                    state = result.state;
+                    execution_count = result.execution_count;
 
-                s3_bucket = result.s3_bucket;
-                s3_path = result.s3_path;
-                s3_region = result.s3_region;
-                filesize = result.data->'filesize';
-                state = result.state;
-                execution_count = result.execution_count;
-
-                RETURN NEXT;
+                    RETURN NEXT;
+                END IF;
             END IF;
-        END IF;
+        END If;
     END IF;
     RETURN;
 END;
@@ -4528,8 +4507,17 @@ BEGIN
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
     IF work_item IS NULL THEN
-        RAISE NOTICE 'TEST';
         RETURN;
+    ELSE
+        IF work_item.state = 'LAST_ONES_RUNNING' THEN
+            --Last imports are running, no submitted files are left. We need to wait till last import is finished!
+            PERFORM PG_SLEEP(5);
+            PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
+                                    schem, temporary_tbl, target_tbl, format, success_callback, failure_callback), false, true );
+        ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
+            EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
+            RETURN;
+        END IF;
     END IF;
 
     sql_text = $wrappedouter$ DO
@@ -4551,12 +4539,7 @@ BEGIN
 
         IF work_item.state IS NOT NULL THEN
 			BEGIN
-	            IF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
-	                EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);',
-						temporary_tbl,
-						'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text);
-	                RETURN;
-                ELSEIF work_item.state != 'LAST_ONES_RUNNING' THEN
+	            IF work_item.s3_path != 'SUCCESS_MARKER' THEN
                     IF work_item.execution_count = retry_count THEN
                         RAISE EXCEPTION 'File ''%'' failed non retryable!',work_item.s3_path
                             USING ERRCODE = 'XYZ52';
