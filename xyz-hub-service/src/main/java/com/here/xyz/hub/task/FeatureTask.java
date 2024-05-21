@@ -260,7 +260,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<GeometryQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(this::resolveRefSpace)
           .then(this::resolveRefConnector)
@@ -389,7 +388,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<BBoxQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -420,7 +418,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<TileQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -456,7 +453,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -478,7 +474,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IterateQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -500,7 +495,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<SearchQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
@@ -524,7 +518,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<GetStatistics> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
@@ -570,7 +563,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::invoke);
     }
   }
@@ -614,7 +606,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::registerRequestMemory)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::throttle)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)

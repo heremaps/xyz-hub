@@ -37,6 +37,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -65,6 +66,7 @@ import com.here.xyz.hub.connectors.models.Connector.ForwardParamsConfig;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.connectors.models.Space.ConnectorType;
+import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
 import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam;
@@ -765,16 +767,6 @@ public class FeatureTaskHandler {
     return f;
   }
 
-  public static <T extends FeatureTask> void checkSpaceIsActive(T task, Callback<T> callback) {
-    if (!task.space.isActive()) {
-      callback.exception(new HttpException(METHOD_NOT_ALLOWED,
-          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is not active."));
-      return;
-    }
-
-    callback.call(task);
-  }
-
   static <X extends FeatureTask> void resolveVersionRef(final X task, final Callback<X> callback) {
     if (!(task.getEvent() instanceof SelectiveEvent event)) {
       callback.call(task);
@@ -825,13 +817,13 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask> void resolveSpace(final X task, final Callback<X> callback) {
     try {
       resolveSpace(task)
-          .compose(space -> Future.all(
-              resolveStorageConnector(task),
-              resolveListenersAndProcessors(task),
-              resolveExtendedSpaces(task, space)
-          ))
-          .onFailure(callback::exception)
-          .onSuccess(connector -> callback.call(task));
+        .compose(space -> Future.all(
+            resolveStorageConnector(task),
+            resolveListenersAndProcessors(task),
+            resolveExtendedSpaces(task, space)
+        ))
+        .onFailure(callback::exception)
+        .onSuccess(connector -> callback.call(task));
     }
     catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
@@ -841,47 +833,60 @@ public class FeatureTaskHandler {
   private static <X extends FeatureTask> Future<Space> resolveSpace(final X task) {
     try {
       //FIXME: Can be removed once the Space events are handled by the SpaceTaskHandler (refactoring pending ...)
-      if (task.space != null) //If the space is already given we don't need to retrieve it
+      if (task.space != null) { //If the space is already given we don't need to retrieve it
         return Future.succeededFuture(task.space);
+      }
 
       //Load the space definition.
       return Space.resolveSpace(task.getMarker(), task.getEvent().getSpace())
-          .compose(
-              space -> {
-                if (space != null) {
-                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER == ((ContextAwareEvent<?>) task.getEvent()).getContext())
-                    return switchToSuperSpace(task, space);
-                  task.space = space;
-                  //Inject the extension-map
-                  return space.resolveCompositeParams(task.getMarker()).compose(resolvedExtensions -> {
-                    Map<String, Object> storageParams = new HashMap<>();
-                    if (space.getStorage().getParams() != null)
-                      storageParams.putAll(space.getStorage().getParams());
-                    storageParams.putAll(resolvedExtensions);
+          .compose(space -> {
+            if (space == null) {
+              return Future.succeededFuture();
+            }
 
-                    task.getEvent().setParams(storageParams);
+            if (!(task instanceof FeatureTask.ModifySpaceQuery) && !space.isActive()) {
+              return Future.failedFuture(new HttpException(PRECONDITION_REQUIRED,
+                  "The method is not allowed, because the resource \"" + space.getId() + "\" is not active."));
+            }
 
-                    //Inject the minVersion from the space config
-                    if (task.getEvent() instanceof SelectiveEvent)
-                      ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+            if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent
+                && SUPER == ((ContextAwareEvent<?>) task.getEvent()).getContext()) {
+              return switchToSuperSpace(task, space);
+            }
 
-                    //Inject the versionsToKeep from the space config
-                    if (task.getEvent() instanceof ContextAwareEvent)
-                      ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+            task.space = space;
 
-                    return Future.succeededFuture(space);
-                  });
-                }
-                else
-                  return Future.succeededFuture();
-              },
-              t -> {
-                logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
-                return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
-              }
-          );
-    }
-    catch (Exception e) {
+            //Inject the extension-map
+            return space.resolveCompositeParams(task.getMarker())
+                .compose(resolvedExtensions -> {
+                  Map<String, Object> storageParams = new HashMap<>();
+                  if (space.getStorage().getParams() != null) {
+                    storageParams.putAll(space.getStorage().getParams());
+                  }
+                  storageParams.putAll(resolvedExtensions);
+
+                  task.getEvent().setParams(storageParams);
+
+                  //Inject the minVersion from the space config
+                  if (task.getEvent() instanceof SelectiveEvent) {
+                    ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+                  }
+
+                  //Inject the versionsToKeep from the space config
+                  if (task.getEvent() instanceof ContextAwareEvent) {
+                    ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+                  }
+
+                  return Future.succeededFuture(space);
+                });
+          }, t -> {
+            if (t instanceof HttpException || t instanceof InvalidExtensionException)
+              return Future.failedFuture(t);
+
+            logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
+            return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
+          });
+    } catch (Exception e) {
       return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }
