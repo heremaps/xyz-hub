@@ -65,8 +65,8 @@ public class JobService extends Core {
         .compose(JobService::registerShutdownHook)
         .compose(JobService::initializeClients)
         .compose(JobService::startCleanUpThread)
-        .onFailure(t -> logger.error("CService startup failed", t))
-        .onSuccess(v -> logger.info("Service startup succeeded"))
+        .onFailure(t -> logger.error("JobService startup failed", t))
+        .onSuccess(v -> logger.info("JobService startup succeeded"))
         .onSuccess(v -> JobExecutor.getInstance().init());
   }
 
@@ -93,7 +93,7 @@ public class JobService extends Core {
 
     return vertx.deployVerticle(JobRESTVerticle.class, options)
         .onFailure(t -> logger.error("Unable to deploy JobVerticle.", t))
-        .onSuccess(s -> logger.info("Service is up and running on port " + Config.instance.HTTP_PORT))
+        .onSuccess(s -> logger.info("JobService is up and running on port " + Config.instance.HTTP_PORT))
         .mapEmpty();
   }
 
