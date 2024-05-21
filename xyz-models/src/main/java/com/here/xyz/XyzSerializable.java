@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public interface XyzSerializable {
@@ -52,11 +53,13 @@ public interface XyzSerializable {
         () -> registerNewMapper(new ObjectMapper().configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
             .setSerializationInclusion(Include.NON_NULL)));
     private static final Collection<Class<?>> REGISTERED_SUBTYPES = new ConcurrentLinkedQueue<>();
+    private static final Map<Class<?>, Class<?>> ALL_MIX_INS = new ConcurrentHashMap<>();
     private static final Collection<ObjectMapper> ALL_MAPPERS = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
 
     private static ObjectMapper registerNewMapper(ObjectMapper om) {
       ALL_MAPPERS.add(om);
       om.registerSubtypes(REGISTERED_SUBTYPES.toArray(Class<?>[]::new));
+      om.setMixIns(ALL_MIX_INS);
       return om;
     }
 
@@ -65,6 +68,11 @@ public interface XyzSerializable {
       REGISTERED_SUBTYPES.addAll(Arrays.asList(classes));
       //Register the new subtypes on all existing mappers
       ALL_MAPPERS.forEach(om -> om.registerSubtypes(classes));
+    }
+
+    private static void registerMixIn(Class<?> target, Class<?> mixinSource) {
+      ALL_MIX_INS.put(target, mixinSource);
+      ALL_MAPPERS.forEach(om -> om.addMixIn(target, mixinSource));
     }
 
     /**
@@ -94,6 +102,16 @@ public interface XyzSerializable {
    */
   static void registerSubtypes(Class<?>... classes) {
     Mappers.registerSubtypes(classes);
+  }
+
+  /**
+   * Add mix-in annotations to all the {@link ObjectMapper}s in order to add or override target annotations from the source
+   *
+   * @param target Class whose annotations to effectively override
+   * @param mixinSource Class whose annotations are to be "added" to target's annotations, overriding as necessary
+   */
+  static void registerMixIn(Class<?> target, Class<?> mixinSource) {
+    Mappers.registerMixIn(target, mixinSource);
   }
 
   default String serialize() {
