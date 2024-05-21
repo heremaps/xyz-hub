@@ -31,7 +31,7 @@ import com.amazonaws.services.emrserverless.model.SparkSubmit;
 import com.amazonaws.services.emrserverless.model.StartJobRunRequest;
 import com.amazonaws.services.emrserverless.model.StartJobRunResult;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.util.di.ImplementationProvider;
+import com.here.xyz.util.di.ImplementationProvider;
 
 import java.util.List;
 

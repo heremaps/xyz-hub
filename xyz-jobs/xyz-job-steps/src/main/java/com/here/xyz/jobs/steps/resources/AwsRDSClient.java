@@ -19,19 +19,19 @@
 
 package com.here.xyz.jobs.steps.resources;
 
-import com.amazonaws.services.rds.AmazonRDS;
-import com.amazonaws.services.rds.AmazonRDSClientBuilder;
-import com.amazonaws.services.rds.model.DBCluster;
-import com.amazonaws.services.rds.model.DescribeDBClustersRequest;
-import com.amazonaws.services.rds.model.DescribeDBClustersResult;
+import software.amazon.awssdk.services.rds.RdsClient;
+import software.amazon.awssdk.services.rds.RdsClientBuilder;
+import software.amazon.awssdk.services.rds.model.DBCluster;
+import software.amazon.awssdk.services.rds.model.DescribeDbClustersRequest;
+import software.amazon.awssdk.services.rds.model.DescribeDbClustersResponse;
 
 public class AwsRDSClient {
 
   private static final AwsRDSClient instance = new AwsRDSClient();
-  private final AmazonRDS client;
+  private final RdsClient client;
 
   private AwsRDSClient() {
-    AmazonRDSClientBuilder builder = AmazonRDSClientBuilder.standard();
+    RdsClientBuilder builder = RdsClient.builder();
 
     this.client = builder.build();
   }
@@ -41,9 +41,10 @@ public class AwsRDSClient {
   }
 
   public DBCluster getRDSClusterConfig(String clusterId) {
-    DescribeDBClustersResult result = client.describeDBClusters(new DescribeDBClustersRequest()
-        .withDBClusterIdentifier(clusterId));
-    return result.getDBClusters().size() == 0 ? null : result.getDBClusters().get(0);
+    DescribeDbClustersResponse response = client.describeDBClusters(DescribeDbClustersRequest.builder()
+            .dbClusterIdentifier(clusterId)
+            .build());
+    return response.hasDbClusters() && !response.dbClusters().isEmpty() ? response.dbClusters().get(0) : null;
   }
 
 }

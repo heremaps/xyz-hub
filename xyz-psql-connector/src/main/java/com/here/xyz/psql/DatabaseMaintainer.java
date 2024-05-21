@@ -119,7 +119,7 @@ public class DatabaseMaintainer {
 
             //Check if database is prepared to work with PSQL Connector. Therefore, it's needed to check Extensions, Schemas, Tables and Functions.
             Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(propertySearch, dbSettings.getUser(), dbSettings.getDb()));
+            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(propertySearch, dbSettings.getUser(), dbSettings.getDb(), dbSettings.runsLocal()));
 
             if (rs.next()) {
                 userHasCreatePermissions = rs.getBoolean("has_create_permissions");
@@ -284,7 +284,7 @@ public class DatabaseMaintainer {
                 int mode = autoIndexing == true ? 2 : 0;
 
                 /** Maintain INDICES */
-                stmt.execute(MaintenanceSQL.generateIDXSQL(dbSettings.getSchema(), dbSettings.getUser(), dbSettings.getPassword(), dbSettings.getDb(),"localhost", dbSettings.getPort(), mode));
+                stmt.execute(MaintenanceSQL.generateIDXSQL(dbSettings.getSchema(), dbSettings.getUser(), dbSettings.getPassword(), dbSettings.getDb(), dbSettings.getHost(), dbSettings.getPort(), mode));
             }
         }
         catch (Exception e) {

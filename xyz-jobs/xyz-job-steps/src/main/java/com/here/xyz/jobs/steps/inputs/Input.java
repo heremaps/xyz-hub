@@ -19,9 +19,13 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
+import com.here.xyz.jobs.util.S3Client;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = UploadUrl.class, name = "UploadUrl")
@@ -45,5 +49,21 @@ public abstract class Input <T extends Input> implements Typed {
   public T withS3Key(String s3Key) {
       setS3Key(s3Key);
       return (T) this;
+  }
+
+  public static List<Input> loadInputs(String jobId) {
+    return S3Client.getInstance().scanFolder(Input.inputS3Prefix(jobId))
+        .stream()
+        .map(s3ObjectSummary -> new UploadUrl()
+            .withS3Key(s3ObjectSummary.getKey())
+            .withByteSize(s3ObjectSummary.getSize())
+            //TODO: Run metadata retrieval requests partially in parallel in multiple threads
+            .withCompressed(inputIsCompressed(s3ObjectSummary.getKey())))
+        .collect(Collectors.toList());
+  }
+
+  private static boolean inputIsCompressed(String s3Key) {
+    ObjectMetadata metadata = S3Client.getInstance().loadMetadata(s3Key);
+    return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
   }
 }

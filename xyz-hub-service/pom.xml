@@ -300,33 +300,6 @@
       <artifactId>aws-java-sdk-emrserverless</artifactId>
       <groupId>com.amazonaws</groupId>
     </dependency>
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>stepfunctions</artifactId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>cloudwatchevents</artifactId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <!-- TODO: Use new RDS SDK2 instead -->
-    <dependency>
-      <artifactId>aws-java-sdk-rds</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <!-- TODO: put version into main pom's dependency-management -->
-      <version>1.12.651</version>
-    </dependency>
 
     <!--  GeoTools libraries -->
     <dependency>

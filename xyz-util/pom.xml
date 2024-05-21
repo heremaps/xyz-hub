@@ -63,6 +63,13 @@
       <artifactId>xyz-models</artifactId>
     </dependency>
 
+    <!-- Jackson Libraries -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
+      <version>${jackson-version}</version>
+    </dependency>
+
     <!--  Logging libraries -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>

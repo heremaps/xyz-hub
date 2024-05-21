@@ -60,13 +60,13 @@ import org.apache.logging.log4j.Logger;
  */
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
-
   private static final Logger logger = LogManager.getLogger();
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
   public static final String QUERY_ID = "queryId";
+  public static final String TEXT_QUOTE = "\\$sqlq\\$";
   private String statement = "";
   @JsonProperty
   private List<Object> parameters = new ArrayList<>();
@@ -74,6 +74,7 @@ public class SQLQuery {
   private Map<String, String> variables;
   private Map<String, SQLQuery> queryFragments;
   private boolean async = false;
+  private boolean asyncProcedure = false;
   private String lock;
   private int timeout = Integer.MAX_VALUE;
   private int maximumRetries;
@@ -165,13 +166,9 @@ public class SQLQuery {
     if (queries.size() == 0)
       throw new IllegalArgumentException("A batch of queries cannot be empty.");
 
-    SQLQuery result = null;
-    for (SQLQuery query : queries) {
-      if (result == null)
-        result = query;
-      else
-        result.addBatch(query);
-    }
+    SQLQuery result = new SQLQuery();
+    for (SQLQuery query : queries)
+      result.addBatch(query);
 
     return result;
   }
@@ -224,7 +221,7 @@ public class SQLQuery {
     String text = text();
     for (Object paramValue : parameters()) {
       Pattern p = Pattern.compile("\\?");
-      text = text.replaceFirst(p.pattern(), Matcher.quoteReplacement(paramValueToString(paramValue)));
+      text = text.replaceFirst(p.pattern(), paramValueToString(paramValue));
     }
     return text;
   }
@@ -233,7 +230,7 @@ public class SQLQuery {
     if (paramValue == null)
       return "NULL";
     if (paramValue instanceof String)
-      return "'" + paramValue + "'";
+      return TEXT_QUOTE + paramValue + TEXT_QUOTE;
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
@@ -369,7 +366,7 @@ public class SQLQuery {
       namedParams2Positions.get(nParam).add(parameters.size());
       parameters.add(namedParameters.get(nParam));
       if (!usePlaceholders) {
-        statement = m.replaceFirst(Matcher.quoteReplacement(paramValueToString(namedParameters.get(nParam))));
+        statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
         m = p.matcher(text());
       }
     }
@@ -604,6 +601,20 @@ public class SQLQuery {
     return this;
   }
 
+  public boolean isAsyncProcedure() {
+    return asyncProcedure;
+  }
+
+  public void setAsyncProcedure(boolean asyncProcedure) {
+    setAsync(true);
+    this.asyncProcedure = asyncProcedure;
+  }
+
+  public SQLQuery withAsyncProcedure(boolean asyncProcedure) {
+    setAsyncProcedure(asyncProcedure);
+    return this;
+  }
+
   /**
    * The advisory lock key which was provided to be applied during the runtime of this query.
    *
@@ -675,6 +686,7 @@ public class SQLQuery {
   }
 
   public String getQueryId() {
+    //TODO: Call initQueryId() here?
     return queryId;
   }
 
@@ -742,19 +754,40 @@ public class SQLQuery {
 
   private static void killByLabel(String labelIdentifier, String labelValue, long timeout, DataSourceProvider dataSourceProvider,
       boolean useReplica) throws SQLException {
-    SQLQuery labelMatching = new SQLQuery("substring(query, "
-        + "strpos(query, '/*labels(') + 9, "
-        + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
-        .withNamedParameter("labelIdentifier", labelIdentifier)
-        .withNamedParameter("labelValue", labelValue);
-
     new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
         + "WHERE state = 'active' "
         + "AND ${{labelMatching}} "
         + "AND pid != pg_backend_pid()")
-        .withQueryFragment("labelMatching", labelMatching)
-        .withNamedParameter("labelValue", labelValue)
+        .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
         .run(dataSourceProvider, useReplica);
+  }
+
+  private static SQLQuery buildLabelMatchQuery(String labelIdentifier, String labelValue) {
+    return new SQLQuery("strpos(query, '/*labels(') > 0 AND substring(query, "
+        + "strpos(query, '/*labels(') + 9, "
+        + "strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::json->>#{labelIdentifier} = #{labelValue}")
+        .withNamedParameter("labelIdentifier", labelIdentifier)
+        .withNamedParameter("labelValue", labelValue);
+  }
+
+  public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String queryId) throws SQLException {
+    return isRunning(dataSourceProvider, useReplica, QUERY_ID, queryId);
+  }
+
+  /**
+   * Checks whether there exists at least one running query on the target database that is matching the specified label value.
+   * @param labelIdentifier
+   * @param labelValue
+   * @return Whether a running query exists with the specified label
+   */
+  private static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
+      throws SQLException {
+    return new SQLQuery("""
+        SELECT 1 FROM pg_stat_activity
+          WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()
+        """)
+        .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
+        .run(dataSourceProvider, rs -> rs.next(), useReplica);
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
@@ -902,9 +935,10 @@ public class SQLQuery {
   private SQLQuery prepareFinalQuery(ExecutionContext executionContext) {
     if (isAsync()) {
       if (executionContext.dataSourceProvider instanceof PooledDataSources pooledDataSources) {
-        return new SQLQuery("SELECT asyncify(#{query}, #{password})")
+        return new SQLQuery("SELECT asyncify(#{query}, #{password}, #{procedureCall})")
             .withNamedParameter("query", text())
             .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword())
+            .withNamedParameter("procedureCall", isAsyncProcedure())
             .substitute();
       }
       else

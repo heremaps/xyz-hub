@@ -401,6 +401,13 @@ public class DatabaseSettings extends Payload {
             + getApplicationNameForJdbcUrl() + "&tcpKeepAlive=true";
     }
 
+    @Deprecated
+    public boolean runsLocal(){
+        if(host.equals("postgres") || host.equals("localhost"))
+            return true;
+        return false;
+    }
+
     @JsonIgnore
     public String getCacheKey() {
         try {

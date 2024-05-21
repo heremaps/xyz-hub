@@ -21,6 +21,8 @@ package com.here.xyz.jobs.config;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.steps.Step;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.Map;
@@ -28,39 +30,71 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class InMemJobConfigClient extends JobConfigClient {
-    private Map<JobKey, Job> jobMap = new ConcurrentHashMap<>();
+    private Map<String, Job> jobMap = new ConcurrentHashMap<>();
+
+    public static class Provider extends JobConfigClient.Provider {
+        @Override
+        public boolean chooseMe() {
+            return "test".equals(System.getProperty("scope"));
+        }
+
+        @Override
+        protected JobConfigClient getInstance() {
+            return new InMemJobConfigClient();
+        }
+    }
+
 
     @Override
-    public Future<Job> loadJob(String resourceKey, String jobId) {
-        return Future.succeededFuture(jobMap.get(new JobKey(resourceKey, jobId)));
+    public Future<Job> loadJob(String jobId) {
+        return Future.succeededFuture(jobMap.get(jobId));
+    }
+
+    @Override
+    public Future<List<Job>> loadJobs() {
+        return Future.succeededFuture(List.copyOf(jobMap.values()));
     }
 
     @Override
     public Future<List<Job>> loadJobs(RuntimeInfo.State state) {
-        List<Job> jobs = jobMap.values().stream().filter(job -> job.getStatus().getState() == state).collect(Collectors.toList());
+        List<Job> jobs = jobMap.values().stream()
+            .filter(job -> job.getStatus().getState() == state)
+            .collect(Collectors.toList());
         return Future.succeededFuture(jobs);
     }
 
     @Override
     public Future<List<Job>> loadJobs(String resourceKey) {
-        List<Job> jobs = jobMap.entrySet()
-                .stream()
-                .filter(e -> e.getKey().resourceKey.equals(resourceKey))
-                .map(e -> e.getValue())
-                .collect(Collectors.toList());
+        List<Job> jobs = jobMap.values().stream()
+            .filter(job -> resourceKey.equals(job.getResourceKey()))
+            .collect(Collectors.toList());
         return Future.succeededFuture(jobs);
     }
 
     @Override
-    public Future<Void> storeJob(String resourceKey, Job job) {
-        jobMap.put(new JobKey(resourceKey, job.getId()), job);
+    public Future<Void> storeJob(Job job) {
+        jobMap.put(job.getId(), job);
         return Future.succeededFuture();
     }
 
     @Override
-    public Future<Void> deleteJob(String resourceKey, String jobId) {
-        jobMap.remove(new JobKey(resourceKey, jobId));
+    public Future<Void> updateState(Job job, State expectedPreviousState) {
+        return storeJob(job);
+    }
+
+    @Override
+    public Future<Void> updateStatus(Job job, State expectedPreviousState) {
+        return storeJob(job);
+    }
+
+    @Override
+    public Future<Void> updateStep(Job job, Step<?> newStep) {
+        return storeJob(job);
+    }
+
+    @Override
+    public Future<Void> deleteJob(String jobId) {
+        jobMap.remove(jobId);
         return Future.succeededFuture();
     }
-    private record JobKey(String resourceKey, String jobId) {}
 }

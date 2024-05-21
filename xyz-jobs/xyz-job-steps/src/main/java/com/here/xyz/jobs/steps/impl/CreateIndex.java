@@ -24,13 +24,15 @@ import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
+import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
@@ -42,16 +44,19 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private Index index;
   private Space space;
 
+  @JsonView({Internal.class, Static.class})
+  private Integer estimatedSeconds;
+
   @Override
   public List<Load> getNeededResources() {
-    try {
-      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      int acus = calculateNeededAcus(statistics.getCount().getValue(), statistics.getDataSize().getValue());
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
+    try{
+      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index);
+      logger.info("[{}] {} neededACUs {}", getGlobalStepId(), index, acus);
 
+      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
-    catch (HubWebClientException e) {
+    catch (WebClientException e) {
       //TODO: log error
       //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
@@ -60,7 +65,18 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 5 * 3600; //TODO: Return value dependent on index type & feature count
+    int timeoutSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexTimeoutSeconds(getUncompressedUploadBytesEstimation(), index);
+    logger.info("[{}] {} timeoutSeconds {}",getGlobalStepId(), index, timeoutSeconds);
+    return timeoutSeconds;
+  }
+
+  @Override
+  public int getEstimatedExecutionSeconds() {
+    if(estimatedSeconds == null ) {
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , index);
+      logger.info("[{}] {} estimatedSeconds {}",getGlobalStepId(), index, estimatedSeconds);
+    }
+    return estimatedSeconds;
   }
 
   @Override
@@ -69,17 +85,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   @Override
-  public void deleteOutputs() {
-    //Nothing to do here as no outputs are produced by this step
-  }
-
-  private int calculateNeededAcus(long featureCount, long byteSize) {
-    //TODO: Also take into account the index type
-    return 20;
-  }
-
-  @Override
-  public void execute() throws SQLException, TooManyResourcesClaimed, HubWebClientException {
+  public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
     logger.info("Loading space config for space " + getSpaceId());
     Space space = loadSpace(getSpaceId());
     StatisticsResponse spaceStatistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
@@ -88,14 +94,15 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     logger.info("Getting storage database for space " + getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
     logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
-    runWriteQuery(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db, calculateNeededAcus(featureCount, byteSize));
+    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db,
+            ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(byteSize, index));
   }
 
   @Override
   public void resume() throws Exception {
     /*
     No cleanup needed, in any case, sending the index creation query again will work
-    as it is using the "CREATE SEQUENCE IF NOT EXISTS" semantics
+    as it is using the "CREATE INDEX IF NOT EXISTS" semantics
      */
     execute();
   }
