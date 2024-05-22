@@ -24,11 +24,14 @@ To get Naksha container running, one must do the following:
    Other possible architectures that are supported can be found [on these Docker official images docs](https://github.com/docker-library/official-images#architectures-other-than-amd64). For more details, refer to [docs of our base image (Eclipse Temurin)](https://hub.docker.com/_/eclipse-temurin).
    
 4) Run the container for the first time:\
-   There are two optional environment variables that one can specify when running Naksha conrtainer
+   There are optional environment variables that one can specify when running Naksha container.
     - `NAKSHA_CONFIG_ID`: id of naksha configaration to use, `test-config` by default
     - `NAKSHA_ADMIN_DB_URL`: url of database for Naksha app to
       use, `jdbc:postgresql://host.docker.internal:5432/postgres?user=postgres&password=password&schema=naksha&app=naksha_local&id=naksha_admin_db`
       by default
+    - `NAKSHA_EXTENSION_S3_BUCKET`: S3 bucket name or S3 bucket access point.The default value is `naksha-pvt-releases`. 
+    - `NAKSHA_JWT_PVT_KEY`: Naksha JWT private key. If not provided then it will load it from `here-naksha-app-service/src/main/resources/auth/jwt.key`.
+    - `NAKSHA_JWT_PUB_KEY`: Naksha JWT public key. If not provided then it will load it from `here-naksha-app-service/src/main/resources/auth/jwt.pub`.
 
    When connecting Naksha app to database, one has to consider container networking - if your
    database is running locally, then when specifying its host you should use `host.docker.internal` (see default URL above) instead of `localhost`/`127.0.0.1` (docker's default network mode is isolated `bridge` so the `localhost` for container and host are 2 different things) .\
@@ -48,6 +51,18 @@ To get Naksha container running, one must do the following:
       -p 8080:8080 \
       local-naksha-app
     ```
+   or with all the environment variables:
+   ```shell
+   docker run \
+   --name=naksha-app \
+   --env NAKSHA_CONFIG_ID=<your Naksha config id> \
+   --env NAKSHA_ADMIN_DB_URL=<your DB uri that Naksha should use> \
+   --env NAKSHA_EXTENSION_S3_BUCKET=<your s3 bucket name or access point> \
+   --env NAKSHA_JWT_PVT_KEY=<your naksha JWT private key with '\n' for new lines> \
+   --env NAKSHA_JWT_PUB_KEY=<your naksha JWT public key with '\n' for new lines> \
+   -p 8080:8080 \
+   local-naksha-app
+   ```
    
 5) Verify your instance is up and running by accessing local Swagger: http://localhost:8080/hub/swagger/index.html
 

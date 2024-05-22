@@ -1,0 +1,14 @@
+{
+    "id": "cloud-config",
+    "type": "Config",
+    "httpPort": 7080,
+    "requestBodyLimit": 25,
+    "maxParallelRequestsPerCPU": 30,
+    "maxPctParallelRequestsPerActor": 100,
+    "authMode": "JWT",
+    "extensionConfigParams": {
+        "whitelistClasses": [ "java.*", "javax.*", "com.here.*", "jdk.internal.reflect.*", "com.sun.*", "org.w3c.dom.*", "sun.misc.*"],
+        "intervalms": 30000,
+        "extensionsRootPath": "s3://SOME_S3_BUCKET/extensions/"
+    }
+}

@@ -125,6 +125,7 @@ public class NakshaHub implements INaksha {
     logger.info("Value of maxPctParallelRequestsPerActor is {}", nakshaHubConfig.maxPctParallelRequestsPerActor);
     IRequestLimitManager requestLimitManager = new DefaultRequestLimitManager(
         nakshaHubConfig.maxParallelRequestsPerCPU, nakshaHubConfig.maxPctParallelRequestsPerActor);
+    logger.info("Instance level limit is {}", requestLimitManager.getInstanceLevelLimit());
     AbstractTask.setConcurrencyLimitManager(requestLimitManager);
 
     logger.info("NakshaHub initialization done!");
