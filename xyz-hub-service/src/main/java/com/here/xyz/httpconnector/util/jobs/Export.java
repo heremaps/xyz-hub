@@ -1218,7 +1218,7 @@ public class Export extends JDBCBasedJob<Export> {
         scriptParams.add("--type=" + getEmrType());
         if (readParamCompositeMode() == FULL_OPTIMIZED) {
           scriptParams.add("--delta");
-          if ("geoparquet".equals(getEmrType())) {
+          if ("geoparquet".equals(getEmrType()) && (superStatistic == null || superStatistic.getRowsUploaded() > 0)) {
             final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
             String targetSuperS3Url = sourceSuperS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
             scriptParams.add("--baseInputDir=" + targetSuperS3Url);
