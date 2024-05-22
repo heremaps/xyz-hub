@@ -533,7 +533,13 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       }
       final String props_where = sql.toString();
       sql.setLength(0);
+      boolean first = true;
       for (final String collection : collections) {
+        if (first) {
+          first = false;
+        } else {
+          sql.add(" UNION ALL ");
+        }
         SQL headQuery = prepareQuery(collection, spatial_where, props_where, readFeatures.getLimit());
         sql.add(headQuery);
         if (readFeatures.isReturnAllVersions()) {
