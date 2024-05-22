@@ -73,7 +73,7 @@ public class JobCompiler {
     return new JobCompiler();
   }
 
-  private static void registerCompilationInterceptor(Class<? extends JobCompilationInterceptor> interceptor) {
+  public static void registerCompilationInterceptor(Class<? extends JobCompilationInterceptor> interceptor) {
     interceptors.add(interceptor);
   }
 
