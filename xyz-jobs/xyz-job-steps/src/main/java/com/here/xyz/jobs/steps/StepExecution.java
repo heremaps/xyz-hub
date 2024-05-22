@@ -19,4 +19,12 @@
 
 package com.here.xyz.jobs.steps;
 
-public interface StepExecution {}
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.here.xyz.Typed;
+
+@JsonSubTypes({
+    @JsonSubTypes.Type(value = Step.class)
+})
+@JsonIgnoreProperties(ignoreUnknown = true)
+public interface StepExecution extends Typed {}

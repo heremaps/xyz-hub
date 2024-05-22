@@ -48,7 +48,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import com.google.common.base.Strings;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.util.service.logging.LogUtil;
-import com.here.xyz.util.web.HubWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;

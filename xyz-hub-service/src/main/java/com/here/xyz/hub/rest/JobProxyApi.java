@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Service;
@@ -295,7 +296,7 @@ public class JobProxyApi extends Api{
             try{
               //Deserialize and serialize the response list again to filter out internal job properties
               List<Job> upstreamResponse = XyzSerializable.deserialize(res.body().getBytes(), new TypeReference<List<Job>>() {});
-              sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), Json.decodeValue(XyzSerializable.serialize(upstreamResponse, Job.Public.class)));
+              sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), Json.decodeValue(XyzSerializable.serialize(upstreamResponse, (Class<? extends SerializationView>) null)));
               return;
             }catch (Exception e){
               logger.error(LogUtil.getMarker(context), "Error in Job-Proxy during response serialization.", e);

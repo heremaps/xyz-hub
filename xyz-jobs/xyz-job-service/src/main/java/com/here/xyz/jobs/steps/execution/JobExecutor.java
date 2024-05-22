@@ -19,29 +19,44 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public abstract class JobExecutor {
+public abstract class JobExecutor implements Initializable {
   private static final Logger logger = LogManager.getLogger();
-  private static final JobExecutor instance = new StateMachineExecutor(); //TODO: Use a different impl locally
   private static final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+  private static final JobExecutor instance = new StateMachineExecutor();
   private static volatile boolean running;
   private static volatile boolean stopRequested;
+  private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
+  private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
+  private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
 
   {
-    exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, TimeUnit.SECONDS);
+    //TODO: Activate checking for PENDING jobs
+    //exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, TimeUnit.SECONDS);
   }
+
+  protected JobExecutor() {}
 
   public static JobExecutor getInstance() {
     return instance;
@@ -49,25 +64,33 @@ public abstract class JobExecutor {
 
   public final Future<Void> startExecution(Job job, String formerExecutionId) {
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
-    if (mayExecute(job)) {
-      //Update the job status atomically, that now is RUNNING to make sure no other node will try to start it.
-      job.getStatus().setState(RUNNING);
-      //TODO: Update / invalidate the reserved unit maps?
-      return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic
-          .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
-          //Execution was started successfully, store the execution ID.
-          .compose(executionId -> job.withExecutionId(executionId).store());
-    }
-    else
-      //The Job remains in PENDING state and will be checked be later again if it may be executed
-      return Future.succeededFuture();
+    return mayExecute(job)
+        .compose(executionAllowed -> {
+          if (!executionAllowed)
+            //The Job remains in PENDING state and will be checked be later again if it may be executed
+            return Future.succeededFuture();
+
+          //Update the job status atomically, that now is RUNNING to make sure no other node will try to start it.
+          job.getStatus()
+              .withState(RUNNING)
+              .withInitialEndTimeEstimation(Core.currentTimeMillis()
+                  + job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000);
+          //TODO: Update / invalidate the reserved unit maps?
+          return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic using new method JobConfigClient#updateState()
+              .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
+              //Execution was started successfully, store the execution ID.
+              .compose(executionId -> job.withExecutionId(executionId).store());
+        });
   }
 
+  //TODO: Start the following thread implementation at service as scheduled recurring task (e.g, run once every minute)
   private void checkPendingJobs() {
     running = true;
-    if (stopRequested)
+    if (stopRequested) {
       //Do not start an execution if a stop was requested
+      running = false;
       return;
+    }
 
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)
@@ -88,13 +111,67 @@ public abstract class JobExecutor {
     }
   }
 
+  @Override
+  public Future<Void> init() {
+    checkCancellations();
+    return Initializable.super.init();
+  }
+
+  /**
+   * Starts a process which performs the following actions *once*:
+   *  - Check if there exist any jobs which are currently in CANCELLING state
+   *  - For each job in CANCELLING state
+   *    - wait until all its steps are in state CANCELLED
+   *    - Once that is the case update the job to state CANCELLED
+   *  - Complete the process once all the affected jobs are in state CANCELLED
+   *  - If the affected jobs are not all in state CANCELLED after a specified timeout do the following:
+   *    - Update the remaining jobs to the FAILED state and set them to be not resumable
+   *    - Throw an exception to stop the process
+   */
+  protected static void checkCancellations() {
+    if (cancellationCheckRunning.compareAndSet(false, true))
+      JobConfigClient.getInstance().loadJobs(CANCELLING)
+          .compose(jobs -> Future.all(jobs.stream().map(job -> {
+            if (job.getSteps().stepStream().allMatch(step -> step.getStatus().getState() == CANCELLED)) {
+              job.getStatus().setState(CANCELLED);
+              return job.store();
+            }
+            return Future.succeededFuture();
+          }).collect(Collectors.toList())).map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).collect(Collectors.toList())))
+          .compose(remainingJobs -> {
+            if (remainingJobs.isEmpty())
+              return Future.succeededFuture(false);
+
+            //Fail all jobs of which the cancellation did not work within <CANCELLATION_TIMEOUT> ms
+            List<Job> jobsToFail = remainingJobs
+                .stream()
+                .filter(job -> job.getStatus().getUpdatedAt() + CANCELLATION_TIMEOUT < Core.currentTimeMillis())
+                .collect(Collectors.toList());
+            jobsToFail.forEach(job -> {
+              //TODO: Set failure cause
+              job.getStatus().setState(FAILED);
+              job.store();
+            });
+
+            //If there are still remaining jobs, run the cancellation check again
+            return Future.succeededFuture(jobsToFail.size() < remainingJobs.size());
+          })
+          .onFailure(t -> logger.error("Error in checkCancellations process:", t))
+          .onSuccess(runAgain -> exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS))
+          .onComplete(ar -> cancellationCheckRunning.set(false));
+  }
+
   protected abstract Future<String> execute(Job job);
 
   protected abstract Future<String> execute(StepGraph formerGraph, Job job);
 
   protected abstract Future<String> resume(Job job, String executionId);
 
-  public abstract Future<Boolean> cancel(String executionId);
+  public abstract Future<Void> cancel(String executionId);
+
+  public abstract Future<Void> delete(String executionId);
+
+  public abstract Future<List<String>> list();
 
   /**
    * Checks for all resource-loads of the specified job whether they can be fulfilled. If yes, the job may be executed.
@@ -102,9 +179,18 @@ public abstract class JobExecutor {
    * @param job The job to be checked
    * @return true, if the job may be executed / enough resources are free
    */
-  private boolean mayExecute(Job job) {
-    //Check for all needed resource-loads whether they can be fulfilled
-    return job.calculateResourceLoads().stream().allMatch(load -> load.getEstimatedVirtualUnits() < load.getResource().getFreeVirtualUnits());
+  private Future<Boolean> mayExecute(Job job) {
+    //Check for all needed resource loads whether they can be fulfilled
+    return ResourcesRegistry.getFreeVirtualUnits()
+        .map(freeVirtualUnits -> job.calculateResourceLoads().stream()
+            .allMatch(load -> {
+              final boolean sufficientFreeUnits = load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
+              if (!sufficientFreeUnits)
+                logger.info("Job {} can not be executed (yet) as there are not sufficient units available of resource {}. "
+                        + "Needed units: {}, currently available units: {}",
+                    job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
+              return sufficientFreeUnits;
+            }));
   }
 
   public static void shutdown() throws InterruptedException {

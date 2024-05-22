@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,8 +80,7 @@ public class JsonMappingTest {
     assertEquals("Hello World!", obj.getErrorMessage());
   }
 
-  //@Test
-  //TODO: Please change the URL to some file:/// URL
+  @Test
   public void parseTest() throws Exception {
     final String json = "{ \"type\": \"EventNotification\", \"eventType\": \"ModifyFeaturesEvent.request\", \"event\": { \"type\": \"ModifyFeaturesEvent\", \"space\": \"foo\", \"params\": { \"schemaUrl\": \"file:///someSchema.json\" }, \"insertFeatures\": [ { \"geometry\": { \"type\": \"Point\", \"coordinates\": [ 14.3222, -2.32506 ] }, \"type\": \"Feature\", \"properties\": { \"name\": \"Toyota\", \"@ns:com:here:xyz\": { \"tags\": [ \"yellow\" ] } } }, { \"geometry\": { \"type\": \"Point\", \"coordinates\": [ 14.3222, -2.32506 ] }, \"type\": \"Feature\", \"properties\": { \"name\": \"Tesla\", \"@ns:com:here:xyz\": { \"tags\": [ \"red\" ] } } } ] } }";
     EventNotification obj = new ObjectMapper().readValue(json, EventNotification.class);
@@ -204,6 +203,7 @@ public class JsonMappingTest {
     JsonNode node = mapper.readValue(JsonMappingTest.class.getResourceAsStream("test/SpaceWithListenersAsMap.json"), JsonNode.class);
     Space space = mapper.convertValue(node, Space.class);
   }
+
   @Test
   public void testSpaceWithNullListeners() throws Exception {
     ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, true);

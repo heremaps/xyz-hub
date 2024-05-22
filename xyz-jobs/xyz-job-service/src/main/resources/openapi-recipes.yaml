@@ -1,0 +1,22 @@
+---
+recipes:
+  - name: contract
+    replace:
+      - type: value
+        path: servers.0.url
+        replace: ${SERVER_URL}
+      - type: key
+        path: paths.'/spaces/{spaceId}/jobs'
+        replace: paths.'/hub/spaces/{spaceId}/jobs'
+      - type: key
+        path: paths.'/spaces/{spaceId}/jobs/{jobId}'
+        replace: paths.'/hub/spaces/{spaceId}/jobs/{jobId}'
+      - type: key
+        path: paths.'/spaces/{spaceId}/jobs/{jobId}/inputs'
+        replace: paths.'/hub/spaces/{spaceId}/jobs/{jobId}/inputs'
+      - type: key
+        path: paths.'/spaces/{spaceId}/jobs/{jobId}/outputs'
+        replace: paths.'/hub/spaces/{spaceId}/jobs/{jobId}/outputs'
+      - type: key
+        path: paths.'/spaces/{spaceId}/jobs/{jobId}/status'
+        replace: paths.'/hub/spaces/{spaceId}/jobs/{jobId}/status'

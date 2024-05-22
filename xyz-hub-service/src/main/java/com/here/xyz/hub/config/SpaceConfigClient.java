@@ -23,7 +23,7 @@ import com.google.common.util.concurrent.Monitor;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
-import com.here.xyz.hub.util.di.ImplementationProvider;
+import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -172,6 +172,8 @@ public abstract class SpaceConfigClient implements Initializable {
 
   protected abstract Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery);
+
+  public abstract Future<List<Space>> getSpacesFromSuper(Marker marker, String parentSpaceId);
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);

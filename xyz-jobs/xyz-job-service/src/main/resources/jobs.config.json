@@ -1,0 +1,25 @@
+{
+  "HTTP_PORT": 7070,
+  "ECPS_PHRASE": "local",
+
+  "DB_STATEMENT_TIMEOUT_IN_S" : 86400,
+  "DB_ACQUIRE_RETRY_ATTEMPTS" : 10,
+  "DB_CHECKOUT_TIMEOUT" : 10,
+
+  "MAX_CONCURRENT_MAINTENANCE_TASKS" : 1 ,
+  "MISSING_MAINTENANCE_WARNING_IN_HR" : 12,
+
+  "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
+  "STORAGE_DB_USER": "postgres",
+  "STORAGE_DB_PASSWORD": "password",
+
+  "LOCALSTACK_ENDPOINT" : "http://localhost:4566",
+  "AWS_REGION" : "us-east-1",
+
+  "STEP_LAMBDA_ARN" : "arn:aws:lambda:us-east-1:000000000000:function:job-step",
+
+  "JOBS_DYNAMODB_TABLE_ARN": "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local",
+  "JOBS_S3_BUCKET": "test-bucket",
+
+  "HUB_ENDPOINT" : "http://localhost:8080/hub"
+}

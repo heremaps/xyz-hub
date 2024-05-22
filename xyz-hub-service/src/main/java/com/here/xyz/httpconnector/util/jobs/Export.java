@@ -84,7 +84,7 @@ import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -285,7 +285,7 @@ public class Export extends JDBCBasedJob<Export> {
                     versionRefSource.setVersionRef(new Ref(version));
                     setTargetVersion(String.valueOf(version));
                   }
-                  catch (HubWebClientException e) {
+                  catch (WebClientException e) {
                     return Future.failedFuture(e);
                   }
                 }
@@ -296,7 +296,7 @@ public class Export extends JDBCBasedJob<Export> {
                     Space space = CService.hubWebClient.loadSpace(identifiable.getId());
                     setSpaceCreatedAt( space.getCreatedAt() );
                   }
-                  catch (HubWebClientException e) {
+                  catch (WebClientException e) {
                     return Future.failedFuture(e);
                   }
                 }
