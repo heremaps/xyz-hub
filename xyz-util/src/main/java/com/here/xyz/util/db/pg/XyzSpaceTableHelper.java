@@ -60,7 +60,7 @@ public class XyzSpaceTableHelper {
     UPDATED_AT,
     CREATED_AT,
     VIZ,
-    AUTHOR;
+    AUTHOR
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
