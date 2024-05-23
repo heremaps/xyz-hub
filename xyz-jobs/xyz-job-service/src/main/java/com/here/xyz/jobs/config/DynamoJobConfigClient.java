@@ -32,7 +32,6 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
-
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -139,20 +138,25 @@ public class DynamoJobConfigClient extends JobConfigClient {
   @Override
   public Future<Void> updateStatus(Job job, State expectedPreviousState) {
     return dynamoClient.executeQueryAsync(() -> {
-      try {
-        jobTable.updateItem(new UpdateItemSpec()
-            .withPrimaryKey("id", job.getId())
-            .withUpdateExpression("SET #status = :newStatus")
-            //TODO: Reactivate the state check / allow multiple expected previous steps? Allow passing null to be expected, meaning to not check at all?
-            //.withConditionExpression("#state = :oldState")
-            .withNameMap(Map.of("#status", "status"/*, "#state", "status.state"*/))
-            .withValueMap(Map.of(":newStatus", job.getStatus().toMap()/*, ":oldState", expectedPreviousState.toString()*/)));
-        return null;
+      final Map<String, String> nameMap = new HashMap<>(Map.of("#status", "status"));
+      final Map<String, Object> valueMap = new HashMap<>(Map.of(":newStatus", job.getStatus().toMap()));
+      final UpdateItemSpec updateItemSpec = new UpdateItemSpec()
+          .withPrimaryKey("id", job.getId())
+          .withUpdateExpression("SET #status = :newStatus")
+          .withNameMap(nameMap)
+          .withValueMap(valueMap);
+
+      if (expectedPreviousState != null) {
+        //TODO: Allow multiple expected previous steps?
+        nameMap.put("#state", "state");
+        valueMap.put(":oldState", expectedPreviousState.toString());
+        updateItemSpec.withConditionExpression("#state = :oldState")
+            .withNameMap(nameMap)
+            .withValueMap(valueMap);
       }
-      catch (Exception e) {
-        logger.error(e);
-        return null;
-      }
+
+      jobTable.updateItem(updateItemSpec);
+      return null;
     });
   }
 
