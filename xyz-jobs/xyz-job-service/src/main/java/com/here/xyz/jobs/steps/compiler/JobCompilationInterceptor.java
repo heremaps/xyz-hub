@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.compiler;
 
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.StepGraph;
 
@@ -59,5 +60,5 @@ public interface JobCompilationInterceptor {
    * @param job The job to be compiled into a {@link StepGraph}
    * @return The {@link StepGraph} describing the flow of steps for the specified job
    */
-  StepGraph compile(Job job);
+  CompilationStepGraph compile(Job job);
 }
