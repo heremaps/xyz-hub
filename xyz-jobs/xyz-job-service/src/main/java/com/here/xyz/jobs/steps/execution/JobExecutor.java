@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
@@ -33,6 +34,7 @@ import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -52,8 +54,7 @@ public abstract class JobExecutor implements Initializable {
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
 
   {
-    //TODO: Activate checking for PENDING jobs
-    //exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, TimeUnit.SECONDS);
+    exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
   }
 
   protected JobExecutor() {}
@@ -75,15 +76,15 @@ public abstract class JobExecutor implements Initializable {
               .withState(RUNNING)
               .withInitialEndTimeEstimation(Core.currentTimeMillis()
                   + job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000);
+
           //TODO: Update / invalidate the reserved unit maps?
-          return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic using new method JobConfigClient#updateState()
+          return job.storeStatus(PENDING)
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
         });
   }
 
-  //TODO: Start the following thread implementation at service as scheduled recurring task (e.g, run once every minute)
   private void checkPendingJobs() {
     running = true;
     if (stopRequested) {
@@ -95,12 +96,21 @@ public abstract class JobExecutor implements Initializable {
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)
           .onSuccess(pendingJobs -> {
+            pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
+            logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
             for (Job pendingJob : pendingJobs) {
               if (stopRequested)
                 return;
               //Try to start the execution of the pending job
-              startExecution(pendingJob, pendingJob.getExecutionId());
-              Thread.yield();
+              Future<Void> executionStarted = startExecution(pendingJob, pendingJob.getExecutionId());
+              while (!executionStarted.isComplete()) {
+                try {
+                  if (stopRequested)
+                    return;
+                  Thread.sleep(200);
+                }
+                catch (InterruptedException ignore) {}
+              }
             }
           })
           .onFailure(t -> logger.error("Error checking PENDING jobs", t))
