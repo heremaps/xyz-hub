@@ -21,54 +21,63 @@ package com.here.xyz.jobs.steps;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Only used during compilation to set all common step params
  */
 @JsonTypeName(value = "StepGraph")
 public class CompilationStepGraph extends StepGraph {
-  private String jobId;
+  public CompilationStepGraph() {}
 
-  private CompilationStepGraph() {}
-
-  public CompilationStepGraph(String jobId) {
-    this.jobId = jobId;
+  /**
+   * This method should be called after the whole step graph was created to set the needed properties on the steps:
+   * - job ID
+   * - previous step IDs
+   * - Starting state: NOT_READY
+   *
+   * @param jobId The job ID of the job for which this step graph was created
+   */
+  public StepGraph enrich(String jobId) {
+    enrich(jobId, new HashSet<>());
+    return this;
   }
 
-  @Override
-  public void setExecutions(List<StepExecution> executions) {
-    executions.forEach(execution -> enrichStep(execution));
-    super.setExecutions(executions);
-  }
+  /**
+   * Will be called internally to recursively define the needed properties on the steps of this graph.
+   *
+   * @param jobId The job ID of the job for which this step graph was created
+   * @param previousSteps The steps that should be treated as the previous steps for the first step(s) of this graph
+   * @return The steps that should be treated as previous steps for the next sequential execution (sibling of this graph)
+   *  in a potential parent graph
+   */
+  private Set<String> enrich(String jobId, Set<String> previousSteps) {
+    HashSet<String> previousStepsForNextSibling = new HashSet<>();
 
-  @Override
-  public StepGraph addExecution(StepExecution execution) {
-    enrichStep(execution);
-    return super.addExecution(execution);
-  }
+    for (StepExecution child : getExecutions()) {
+      if (!isParallel())
+        previousStepsForNextSibling = new HashSet<>();
 
-  private void enrichStep(StepExecution execution) {
-    if (execution instanceof Step step && step.getJobId() == null)
-      step
-          .withJobId(jobId)
-          .withPreviousStepId(getPreviousStepId())
-          .getStatus().setState(NOT_READY);
-  }
+      previousStepsForNextSibling.addAll(enrichChild(child, jobId, previousSteps));
 
-  @JsonIgnore
-  private String getPreviousStepId() {
-    List<StepExecution> executions = getExecutions();
-    if (!executions.isEmpty()) {
-      final StepExecution stepExecution = executions.get(executions.size() - 1);
-      if (stepExecution instanceof Step previousStep)
-        return previousStep.getId();
-      else
-        //TODO: Proper solution for parallel step-graphs
-        return ((CompilationStepGraph) stepExecution).getPreviousStepId();
+      if (!isParallel())
+        previousSteps = previousStepsForNextSibling;
     }
-    return null;
+
+    return previousStepsForNextSibling;
+  }
+
+  private Set<String> enrichChild(StepExecution child, String jobId, Set<String> previousSteps) {
+    return child instanceof Step step ? enrichChild(step, jobId, previousSteps)
+        : ((CompilationStepGraph) child).enrich(jobId, previousSteps);
+  }
+
+  private Set<String> enrichChild(Step step, String jobId, Set<String> previousSteps) {
+    step.withJobId(jobId)
+        .withPreviousStepIds(previousSteps)
+        .getStatus().setState(NOT_READY);
+    return Set.of(step.getId());
   }
 }
