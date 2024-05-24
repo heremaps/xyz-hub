@@ -113,10 +113,10 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonIgnore
     private AtomicBoolean executing = new AtomicBoolean();
 
-    @JsonView({Public.class})
+    @JsonIgnore
     private Map<String,ExportObject> exportObjects;
 
-    @JsonView({Public.class})
+    @JsonIgnore
     private Map<String,ExportObject> superExportObjects;
 
     @JsonView({Public.class})
@@ -490,7 +490,7 @@ public class Export extends JDBCBasedJob<Export> {
         }
     }
 
-    @JsonView({Public.class})
+    @JsonIgnore
     public Map<String,ExportObject> getSuperExportObjects() {
         if (CService.jobS3Client == null) //If being used as a model on the client side
             return this.superExportObjects == null ? Collections.emptyMap() : this.superExportObjects;
@@ -519,7 +519,7 @@ public class Export extends JDBCBasedJob<Export> {
         return exportObjectList;
     }
 
-    @JsonView({Public.class})
+    @JsonIgnore
     public Map<String,ExportObject> getExportObjects() {
         if (CService.jobS3Client == null) //If being used as a model on the client side
             return exportObjects == null ? Collections.emptyMap() : exportObjects;
