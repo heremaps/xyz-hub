@@ -19,7 +19,7 @@ if [ ! -d logs ]; then
 fi
 
 # Set local parameters
-export OTEL_RESOURCE_ATTRIBUTES=service.name=${EC2_INSTANCE_NAME},service.namespace=Naksha-v2-${EC2_ENV_UPPER}
+export OTEL_RESOURCE_ATTRIBUTES=service.name=${EC2_INSTANCE_NAME},service.namespace=Naksha-v2-${NAKSHA_ENV_UPPER}
 
 # Print basic parameters (avoid printing secrets)
 echo "NAKSHA_CONFIG_PATH : $NAKSHA_CONFIG_PATH"
@@ -27,7 +27,7 @@ echo "CONFIG_ID : $CONFIG_ID"
 echo "LOG4J_CONFIGURATION_FILE : $LOG4J_CONFIGURATION_FILE"
 echo "OTEL_RESOURCE_ATTRIBUTES : $OTEL_RESOURCE_ATTRIBUTES"
 echo "EC2_INSTANCE_NAME : $EC2_INSTANCE_NAME"
-echo "EC2_ENV : $EC2_ENV"
+echo "NAKSHA_ENV : $NAKSHA_ENV"
 echo "-Xms : $JVM_XMS"
 echo "-Xmx : $JVM_XMX"
 

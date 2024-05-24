@@ -3,13 +3,10 @@ openapi: "3.0.2"
 servers:
   - url: "http://localhost:8080/"
     description: "Local"
-  #- url: "https://naksha.ext.mapcreator.here.com/"
-  #  description: "PRD"
-  #- url: "https://naksha-e2e.ext.mapcreator.here.com/"
-  #  description: "E2E"
   - url: "https://naksha-v2-dev.ext.mapcreator.here.com/"
     description: "DEV"
-
+  - url: "https://naksha-v2.ext.mapcreator.here.com/"
+    description: "PRD"
 info:
   title: "Naskha Hub-API"
   description: "Naksha Hub-API is a REST API to provide simple access to geo data."

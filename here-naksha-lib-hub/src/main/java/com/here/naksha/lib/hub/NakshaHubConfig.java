@@ -51,8 +51,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
    */
   public static final @NotNull String APP_NAME = "naksha";
 
-  private static final String EC2_ENV = "EC2_ENV";
-  private static final String NAKSHA_ENV = "ENV";
+  private static final String NAKSHA_ENV = "NAKSHA_ENV";
 
   /**
    * The default Http request body limit in MB.
@@ -157,9 +156,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       }
       assert __endpoint != null;
     }
-    if (env == null) {
-      env = getEnv();
-    }
+    env = getEnv(env);
 
     this.hubClassName = (hubClassName != null && !hubClassName.isEmpty()) ? hubClassName : defaultHubClassName();
     this.appId = appId != null && appId.length() > 0 ? appId : "naksha";
@@ -202,12 +199,11 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
         : defaultMaxPctParallelRequestsPerActor();
   }
 
-  private String getEnv() {
+  private String getEnv(String env) {
     // This is only to be backward compatible to support EC2 based deployment
-    String envVal = System.getenv(EC2_ENV);
+    String envVal = System.getenv(NAKSHA_ENV);
     if (envVal != null && !envVal.isEmpty() && !"null".equalsIgnoreCase(envVal)) return envVal;
-    envVal = System.getenv(NAKSHA_ENV);
-    if (envVal != null && !envVal.isEmpty() && !"null".equalsIgnoreCase(envVal)) return envVal;
+    if (env != null && !env.isEmpty() && !"null".equalsIgnoreCase(env)) return env;
     return "local";
   }
 

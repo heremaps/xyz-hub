@@ -48,7 +48,7 @@ public class AmazonS3Helper implements FileClient {
     if (s3Client == null) {
       synchronized (AmazonS3Helper.class) {
         if (s3Client == null) {
-          s3Client = S3Client.builder().build();
+          s3Client = S3Client.builder().crossRegionAccessEnabled(true).build();
         }
       }
     }

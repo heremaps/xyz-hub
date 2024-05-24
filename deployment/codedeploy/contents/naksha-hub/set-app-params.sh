@@ -2,7 +2,7 @@
 
 ### Set env params based on App secrets fetched from AWS Secrets Manager
 
-SECRET_ID="$EC2_ENV/heremap/service/naksha-v2"
+SECRET_ID="$NAKSHA_ENV/heremap/service/naksha-v2"
 SECRET_RESPONSE_JSON=`aws secretsmanager get-secret-value --region $EC2_REGION --secret-id $SECRET_ID`
 
 # Validate that we really got the successful response
