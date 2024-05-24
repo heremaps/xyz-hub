@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,13 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.hub.task.Task.TaskState.CANCELLED;
+import static com.here.xyz.hub.task.Task.TaskState.ERROR;
+import static com.here.xyz.hub.task.Task.TaskState.INIT;
+import static com.here.xyz.hub.task.Task.TaskState.IN_PROGRESS;
+import static com.here.xyz.hub.task.Task.TaskState.RESPONSE_SENT;
+import static com.here.xyz.hub.task.Task.TaskState.STARTED;
+
 import com.here.xyz.events.Event;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.rest.ApiResponseType;
@@ -31,14 +38,11 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.util.internal.ConcurrentSet;
 import io.vertx.ext.web.RoutingContext;
+import java.util.Objects;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.util.Objects;
-import java.util.function.Consumer;
-
-import static com.here.xyz.hub.task.Task.TaskState.*;
 
 /**
  * A task for processing of an event.
@@ -81,7 +85,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   /**
    * A local copy of {@link Event#getIfNoneMatch()}.
    */
-  private String ifNoneMatch;
+  private final String ifNoneMatch;
 
   /**
    * Whether the event was finally consumed.
@@ -107,7 +111,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   private ConcurrentSet<Consumer<Task<T, X>>> cancellingHandlers = new ConcurrentSet<>();
 
-  private String clientId;
+  private final String requesterId;
 
   /**
    * @throws NullPointerException if the given context or responseType are null.
@@ -128,7 +132,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     context.put(TASK, this);
     this.responseType = responseType;
     this.skipCache = skipCache;
-    this.clientId = BaseHttpServerVerticle.getAuthor(context);
+    this.requesterId = BaseHttpServerVerticle.getAuthor(context);
   }
 
   public T getEvent() throws IllegalStateException {
@@ -138,8 +142,8 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   /**
    * Finally consumes the event. Calling this method the event being bound to this task will be returned and all internal references are
-   * deleted. After the event has been been consumed neither {@link #getEvent()} nor {@link #consumeEvent()} may be called anymore.
-   * Otherwise an {@link IllegalStateException} will be thrown.
+   * deleted. After the event has been consumed neither {@link #getEvent()} nor {@link #consumeEvent()} may be called anymore.
+   * Otherwise, an {@link IllegalStateException} will be thrown.
    *
    * @throws IllegalStateException In case the event was consumed already
    */
@@ -217,7 +221,6 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   /**
    * Returns the (previously) created execution pipeline.
-   * @return
    */
   public TaskPipeline<X> getPipeline() {
     if (pipeline == null)
@@ -253,14 +256,14 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
     cancellingHandlers.add(cancellingHandler);
   }
 
-  public String getClientId() {
-    return clientId;
+  public String getRequesterId() {
+    return requesterId;
   }
 
   /**
    * The state can be read to know whether an action should still be performed or may be cancelled.
    * E.g. when the task is in a final state already, it doesn't make sense to send a(nother) response or fail with another exception.
-   *
+   * <p>
    * Final states are: {@link TaskState#RESPONSE_SENT}
    * The following is true for final states:
    *  No further action should be started and pending actions should be cancelled / killed.

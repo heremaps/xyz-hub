@@ -21,7 +21,22 @@ package com.here.xyz.hub.connectors.test;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.events.*;
+import com.here.xyz.events.DeleteChangesetsEvent;
+import com.here.xyz.events.Event;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
+import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.GetStorageStatisticsEvent;
+import com.here.xyz.events.IterateChangesetsEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
+import com.here.xyz.events.LoadFeaturesEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.StatisticsResponse;
@@ -29,16 +44,15 @@ import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public class InMemoryThrottlingStorage extends StorageConnector {
+public class MockDelayStorageConnector extends StorageConnector {
 
   private static Map<String, Feature> storage = new ConcurrentHashMap<>();
   private static final Logger logger = LogManager.getLogger();

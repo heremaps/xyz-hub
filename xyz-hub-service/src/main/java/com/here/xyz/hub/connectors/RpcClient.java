@@ -19,6 +19,18 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
+import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
+import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
+
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
@@ -38,7 +50,11 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.*;
+import com.here.xyz.responses.BinaryResponse;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
@@ -46,24 +62,16 @@ import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
-import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class RpcClient {
 
@@ -253,7 +261,7 @@ public class RpcClient {
    * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
-  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String clientId) {
+  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String requesterId) {
     tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
     injectConnectorParams(event, connector);
@@ -274,7 +282,7 @@ public class RpcClient {
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
             preview(eventJson, 4092));
 
-    context.setClientId(clientId);
+    context.setRequesterId(requesterId);
 
     invokeWithRelocation(marker, context, eventBytes, false, hasPriority, bytesResult -> {
       if (functionClient == null) {
@@ -314,15 +322,7 @@ public class RpcClient {
     return execute(marker, event, hasPriority, callback, null, null);
   }
 
-  /**
-   * Executes an event and returns the parsed FeatureCollection response.
-   *
-   * @param marker the log marker
-   * @param event the event
-   * @param callback the callback handler
-   * @return The rpc context belonging to the request
-   */
-  @SuppressWarnings("rawtypes")
+
   public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
     return execute(marker, event, false, callback, tmpSpace, null);
   }
@@ -331,8 +331,18 @@ public class RpcClient {
     return execute(marker, event, callback, null);
   }
 
-  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String clientId) {
-    return execute(marker, event, false, callback, tmpSpace, clientId);
+  /**
+   * Executes an event and returns the parsed FeatureCollection response.
+   *
+   * @param marker the log marker
+   * @param event the event
+   * @param callback the callback handler
+   * @param requesterId the id of the sender
+   * @return The rpc context belonging to the request
+   */
+  @SuppressWarnings("rawtypes")
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String requesterId) {
+    return execute(marker, event, false, callback, tmpSpace, requesterId);
   }
 
   private String preview(String eventJson, @SuppressWarnings("SameParameterValue") int previewLength) {
@@ -622,7 +632,7 @@ public class RpcClient {
 
     private final Connector connector;
 
-    private String clientId;
+    private String requesterId;
 
     private FunctionCall functionCall;
 
@@ -632,7 +642,7 @@ public class RpcClient {
 
     public void cancelRequest() {
       cancelled = true;
-      functionCall.cancel(clientId);
+      functionCall.cancel(requesterId);
     }
 
     public int getRequestSize() {
@@ -661,12 +671,12 @@ public class RpcClient {
       return this;
     }
 
-    public String getClientId() {
-      return clientId;
+    public String getRequesterId() {
+      return requesterId;
     }
 
-    public void setClientId(String clientId) {
-      this.clientId = clientId;
+    public void setRequesterId(String requesterId) {
+      this.requesterId = requesterId;
     }
 
     public Connector getConnector() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,10 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.hub.util.AtomicUtils.compareAndDecrement;
+import static com.here.xyz.hub.util.AtomicUtils.compareAndIncrementUpTo;
+import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
+
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
 import com.here.xyz.hub.Service;
@@ -32,10 +36,6 @@ import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.impl.ConcurrentHashSet;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
@@ -46,10 +46,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-
-import static com.here.xyz.hub.util.ConnectorUtils.compareAndDecrement;
-import static com.here.xyz.hub.util.ConnectorUtils.compareAndIncrementUpTo;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public abstract class RemoteFunctionClient {
   /**
@@ -72,9 +71,9 @@ public abstract class RemoteFunctionClient {
   /**
    * All instances that were created and are active.
    */
-  private static Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
-  private static LongAdder globalMinConnectionSum = new LongAdder();
-  private static LongAdder globalMaxConnectionSum = new LongAdder();
+  private static final Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
+  private static final LongAdder globalMinConnectionSum = new LongAdder();
+  private static final LongAdder globalMaxConnectionSum = new LongAdder();
 //  private static AtomicLong lastSizeAdjustment;
 
   protected Connector connectorConfig;
@@ -86,7 +85,7 @@ public abstract class RemoteFunctionClient {
   private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
-  private static final ConcurrentHashMap<String, AtomicInteger> clientIdToConnectionsMap =  new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, AtomicInteger> usedConnectionsByRequester =  new ConcurrentHashMap<>();
 
 //  /**
 //   * Sliding average request execution time in seconds.
@@ -167,8 +166,8 @@ public abstract class RemoteFunctionClient {
 
 
     if (!hasPriority){
-        if(context.getClientId() != null) {
-          AtomicInteger connectionCount = clientIdToConnectionsMap.computeIfAbsent(context.getClientId(), (key) -> new AtomicInteger(0));
+        if(context.getRequesterId() != null) {
+          AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger(0));
           if(!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerClient(), connectionCount)) {
             callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node, throttling. "
                     + "Max connections per node limit: " + context.getConnector().getMaxConnectionsPerClient()
@@ -356,8 +355,8 @@ public abstract class RemoteFunctionClient {
       if (nextFc == null && !fc.hasPriority) {
         if(usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
-          Optional.ofNullable(context.getClientId())
-                  .map(clientIdToConnectionsMap::get)
+          Optional.ofNullable(context.getRequesterId())
+                  .map(usedConnectionsByRequester::get)
                   .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
         }
       }
@@ -493,7 +492,7 @@ public abstract class RemoteFunctionClient {
       this.cancelHandler = cancelHandler;
     }
 
-    public void cancel(String clientId) {
+    public void cancel(String requesterId) {
       cancelled = true;
       try {
         if (cancelHandler != null) {
@@ -506,8 +505,8 @@ public abstract class RemoteFunctionClient {
       finally {
         if(!hasPriority && usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection
-          Optional.ofNullable(clientId)
-                  .map(clientIdToConnectionsMap::get)
+          Optional.ofNullable(requesterId)
+                  .map(usedConnectionsByRequester::get)
                   .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
         }
       }

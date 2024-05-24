@@ -276,7 +276,7 @@ public class FeatureTaskHandler {
               scheduleContentModifiedNotification(task);
             }
           });
-        }, task.space, task.getClientId());
+        }, task.space, task.getRequesterId());
 
         XYZHubRESTVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
@@ -1461,7 +1461,7 @@ public class FeatureTaskHandler {
               return;
             }
             handler.handle(Future.succeededFuture(count));
-          }, task.space, task.getClientId());
+          }, task.space, task.getRequesterId());
     }
     catch (Exception e) {
       handler.handle(Future.failedFuture((e)));
@@ -1678,7 +1678,7 @@ public class FeatureTaskHandler {
         if (task.getState().isFinal()) return;
         addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "LF");
         processLoadEvent(task, callback, r);
-      }, task.space, task.getClientId());
+      }, task.space, task.getRequesterId());
     }
     catch (Exception e) {
       logger.warn(task.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
