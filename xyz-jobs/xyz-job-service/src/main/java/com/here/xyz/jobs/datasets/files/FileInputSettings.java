@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.datasets.files;
 
+import com.here.xyz.XyzSerializable;
+
 public class FileInputSettings {
   private FileFormat format = new GeoJson();
 
@@ -33,5 +35,10 @@ public class FileInputSettings {
   public FileInputSettings withFormat(FileFormat format) {
     setFormat(format);
     return this;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return XyzSerializable.equals(this, obj);
   }
 }

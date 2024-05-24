@@ -34,6 +34,7 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -274,20 +275,33 @@ public class Api {
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
-        serializeAndSendResponse(context, statusCode, object, null);
+        serializeAndSendResponse(context, statusCode, object, null, Public.class);
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
-        serializeAndSendResponse(context, statusCode, list, null);
+        serializeAndSendResponse(context, statusCode, list, null, Public.class);
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
         TypeReference listItemTypeReference) {
-        serializeAndSendResponse(context, statusCode, list, listItemTypeReference);
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
+    }
+
+    protected void sendAdminResponse(RoutingContext context, int statusCode, XyzSerializable object) {
+        serializeAndSendResponse(context, statusCode, object, null, null); //TODO: Use Internal view here in future
+    }
+
+    protected void sendAdminResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
+        serializeAndSendResponse(context, statusCode, list, null, null); //TODO: Use Internal view here in future
+    }
+
+    protected void sendAdminResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
+        TypeReference listItemTypeReference) {
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, null); //TODO: Use Internal view here in future
     }
 
     private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object,
-        TypeReference listItemTypeReference) {
+        TypeReference listItemTypeReference, Class<? extends SerializationView> view) {
         if (listItemTypeReference != null && !(object instanceof List))
             throw new IllegalArgumentException("Type info for list items may only be specified if the object to be serialized is a list.");
 
@@ -300,8 +314,8 @@ public class Api {
             else
                 response = object instanceof ByteArrayOutputStream bos ? bos.toByteArray()
                     : (listItemTypeReference == null
-                        ? XyzSerializable.serialize(object, Public.class)
-                        : XyzSerializable.serialize((List<?>) object, Public.class, listItemTypeReference)).getBytes();
+                        ? XyzSerializable.serialize(object, view)
+                        : XyzSerializable.serialize((List<?>) object, view, listItemTypeReference)).getBytes();
         }
         catch (EncodeException e) {
             sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));

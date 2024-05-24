@@ -48,11 +48,18 @@ public class JobAdminApi extends Api {
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
+    router.route(HttpMethod.GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
     router.route(HttpMethod.GET, ADMIN_JOB).handler(handleErrors(this::getJob));
     router.route(HttpMethod.DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
     router.route(HttpMethod.POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(HttpMethod.GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
     router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
+  }
+
+  private void getJobs(RoutingContext context) {
+    Job.loadAll()
+        .onSuccess(res -> sendAdminResponse(context, OK.code(), res))
+        .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJob(RoutingContext context) {
