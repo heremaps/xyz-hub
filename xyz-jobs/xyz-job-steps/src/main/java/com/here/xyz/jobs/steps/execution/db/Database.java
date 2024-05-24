@@ -21,22 +21,24 @@ package com.here.xyz.jobs.steps.execution.db;
 
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.util.db.DatabaseSettings.PSQL_HOST;
+import static com.here.xyz.util.db.DatabaseSettings.PSQL_REPLICA_HOST;
 
-import com.amazonaws.services.rds.model.DBCluster;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.resources.AwsRDSClient;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.models.hub.Connector;
+import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
 import com.here.xyz.util.web.HubWebClientAsync;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -53,6 +56,7 @@ import org.apache.logging.log4j.Logger;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.Name;
 import org.xbill.DNS.Record;
+import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
   private static final Logger logger = LogManager.getLogger();
@@ -62,6 +66,7 @@ public class Database extends ExecutionResource {
       .newBuilder()
       .expireAfterWrite(3, TimeUnit.MINUTES)
       .build();
+  private static final String ALL_DATABASES = "ALL_DATABASES";
   private String name;
   private DatabaseRole role;
   private String clusterId;
@@ -87,10 +92,17 @@ public class Database extends ExecutionResource {
     return dbSettings;
   }
 
-  //TODO: Needed at all?
-  public static List<Database> getAll() {
-    //TODO: Call initializeDatabases internally here and cache it in a static guava cache internally for some time
-    return null;
+  public static Future<List<Database>> getAll() {
+    logger.info("Gathering all database objects ...");
+    List<Database> allDbs = cache.getIfPresent(ALL_DATABASES);
+    if (allDbs != null)
+      return Future.succeededFuture(allDbs);
+
+    return initializeDatabases()
+        .compose(loadedDbs -> {
+          cache.put(ALL_DATABASES, loadedDbs);
+          return Future.succeededFuture(loadedDbs);
+        });
   }
 
   public static Database loadDatabase(String name, DatabaseRole role) {
@@ -100,24 +112,59 @@ public class Database extends ExecutionResource {
       return dbs.stream()
           .filter(db -> db.getName().equals(name) && role.equals(db.getRole())).findAny().get();
     }
-    catch (NoSuchElementException | HubWebClientException e) {
+    catch (NoSuchElementException | WebClientException e) {
       //The requested database was not found
       throw new RuntimeException("No database was found with name " + name + " and role " + role, e);
     }
   }
 
-  private static Future<Void> initializeDatabases() {
+  protected static Database loadDatabase(String name, String id) {
+    try {
+      List<Database> dbs = loadDatabasesForConnector(HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadConnector(name));
+
+      return dbs.stream()
+          .filter(db -> db.getName().equals(name) && db.getId().equals(id)).findAny().get();
+    }
+    catch (NoSuchElementException | WebClientException e) {
+      //The requested database was not found
+      throw new RuntimeException("No database was found with name " + name + " and id " + id, e);
+    }
+  }
+
+  private static Future<List<Database>> initializeDatabases() {
     return HubWebClientAsync.getInstance(Config.instance.HUB_ENDPOINT).loadConnectorsAsync()
         .compose(connectors -> {
           //TODO: Run the following asynchronously
+          List<Database> allDbs = new CopyOnWriteArrayList<>();
           for (Connector connector : connectors) {
-            loadDatabasesForConnector(connector);
+            if (connector.allowedEventTypes == null) //TODO: Remove that workaround once a proper region check was implemented
+              allDbs.addAll(loadDatabasesForConnector(connector));
           }
-          return Future.succeededFuture();
+          return Future.succeededFuture(allDbs);
         });
   }
 
+  /**
+   * @deprecated This method is used only as workaround for DNS resolution of connector-DB-host and will be removed soon.
+   * Please do not use it for any other purposes.
+   */
+  @Deprecated
+  private static boolean isLocal() {
+    return Config.instance.LOCALSTACK_ENDPOINT != null;
+  }
+
+  private static void fixLocalDbHosts(Map<String, Object> dbSettings) {
+    if (!isLocal() || Config.instance.LOCAL_DB_HOST_OVERRIDE == null)
+      return;
+
+    if (dbSettings.get(PSQL_HOST) instanceof String dbHost)
+      dbSettings.put(PSQL_HOST, dbHost.replace("localhost", Config.instance.LOCAL_DB_HOST_OVERRIDE));
+    if (dbSettings.get(PSQL_REPLICA_HOST) instanceof String dbHost)
+      dbSettings.put(PSQL_REPLICA_HOST, dbHost.replace("localhost", Config.instance.LOCAL_DB_HOST_OVERRIDE));
+  }
+
   private static List<Database> loadDatabasesForConnector(Connector connector) {
+    logger.info("Gathering database objects for connector \"{}\" ...", connector.id);
     List<Database> databasesFromCache = cache.getIfPresent(connector.id);
     if (databasesFromCache != null)
       return databasesFromCache;
@@ -125,33 +172,51 @@ public class Database extends ExecutionResource {
     List<Database> databases = new ArrayList<>();
 
     if (connector.active) {
-      final Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(Config.instance.ECPS_PHRASE,
-          ConnectorParameters.fromMap(connector.params).getEcps());
-      DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap);
+      final ConnectorParameters connectorParameters = ConnectorParameters.fromMap(connector.params);
+      if (connectorParameters.getEcps() != null) { //Ignore connectors which have no db settings
+        final Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(Config.instance.ECPS_PHRASE,
+            connectorParameters.getEcps());
+        fixLocalDbHosts(connectorDbSettingsMap);
 
-      String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
+        DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap);
 
-      if (rdsClusterId == null) {
-        logger.warn("No cluster ID detected for hostname of DB \"" + connector.id + "\". Taking it into account as simple writer DB.");
-        databases.add(new Database(null, null, 128, connectorDbSettingsMap)
-            .withName(connector.id)
-            .withRole(WRITER));
-      }
-      else {
-        DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
-        dbCluster.getDBClusterMembers().forEach(instance -> {
-          final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
+        String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
 
-          databases.add(new Database(rdsClusterId, instance.getDBInstanceIdentifier(),
-              dbCluster.getServerlessV2ScalingConfiguration().getMaxCapacity(), connectorDbSettingsMap)
+        if (rdsClusterId == null) {
+          logger.warn("No cluster ID detected for hostname of DB \"" + connector.id + "\". Taking it into account as simple writer DB.");
+          databases.add(new Database(null, null, 128, connectorDbSettingsMap)
               .withName(connector.id)
-              .withRole(role));
-        });
+              .withRole(WRITER));
+        }
+        else {
+          DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
+          dbCluster.dbClusterMembers().forEach(instance -> {
+            final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
+
+            databases.add(new Database(rdsClusterId, instance.dbInstanceIdentifier(),
+                dbCluster.serverlessV2ScalingConfiguration().maxCapacity(), connectorDbSettingsMap)
+                .withName(connector.id)
+                .withRole(role));
+          });
+        }
       }
     }
 
+    //Update the cache
+    updateAllDbsCacheEntry(connector, databases);
     cache.put(connector.id, databases);
+
     return databases;
+  }
+
+  private static void updateAllDbsCacheEntry(Connector connector, List<Database> databases) {
+    List<Database> allDbs = cache.getIfPresent(ALL_DATABASES);
+    if (allDbs != null) {
+      for (Database db : allDbs)
+        if (db.name.equals(connector.id))
+          allDbs.remove(db);
+      allDbs.addAll(databases);
+    }
   }
 
   public static String getClusterIdFromHostname(String hostname) {
@@ -221,6 +286,19 @@ public class Database extends ExecutionResource {
   @Override
   protected double getMaxVirtualUnits() {
     return getMaxUnits() * DB_MAX_JOB_UTILIZATION_PERCENTAGE;
+  }
+
+  @Override
+  protected String getId() {
+    return Hasher.getHash(getName() + getDatabaseSettings().getHost());
+  }
+
+  @Override
+  public String toString() {
+    return "Database{" +
+        "name='" + name + '\'' +
+        ", role=" + role +
+        '}';
   }
 
   public enum DatabaseRole {

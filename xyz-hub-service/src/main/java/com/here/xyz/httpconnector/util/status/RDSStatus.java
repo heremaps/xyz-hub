@@ -195,7 +195,31 @@ public class RDSStatus {
         if(maxCapacityUnits == null)
             maxCapacityUnits = 16;
 
-        /** 2GB per ACU / 6GB reserved */
-        return maxCapacityUnits * 2 - 6;
+        /**
+         * We need to reserve Memory for
+         * The operating system (1GB)
+         * The rest: Amazon RDS processes / The database engine / Worker threads / Business Intelligence suite (SSIS, SSAS, SSRS) applications, and so on.
+         */
+
+        int reservedForOs = 1;
+
+        /** 2GB per ACU */
+        int maxFreeMemory = maxCapacityUnits * 2;
+
+        int memoryBasis = 0;
+
+        if (maxFreeMemory >= 4 && maxFreeMemory <= 16) {
+            //reserve 1GB per 4GB free Mem
+            memoryBasis = maxFreeMemory / 4;
+        } else if (maxFreeMemory >= 16 && maxFreeMemory <= 128) {
+            //reserve 1GB per 8GB free Mem
+            memoryBasis = maxFreeMemory / 8;
+        }else if (maxFreeMemory >= 128) {
+            //reserve 1GB per 16GB free Mem
+            memoryBasis = maxFreeMemory / 16;
+        }
+
+        /** maxAvailableServerMemory - reservedForOs */
+        return maxFreeMemory - (reservedForOs + memoryBasis);
     }
 }

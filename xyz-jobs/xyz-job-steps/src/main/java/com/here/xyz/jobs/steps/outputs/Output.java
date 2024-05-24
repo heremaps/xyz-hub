@@ -24,12 +24,13 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DownloadUrl.class, name = "DownloadUrl"),
-    @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics")
+    @JsonSubTypes.Type(value = ModelBasedOutput.class, name = "ModelBasedOutput")
 })
 public abstract class Output<T extends Output> implements Typed {
   @JsonAnySetter
@@ -37,7 +38,7 @@ public abstract class Output<T extends Output> implements Typed {
   @JsonIgnore
   private String s3Key;
 
-  public abstract void store(String s3Key);
+  public abstract void store(String s3Key) throws IOException;
 
   @JsonAnyGetter
   public Map<String, String> getMetadata() {
@@ -71,5 +72,10 @@ public abstract class Output<T extends Output> implements Typed {
       setMetadata(new HashMap<>());
     getMetadata().put(key, value);
     return (T) this;
+  }
+
+  @JsonIgnore
+  protected boolean hasMetadata() {
+    return false;
   }
 }

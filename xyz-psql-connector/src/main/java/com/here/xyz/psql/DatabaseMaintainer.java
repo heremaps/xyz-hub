@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 192;
+    public static final int XYZ_EXT_VERSION = 193;
 
     public static final int H3_CORE_VERSION = 108;
 
@@ -119,7 +119,7 @@ public class DatabaseMaintainer {
 
             //Check if database is prepared to work with PSQL Connector. Therefore, it's needed to check Extensions, Schemas, Tables and Functions.
             Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(propertySearch, dbSettings.getUser(), dbSettings.getDb()));
+            ResultSet rs = stmt.executeQuery(MaintenanceSQL.generateCheckExtensionsSQL(propertySearch, dbSettings.getUser(), dbSettings.getDb(), dbSettings.runsLocal()));
 
             if (rs.next()) {
                 userHasCreatePermissions = rs.getBoolean("has_create_permissions");
@@ -284,7 +284,7 @@ public class DatabaseMaintainer {
                 int mode = autoIndexing == true ? 2 : 0;
 
                 /** Maintain INDICES */
-                stmt.execute(MaintenanceSQL.generateIDXSQL(dbSettings.getSchema(), dbSettings.getUser(), dbSettings.getPassword(), dbSettings.getDb(),"localhost", dbSettings.getPort(), mode));
+                stmt.execute(MaintenanceSQL.generateIDXSQL(dbSettings.getSchema(), dbSettings.getUser(), dbSettings.getPassword(), dbSettings.getDb(), dbSettings.getHost(), dbSettings.getPort(), mode));
             }
         }
         catch (Exception e) {

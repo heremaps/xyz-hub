@@ -21,18 +21,38 @@ package com.here.xyz.jobs.config;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.service.JobService;
+import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import java.util.ArrayList;
 import java.util.List;
 
 public abstract class JobConfigClient implements Initializable {
 
   public static JobConfigClient getInstance() {
-    //TODO: Chose the right client impl using SPI here
-    return new DynamoJobConfigClient(""); //TODO: Get table name from env vars
+    return Provider.provideInstance();
   }
 
-  public abstract Future<Job> loadJob(String resourceKey, String jobId);
+  public static abstract class Provider implements ImplementationProvider {
+    private static JobConfigClient client;
+    public Provider() {}
+    protected abstract JobConfigClient getInstance();
+    private static JobConfigClient provideInstance() {
+      if (client == null)
+        client = ImplementationProvider.loadProvider(Provider.class).getInstance();
+      return client;
+    }
+  }
+
+  public abstract Future<Job> loadJob(String jobId);
+
+  /**
+   * Load all jobs.
+   * @return A list of all jobs
+   */
+  public abstract Future<List<Job>> loadJobs();
 
   /**
    * Load all jobs with a specified type.
@@ -48,7 +68,44 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<List<Job>> loadJobs(String resourceKey);
 
-  public abstract Future<Void> storeJob(String resourceKey, Job job);
+  public abstract Future<Void> storeJob(Job job);
 
-  public abstract Future<Void> deleteJob(String resourceKey, String jobId);
+  /**
+   * Atomically updates the state of a job by ensuring the expectedPreviousState is matching just before writing.
+   * @param job
+   * @param expectedPreviousState
+   * @return
+   */
+  public abstract Future<Void> updateState(Job job, State expectedPreviousState);
+
+  public abstract Future<Void> updateStatus(Job job, State expectedPreviousState);
+
+  public abstract Future<Void> updateStep(Job job, Step<?> newStep);
+
+  public abstract Future<Void> deleteJob(String jobId);
+
+
+  /*
+  TODO: Provide a more generic variant of the method #loadJobs ...
+  E.g.:
+  public abstract Future<List<Job>> loadJobs(State[] state, long completedBefore);
+   */
+
+  public Future<List<Job>> loadFailedAndSucceededJobsOlderThan(Integer olderThanInMs) {
+    List<Job> jobList = new ArrayList<>();
+
+    return loadJobs(State.SUCCEEDED)
+            .compose(succeedJobs -> { jobList.addAll(succeedJobs); return loadJobs(State.FAILED);})
+            .compose(failedJobs -> Future.succeededFuture(failedJobs.stream().filter(job -> !job.isResumable()).toList()))
+            .compose(notResumableFailedJobs -> { jobList.addAll(notResumableFailedJobs); return Future.succeededFuture(jobList);})
+            .compose(result -> {
+                      if (olderThanInMs != null)
+                        /** Filter all results which are older than provided timestamp */
+                        return Future.succeededFuture(
+                                result.stream().filter(job -> (JobService.currentTimeMillis() - job.getCreatedAt()) > olderThanInMs).toList()
+                        );
+                      return Future.succeededFuture(result);
+                    }
+            );
+  }
 }

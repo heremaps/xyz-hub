@@ -17,9 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.di;
+package com.here.xyz.util.di;
 
-import com.here.xyz.hub.util.di.ImplementationInstanceProvider.Implementable;
+import com.here.xyz.util.di.ImplementationInstanceProvider.Implementable;
 
 /**
  * A default implementation for {@link ImplementationProvider} which provides the ability to return an instance of

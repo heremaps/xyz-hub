@@ -25,7 +25,6 @@ import java.util.Arrays;
 import org.apache.commons.lang3.StringUtils;
 
 public class ARN {
-
   private String[] nonResourceParts;
   private String resource;
 
@@ -77,5 +76,4 @@ public class ARN {
   public String toString() {
     return String.join(":", nonResourceParts) + ":" + resource;
   }
-
 }

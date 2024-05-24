@@ -20,42 +20,77 @@
 package com.here.xyz.jobs.steps;
 
 import com.here.xyz.jobs.Job;
-import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.jobs.datasets.Files;
-import com.here.xyz.jobs.steps.impl.CreateIndex;
-import com.here.xyz.jobs.steps.impl.DropIndexes;
-import com.here.xyz.jobs.steps.impl.ImportFilesToSpace;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
+import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
+import com.here.xyz.util.Async;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
+import io.vertx.core.impl.ConcurrentHashSet;
+import java.lang.reflect.InvocationTargetException;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.apache.commons.lang3.NotImplementedException;
 
 public class JobCompiler {
 
+  private static Set<Class<? extends JobCompilationInterceptor>> interceptors = new ConcurrentHashSet<>();
+  public static final Async async = new Async(5, Core.vertx, Job.class);
+
+  static {
+    registerCompilationInterceptor(ImportFromFiles.class);
+  }
+
   public Future<StepGraph> compile(Job job) {
-
-    if (job.getSource() instanceof Files && job.getTarget() instanceof DatasetDescription.Space) {
-
-      String spaceId = job.getTarget().getKey();
-      StepGraph graph = new StepGraph()
-              .addExecution(new DropIndexes().withSpaceId(spaceId))         // Drop all existing indices
-              .addExecution(new ImportFilesToSpace().withSpaceId(spaceId))  // Perform import
-              .addExecution(new StepGraph()                                 // Create all the base indices in parallel
-                      .withExecutions(Stream.of(XyzSpaceTableHelper.Index.values())
-                              .map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId))
-                              .collect(Collectors.toList()))
-                      .withParallel(true)); //TODO: Do not create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
-
-      return Future.succeededFuture(graph);
-
+    //First identify the correct compilation interceptor
+    List<JobCompilationInterceptor> interceptorCandidates = new LinkedList<>();
+    List<CompilationError> errors = new LinkedList<>();
+    for (Class<? extends JobCompilationInterceptor> interceptor : interceptors) {
+      JobCompilationInterceptor interceptorInstance;
+      try {
+        interceptorInstance = interceptor.getDeclaredConstructor().newInstance();
+        if (interceptorInstance.chooseMe(job))
+          interceptorCandidates.add(interceptorInstance);
+      }
+      catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
+        errors.add(new CompilationError("Error instantiating compilation interceptor " + interceptor.getSimpleName(), e));
+      }
     }
-    else
-      return Future.failedFuture(new NotImplementedException("Only Space Import job is currently supported"));
+
+    if (interceptorCandidates.isEmpty())
+      throw new CompilationError("Job " + job.getId() + " is not supported. No according compilation interceptor was found.",
+          errors);
+
+    if (interceptorCandidates.size() > 1)
+      throw new CompilationError("Job " + job.getId() + " can not be compiled due to ambiguity. "
+          + "Multiple compilation interceptors were found: "
+          + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")), errors);
+
+    return async.run(() -> interceptorCandidates.get(0).compile(job));
   }
 
   public static JobCompiler getInstance() {
-    //TODO: Return singleton instance using SPI
-    return null;
+    return new JobCompiler();
+  }
+
+  public static void registerCompilationInterceptor(Class<? extends JobCompilationInterceptor> interceptor) {
+    interceptors.add(interceptor);
+  }
+
+  public static class CompilationError extends RuntimeException {
+    private List<CompilationError> otherErrors;
+
+    public CompilationError(String message) {
+      super(message);
+    }
+
+    public CompilationError(String message, Throwable cause) {
+      super(message, cause);
+    }
+
+    public CompilationError(String message, List<CompilationError> otherErrors) {
+      super(message, otherErrors.isEmpty() ? null : otherErrors.get(0));
+      this.otherErrors = otherErrors;
+    }
   }
 }

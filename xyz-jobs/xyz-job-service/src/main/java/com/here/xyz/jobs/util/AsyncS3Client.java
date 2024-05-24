@@ -17,10 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs;
+package com.here.xyz.jobs.util;
 
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.here.xyz.jobs.steps.S3Client;
+import com.here.xyz.jobs.service.Config;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
@@ -40,9 +40,9 @@ public class AsyncS3Client extends S3Client {
 
   //NOTE: Only the long-blocking methods are added as async variants
 
-  public Future<Void> deleteS3FolderAsync(String folderPath) {
+  public Future<Void> deleteFolderAsync(String folderPath) {
     return async.run(() -> {
-      deleteS3Folder(folderPath);
+      deleteFolder(folderPath);
       return null;
     });
   }

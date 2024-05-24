@@ -22,15 +22,17 @@ package com.here.xyz.jobs.steps.impl;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateIndex.class),
@@ -40,6 +42,7 @@ import com.here.xyz.util.web.HubWebClient.HubWebClientException;
     @JsonSubTypes.Type(value = MarkForMaintenance.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
+  @JsonView({Internal.class, Static.class})
   private String spaceId;
 
   public String getSpaceId() {
@@ -55,11 +58,11 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return (T) this;
   }
 
-  protected final String getRootTableName(String spaceId) throws HubWebClientException {
+  protected final String getRootTableName(String spaceId) throws WebClientException {
     return getRootTableName(loadSpace(spaceId));
   }
 
-  protected final String getRootTableName(Space space) throws HubWebClientException {
+  protected final String getRootTableName(Space space) throws WebClientException {
     return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(),
         ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId());
   }
@@ -67,18 +70,20 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected void validateSpaceExists() throws ValidationException {
     try {
       //Check if the space is actually existing
+      if (getSpaceId() == null)
+        throw new ValidationException("SpaceId is missing!");
       loadSpace(getSpaceId());
     }
-    catch (HubWebClientException e) {
+    catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
   }
 
-  protected Space loadSpace(String spaceId) throws HubWebClientException {
+  protected Space loadSpace(String spaceId) throws WebClientException {
     return hubWebClient().loadSpace(spaceId);
   }
 
-  protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws HubWebClientException {
+  protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
     return hubWebClient().loadSpaceStatistics(spaceId, context);
   }
 

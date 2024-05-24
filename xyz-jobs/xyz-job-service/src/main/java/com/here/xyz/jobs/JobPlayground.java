@@ -19,42 +19,71 @@
 
 package com.here.xyz.jobs;
 
+import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.google.common.net.MediaType.JSON_UTF_8;
+import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
+import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
+import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaBasedStepExecutor;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
-import com.here.xyz.jobs.steps.impl.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
+import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.ARN;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.HubWebClient.ErrorResponseException;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpClient.Version;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublisher;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -69,7 +98,12 @@ public class JobPlayground {
   private static final Logger logger = LogManager.getLogger();
   private static HubWebClient hubWebClient;
   private static LambdaClient lambdaClient;
-  private static final String LAMBDA_NAME = "job-step";
+  private static Space sampleSpace;
+  private static boolean simulateExecution = true;
+  private static boolean executeWholeJob = true;
+  private static ImportFilesToSpace.Format format = ImportFilesToSpace.Format.GEOJSON;
+  private static int uploadFileCount = 2;
+  private static String jobServiceBaseUrl = "http://localhost:7070";
 
   static {
     VertxOptions vertxOptions = new VertxOptions()
@@ -87,7 +121,9 @@ public class JobPlayground {
     Config.instance.ECPS_PHRASE = "local";
     Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
     Config.instance.JOBS_S3_BUCKET = "test-bucket";
-    Config.instance.JOBS_REGION = "us-east-1";
+    Config.instance.AWS_REGION = "us-east-1";
+    Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
+    Config.instance.STEP_LAMBDA_ARN = new ARN("arn:aws:lambda:us-east-1:000000000000:function:job-step");
     hubWebClient = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
     try {
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
@@ -96,36 +132,233 @@ public class JobPlayground {
           .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("localstack", "localstack")))
           .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
           .build();
+      Config.instance.JOB_API_ENDPOINT = new URL(simulateExecution && !executeWholeJob ? "http://localhost:7070"
+          : "http://host.docker.internal:7070");
     }
     catch (URISyntaxException e) {
       throw new RuntimeException(e);
     }
+    catch (MalformedURLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
-  private static Job mockJob = new Job()
-      .withDescription("Sample playground job for mocked steps")
-      .withOwner("me");
+  private static void init() {
+    try {
+      sampleSpace = createSampleSpace("TEST");
+    }
+    catch (WebClientException e) {
+      throw new RuntimeException(e);
+    }
+    JobConfigClient.getInstance().init();
 
-  private static Space sampleSpace;
+    mockJob = new Job().create()
+        .withDescription("Sample import job")
+        .withOwner("me")
+        .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
+        .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
+  }
 
-  public static void main(String[] args) throws IOException, HubWebClientException {
-    sampleSpace = createSampleSpace("TEST");
+  private static Job mockJob;
 
-    //Upload files with each having one feature without id
-    for (int i = 0; i < 2; i++)
-      uploadInputFile("\"{'\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes());
+  public static void main(String[] args) throws IOException, InterruptedException {
+    String realJobSpaceId = "TEST";
+
+    if (args.length > 0) {
+      realJobSpaceId = args[0];
+      if (args.length > 1)
+        jobServiceBaseUrl = args[1];
+    }
+    else
+      init();
+
+    startRealJob(realJobSpaceId);
+
+    //init();
+    //if (executeWholeJob)
+    //  startMockJob();
+    //else
+    //  startLambdaExecutions();
+  }
+
+  private static void startLambdaExecutions() throws IOException, InterruptedException {
+    uploadFiles();
 
     runDropIndexStep(sampleSpace.getId());
-    runImportFilesToSpaceStep(sampleSpace.getId());
+
+    runImportFilesToSpaceStep(sampleSpace.getId(), format);
 
     for (Index index : Index.values())
       runCreateIndexStep(sampleSpace.getId(), index);
 
     runAnalyzeSpaceTableStep(sampleSpace.getId());
+
     runMarkForMaintenanceStep(sampleSpace.getId());
   }
 
-  private static Space createSampleSpace(String spaceId) throws HubWebClientException {
+  private static void uploadFiles() throws IOException {
+    //Generate N Files with M features
+    for (int i = 0; i < uploadFileCount; i++)
+      uploadInputFile(generateContent(format, 10));
+  }
+
+  private static void uploadFilesToRealJob(String jobId) throws IOException, InterruptedException {
+    //Generate N Files with M features
+    for (int i = 0; i < uploadFileCount; i++) {
+      HttpResponse<byte[]> inputResponse = post("/jobs/" + jobId + "/inputs", Map.of("type", "UploadUrl"));
+      String uploadUrl = (String) XyzSerializable.deserialize(inputResponse.body(), Map.class).get("url");
+      uploadInputFile(generateContent(format, 10), new URL(uploadUrl));
+    }
+
+  }
+
+  private static void pollRealJobStatus(String jobId) throws InterruptedException {
+    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
+    //Poll job status every 5 seconds
+    executor.scheduleAtFixedRate(() -> {
+      try {
+        HttpResponse<byte[]> statusResponse = get("/jobs/" + jobId + "/status");
+        RuntimeStatus status = XyzSerializable.deserialize(statusResponse.body(), RuntimeStatus.class);
+        logger.info("Job state for {}: {} ({}/{} steps succeeded)", jobId, status.getState(), status.getSucceededSteps(),
+            status.getOverallStepCount());
+        if (status.getState().isFinal())
+          executor.shutdownNow();
+      }
+      catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }, 0, 5, TimeUnit.SECONDS);
+
+    int timeoutSeconds = 120;
+    if (!executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
+      executor.shutdownNow();
+      logger.info("Stopped polling status for job {} after timeout {} seconds", jobId, timeoutSeconds);
+    }
+  }
+
+  private static byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt) {
+    String output = "";
+
+    for (int i = 1; i <= featureCnt; i++) {
+      output += generateContentLine(format, i);
+    }
+    return output.getBytes();
+  }
+
+  private static void generateContentToFile(ImportFilesToSpace.Format format, int featureCnt, boolean beZipped) throws IOException {
+    String outputFile = "/tmp/output.file" + (beZipped ? ".gz" : "");
+
+    BufferedWriter writer = null;
+    try {
+      if(!beZipped)
+        writer = new BufferedWriter(new FileWriter(outputFile, true));
+      else{
+        GZIPOutputStream zip = new GZIPOutputStream(
+                new FileOutputStream(outputFile));
+
+        writer = new BufferedWriter(
+                new OutputStreamWriter(zip, "UTF-8"));
+      }
+      for (int i = 1; i <= featureCnt; i++) {
+        writer.write(generateContentLine(format, i));
+      }
+    }finally {
+      if (writer != null)
+        writer.close();
+    }
+  }
+
+  private static String generateContentLine(ImportFilesToSpace.Format format, int i){
+    Random rd = new Random();
+    String lineSeparator = "\n";
+
+    if(format.equals(ImportFilesToSpace.Format.CSV_JSONWKB))
+      return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
+    else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
+      return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
+    else
+      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}"+lineSeparator;
+  }
+
+  private static void startMockJob() {
+    mockJob.submit()
+        .compose(submitted -> {
+          if (submitted)
+            return Future.succeededFuture(true);
+          try {
+            uploadFiles();
+          }
+          catch (IOException e) {
+            return Future.failedFuture(e);
+          }
+          return mockJob.submit(); //Submit the job, now that the input files have been uploaded
+        })
+        .compose(submitted -> {
+          if (!submitted)
+            return Future.failedFuture("Job is still not ready, even after uploading the input files");
+          return Future.succeededFuture();
+        })
+        .onFailure(t -> logger.error("Error submitting job:", t));
+  }
+
+  private static void startRealJob(String spaceId) throws IOException, InterruptedException {
+    Job job = new Job().create()
+        .withDescription("Sample import job")
+        .withOwner("me")
+        .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
+        .withTarget(new DatasetDescription.Space<>().withId(spaceId));
+
+    System.out.println("Starting job ...");
+    HttpResponse<byte[]> jobResponse = post("/jobs", job);
+
+    System.out.println("Got response:");
+    System.out.println(new String(jobResponse.body()));
+
+    Job createdJob = XyzSerializable.deserialize(jobResponse.body(), Job.class);
+    String jobId = createdJob.getId();
+
+    //Uploading files
+    uploadFilesToRealJob(jobId);
+
+    //Start the job execution
+    patch("/jobs/" + jobId + "/status", Map.of("desiredAction", "START"));
+
+    pollRealJobStatus(jobId);
+  }
+
+  private static HttpResponse<byte[]> get(String path) throws IOException, InterruptedException {
+    return request("GET", path, null);
+  }
+
+  private static HttpResponse<byte[]> post(String path, Object requestPayload) throws IOException, InterruptedException {
+    return request("POST", path, requestPayload);
+  }
+
+  private static HttpResponse<byte[]> patch(String path, Object requestPayload) throws IOException, InterruptedException {
+    return request("PATCH", path, requestPayload);
+  }
+
+  private static HttpResponse<byte[]> request(String method, String path, Object requestPayload) throws IOException, InterruptedException {
+    BodyPublisher bodyPublisher = requestPayload == null ? BodyPublishers.noBody()
+            : BodyPublishers.ofByteArray(XyzSerializable.serialize(requestPayload).getBytes());
+
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create(jobServiceBaseUrl + path))
+        .header(CONTENT_TYPE, JSON_UTF_8.toString())
+        .method(method, bodyPublisher)
+        .version(Version.HTTP_1_1)
+        .build();
+
+    HttpClient client = HttpClient.newBuilder().followRedirects(NORMAL).build();
+    HttpResponse<byte[]> response = client.send(request, BodyHandlers.ofByteArray());
+    if (response.statusCode() >= 400)
+      throw new RuntimeException("Received error response with status code: " + response.statusCode() + " response:\n"
+          + new String(response.body()));
+    return response;
+  }
+
+  private static Space createSampleSpace(String spaceId) throws WebClientException {
     final String title = "Playground";
     try {
       return hubWebClient.createSpace(spaceId, title);
@@ -152,6 +385,10 @@ public class JobPlayground {
 
     URL uploadUrl = mockJob.createUploadUrl().getUrl();
 
+    uploadInputFile(data, uploadUrl);
+  }
+
+  private static void uploadInputFile(byte[] data, URL uploadUrl) throws IOException {
     HttpURLConnection connection = (HttpURLConnection) uploadUrl.openConnection();
     connection.setDoOutput(true);
     connection.setRequestProperty("Content-Type", "application/json");
@@ -165,63 +402,89 @@ public class JobPlayground {
       throw new RuntimeException("Error uploading file, got status code " + connection.getResponseCode());
   }
 
-  private static void startImportJob() {
-    new Job()
-        .withOwner("TestUser")
-        .withDescription("Some test Import Job")
-        .withSource(new DatasetDescription.Space().withId("someSpace"))
-        .withTarget(new Files().withOutputSettings(new FileOutputSettings().withFormat(new GeoJson())))
-        .submit();
-  }
-
   public static void runDropIndexStep(String spaceId) throws IOException {
-    simulateLambdaStep(new DropIndexes().withSpaceId(spaceId));
+    runStep(new DropIndexes().withSpaceId(spaceId));
   }
 
-  public static void runImportFilesToSpaceStep(String spaceId) throws IOException {
-    simulateLambdaStep(new ImportFilesToSpace().withSpaceId(spaceId));
+  public static void runImportFilesToSpaceStep(String spaceId, ImportFilesToSpace.Format format) throws IOException {
+    runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format));
   }
 
   public static void runCreateIndexStep(String spaceId, Index index) throws IOException {
-    simulateLambdaStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
+    runStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
   }
 
   public static void runAnalyzeSpaceTableStep(String spaceId) throws IOException {
-    simulateLambdaStep(new AnalyzeSpaceTable().withSpaceId(spaceId));
+    runStep(new AnalyzeSpaceTable().withSpaceId(spaceId));
   }
 
   public static void runMarkForMaintenanceStep(String spaceId) throws IOException {
-    simulateLambdaStep(new MarkForMaintenance().withSpaceId(spaceId));
+    runStep(new MarkForMaintenance().withSpaceId(spaceId));
   }
 
-  private static void simulateLambdaStep(LambdaBasedStep step) throws IOException {
-    InputStream is = null;
-    OutputStream os = null;
+  private static void runStep(LambdaBasedStep step) throws IOException {
+    if (simulateExecution) {
+      simulateLambdaStepRequest(step, START_EXECUTION);
+      //Wait some time before simulating success callback
+      sleep(4000);
+      simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+    }
+    else {
+      sendLambdaStepRequest(step, START_EXECUTION);
+      //Wait some time to give some time for the execution of the success callback
+      sleep(4000);
+    }
+  }
+
+  private static void simulateLambdaStepRequest(LambdaBasedStep step, RequestType requestType) throws IOException {
+    OutputStream os = new ByteArrayOutputStream();
     Context ctx = new SimulatedContext("localLambda", null);
 
-    final LambdaStepRequest request = prepareStepRequestPayload(step);
-
+    final LambdaStepRequest request = prepareStepRequestPayload(step, requestType);
     new LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
+
+    logger.info("Response from simulated Lambda:\n{}", os.toString());
   }
 
-  private static void runLambdaStep(LambdaBasedStep step) {
+  private static void sendLambdaStepRequest(LambdaBasedStep step, RequestType requestType) {
     InvokeResponse response = lambdaClient.invoke(InvokeRequest.builder()
-        .functionName(LAMBDA_NAME)
-        .payload(SdkBytes.fromByteArray(prepareStepRequestPayload(step).toByteArray()))
+        .functionName(Config.instance.STEP_LAMBDA_ARN.toString())
+        .payload(SdkBytes.fromByteArray(prepareStepRequestPayload(step, requestType).toByteArray()))
         .build());
-    logger.info("Response from lambda function: Status-code ({}), Payload:\n{}", response.statusCode(),
-        response.payload().asUtf8String());
-
-    System.out.println(response.payload().asUtf8String());
+    try {
+      logger.info("Response from lambda function: Status-code ({}), Payload:\n{}", response.statusCode(),
+          XyzSerializable.serialize(XyzSerializable.deserialize(response.payload().asByteArray(), Map.class), true));
+    }
+    catch (JsonProcessingException e) {
+      logger.error("Response from Lambda:\n{}\nError deserializing response from lambda:", response.payload().asUtf8String(), e);
+    }
+    logger.info("Logs from lambda function:\n{}", response.logResult());
   }
 
-  private static LambdaStepRequest prepareStepRequestPayload(LambdaBasedStep step) {
+  private static LambdaStepRequest prepareStepRequestPayload(LambdaBasedStep step, RequestType requestType) {
     Map<String, Object> stepMap = step.toMap();
-    stepMap.put("taskToken", "test123");
+    stepMap.put("taskToken.$", "test123");
     stepMap.put("jobId", mockJob.getId());
     LambdaBasedStep enrichedStep = XyzSerializable.fromMap(stepMap, LambdaBasedStep.class);
 
-    LambdaStepRequest request = new LambdaStepRequest().withStep(enrichedStep).withType(START_EXECUTION);
+    LambdaStepRequest request = new LambdaStepRequest().withStep(enrichedStep).withType(requestType);
     return request;
+  }
+
+  private static void sleep(long ms) {
+    try {
+      Thread.sleep(ms);
+    }
+    catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+
+  //tmp hack
+  static {
+    XyzSerializable.registerSubtypes(StepGraph.class);
+    XyzSerializable.registerSubtypes(Input.class);
+    XyzSerializable.registerSubtypes(Output.class);
   }
 }

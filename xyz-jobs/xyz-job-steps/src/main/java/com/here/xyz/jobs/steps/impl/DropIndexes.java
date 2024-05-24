@@ -29,7 +29,7 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,7 +49,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
       return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
     }
-    catch (HubWebClientException e) {
+    catch (WebClientException e) {
       //TODO: log error
       //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
@@ -58,7 +58,12 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 60;
+    return 10 * 60;
+  }
+
+  @Override
+  public int getEstimatedExecutionSeconds() {
+    return 10;
   }
 
   @Override
@@ -66,17 +71,12 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
     return "Drops all the indexes on space " + getSpaceId();
   }
 
-  @Override
-  public void deleteOutputs() {
-    //Nothing to do here as no outputs are produced by this step
-  }
-
   private int calculateNeededAcus() {
     return 0;
   }
 
   @Override
-  public void execute() throws SQLException, TooManyResourcesClaimed, HubWebClientException {
+  public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
     logger.info("Loading space config for space " + getSpaceId());
     Space space = loadSpace(getSpaceId());
     logger.info("Getting storage database for space " + getSpaceId());
@@ -98,7 +98,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
       logger.info("Dropping the following indices for space " + getSpaceId() + ": " + indexes);
       List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(getSchema(db), indexes);
       SQLQuery dropIndexesQuery = SQLQuery.join(dropQueries, ";");
-      runWriteQuery(dropIndexesQuery, db, calculateNeededAcus());
+      runWriteQueryAsync(dropIndexesQuery, db, calculateNeededAcus());
     }
   }
 
