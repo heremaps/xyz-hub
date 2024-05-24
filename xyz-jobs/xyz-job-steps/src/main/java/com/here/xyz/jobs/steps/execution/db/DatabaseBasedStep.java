@@ -108,6 +108,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
       boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+    query
+        .withLabel("jobId", getJobId())
+        .withLabel("stepId", getId());
+
     if (async) {
       query = (withCallbacks ? wrapQuery(query) : query)
           .withAsync(true)
