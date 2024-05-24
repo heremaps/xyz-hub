@@ -416,6 +416,10 @@ public abstract class RemoteFunctionClient {
     return usedConnections.intValue();
   }
 
+  public ConcurrentHashMap<String, AtomicInteger> getUsedConnectionsByRequester() {
+    return usedConnectionsByRequester;
+  }
+
   public double getPriority() {
     double minConnectionSum = globalMinConnectionSum.doubleValue();
     return minConnectionSum == 0 ? 0 : (double) getMinConnections() / minConnectionSum;
