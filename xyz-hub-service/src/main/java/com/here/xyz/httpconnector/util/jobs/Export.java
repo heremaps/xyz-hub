@@ -891,7 +891,7 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat csvFormat, long targetVersion){
-        return CService.jobConfigClient.getList(getMarker(), null , null, targetId, false) //TODO: decide when to skipExports (true)
+        return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
             //Sort the candidates in reverse order by updated TS to get the oldest candidate
             .map(jobs -> jobs.stream().sorted(Comparator.comparingLong(Job::getUpdatedAt)).toList())
             .map(sortedJobs -> {

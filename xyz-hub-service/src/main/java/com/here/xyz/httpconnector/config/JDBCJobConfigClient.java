@@ -68,7 +68,7 @@ public class JDBCJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  protected Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId, boolean skipExports) {
+  protected Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId) {
     SQLQuery q = client.getQuery("SELECT * FROM ${schema}.${table} WHERE TRUE ${{type}} ${{status}} ${{targetSpaceId}}")
         .withQueryFragment("type", "")
         .withQueryFragment("status", "")
@@ -87,12 +87,6 @@ public class JDBCJobConfigClient extends JobConfigClient {
 
     return client.run(q, configListParser(Job.class));
   }
-
-  @Override
-  protected Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId) {
-    return getJobs(marker, type, status, targetSpaceId, false);
-  }
-
 
   @Override
   protected Future<List<Job>> getJobs(Marker marker, Job.Status status, String key, DatasetDirection direction) {

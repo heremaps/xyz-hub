@@ -35,7 +35,6 @@ public class HApiParam extends ApiParam {
 
     public static class HQuery extends Query{
         static final String TARGET_SPACEID = "targetSpaceId";
-        static final String SKIP_EXPORTS = "skipExports";
         public static final String FORCE = "force";
         public static final String DELETE_DATA = "deleteData";
         public static final String H_COMMAND = "command";

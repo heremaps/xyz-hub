@@ -63,8 +63,8 @@ public class JobHandler {
             .onFailure( e -> Future.failedFuture(new HttpException(BAD_GATEWAY, "Can't load '" + jobId + "' from backend!")));
     }
 
-    public static Future<List<Job>> loadJobs(Marker marker, String type, Job.Status status, String targetSpaceId,boolean skipExports) {
-        return CService.jobConfigClient.getList(marker, type, status, targetSpaceId, skipExports)
+    public static Future<List<Job>> loadJobs(Marker marker, String type, Job.Status status, String targetSpaceId) {
+        return CService.jobConfigClient.getList(marker, type, status, targetSpaceId)
             .onFailure( e -> Future.failedFuture(new HttpException(BAD_GATEWAY, "Can't load jobs from backend!")));
     }
 

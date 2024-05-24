@@ -106,9 +106,8 @@ public class JobApi extends Api {
     String jobType = HQuery.getJobType(context);
     Job.Status jobStatus = HQuery.getJobStatus(context);
     String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
-    Boolean skipExports = HQuery.getBoolean(context, HQuery.SKIP_EXPORTS, false);
 
-    JobHandler.loadJobs(LogUtil.getMarker(context), jobType, jobStatus, targetSpaceId, skipExports)
+    JobHandler.loadJobs(LogUtil.getMarker(context), jobType, jobStatus, targetSpaceId)
             .onFailure(e -> this.sendError(e, context))
             .onSuccess(jobs -> this.sendResponse(context, OK, jobs));
   }
