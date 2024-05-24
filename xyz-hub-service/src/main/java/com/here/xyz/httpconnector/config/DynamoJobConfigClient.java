@@ -110,7 +110,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                     p.complete();
                 }
                 else {
-                    convertItemToJob(jobItem)
+                    convertItemToJob(jobItem,false)
                         .onSuccess(job -> p.complete(job))
                         .onFailure(t -> p.fail(t));
                 }
@@ -122,7 +122,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId) {
+    protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId,boolean skipExports) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 List<ScanFilter> filterList = new ArrayList<>();
@@ -137,7 +137,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 List<Future<Job>> jobFutures = new ArrayList<>();
                 jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(page -> page.forEach(item -> {
                     try{
-                        jobFutures.add(convertItemToJob(item));
+                        jobFutures.add(convertItemToJob(item,skipExports));
                     }catch (DecodeException e){
                         logger.warn("Cant decode Job-Item - skip!", e);
                     }
@@ -150,6 +150,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 p.fail(e);
             }
         });
+    }
+
+    @Override
+    protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId) {
+      return getJobs(marker,type,status,targetSpaceId,false);
     }
 
     @Override
@@ -187,7 +192,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 List<Future<Job>> jobFutures = new ArrayList<>();
                 jobs.scan(scanSpec).pages().forEach(page -> page.forEach(item -> {
                     try{
-                        jobFutures.add(convertItemToJob(item));
+                        jobFutures.add(convertItemToJob(item,false));
                     }catch (DecodeException e){
                         logger.warn("Cant decode Job-Item - skip!", e);
                     }
@@ -293,10 +298,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
         }
     }
 
-    private Future<Job> convertItemToJob(Item item){
+    private Future<Job> convertItemToJob(Item item, boolean skipExports){
         if(item.isPresent(IMPORT_OBJECTS))
-            return convertItemToJob(item, IMPORT_OBJECTS);
-        return convertItemToJob(item, EXPORT_OBJECTS);
+            return convertItemToJob(item, IMPORT_OBJECTS,false );
+        return convertItemToJob(item, EXPORT_OBJECTS, skipExports);
     }
 
     private static Item convertImportJobToItem(JsonObject jobJson) {
@@ -309,7 +314,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         return Item.fromJSON(jobJson.toString());
     }
 
-    private Future<Job> convertItemToJob(Item item, String attrName) {
+    private Future<Job> convertItemToJob(Item item, String attrName, boolean skipExports) {
         JsonObject ioObjects = null;
         if(item.isPresent(attrName)) {
             try{
@@ -322,6 +327,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
             .put(attrName, ioObjects);
+
+/** temp workaround to skip large exportObjects from serialization TODO: better */
+       if( EXPORT_OBJECTS.equals(attrName) && skipExports )
+        json.put(EXPORT_OBJECTS, new JsonObject( "{\"none\":{\"s3Key\":\"none\",\"downloadUrl\":\"http://none:8080/invalid-bucket/none\",\"status\":\"exported\",\"filesize\": 0}}" ));
+/** */        
 
         Future<Void> resolvedFuture = Future.succeededFuture();
         if (json.containsKey("children"))

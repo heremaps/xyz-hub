@@ -90,8 +90,8 @@ public abstract class JobConfigClient implements Initializable {
         return Future.succeededFuture(spawningJob);
     }
 
-    public Future<List<Job>> getList(Marker marker, String type, Status status, String targetSpaceId) {
-        return getJobs(marker, type, status, targetSpaceId)
+    public Future<List<Job>> getList(Marker marker, String type, Status status, String targetSpaceId, boolean skipExports) {
+        return getJobs(marker, type, status, targetSpaceId,skipExports)
                 .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
     }
 
@@ -156,6 +156,7 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
+    protected abstract Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId,boolean skipExports);
     protected abstract Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId);
     protected abstract Future<List<Job>> getJobs(Marker marker, Status status, String key, DatasetDirection direction);
 
