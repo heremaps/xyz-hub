@@ -140,18 +140,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   public void deleteOutputs() {
     super.deleteOutputs();
 
-    try {
-      logAndSetPhase(null, "Loading space config for space "+getSpaceId());
-      Space space = loadSpace(getSpaceId());
-      String rootTableName = getRootTableName(space);
-
-      logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
-      Database db = loadDatabase(space.getStorage().getId(), WRITER);
-
-      cleanUpDbRelatedResources(rootTableName, db);
-    } catch (Exception e) {
-        throw new RuntimeException(e);
-    }
+    /** @TODO:
+     * Currently we only have non-retryable import jobs. If we introduce some, we need to implement the resource
+     * cleanup properly. One possibility could be to add the restriction that steps only could have temporary
+     * resources during their execution. To not lose the temporary information, which is relevant for a retry,
+     * it would be required to write those into a system output.
+     */
   }
 
   @Override
