@@ -26,6 +26,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
@@ -166,17 +167,8 @@ public abstract class RemoteFunctionClient {
 
 
     if (!hasPriority){
-        if(context.getRequesterId() != null) {
-          AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger(0));
-          if(!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerRequester(), connectionCount)) {
-            logger.warn(marker, "Sending to many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
-                context.getRequesterId(), connectionCount.get(), context.getConnector().getMaxConnectionsPerRequester());
-            callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Maximum number of concurrent requests. "
-                    + "Max concurrent connections: " + context.getConnector().connectionSettings.maxConnectionsPerRequester)));
-          }
-        }
-
-       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
+      checkRequesterThrottling(marker, callback, context);
+      if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
         enqueue(fc);
         return fc;
       }
@@ -184,6 +176,18 @@ public abstract class RemoteFunctionClient {
 
     _invoke(fc, context);
     return fc;
+  }
+
+  private static void checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {
+    if (context.getRequesterId() != null) {
+      AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger(0));
+      if (!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerRequester(), connectionCount)) {
+        logger.warn(marker, "Sending to many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
+            context.getRequesterId(), connectionCount.get(), context.getConnector().getMaxConnectionsPerRequester());
+        callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Maximum number of concurrent requests. "
+                + "Max concurrent connections: " + context.getConnector().connectionSettings.maxConnectionsPerRequester)));
+      }
+    }
   }
 
   /**

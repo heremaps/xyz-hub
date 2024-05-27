@@ -38,7 +38,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class ClientThrottlingIT extends TestSpaceWithFeature {
+public class RequesterThrottlingIT extends TestSpaceWithFeature {
     private static final String SPACE_ID = "space1";
     private static final String HUB_ENDPOINT = "http://localhost:8080/hub";
     private static final HttpClient client = HttpClient.newHttpClient();
