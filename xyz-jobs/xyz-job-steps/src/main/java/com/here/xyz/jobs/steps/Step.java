@@ -61,7 +61,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
-  private Set<String> previousStepIds;
+  private Set<String> previousStepIds = Set.of();
   private RuntimeInfo status = new RuntimeInfo();
   private final String MODEL_BASED_PREFIX = "/modelBased";
   @JsonIgnore

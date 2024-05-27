@@ -535,7 +535,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
   }
 
-  private void logAndSetPhase(Phase newPhase, String... messages){
+  private void logAndSetPhase(Phase newPhase, String... messages) {
     if (newPhase != null)
       phase = newPhase;
     logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
