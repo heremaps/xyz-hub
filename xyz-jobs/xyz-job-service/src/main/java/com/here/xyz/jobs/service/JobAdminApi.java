@@ -142,8 +142,16 @@ public class JobAdminApi extends Api {
                 default -> null;
               };
               if (newJobState != null) {
+                boolean isFinalized = newJobState == SUCCEEDED && newJobState != job.getStatus().getState();
                 job.getStatus().setState(newJobState);
-                return job.store();
+
+                Future<Void> future = job.store();
+
+                if(isFinalized) {
+                  future = future.compose(v -> JobService.callFinalizeObservers(job));
+                }
+
+                return future;
               }
               else
                 return Future.succeededFuture();
