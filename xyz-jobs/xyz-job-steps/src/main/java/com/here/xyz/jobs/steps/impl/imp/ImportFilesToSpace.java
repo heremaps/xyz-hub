@@ -138,11 +138,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public void deleteOutputs() {
-      try {
-          onAsyncSuccess();
-      } catch (Exception e) {
-          throw new RuntimeException(e);
-      }
+    super.deleteOutputs();
+
+    try {
+      logAndSetPhase(null, "Loading space config for space "+getSpaceId());
+      Space space = loadSpace(getSpaceId());
+      String rootTableName = getRootTableName(space);
+
+      logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
+      Database db = loadDatabase(space.getStorage().getId(), WRITER);
+
+      cleanUpDbRelatedResources(rootTableName, db);
+    } catch (Exception e) {
+        throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -288,32 +297,28 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     logAndSetPhase(null, "Loading space config for space "+getSpaceId());
     Space space = loadSpace(getSpaceId());
+    String rootTableName = getRootTableName(space);
 
     logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
-
     try {
-      logAndSetPhase(Phase.RETRIEVE_STATISTICS);
-      FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db)), db,
-              0, rs -> rs.next()
-                      ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
-                      : new FeatureStatistics());
 
-      logAndSetPhase(null, "Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
+    logAndSetPhase(Phase.RETRIEVE_STATISTICS);
+    FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db)), db,
+            0, rs -> rs.next()
+                    ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
+                    : new FeatureStatistics());
 
-      registerOutputs(List.of(statistics), true);
+    logAndSetPhase(null, "Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
+    registerOutputs(List.of(statistics), true);
 
-      logAndSetPhase(Phase.WRITE_STATISTICS);
-      registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
+    logAndSetPhase(Phase.WRITE_STATISTICS);
+    registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
 
-      logAndSetPhase(Phase.DROP_TRIGGER);
-      runWriteQuerySync(buildDropImportTrigger(getSchema(db), getRootTableName(space)), db, 0);
+    cleanUpDbRelatedResources(rootTableName, db);
 
-      logAndSetPhase(Phase.DROP_TMP_TABLE);
-      runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db)), db, 0);
-
-      logAndSetPhase(Phase.RELEASE_READONLY);
-      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
+    logAndSetPhase(Phase.RELEASE_READONLY);
+    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
 
     }catch (SQLException e){
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
@@ -325,13 +330,35 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
   }
 
+  private void cleanUpDbRelatedResources(String rootTableName, Database db) throws TooManyResourcesClaimed, SQLException, WebClientException {
+      logAndSetPhase(Phase.DROP_TRIGGER);
+      runWriteQuerySync(buildDropImportTrigger(getSchema(db), rootTableName), db, 0);
+
+      logAndSetPhase(Phase.DROP_TMP_TABLE);
+      runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db)), db, 0);
+  }
+
   @Override
   protected boolean onAsyncFailure() {
-    //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
-    /** Failed Import
-     *  onFailure (take retryable into account)
-     */
-    return false;
+    try {
+      //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
+      boolean isRetryable = false;
+
+      if(!isRetryable) {
+        logAndSetPhase(null, "Loading space config for space " + getSpaceId());
+        Space space = loadSpace(getSpaceId());
+        String rootTableName = getRootTableName(space);
+
+        logAndSetPhase(null, "Getting storage database for space  " + getSpaceId());
+        Database db = loadDatabase(space.getStorage().getId(), WRITER);
+
+        cleanUpDbRelatedResources(rootTableName, db);
+      }
+
+      return isRetryable;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
