@@ -422,7 +422,7 @@
     "id": "client-throttling",
     "connectionSettings": {
       "maxConnections": 1024,
-      "maxConnectionsPerClient": 10,
+      "maxConnectionsPerRequester": 10,
       "minConnections": 10
     },
     "params": {
