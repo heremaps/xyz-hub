@@ -169,6 +169,8 @@ public abstract class RemoteFunctionClient {
         if(context.getRequesterId() != null) {
           AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger(0));
           if(!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerRequester(), connectionCount)) {
+            logger.warn(marker, "Sending to many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
+                context.getRequesterId(), connectionCount.get(), context.getConnector().getMaxConnectionsPerRequester());
             callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Maximum number of concurrent requests. "
                     + "Max concurrent connections: " + context.getConnector().connectionSettings.maxConnectionsPerRequester)));
           }
