@@ -138,20 +138,19 @@ public class DynamoJobConfigClient extends JobConfigClient {
   @Override
   public Future<Void> updateStatus(Job job, State expectedPreviousState) {
     return dynamoClient.executeQueryAsync(() -> {
-      final Map<String, String> nameMap = new HashMap<>(Map.of("#status", "status"));
-      final Map<String, Object> valueMap = new HashMap<>(Map.of(":newStatus", job.getStatus().toMap()));
+      final Map<String, String> nameMap = Map.of("#status", "status", "#state", "state");
+      final Map<String, Object> valueMap = new HashMap<>(Map.of(":newStatus", job.getStatus().toMap(), ":newState",
+          job.getStatus().getState().toString()));
       final UpdateItemSpec updateItemSpec = new UpdateItemSpec()
           .withPrimaryKey("id", job.getId())
-          .withUpdateExpression("SET #status = :newStatus")
+          .withUpdateExpression("SET #status = :newStatus, #state = :newState")
           .withNameMap(nameMap)
           .withValueMap(valueMap);
 
       if (expectedPreviousState != null) {
         //TODO: Allow multiple expected previous steps?
-        nameMap.put("#state", "state");
         valueMap.put(":oldState", expectedPreviousState.toString());
         updateItemSpec.withConditionExpression("#state = :oldState")
-            .withNameMap(nameMap)
             .withValueMap(valueMap);
       }
 

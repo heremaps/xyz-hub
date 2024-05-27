@@ -32,13 +32,11 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
-
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,7 +55,7 @@ public class JobService extends Core {
     XyzSerializable.registerSubtypes(Output.class);
   }
 
-  private static List<Consumer> JOB_FINALIZE_OBSERVERS = new ArrayList<>();
+  private static List<Consumer> jobFinalizationObservers = new ArrayList<>();
 
   public static void main(String[] args) {
     VertxOptions vertxOptions = new VertxOptions()
@@ -114,11 +112,17 @@ public class JobService extends Core {
   }
 
   public static void registerJobFinalizeObserver(Consumer<Job> jobConsumer) {
-    JOB_FINALIZE_OBSERVERS.add(jobConsumer);
+    jobFinalizationObservers.add(jobConsumer);
   }
 
-  public static Future<Void> callFinalizeObservers(Job job) {
-    new Thread(() -> JOB_FINALIZE_OBSERVERS.forEach(c -> c.accept(job)));
-    return Future.succeededFuture();
+  public static void callFinalizeObservers(Job job) {
+    jobFinalizationObservers.forEach(c -> {
+      try {
+        c.accept(job);
+      }
+      catch (Exception e) {
+        logger.error("Error during finalization-observer call:", e);
+      }
+    });
   }
 }
