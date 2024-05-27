@@ -58,7 +58,7 @@ public class JobAdminApi extends Api {
 
   private void getJobs(RoutingContext context) {
     Job.loadAll()
-        .onSuccess(res -> sendAdminResponse(context, OK.code(), res))
+        .onSuccess(res -> sendInternalResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 

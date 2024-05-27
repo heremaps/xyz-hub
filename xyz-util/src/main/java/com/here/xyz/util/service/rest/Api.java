@@ -287,15 +287,15 @@ public class Api {
         serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
     }
 
-    protected void sendAdminResponse(RoutingContext context, int statusCode, XyzSerializable object) {
+    protected void sendInternalResponse(RoutingContext context, int statusCode, XyzSerializable object) {
         serializeAndSendResponse(context, statusCode, object, null, null); //TODO: Use Internal view here in future
     }
 
-    protected void sendAdminResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
+    protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
         serializeAndSendResponse(context, statusCode, list, null, null); //TODO: Use Internal view here in future
     }
 
-    protected void sendAdminResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
+    protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
         TypeReference listItemTypeReference) {
         serializeAndSendResponse(context, statusCode, list, listItemTypeReference, null); //TODO: Use Internal view here in future
     }
