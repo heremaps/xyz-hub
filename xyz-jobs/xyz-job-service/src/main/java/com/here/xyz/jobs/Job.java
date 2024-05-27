@@ -286,25 +286,12 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
-    //TODO: Remove the following workaround once the state-transition-event-rule (HTTPS) is working
     if (step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
           .withErrorMessage(step.getStatus().getErrorMessage())
           .withErrorCause(step.getStatus().getErrorCause())
           .withErrorCode(step.getStatus().getErrorCode());
-
-      //TODO: Decide if we really want to delete the state-machines directly. This would remove
-      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
-//      if(!isResumable() && getStateMachineArn() != null){
-//        JobExecutor.getInstance().delete(getStateMachineArn());
-//      }
-    }
-    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount()) {
-      getStatus().setState(SUCCEEDED);
-      //TODO: Decide if we really want to delete the state-machines directly. This would remove
-      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
-//      JobExecutor.getInstance().delete(getStateMachineArn());
     }
 
     return storeUpdatedStep(step)
