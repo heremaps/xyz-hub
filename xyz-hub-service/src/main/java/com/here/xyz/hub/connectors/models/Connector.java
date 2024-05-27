@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -147,8 +147,8 @@ public class Connector extends com.here.xyz.models.hub.Connector {
   }
 
   @JsonIgnore
-  public int getMaxConnectionsPerClient() {
-    int connections = connectionSettings.maxConnectionsPerClient == 0 ? 60 : connectionSettings.maxConnectionsPerClient;
+  public int getMaxConnectionsPerRequester() {
+    int connections = connectionSettings.maxConnectionsPerRequester == 0 ? 60 : connectionSettings.maxConnectionsPerRequester;
     return (int) Math.ceil((double) connections / Node.count());
   }
 
