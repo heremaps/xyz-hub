@@ -95,7 +95,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
 
-  public static final Async async = new Async(20, Core.vertx, Job.class);
+  public static final Async async = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = 2 * 7 * 24 * 3600 * 1000; //2 weeks
 

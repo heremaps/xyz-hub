@@ -23,7 +23,6 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
 import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
 import com.here.xyz.util.Async;
-import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.impl.ConcurrentHashSet;
 import java.lang.reflect.InvocationTargetException;
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
 public class JobCompiler {
 
   private static Set<Class<? extends JobCompilationInterceptor>> interceptors = new ConcurrentHashSet<>();
-  public static final Async async = new Async(5, Core.vertx, Job.class);
+  public static final Async async = new Async(5, Job.class);
 
   static {
     registerCompilationInterceptor(ImportFromFiles.class);

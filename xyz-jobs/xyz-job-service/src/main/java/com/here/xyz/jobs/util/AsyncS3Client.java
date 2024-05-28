@@ -22,13 +22,12 @@ package com.here.xyz.jobs.util;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.util.Async;
-import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.util.List;
 
 public class AsyncS3Client extends S3Client {
   private static final AsyncS3Client instance = new AsyncS3Client(Config.instance.JOBS_S3_BUCKET);
-  private Async async = new Async(20, Core.vertx, AsyncS3Client.class);
+  private Async async = new Async(20, AsyncS3Client.class);
 
   protected AsyncS3Client(String bucketName) {
     super(bucketName);
