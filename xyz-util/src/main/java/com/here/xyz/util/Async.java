@@ -19,19 +19,39 @@
 
 package com.here.xyz.util;
 
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.WorkerExecutor;
 
 public class Async {
-  public final WorkerExecutor asyncWorkers;
+  private WorkerExecutor asyncWorkers;
+  private Vertx vertx;
+  private int workerPoolSize;
+  private Class<?> callerClass;
 
   public Async(int workerPoolSize, Vertx vertx, Class<?> callerClass) {
-    asyncWorkers = vertx.createSharedWorkerExecutor(callerClass.getName(), workerPoolSize);
+    this(workerPoolSize, callerClass);
+    this.vertx = vertx;
+  }
+
+  public Async(int workerPoolSize, Class<?> callerClass) {
+    this.workerPoolSize = workerPoolSize;
+    this.callerClass = callerClass;
+  }
+
+  private WorkerExecutor getAsyncWorkers() {
+    if(asyncWorkers == null) {
+      if(vertx == null) {
+        vertx = Core.vertx;
+      }
+      asyncWorkers = vertx.createSharedWorkerExecutor(callerClass.getName(), workerPoolSize);
+    }
+    return asyncWorkers;
   }
 
   public <R> Future<R> run(ThrowingSupplier<R> task) {
-    return asyncWorkers.executeBlocking(
+    return getAsyncWorkers().executeBlocking(
         promise -> {
           try {
             promise.complete(task.supply());
