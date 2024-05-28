@@ -31,6 +31,7 @@ import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
@@ -66,7 +67,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private double neededACUs = -1;
 
   @JsonView({Internal.class})
-  private long uncompressedTotalBytes;
+  private long uncompressedTotalBytes = -1;
 
   @JsonView({Internal.class, Static.class})
   private int fileCount = -1;
@@ -110,7 +111,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       double acus = calculateNeededAcus();
       Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
-      return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
+      long ioBytes = uncompressedTotalBytes == -1 ? getUncompressedUploadBytesEstimation() : uncompressedTotalBytes;
+
+      return List.of(new Load().withResource(db).withEstimatedVirtualUnits(acus),
+              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ioBytes));
+
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);

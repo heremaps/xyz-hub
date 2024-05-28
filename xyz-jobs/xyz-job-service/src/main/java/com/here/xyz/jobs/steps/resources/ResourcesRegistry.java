@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import io.vertx.core.Future;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,10 +77,12 @@ public class ResourcesRegistry {
    * @return A list of all available execution resources in the system
    */
   private static Future<List<ExecutionResource>> getAllResources() {
-    /*
-    Currently the only resource type in the system is "Database".
-    Register further types here when introducing them!
-     */
-    return Database.getAll().map(databases -> databases.stream().collect(Collectors.toList()));
+    return Database.getAll()
+            .compose(db ->  {
+              List<ExecutionResource> executionResources = new ArrayList<>();
+              executionResources.addAll(db);
+              executionResources.add(IOResource.getInstance());
+              return Future.succeededFuture(executionResources);
+            });
   }
 }
