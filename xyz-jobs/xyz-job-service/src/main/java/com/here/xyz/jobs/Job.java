@@ -40,6 +40,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -286,6 +287,7 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
+    State oldState = getStatus().getState();
     if (step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
@@ -293,8 +295,14 @@ public class Job implements XyzSerializable {
           .withErrorCause(step.getStatus().getErrorCause())
           .withErrorCode(step.getStatus().getErrorCode());
     }
-    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount())
+    //TODO: Remove the following workarounds once the state-transition-event-rule is working
+    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount()) {
       getStatus().setState(SUCCEEDED);
+      JobExecutor.getInstance().delete(getStateMachineArn());
+    }
+
+    if (getStatus().getState().isFinal() && getStatus().getState() != oldState) {}
+      JobService.callFinalizeObservers(this);
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null));
