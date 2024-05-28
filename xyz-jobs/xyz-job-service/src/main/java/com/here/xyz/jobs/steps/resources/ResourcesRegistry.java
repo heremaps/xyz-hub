@@ -78,11 +78,11 @@ public class ResourcesRegistry {
    */
   private static Future<List<ExecutionResource>> getAllResources() {
     return Database.getAll()
-            .compose(db ->  {
-              List<ExecutionResource> executionResources = new ArrayList<>();
-              executionResources.addAll(db);
-              executionResources.add(IOResource.getInstance());
-              return Future.succeededFuture(executionResources);
-            });
+        .map(databases -> {
+          List<ExecutionResource> resources = new ArrayList<>();
+          resources.addAll(databases);
+          resources.add(IOResource.getInstance());
+          return resources;
+        });
   }
 }

@@ -42,7 +42,6 @@ import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
@@ -107,15 +106,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public List<Load> getNeededResources() {
     try {
-
       double acus = calculateNeededAcus();
       Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
       long ioBytes = uncompressedTotalBytes == -1 ? getUncompressedUploadBytesEstimation() : uncompressedTotalBytes;
 
       return List.of(new Load().withResource(db).withEstimatedVirtualUnits(acus),
-              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ioBytes));
-
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ioBytes));
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);

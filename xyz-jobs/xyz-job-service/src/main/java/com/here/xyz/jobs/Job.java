@@ -293,6 +293,8 @@ public class Job implements XyzSerializable {
           .withErrorCause(step.getStatus().getErrorCause())
           .withErrorCode(step.getStatus().getErrorCode());
     }
+    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount())
+      getStatus().setState(SUCCEEDED);
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null));
