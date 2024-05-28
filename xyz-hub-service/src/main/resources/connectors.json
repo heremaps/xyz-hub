@@ -433,7 +433,7 @@
         "type": "Embedded",
         "id": "xyz-client-throttling-local",
         "warmUp": 0,
-        "className": "com.here.xyz.hub.connectors.test.InMemoryThrottlingStorage",
+        "className": "com.here.xyz.hub.connectors.test.MockDelayStorageConnector",
         "protocolVersion": "0.5.0"
       }
     }
