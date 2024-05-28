@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.util.service.Core;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
@@ -96,6 +98,22 @@ public class WarmupRemoteFunctionThread extends Thread {
     }
   }
 
+  private void monitorActiveConnections() {
+    for (final RpcClient client : RpcClient.getAllInstances()) {
+      ConcurrentHashMap<String, AtomicInteger> connectionByRequster = client.getFunctionClient().getUsedConnectionsByRequester();
+      final StringBuilder sb = new StringBuilder("Active connections by requester for client ")
+          .append(client.getConnector().id).append(": ");
+      for( String requester : connectionByRequster.keySet() ){
+
+        int count = connectionByRequster.get(requester).get();
+        if(count > 0){
+            sb.append(requester).append(':').append(count).append(';');
+        }
+      }
+      logger.warn(sb.toString());
+    }
+  }
+
   @Override
   public void run() {
     //Stay alive as long as the executor (our parent) is alive.
@@ -108,6 +126,8 @@ public class WarmupRemoteFunctionThread extends Thread {
         if (acquireLock()) {
           logger.info("Lock acquired, running.");
           executeWarmup();
+          // TODO: temporary monitoring for active connections
+          monitorActiveConnections();
           logger.info("Warm-up execution is finished.");
         }
         else {
