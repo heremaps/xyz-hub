@@ -332,6 +332,17 @@ public interface XyzSerializable {
     }
   }
 
+  static boolean equals(Object o1, Object o2) {
+    return equals(o1, o2, null);
+  }
+
+  static boolean equals(Object o1, Object o2, Class<? extends SerializationView> view) {
+    if (o1 == null || o2 == null)
+      return o1 == o2;
+
+    return toMap(o1, view).equals(toMap(o2, view));
+  }
+
   interface SerializationView {}
 
   /**

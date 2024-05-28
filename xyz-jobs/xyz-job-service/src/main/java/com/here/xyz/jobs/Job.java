@@ -40,6 +40,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -286,26 +287,22 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
-    //TODO: Remove the following workaround once the state-transition-event-rule (HTTPS) is working
+    State oldState = getStatus().getState();
     if (step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
           .withErrorMessage(step.getStatus().getErrorMessage())
           .withErrorCause(step.getStatus().getErrorCause())
           .withErrorCode(step.getStatus().getErrorCode());
-
-      //TODO: Decide if we really want to delete the state-machines directly. This would remove
-      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
-//      if(!isResumable() && getStateMachineArn() != null){
-//        JobExecutor.getInstance().delete(getStateMachineArn());
-//      }
     }
+    //TODO: Remove the following workarounds once the state-transition-event-rule is working
     else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount()) {
       getStatus().setState(SUCCEEDED);
-      //TODO: Decide if we really want to delete the state-machines directly. This would remove
-      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
-//      JobExecutor.getInstance().delete(getStateMachineArn());
+      JobExecutor.getInstance().delete(getStateMachineArn());
     }
+
+    if (getStatus().getState().isFinal() && getStatus().getState() != oldState) {}
+      JobService.callFinalizeObservers(this);
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null));

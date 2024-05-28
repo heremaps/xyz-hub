@@ -66,7 +66,7 @@ public class JobCompiler {
           + "Multiple compilation interceptors were found: "
           + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")), errors);
 
-    return async.run(() -> interceptorCandidates.get(0).compile(job));
+    return async.run(() -> interceptorCandidates.get(0).compile(job).enrich(job.getId()));
   }
 
   public static JobCompiler getInstance() {
