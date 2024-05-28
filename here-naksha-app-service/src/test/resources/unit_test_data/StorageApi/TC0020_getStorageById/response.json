@@ -10,7 +10,7 @@
       "db": "${dataDb.db}",
       "user": "${dataDb.user}",
       "password": "xxxxxx",
-      "port": 5432,
+      "port": ${dataDb.port},
       "schema": "${dataDb.schema}",
       "minPoolSize": 5,
       "maxPoolSize": 50

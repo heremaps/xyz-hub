@@ -63,6 +63,7 @@ public class TestUtil {
       json = json.replace("${dataDb.schema}", dataDbConfig.schema());
       json = json.replace("${dataDb.user}", dataDbConfig.user());
       json = json.replace("${dataDb.password}", dataDbConfig.password());
+      json = json.replace("${dataDb.port}", Integer.toString(dataDbConfig.port()));
       final PsqlStorageConfig adminDbConfig = TestPsqlStorageConfigs.adminDbConfig;
       json = json.replace("${adminDb.host}", adminDbConfig.host());
       json = json.replace("${adminDb.port}", Integer.toString(adminDbConfig.port()));
@@ -71,6 +72,7 @@ public class TestUtil {
       json = json.replace("${adminDb.schema}", adminDbConfig.schema());
       json = json.replace("${adminDb.user}", adminDbConfig.user());
       json = json.replace("${adminDb.password}", adminDbConfig.password());
+      json = json.replace("${adminDb.port}", Integer.toString(dataDbConfig.port()));
       return json;
     } catch (IOException e) {
       Assertions.fail("Unable to read test file " + fileName, e);

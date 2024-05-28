@@ -76,7 +76,7 @@ public class PsqlStorageConfig extends PsqlByUrlBuilder<PsqlStorageConfig> {
     if (password == null || password.isBlank()) {
       password = "password";
     }
-    return new PsqlStorageConfig("jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
+    return new PsqlStorageConfig("jdbc:postgresql://localhost:5432/postgres?user=postgres&password=" + password
         + "&schema=" + sharedSchema
         + "&app=" + "Naksha/v" + NakshaVersion.latest
         + "&id=" + PsqlStorage.ADMIN_STORAGE_ID);

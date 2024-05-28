@@ -8,6 +8,7 @@
     "master": {
       "host": "${dataDb.host}",
       "db": "${dataDb.db}",
+      "port": ${dataDb.port},
       "user": "${dataDb.user}",
       "password": "${dataDb.password}",
       "readOnly": false
