@@ -167,18 +167,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    List<Input> inputs = loadInputs();
-    //Inputs are missing, the step is not ready to be executed
-    if (inputs.isEmpty())
+    if (currentInputsCount(UploadUrl.class) <= 0)
+      //Inputs are missing, the step is not ready to be executed
       return false;
 
-    for (int i = 0; i < inputs.size(); i++) {
-      if(inputs.get(i) instanceof UploadUrl uploadUrl) {
-        //TODO: Think about how many files we want to quick check
-        if(i < 2)
-          ImportFilesQuickValidator.validate(uploadUrl, format);
-      }
-    }
+    //Quick-validate the first UploadUrl that is found in the inputs
+    ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format);
 
     return true;
   }
@@ -519,9 +513,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     long bytesPerThreads;
 
     if (fileCount == -1)
-      fileCount = loadInputs().size();
+      fileCount = currentInputsCount(UploadUrl.class);
 
-    if(fileCount == 0)
+    if (fileCount == 0)
       return 0;
 
     int threadCount = calculateDBThreadCount();
@@ -541,7 +535,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return neededACUs;
   }
 
-  private int calculateDBThreadCount(){
+  private int calculateDBThreadCount() {
     //1GB for maxThreads
     long uncompressedByteSizeForMaxThreads = 1024L * 1024 * 1024;
 

@@ -31,6 +31,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -51,7 +52,7 @@ public class JobApi extends Api {
     rb.getRoute("getJobs").setDoValidation(false).addHandler(handleErrors(this::getJobs));
     rb.getRoute("getJob").setDoValidation(false).addHandler(handleErrors(this::getJob));
     rb.getRoute("deleteJob").setDoValidation(false).addHandler(handleErrors(this::deleteJob));
-    rb.getRoute("postJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInputs));
+    rb.getRoute("postJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
     rb.getRoute("getJobInputs").setDoValidation(false).addHandler(handleErrors(this::getJobInputs));
     rb.getRoute("getJobOutputs").setDoValidation(false).addHandler(handleErrors(this::getJobOutputs));
     rb.getRoute("patchJobStatus").setDoValidation(false).addHandler(handleErrors(this::patchJobStatus));
@@ -88,19 +89,21 @@ public class JobApi extends Api {
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
-  private void postJobInputs(final RoutingContext context) throws HttpException {
+  private void postJobInput(final RoutingContext context) throws HttpException {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     Input input = getJobInputFromBody(context);
 
     if (input instanceof UploadUrl) {
       loadJob(jobId)
+          .compose(job -> job.getStatus().getState() == State.NOT_READY
+              ? Future.succeededFuture(job)
+              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
           .map(job -> job.createUploadUrl())
           .onSuccess(res -> sendResponse(context, CREATED.code(), res))
           .onFailure(err -> sendErrorResponse(context, err));
     }
-    else {
+    else
       throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported");
-    }
   }
 
   private void getJobInputs(final RoutingContext context) {

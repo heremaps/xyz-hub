@@ -203,7 +203,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return inputs;
   }
 
+  protected int currentInputsCount(Class<? extends Input> inputType) {
+    return Input.currentInputsCount(jobId, inputType);
+  }
 
+  protected <T extends Input> List<T> loadInputsSample(int maxSampleSize, Class<T> inputType) {
+    return Input.loadInputsSample(jobId, maxSampleSize, inputType);
+  }
 
   @JsonIgnore
   public abstract String getDescription();

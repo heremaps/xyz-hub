@@ -24,8 +24,15 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.util.S3Client;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = UploadUrl.class, name = "UploadUrl")
@@ -33,6 +40,8 @@ import java.util.stream.Collectors;
 public abstract class Input <T extends Input> implements Typed {
   @JsonIgnore
   private String s3Key;
+  private static Map<String, List<Input>> inputsCache = new WeakHashMap<>();
+  private static Set<String> submittedJobs = new HashSet<>();
 
   public static String inputS3Prefix(String jobId) {
     return jobId + "/inputs";
@@ -52,18 +61,61 @@ public abstract class Input <T extends Input> implements Typed {
   }
 
   public static List<Input> loadInputs(String jobId) {
-    return S3Client.getInstance().scanFolder(Input.inputS3Prefix(jobId))
-        .stream()
+    //Only cache inputs of jobs which are submitted already
+    if (submittedJobs.contains(jobId)) {
+      List<Input> inputs = inputsCache.get(jobId);
+      if (inputs == null) {
+        inputs = loadInputsInParallel(jobId);
+        inputsCache.put(jobId, inputs);
+      }
+      return inputs;
+    }
+    return loadInputsInParallel(jobId);
+  }
+
+  private static List<Input> loadInputsInParallel(String jobId) {
+    ForkJoinPool tmpPool = new ForkJoinPool(10);
+    List<Input> inputs = null;
+    try {
+      inputs = tmpPool.submit(() -> loadAndTransformInputs(jobId, -1)).get();
+    }
+    catch (InterruptedException | ExecutionException ignore) {}
+    tmpPool.shutdown();
+    return inputs;
+  }
+
+  public static int currentInputsCount(String jobId, Class<? extends Input> inputType) {
+    //TODO: Support ModelBasedInputs
+    return S3Client.getInstance().scanFolder(Input.inputS3Prefix(jobId)).size();
+  }
+
+  public static <T extends Input> List<T> loadInputsSample(String jobId, int maxSampleSize, Class<T> inputType) {
+    //TODO: Support ModelBasedInputs
+    return (List<T>) loadAndTransformInputs(jobId, maxSampleSize);
+  }
+
+  private static List<Input> loadAndTransformInputs(String jobId, int maxReturnSize) {
+    //TODO: Support ModelBasedInputs
+    Stream<Input> inputsStream = S3Client.getInstance().scanFolder(Input.inputS3Prefix(jobId))
+        .parallelStream()
         .map(s3ObjectSummary -> new UploadUrl()
             .withS3Key(s3ObjectSummary.getKey())
             .withByteSize(s3ObjectSummary.getSize())
-            //TODO: Run metadata retrieval requests partially in parallel in multiple threads
-            .withCompressed(inputIsCompressed(s3ObjectSummary.getKey())))
-        .collect(Collectors.toList());
+            .withCompressed(inputIsCompressed(s3ObjectSummary.getKey())));
+
+    if (maxReturnSize > 0)
+      inputsStream = inputsStream.unordered().limit(maxReturnSize);
+
+    return inputsStream.collect(Collectors.toList());
   }
 
   private static boolean inputIsCompressed(String s3Key) {
+    //TODO: Check compression in another way (e.g. file suffix?)
     ObjectMetadata metadata = S3Client.getInstance().loadMetadata(s3Key);
     return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
+  }
+
+  public static void registerSubmittedJob(String jobId) {
+    submittedJobs.add(jobId);
   }
 }

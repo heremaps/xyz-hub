@@ -157,6 +157,7 @@ public class Job implements XyzSerializable {
         .compose(isReady -> {
           if (isReady) {
             getStatus().setState(SUBMITTED);
+            Input.registerSubmittedJob(getId());
             return store().compose(v -> start()).map(true);
           }
           else {
