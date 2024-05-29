@@ -324,6 +324,7 @@ public class Export extends JDBCBasedJob<Export> {
                 return LegacyHubWebClient.getSpaceStatistics(getTargetSpaceId(), ctx)
                         .compose(statistics ->{
                             //Set version of target space
+                            
                             setMaxSpaceVersion(statistics.getMaxVersion().getValue());
                             setMinSpaceVersion(statistics.getMinVersion().getValue());
                             return Future.succeededFuture(statistics);
@@ -729,6 +730,11 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
 /* incremental */
+
+    public int readParamVersionsToKeep() {
+     return params != null && params.containsKey(PARAM_VERSIONS_TO_KEEP) ? (int) this.getParam(PARAM_VERSIONS_TO_KEEP) : 1;
+    }
+
     @JsonIgnore
     public boolean isIncrementalMode() { 
      return params != null && params.containsKey(PARAM_INCREMENTAL_MODE);
