@@ -17,21 +17,34 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs;
+package com.here.xyz.jobs.service;
 
-import com.here.xyz.util.service.Core;
-import com.here.xyz.util.web.HubWebClientAsync;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.here.xyz.util.ARN;
 
-public class JobService extends Core {
-  private static final Logger logger = LogManager.getLogger();
-  /**
-   * The client to access the Hub REST API
-   */
-  public static HubWebClientAsync hubWebClient;
+public class Config extends com.here.xyz.jobs.steps.Config {
+  public static Config instance;
 
-  public static void main(String[] args) {
-    logger.info("Service started.");
+  {
+    instance = this;
   }
+
+  /**
+   * The router builder class names, separated by comma
+   */
+  public String ROUTER_BUILDER_CLASS_NAMES;
+
+  /**
+   * ARN of DynamoDB Table for JOBs
+   */
+  public String JOBS_DYNAMODB_TABLE_ARN;
+
+  /**
+   * The ARN of the step lambda being called by the step functions
+   */
+  public ARN STEP_LAMBDA_ARN;
+
+  /**
+   * The ARN of the role needed for step function
+   */
+  public String STATE_MACHINE_ROLE;
 }

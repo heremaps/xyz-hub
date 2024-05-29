@@ -20,7 +20,7 @@
 package com.here.xyz.hub;
 
 import static com.here.xyz.hub.task.Task.TASK;
-import static com.here.xyz.hub.util.OpenApiGenerator.generate;
+import static com.here.xyz.util.openapi.OpenApiGenerator.generate;
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 import static io.vertx.core.http.HttpHeaders.LOCATION;
 

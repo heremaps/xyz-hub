@@ -30,6 +30,7 @@ public class Csv extends FileFormat {
   private EntityPerLine entityPerLine = FeatureCollection;
   private JsonColumnEncoding encoding = BASE64;
   private boolean addPartitionKey;
+  private boolean geometryAsExtraWkbColumn;
 
   public EntityPerLine getEntityPerLine() {
     return entityPerLine;
@@ -67,6 +68,19 @@ public class Csv extends FileFormat {
 
   public Csv withAddPartitionKey(boolean addPartitionKey) {
     setAddPartitionKey(addPartitionKey);
+    return this;
+  }
+
+  public boolean isGeometryAsExtraWkbColumn() {
+    return geometryAsExtraWkbColumn;
+  }
+
+  public void setGeometryAsExtraWkbColumn(boolean geometryAsExtraWkbColumn) {
+    this.geometryAsExtraWkbColumn = geometryAsExtraWkbColumn;
+  }
+
+  public Csv withGeometryAsExtraWkbColumn(boolean geometryAsExtraWkbColumn) {
+    setGeometryAsExtraWkbColumn(geometryAsExtraWkbColumn);
     return this;
   }
 

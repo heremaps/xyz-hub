@@ -22,17 +22,23 @@ package com.here.xyz.jobs.config;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
-import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
+import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
+
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,11 +53,36 @@ public class DynamoJobConfigClient extends JobConfigClient {
     jobTable = dynamoClient.db.getTable(dynamoClient.tableName);
   }
 
+  public static class Provider extends JobConfigClient.Provider {
+    @Override
+    public boolean chooseMe() {
+      return !"test".equals(System.getProperty("scope"));
+    }
+
+    @Override
+    protected JobConfigClient getInstance() {
+      if (Config.instance == null || Config.instance.JOBS_DYNAMODB_TABLE_ARN == null)
+        throw new NullPointerException("Config variable JOBS_DYNAMODB_TABLE_ARN is not defined");
+      return new DynamoJobConfigClient(Config.instance.JOBS_DYNAMODB_TABLE_ARN);
+    }
+  }
+
   @Override
-  public Future<Job> loadJob(String resourceKey, String jobId) {
+  public Future<Job> loadJob(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
-      Item jobItem = jobTable.getItem("resourceKey", resourceKey, "id", jobId);
+      Item jobItem = jobTable.getItem("id", jobId);
       return jobItem != null ? XyzSerializable.fromMap(jobItem.asMap(), Job.class) : null;
+    });
+  }
+
+  @Override
+  public Future<List<Job>> loadJobs() {
+    return dynamoClient.executeQueryAsync(() -> {
+      List<Job> jobs = new LinkedList<>();
+      jobTable.scan()
+          .pages()
+          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
+      return jobs;
     });
   }
 
@@ -60,7 +91,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
       jobTable.getIndex("state-index")
-          .query(new QuerySpec().withHashKey("state", state.toString()))
+          .query("state", state.toString())
           .pages()
           .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
       return jobs;
@@ -71,7 +102,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
   public Future<List<Job>> loadJobs(String resourceKey) {
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
-      jobTable.query("resourceKey", resourceKey)
+      jobTable.getIndex("resourceKey-index")
+          .query("resourceKey", resourceKey)
           .pages()
           .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
       return jobs;
@@ -79,25 +111,95 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<Void> storeJob(String resourceKey, Job job) {
+  public Future<Void> storeJob(Job job) {
     return dynamoClient.executeQueryAsync(() -> {
       //TODO: Ensure that concurrent writes do not produce invalid state-transitions using atomic writes
-      jobTable.putItem(convertJobToItem(resourceKey, job));
+      jobTable.putItem(convertJobToItem(job));
       return null;
     });
   }
 
-  private Item convertJobToItem(String resourceKey, Job job) {
+  @Override
+  public Future<Void> updateState(Job job, State expectedPreviousState) {
+    if (expectedPreviousState == job.getStatus().getState())
+      //Nothing to do
+      return Future.succeededFuture();
+
+    return dynamoClient.executeQueryAsync(() -> {
+      jobTable.updateItem(new UpdateItemSpec()
+          .withPrimaryKey("id", job.getId())
+          .withUpdateExpression("SET #state = :newState")
+          .withConditionExpression("#state = :oldState")
+          .withNameMap(Map.of("#state", "status.state"))
+          .withValueMap(Map.of(":newState", job.getStatus().getState().toString(), ":oldState", expectedPreviousState.toString())));
+      return null;
+    });
+  }
+
+  @Override
+  public Future<Void> updateStatus(Job job, State expectedPreviousState) {
+    return dynamoClient.executeQueryAsync(() -> {
+      try {
+        jobTable.updateItem(new UpdateItemSpec()
+            .withPrimaryKey("id", job.getId())
+            .withUpdateExpression("SET #status = :newStatus")
+            //TODO: Reactivate the state check / allow multiple expected previous steps? Allow passing null to be expected, meaning to not check at all?
+            //.withConditionExpression("#state = :oldState")
+            .withNameMap(Map.of("#status", "status"/*, "#state", "status.state"*/))
+            .withValueMap(Map.of(":newStatus", job.getStatus().toMap()/*, ":oldState", expectedPreviousState.toString()*/)));
+        return null;
+      }
+      catch (Exception e) {
+        logger.error(e);
+        return null;
+      }
+    });
+  }
+
+  @Override
+  public Future<Void> updateStep(Job job, Step<?> newStep) {
+    final String stepPath = buildStepPath(job, newStep);
+    final List<State> finalStates = Stream.of(State.values())
+        .filter(state -> state.isFinal())
+        .collect(Collectors.toUnmodifiableList());
+    Map<String, Object> valueMap = new HashMap<>(Map.of(":newStep", newStep.toMap()));
+    finalStates.forEach(state -> valueMap.put(":" + state, state.toString()));
+
+    return dynamoClient.executeQueryAsync(() -> {
+      try {
+        jobTable.updateItem(new UpdateItemSpec()
+            .withPrimaryKey("id", job.getId())
+            .withUpdateExpression("SET " + stepPath + " = :newStep")
+            //NOTE: The condition ensures that we're not further updating a step that has a final state
+            .withConditionExpression(finalStates.stream()
+                .map(state -> "#state <> :" + state)
+                .collect(Collectors.joining(" AND ")))
+            .withNameMap(Map.of("#state", stepPath + ".status.state"))
+            .withValueMap(valueMap));
+        return null;
+      }
+      catch (Exception e) {
+        logger.error(e);
+        return null;
+      }
+    });
+  }
+
+  private String buildStepPath(Job job, Step<?> step) {
+    return "steps." + job.getSteps().findStepPath(step.getId());
+  }
+
+  private Item convertJobToItem(Job job) {
     Map<String, Object> jobItemData = job.toMap(Static.class);
-    jobItemData.put("state", job.getStatus().getState());
     jobItemData.put("keepUntil", job.getKeepUntil() / 1000);
+    jobItemData.put("state", job.getStatus().getState().toString());
     return Item.fromMap(jobItemData);
   }
 
   @Override
-  public Future<Void> deleteJob(String resourceKey, String jobId) {
+  public Future<Void> deleteJob(String jobId) {
     return dynamoClient.executeQueryAsync(() -> {
-      jobTable.deleteItem(new DeleteItemSpec().withPrimaryKey("resourceKey", resourceKey, "id", jobId));
+      jobTable.deleteItem(new DeleteItemSpec().withPrimaryKey("id", jobId));
       return null;
     });
   }
@@ -107,8 +209,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
     if (dynamoClient.isLocal()) {
       logger.info("DynamoDB running locally, initializing Jobs table.");
       try {
-        List<IndexDefinition> indexes = List.of(new IndexDefinition("type"), new IndexDefinition("state"));
-        dynamoClient.createTable(jobTable.getTableName(), "resourceKey:S,id:S,state:S", "resourceKey,id", indexes, "keepUntil");
+        List<IndexDefinition> indexes = List.of(new IndexDefinition("resourceKey"), new IndexDefinition("state"));
+        dynamoClient.createTable(jobTable.getTableName(), "id:S,resourceKey:S,state:S", "id", indexes, "keepUntil");
         //TODO: Register a dynamo stream (also in CFN) to ensure we're getting informed when a job expires
       }
       catch (Exception e) {

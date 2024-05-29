@@ -19,74 +19,72 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
+import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
+import static com.here.xyz.jobs.util.AwsClients.sfnClient;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
+import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.ENABLED;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.util.JobWebClient;
+import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClientBuilder;
-import software.amazon.awssdk.services.sfn.SfnClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskSuccessRequest;
+import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DatabaseBasedStep.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
+  public static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
+  public static final String HEART_BEAT_PREFIX = "HeartBeat-";
+  protected boolean isSimulation = false; //TODO: Remove testing code
+  private static final Logger logger = LogManager.getLogger();
 
-  //TODO: Allow the implementations to define their heartbeat interval & timeout?
+  @JsonView(Internal.class)
+  private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
+  private ARN ownLambdaArn; //Will be defined from Lambda's execution context
 
-  /*
-  TODO: The Lambda invokers role (not execution role) must have the following permissions:
-
-   - Invoke the Lambda function
-
-   It must be assumable (trust-policy) by:
-
-   - The Step Function which should call the step
-   - The CW Event Rule which triggers the state checks / heartbeats
-   - Any foreign system's role that wants to invoke the lambda for callbacks (e.g. RDS instances, also add it to the instance accordingly!)
-     see: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL-Lambda.html
-   */
-
-  /*
-  TODO: The Lambda execution role (not invokers role) must have the following permissions:
-
-  - Create CW rule
-  - Add CW rule targets
-  - Remove CW rule targets
-  - Delete CW rule
-
-  - Send step success to SFN
-  - Send step failure to SFN
-  - Send step heartbeat to SFN
-
-  - Assume other roles?
-   */
-  @JsonProperty("taskToken.$")
-  private String taskToken = "$$.Task.Token"; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
-  private String ownLambdaArn; //Will be defined from Lambda's execution context
-  private String invokersRoleArn; //Will be defined by the framework alongside the START_EXECUTION request being relayed by the Step Function
-  private String stateCheckTriggerArn; //Will be defined (for ASYNC ExecutionMode) by this step when it created the CW event rule trigger
-
-  private SfnClient sfnClient;
-  private CloudWatchEventsClient cwEventsClient;
-
-  @Override
-  public RuntimeInfo getStatus() {
-    //TODO: Called by the framework node to get the (previously updated & cached) step state .. Status updates come through CW event bridge
-    return null;
-  }
+  private static final String INVOKE_SUCCESS = """
+      {"status": "OK"}""";
 
   /**
    * This method must be implemented by subclasses.
@@ -100,144 +98,291 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public abstract AsyncExecutionState getExecutionState() throws UnknownStateException;
 
   private void startExecution() throws Exception {
+    updateState(RUNNING);
+    //TODO: Check at the according StepFunction whether this execution is a "redrive" and call #resume() instead of execute() in such a case
     switch (getExecutionMode()) {
-      case SYNC -> execute();
+      case SYNC -> {
+        execute();
+        updateState(SUCCEEDED);
+      }
       case ASYNC -> {
-        execute(); //TODO: Catch exceptions
+        execute();
         registerStateCheckTrigger();
       }
     }
   }
 
-  private CloudWatchEventsClient cwEventsClient() {
-    if (cwEventsClient == null) {
-      CloudWatchEventsClientBuilder builder = CloudWatchEventsClient.builder();
-      if (Config.instance.LOCALSTACK_ENDPOINT != null)
-        builder.endpointOverride(Config.instance.LOCALSTACK_ENDPOINT);
-      cwEventsClient = builder.build();
-    }
-    return cwEventsClient;
+  private void updateState(State newState) {
+    getStatus().setState(newState);
+    synchronizeStepState();
   }
 
   private void registerStateCheckTrigger() {
-    String globalStepId = getJobId() + "." + getId();
+    if (isSimulation)
+      return;
 
-    //stateCheckTriggerArn = cwEventsClient().putRule(PutRuleRequest.builder()
-    //    .state(ENABLED)
-    //    .scheduleExpression("rate(1 minute)")
-    //    .description("Heartbeat trigger for Step " + globalStepId)
-    //    .build()).ruleArn();
-    //
-    //cwEventsClient().putTargets(PutTargetsRequest.builder()
-    //    .targets(Target.builder()
-    //        .id(globalStepId)
-    //        .arn(ownLambdaArn)
-    //        .roleArn(invokersRoleArn)
-    //        .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
-    //        .build())
-    //        .rule(stateCheckTriggerArn)
-    //    .build());
+    cloudwatchEventsClient().putRule(PutRuleRequest.builder()
+        .name(getStateCheckRuleName())
+        .state(ENABLED)
+        .scheduleExpression("rate(1 minute)")
+        .description("Heartbeat trigger for Step " + getGlobalStepId())
+        .build());
+
+    cloudwatchEventsClient().putTargets(PutTargetsRequest.builder()
+        .rule(getStateCheckRuleName())
+        .targets(Target.builder()
+            .id(getGlobalStepId())
+            .arn(ownLambdaArn.toString())
+            .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
+            .build())
+        .build());
+  }
+
+  @JsonIgnore
+  private String getStateCheckRuleName() {
+    return HEART_BEAT_PREFIX + getGlobalStepId();
   }
 
   //TODO: Also call this on cancel?
   private void unregisterStateCheckTrigger() {
-    //List all targets
-    //List<String> targetIds = cwEventsClient().listTargetsByRule(ListTargetsByRuleRequest.builder().rule(stateCheckTriggerArn).build())
-    //    .targets()
-    //    .stream()
-    //    .map(target -> target.id())
-    //    .collect(Collectors.toList());
-    //
-    ////Remove all targets from the rule
-    //cwEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(stateCheckTriggerArn).ids(targetIds).build());
-    //
-    ////Remove the rule
-    //cwEventsClient().deleteRule(DeleteRuleRequest.builder().name(stateCheckTriggerArn).build());
+    if (isSimulation)
+      return;
+
+    try {
+      //List all targets
+      List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(
+              ListTargetsByRuleRequest.builder().rule(getStateCheckRuleName()).build())
+          .targets()
+          .stream()
+          .map(target -> target.id())
+          .collect(Collectors.toList());
+
+      //Remove all targets from the rule
+      cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(getStateCheckRuleName()).ids(targetIds).build());
+
+      //Remove the rule
+      cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
+    }
+    catch (ResourceNotFoundException e) {
+      //Ignore the exception, as the rule is not existing (yet)
+    }
   }
 
   private void checkAsyncExecutionState() {
     try {
+      onStateCheck();
       switch (getExecutionState()) {
         case RUNNING -> reportAsyncHeartbeat();
         case SUCCEEDED -> reportAsyncSuccess();
-        case FAILED -> reportAsyncFailure(null);
+        case FAILED -> reportFailure(null, true);
       }
     }
     catch (UnknownStateException e) {
       /*
-      The state is not known currently, maybe one of the next heartbeat requests will be able to reveal the state.
+      The state is not known currently, maybe one of the next STATE_CHECK requests will be able to reveal the state.
       If the issue persists, the step will fail after the heartbeat timeout.
        */
-      //TODO: Log this occurrence
+      logger.warn("Unknown execution state for step {}.{}", getJobId(), getId(), e);
+      synchronizeStepState();
+      //NOTE: No heartbeat must be sent to SFN in this case!
     }
     catch (Exception e) {
-      //TODO: log exception
       //Unexpected exception, there is an issue in the implementation of the step, so cancel & report non-retryable failure
       //TODO: Check if calling cancel makes sense here
       //cancel();
-      reportAsyncFailure(e, false);
+      throw e;
     }
   }
 
-  protected void onAsyncSuccess() {
+  protected void onAsyncSuccess() throws Exception {
     //Nothing to do by default (may be overridden in subclasses)
   }
 
   protected final void reportAsyncSuccess() {
-    //TODO: synchronize the step state before?
-    onAsyncSuccess();
+    try {
+      onAsyncSuccess();
+    }
+    catch (Exception e) {
+      reportFailure(e, true);
+      return;
+    }
+
+    updateState(SUCCEEDED);
     unregisterStateCheckTrigger();
+
     //Report success to SFN
-    if (sfnClient != null)
-      sfnClient.sendTaskSuccess(SendTaskSuccessRequest.builder().taskToken(taskToken).build());
+    if (!isSimulation) { //TODO: Remove testing code
+      sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()
+          .taskToken(taskToken)
+          .output(INVOKE_SUCCESS)
+          .build());
+    }
     else
       //TODO: Remove testing code
       System.out.println(getClass().getSimpleName() + " : SUCCESS");
   }
 
   private void reportAsyncHeartbeat() {
-    //Report heartbeat to SFN
-    sfnClient.sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
+    if (isSimulation)
+      return;
+    //Report heartbeat to SFN and check for a potential necessary cancellation
+    try {
+      sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
+      getStatus().touch();
+      synchronizeStepState();
+    }
+    catch (TaskTimedOutException e) {
+      try {
+        cancel();
+        updateState(CANCELLED);
+      }
+      catch (Exception ex) {
+        logger.error("Error during cancellation of step {}", getGlobalStepId(), ex);
+        reportFailure(ex, false, true);
+      }
+    }
   }
 
-  protected boolean onAsyncFailure(Exception e) {
+  /**
+   * Will be called for every STATE_CHECK request being performed for the step.
+   * Subclasses may override this method to implement tasks which should be performed on a regular basis during the STAT_CHECK.
+   * E.g., overriding implementations can update the estimatedProgress at the step's status object.
+   */
+  protected void onStateCheck() {
+    //Nothing to do by default (may be overridden in subclasses)
+  }
+
+  /**
+   * Will be called for every async failure callback occurring for this step prior to reporting it to SFN or the Job Framework.
+   * This method may inspect the causing error description in the step status to decide whether the exception depicts
+   * an error that is or is not retryable.
+   *
+   * If all failed steps of a job are marked being retryable, the user can retry the execution of the job at a later time.
+   *
+   * @return Whether the specified exception depicts a retryable error or not.
+   */
+  protected boolean onAsyncFailure() {
     //Nothing to do by default (may be overridden in subclasses)
     return false;
   }
 
-  private void reportAsyncFailure(Exception e, boolean retryable) {
-    retryable = retryable && onAsyncFailure(e);
-    setFailedRetryable(retryable);
-    reportAsyncFailure(e);
+  private void reportFailure(Exception e, boolean retryable, boolean async) {
+    if (async)
+      retryable = retryable && onAsyncFailure();
+
+    logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}:", getGlobalStepId(), e);
+    getStatus().setFailedRetryable(retryable);
+    reportFailure(e, async);
   }
 
-  private void reportAsyncFailure(Exception e) {
-    if (sfnClient == null)
+  private void reportFailure(Exception e, boolean async) {
+    if (isSimulation) //TODO: Remove testing code
       throw new RuntimeException(e);
 
-    //TODO: synchronize the step state with the framework before?
-    unregisterStateCheckTrigger();
-    //Report failure to SFN
-    SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
-        .taskToken(taskToken);
+    if (async)
+      unregisterStateCheckTrigger();
 
-    if (e!= null)
-      request
-          .error(e != null ? e.getMessage() : null)
-          .cause(e.getCause() != null ? e.getCause().getMessage() : null);
+    if (e != null) {
+      getStatus()
+          .withErrorMessage(e.getMessage())
+          .withErrorCause(e.getCause() != null ? e.getCause().getMessage() : null);
 
-    sfnClient.sendTaskFailure(request.build());
+      if (e instanceof ErrorResponseException responseException)
+        getStatus().setErrorCode("HTTP-" + responseException.getErrorResponse().statusCode());
+    }
+
+    updateState(FAILED);
+
+    if (async) {
+      //Report failure to SFN
+      SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
+          .taskToken(taskToken);
+
+      if (getStatus().getErrorMessage() != null)
+        request.error(truncate(getStatus().getErrorMessage(), 256));
+
+      if (getStatus().getErrorCause() != null || getStatus().getErrorCode() != null) {
+        String errCauseForSfn = (getStatus().getErrorCode() != null ? "Error code: " + getStatus().getErrorCode() + ", " : "")
+            + (getStatus().getErrorCause() != null ? getStatus().getErrorCause() : "");
+        request.cause(truncate(errCauseForSfn, 256));
+      }
+
+      try {
+        sfnClient().sendTaskFailure(request.build());
+      }
+      catch (TaskTimedOutException ex) {
+        logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}.", getJobId(), getId());
+      }
+    }
+
+    //Finally, log the error also to the lambda log
+    logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
+        getStatus().getErrorCause(), getStatus().getErrorCode());
   }
 
+  private String truncate(String string, int maxLength) {
+    return string.length() < maxLength ? string : string.substring(0, maxLength - 4) + " ...";
+  }
+
+  private void synchronizeStepState() {
+    logger.info("Synchronizing step state for {} with job service ...", getGlobalStepId());
+    try {
+      //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
+      JobWebClient.getInstance().postStepUpdate(this);
+    }
+    catch (ErrorResponseException httpError) {
+      HttpResponse<byte[]> errorResponse = httpError.getErrorResponse();
+      final HttpRequest failedRequest = errorResponse.request();
+      logger.error("Error updating the step state of step {} - Performing {} {}. Upstream-ID: {}, Response:\n{}",
+          getGlobalStepId(),
+          failedRequest.method(), failedRequest.uri(), errorResponse.headers().firstValue(STREAM_ID).orElse(null),
+          new String(errorResponse.body()));
+    }
+    catch (WebClientException httpError) {
+      logger.error("Error updating the step state of step {} at the job service", getGlobalStepId(), httpError);
+    }
+  }
+
+  /**
+   * Informs the framework in which mode to execute this LambdaBasedStep.
+   * This method might be called multiple times during the execution of this step.
+   * This method should be implemented in a way to make sure that all calls will always return the same value for the same step
+   * configuration.
+   *
+   * SYNC:
+   *  Returning SYNC depicts the intent of the step to start its *whole execution* inside the Lambda Function's runtime environment directly.
+   *  The step's execute() method will be called, and it might run as long as defined by the timeout for this step. Once the execution is
+   *  completed (which basically means that the execute() method returns), the whole execution is depicted as being complete and
+   *  the orchestration of the containing job can continue.
+   *
+   * ASYNC:
+   *  Returning ASYNC depicts the intent of the step to only *start the execution* and *not completing it* in the runtime environment
+   *  completely.
+   *  The step's execute() method will be called, and it should only start the execution inside some remote system and return very quickly
+   *  right after that. From that point on, the step is depicted to be in RUNNING state until a SUCCESS_CALLBACK or a FAILURE_CALLBACK
+   *  request is sent back to this Lambda Function. For remote systems that do not support sending back a callback request to this
+   *  Lambda Function, the STATE_CHECK request can be used to implement a polling mechanism to check the remote system.
+   *  STATE_CHECK requests are sent to this Lambda Function in regular intervals automatically. Subclasses can react on such checks
+   *  by implementing the method {@link #getExecutionState()} and act accordingly inside. That is, returning the according state of the
+   *  task within the remote system, or throwing an {@link UnknownStateException} in case the state is (temporarily) unknown.
+   *
+   * @return The execution mode. SYNC vs ASYNC.
+   */
   public abstract ExecutionMode getExecutionMode();
 
   @JsonIgnore
-  protected String getwOwnLambdaArn() {
+  protected ARN getwOwnLambdaArn() {
     return ownLambdaArn;
   }
 
   protected void onRuntimeShutdown() {
     //Nothing to do here. Subclasses may override this method to implement some steps to be executed as a "shutdown-hook".
+  }
+
+  @JsonProperty("taskToken.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getTaskTokenTemplate() {
+    return TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
   }
 
   protected enum ExecutionMode {
@@ -263,39 +408,76 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public static class LambdaBasedStepExecutor implements RequestStreamHandler {
     @Override
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
+      //Initialize Config from environment variables
+      if (Config.instance == null)
+        XyzSerializable.fromMap(Map.copyOf(getEnvironmentVariables()), Config.class);
+      //Read the incoming request
       LambdaStepRequest request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
-      request.getStep().ownLambdaArn = context.getInvokedFunctionArn();
+
+      if (request.getStep() == null)
+        throw new NullPointerException("Malformed step request, missing step definition.");
+
+      //Set the own lambda ARN accordingly
+      if (context instanceof SimulatedContext) {
+        request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.AWS_REGION + ":000000000000:function:job-step");
+        request.getStep().isSimulation = true;
+      }
+      else
+        request.getStep().ownLambdaArn = new ARN(context.getInvokedFunctionArn());
+      Config.instance.AWS_REGION = request.getStep().ownLambdaArn.getRegion();
+      //Can be set to debug on a later state
+      logger.info("[{}] Received Request {}", request.getStep().getGlobalStepId(), XyzSerializable.serialize(request));
+
       //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
       //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method
-      //IF the incoming event is a cancellation event (check if SF is sending one) call the cancel method!
-      switch (request.getType()) {
-        case START_EXECUTION -> {
-          try {
-            request.getStep().startExecution();
-          }
-          catch (Exception e) {
-            //TODO: log exception
-            request.getStep().reportAsyncFailure(e, false);
-          }
+
+      if (request.getType() == START_EXECUTION) {
+        try {
+          logger.info("Starting the execution of step {} ...", request.getStep().getGlobalStepId());
+          request.getStep().startExecution();
+          logger.info("Execution of step {} has been started successfully ...", request.getStep().getGlobalStepId());
         }
-        case CANCEL_EXECUTION -> {
-          try {
+        catch (Exception e) {
+          //Report error synchronously
+          request.getStep().reportFailure(e, false, false);
+          throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
+        }
+      }
+
+      try {
+        switch (request.getType()) {
+          case STATE_CHECK -> {
+            logger.info("Checking async execution state of step {} ...", request.getStep().getGlobalStepId());
+            request.getStep().checkAsyncExecutionState();
+            logger.info("Async execution state of step {} has been checked & reported successfully.", request.getStep().getGlobalStepId());
+          }
+          case SUCCESS_CALLBACK -> {
+            logger.info("Reporting async success for step {} ...", request.getStep().getGlobalStepId());
+            request.getStep().reportAsyncSuccess();
+            logger.info("Reported async success for step {} successfully.", request.getStep().getGlobalStepId());
+          }
+          case FAILURE_CALLBACK -> {
+            logger.info("Cancelling and reporting async failure for step {} ...", request.getStep().getGlobalStepId());
             request.getStep().cancel();
-          }
-          catch (Exception e) {
-            //TODO: log exception
-            //TODO: report failure?
-            //TODO: is the failure resumable? - most likely not if the cancellation was not properly executed, because the inner state is unknown
-            throw new RuntimeException(e);
+            //NOTE: Assume that the error information has been injected into the status object by the callback caller already
+            request.getStep().reportFailure(null, false, true);
+            logger.info("Reported async failure for step {} failure successfully.", request.getStep().getGlobalStepId());
           }
         }
-        case STATE_CHECK -> request.getStep().checkAsyncExecutionState();
-        case SUCCESS_CALLBACK -> request.getStep().reportAsyncSuccess();
-        //TODO: FAILURE_CALLBACK
+      }
+      catch (Exception e) {
+        request.getStep().reportFailure(e, false, true); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
+        throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
       }
 
       //The lambda call is complete, call the shutdown hook
       request.getStep().onRuntimeShutdown();
+
+      outputStream.write(INVOKE_SUCCESS.getBytes());
+    }
+
+    protected Map<String, String> getEnvironmentVariables() {
+      return System.getenv();
     }
   }
 
@@ -331,7 +513,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     public enum RequestType {
       START_EXECUTION, //Sent by Step Function when the actual execution should be started (ASYNC) / performed (SYNC)
-      CANCEL_EXECUTION, //Sent by Step Function
       STATE_CHECK, //For ASYNC mode only: Sent periodically by a CW Events Rule to check the inner step state and report heartbeats to the Step Function
       SUCCESS_CALLBACK, //For ASYNC mode only: A request, sent by the underlying foreign system to inform the step about its success
       FAILURE_CALLBACK //For ASYNC mode only: A request, sent by the underlying foreign system to inform the step about its failure

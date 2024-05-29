@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.di;
+package com.here.xyz.util.di;
 
 import java.util.List;
 import java.util.ServiceLoader;

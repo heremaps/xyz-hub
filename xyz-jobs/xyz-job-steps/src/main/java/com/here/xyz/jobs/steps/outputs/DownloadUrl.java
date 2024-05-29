@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.outputs;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.steps.S3Client;
+import com.here.xyz.jobs.util.S3Client;
 import java.net.URL;
 
 public class DownloadUrl extends Output<DownloadUrl> {
@@ -51,5 +51,11 @@ public class DownloadUrl extends Output<DownloadUrl> {
   public DownloadUrl withByteSize(long byteSize) {
     setByteSize(byteSize);
     return this;
+  }
+
+  @Override
+  protected boolean hasMetadata() {
+    //For all instances created by subclasses of DownloadUrl, extra fields could be expected
+    return !this.getClass().equals(DownloadUrl.class);
   }
 }

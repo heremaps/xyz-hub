@@ -19,38 +19,59 @@
 
 package com.here.xyz.jobs;
 
-import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
-import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
+import static com.here.xyz.jobs.RuntimeInfo.State.NONE;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.collect.ImmutableMap;
-import com.here.xyz.util.service.Core;
+import com.here.xyz.XyzSerializable;
 import java.util.Arrays;
 import java.util.Map;
 
-public class RuntimeInfo<T extends RuntimeInfo> {
-
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
   private long updatedAt;
   private long startedAt;
-  private State state = NOT_READY;
+  private State state = NONE;
+  private float estimatedProgress;
+  private String errorMessage;
+  private String errorCause;
+  private String errorCode;
+  @JsonView({Public.class, Static.class})
+  boolean failedRetryable;
+  private long initialEndTimeEstimation = -1;
 
-  @JsonIgnore //TODO: Re-activate once implemented
-  public float getEstimatedProgress() {
-    return 0.5f; //TODO: Deduct from statistics, start time & e.g. estimated row count
-  }
-
-  @JsonIgnore //TODO: Re-activate once implemented
-  public long getEstimatedEndTime() {
-    long executionTime = Core.currentTimeMillis() - getStartedAt();
-    float estimatedProgress = getEstimatedProgress();
-    if (estimatedProgress == 0)
-      return -1;
-    long estimatedDuration = (long) (executionTime / estimatedProgress);
-    return getStartedAt() + estimatedDuration;
+  /**
+   * Updates the updatedAt timestamp of this object to the current time.
+   */
+  public void touch() {
+    setUpdatedAt(System.currentTimeMillis());
   }
 
   /**
-   * Returns the time of the last status update of the job in milliseconds.
+   * @return The estimated timestamp of when the process will be completed in milliseconds.
+   */
+  public long getEstimatedEndTime() {
+    if (getState().isFinal())
+      return getUpdatedAt();
+
+    long passedExecutionTime = getUpdatedAt() - getStartedAt();
+    float estimatedProgress = getEstimatedProgress();
+    if (estimatedProgress == 0)
+        return initialEndTimeEstimation;
+    long estimatedOverallDuration = (long) (passedExecutionTime / estimatedProgress);
+    return getStartedAt() + estimatedOverallDuration;
+  }
+
+  public T withInitialEndTimeEstimation(long initialEndTimeEstimation) {
+    this.initialEndTimeEstimation = initialEndTimeEstimation;
+    return (T) this;
+  }
+
+  /**
+   * @return The timestamp of the last status update in milliseconds.
    */
   public long getUpdatedAt() {
     return updatedAt;
@@ -83,7 +104,16 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   }
 
   public void setState(State state) {
-    State.checkTransition(getState(), SUBMITTED);
+    State.checkTransition(getState(), state);
+    if (this.state != NONE) { //Do not update timestamps during deserialization
+      if (state == RUNNING)
+        withStartedAt(System.currentTimeMillis()).withUpdatedAt(getStartedAt());
+      else
+        touch();
+
+      if (state == SUCCEEDED)
+        setEstimatedProgress(1);
+    }
     this.state = state;
   }
 
@@ -93,9 +123,79 @@ public class RuntimeInfo<T extends RuntimeInfo> {
   }
 
   /**
+   * @return The estimated progress. A value from 0.0 to 1.0 (inclusive).
+   */
+  public float getEstimatedProgress() {
+    return estimatedProgress;
+  }
+
+  public void setEstimatedProgress(float estimatedProgress) {
+    touch();
+    this.estimatedProgress = estimatedProgress;
+  }
+
+  public T withEstimatedProgress(float estimatedProgress) {
+    setEstimatedProgress(estimatedProgress);
+    return (T) this;
+  }
+
+  public String getErrorMessage() {
+    return errorMessage;
+  }
+
+  public void setErrorMessage(String errorMessage) {
+    this.errorMessage = errorMessage;
+  }
+
+  public T withErrorMessage(String errorMessage) {
+    setErrorMessage(errorMessage);
+    return (T) this;
+  }
+
+  public String getErrorCause() {
+    return errorCause;
+  }
+
+  public void setErrorCause(String errorCause) {
+    this.errorCause = errorCause;
+  }
+
+  public T withErrorCause(String errorCause) {
+    setErrorCause(errorCause);
+    return (T) this;
+  }
+
+  public String getErrorCode() {
+    return errorCode;
+  }
+
+  public void setErrorCode(String errorCode) {
+    this.errorCode = errorCode;
+  }
+
+  public T withErrorCode(String errorCode) {
+    setErrorCode(errorCode);
+    return (T) this;
+  }
+
+  public boolean isFailedRetryable() {
+    return failedRetryable;
+  }
+
+  public void setFailedRetryable(boolean failedRetryable) {
+    this.failedRetryable = failedRetryable;
+  }
+
+  public T withFailedRetryable(boolean failedRetryable) {
+    setFailedRetryable(failedRetryable);
+    return (T) this;
+  }
+
+  /**
    * Depicts the state of an executable task / flow from the perspective of the client which submitted it.
    */
   public enum State {
+    NONE, //The initial state of all RuntimeInfo objects. This state is not a valid state and must be overwritten (e.g., by deserialization immediately after the creation of the RuntimeInfo object)
     NOT_READY, //The task is not ready to be submitted to the execution system yet. Not all pre-conditions are met.
     SUBMITTED, //The task is ready for execution, all needed information was provided.
     PENDING, //The task is waiting to get executed by the target system. That could be dependent by execution resources to become available.
@@ -108,6 +208,7 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
     private final boolean isFinal;
     private static final Map<State, State[]> validSuccessors = ImmutableMap.of(
+        NONE, new State[]{null}, //Allows all transitions at initialization. Needed to allow proper deserialization into the POJO.
         NOT_READY, new State[]{SUBMITTED, FAILED},
         SUBMITTED, new State[]{PENDING, CANCELLING, FAILED},
         PENDING, new State[]{RUNNING, CANCELLING, FAILED},
@@ -133,11 +234,11 @@ public class RuntimeInfo<T extends RuntimeInfo> {
 
     public boolean isValidSuccessor(State successorState) {
       return Arrays.stream(validSuccessors.get(this))
-          .anyMatch(validSuccessor -> validSuccessor == successorState);
+          .anyMatch(validSuccessor -> validSuccessor == successorState || validSuccessor == null);
     }
 
     public static void checkTransition(State sourceState, State targetState) {
-      if (!sourceState.isValidSuccessor(targetState))
+      if (sourceState != targetState && !sourceState.isValidSuccessor(targetState))
         throw new IllegalStateTransition(sourceState, targetState);
     }
 

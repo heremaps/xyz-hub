@@ -1,0 +1,22 @@
+{
+  "configuration": {
+    "packages": "com.amazonaws.services.lambda.runtime.log4j2",
+    "appenders": {
+      "LAMBDA": {
+        "type": "Lambda",
+        "name": "LAMBDA",
+        "PatternLayout": {
+          "pattern": "%d{yyyy-MM-dd HH:mm:ss} <%X{AWSRequestId}> %-5p %c:%.-4096m%n"
+        }
+      }
+    },
+    "loggers": {
+      "root": {
+        "level": "${env:LOG_LEVEL:-info}",
+        "AppenderRef": {
+          "ref": "LAMBDA"
+        }
+      }
+    }
+  }
+}

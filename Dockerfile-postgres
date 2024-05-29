@@ -7,7 +7,7 @@ RUN apt-get update && \
 
 WORKDIR /home
 #Clone forked AWS RDS S3-Extension mock called "chimpler"
-RUN git clone https://github.com/mchrza/postgres-aws-s3.git --branch v.1.0.5 .
+RUN git clone https://github.com/mchrza/postgres-aws-s3.git --branch v.1.0.8 .
 RUN make install
 
 #Add mocked aws settings during initializiation phase

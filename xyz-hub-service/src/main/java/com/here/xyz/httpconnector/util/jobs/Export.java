@@ -78,12 +78,13 @@ import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.web.HubWebClient.HubWebClientException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -181,8 +182,11 @@ public class Export extends JDBCBasedJob<Export> {
     private static final long UNKNOWN_MAX_SPACE_VERSION = -42;
     @JsonView(Public.class)
     private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+
     @JsonView(Public.class)
     private long minSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+    @JsonView(Public.class)
+    private long spaceCreatedAt = 0;
 
     @JsonView(Public.class)
     private long maxSuperSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
@@ -195,6 +199,7 @@ public class Export extends JDBCBasedJob<Export> {
     private static String PARAM_SCOPE = "scope";
     private static String PARAM_EXTENDS = "extends";
     private static String PARAM_SKIP_TRIGGER = "skipTrigger";
+    private static String PARAM_INCREMENTAL_MODE = "incrementalMode";
 
     public static String PARAM_CONTEXT = "context";
 
@@ -280,10 +285,22 @@ public class Export extends JDBCBasedJob<Export> {
                     versionRefSource.setVersionRef(new Ref(version));
                     setTargetVersion(String.valueOf(version));
                   }
-                  catch (HubWebClientException e) {
+                  catch (WebClientException e) {
                     return Future.failedFuture(e);
                   }
                 }
+
+                if (getSource() instanceof Identifiable<?> identifiable) {
+
+                  try {
+                    Space space = CService.hubWebClient.loadSpace(identifiable.getId());
+                    setSpaceCreatedAt( space.getCreatedAt() );
+                  }
+                  catch (WebClientException e) {
+                    return Future.failedFuture(e);
+                  }
+                }
+
 
                 return Future.succeededFuture();
             }).compose(f -> {
@@ -307,6 +324,7 @@ public class Export extends JDBCBasedJob<Export> {
                 return LegacyHubWebClient.getSpaceStatistics(getTargetSpaceId(), ctx)
                         .compose(statistics ->{
                             //Set version of target space
+                            
                             setMaxSpaceVersion(statistics.getMaxVersion().getValue());
                             setMinSpaceVersion(statistics.getMinVersion().getValue());
                             return Future.succeededFuture(statistics);
@@ -710,6 +728,36 @@ public class Export extends JDBCBasedJob<Export> {
     public SpaceContext readParamContext() {
         return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf(this.params.get(PARAM_CONTEXT).toString()) : null;
     }
+
+/* incremental */
+
+    public int readParamVersionsToKeep() {
+     return params != null && params.containsKey(PARAM_VERSIONS_TO_KEEP) ? (int) this.getParam(PARAM_VERSIONS_TO_KEEP) : 1;
+    }
+
+    @JsonIgnore
+    public boolean isIncrementalMode() { 
+     return params != null && params.containsKey(PARAM_INCREMENTAL_MODE);
+    }
+
+    public void setIncrementalValid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.VALID); 
+    }
+
+    public void setIncrementalInvalid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.INVALID); 
+    }
+    
+    @JsonIgnore
+    public boolean isIncrementalValid() { 
+     return isIncrementalMode() && (IncrementalMode.VALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+
+    @JsonIgnore
+    public boolean isIncrementalInvalid() { 
+     return isIncrementalMode() && (IncrementalMode.INVALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+/* incremental */
 
     public CompositeMode readParamCompositeMode() {
         return params != null && params.containsKey(PARAM_COMPOSITE_MODE)
@@ -1164,6 +1212,18 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
+    public long getSpaceCreatedAt() {
+        return spaceCreatedAt;
+    }
+
+    public void setSpaceCreatedAt(long spaceCreatedAt) {
+        this.spaceCreatedAt = spaceCreatedAt;
+    }
+
+    public Export withSpaceCreatedAt(long spaceCreatedAt) {
+        setSpaceCreatedAt(spaceCreatedAt);
+        return this;
+    }
 
     @Deprecated
     public String getEmrJobId() {
@@ -1363,6 +1423,23 @@ public class Export extends JDBCBasedJob<Export> {
         DEACTIVATED;
 
         public static CompositeMode of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
+    public enum IncrementalMode {
+
+        VALID,
+        INVALID;
+
+        public static IncrementalMode of(String value) {
             if (value == null) {
                 return null;
             }

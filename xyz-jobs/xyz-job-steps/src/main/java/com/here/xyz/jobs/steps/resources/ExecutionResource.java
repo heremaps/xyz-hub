@@ -19,8 +19,8 @@
 
 package com.here.xyz.jobs.steps.resources;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.vertx.core.Future;
-import java.util.Map;
 
 public abstract class ExecutionResource {
 
@@ -48,43 +48,22 @@ public abstract class ExecutionResource {
   protected abstract double getMaxUnits();
 
   /**
-   * Provides the overall number of virtual units being currently reserved for all resources in the system.
-   *
-   * @return A map of all resource reservations
-   */
-  protected static final Map<ExecutionResource, Double> getReservedVirtualUnits() {
-    //TODO: Make async
-    //TODO: Calculate the reservations for this resource for all running jobs
-    return null;
-  }
-
-  /**
-   * Provides the number of virtual units which are not in use and still that are available to be used by incoming jobs.
-   *
-   * @return The number of virtual units which are still free to be used
-   */
-  public double getFreeVirtualUnits() {
-    //TODO: Make async
-    final Map<ExecutionResource, Double> reservedVirtualUnits = getReservedVirtualUnits();
-    return getMaxVirtualUnits() - (reservedVirtualUnits.containsKey(this) ? reservedVirtualUnits.get(this) : 0);
-  }
-
-  /**
    * Provides the overall virtual units of this resource being available to the system in general.
    *
    * @return The overall available virtual units of this resource
    */
   protected abstract double getMaxVirtualUnits();
 
-  /**
-   * Provides all resource instances that are available in the system.
-   * Step implementations can use this method to gather a resource and reserve a load on it inside its "needed resources".
-   *
-   * @return A list of all available execution resources in the system
-   */
-  //public static List<ExecutionResource> getAllResources() {
-  //  List<ExecutionResource> list = new ArrayList<>();
-  //  list.addAll(Database.getAll());
-  //  return list;
-  //}
+  @JsonIgnore
+  protected abstract String getId();
+
+  @Override
+  public int hashCode() {
+    return getId().hashCode();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof ExecutionResource resource && getId().equals(resource.getId());
+  }
 }

@@ -49,11 +49,6 @@ public class Config extends BaseConfig {
   public int CACHE_SIZE_MB;
 
   /**
-   * The port of the HTTP server.
-   */
-  public int HTTP_PORT;
-
-  /**
    * The hostname, which under instances can use to contact the this service node.
    */
   public String HOST_NAME;

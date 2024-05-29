@@ -1,4 +1,4 @@
-package com.here.xyz.hub.util;
+package com.here.xyz.util.openapi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
-import com.here.xyz.hub.Service;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
+
+import com.here.xyz.util.service.Core;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,8 +45,8 @@ public class OpenApiGenerator {
 
   private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
   private static final Map<String, JsonNode> RECIPES_MAP = new HashMap<>();
-  private static final Map<String, String> VALUES_MAP = new HashMap<String, String>() {{
-    put(VERSION, Service.BUILD_VERSION);
+  private static final Map<String, String> VALUES_MAP = new HashMap<>() {{
+    put(VERSION, Core.BUILD_VERSION);
   }};
 
   private static boolean debug;

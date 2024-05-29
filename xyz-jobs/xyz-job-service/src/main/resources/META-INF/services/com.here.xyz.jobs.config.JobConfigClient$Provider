@@ -1,0 +1,2 @@
+com.here.xyz.jobs.config.DynamoJobConfigClient$Provider
+com.here.xyz.jobs.config.InMemJobConfigClient$Provider

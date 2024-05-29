@@ -182,7 +182,7 @@ public class JobApiExportIT extends JobApiIT {
             "Polygon with hole"
         );
 
-        downloadAndCheck(urls, 4359, 11, mustContain);
+        downloadAndCheck(urls, 3973, 11, mustContain);
     }
 
     /**
@@ -207,7 +207,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 109272, 263, mustContain);
+        downloadAndCheck(urls, 96744, 263, mustContain);
     }
 
     /**
@@ -229,7 +229,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 4359, 11, mustContain);
+        downloadAndCheck(urls, 3973, 11, mustContain);
     }
 
     /**
@@ -249,7 +249,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 1 (Edit of Base);
-        downloadAndCheck(urls, 105317, 253, mustContain);
+        downloadAndCheck(urls, 93141, 253, mustContain);
     }
 
     @Test
@@ -269,7 +269,7 @@ public class JobApiExportIT extends JobApiIT {
             "foo_new" //Got overridden in composite space
         );
 
-        downloadAndCheck(urls, 12238, 30, mustContain);
+        downloadAndCheck(urls, 10916, 30, mustContain);
     }
 
     @Test
@@ -291,7 +291,7 @@ public class JobApiExportIT extends JobApiIT {
             "foo_new" //Got overridden in composite space
         );
 
-        downloadAndCheck(urls, 315, 1, mustContain);
+        downloadAndCheck(urls, 277, 1, mustContain);
     }
 
     @Test
@@ -315,7 +315,7 @@ public class JobApiExportIT extends JobApiIT {
             "2LPoint"  //Got added in composite space L2
         );
 
-        downloadAndCheck(urls, 12503, 31, mustContain);
+        downloadAndCheck(urls, 11149, 31, mustContain);
     }
 
     @Test
@@ -335,7 +335,7 @@ public class JobApiExportIT extends JobApiIT {
             "2LPoint"  //Got added in composite space L2
         );
         // 252 + 11 + 1 = 264
-        downloadAndCheck(urls, 109537, 264, mustContain);
+        downloadAndCheck(urls, 96977, 264, mustContain);
     }
 
     @Test
@@ -354,7 +354,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 109272, 263, mustContain);
+        downloadAndCheck(urls, 96744, 263, mustContain);
     }
 
     /**

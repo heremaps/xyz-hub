@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.hub.XYZHubRESTVerticle;
+import com.here.xyz.util.openapi.OpenApiGenerator;
 import org.junit.Test;
 
 public class OpenApiGeneratorTest {

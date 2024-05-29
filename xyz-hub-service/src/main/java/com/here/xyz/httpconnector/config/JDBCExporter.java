@@ -22,6 +22,7 @@ package com.here.xyz.httpconnector.config;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
@@ -330,11 +331,12 @@ public class JDBCExporter extends JdbcBasedHandler {
                       Is used for incremental exports (tiles) - here we have to export modified tiles.
                       Those tiles we need to calculate separately
                        */
-                      boolean isIncrementalOnNonCompositeTileCalculation = isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation);
+                      boolean isIncrementalExport =   job.isIncrementalMode() 
+                                                   || isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation) ;
 
-                      final SQLQuery qkQuery = ( compositeCalculation || isIncrementalOnNonCompositeTileCalculation )
+                      final SQLQuery qkQuery = ( compositeCalculation || isIncrementalExport )
                               ? generateFilteredExportQueryForCompositeTileCalculation(client, schema, job.getTargetSpaceId(),
-                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat(), isIncrementalOnNonCompositeTileCalculation)
+                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat(), isIncrementalExport)
                               : null;
 
                       return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
@@ -491,15 +493,22 @@ public class JDBCExporter extends JdbcBasedHandler {
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
         SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
-        s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
+        s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export";
         SQLQuery exportSelectString = generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
                 j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, isForCompositeContentDetection,
                 j.getPartitionKey(), j.getOmitOnNull(), false);
 
+        String options = "'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' '";
+        if(j.getCsvFormat().equals(GEOJSON)){
+            options = " 'FORMAT TEXT, ENCODING ''UTF8'' '";
+            s3Path += ".geojson";
+        }else
+            s3Path += ".csv";
+
         SQLQuery q = new SQLQuery("SELECT * /* s3_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
                 " aws_commons.create_s3_uri(#{s3Bucket}, #{s3Path}, #{s3Region}),"+
-                " options := 'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' ' );"
+                " options := "+options+");"
         );
 
         q.setQueryFragment("exportSelectString", exportSelectString);
@@ -602,17 +611,17 @@ public class JDBCExporter extends JdbcBasedHandler {
 
 
     private SQLQuery generateFilteredExportQueryForCompositeTileCalculation(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isIncrementalOnNonComposite) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false, isIncrementalOnNonComposite);
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isIncrementalExport) throws SQLException {
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false, isIncrementalExport);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
         SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, 
-        boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalOnNonCompositeTileCalculation
+        boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalExport
         )
         throws SQLException {
 
-        if( isIncrementalOnNonCompositeTileCalculation ) // in this case, behave like "isForCompositeContentDetection" for tile calculations
+        if( isIncrementalExport ) // in this case, behave like "isForCompositeContentDetection" for tile calculations
          isForCompositeContentDetection = true;
 
         csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
@@ -783,9 +792,13 @@ public class JDBCExporter extends JdbcBasedHandler {
 
   private static SQLQuery buildGeoFragment(SpatialFilter spatialFilter) {
     if (spatialFilter != null && spatialFilter.isClipped()) {
+     if( spatialFilter.getRadius() != 0 ) 
       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo")
           .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()))
           .withNamedParameter("radius", spatialFilter.getRadius());
+     else
+      return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometry} ),4326 )) as geo")
+          .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
     }
     else
         return new SQLQuery("geo");

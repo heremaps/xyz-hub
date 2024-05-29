@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs;
+package com.here.xyz.util.service;
 
-public class Config extends com.here.xyz.jobs.steps.Config {
-  public static Config instance;
+import io.vertx.core.Future;
+import io.vertx.core.Vertx;
+import io.vertx.ext.web.Router;
 
-  {
-    instance = this;
-  }
-
+public interface AbstractRouterBuilder {
+    Future<Router> buildRoutes(Vertx vertx);
 }

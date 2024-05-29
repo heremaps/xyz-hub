@@ -31,6 +31,7 @@ import com.here.xyz.httpconnector.rest.JobStatusApi;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.psql.PSQLXyzConnector;
+import com.here.xyz.util.service.AbstractRouterBuilder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;

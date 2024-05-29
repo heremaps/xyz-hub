@@ -22,38 +22,49 @@ package com.here.xyz.jobs.steps;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
 
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
+import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.ModelBasedOutput;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = LambdaBasedStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
+  private long estimatedUploadBytes = -1;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
   private String previousStepId;
-  @JsonView({Public.class, Static.class})
-  boolean failedRetryable;
+  private RuntimeInfo status = new RuntimeInfo();
+  private final String MODEL_BASED_PREFIX = "/modelBased";
+  @JsonIgnore
+  private List<Input> inputs;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -78,28 +89,48 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loads;
   }
 
-  public abstract RuntimeInfo getStatus();
+  public RuntimeInfo getStatus() {
+    //TODO: Called by the framework node to get the (previously updated & cached) step state .. Status updates come through CW event bridge
+    return status;
+  }
 
+  /**
+   * This method might be called multiple times prior to the execution of this step.
+   * This method should be implemented in a way to make sure that all calls will always return the same value for the same step
+   * configuration. E.g., the calculated value should be stored inside a private field of this step.
+   *
+   * @return A feasible maximum execution time. Steps that are exceeding their timeout will fail.
+   */
+  @JsonIgnore
   public abstract int getTimeoutSeconds();
+
+  /**
+   * This method might be called multiple times during the preparation and the execution of this step.
+   * This method should not perform any heavy operations. It should return quickly.
+   * If applicable, the calculated value should be stored inside a private field of this step.
+   *
+   * @return An estimation for the execution time in seconds that should be calculated once prior to the execution.
+   */
+  public abstract int getEstimatedExecutionSeconds();
 
   protected String bucketName() {
     return Config.instance.JOBS_S3_BUCKET;
   }
 
   protected String bucketRegion() {
-    return Config.instance.JOBS_REGION; //TODO: Get from bucket accordingly
+    return Config.instance.AWS_REGION; //TODO: Get from bucket accordingly
   }
 
   private String stepS3Prefix(boolean previousStep) {
-    return jobId + "/" + (previousStep ? previousStepId : id);
+    return jobId + "/" + (previousStep ? getPreviousStepId() : getId());
   }
 
   protected final String inputS3Prefix() {
     return Input.inputS3Prefix(jobId);
   }
 
-  protected final String outputS3Prefix(boolean previousStep, boolean userOutput) {
-    return stepS3Prefix(previousStep) + "/outputs" + (userOutput ? "/user" : "/system");
+  protected final String outputS3Prefix(boolean previousStep, boolean userOutput, boolean onlyModelBased) {
+    return stepS3Prefix(previousStep) + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
   }
 
   /**
@@ -113,23 +144,26 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param outputs The list of outputs to be registered for this step
    * @param userOutput Whether the specified outputs should be visible to the user (or just to the system)
    */
-  protected void registerOutputs(List<Output> outputs, boolean userOutput) {
+  protected void registerOutputs(List<Output> outputs, boolean userOutput) throws IOException {
     for (int i = 0; i < outputs.size(); i++)
-      outputs.get(i).store(outputS3Prefix(false, userOutput) + "output" + i + ".json"); //TODO: Use proper file name
+      outputs.get(i).store(outputS3Prefix(false, userOutput, outputs.get(i) instanceof ModelBasedOutput)
+          + "/output" + i + ".json"); //TODO: Use proper file name
   }
 
   protected List<Output> loadPreviousOutputs(boolean userOutput) {
     return loadOutputs(true, userOutput);
   }
 
-  protected List<Output> loadOutputs(boolean userOutput) {
+  public List<Output> loadOutputs(boolean userOutput) {
     return loadOutputs(false, userOutput);
   }
 
   private List<Output> loadOutputs(boolean previousStep, boolean userOutput) {
-    return S3Client.getInstance().scanFolder(outputS3Prefix(previousStep, userOutput))
+    return S3Client.getInstance().scanFolder(outputS3Prefix(previousStep, userOutput, false))
         .stream()
-        .map(s3ObjectSummary -> new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize()))
+        .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
+            ? ModelBasedOutput.load(s3ObjectSummary.getKey())
+            : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize()))
         .collect(Collectors.toList());
   }
 
@@ -139,21 +173,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return
    */
   protected List<Input> loadInputs() {
-    return S3Client.getInstance().scanFolder(inputS3Prefix())
-        .stream()
-        .map(s3ObjectSummary -> new UploadUrl()
-            .withS3Key(s3ObjectSummary.getKey())
-            .withByteSize(s3ObjectSummary.getSize())
-            .withCompressed(inputIsCompressed(s3ObjectSummary.getKey())))
-        .collect(Collectors.toList());
-
-    //TODO: Run metadata retrieval requests partially in parallel in multiple threads
+    if (inputs == null)
+      inputs = Input.loadInputs(getJobId());
+    return inputs;
   }
 
-  private boolean inputIsCompressed(String s3Key) {
-    ObjectMetadata metadata = S3Client.getInstance().loadMetadata(s3Key);
-    return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
-  }
+
 
   @JsonIgnore
   public abstract String getDescription();
@@ -225,7 +250,17 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *
    * @return
    */
-  public abstract void deleteOutputs();
+  public void deleteOutputs() {
+    /*
+    TODO: Respect re-usability of outputs. If other steps are re-using (some) outputs of this step, check the reference counter of
+      the according steps and only delete the outputs if their reference counter drops to 0
+     */
+    S3Client.getInstance().deleteFolder(stepS3Prefix(false));
+  }
+
+  public void prepare(String owner, JobClientInfo ownerAuth) {
+    //Nothing to do by default. May be overridden.
+  }
 
   /**
    * Checks if all pre-conditions are met.
@@ -269,16 +304,34 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return (T) this;
   }
 
-  public boolean isFailedRetryable() {
-    return failedRetryable;
+  @JsonIgnore
+  public String getGlobalStepId() {
+    return getJobId() + "." + getId();
   }
 
-  public void setFailedRetryable(boolean failedRetryable) {
-    this.failedRetryable = failedRetryable;
+  public String getPreviousStepId() {
+    return previousStepId;
   }
 
-  public Step withFailedRetryable(boolean failedRetryable) {
-    setFailedRetryable(failedRetryable);
-    return this;
+  public void setPreviousStepId(String previousStepId) {
+    this.previousStepId = previousStepId;
+  }
+
+  public T withPreviousStepId(String previousStepId) {
+    setPreviousStepId(previousStepId);
+    return (T) this;
+  }
+
+  /**
+   * Helper which returns an estimation of uncompressed byte size of all available uploads.
+   * @return The sum of uncompressed bytes of all uploaded input files
+   */
+  @JsonIgnore
+  public long getUncompressedUploadBytesEstimation() {
+    return estimatedUploadBytes != -1 ? estimatedUploadBytes
+        : (estimatedUploadBytes = loadInputs()
+            .stream()
+            .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
+            .sum());
   }
 }
