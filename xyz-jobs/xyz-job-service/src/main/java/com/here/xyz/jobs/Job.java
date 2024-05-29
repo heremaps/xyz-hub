@@ -299,7 +299,8 @@ public class Job implements XyzSerializable {
     //TODO: Remove the following workarounds once the state-transition-event-rule is working
     else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount()) {
       getStatus().setState(SUCCEEDED);
-      JobExecutor.getInstance().delete(getStateMachineArn());
+      //TODO: Activate the deletion of the state machine in the actual EventBridge listener
+      //JobExecutor.getInstance().delete(getStateMachineArn());
     }
 
     if (getStatus().getState().isFinal() && getStatus().getState() != oldState)
@@ -376,6 +377,7 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
+    //TODO: Delete StateMachine if still existing
     return deleteInputs() //Delete the inputs of this job
         //Delete the outputs of all involved steps
         .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))

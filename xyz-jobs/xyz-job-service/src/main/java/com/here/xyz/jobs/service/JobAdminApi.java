@@ -71,7 +71,9 @@ public class JobAdminApi extends Api {
   }
 
   private void deleteJob(RoutingContext context) throws HttpException {
-    getJobFromBody(context).deleteJobResources();
+    getJobFromBody(context).deleteJobResources()
+        .onSuccess(v -> sendResponseWithXyzSerialization(context, NO_CONTENT, null))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   private void postStep(RoutingContext context) throws HttpException {
