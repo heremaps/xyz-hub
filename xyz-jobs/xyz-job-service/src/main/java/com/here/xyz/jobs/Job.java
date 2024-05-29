@@ -301,7 +301,7 @@ public class Job implements XyzSerializable {
       JobExecutor.getInstance().delete(getStateMachineArn());
     }
 
-    if (getStatus().getState().isFinal() && getStatus().getState() != oldState) {}
+    if (getStatus().getState().isFinal() && getStatus().getState() != oldState)
       JobService.callFinalizeObservers(this);
 
     return storeUpdatedStep(step)
