@@ -45,7 +45,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private Space space;
 
   @JsonView({Internal.class, Static.class})
-  private Integer estimatedSeconds;
+  private int estimatedSeconds = -1;
 
   @Override
   public List<Load> getNeededResources() {
@@ -72,9 +72,9 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    if(estimatedSeconds == null ) {
+    if (estimatedSeconds < 0) {
       estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , index);
-      logger.info("[{}] {} estimatedSeconds {}",getGlobalStepId(), index, estimatedSeconds);
+      logger.info("[{}] {} estimatedSeconds {}", getGlobalStepId(), index, estimatedSeconds);
     }
     return estimatedSeconds;
   }

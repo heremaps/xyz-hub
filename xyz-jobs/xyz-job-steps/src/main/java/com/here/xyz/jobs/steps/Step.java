@@ -57,6 +57,10 @@ import java.util.stream.Collectors;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
+
+  //TODO: Apply views properly to all properties
+
+  @JsonView({Internal.class, Static.class})
   private long estimatedUploadBytes = -1;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
@@ -112,6 +116,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *
    * @return An estimation for the execution time in seconds that should be calculated once prior to the execution.
    */
+  @JsonIgnore
   public abstract int getEstimatedExecutionSeconds();
 
   protected String bucketName() {

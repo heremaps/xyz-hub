@@ -172,8 +172,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (inputs.isEmpty())
       return false;
 
-    uncompressedTotalBytes = getUncompressedUploadBytesEstimation();
-
     for (int i = 0; i < inputs.size(); i++) {
       if(inputs.get(i) instanceof UploadUrl uploadUrl) {
         //TODO: Think about how many files we want to quick check
