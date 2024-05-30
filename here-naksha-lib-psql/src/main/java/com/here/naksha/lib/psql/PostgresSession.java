@@ -591,16 +591,20 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
   @NotNull
   <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> Result executeWrite(
       @NotNull WriteRequest<FEATURE, CODEC, ?> writeRequest) {
+    final long startTime = System.currentTimeMillis();
+    String status = "OK";
+    String method = "";
     if (writeRequest instanceof WriteCollections) {
       final PreparedStatement stmt = prepareStatement(
           "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, r_geometry, r_err FROM naksha_write_collections(?);\n");
+      final int SIZE = writeRequest.features.size();
       try (final Json json = Json.get()) {
         final List<@NotNull CODEC> features = writeRequest.features;
-        final int SIZE = writeRequest.features.size();
         final String[] write_ops_json = new String[SIZE];
         final PostgresWriteOp out = new PostgresWriteOp();
         for (int i = 0; i < SIZE; i++) {
           final CODEC codec = features.get(i);
+          method = codec.getOp();
           out.decode(codec);
           write_ops_json[i] = json.writer().writeValueAsString(out);
         }
@@ -609,6 +613,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
         return new PsqlSuccess(new PsqlCursor<>(XyzCollectionCodecFactory.get(), this, stmt, rs), null);
       } catch (Throwable e) {
         try {
+          status = "NOK";
           stmt.close();
         } catch (Throwable ce) {
           log.atInfo()
@@ -617,6 +622,18 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
               .log();
         }
         throw unchecked(e);
+      } finally {
+        log.info(
+            "[Storage Request stats => type,storageId,host,method,ftype,fCnt,collectionId,status,timeTakenMs] - StorageReqStats {} {} {} {} {} {} {} {} {}",
+            "PsqlStorage",
+            parent().storageId,
+            psqlConnection.postgresConnection.parent().config.host,
+            method,
+            "Collection",
+            SIZE,
+            "-", // collectionId skipped for now
+            status,
+            System.currentTimeMillis() - startTime);
       }
     }
     if (writeRequest instanceof WriteFeatures<?, ?, ?>) {
@@ -630,6 +647,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       final PreparedStatement stmt = prepareStatement(
           "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, ST_AsEWKB(r_geometry), r_err\n"
               + "FROM nk_write_features(?,?,?,?,?,?,?,?,?);");
+      final int SIZE = writeRequest.features.size();
+      final String collection_id = writeFeatures.getCollectionId();
       // nk_write_features(col_id, part_id, ops, ids, uuids, features, geometries, min_result, errors_only
       try (final Json json = Json.get()) {
         // new array list, so we don't modify original order
@@ -639,9 +658,6 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
             IndexHelper.createKeyIndexMap(features, CODEC::getId);
         // sort to avoid deadlock
         features.sort(comparing(FeatureCodec::getId));
-
-        final int SIZE = writeRequest.features.size();
-        final String collection_id = writeFeatures.getCollectionId();
         // partition_id
         final String[] op_arr = new String[SIZE];
         final String[] id_arr = new String[SIZE];
@@ -655,6 +671,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
         for (int i = 0; i < SIZE; i++) {
           final CODEC codec = features.get(i);
           op_arr[i] = codec.getOp();
+          method = codec.getOp();
           id_arr[i] = codec.getId();
           uuid_arr[i] = codec.getUuid();
           json_arr[i] = codec.getJson();
@@ -678,17 +695,31 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
           final String errNo = err_rs.getString(1);
           final String errMsg = err_rs.getString(2);
           if (errNo != null) {
+            status = "NOK";
             return new PsqlError(XyzErrorMapper.psqlCodeToXyzError(errNo), errMsg, cursor);
           }
         }
         return new PsqlSuccess(cursor, originalFeaturesOrder);
       } catch (Throwable e) {
         try {
+          status = "NOK";
           stmt.close();
         } catch (Throwable ce) {
           log.info("Failed to close statement", ce);
         }
         throw unchecked(e);
+      } finally {
+        log.info(
+            "[Storage Request stats => type,storageId,host,method,ftype,fCnt,collectionId,status,timeTakenMs] - StorageReqStats {} {} {} {} {} {} {} {} {}",
+            "PsqlStorage",
+            parent().storageId,
+            psqlConnection.postgresConnection.parent().config.host,
+            method,
+            "Feature",
+            SIZE,
+            collection_id,
+            status,
+            System.currentTimeMillis() - startTime);
       }
     }
     return new ErrorResult(XyzError.NOT_IMPLEMENTED, "The supplied write-request is not yet implemented");
