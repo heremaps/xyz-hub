@@ -111,7 +111,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/03333?version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=0")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -130,7 +130,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/03333?version=1")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
