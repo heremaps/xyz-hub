@@ -1,6 +1,10 @@
 ARG ARCHITECTURE=arm64v8
 FROM ${ARCHITECTURE}/eclipse-temurin:17
 
+# Copy license files
+COPY LICENSE /
+COPY HERE_NOTICE /
+
 # Create our own user to avoid using root user directly
 RUN useradd -rm -d /home/naksha -s /bin/bash -g root -G sudo -u 1001 naksha
 USER naksha

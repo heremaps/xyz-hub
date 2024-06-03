@@ -110,6 +110,7 @@ val otel = "io.opentelemetry:opentelemetry-api:1.28.0"
 
 val cytodynamics = "com.linkedin.cytodynamics:cytodynamics-nucleus:0.2.0"
 
+val projectRepoURI = getRequiredPropertyFromRootProject("projectRepoURI")
 val mavenUrl = getRequiredPropertyFromRootProject("mavenUrl")
 val mavenUser = getRequiredPropertyFromRootProject("mavenUser")
 val mavenPassword = getRequiredPropertyFromRootProject("mavenPassword")
@@ -550,6 +551,20 @@ subprojects {
                 artifactId = project.name
                 version = project.version.toString()
                 from(components["java"])
+                pom {
+                    url = "https://${projectRepoURI}"
+                    licenses {
+                        license {
+                            name = "The Apache License, Version 2.0"
+                            url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                        }
+                    }
+                    scm {
+                        connection = "scm:git:https://${projectRepoURI}.git"
+                        developerConnection = "scm:git:ssh://git@${projectRepoURI}.git"
+                        url = "https://${projectRepoURI}"
+                    }
+                }
             }
 
             artifacts {
@@ -560,6 +575,7 @@ subprojects {
         }
     }
 }
+
 // For publishing root project (including shaded jar)
 publishing {
     repositories {
@@ -576,6 +592,20 @@ publishing {
             artifactId = project.name
             version = project.version.toString()
             from(components["java"])
+            pom {
+                url = "https://${projectRepoURI}"
+                licenses {
+                    license {
+                        name = "The Apache License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+                scm {
+                    connection = "scm:git:https://${projectRepoURI}.git"
+                    developerConnection = "scm:git:ssh://git@${projectRepoURI}.git"
+                    url = "https://${projectRepoURI}"
+                }
+            }
         }
 
         artifacts {
@@ -590,6 +620,15 @@ rootProject.dependencies {
     //This is needed, otherwise the blank root project will include nothing in the fat jar
     implementation(project(":here-naksha-app-service"))
 }
+// to include license files in Jar
+sourceSets {
+    main {
+        resources {
+            setSrcDirs(listOf(".")).setIncludes(listOf("LICENSE","HERE_NOTICE"))
+        }
+    }
+}
+
 rootProject.tasks.shadowJar {
     //Have all tests run before building the fat jar
     dependsOn(allprojects.flatMap { it.tasks.withType(Test::class) })
