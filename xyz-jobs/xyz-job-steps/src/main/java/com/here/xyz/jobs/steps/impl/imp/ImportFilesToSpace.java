@@ -526,7 +526,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
     //Calculate the needed ACUs
     double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
-    neededACUs = requiredRAMPerThreads / ACU_RAM;
+    neededACUs = threadCount * requiredRAMPerThreads / ACU_RAM;
 
     logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: " + getUncompressedUploadBytesEstimation()
         + ", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
