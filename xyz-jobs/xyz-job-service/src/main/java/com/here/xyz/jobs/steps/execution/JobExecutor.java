@@ -176,7 +176,7 @@ public abstract class JobExecutor implements Initializable {
           .compose(jobs -> Future.all(jobs.stream().map(job -> {
             if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step)).allMatch(step -> step.getStatus().getState() == CANCELLED)) {
               job.getStatus().withState(CANCELLED).withDesiredAction(null);
-              return job.store();
+              return job.storeStatus(CANCELLING);
             }
             return Future.succeededFuture();
           }).collect(Collectors.toList())).map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).collect(Collectors.toList())))
