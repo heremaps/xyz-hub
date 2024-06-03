@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -132,7 +132,8 @@ public class ParallelQueryExecutor {
     } finally {
       log.info(
           "[View Request stats => streamId,layerId,method,status,timeTakenMs,fCnt] - ViewReqStats {} {} {} {} {} {}",
-          NakshaContext.currentContext().getStreamId(),collectionId,
+          NakshaContext.currentContext().getStreamId(),
+          collectionId,
           "READ",
           status,
           System.currentTimeMillis() - startTime,
