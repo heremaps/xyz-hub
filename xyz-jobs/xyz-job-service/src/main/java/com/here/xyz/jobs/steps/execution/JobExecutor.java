@@ -175,7 +175,7 @@ public abstract class JobExecutor implements Initializable {
       JobConfigClient.getInstance().loadJobs(CANCELLING)
           .compose(jobs -> Future.all(jobs.stream().map(job -> {
             if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step)).allMatch(step -> step.getStatus().getState() == CANCELLED)) {
-              job.getStatus().setState(CANCELLED);
+              job.getStatus().withState(CANCELLED).withDesiredAction(null);
               return job.store();
             }
             return Future.succeededFuture();
@@ -190,9 +190,14 @@ public abstract class JobExecutor implements Initializable {
                 .filter(job -> job.getStatus().getUpdatedAt() + CANCELLATION_TIMEOUT < Core.currentTimeMillis())
                 .collect(Collectors.toList());
             jobsToFail.forEach(job -> {
-              //TODO: Set failure cause
-              job.getStatus().setState(FAILED);
-              job.store();
+              job.getStatus()
+                  .withState(FAILED)
+                  .withFailedRetryable(false)
+                  .withErrorMessage("The cancellation of the job could not be completed within the specified amount of time.")
+                  .withErrorCause("CANCELLATION_TIMEOUT")
+                  .withDesiredAction(null);
+
+              job.storeStatus(null);
             });
 
             //If there are still remaining jobs, run the cancellation check again
