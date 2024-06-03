@@ -52,6 +52,7 @@ public abstract class JobExecutor implements Initializable {
   private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
+  private static final long JOB_START_TIMEOUT = 60_000;
 
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
@@ -68,10 +69,10 @@ public abstract class JobExecutor implements Initializable {
     return mayExecute(job)
         .compose(executionAllowed -> {
           if (!executionAllowed)
-            //The Job remains in PENDING state and will be checked be later again if it may be executed
+            //The Job remains in PENDING state and will be checked later again if it may be executed
             return Future.succeededFuture();
 
-          //Update the job status atomically, that now is RUNNING to make sure no other node will try to start it.
+          //Update the job status atomically to RUNNING to make sure no other node will try to start it.
           job.getStatus()
               .withState(RUNNING)
               .withInitialEndTimeEstimation(Core.currentTimeMillis()
@@ -96,18 +97,26 @@ public abstract class JobExecutor implements Initializable {
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)
           .onSuccess(pendingJobs -> {
-            pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
-            logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
-            for (Job pendingJob : pendingJobs) {
-              if (stopRequested)
-                return;
-              //Try to start the execution of the pending job
-              if (tryAndWaitForStart(pendingJob))
-                return;
+            try {
+              pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
+              logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
+              for (Job pendingJob : pendingJobs) {
+                if (stopRequested)
+                  return;
+                //Try to start the execution of the pending job
+                if (tryAndWaitForStart(pendingJob))
+                  return;
+              }
+            }
+            catch (Exception e) {
+              logger.error("Error checking PENDING jobs", e);
             }
           })
           .onFailure(t -> logger.error("Error checking PENDING jobs", t))
           .onComplete(ar -> running = false);
+    }
+    catch (Exception e) {
+      logger.error("Error checking PENDING jobs", e);
     }
     finally {
       running = false;
@@ -117,12 +126,17 @@ public abstract class JobExecutor implements Initializable {
   /**
    *
    * @param pendingJob
-   * @return true when there was a request to stop the PENDING-check thread
+   * @return true if there was a request to stop the PENDING-check thread
    */
   private boolean tryAndWaitForStart(Job pendingJob) {
     try {
       Future<Void> executionStarted = startExecution(pendingJob, pendingJob.getExecutionId());
+      long waitStart = Core.currentTimeMillis();
       while (!executionStarted.isComplete()) {
+        if (Core.currentTimeMillis() - waitStart > JOB_START_TIMEOUT) {
+          logger.error("Timeout while trying to start PENDING job {}", pendingJob.getId());
+          return false;
+        }
         try {
           if (stopRequested)
             return true;
