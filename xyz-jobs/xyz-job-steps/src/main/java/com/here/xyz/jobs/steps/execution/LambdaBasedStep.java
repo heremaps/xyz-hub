@@ -237,6 +237,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         updateState(CANCELLING);
         cancel();
         updateState(CANCELLED);
+        unregisterStateCheckTrigger();
       }
       catch (Exception ex) {
         logger.error("Error during cancellation of step {}", getGlobalStepId(), ex);
