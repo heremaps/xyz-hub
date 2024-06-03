@@ -121,7 +121,7 @@ public class JobService extends Core {
         c.accept(job);
       }
       catch (Exception e) {
-        logger.error("Error during finalization-observer call:", e);
+        logger.error("Error during finalization-observer call for job {}:", job.getId(), e);
       }
     });
   }
