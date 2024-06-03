@@ -66,7 +66,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public int getTimeoutSeconds() {
     int timeoutSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexTimeoutSeconds(getUncompressedUploadBytesEstimation(), index);
-    logger.info("[{}] {} timeoutSeconds {}",getGlobalStepId(), index, timeoutSeconds);
+    logger.info("[{}] {} timeoutSeconds {} ({})", getGlobalStepId(), index, timeoutSeconds, getUncompressedUploadBytesEstimation());
     return timeoutSeconds;
   }
 
@@ -88,14 +88,11 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
     logger.info("Loading space config for space " + getSpaceId());
     Space space = loadSpace(getSpaceId());
-    StatisticsResponse spaceStatistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-    long featureCount = spaceStatistics.getCount().getValue();
-    long byteSize = spaceStatistics.getDataSize().getValue();
     logger.info("Getting storage database for space " + getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
     logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
     runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db,
-            ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(byteSize, index));
+            ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
   }
 
   @Override
