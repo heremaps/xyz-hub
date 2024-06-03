@@ -65,9 +65,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private double neededACUs = -1;
 
-  @JsonView({Internal.class})
-  private long uncompressedTotalBytes = -1;
-
   @JsonView({Internal.class, Static.class})
   private int fileCount = -1;
 
@@ -109,10 +106,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       double acus = calculateNeededAcus();
       Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
-      long ioBytes = uncompressedTotalBytes == -1 ? getUncompressedUploadBytesEstimation() : uncompressedTotalBytes;
-
       return List.of(new Load().withResource(db).withEstimatedVirtualUnits(acus),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ioBytes));
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -261,7 +256,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 int finishedCnt = rs.getInt("finished_cnt");
                 int failedCnt = rs.getInt("failed_cnt");
 
-                float progress = Float.valueOf(processedBytes) / Float.valueOf(uncompressedTotalBytes);
+                float progress = Float.valueOf(processedBytes) / Float.valueOf(getUncompressedUploadBytesEstimation());
                 getStatus().setEstimatedProgress(progress);
 
                 logAndSetPhase(null, "Progress["+progress+"] => totalCnt:"+totalCnt
