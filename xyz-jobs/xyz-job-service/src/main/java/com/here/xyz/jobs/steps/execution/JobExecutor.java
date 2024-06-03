@@ -28,7 +28,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
@@ -172,7 +174,7 @@ public abstract class JobExecutor implements Initializable {
     if (cancellationCheckRunning.compareAndSet(false, true))
       JobConfigClient.getInstance().loadJobs(CANCELLING)
           .compose(jobs -> Future.all(jobs.stream().map(job -> {
-            if (job.getSteps().stepStream().allMatch(step -> step.getStatus().getState() == CANCELLED)) {
+            if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step)).allMatch(step -> step.getStatus().getState() == CANCELLED)) {
               job.getStatus().setState(CANCELLED);
               return job.store();
             }
@@ -199,6 +201,15 @@ public abstract class JobExecutor implements Initializable {
           .onFailure(t -> logger.error("Error in checkCancellations process:", t))
           .onSuccess(runAgain -> exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS))
           .onComplete(ar -> cancellationCheckRunning.set(false));
+  }
+
+  private static Step cancelNonRunningStep(Job job, Step step) {
+    final State stepState = step.getStatus().getState();
+    if (stepState != RUNNING && stepState.isValidSuccessor(CANCELLING)) {
+      job.getStatus().setState(CANCELLING);
+      job.storeUpdatedStep(step);
+    }
+    return step;
   }
 
   protected abstract Future<String> execute(Job job);
