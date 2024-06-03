@@ -102,15 +102,8 @@ public abstract class JobExecutor implements Initializable {
               if (stopRequested)
                 return;
               //Try to start the execution of the pending job
-              Future<Void> executionStarted = startExecution(pendingJob, pendingJob.getExecutionId());
-              while (!executionStarted.isComplete()) {
-                try {
-                  if (stopRequested)
-                    return;
-                  Thread.sleep(200);
-                }
-                catch (InterruptedException ignore) {}
-              }
+              if (tryAndWaitForStart(pendingJob))
+                return;
             }
           })
           .onFailure(t -> logger.error("Error checking PENDING jobs", t))
@@ -119,6 +112,29 @@ public abstract class JobExecutor implements Initializable {
     finally {
       running = false;
     }
+  }
+
+  /**
+   *
+   * @param pendingJob
+   * @return true when there was a request to stop the PENDING-check thread
+   */
+  private boolean tryAndWaitForStart(Job pendingJob) {
+    try {
+      Future<Void> executionStarted = startExecution(pendingJob, pendingJob.getExecutionId());
+      while (!executionStarted.isComplete()) {
+        try {
+          if (stopRequested)
+            return true;
+          Thread.sleep(200);
+        }
+        catch (InterruptedException ignore) {}
+      }
+    }
+    catch (Exception e) {
+      logger.error("Error trying to start the execution of job {}", pendingJob.getId(), e);
+    }
+    return false;
   }
 
   @Override
