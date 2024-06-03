@@ -234,10 +234,6 @@ public class Job implements XyzSerializable {
    */
   public Future<Boolean> cancel() {
     getStatus().setState(CANCELLING);
-    getSteps().stepStream().forEach(step -> {
-      if (getStatus().getState().isValidSuccessor(CANCELLING))
-        getStatus().setState(CANCELLING);
-    });
 
     return store()
         //Cancel the execution in any case, to prevent race-conditions
