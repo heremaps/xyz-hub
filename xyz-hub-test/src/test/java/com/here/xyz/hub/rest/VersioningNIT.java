@@ -122,7 +122,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
   }
 
   @Test
@@ -134,7 +134,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
   }
 
   @Test
@@ -142,7 +142,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
     write(TEST_FEATURE, "create", "patch")
         .statusCode(OK.code())
         .body("features[0].properties.'@ns:com:here:xyz'.size()", equalTo(4))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0))
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1))
         .body("features[0].properties.'@ns:com:here:xyz'.createdAt", notNullValue())
         .body("features[0].properties.'@ns:com:here:xyz'.updatedAt", notNullValue());
   }
@@ -151,7 +151,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
   public void testPatchHead() {
     addDefaultFeature();
     Feature feature = TEST_FEATURE.copy();
-    feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(0));
+    feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature.getProperties().put("key2", "value2");
 
     given()
@@ -163,7 +163,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -181,7 +181,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -195,11 +195,11 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
     // update again with "base" version 0 and a non-conflicting change
     Feature feature2 = TEST_FEATURE.copy();
-    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(0));
+    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key3", "value3");
     write(feature2, "create", "patch")
         .statusCode(OK.code())
@@ -207,7 +207,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.key3", equalTo("value3"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
   }
 
   @Test
@@ -220,11 +220,11 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
     // update again with "base" version 0 and a conflicting change
     Feature feature2 = TEST_FEATURE.copy();
-    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(0));
+    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key2", "value3");
     write(feature2, "create", "patch")
         .statusCode(CONFLICT.code());
@@ -237,13 +237,13 @@ public class VersioningNIT extends TestSpaceWithFeature {
     // update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    feature.getProperties().put("version", 0);
+    feature.getProperties().put("version", 1);
 
     write(feature, "create", "merge")
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -257,7 +257,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -271,11 +271,11 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
     // update again with "base" version 0 and a non-conflicting change
     Feature feature2 = TEST_FEATURE.copy();
-    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(0));
+    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key3", "value3");
     write(feature2, "create", "merge")
         .statusCode(OK.code())
@@ -283,7 +283,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.key3", equalTo("value3"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
   }
 
   @Test
@@ -297,11 +297,11 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
     // update again with "base" version 0 and a non-conflicting change
     Feature feature2 = TEST_FEATURE.copy();
-    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(0));
+    feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key2", "value3");
     write(feature2, "create", "merge")
         .statusCode(CONFLICT.code());
@@ -312,13 +312,13 @@ public class VersioningNIT extends TestSpaceWithFeature {
     addDefaultFeature();
 
     // replace
-    Feature feature = new Feature().withId("f1").withProperties(new Properties().with("key2", "value2").withXyzNamespace(new XyzNamespace().withVersion(0)));
+    Feature feature = new Feature().withId("f1").withProperties(new Properties().with("key2", "value2").withXyzNamespace(new XyzNamespace().withVersion(1)));
     write(feature, "create", "replace")
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", nullValue())
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -332,7 +332,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", nullValue())
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -346,10 +346,10 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
     // replace
-    Feature feature2 = new Feature().withId("f1").withProperties(new Properties().withXyzNamespace(new XyzNamespace().withVersion(0)));
+    Feature feature2 = new Feature().withId("f1").withProperties(new Properties().withXyzNamespace(new XyzNamespace().withVersion(1)));
     write(feature2, "create", "replace")
         .statusCode(CONFLICT.code());
   }
@@ -365,7 +365,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
     given()
         .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
@@ -396,6 +396,6 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
   }
 }

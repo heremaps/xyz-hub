@@ -211,15 +211,13 @@ public class JobApiExportVersionIT extends JobApiIT {
 
     @Test
     public void compositeL1Export_ByVersion_jsonWkb() throws Exception {
-
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
 
-        /** Create job */
+        // create job
         Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.JSON_WKB);
-        /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
-          job.setTargetVersion("4");
-        /* */
-        List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed, Export.CompositeMode.CHANGES );
+
+        // set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig
+        List<URL> urls = performExport(job.withTargetVersion("5"), getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed, Export.CompositeMode.CHANGES);
 
         List<String> mustContain = Arrays.asList("id000", "id002", "movedFromEmpty", "deltaonly");
 
