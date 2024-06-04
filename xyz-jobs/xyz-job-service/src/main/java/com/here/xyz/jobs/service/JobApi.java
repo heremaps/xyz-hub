@@ -195,7 +195,7 @@ public class JobApi extends Api {
         .onSuccess(actionExecuted -> {
           if (status.getDesiredAction() != CANCEL || actionExecuted) {
             job.getStatus().setDesiredAction(null);
-            job.store();
+            job.storeStatus(null);
           }
         })
         .map(res -> job.getStatus());

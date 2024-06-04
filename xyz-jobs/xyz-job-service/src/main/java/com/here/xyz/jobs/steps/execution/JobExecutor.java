@@ -204,7 +204,10 @@ public abstract class JobExecutor implements Initializable {
             return Future.succeededFuture(jobsToFail.size() < remainingJobs.size());
           })
           .onFailure(t -> logger.error("Error in checkCancellations process:", t))
-          .onSuccess(runAgain -> exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS))
+          .onSuccess(runAgain -> {
+            if (runAgain)
+              exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS);
+          })
           .onComplete(ar -> cancellationCheckRunning.set(false));
   }
 
@@ -212,6 +215,7 @@ public abstract class JobExecutor implements Initializable {
     final State stepState = step.getStatus().getState();
     if (stepState != RUNNING && stepState.isValidSuccessor(CANCELLING)) {
       job.getStatus().setState(CANCELLING);
+      job.getStatus().setState(CANCELLED);
       job.storeUpdatedStep(step);
     }
     return step;

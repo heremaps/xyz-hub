@@ -235,12 +235,12 @@ public class Job implements XyzSerializable {
   public Future<Boolean> cancel() {
     getStatus().setState(CANCELLING);
 
-    return store()
+    return storeStatus(null)
         //Cancel the execution in any case, to prevent race-conditions
         .compose(v -> JobExecutor.getInstance().cancel(getExecutionId()))
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
-        and update the Job to CANCELED once al cancellations are completed.
+        and update the Job to CANCELLED once all cancellations are completed.
          */
         .map(false);
   }

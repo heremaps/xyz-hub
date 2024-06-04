@@ -40,6 +40,8 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
+import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.compression.ZlibWrapper;
@@ -120,28 +122,29 @@ public class Api {
      * @param e       the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
      */
     protected void sendErrorResponse(final RoutingContext context, Throwable e) {
-        if (e instanceof BaseHttpServerVerticle.RequestCancelledException)
+        if (e instanceof RequestCancelledException)
             return;
-        if (e instanceof BaseHttpServerVerticle.ValidationException)
+
+        if (e instanceof ValidationException || e instanceof IllegalArgumentException || e instanceof IllegalStateException)
             e = new HttpException(BAD_REQUEST, e.getMessage(), e);
-        if (e instanceof AccessDeniedException)
+        else if (e instanceof AccessDeniedException)
             e = new HttpException(FORBIDDEN, e.getMessage(), e);
+
         if (e instanceof HttpException) {
             final HttpException httpException = (HttpException) e;
 
             if (INTERNAL_SERVER_ERROR.code() != httpException.status.code()) {
                 XyzError error;
-                if (BAD_GATEWAY.code() == httpException.status.code()) {
+                if (BAD_GATEWAY.code() == httpException.status.code())
                     error = XyzError.BAD_GATEWAY;
-                } else if (GATEWAY_TIMEOUT.code() == httpException.status.code()) {
+                else if (GATEWAY_TIMEOUT.code() == httpException.status.code())
                     error = XyzError.TIMEOUT;
-                } else if (BAD_REQUEST.code() == httpException.status.code()) {
+                else if (BAD_REQUEST.code() == httpException.status.code())
                     error = XyzError.ILLEGAL_ARGUMENT;
-                } else if (NOT_FOUND.code() == httpException.status.code()) {
+                else if (NOT_FOUND.code() == httpException.status.code())
                     error = XyzError.NOT_FOUND;
-                } else {
+                else
                     error = XyzError.EXCEPTION;
-                }
 
                 //This is an exception sent by intention and nothing special, no need for stacktrace logging.
                 logger.warn(Api.getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
