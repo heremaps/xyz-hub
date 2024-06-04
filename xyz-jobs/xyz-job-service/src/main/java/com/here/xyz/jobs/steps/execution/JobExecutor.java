@@ -174,7 +174,7 @@ public abstract class JobExecutor implements Initializable {
     if (cancellationCheckRunning.compareAndSet(false, true))
       JobConfigClient.getInstance().loadJobs(CANCELLING)
           .compose(jobs -> Future.all(jobs.stream().map(job -> {
-            if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step)).allMatch(step -> step.getStatus().getState() == CANCELLED)) {
+            if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step)).allMatch(step -> step.getStatus().getState().isFinal())) {
               job.getStatus().withState(CANCELLED).withDesiredAction(null);
               return job.storeStatus(CANCELLING);
             }
