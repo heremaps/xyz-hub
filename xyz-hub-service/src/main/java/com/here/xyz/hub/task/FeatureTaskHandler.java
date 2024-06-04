@@ -88,6 +88,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.BinaryResponse;
@@ -780,18 +781,23 @@ public class FeatureTaskHandler {
     }
 
     TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
-        .onSuccess(tag -> {
+        .compose(tag -> {
           if (tag == null) {
-            callback.exception(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
-            return;
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
           }
 
-          event.setRef(new Ref(tag.getVersion()));
-          callback.call(task);
+          try {
+            event.setRef(new Ref(tag.getVersion()));
+          } catch (InvalidRef e) {
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid version ref: " + event.getRef().getTag()));
+          }
+
+          return Future.succeededFuture(tag);
         })
+        .onSuccess(tag -> callback.call(task))
         .onFailure(t -> {
           logger.error(task.getMarker(), "Error while resolving version ref.", t);
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
+          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
         });
   }
 

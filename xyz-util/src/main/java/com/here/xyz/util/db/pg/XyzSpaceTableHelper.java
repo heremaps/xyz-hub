@@ -198,7 +198,7 @@ public class XyzSpaceTableHelper {
   }
 
   public static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName) {
-      return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 0 OWNED BY ${schema}.${table}.${columnName}")
+      return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 1 OWNED BY ${schema}.${table}.${columnName}")
           .withVariable(SCHEMA, schema)
           .withVariable(TABLE, table)
           .withVariable("sequence", table + "_" + columnName + "_seq")
