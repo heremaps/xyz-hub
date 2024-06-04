@@ -77,6 +77,6 @@ public class PSQLLoadFeatures extends PSQLAbstractIT {
     assertEquals(2, loadedFeatures.getFeatures().size());
     assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F1".equals(f.getId())));
     assertTrue(loadedFeatures.getFeatures().stream().anyMatch(f -> "F2".equals(f.getId())));
-    assertTrue(loadedFeatures.getFeatures().stream().allMatch(f -> f.getProperties().getXyzNamespace().getVersion() == 0));
+    assertTrue(loadedFeatures.getFeatures().stream().allMatch(f -> f.getProperties().getXyzNamespace().getVersion() == 1));
   }
 }
