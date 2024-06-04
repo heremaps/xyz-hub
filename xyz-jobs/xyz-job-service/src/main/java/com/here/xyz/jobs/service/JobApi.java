@@ -22,6 +22,7 @@ package com.here.xyz.jobs.service;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
+import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -129,7 +130,7 @@ public class JobApi extends Api {
     RuntimeStatus status = getStatusFromBody(context);
     loadJob(jobId)
         .compose(job -> tryExecuteAction(status, job))
-        .onSuccess(patchedStatus -> sendResponse(context, OK.code(), patchedStatus))
+        .onSuccess(patchedStatus -> sendResponse(context, ACCEPTED.code(), patchedStatus))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
