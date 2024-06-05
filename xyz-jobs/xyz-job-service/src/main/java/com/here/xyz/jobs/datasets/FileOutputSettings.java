@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.datasets;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileChunking;
@@ -28,6 +30,7 @@ import com.here.xyz.jobs.datasets.files.Partitioning;
 import com.here.xyz.jobs.datasets.files.Partitioning.FeatureKey;
 import java.util.Map;
 
+@JsonInclude(Include.NON_DEFAULT)
 public class FileOutputSettings {
   private FileFormat format = new GeoJson();
   private Partitioning partitioning = new FeatureKey();
@@ -143,5 +146,10 @@ public class FileOutputSettings {
   public FileOutputSettings withMaxTilesPerFile(int maxTilesPerFile) {
     setMaxTilesPerFile(maxTilesPerFile);
     return this;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return XyzSerializable.equals(this, obj);
   }
 }

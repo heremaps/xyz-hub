@@ -180,10 +180,10 @@ public class JobApiCompositeExportIT extends JobApiIT{
         Export compositeJob = (Export)loadJob(testSpaceId1Ext, job.getId());
         Export baseJob = (Export)loadJob(testSpaceId1, job.getId()+ "_missing_base");
 
-        assertEquals(3, compositeJob.getMaxSpaceVersion());
-        assertEquals(0, compositeJob.getMaxSuperSpaceVersion());
-        assertEquals(0, baseJob.getMaxSpaceVersion());
-        assertEquals(-42,baseJob.getMaxSuperSpaceVersion());
+        assertEquals(4, compositeJob.getMaxSpaceVersion());
+        assertEquals(1, compositeJob.getMaxSuperSpaceVersion());
+        assertEquals(1, baseJob.getMaxSpaceVersion());
+        assertEquals(-42, baseJob.getMaxSuperSpaceVersion());
     }
 
     @Test

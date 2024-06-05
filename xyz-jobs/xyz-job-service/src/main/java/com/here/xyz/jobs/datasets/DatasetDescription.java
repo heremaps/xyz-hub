@@ -19,8 +19,11 @@
 
 package com.here.xyz.jobs.datasets;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
@@ -39,6 +42,7 @@ import com.here.xyz.models.hub.Ref;
     @JsonSubTypes.Type(value = Spaces.class, name = "Spaces"),
     @JsonSubTypes.Type(value = Files.class, name = "Files")
 })
+@JsonInclude(NON_DEFAULT)
 public abstract class DatasetDescription implements Typed {
 
   /**

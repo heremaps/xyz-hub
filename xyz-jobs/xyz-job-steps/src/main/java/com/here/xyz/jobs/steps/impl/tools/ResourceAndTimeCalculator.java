@@ -7,7 +7,6 @@ import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 
 public class ResourceAndTimeCalculator implements Initializable {
-
     public static ResourceAndTimeCalculator getInstance() {
         return ResourceAndTimeCalculator.Provider.provideInstance();
     }
@@ -69,48 +68,53 @@ public class ResourceAndTimeCalculator implements Initializable {
 
     public double calculateNeededIndexAcus(long byteSize, XyzSpaceTableHelper.Index index) {
         double minACUs = 0.01;
+        //Threshold which defines when we scale to maximum
+        double globalMax = 200d * 1024 * 1024 * 1024;
 
         return switch (index){
-            case GEO -> interpolate(30, byteSize, minACUs);
-            case CREATED_AT ->  interpolate( 25, byteSize, minACUs);
-            case UPDATED_AT ->  interpolate( 25, byteSize, minACUs);
-            case ID_VERSION ->  interpolate( 25, byteSize, minACUs);
-            case ID ->  interpolate( 20, byteSize, minACUs);
-            case VIZ ->  interpolate( 10, byteSize, minACUs);
-            case VERSION ->  interpolate(  10, byteSize, minACUs);
-            case OPERATION ->  interpolate( 10, byteSize, minACUs);
-            case NEXT_VERSION ->  interpolate( 10, byteSize, minACUs);
-            case AUTHOR ->  interpolate( 10, byteSize, minACUs);
-            case SERIAL ->  interpolate( 8, byteSize, minACUs);
+            case GEO -> interpolate(globalMax,30, byteSize, minACUs);
+            case CREATED_AT ->  interpolate(globalMax, 25, byteSize, minACUs);
+            case UPDATED_AT ->  interpolate(globalMax, 25, byteSize, minACUs);
+            case ID_VERSION ->  interpolate(globalMax, 25, byteSize, minACUs);
+            case ID ->  interpolate(globalMax, 20, byteSize, minACUs);
+            case VIZ ->  interpolate(globalMax,10, byteSize, minACUs);
+            case VERSION ->  interpolate(globalMax,  10, byteSize, minACUs);
+            case OPERATION ->  interpolate(globalMax,10, byteSize, minACUs);
+            case NEXT_VERSION ->  interpolate(globalMax, 10, byteSize, minACUs);
+            case AUTHOR ->  interpolate(globalMax,10, byteSize, minACUs);
+            case SERIAL ->  interpolate(globalMax, 8, byteSize, minACUs);
         };
     }
 
     public int calculateIndexTimeoutSeconds(long byteSize, XyzSpaceTableHelper.Index index) {
-        int minTimeoutInSeconds = 5 * 60;
+        int minTimeoutInSeconds = 6 * 60;
+        //Threshold which defines when we scale to maximum
+        double globalMax = 400d * 1024 * 1024 * 1024;
+
         if(index == null)
             return minTimeoutInSeconds;
 
         return switch (index){
-            case GEO -> (int)interpolate( (4+2) * 3600, byteSize, minTimeoutInSeconds);
-            case CREATED_AT ->  (int)interpolate( (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case UPDATED_AT ->  (int)interpolate( (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case ID_VERSION ->  (int)interpolate( (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case ID ->  (int)interpolate( (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case VIZ ->  (int)interpolate( (1 + 1) * 3600, byteSize, minTimeoutInSeconds);
-            case VERSION ->  (int)interpolate(  (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case OPERATION ->  (int)interpolate( (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case NEXT_VERSION ->  (int)interpolate( (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case AUTHOR ->  (int)interpolate( (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case SERIAL ->  (int)interpolate( (0.4 + 0.4) * 3600, byteSize, minTimeoutInSeconds);
+            case GEO -> (int)interpolate(globalMax, (4+2) * 3600, byteSize, minTimeoutInSeconds);
+            case CREATED_AT ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
+            case UPDATED_AT ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
+            case ID_VERSION ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
+            case ID ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
+            case VIZ ->  (int)interpolate(globalMax, (1 + 1) * 3600, byteSize, minTimeoutInSeconds);
+            case VERSION ->  (int)interpolate(globalMax,  (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
+            case OPERATION ->  (int)interpolate(globalMax, (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
+            case NEXT_VERSION ->  (int)interpolate(globalMax, (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
+            case AUTHOR ->  (int)interpolate(globalMax, (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
+            case SERIAL ->  (int)interpolate(globalMax, (0.4 + 0.4) * 3600, byteSize, minTimeoutInSeconds);
         };
     }
 
-    private static double interpolate(double maxTimeInSeconds, long realBytes, double minTimeoutInSeconds){
-        if(realBytes >= DatabaseBasedStep.BYTES_FOR_MAXIMUM_RESOURCE_SCALE)
-            return maxTimeInSeconds;
+    private static double interpolate(double globalMax, double max, long real, double min){
+        if(real >= globalMax)
+            return max;
         else{
-            double interpolated = (realBytes / DatabaseBasedStep.BYTES_FOR_MAXIMUM_RESOURCE_SCALE) * maxTimeInSeconds;
-            return interpolated < minTimeoutInSeconds ? minTimeoutInSeconds : interpolated;
+            double interpolated = (real / globalMax) * max;
+            return interpolated < min ? min : interpolated;
         }
     }
 }

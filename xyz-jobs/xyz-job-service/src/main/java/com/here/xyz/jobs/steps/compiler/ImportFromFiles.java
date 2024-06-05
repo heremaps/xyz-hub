@@ -34,7 +34,6 @@ import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.StepExecution;
-import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
@@ -54,7 +53,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   }
 
   @Override
-  public StepGraph compile(Job job) {
+  public CompilationStepGraph compile(Job job) {
     String spaceId = job.getTarget().getKey();
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
     List<Index> indices = Stream.of(Index.values()).filter(index -> index != VIZ).toList();
@@ -70,15 +69,15 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
-    return new CompilationStepGraph(job.getId())
+    return (CompilationStepGraph) new CompilationStepGraph()
         .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
         .addExecution(new ImportFilesToSpace() //Perform import
             .withSpaceId(spaceId)
             .withFormat(importStepFormat))
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
-        .addExecution(new CompilationStepGraph(job.getId()) //Create all the base indices semi-parallel
-            .addExecution(new CompilationStepGraph(job.getId()).withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
-            .addExecution(new CompilationStepGraph(job.getId()).withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
+        .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
+            .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
+            .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
             .withParallel(true))
         .addExecution(new CreateIndex().withIndex(VIZ).withSpaceId(spaceId))
         .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))

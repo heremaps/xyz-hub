@@ -249,7 +249,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   @Test
   public void deleteChangesets() throws InterruptedException {given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + cleanUpSpaceId + "/features/B?version=0")
+        .get("/spaces/" + cleanUpSpaceId + "/features/B?version=1")
         .then()
         .statusCode(OK.code());
 
@@ -262,7 +262,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<1")
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<2")
         .then()
         .statusCode(NO_CONTENT.code());
 
@@ -270,7 +270,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + cleanUpSpaceId + "/features/B?version=0")
+        .get("/spaces/" + cleanUpSpaceId + "/features/B?version=1")
         .then()
         .statusCode(NOT_FOUND.code());
   }
@@ -310,7 +310,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   public void deleteChangesetsLargerThanHeadValue() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<11")
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<12")
         .then()
         .statusCode(BAD_REQUEST.code());
 
@@ -347,11 +347,11 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   public void getChangesetWithGeometryNull() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=0")
+        .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=1&endVersion=1")
         .then()
         .statusCode(OK.code())
-        .body("versions.0.inserted.features[0]", hasKey("geometry"))
-        .body("versions.0.inserted.features[0].geometry", nullValue());
+        .body("versions.1.inserted.features[0]", hasKey("geometry"))
+        .body("versions.1.inserted.features[0].geometry", nullValue());
   }
 
   @Test
@@ -372,23 +372,23 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   @Test
   public void pageThroughChangesetCollectionVersion0To1() {
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=1&limit=2")
-            .then()
-            .statusCode(OK.code())
-            .body("startVersion", equalTo(0))
-            .body("endVersion", equalTo(0))
-            .body("versions.0.inserted.features.size()", equalTo(2))
-            .body("1", nullValue())
-            .body("nextPageToken", notNullValue());
-
-    given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=1&limit=1&pageToken=0_B")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=1&endVersion=2&limit=2")
             .then()
             .statusCode(OK.code())
             .body("startVersion", equalTo(1))
             .body("endVersion", equalTo(1))
-            .body("versions.0", nullValue())
-            .body("versions.1.updated.features.size()", equalTo(1))
+            .body("versions.1.inserted.features.size()", equalTo(2))
+            .body("2", nullValue())
+            .body("nextPageToken", notNullValue());
+
+    given()
+            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=1&endVersion=2&limit=1&pageToken=1_B")
+            .then()
+            .statusCode(OK.code())
+            .body("startVersion", equalTo(2))
+            .body("endVersion", equalTo(2))
+            .body("versions.1", nullValue())
+            .body("versions.2.updated.features.size()", equalTo(1))
             .body("nextPageToken", notNullValue());
 
     given()
@@ -406,43 +406,43 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   @Test
   public void pageThroughChangesetVersion0To1() {
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/0?limit=1")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/1?limit=1")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(0))
+            .body("version", equalTo(1))
             .body("inserted.features.size()", equalTo(1))
             .body("nextPageToken", notNullValue());
 
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/1?limit=2")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/2?limit=2")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(1))
+            .body("version", equalTo(2))
             .body("inserted.features.size()", equalTo(1))
             .body("updated.features.size()", equalTo(1))
             .body("nextPageToken", nullValue());
 
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/2?limit=1")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/3?limit=1")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(2))
+            .body("version", equalTo(3))
             .body("inserted.features.size()", equalTo(1))
             .body("nextPageToken", notNullValue());
 
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/2?pageToken=2_D&limit=1")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/3?pageToken=3_D&limit=1")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(2))
+            .body("version", equalTo(3))
             .body("inserted.features.size()", equalTo(1))
             .body("nextPageToken", nullValue());
 
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/3?limit=10")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/4?limit=10")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(3))
+            .body("version", equalTo(4))
             .body("updated.features.size()", equalTo(1))
             .body("nextPageToken", nullValue());
   }
@@ -450,30 +450,30 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   @Test
   public void validateChangesetVersions() {
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/0")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/1")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(0))
+            .body("version", equalTo(1))
             .body("inserted.features.size()", equalTo(2))
             .body("updated.features.size()", equalTo(0))
             .body("deleted.features.size()", equalTo(0))
             .body("nextPageToken", nullValue());
 
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/1")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/2")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(1))
+            .body("version", equalTo(2))
             .body("inserted.features.size()", equalTo(1))
             .body("updated.features.size()", equalTo(1))
             .body("deleted.features.size()", equalTo(0))
             .body("nextPageToken", nullValue());
 
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets/9")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets/10")
             .then()
             .statusCode(OK.code())
-            .body("version", equalTo(9))
+            .body("version", equalTo(10))
             .body("inserted.features.size()", equalTo(0))
             .body("updated.features.size()", equalTo(0))
             .body("deleted.features.size()", equalTo(1))
@@ -483,26 +483,22 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   @Test
   public void validateCompleteChangesetCollection() {
     given()
-            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=0&endVersion=12")
+            .get("/spaces/" + cleanUpSpaceId + "/changesets?startVersion=1&endVersion=12")
             .then()
             .statusCode(OK.code())
-            .body("startVersion", equalTo(0))
-            .body("endVersion", equalTo(10))
+            .body("startVersion", equalTo(1))
+            .body("endVersion", equalTo(11))
 
-            .body("versions.0.inserted.features.size()", equalTo(2))
-            .body("versions.0.updated.features.size()", equalTo(0))
-            .body("versions.0.deleted.features.size()", equalTo(0))
-
-            .body("versions.1.inserted.features.size()", equalTo(1))
-            .body("versions.1.updated.features.size()", equalTo(1))
+            .body("versions.1.inserted.features.size()", equalTo(2))
+            .body("versions.1.updated.features.size()", equalTo(0))
             .body("versions.1.deleted.features.size()", equalTo(0))
 
-            .body("versions.2.inserted.features.size()", equalTo(2))
-            .body("versions.2.updated.features.size()", equalTo(0))
+            .body("versions.2.inserted.features.size()", equalTo(1))
+            .body("versions.2.updated.features.size()", equalTo(1))
             .body("versions.2.deleted.features.size()", equalTo(0))
 
-            .body("versions.3.inserted.features.size()", equalTo(0))
-            .body("versions.3.updated.features.size()", equalTo(1))
+            .body("versions.3.inserted.features.size()", equalTo(2))
+            .body("versions.3.updated.features.size()", equalTo(0))
             .body("versions.3.deleted.features.size()", equalTo(0))
 
             .body("versions.4.inserted.features.size()", equalTo(0))
@@ -521,17 +517,21 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.7.updated.features.size()", equalTo(1))
             .body("versions.7.deleted.features.size()", equalTo(0))
 
-            .body("versions.8.inserted.features.size()", equalTo(1))
-            .body("versions.8.updated.features.size()", equalTo(0))
+            .body("versions.8.inserted.features.size()", equalTo(0))
+            .body("versions.8.updated.features.size()", equalTo(1))
             .body("versions.8.deleted.features.size()", equalTo(0))
 
-            .body("versions.9.inserted.features.size()", equalTo(0))
+            .body("versions.9.inserted.features.size()", equalTo(1))
             .body("versions.9.updated.features.size()", equalTo(0))
-            .body("versions.9.deleted.features.size()", equalTo(1))
+            .body("versions.9.deleted.features.size()", equalTo(0))
 
             .body("versions.10.inserted.features.size()", equalTo(0))
-            .body("versions.10.updated.features.size()", equalTo(1))
-            .body("versions.10.deleted.features.size()", equalTo(0))
+            .body("versions.10.updated.features.size()", equalTo(0))
+            .body("versions.10.deleted.features.size()", equalTo(1))
+
+            .body("versions.11.inserted.features.size()", equalTo(0))
+            .body("versions.11.updated.features.size()", equalTo(1))
+            .body("versions.11.deleted.features.size()", equalTo(0))
 
             .body("nextPageToken", nullValue());
   }

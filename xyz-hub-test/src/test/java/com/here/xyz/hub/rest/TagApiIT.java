@@ -289,7 +289,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body(new Tag().withId("XYZ_1"))
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
-        .body("version", equalTo(1));
+        .body("version", equalTo(2));
   }
 
   @Test

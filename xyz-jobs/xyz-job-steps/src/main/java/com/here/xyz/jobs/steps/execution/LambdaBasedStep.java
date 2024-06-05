@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
@@ -233,8 +234,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
     catch (TaskTimedOutException e) {
       try {
+        updateState(CANCELLING);
         cancel();
         updateState(CANCELLED);
+        unregisterStateCheckTrigger();
       }
       catch (Exception ex) {
         logger.error("Error during cancellation of step {}", getGlobalStepId(), ex);

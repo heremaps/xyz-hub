@@ -155,8 +155,10 @@ public class Connector {
     /**
      * The maximal amount of concurrent connector instances to use.
      */
-    public int maxConnections = 32;
+    public int maxConnections = 512;
     private int minConnections = 0;
+
+    public int maxConnectionsPerRequester = 60;
 
     @Override
     public boolean equals(Object o) {
@@ -164,7 +166,7 @@ public class Connector {
       if (o == null || getClass() != o.getClass()) return false;
       ConnectionSettings that = (ConnectionSettings) o;
       return minConnections == that.minConnections &&
-          maxConnections == that.maxConnections;
+          maxConnections == that.maxConnections && maxConnectionsPerRequester == that.maxConnectionsPerRequester;
     }
 
     /**

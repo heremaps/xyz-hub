@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -192,11 +192,11 @@ public class RpcClient {
             callback.handle(Future.failedFuture(ar.cause()));
             return;
           }
-          context.functionCall = functionClient.submit(marker, ar.result(), fireAndForget, hasPriority, callback);
+          context.functionCall = functionClient.submit(marker, ar.result(), fireAndForget, hasPriority, callback, context);
         });
       }
       else {
-        context.functionCall = functionClient.submit(marker, bytes, fireAndForget, hasPriority, callback);
+        context.functionCall = functionClient.submit(marker, bytes, fireAndForget, hasPriority, callback, context);
       }
     }
     catch (Exception e) {
@@ -261,14 +261,14 @@ public class RpcClient {
    * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
-  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
+  public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String requesterId) {
     tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
     injectConnectorParams(event, connector);
     final boolean expectBinaryResponse = expectBinaryResponse(event);
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
-    final RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
+    final RpcContext context = new RpcContext(connector).withRequestSize(eventBytes.length);
 
     //Check whether the event type is allowed on the connector
     String region = Service.configuration == null ? null : Service.configuration.AWS_REGION;
@@ -281,6 +281,8 @@ public class RpcClient {
 
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
             preview(eventJson, 4092));
+
+    context.setRequesterId(requesterId);
 
     invokeWithRelocation(marker, context, eventBytes, false, hasPriority, bytesResult -> {
       if (functionClient == null) {
@@ -317,7 +319,16 @@ public class RpcClient {
   }
 
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
-    return execute(marker, event, hasPriority, callback, null);
+    return execute(marker, event, hasPriority, callback, null, null);
+  }
+
+
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
+    return execute(marker, event, false, callback, tmpSpace, null);
+  }
+
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
+    return execute(marker, event, callback, null);
   }
 
   /**
@@ -326,15 +337,12 @@ public class RpcClient {
    * @param marker the log marker
    * @param event the event
    * @param callback the callback handler
+   * @param requesterId the id of the sender
    * @return The rpc context belonging to the request
    */
   @SuppressWarnings("rawtypes")
-  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
-    return execute(marker, event, false, callback, tmpSpace);
-  }
-
-  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback) {
-    return execute(marker, event, callback, null);
+  public RpcContext execute(final Marker marker, final Event event, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace, String requesterId) {
+    return execute(marker, event, false, callback, tmpSpace, requesterId);
   }
 
   private String preview(String eventJson, @SuppressWarnings("SameParameterValue") int previewLength) {
@@ -358,7 +366,7 @@ public class RpcClient {
     final Connector connector = getConnector();
     injectConnectorParams(event, connector);
     final byte[] eventBytes = event.toByteArray();
-    RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
+    RpcContext context = new RpcContext(connector).withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, false, r -> {
       if (r.failed()) {
         if (r.cause() instanceof HttpException
@@ -621,11 +629,20 @@ public class RpcClient {
     private int requestSize = -1;
     private int responseSize = -1;
     private volatile boolean cancelled = false;
+
+    private final Connector connector;
+
+    private String requesterId;
+
     private FunctionCall functionCall;
+
+    public RpcContext(Connector connector) {
+      this.connector = connector;
+    }
 
     public void cancelRequest() {
       cancelled = true;
-      functionCall.cancel();
+      functionCall.cancel(requesterId);
     }
 
     public int getRequestSize() {
@@ -653,5 +670,19 @@ public class RpcClient {
       setResponseSize(responseSize);
       return this;
     }
+
+    public String getRequesterId() {
+      return requesterId;
+    }
+
+    public void setRequesterId(String requesterId) {
+      this.requesterId = requesterId;
+    }
+
+    public Connector getConnector() {
+      return connector;
+    }
   }
+
+
 }

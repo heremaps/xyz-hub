@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,14 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.hub.util.AtomicUtils.compareAndDecrement;
+import static com.here.xyz.hub.util.AtomicUtils.compareAndIncrementUpTo;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
@@ -37,7 +40,9 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -67,9 +72,9 @@ public abstract class RemoteFunctionClient {
   /**
    * All instances that were created and are active.
    */
-  private static Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
-  private static LongAdder globalMinConnectionSum = new LongAdder();
-  private static LongAdder globalMaxConnectionSum = new LongAdder();
+  private static final Set<RemoteFunctionClient> clientInstances = new ConcurrentHashSet<>();
+  private static final LongAdder globalMinConnectionSum = new LongAdder();
+  private static final LongAdder globalMaxConnectionSum = new LongAdder();
 //  private static AtomicLong lastSizeAdjustment;
 
   protected Connector connectorConfig;
@@ -81,6 +86,7 @@ public abstract class RemoteFunctionClient {
   private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
   private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
+  private static final ConcurrentHashMap<String, AtomicInteger> usedConnectionsByRequester =  new ConcurrentHashMap<>();
 
 //  /**
 //   * Sliding average request execution time in seconds.
@@ -144,7 +150,7 @@ public abstract class RemoteFunctionClient {
     }
   }
 
-  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback) {
+  protected FunctionCall submit(final Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, final Handler<AsyncResult<byte[]>> callback, RpcClient.RpcContext context) {
     //This is the point where new requests arrive so measure the arrival time
     invokeStarted();
 
@@ -159,15 +165,29 @@ public abstract class RemoteFunctionClient {
       callback.handle(Future.succeededFuture(r.result()));
     });
 
+
     if (!hasPriority){
+      checkRequesterThrottling(marker, callback, context);
       if (!compareAndIncrementUpTo(getWeightedMaxConnections(), usedConnections)) {
         enqueue(fc);
         return fc;
       }
     }
 
-    _invoke(fc);
+    _invoke(fc, context);
     return fc;
+  }
+
+  private static void checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {
+    if (context.getRequesterId() != null) {
+      AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger(0));
+      if (!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerRequester(), connectionCount)) {
+        logger.warn(marker, "Sending to many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
+            context.getRequesterId(), connectionCount.get(), context.getConnector().getMaxConnectionsPerRequester());
+        callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Maximum number of concurrent requests. "
+                + "Max concurrent connections: " + context.getConnector().connectionSettings.maxConnectionsPerRequester)));
+      }
+    }
   }
 
   /**
@@ -278,17 +298,6 @@ public abstract class RemoteFunctionClient {
     return ByteStreams.toByteArray(Payload.prepareInputStream(new ByteArrayInputStream(bytes)));
   }
 
-  private static boolean compareAndIncrementUpTo(int maxExpect, AtomicInteger i) {
-    int currentValue = i.get();
-    while (currentValue < maxExpect) {
-      if (i.compareAndSet(currentValue, currentValue + 1)) {
-        return true;
-      }
-      currentValue = i.get();
-    }
-    return false;
-  }
-
   /**
    * (Re-)Adjusts the maximum byte sizes of the queues of all existing RemoteFunctionClients. When calling this method while there are
    * requests in the queues this could result in discards of those requests.
@@ -340,7 +349,7 @@ public abstract class RemoteFunctionClient {
     return Collections.unmodifiableSet(clientInstances);
   }
 
-  private void _invoke(final FunctionCall fc) {
+  private void _invoke(final FunctionCall fc, RpcClient.RpcContext context) {
     //long start = System.nanoTime();
     invoke(fc, r -> {
       //long end = System.nanoTime();
@@ -351,6 +360,9 @@ public abstract class RemoteFunctionClient {
       if (nextFc == null && !fc.hasPriority) {
         if(usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection only in case it's not needed for the next invocation
+          Optional.ofNullable(context.getRequesterId())
+                  .map(usedConnectionsByRequester::get)
+                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
         }
       }
       try {
@@ -362,7 +374,7 @@ public abstract class RemoteFunctionClient {
       }
       //In case there has been an enqueued element invoke it
       if (nextFc != null) {
-        _invoke(nextFc);
+        _invoke(nextFc, context);
       }
     });
   }
@@ -407,6 +419,10 @@ public abstract class RemoteFunctionClient {
 
   public int getUsedConnections() {
     return usedConnections.intValue();
+  }
+
+  public ConcurrentHashMap<String, AtomicInteger> getUsedConnectionsByRequester() {
+    return usedConnectionsByRequester;
   }
 
   public double getPriority() {
@@ -485,7 +501,7 @@ public abstract class RemoteFunctionClient {
       this.cancelHandler = cancelHandler;
     }
 
-    public void cancel() {
+    public void cancel(String requesterId) {
       cancelled = true;
       try {
         if (cancelHandler != null) {
@@ -498,6 +514,9 @@ public abstract class RemoteFunctionClient {
       finally {
         if(!hasPriority && usedConnections.intValue() > 0) {
           usedConnections.getAndDecrement(); //Free the connection
+          Optional.ofNullable(requesterId)
+                  .map(usedConnectionsByRequester::get)
+                  .ifPresent(connectionCount -> compareAndDecrement(0, connectionCount));
         }
       }
     }

@@ -46,10 +46,6 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = SpaceBasedStep.class)
 })
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
-  //Threshold which defines when we scale to maximum
-  //TODO: Move this out of this generic place into some resource calculator class
-  public static long BYTES_FOR_MAXIMUM_RESOURCE_SCALE = 1_646_526_201_856l;
-
   private static final Logger logger = LogManager.getLogger();
   private double claimedAcuLoad;
   @JsonView(Internal.class)
@@ -108,6 +104,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   private Object executeQuery(SQLQuery query, Database db, double estimatedMaxAcuLoad, ResultSetHandler<?> resultSetHandler,
       boolean isWriteQuery, boolean async, boolean withCallbacks) throws TooManyResourcesClaimed, SQLException {
+    query
+        .withLabel("jobId", getJobId())
+        .withLabel("stepId", getId());
+
     if (async) {
       query = (withCallbacks ? wrapQuery(query) : query)
           .withAsync(true)
