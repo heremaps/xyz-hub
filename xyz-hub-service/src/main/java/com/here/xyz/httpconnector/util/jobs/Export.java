@@ -275,8 +275,10 @@ public class Export extends JDBCBasedJob<Export> {
                   final Ref ref = versionRefSource.getVersionRef();
                   try {
                     long version = CService.hubWebClient.loadTag(identifiable.getId(), ref.getTag()).getVersion();
-                    versionRefSource.setVersionRef(new Ref(version));
-                    setTargetVersion(String.valueOf(version));
+                    if (version >= 0) {
+                      versionRefSource.setVersionRef(new Ref(version));
+                      setTargetVersion(String.valueOf(version));
+                    }
                   }
                   catch (WebClientException e) {
                     return Future.failedFuture(e);
