@@ -222,7 +222,7 @@ public class JobApiExportVersionIT extends JobApiIT {
                           .withPartitionKey("tileid");
 
             /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
-             job.setTargetVersion("9..13"); // from,to
+             job.setTargetVersion("10..14"); // from,to
             /* */
   
             List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
@@ -248,7 +248,7 @@ public class JobApiExportVersionIT extends JobApiIT {
                           .withPartitionKey("tileid");
 
             /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
-             job.setTargetVersion("9..13"); // from,to
+             job.setTargetVersion("10..14"); // from,to
             /* */
   
             List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId2, scope), finalized, failed,  Export.CompositeMode.CHANGES );
@@ -291,7 +291,7 @@ public class JobApiExportVersionIT extends JobApiIT {
         job.addParam("skipTrigger", true);
 
         /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
-          job.setTargetVersion("9..13"); // from,to
+          job.setTargetVersion("10..14"); // from,to
         /* */
 
         List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
@@ -314,7 +314,7 @@ public class JobApiExportVersionIT extends JobApiIT {
         job.addParam("skipTrigger", true);
 
         /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
-          job.setTargetVersion("9..13"); // from,to
+          job.setTargetVersion("10..14"); // from,to
         /* */
 
         List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId2, scope), finalized, failed,  Export.CompositeMode.CHANGES );
