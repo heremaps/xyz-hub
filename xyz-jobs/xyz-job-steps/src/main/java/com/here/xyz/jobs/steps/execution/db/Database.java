@@ -137,7 +137,8 @@ public class Database extends ExecutionResource {
           //TODO: Run the following asynchronously
           List<Database> allDbs = new CopyOnWriteArrayList<>();
           for (Connector connector : connectors) {
-            allDbs.addAll(loadDatabasesForConnector(connector));
+            if (connector.allowedEventTypes == null) //TODO: Remove that workaround once a proper region check was implemented
+              allDbs.addAll(loadDatabasesForConnector(connector));
           }
           return Future.succeededFuture(allDbs);
         });

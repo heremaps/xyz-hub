@@ -80,7 +80,7 @@ public class RFCMeasurement {
                 long now = Core.currentTimeMillis();
                 rfc.submit(null, payload, false, false, r -> {
                     //Nothing to do
-                });
+                }, null);
             }
         }, offset, interval, TimeUnit.MILLISECONDS);
 

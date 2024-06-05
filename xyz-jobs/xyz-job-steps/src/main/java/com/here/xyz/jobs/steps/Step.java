@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
@@ -56,11 +57,15 @@ import java.util.stream.Collectors;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
+
+  //TODO: Apply views properly to all properties
+
+  @JsonView({Internal.class, Static.class})
   private long estimatedUploadBytes = -1;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
-  private String previousStepId;
+  private Set<String> previousStepIds = Set.of();
   private RuntimeInfo status = new RuntimeInfo();
   private final String MODEL_BASED_PREFIX = "/modelBased";
   @JsonIgnore
@@ -111,6 +116,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *
    * @return An estimation for the execution time in seconds that should be calculated once prior to the execution.
    */
+  @JsonIgnore
   public abstract int getEstimatedExecutionSeconds();
 
   protected String bucketName() {
@@ -121,16 +127,29 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return Config.instance.AWS_REGION; //TODO: Get from bucket accordingly
   }
 
-  private String stepS3Prefix(boolean previousStep) {
-    return jobId + "/" + (previousStep ? getPreviousStepId() : getId());
+  private String stepS3Prefix() {
+    return jobId + "/" + getId();
+  }
+
+  private Set<String> previousS3Prefixes() {
+    return getPreviousStepIds().stream().map(previousStepId -> jobId + "/" + previousStepId).collect(Collectors.toSet());
   }
 
   protected final String inputS3Prefix() {
     return Input.inputS3Prefix(jobId);
   }
 
-  protected final String outputS3Prefix(boolean previousStep, boolean userOutput, boolean onlyModelBased) {
-    return stepS3Prefix(previousStep) + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
+  protected final String outputS3Prefix(boolean userOutput, boolean onlyModelBased) {
+    return outputS3Prefix(stepS3Prefix(), userOutput, onlyModelBased);
+  }
+
+  protected final String outputS3Prefix(String stepS3Prefix, boolean userOutput, boolean onlyModelBased) {
+    return stepS3Prefix + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
+  }
+
+  protected final Set<String> previousOutputS3Prefixes(boolean userOutput, boolean onlyModelBased) {
+    return previousS3Prefixes().stream().map(previousStepPrefix -> outputS3Prefix(previousStepPrefix, userOutput, onlyModelBased))
+        .collect(Collectors.toSet());
   }
 
   /**
@@ -146,7 +165,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   protected void registerOutputs(List<Output> outputs, boolean userOutput) throws IOException {
     for (int i = 0; i < outputs.size(); i++)
-      outputs.get(i).store(outputS3Prefix(false, userOutput, outputs.get(i) instanceof ModelBasedOutput)
+      outputs.get(i).store(outputS3Prefix(stepS3Prefix(), userOutput, outputs.get(i) instanceof ModelBasedOutput)
           + "/output" + i + ".json"); //TODO: Use proper file name
   }
 
@@ -159,11 +178,17 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   private List<Output> loadOutputs(boolean previousStep, boolean userOutput) {
-    return S3Client.getInstance().scanFolder(outputS3Prefix(previousStep, userOutput, false))
+    Set<String> s3Prefixes = previousStep ? previousOutputS3Prefixes(userOutput, false)
+        : Set.of(outputS3Prefix(userOutput, false));
+
+    return s3Prefixes
         .stream()
-        .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
-            ? ModelBasedOutput.load(s3ObjectSummary.getKey())
-            : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize()))
+        //TODO: Scan the different folders in parallel
+        .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
+            .stream()
+            .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
+                ? ModelBasedOutput.load(s3ObjectSummary.getKey())
+                : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
         .collect(Collectors.toList());
   }
 
@@ -178,7 +203,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return inputs;
   }
 
+  protected int currentInputsCount(Class<? extends Input> inputType) {
+    return Input.currentInputsCount(jobId, inputType);
+  }
 
+  protected <T extends Input> List<T> loadInputsSample(int maxSampleSize, Class<T> inputType) {
+    return Input.loadInputsSample(jobId, maxSampleSize, inputType);
+  }
 
   @JsonIgnore
   public abstract String getDescription();
@@ -255,7 +286,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     TODO: Respect re-usability of outputs. If other steps are re-using (some) outputs of this step, check the reference counter of
       the according steps and only delete the outputs if their reference counter drops to 0
      */
-    S3Client.getInstance().deleteFolder(stepS3Prefix(false));
+    S3Client.getInstance().deleteFolder(stepS3Prefix());
   }
 
   public void prepare(String owner, JobClientInfo ownerAuth) {
@@ -309,16 +340,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return getJobId() + "." + getId();
   }
 
-  public String getPreviousStepId() {
-    return previousStepId;
+  public Set<String> getPreviousStepIds() {
+    return previousStepIds;
   }
 
-  public void setPreviousStepId(String previousStepId) {
-    this.previousStepId = previousStepId;
+  public void setPreviousStepIds(Set<String> previousStepIds) {
+    this.previousStepIds = previousStepIds;
   }
 
-  public T withPreviousStepId(String previousStepId) {
-    setPreviousStepId(previousStepId);
+  public T withPreviousStepIds(Set<String> previousStepId) {
+    setPreviousStepIds(previousStepId);
     return (T) this;
   }
 

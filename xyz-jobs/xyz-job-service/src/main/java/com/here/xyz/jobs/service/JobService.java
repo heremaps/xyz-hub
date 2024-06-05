@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.service;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.CleanUpExecutor;
@@ -31,8 +32,11 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,6 +54,8 @@ public class JobService extends Core {
     XyzSerializable.registerSubtypes(Input.class);
     XyzSerializable.registerSubtypes(Output.class);
   }
+
+  private static List<Consumer> jobFinalizationObservers = new ArrayList<>();
 
   public static void main(String[] args) {
     VertxOptions vertxOptions = new VertxOptions()
@@ -103,5 +109,20 @@ public class JobService extends Core {
       //Add operation for shutdown hook
     }));
     return Future.succeededFuture();
+  }
+
+  public static void registerJobFinalizeObserver(Consumer<Job> jobConsumer) {
+    jobFinalizationObservers.add(jobConsumer);
+  }
+
+  public static void callFinalizeObservers(Job job) {
+    jobFinalizationObservers.forEach(c -> {
+      try {
+        c.accept(job);
+      }
+      catch (Exception e) {
+        logger.error("Error during finalization-observer call for job {}:", job.getId(), e);
+      }
+    });
   }
 }

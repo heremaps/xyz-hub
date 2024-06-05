@@ -94,7 +94,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
 
-  public static final Async async = new Async(20, Core.vertx, Job.class);
+  public static final Async async = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = 2 * 7 * 24 * 3600 * 1000; //2 weeks
 
@@ -156,6 +156,7 @@ public class Job implements XyzSerializable {
         .compose(isReady -> {
           if (isReady) {
             getStatus().setState(SUBMITTED);
+            Input.registerSubmittedJob(getId());
             return store().compose(v -> start()).map(true);
           }
           else {
@@ -233,17 +234,13 @@ public class Job implements XyzSerializable {
    */
   public Future<Boolean> cancel() {
     getStatus().setState(CANCELLING);
-    getSteps().stepStream().forEach(step -> {
-      if (getStatus().getState().isValidSuccessor(CANCELLING))
-        getStatus().setState(CANCELLING);
-    });
 
-    return store()
+    return storeStatus(null)
         //Cancel the execution in any case, to prevent race-conditions
         .compose(v -> JobExecutor.getInstance().cancel(getExecutionId()))
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
-        and update the Job to CANCELED once al cancellations are completed.
+        and update the Job to CANCELLED once all cancellations are completed.
          */
         .map(false);
   }
@@ -286,25 +283,13 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
-    //TODO: Remove the following workaround once the state-transition-event-rule (HTTPS) is working
+    State oldState = getStatus().getState();
     if (step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
           .withErrorMessage(step.getStatus().getErrorMessage())
           .withErrorCause(step.getStatus().getErrorCause())
           .withErrorCode(step.getStatus().getErrorCode());
-
-      //TODO: Decide if we really want to delete the state-machines directly. This would remove
-      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
-//      if(!isResumable() && getStateMachineArn() != null){
-//        JobExecutor.getInstance().delete(getStateMachineArn());
-//      }
-    }
-    else if (getStatus().getSucceededSteps() == getStatus().getOverallStepCount()) {
-      getStatus().setState(SUCCEEDED);
-      //TODO: Decide if we really want to delete the state-machines directly. This would remove
-      // debugging capabilities. We also need to think about the scheduling in our CleanUpExecutor (CHECK_PERIOD_IN_MIN).
-//      JobExecutor.getInstance().delete(getStateMachineArn());
     }
 
     return storeUpdatedStep(step)
@@ -378,6 +363,7 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
+    //TODO: Delete StateMachine if still existing
     return deleteInputs() //Delete the inputs of this job
         //Delete the outputs of all involved steps
         .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))

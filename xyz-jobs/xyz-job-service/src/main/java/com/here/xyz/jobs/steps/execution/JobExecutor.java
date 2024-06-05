@@ -25,14 +25,18 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -50,10 +54,10 @@ public abstract class JobExecutor implements Initializable {
   private static AtomicBoolean cancellationCheckRunning = new AtomicBoolean();
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
+  private static final long JOB_START_TIMEOUT = 60_000;
 
   {
-    //TODO: Activate checking for PENDING jobs
-    //exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, TimeUnit.SECONDS);
+    exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
   }
 
   protected JobExecutor() {}
@@ -67,23 +71,23 @@ public abstract class JobExecutor implements Initializable {
     return mayExecute(job)
         .compose(executionAllowed -> {
           if (!executionAllowed)
-            //The Job remains in PENDING state and will be checked be later again if it may be executed
+            //The Job remains in PENDING state and will be checked later again if it may be executed
             return Future.succeededFuture();
 
-          //Update the job status atomically, that now is RUNNING to make sure no other node will try to start it.
+          //Update the job status atomically to RUNNING to make sure no other node will try to start it.
           job.getStatus()
               .withState(RUNNING)
               .withInitialEndTimeEstimation(Core.currentTimeMillis()
                   + job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000);
+
           //TODO: Update / invalidate the reserved unit maps?
-          return job.store() //TODO: Make sure in JobConfigClient, that state updates are always atomic using new method JobConfigClient#updateState()
+          return job.storeStatus(PENDING)
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
         });
   }
 
-  //TODO: Start the following thread implementation at service as scheduled recurring task (e.g, run once every minute)
   private void checkPendingJobs() {
     running = true;
     if (stopRequested) {
@@ -95,20 +99,58 @@ public abstract class JobExecutor implements Initializable {
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)
           .onSuccess(pendingJobs -> {
-            for (Job pendingJob : pendingJobs) {
-              if (stopRequested)
-                return;
-              //Try to start the execution of the pending job
-              startExecution(pendingJob, pendingJob.getExecutionId());
-              Thread.yield();
+            try {
+              pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
+              logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
+              for (Job pendingJob : pendingJobs) {
+                if (stopRequested)
+                  return;
+                //Try to start the execution of the pending job
+                if (tryAndWaitForStart(pendingJob))
+                  return;
+              }
+            }
+            catch (Exception e) {
+              logger.error("Error checking PENDING jobs", e);
             }
           })
           .onFailure(t -> logger.error("Error checking PENDING jobs", t))
           .onComplete(ar -> running = false);
     }
+    catch (Exception e) {
+      logger.error("Error checking PENDING jobs", e);
+    }
     finally {
       running = false;
     }
+  }
+
+  /**
+   *
+   * @param pendingJob
+   * @return true if there was a request to stop the PENDING-check thread
+   */
+  private boolean tryAndWaitForStart(Job pendingJob) {
+    try {
+      Future<Void> executionStarted = startExecution(pendingJob, pendingJob.getExecutionId());
+      long waitStart = Core.currentTimeMillis();
+      while (!executionStarted.isComplete()) {
+        if (Core.currentTimeMillis() - waitStart > JOB_START_TIMEOUT) {
+          logger.error("Timeout while trying to start PENDING job {}", pendingJob.getId());
+          return false;
+        }
+        try {
+          if (stopRequested)
+            return true;
+          Thread.sleep(200);
+        }
+        catch (InterruptedException ignore) {}
+      }
+    }
+    catch (Exception e) {
+      logger.error("Error trying to start the execution of job {}", pendingJob.getId(), e);
+    }
+    return false;
   }
 
   @Override
@@ -132,9 +174,9 @@ public abstract class JobExecutor implements Initializable {
     if (cancellationCheckRunning.compareAndSet(false, true))
       JobConfigClient.getInstance().loadJobs(CANCELLING)
           .compose(jobs -> Future.all(jobs.stream().map(job -> {
-            if (job.getSteps().stepStream().allMatch(step -> step.getStatus().getState() == CANCELLED)) {
-              job.getStatus().setState(CANCELLED);
-              return job.store();
+            if (job.getSteps().stepStream().map(step -> cancelNonRunningStep(job, step)).allMatch(step -> step.getStatus().getState().isFinal())) {
+              job.getStatus().withState(CANCELLED).withDesiredAction(null);
+              return job.storeStatus(CANCELLING);
             }
             return Future.succeededFuture();
           }).collect(Collectors.toList())).map(jobs.stream().filter(job -> job.getStatus().getState() != CANCELLED).collect(Collectors.toList())))
@@ -148,17 +190,35 @@ public abstract class JobExecutor implements Initializable {
                 .filter(job -> job.getStatus().getUpdatedAt() + CANCELLATION_TIMEOUT < Core.currentTimeMillis())
                 .collect(Collectors.toList());
             jobsToFail.forEach(job -> {
-              //TODO: Set failure cause
-              job.getStatus().setState(FAILED);
-              job.store();
+              job.getStatus()
+                  .withState(FAILED)
+                  .withFailedRetryable(false)
+                  .withErrorMessage("The cancellation of the job could not be completed within the specified amount of time.")
+                  .withErrorCause("CANCELLATION_TIMEOUT")
+                  .withDesiredAction(null);
+
+              job.storeStatus(null);
             });
 
             //If there are still remaining jobs, run the cancellation check again
             return Future.succeededFuture(jobsToFail.size() < remainingJobs.size());
           })
           .onFailure(t -> logger.error("Error in checkCancellations process:", t))
-          .onSuccess(runAgain -> exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS))
+          .onSuccess(runAgain -> {
+            if (runAgain)
+              exec.schedule(() -> checkCancellations(), CANCELLATION_CHECK_RERUN_PERIOD, MILLISECONDS);
+          })
           .onComplete(ar -> cancellationCheckRunning.set(false));
+  }
+
+  private static Step cancelNonRunningStep(Job job, Step step) {
+    final State stepState = step.getStatus().getState();
+    if (stepState != RUNNING && stepState.isValidSuccessor(CANCELLING)) {
+      job.getStatus().setState(CANCELLING);
+      job.getStatus().setState(CANCELLED);
+      job.storeUpdatedStep(step);
+    }
+    return step;
   }
 
   protected abstract Future<String> execute(Job job);

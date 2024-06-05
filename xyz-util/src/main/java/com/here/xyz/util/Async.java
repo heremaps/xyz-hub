@@ -19,19 +19,33 @@
 
 package com.here.xyz.util;
 
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
-import io.vertx.core.Vertx;
 import io.vertx.core.WorkerExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class Async {
-  public final WorkerExecutor asyncWorkers;
+  public final AtomicReference<WorkerExecutor> asyncWorkers = new AtomicReference<>();
+  private String name;
+  private final int workerPoolSize;
 
-  public Async(int workerPoolSize, Vertx vertx, Class<?> callerClass) {
-    asyncWorkers = vertx.createSharedWorkerExecutor(callerClass.getName(), workerPoolSize);
+  public Async(int workerPoolSize, Class<?> callerClass) {
+    name = callerClass.getName();
+    this.workerPoolSize = workerPoolSize;
+  }
+
+  private WorkerExecutor exec() {
+    if (asyncWorkers.get() == null) {
+      WorkerExecutor workers = Core.vertx.createSharedWorkerExecutor(name, workerPoolSize);
+      if (!asyncWorkers.compareAndSet(null, workers))
+        //Some other thread initialized the workers already
+        workers.close();
+    }
+    return asyncWorkers.get();
   }
 
   public <R> Future<R> run(ThrowingSupplier<R> task) {
-    return asyncWorkers.executeBlocking(
+    return exec().executeBlocking(
         promise -> {
           try {
             promise.complete(task.supply());

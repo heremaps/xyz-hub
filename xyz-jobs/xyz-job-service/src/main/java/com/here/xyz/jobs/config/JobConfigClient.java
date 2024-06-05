@@ -78,8 +78,20 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<Void> updateState(Job job, State expectedPreviousState);
 
+  /**
+   * Updates only the status of the specified job atomically, by ensuring a specific previous state
+   * @param job The job of which to update the status object
+   * @param expectedPreviousState The previous state of the job's status or null if the previous state should not be checked
+   * @return A future which succeeds if the update was performed and fails if there was an error or the previous state was not matching
+   */
   public abstract Future<Void> updateStatus(Job job, State expectedPreviousState);
 
+  /**
+   * Updates only one step of the specified job without overwriting the whole job configuration.
+   * @param job The job of which to update one step
+   * @param newStep The step to be overwritten on the job
+   * @return
+   */
   public abstract Future<Void> updateStep(Job job, Step<?> newStep);
 
   public abstract Future<Void> deleteJob(String jobId);

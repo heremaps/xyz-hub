@@ -34,11 +34,14 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
+import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.compression.ZlibWrapper;
@@ -119,28 +122,29 @@ public class Api {
      * @param e       the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
      */
     protected void sendErrorResponse(final RoutingContext context, Throwable e) {
-        if (e instanceof BaseHttpServerVerticle.RequestCancelledException)
+        if (e instanceof RequestCancelledException)
             return;
-        if (e instanceof BaseHttpServerVerticle.ValidationException)
+
+        if (e instanceof ValidationException || e instanceof IllegalArgumentException || e instanceof IllegalStateException)
             e = new HttpException(BAD_REQUEST, e.getMessage(), e);
-        if (e instanceof AccessDeniedException)
+        else if (e instanceof AccessDeniedException)
             e = new HttpException(FORBIDDEN, e.getMessage(), e);
+
         if (e instanceof HttpException) {
             final HttpException httpException = (HttpException) e;
 
             if (INTERNAL_SERVER_ERROR.code() != httpException.status.code()) {
                 XyzError error;
-                if (BAD_GATEWAY.code() == httpException.status.code()) {
+                if (BAD_GATEWAY.code() == httpException.status.code())
                     error = XyzError.BAD_GATEWAY;
-                } else if (GATEWAY_TIMEOUT.code() == httpException.status.code()) {
+                else if (GATEWAY_TIMEOUT.code() == httpException.status.code())
                     error = XyzError.TIMEOUT;
-                } else if (BAD_REQUEST.code() == httpException.status.code()) {
+                else if (BAD_REQUEST.code() == httpException.status.code())
                     error = XyzError.ILLEGAL_ARGUMENT;
-                } else if (NOT_FOUND.code() == httpException.status.code()) {
+                else if (NOT_FOUND.code() == httpException.status.code())
                     error = XyzError.NOT_FOUND;
-                } else {
+                else
                     error = XyzError.EXCEPTION;
-                }
 
                 //This is an exception sent by intention and nothing special, no need for stacktrace logging.
                 logger.warn(Api.getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
@@ -274,20 +278,33 @@ public class Api {
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, XyzSerializable object) {
-        serializeAndSendResponse(context, statusCode, object, null);
+        serializeAndSendResponse(context, statusCode, object, null, Public.class);
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
-        serializeAndSendResponse(context, statusCode, list, null);
+        serializeAndSendResponse(context, statusCode, list, null, Public.class);
     }
 
     protected void sendResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
         TypeReference listItemTypeReference) {
-        serializeAndSendResponse(context, statusCode, list, listItemTypeReference);
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, Public.class);
+    }
+
+    protected void sendInternalResponse(RoutingContext context, int statusCode, XyzSerializable object) {
+        serializeAndSendResponse(context, statusCode, object, null, null); //TODO: Use Internal view here in future
+    }
+
+    protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list) {
+        serializeAndSendResponse(context, statusCode, list, null, null); //TODO: Use Internal view here in future
+    }
+
+    protected void sendInternalResponse(RoutingContext context, int statusCode, List<? extends XyzSerializable> list,
+        TypeReference listItemTypeReference) {
+        serializeAndSendResponse(context, statusCode, list, listItemTypeReference, null); //TODO: Use Internal view here in future
     }
 
     private void serializeAndSendResponse(RoutingContext context, int statusCode, Object object,
-        TypeReference listItemTypeReference) {
+        TypeReference listItemTypeReference, Class<? extends SerializationView> view) {
         if (listItemTypeReference != null && !(object instanceof List))
             throw new IllegalArgumentException("Type info for list items may only be specified if the object to be serialized is a list.");
 
@@ -300,8 +317,8 @@ public class Api {
             else
                 response = object instanceof ByteArrayOutputStream bos ? bos.toByteArray()
                     : (listItemTypeReference == null
-                        ? XyzSerializable.serialize(object, Public.class)
-                        : XyzSerializable.serialize((List<?>) object, Public.class, listItemTypeReference)).getBytes();
+                        ? XyzSerializable.serialize(object, view)
+                        : XyzSerializable.serialize((List<?>) object, view, listItemTypeReference)).getBytes();
         }
         catch (EncodeException e) {
             sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));

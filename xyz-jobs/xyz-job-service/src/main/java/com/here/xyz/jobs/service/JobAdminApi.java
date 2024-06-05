@@ -32,6 +32,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
@@ -48,11 +49,18 @@ public class JobAdminApi extends Api {
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
+    router.route(HttpMethod.GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
     router.route(HttpMethod.GET, ADMIN_JOB).handler(handleErrors(this::getJob));
     router.route(HttpMethod.DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
     router.route(HttpMethod.POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
     router.route(HttpMethod.GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
     router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
+  }
+
+  private void getJobs(RoutingContext context) {
+    Job.loadAll()
+        .onSuccess(res -> sendInternalResponse(context, OK.code(), res))
+        .onFailure(err -> sendErrorResponse(context, err));
   }
 
   private void getJob(RoutingContext context) {
@@ -63,7 +71,9 @@ public class JobAdminApi extends Api {
   }
 
   private void deleteJob(RoutingContext context) throws HttpException {
-    getJobFromBody(context).deleteJobResources();
+    getJobFromBody(context).deleteJobResources()
+        .onSuccess(v -> sendResponseWithXyzSerialization(context, NO_CONTENT, null))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   private void postStep(RoutingContext context) throws HttpException {
@@ -119,24 +129,38 @@ public class JobAdminApi extends Api {
       If for some reason it changes, we should add the jobId to the "input" param and read it from there.
        */
       String jobId = event.getJsonObject("detail").getString("name");
-      String status = event.getJsonObject("detail").getString("status");
+      String sfnStatus = event.getJsonObject("detail").getString("status");
 
       if (jobId == null)
         logger.error("The state machine event does not include a Job ID: {}", event);
-      else if (status == null)
+      else if (sfnStatus == null)
         logger.error("The state machine event does not include a status: {}", event);
       else
         Job.load(jobId)
             .compose(job -> {
-              State newJobState = switch (status) {
+              State newJobState = switch (sfnStatus) {
                 case "SUCCEEDED" -> SUCCEEDED;
                 case "FAILED" -> FAILED;
                 case "TIMED_OUT" -> FAILED;
                 default -> null;
               };
               if (newJobState != null) {
+                if (newJobState.isFinal())
+                  JobService.callFinalizeObservers(job);
+
+                if (newJobState == SUCCEEDED)
+                  JobExecutor.getInstance().delete(job.getStateMachineArn());
+                else if (newJobState == FAILED && "TIMED_OUT".equals(sfnStatus)) {
+                  final String existingErrCause = job.getStatus().getErrorCause();
+                  job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
+                }
+
+                if (job.getStatus().getState() == newJobState)
+                  return Future.succeededFuture();
+
+                State oldState = job.getStatus().getState();
                 job.getStatus().setState(newJobState);
-                return job.store();
+                return job.storeStatus(oldState);
               }
               else
                 return Future.succeededFuture();

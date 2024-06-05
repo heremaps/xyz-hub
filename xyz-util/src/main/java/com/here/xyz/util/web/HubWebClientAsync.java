@@ -25,7 +25,6 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.Async;
-import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +36,7 @@ public class HubWebClientAsync extends HubWebClient {
 
   protected HubWebClientAsync(String baseUrl) {
     super(baseUrl);
-    async = new Async(20, Core.vertx, HubWebClientAsync.class);
+    async = new Async(20, HubWebClientAsync.class);
   }
 
   public static HubWebClientAsync getInstance(String baseUrl) {

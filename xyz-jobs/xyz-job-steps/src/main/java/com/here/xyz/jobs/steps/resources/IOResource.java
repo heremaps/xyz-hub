@@ -17,28 +17,36 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.datasets.files;
+package com.here.xyz.jobs.steps.resources;
 
-import com.here.xyz.XyzSerializable;
+import io.vertx.core.Future;
 
-public class FileInputSettings {
-  private FileFormat format = new GeoJson();
+public class IOResource extends ExecutionResource {
+  private static final IOResource INSTANCE = new IOResource();
 
-  public FileFormat getFormat() {
-    return format;
-  }
+  private IOResource() {}
 
-  public void setFormat(FileFormat format) {
-    this.format = format;
-  }
-
-  public FileInputSettings withFormat(FileFormat format) {
-    setFormat(format);
-    return this;
+  public static IOResource getInstance() {
+    return INSTANCE;
   }
 
   @Override
-  public boolean equals(Object obj) {
-    return XyzSerializable.equals(this, obj);
+  public Future<Double> getUtilizedUnits() {
+    return Future.succeededFuture(0d);
+  }
+
+  @Override
+  protected double getMaxUnits() {
+    return Long.MAX_VALUE;
+  }
+
+  @Override
+  protected double getMaxVirtualUnits() {
+    return Long.MAX_VALUE;
+  }
+
+  @Override
+  protected String getId() {
+    return "io-execution-resource";
   }
 }

@@ -25,6 +25,7 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.StepGraph;
 import io.vertx.core.Future;
+import java.util.List;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineRequest;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineResponse;
 import software.amazon.awssdk.services.sfn.model.DeleteStateMachineRequest;
@@ -35,8 +36,6 @@ import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
 import software.amazon.awssdk.services.sfn.model.StateMachineListItem;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
-
-import java.util.List;
 
 class StateMachineExecutor extends JobExecutor {
   private static final String STATE_MACHINE_NAME_PREFIX = "job-";
@@ -62,7 +61,6 @@ class StateMachineExecutor extends JobExecutor {
   public Future<String> resume(Job job, String executionId) {
     try {
       //TODO: Asyncify!
-      //TODO: Add necessary states:RedriveExecution permission to the service' role, see: https://docs.aws.amazon.com/step-functions/latest/dg/redrive-executions.html#redrive-iam-permission
       sfnClient().redriveExecution(RedriveExecutionRequest.builder()
           .executionArn(executionId)
           .build());

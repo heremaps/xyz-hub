@@ -53,12 +53,12 @@ public class ImmutableResponseCachingIT extends TestSpaceWithFeature {
 
   @Test
   public void testStaticCachePositive() throws InterruptedException {
-    getFeature(cleanUpId, F1, 0)
+    getFeature(cleanUpId, F1, 1)
         .statusCode(200)
         //Item should not come from cache
         .header("stream-info",  not(containsString("CH=1")));
     Thread.sleep(1000);
-    getFeature(cleanUpId, F1, 0)
+    getFeature(cleanUpId, F1, 1)
         .statusCode(200)
         //Item should come from cache
         .header("stream-info",  containsString("CH=1"))

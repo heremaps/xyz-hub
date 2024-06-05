@@ -88,6 +88,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.BinaryResponse;
@@ -276,7 +277,8 @@ public class FeatureTaskHandler {
               scheduleContentModifiedNotification(task);
             }
           });
-        }, task.space);
+        }, task.space, task.getRequesterId());
+
         XYZHubRESTVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
@@ -779,18 +781,23 @@ public class FeatureTaskHandler {
     }
 
     TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
-        .onSuccess(tag -> {
+        .compose(tag -> {
           if (tag == null) {
-            callback.exception(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
-            return;
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
           }
 
-          event.setRef(new Ref(tag.getVersion()));
-          callback.call(task);
+          try {
+            event.setRef(new Ref(tag.getVersion()));
+          } catch (InvalidRef e) {
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid version ref: " + event.getRef().getTag()));
+          }
+
+          return Future.succeededFuture(tag);
         })
+        .onSuccess(tag -> callback.call(task))
         .onFailure(t -> {
           logger.error(task.getMarker(), "Error while resolving version ref.", t);
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
+          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
         });
   }
 
@@ -1460,7 +1467,7 @@ public class FeatureTaskHandler {
               return;
             }
             handler.handle(Future.succeededFuture(count));
-          }, task.space);
+          }, task.space, task.getRequesterId());
     }
     catch (Exception e) {
       handler.handle(Future.failedFuture((e)));
@@ -1677,7 +1684,7 @@ public class FeatureTaskHandler {
         if (task.getState().isFinal()) return;
         addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "LF");
         processLoadEvent(task, callback, r);
-      }, task.space);
+      }, task.space, task.getRequesterId());
     }
     catch (Exception e) {
       logger.warn(task.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
