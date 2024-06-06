@@ -36,6 +36,7 @@ import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -77,8 +78,7 @@ public abstract class JobExecutor implements Initializable {
           //Update the job status atomically to RUNNING to make sure no other node will try to start it.
           job.getStatus()
               .withState(RUNNING)
-              .withInitialEndTimeEstimation(Core.currentTimeMillis()
-                  + job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000);
+              .withInitialEndTimeEstimation(Core.currentTimeMillis() + calculateEstimatedExecutionTime(job));
 
           //TODO: Update / invalidate the reserved unit maps?
           return job.storeStatus(PENDING)
@@ -86,6 +86,10 @@ public abstract class JobExecutor implements Initializable {
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
         });
+  }
+
+  private static long calculateEstimatedExecutionTime(Job job) {
+    return job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000;
   }
 
   private void checkPendingJobs() {
@@ -98,20 +102,22 @@ public abstract class JobExecutor implements Initializable {
 
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)
-          .onSuccess(pendingJobs -> {
+          .compose(pendingJobs -> {
             try {
               pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
               logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
               for (Job pendingJob : pendingJobs) {
                 if (stopRequested)
-                  return;
+                  break;
                 //Try to start the execution of the pending job
                 if (tryAndWaitForStart(pendingJob))
-                  return;
+                  break;
               }
+              return updatePendingTimeEstimations(pendingJobs.stream().filter(job -> job.getStatus().getState() == PENDING)
+                  .collect(Collectors.toUnmodifiableList()));
             }
             catch (Exception e) {
-              logger.error("Error checking PENDING jobs", e);
+              return Future.failedFuture(e);
             }
           })
           .onFailure(t -> logger.error("Error checking PENDING jobs", t))
@@ -125,10 +131,39 @@ public abstract class JobExecutor implements Initializable {
     }
   }
 
+  private Future<Void> updatePendingTimeEstimations(List<Job> pendingJobs) {
+    return JobConfigClient.getInstance().loadJobs(RUNNING)
+        .compose(runningJobs -> {
+          if (runningJobs.isEmpty()) {
+            //No jobs are running, but we have PENDING jobs, are the jobs trying to use too many resources of the system overall?
+            logger.warn("Following jobs are PENDING, but there are no running jobs, does the system provide enough resources to "
+                + "start these jobs at all? : {}", pendingJobs.stream().map(Job::getId).collect(Collectors.joining(", ")));
+            //Set the estimated PENDING time to "unknown"
+            pendingJobs.forEach(pendingJob -> pendingJob.getStatus().setEstimatedStartTime(-1));
+            return Future.succeededFuture();
+          }
+
+          List<Job> activeJobs = new ArrayList<>(runningJobs);
+
+          //NOTE: The following is an algorithm that only provides a very rough estimation of the start time
+          for (Job pendingJob : pendingJobs) {
+            Job earliestCompletingJob = activeJobs.stream().min(Comparator.comparingLong(job -> job.getStatus().getEstimatedEndTime())).get();
+            long estimatedStartTime = earliestCompletingJob.getStatus().getEstimatedEndTime();
+            pendingJob.getStatus()
+                .withEstimatedStartTime(estimatedStartTime)
+                .withInitialEndTimeEstimation(estimatedStartTime + calculateEstimatedExecutionTime(pendingJob));
+            //Replace the (already "consumed") active job by the consuming pending job for the calculation in the next loop iteration
+            activeJobs.remove(earliestCompletingJob);
+            activeJobs.add(pendingJob);
+          }
+          return Future.succeededFuture();
+        });
+  }
+
   /**
    *
-   * @param pendingJob
-   * @return true if there was a request to stop the PENDING-check thread
+   * @param pendingJob The job to be started
+   * @return <code>true</code> if there was a request to stop the PENDING-check thread
    */
   private boolean tryAndWaitForStart(Job pendingJob) {
     try {
