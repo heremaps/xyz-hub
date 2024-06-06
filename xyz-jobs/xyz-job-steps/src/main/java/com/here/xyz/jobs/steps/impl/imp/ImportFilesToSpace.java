@@ -55,8 +55,6 @@ import org.apache.logging.log4j.Logger;
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
-  private static final String JOB_DATA_PREFIX = "job_data_";
-
   private static final int MAX_DB_THREAD_CNT = 20;
 
   private Format format = Format.GEOJSON;
@@ -76,13 +74,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   public enum Format {
     CSV_GEOJSON,
-    CSV_JSONWKB,
+    CSV_JSON_WKB,
     GEOJSON;
   }
+
   public enum Phase {
     VALIDATE, CALCULATE_ACUS, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, RESET_SUCCESS_MARKER,
     FILL_TMP_TABLE, EXECUTE_IMPORT, RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
   }
+
   public Format getFormat() {
     return format;
   }
@@ -353,7 +353,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("""
                     CREATE TABLE IF NOT EXISTS ${schema}.${table}
                            (
-                                --s3_uri aws_commons._s3_uri_1 NOT NULL, --s3uri
                                 s3_bucket text NOT NULL,
                                 s3_path text NOT NULL,
                                 s3_region text NOT NULL,
@@ -549,9 +548,5 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (newPhase != null)
       phase = newPhase;
     logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
-  }
-
-  private String getTemporaryTableName() {
-    return JOB_DATA_PREFIX + getId();
   }
 }

@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.compiler;
 
 import static com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format.CSV_GEOJSON;
-import static com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format.CSV_JSONWKB;
+import static com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
@@ -65,7 +65,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     if (sourceFormat instanceof GeoJson)
       importStepFormat = GEOJSON;
     else if (sourceFormat instanceof Csv csvFormat)
-      importStepFormat = csvFormat.isGeometryAsExtraWkbColumn() ? CSV_JSONWKB : CSV_GEOJSON;
+      importStepFormat = csvFormat.isGeometryAsExtraWkbColumn() ? CSV_JSON_WKB : CSV_GEOJSON;
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 

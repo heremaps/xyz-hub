@@ -26,8 +26,11 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.copy.CopySpace;
+import com.here.xyz.jobs.steps.impl.exp.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -44,6 +47,8 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
   @JsonView({Internal.class, Static.class})
   private String spaceId;
+
+  private static final String JOB_DATA_PREFIX = "job_data_";
 
   public String getSpaceId() {
     return spaceId;
@@ -87,6 +92,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return hubWebClient().loadSpaceStatistics(spaceId, context);
   }
 
+  protected Tag loadTag(String spaceId, String tagId) throws WebClientException {
+    return hubWebClient().loadTag(spaceId, tagId);
+  }
+
   protected HubWebClient hubWebClient() {
     return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
   }
@@ -96,5 +105,9 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     validateSpaceExists();
     //Return true as no user inputs are needed
     return true;
+  }
+
+  protected String getTemporaryTableName() {
+    return JOB_DATA_PREFIX + getId();
   }
 }

@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.steps.impl.imp;
 
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.s3.model.S3Object;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.XyzSerializable;
@@ -30,11 +29,9 @@ import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.BufferedReader;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
 import org.json.JSONException;
@@ -128,7 +125,7 @@ public class ImportFilesQuickValidator {
 
     switch (format) {
       case CSV_GEOJSON -> validateCsvGeoJSON(csvLine);
-      case CSV_JSONWKB -> validateCsvJSON_WKB(csvLine);
+      case CSV_JSON_WKB -> validateCsvJSON_WKB(csvLine);
       case GEOJSON -> validateGeoJSON(csvLine);
       default -> throw new ValidationException("Format is not supported! " + format);
     }
