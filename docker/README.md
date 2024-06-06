@@ -32,6 +32,7 @@ To get Naksha container running, one must do the following:
     - `NAKSHA_EXTENSION_S3_BUCKET`: S3 bucket name or S3 bucket access point.The default value is `naksha-pvt-releases`. 
     - `NAKSHA_JWT_PVT_KEY`: Naksha JWT private key. If not provided then it will load it from `here-naksha-app-service/src/main/resources/auth/jwt.key`.
     - `NAKSHA_JWT_PUB_KEY`: Naksha JWT public key. If not provided then it will load it from `here-naksha-app-service/src/main/resources/auth/jwt.pub`.
+    - `JAVA_OPTS`: Any custom java options like `-Xms1024m -Xmx2048m`
 
    When connecting Naksha app to database, one has to consider container networking - if your
    database is running locally, then when specifying its host you should use `host.docker.internal` (see default URL above) instead of `localhost`/`127.0.0.1` (docker's default network mode is isolated `bridge` so the `localhost` for container and host are 2 different things) .\
@@ -60,6 +61,7 @@ To get Naksha container running, one must do the following:
    --env NAKSHA_EXTENSION_S3_BUCKET=<your s3 bucket name or access point> \
    --env NAKSHA_JWT_PVT_KEY=<your naksha JWT private key with '\n' for new lines> \
    --env NAKSHA_JWT_PUB_KEY=<your naksha JWT public key with '\n' for new lines> \
+   --env JAVA_OPTS="-Xms1024m -Xmx2048m" \
    -p 8080:8080 \
    local-naksha-app
    ```

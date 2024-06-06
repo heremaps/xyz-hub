@@ -25,4 +25,4 @@ else
 fi
 
 # Start the application
-java -jar /home/naksha/app/naksha-*-all.jar $NAKSHA_CONFIG_ID $NAKSHA_ADMIN_DB_URL
+java $JAVA_OPTS -jar /home/naksha/app/naksha-*-all.jar $NAKSHA_CONFIG_ID $NAKSHA_ADMIN_DB_URL

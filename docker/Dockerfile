@@ -24,6 +24,7 @@ ENV NAKSHA_ADMIN_DB_URL 'jdbc:postgresql://host.docker.internal:5432/postgres?us
 ENV NAKSHA_EXTENSION_S3_BUCKET 'naksha-pvt-releases'
 ENV NAKSHA_JWT_PVT_KEY ''
 ENV NAKSHA_JWT_PUB_KEY ''
+ENV JAVA_OPTS ''
 
 # Execute Shell Script
 ENTRYPOINT ["./app/run-app.sh"]
