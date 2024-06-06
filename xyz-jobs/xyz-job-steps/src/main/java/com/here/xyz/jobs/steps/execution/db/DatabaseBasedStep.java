@@ -36,6 +36,7 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -215,17 +216,29 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   @Override
   public void cancel() throws Exception {
     //Cancel all running queries
-    runningQueries.stream().forEach(runningQuery -> {
+    List<RunningQuery> failedCancellations = new LinkedList<>();
+    Exception lastException = null;
+    for (RunningQuery runningQuery : runningQueries) {
       try {
         Database db = Database.loadDatabase(runningQuery.dbName, runningQuery.dbId);
         SQLQuery.killByQueryId(runningQuery.queryId, db.getDataSources(), db.getRole() == READER);
       }
       catch (SQLException e) {
-        logger.error("Error cancelling running queries of step {}.{}. Following queries are probably still running: {}",
-            getJobId(), getId(), runningQueries);
-        //TODO: report failure?
+        logger.error("Error cancelling query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
+        failedCancellations.add(runningQuery);
+        lastException = e;
+        //Continue trying to cancel the remaining queries ...
       }
-    });
+    }
+
+    if (failedCancellations.size() > 0) {
+      runningQueries = failedCancellations;
+      logger.error("Error cancelling running queries of step {}. The following queries are probably still running: {}",
+          getGlobalStepId(), runningQueries);
+      throw new RuntimeException("Error cancelling running queries.", lastException);
+    }
+    else
+      runningQueries = List.of();
   }
 
   @Override

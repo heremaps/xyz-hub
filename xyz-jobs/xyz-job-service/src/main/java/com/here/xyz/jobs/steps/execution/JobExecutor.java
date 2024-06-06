@@ -214,8 +214,7 @@ public abstract class JobExecutor implements Initializable {
   private static Step cancelNonRunningStep(Job job, Step step) {
     final State stepState = step.getStatus().getState();
     if (stepState != RUNNING && stepState.isValidSuccessor(CANCELLING)) {
-      job.getStatus().setState(CANCELLING);
-      job.getStatus().setState(CANCELLED);
+      step.getStatus().withState(CANCELLING).withState(CANCELLED);
       job.storeUpdatedStep(step);
     }
     return step;

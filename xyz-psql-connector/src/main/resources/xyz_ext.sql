@@ -35,6 +35,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 --
 -- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;

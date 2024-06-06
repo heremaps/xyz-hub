@@ -32,12 +32,19 @@ import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
+  @JsonView({Public.class, Static.class})
   private long updatedAt;
+  @JsonView({Public.class, Static.class})
   private long startedAt;
+  @JsonView({Public.class, Static.class})
   private State state = NONE;
+  @JsonView({Public.class, Static.class})
   private float estimatedProgress;
+  @JsonView({Public.class, Static.class})
   private String errorMessage;
+  @JsonView({Public.class, Static.class})
   private String errorCause;
+  @JsonView({Public.class, Static.class})
   private String errorCode;
   @JsonView({Public.class, Static.class})
   boolean failedRetryable;

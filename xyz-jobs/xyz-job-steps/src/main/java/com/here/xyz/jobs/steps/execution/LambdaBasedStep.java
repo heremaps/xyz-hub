@@ -66,6 +66,7 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
+import software.amazon.awssdk.services.sfn.model.InvalidTokenException;
 import software.amazon.awssdk.services.sfn.model.SendTaskFailureRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskHeartbeatRequest;
 import software.amazon.awssdk.services.sfn.model.SendTaskSuccessRequest;
@@ -109,6 +110,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       case ASYNC -> {
         execute();
         registerStateCheckTrigger();
+        synchronizeStepState();
       }
     }
   }
@@ -232,7 +234,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       getStatus().touch();
       synchronizeStepState();
     }
-    catch (TaskTimedOutException e) {
+    catch (TaskTimedOutException | InvalidTokenException e) {
       try {
         updateState(CANCELLING);
         cancel();
@@ -240,8 +242,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         unregisterStateCheckTrigger();
       }
       catch (Exception ex) {
-        logger.error("Error during cancellation of step {}", getGlobalStepId(), ex);
-        reportFailure(ex, false, true);
+        reportFailure(new RuntimeException("Error during cancellation.", ex), false, true);
       }
     }
   }
@@ -288,7 +289,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e != null) {
       getStatus()
           .withErrorMessage(e.getMessage())
-          .withErrorCause(e.getCause() != null ? e.getCause().getMessage() : null);
+          .withErrorCause(e.getCause() != null ? e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage() : null);
 
       if (e instanceof ErrorResponseException responseException)
         getStatus().setErrorCode("HTTP-" + responseException.getErrorResponse().statusCode());
@@ -296,31 +297,34 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     updateState(FAILED);
 
-    if (async) {
-      //Report failure to SFN
-      SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
-          .taskToken(taskToken);
-
-      if (getStatus().getErrorMessage() != null)
-        request.error(truncate(getStatus().getErrorMessage(), 256));
-
-      if (getStatus().getErrorCause() != null || getStatus().getErrorCode() != null) {
-        String errCauseForSfn = (getStatus().getErrorCode() != null ? "Error code: " + getStatus().getErrorCode() + ", " : "")
-            + (getStatus().getErrorCause() != null ? getStatus().getErrorCause() : "");
-        request.cause(truncate(errCauseForSfn, 256));
-      }
-
-      try {
-        sfnClient().sendTaskFailure(request.build());
-      }
-      catch (TaskTimedOutException ex) {
-        logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}.", getJobId(), getId());
-      }
-    }
+    //Report failure to SFN
+    if (async)
+      reportFailureToSfn();
 
     //Finally, log the error also to the lambda log
     logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
         getStatus().getErrorCause(), getStatus().getErrorCode());
+  }
+
+  private void reportFailureToSfn() {
+    SendTaskFailureRequest.Builder request = SendTaskFailureRequest.builder()
+        .taskToken(taskToken);
+
+    if (getStatus().getErrorMessage() != null)
+      request.error(truncate(getStatus().getErrorMessage(), 256));
+
+    if (getStatus().getErrorCause() != null || getStatus().getErrorCode() != null) {
+      String errCauseForSfn = (getStatus().getErrorCode() != null ? "Error code: " + getStatus().getErrorCode() + ", " : "")
+          + (getStatus().getErrorCause() != null ? getStatus().getErrorCause() : "");
+      request.cause(truncate(errCauseForSfn, 256));
+    }
+
+    try {
+      sfnClient().sendTaskFailure(request.build());
+    }
+    catch (TaskTimedOutException ex) {
+      logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}.", getJobId(), getId());
+    }
   }
 
   private String truncate(String string, int maxLength) {
