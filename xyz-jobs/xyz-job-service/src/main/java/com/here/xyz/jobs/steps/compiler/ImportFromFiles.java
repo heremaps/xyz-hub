@@ -19,9 +19,9 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
-import static com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format.CSV_GEOJSON;
-import static com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format.CSV_JSON_WKB;
-import static com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
 import com.google.common.collect.Lists;
@@ -38,8 +38,8 @@ import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
-import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import java.util.List;
 import java.util.stream.Collectors;

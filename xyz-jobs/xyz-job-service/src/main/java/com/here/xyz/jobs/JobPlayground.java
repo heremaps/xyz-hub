@@ -44,7 +44,7 @@ import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
-import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.hub.Space;
@@ -273,7 +273,7 @@ public class JobPlayground {
     Random rd = new Random();
     String lineSeparator = "\n";
 
-    if(format.equals(ImportFilesToSpace.Format.CSV_JSONWKB))
+    if(format.equals(ImportFilesToSpace.Format.CSV_JSON_WKB))
       return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
     else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
       return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
