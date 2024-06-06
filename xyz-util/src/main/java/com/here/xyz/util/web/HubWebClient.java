@@ -20,6 +20,7 @@
 package com.here.xyz.util.web;
 
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.google.common.net.MediaType.GEO_JSON;
 import static com.google.common.net.MediaType.JSON_UTF_8;
 import static com.here.xyz.XyzSerializable.deserialize;
 
@@ -27,6 +28,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
@@ -92,6 +94,13 @@ public class HubWebClient extends XyzWebClient {
         .uri(uri("/spaces/" + spaceId))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method("PATCH", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceUpdates).getBytes())));
+  }
+
+  public void putFeaturesToSpace(String spaceId, FeatureCollection fc) throws WebClientException {
+    request(HttpRequest.newBuilder()
+            .uri(uri("/spaces/" + spaceId + "/features"))
+            .header(CONTENT_TYPE, GEO_JSON.toString())
+            .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
   }
 
   public void deleteSpace(String spaceId) throws WebClientException {
