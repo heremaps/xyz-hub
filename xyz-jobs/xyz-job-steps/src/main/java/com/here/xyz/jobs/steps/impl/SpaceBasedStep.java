@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
@@ -40,7 +41,8 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
     @JsonSubTypes.Type(value = ImportFilesToSpace.class),
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
-    @JsonSubTypes.Type(value = MarkForMaintenance.class)
+    @JsonSubTypes.Type(value = MarkForMaintenance.class),
+    @JsonSubTypes.Type(value = CopySpace.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
   @JsonView({Internal.class, Static.class})
@@ -66,6 +68,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected final String getRootTableName(Space space) throws WebClientException {
     return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(),
         ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId());
+  }
+
+  protected final boolean isEnableHashedSpaceIdActivated(Space space) throws WebClientException {
+    return ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId();
   }
 
   protected void validateSpaceExists() throws ValidationException {

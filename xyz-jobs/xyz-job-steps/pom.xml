@@ -40,7 +40,7 @@
     <!-- XYZ libraries -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>xyz-util</artifactId>
+      <artifactId>xyz-psql-connector</artifactId>
     </dependency>
 
     <!-- AWS SDK -->

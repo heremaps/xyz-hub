@@ -140,6 +140,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    * Invoking the Lambda Function from within the database is done using the <i>aws_lambda</i> plugin.
    * See: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL-Lambda.html
    *
+   * "dummy_output" can by used for ignoring outputs. This is for example needed in CTE queries.
+   *
    * @see LambdaBasedStep
    * @param stepQuery The query that was provided by the step implementation of the subclass
    * @return The wrapped query. A query that takes care of reporting the state back to this implementation asynchronously.
@@ -148,6 +150,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return new SQLQuery("""
         DO
         $wrapped$
+        DECLARE
+           dummy_output INTEGER;
         BEGIN
           ${{stepQuery}};
           ${{successCallback}}
