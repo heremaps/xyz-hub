@@ -138,7 +138,8 @@ public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
 
   public void setEstimatedProgress(float estimatedProgress) {
     touch();
-    this.estimatedProgress = estimatedProgress;
+    if(!Float.isNaN(estimatedProgress))
+      this.estimatedProgress = estimatedProgress;
   }
 
   public T withEstimatedProgress(float estimatedProgress) {
