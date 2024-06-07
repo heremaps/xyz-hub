@@ -96,11 +96,11 @@ public class HubWebClient extends XyzWebClient {
         .method("PATCH", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceUpdates).getBytes())));
   }
 
-  public void putFeaturesToSpace(String spaceId, FeatureCollection fc) throws WebClientException {
+  public void putFeatures(String spaceId, FeatureCollection fc) throws WebClientException {
     request(HttpRequest.newBuilder()
-            .uri(uri("/spaces/" + spaceId + "/features"))
-            .header(CONTENT_TYPE, GEO_JSON.toString())
-            .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
+        .uri(uri("/spaces/" + spaceId + "/features"))
+        .header(CONTENT_TYPE, GEO_JSON.toString())
+        .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
   }
 
   public void deleteSpace(String spaceId) throws WebClientException {
