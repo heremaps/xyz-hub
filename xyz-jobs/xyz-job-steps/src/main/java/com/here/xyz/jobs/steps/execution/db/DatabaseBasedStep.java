@@ -270,7 +270,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   }
 
   @Override
-  public final ExecutionMode getExecutionMode() {
+  public ExecutionMode getExecutionMode() {
     return ExecutionMode.ASYNC;
   }
 

@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
@@ -389,10 +390,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonProperty("taskToken.$")
   @JsonInclude(Include.NON_NULL)
   private String getTaskTokenTemplate() {
-    return TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
+    //NOTE: The task token template may only be used for the ASYNC mode
+    return getExecutionMode().equals(SYNC) ? null : TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
   }
 
-  protected enum ExecutionMode {
+  public enum ExecutionMode {
     SYNC,
     ASYNC
   }
