@@ -22,6 +22,7 @@ package com.here.xyz.httpconnector.util.jobs;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
@@ -124,7 +125,11 @@ public class CombinedJob extends Job<CombinedJob> {
         .compose(job -> {
           List<Future<Job>> futures = new ArrayList<>();
           for (Job childJob : children)
+           if(childJob.getStatus() != finalized)
             futures.add(childJob.isValidForStart());
+           else 
+            futures.add( Future.succeededFuture(childJob) );
+            
           return Future.all(futures).map(cf -> this);
         });
   }

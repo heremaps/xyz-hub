@@ -78,6 +78,7 @@ import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
@@ -183,6 +184,11 @@ public class Export extends JDBCBasedJob<Export> {
     private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
 
     @JsonView(Public.class)
+    private long minSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+    @JsonView(Public.class)
+    private long spaceCreatedAt = 0;
+
+    @JsonView(Public.class)
     private long maxSuperSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
@@ -193,6 +199,7 @@ public class Export extends JDBCBasedJob<Export> {
     private static String PARAM_SCOPE = "scope";
     private static String PARAM_EXTENDS = "extends";
     private static String PARAM_SKIP_TRIGGER = "skipTrigger";
+    private static String PARAM_INCREMENTAL_MODE = "incrementalMode";
 
     public static String PARAM_CONTEXT = "context";
 
@@ -285,6 +292,18 @@ public class Export extends JDBCBasedJob<Export> {
                   }
                 }
 
+                if (getSource() instanceof Identifiable<?> identifiable) {
+
+                  try {
+                    Space space = CService.hubWebClient.loadSpace(identifiable.getId());
+                    setSpaceCreatedAt( space.getCreatedAt() );
+                  }
+                  catch (WebClientException e) {
+                    return Future.failedFuture(e);
+                  }
+                }
+
+
                 return Future.succeededFuture();
             }).compose(f -> {
                 String superSpaceId = extractSuperSpaceId();
@@ -307,7 +326,9 @@ public class Export extends JDBCBasedJob<Export> {
                 return LegacyHubWebClient.getSpaceStatistics(getTargetSpaceId(), ctx)
                         .compose(statistics ->{
                             //Set version of target space
+                            
                             setMaxSpaceVersion(statistics.getMaxVersion().getValue());
+                            setMinSpaceVersion(statistics.getMinVersion().getValue());
                             return Future.succeededFuture(statistics);
                         });
             })
@@ -709,6 +730,36 @@ public class Export extends JDBCBasedJob<Export> {
     public SpaceContext readParamContext() {
         return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf(this.params.get(PARAM_CONTEXT).toString()) : null;
     }
+
+/* incremental */
+
+    public int readParamVersionsToKeep() {
+     return params != null && params.containsKey(PARAM_VERSIONS_TO_KEEP) ? (int) this.getParam(PARAM_VERSIONS_TO_KEEP) : 1;
+    }
+
+    @JsonIgnore
+    public boolean isIncrementalMode() { 
+     return params != null && params.containsKey(PARAM_INCREMENTAL_MODE);
+    }
+
+    public void setIncrementalValid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.VALID); 
+    }
+
+    public void setIncrementalInvalid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.INVALID); 
+    }
+    
+    @JsonIgnore
+    public boolean isIncrementalValid() { 
+     return isIncrementalMode() && (IncrementalMode.VALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+
+    @JsonIgnore
+    public boolean isIncrementalInvalid() { 
+     return isIncrementalMode() && (IncrementalMode.INVALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+/* incremental */
 
     public CompositeMode readParamCompositeMode() {
         return params != null && params.containsKey(PARAM_COMPOSITE_MODE)
@@ -1150,6 +1201,32 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
+    public long getMinSpaceVersion() {
+        return minSpaceVersion;
+    }
+
+    public void setMinSpaceVersion(long minSpaceVersion) {
+        this.minSpaceVersion = minSpaceVersion;
+    }
+
+    public Export withMinSpaceVersion(long minSpaceVersion) {
+        setMinSpaceVersion(minSpaceVersion);
+        return this;
+    }
+
+    public long getSpaceCreatedAt() {
+        return spaceCreatedAt;
+    }
+
+    public void setSpaceCreatedAt(long spaceCreatedAt) {
+        this.spaceCreatedAt = spaceCreatedAt;
+    }
+
+    public Export withSpaceCreatedAt(long spaceCreatedAt) {
+        setSpaceCreatedAt(spaceCreatedAt);
+        return this;
+    }
+
     @Deprecated
     public String getEmrJobId() {
         return emrJobId;
@@ -1168,14 +1245,23 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
+    private long targetToVersion( String targetVersion )
+    {
+     if( targetVersion == null ) return -1;
+     String[] s = targetVersion.split("\\.\\.");
+     return Long.parseLong( (s.length == 1 ? s[0] : s[1]) );
+    }
+
     @Override
     public Future<Job> prepareStart() {
 
       String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
 
-      Future<Tag> pushVersionTag = ( getTargetVersion() == null )
+      long targetVersion = targetToVersion( getTargetVersion() );
+
+      Future<Tag> pushVersionTag = ( targetVersion < 0 )
        ? Future.succeededFuture()
-       : CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion(Integer.parseInt(getTargetVersion())).withSystem(true) );
+       : CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion( targetVersion ).withSystem(true) );
 
       return pushVersionTag.compose( v -> super.prepareStart() );
     }
@@ -1218,7 +1304,7 @@ public class Export extends JDBCBasedJob<Export> {
         scriptParams.add(sourceS3Url);
         scriptParams.add(targetS3Url);
         scriptParams.add("--type=" + getEmrType());
-        if (readParamCompositeMode() == FULL_OPTIMIZED) {
+        if (readParamCompositeMode() == FULL_OPTIMIZED || isIncrementalValid()) {
           scriptParams.add("--delta");
           if ("geoparquet".equals(getEmrType())) {
             final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
@@ -1339,6 +1425,23 @@ public class Export extends JDBCBasedJob<Export> {
         DEACTIVATED;
 
         public static CompositeMode of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
+    public enum IncrementalMode {
+
+        VALID,
+        INVALID;
+
+        public static IncrementalMode of(String value) {
             if (value == null) {
                 return null;
             }
