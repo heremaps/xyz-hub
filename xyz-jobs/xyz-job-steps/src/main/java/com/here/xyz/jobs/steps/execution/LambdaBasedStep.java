@@ -389,10 +389,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonProperty("taskToken.$")
   @JsonInclude(Include.NON_NULL)
   private String getTaskTokenTemplate() {
-    return TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
+    // only include taskToken if we are in async mode
+    return getExecutionMode().equals(ExecutionMode.SYNC) ? null : TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
   }
 
-  protected enum ExecutionMode {
+  public enum ExecutionMode {
     SYNC,
     ASYNC
   }
