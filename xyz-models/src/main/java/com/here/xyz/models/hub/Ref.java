@@ -28,26 +28,37 @@ public class Ref implements XyzSerializable {
   public static final String ALL_VERSIONS = "*";
   private String tag;
   private long version = -1;
+  private long fromVersion = -1;
   private boolean head;
   private boolean allVersions;
 
   @JsonCreator
   public Ref(String ref) {
+
+   try { 
     if (ref == null || ref.isEmpty() || HEAD.equals(ref))
       head = true;
     else if (ALL_VERSIONS.equals(ref))
       allVersions = true;
+    else if ( ref.indexOf("..") > 0 ) {
+      String s[] = ref.split("\\.\\.");
+      fromVersion = Long.parseLong(s[0]);
+      setVersion(Long.parseLong(s[1]));
+      if( fromVersion >= getToVersion() )
+       throw new InvalidRef("Invalid ref: version range - fromVersion must be less then toVersion : \"" + ref + "\""); 
+    }
     else
-      try {
-        setVersion(Long.parseLong(ref));
-      }
-      catch (NumberFormatException e) {
-        if (!Tag.isValidId(ref))
-          throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
+      setVersion(Long.parseLong(ref));
+   }
+   catch (NumberFormatException e) {
+    if (!Tag.isValidId(ref))
+      throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version or range: \"" + ref + "\"");
 
-        tag = ref;
-      }
+    tag = ref;
+   }
+
   }
+   
 
   public Ref(long version) {
     setVersion(version);
@@ -68,7 +79,7 @@ public class Ref implements XyzSerializable {
   @JsonValue
   @Override
   public String toString() {
-    if (!isTag() && version < 0 && !head && !allVersions)
+    if (!isTag() && version < 0 && !head && !allVersions && !isRange())
       throw new IllegalArgumentException("Not a valid ref");
     if (isTag())
       return tag;
@@ -76,6 +87,9 @@ public class Ref implements XyzSerializable {
       return HEAD;
     if (allVersions)
       return ALL_VERSIONS;
+    if( isRange() )  
+      return String.format("%d..%d",fromVersion,version);
+
     return String.valueOf(version);
   }
 
@@ -112,6 +126,14 @@ public class Ref implements XyzSerializable {
     return version;
   }
 
+  public long getFromVersion() {
+    return fromVersion;
+  }
+
+  public long getToVersion() {
+    return version;
+  }
+
   public boolean isHead() {
     return head;
   }
@@ -121,7 +143,11 @@ public class Ref implements XyzSerializable {
   }
 
   public boolean isSingleVersion() {
-    return !isAllVersions();
+    return !isAllVersions() && !isRange();
+  }
+
+  public boolean isRange() {
+    return fromVersion >= 0;
   }
 
   public static class InvalidRef extends IllegalArgumentException {

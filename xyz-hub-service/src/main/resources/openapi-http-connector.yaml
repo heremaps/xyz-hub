@@ -962,7 +962,7 @@ components:
     VersionRef:
       type: string
       description: >-
-        Limit the dataset to a specific version.
+        Limit the dataset to a specific version or range.
 
         Value can be either
 
@@ -973,6 +973,8 @@ components:
         - tag : user provided string of tagged version of layer
 
         - N : a specific version number N of layer
+
+        - M..N : range (M,N] of versions from layer
 
 
     Context:

@@ -261,7 +261,18 @@ public class JDBCExporter extends JdbcBasedHandler {
 
     //Space-Copy End
 
+    private boolean isIncrementalExportNonComposite( CSVFormat csvFormat, String targetVersion, boolean compositeCalculation )
+    {
+      return
+         compositeCalculation == false
+      && csvFormat == PARTITIONED_JSON_WKB
+      && targetVersion != null
+      && (new Ref( targetVersion )).isRange();
+    }
+
     public Future<ExportStatistic> executeExport(Export job, String s3Bucket, String s3Path, String s3Region) {
+      logger.info("job[{}] Execute Export-legacy csvFormat({}) ParamCompositeMode({}) PartitionKey({})", job.getId(), job.getCsvFormat(), job.readParamCompositeMode(), job.getPartitionKey() ); 
+      
       return getClient(job.getTargetConnector())
           .compose(client -> {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
@@ -279,9 +290,10 @@ public class JDBCExporter extends JdbcBasedHandler {
                                           );
 
               switch ( pseudoCsvFormat ) {
-                  case PARTITIONID_FC_B64:                      exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                              job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
-                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
+                  case PARTITIONID_FC_B64:
+                            exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                 job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
+                                 compositeCalculation , job.getPartitionKey(), job.getOmitOnNull(), false);
                       return calculateThreadCountForDownload(job, schema, exportQuery)
                               .compose(threads -> {
                                   try {
@@ -314,14 +326,17 @@ public class JDBCExporter extends JdbcBasedHandler {
 
                            exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                               job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
-                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
+                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull(), false);
                       /*
                       Is used for incremental exports (tiles) - here we have to export modified tiles.
                       Those tiles we need to calculate separately
                        */
-                      final SQLQuery qkQuery = compositeCalculation
+                      boolean isIncrementalExport =   job.isIncrementalMode() 
+                                                   || isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation) ;
+
+                      final SQLQuery qkQuery = ( compositeCalculation || isIncrementalExport )
                               ? generateFilteredExportQueryForCompositeTileCalculation(client, schema, job.getTargetSpaceId(),
-                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat())
+                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat(), isIncrementalExport)
                               : null;
 
                       return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
@@ -481,7 +496,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export";
         SQLQuery exportSelectString = generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
                 j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, isForCompositeContentDetection,
-                j.getPartitionKey(), j.getOmitOnNull());
+                j.getPartitionKey(), j.getOmitOnNull(), false);
 
         String options = "'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' '";
         if(j.getCsvFormat().equals(GEOJSON)){
@@ -514,7 +529,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
         SQLQuery exportSelectString = generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
                 j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, isForCompositeContentDetection,
-                j.getPartitionKey(), j.getOmitOnNull());
+                j.getPartitionKey(), j.getOmitOnNull(), false);
 
         SQLQuery q = new SQLQuery("SELECT * /* vml_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
@@ -538,8 +553,17 @@ public class JDBCExporter extends JdbcBasedHandler {
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
 
+       /* incremental -> for tiled export the exportSelect should be crafted like query by "toVersion" query.*/
+        String targetVersion = j.getTargetVersion();
+        if (targetVersion != null)
+        { Ref ref = new Ref(targetVersion);
+          if( ref.isRange() )
+           targetVersion = "" + ref.getToVersion();
+        }
+       /* incremental */
+
         SQLQuery exportSelectString =  generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-            j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+            targetVersion, j.getParams(), j.getCsvFormat());
 
         /** QkTileQuery gets used if we are exporting in compositeMode. In this case we need to also include empty tiles to our export. */
         boolean includeEmpty = qkTileQry != null,
@@ -577,23 +601,28 @@ public class JDBCExporter extends JdbcBasedHandler {
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
         SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false);
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false, false);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
                                                         SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, isForCompositeContentDetection, null, false);
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, isForCompositeContentDetection, null, false,false);
     }
 
 
     private SQLQuery generateFilteredExportQueryForCompositeTileCalculation(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false);
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isIncrementalExport) throws SQLException {
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false, isIncrementalExport);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, 
+        boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalExport
+        )
         throws SQLException {
+
+        if( isIncrementalExport ) // in this case, behave like "isForCompositeContentDetection" for tile calculations
+         isForCompositeContentDetection = true;
 
         csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
 
@@ -672,13 +701,15 @@ public class JDBCExporter extends JdbcBasedHandler {
           throw new SQLException(e);
         }
 
+        char cFlag = isForCompositeContentDetection ? 'C' : 'P'; // fix/prevent name clash for namedparameter during export
+
         switch (csvFormat) {
           case GEOJSON :
           {
             SQLQuery geoJson = new SQLQuery("select jsondata || jsonb_build_object('geometry', ST_AsGeoJSON(geo, 8)::jsonb) "
                 + "from (${{contentQuery}}) X")
                 .withQueryFragment("contentQuery", contentQuery);
-            return queryToText(geoJson);
+            return queryToText(geoJson,"va" + cFlag );
           }
 
          case PARTITIONED_JSON_WKB :
@@ -745,15 +776,15 @@ public class JDBCExporter extends JdbcBasedHandler {
               .withQueryFragment("customWhereCondition", partitionByPropertyValue && customWhereCondition != null ? customWhereCondition : new SQLQuery(""))
               .withQueryFragment("contentQuery", contentQuery);
 
-           return queryToText(geoJson);
+           return queryToText(geoJson,"vb" + cFlag);
          }
 
             default:
             {
-              //TODO: Why is it important here to not have the id selected?
+              // JSON_WKB, DOWNLOAD
               contentQuery = new SQLQuery("SELECT jsondata, geo FROM (${{innerContentQuery}}) contentQuery")
                   .withQueryFragment("innerContentQuery", contentQuery);
-                return queryToText(contentQuery);
+                return queryToText(contentQuery,"vc" + cFlag);
             }
         }
 
@@ -791,7 +822,7 @@ public class JDBCExporter extends JdbcBasedHandler {
    * @return
    */
     @Deprecated
-    private static SQLQuery queryToText(SQLQuery q) {
+    private static SQLQuery queryToText(SQLQuery q,String prefixParamName) {
         /*
       FIXME:
        The following works only for very specific kind of queries, do not try to compile dynamic queries in software,
@@ -805,7 +836,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         String formatArgs = "";
         Map<String, Object> newParams = new HashMap<>();
         for (Object paramValue : q.parameters()) {
-            String paramName = "var" + i++;
+            String paramName = prefixParamName + i++;
             formatArgs += ",(#{" + paramName + "}::" + getType(paramValue) + ")";
             newParams.put(paramName, paramValue);
         }
