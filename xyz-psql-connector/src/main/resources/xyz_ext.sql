@@ -4449,7 +4449,7 @@ BEGIN
     import_config := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
     format := lower(format);
 
-    IF format = 'csv_jsonwkb' THEN
+    IF format = 'csv_json_wkb' THEN
         target_clomuns := 'jsondata,geo';
     ELSEIF format = 'csv_geojson' THEN
         target_clomuns := 'jsondata';
@@ -4458,7 +4458,7 @@ BEGIN
         import_config := '(FORMAT TEXT, ENCODING ''UTF8'')';
     ELSE
         RAISE EXCEPTION 'Format ''%'' not supported! ',format
-            USING HINT = 'geojson | csv_geojson | csv_jsonwkb are available',
+            USING HINT = 'geojson | csv_geojson | csv_json_wkb are available',
                 ERRCODE = 'XYZ51';
     END IF;
 
