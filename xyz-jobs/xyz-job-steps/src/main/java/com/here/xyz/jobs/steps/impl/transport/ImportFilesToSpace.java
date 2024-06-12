@@ -109,6 +109,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   public List<Load> getNeededResources() {
     try {
       if(getExecutionMode().equals(ExecutionMode.ASYNC)) {
+        fileCount = fileCount != -1 ? fileCount : currentInputsCount(UploadUrl.class);
+
         calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
                 ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
         /** Calculate estimation for ACUs for all parallel running threads */
