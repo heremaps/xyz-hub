@@ -64,7 +64,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private Phase phase;
 
   @JsonView({Internal.class, Static.class})
-  private double neededACUs = -1;
+  private double overallNeededAcus = -1;
 
   @JsonView({Internal.class, Static.class})
   private int fileCount = -1;
@@ -108,10 +108,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
                 ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
         /** Calculate estimation for ACUs for all parallel running threads */
-        neededACUs = calculateNeededAcus(calculatedThreadCount);
+        overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededAcus(calculatedThreadCount);
         Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
-        return List.of(new Load().withResource(db).withEstimatedVirtualUnits(neededACUs),
+        return List.of(new Load().withResource(db).withEstimatedVirtualUnits(overallNeededAcus),
                 new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
       }else{
         return List.of(new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
