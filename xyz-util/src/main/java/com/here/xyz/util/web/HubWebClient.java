@@ -19,6 +19,7 @@
 
 package com.here.xyz.util.web;
 
+import static com.google.common.net.HttpHeaders.ACCEPT;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.GEO_JSON;
 import static com.google.common.net.MediaType.JSON_UTF_8;
@@ -100,6 +101,7 @@ public class HubWebClient extends XyzWebClient {
     request(HttpRequest.newBuilder()
         .uri(uri("/spaces/" + spaceId + "/features"))
         .header(CONTENT_TYPE, GEO_JSON.toString())
+        .header(ACCEPT, "application/x-empty")
         .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
   }
 
