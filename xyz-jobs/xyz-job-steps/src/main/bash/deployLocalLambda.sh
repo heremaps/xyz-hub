@@ -37,6 +37,7 @@ aws --endpoint http://localhost:4566 lambda create-function \
   --timeout 300 \
   --region us-east-1 \
   --function-name job-step \
+  --memory-size 512 \
   --runtime java17 \
   --zip-file fileb://xyz-job-steps.zip \
   --handler 'com.here.xyz.jobs.steps.execution.LambdaBasedStep$LambdaBasedStepExecutor::handleRequest' \
