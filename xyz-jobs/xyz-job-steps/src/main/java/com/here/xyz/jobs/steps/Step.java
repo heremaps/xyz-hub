@@ -330,7 +330,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     this.jobId = jobId;
   }
 
-  T withJobId(String jobId) {
+  public T withJobId(String jobId) {
     setJobId(jobId);
     return (T) this;
   }

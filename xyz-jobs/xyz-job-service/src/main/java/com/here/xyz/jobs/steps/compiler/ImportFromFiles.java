@@ -34,6 +34,7 @@ import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
@@ -69,19 +70,31 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
-    return (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
-        .addExecution(new ImportFilesToSpace() //Perform import
+    //To be able to use getExecutionMode() it is required to provide already the jobId because it gets used
+    //for s3Path calculation. @TODO: check if withJobId() should be public
+    ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace() //Perform import
             .withSpaceId(spaceId)
-            .withFormat(importStepFormat))
-        //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
-        .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
-            .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
-            .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
-            .withParallel(true))
-        .addExecution(new CreateIndex().withIndex(VIZ).withSpaceId(spaceId))
-        .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
-        .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
+            .withFormat(importStepFormat)
+            .withJobId(job.getId());
+
+    if(importFilesToSpace.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC)){
+      //perform SYNC Import
+      return (CompilationStepGraph) new CompilationStepGraph()
+              .addExecution(importFilesToSpace);
+    }else{
+      //perform ASYNC Import
+      return (CompilationStepGraph) new CompilationStepGraph()
+              .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
+              .addExecution(importFilesToSpace)
+              //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
+              .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
+                      .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
+                      .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
+                      .withParallel(true))
+              .addExecution(new CreateIndex().withIndex(VIZ).withSpaceId(spaceId))
+              .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
+              .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
+    }
   }
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<Index> indices) {
