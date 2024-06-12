@@ -48,9 +48,6 @@ public class ResourceAndTimeCalculator implements Initializable {
     public double calculateNeededImportAcus(long uncompressedUploadBytesEstimation, int fileCount, int threadCount) {
         //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
         final double maxAcus = 70;
-        // Each ACU needs 2GB RAM
-        final double GB_TO_BYTES = 1024 * 1024 * 1024;
-        final int ACU_RAM = 2; // GB
         final long bytesPerThreads;
 
         if (fileCount == 0)
@@ -59,11 +56,8 @@ public class ResourceAndTimeCalculator implements Initializable {
         //Only take into account the max parallel execution
         bytesPerThreads = uncompressedUploadBytesEstimation / fileCount * threadCount;
 
-        //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
         //Calculate the needed ACUs
-        double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
-        double neededAcus = threadCount * requiredRAMPerThreads / ACU_RAM;
-
+        double neededAcus = threadCount * calculateNeededAcusFromByteSize(bytesPerThreads);
         return neededAcus > maxAcus ? maxAcus : neededAcus;
     }
 
@@ -83,7 +77,22 @@ public class ResourceAndTimeCalculator implements Initializable {
         return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
     }
 
-    // Index Related...
+    //Copy Related...
+    public double calculateNeededAcusFromByteSize(long byteSize) {
+        //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
+        final double maxAcus = 70;
+        // Each ACU needs 2GB RAM
+        final double GB_TO_BYTES = 1024 * 1024 * 1024;
+        final int ACU_RAM = 2; // GB
+
+        //Calculate the needed ACUs
+        double requiredRAM = byteSize / GB_TO_BYTES;
+        double neededAcus = requiredRAM / ACU_RAM;
+
+        return neededAcus > maxAcus ? maxAcus : neededAcus;
+    }
+
+    //Index Related...
     protected double geoIndexFactor(String spaceId, double bytesPerBillion){
         return  0.091 * bytesPerBillion;
     }

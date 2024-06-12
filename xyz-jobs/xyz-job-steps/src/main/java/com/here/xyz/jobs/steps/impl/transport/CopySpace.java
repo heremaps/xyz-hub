@@ -27,6 +27,7 @@ import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpace;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByGeometry;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByProperties;
@@ -77,6 +78,9 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  */
 public class CopySpace extends SpaceBasedStep<CopySpace> {
   private static final Logger logger = LogManager.getLogger();
+
+  @JsonView({Internal.class, Static.class})
+  private double overallNeededAcus = -1;
 
   @JsonView({Internal.class, Static.class})
   private long estimatedSourceFeatureCount = -1;
@@ -184,7 +188,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     try {
       Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
-      return List.of(new Load().withResource(db).withEstimatedVirtualUnits(10),
+      return List.of(new Load().withResource(db).withEstimatedVirtualUnits(calculateNeededAcus()),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }
     catch (WebClientException e) {
@@ -266,7 +270,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     //@TODO: Add ACU calculation
     runWriteQueryAsync(buildCopySpaceQuery(getSchema(db), getRootTableName(sourceSpace), sourceSpace, getRootTableName(targetSpace),
-            isEnableHashedSpaceIdActivated(sourceSpace), sourceSpace.getVersionsToKeep() > 1), db, 0, true);
+            isEnableHashedSpaceIdActivated(sourceSpace), sourceSpace.getVersionsToKeep() > 1), db, calculateNeededAcus(), true);
   }
 
   @Override
@@ -295,7 +299,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   private SQLQuery buildCopySpaceQuery(String schema, String sourceTableName, Space sourceSpace, String targetTableName,
-              boolean targetVersioningEnabled, boolean isEnableHashedSpaceIdActivated)
+              boolean isEnableHashedSpaceIdActivated, boolean targetVersioningEnabled)
           throws SQLException {
     return new SQLQuery(
             """      
@@ -558,5 +562,11 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       return null;
     }
     return pq;
+  }
+
+  private double calculateNeededAcus() {
+    overallNeededAcus =  overallNeededAcus != -1 ? overallNeededAcus : ResourceAndTimeCalculator.getInstance()
+            .calculateNeededAcusFromByteSize(getUncompressedUploadBytesEstimation());
+    return overallNeededAcus;
   }
 }
