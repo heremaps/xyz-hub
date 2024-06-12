@@ -67,9 +67,6 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * only read a dataset subset from source space.
  *
  * @TODO
- * - getNeededResources
- * - getTimeoutSeconds
- * - getEstimatedExecutionSeconds
  * - onStateCheck
  * - resume
  * - provide output
@@ -90,6 +87,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @JsonView({Internal.class, Static.class})
   private long estimatedTargetFeatureCount = -1;
+
+  @JsonView({Internal.class, Static.class})
+  private int estimatedSeconds = -1;
 
   private final int PSEUDO_NEXT_VERSION = 0;
 
@@ -199,12 +199,16 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   public int getTimeoutSeconds() {
     //@TODO: Implement
-    return 24 * 60 * 60;
+    return 15 * 3600;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    //@TODO: Implement - based on estimatedByteSize.. Find a way to estimate also by given filters.
+    if (estimatedSeconds == -1 && getSpaceId() != null) {
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance()
+              .calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
+      logger.info("[{}] Copy estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
+    }
     return 0;
   }
 
