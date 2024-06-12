@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.locationtech.jts.io.ParseException;
 
 
 /**
@@ -62,6 +63,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private Phase phase;
 
   private double neededACUs = -1;
+
+  @JsonView({Internal.class, Static.class})
+  private long targetTableFeatureCount = -1;
 
   @JsonView({Internal.class, Static.class})
   private int fileCount = -1;
@@ -153,10 +157,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //Check if the space is actually existing
       loadSpace(getSpaceId());
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      long featureCount = statistics.getCount().getValue();
+      targetTableFeatureCount = statistics.getCount().getValue();
 
-      if (featureCount > 0)
-        throw new ValidationException("Space is not empty");
+      if (targetTableFeatureCount > 0 && getExecutionMode().equals(ExecutionMode.ASYNC))
+        throw new ValidationException("Space is not empty - SYNC processing is only available for smaller spaces!");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -173,42 +177,59 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   @Override
-  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
-    logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
+  public ExecutionMode getExecutionMode() {
+    long max_sync_bytes = 100 * 1024 * 1024;
+
+    return getUncompressedUploadBytesEstimation() > max_sync_bytes ? ExecutionMode.ASYNC : ExecutionMode.SYNC;
+  }
+
+  @Override
+  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed,
+          IOException, InterruptedException, ParseException {
+
+    if(getExecutionMode().equals(ExecutionMode.SYNC)) {
+        //@TODO: For future add threading (if validation step is in place)
+        for (Input input : loadInputs()) {
+            logger.info("[{}] Sync upload from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
+            streamFileToSpace(input.getS3Key(), format, ((UploadUrl)input).isCompressed());
+        }
+    }else{
+      logAndSetPhase(Phase.SET_READONLY);
+      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
+
+      logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
         + " into space " + getSpaceId() + " ...");
 
-    logAndSetPhase(null, "Loading space config for space "+getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
+      logAndSetPhase(null, "Loading space config for space "+getSpaceId());
+      Space space = loadSpace(getSpaceId());
+      logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
+      Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-    logAndSetPhase(Phase.SET_READONLY);
-    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
+      logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
+      long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
+              rs -> {
+                rs.next();
+                return rs.getLong(1);
+              });
 
-    logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-    long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
-            rs -> {
-              rs.next();
-              return rs.getLong(1);
-            });
+      logAndSetPhase(Phase.CREATE_TRIGGER);
+      runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, 0);
 
-    logAndSetPhase(Phase.CREATE_TRIGGER);
-    runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, 0);
+      createAndFillTemporaryTable(db);
 
-    createAndFillTemporaryTable(db);
+      int dbThreadCnt = calculateDBThreadCount();
+      double neededAcusForOneThread = calculateNeededAcus() / dbThreadCnt;
 
-    int dbThreadCnt = calculateDBThreadCount();
-    double neededAcusForOneThread = calculateNeededAcus() / dbThreadCnt;
+      logAndSetPhase(Phase.EXECUTE_IMPORT);
 
-    logAndSetPhase(Phase.EXECUTE_IMPORT);
-
-    for (int i = 1; i <= dbThreadCnt; i++) {
-      logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
-      runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread , false);
+      for (int i = 1; i <= dbThreadCnt; i++) {
+        logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
+        runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread , false);
+      }
     }
   }
 
-  private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed, WebClientException {
+  private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed {
     boolean tmpTableNotExistsAndHasNoData = true;
     try {
       //Check if temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
