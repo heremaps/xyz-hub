@@ -285,6 +285,18 @@ public class Export extends JDBCBasedJob<Export> {
                     if (version >= 0) {
                       versionRefSource.setVersionRef(new Ref(version));
                       setTargetVersion(String.valueOf(version));
+                    } 
+                    else if(readParamExtends() == null) // non composite tag on empty -> finalize job
+                    { 
+                     setTargetVersion("-1");   
+                     setErrorDescription("tag on no-data");
+                     setErrorType("no_operation");
+                     setStatus(finalized);
+                    }
+                    else // for composite 
+                    {
+                     versionRefSource.setVersionRef(new Ref(0));
+                     setTargetVersion("0");   
                     }
                   }
                   catch (WebClientException e) {
