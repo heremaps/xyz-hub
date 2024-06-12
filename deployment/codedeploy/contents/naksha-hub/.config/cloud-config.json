@@ -7,7 +7,7 @@
     "maxPctParallelRequestsPerActor": 100,
     "authMode": "JWT",
     "extensionConfigParams": {
-        "whitelistClasses": [ "java.*", "javax.*", "com.here.*", "jdk.internal.reflect.*", "com.sun.*", "org.w3c.dom.*", "sun.misc.*"],
+        "whitelistClasses": [ "java.*", "javax.*", "com.here.*", "jdk.internal.reflect.*", "com.sun.*", "org.w3c.dom.*", "sun.misc.*","org.locationtech.jts.*"],
         "intervalms": 30000,
         "extensionsRootPath": "s3://SOME_S3_BUCKET/extensions/"
     }
