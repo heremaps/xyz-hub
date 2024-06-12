@@ -55,21 +55,22 @@ import org.apache.logging.log4j.Logger;
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
-  private static final String JOB_DATA_PREFIX = "job_data_";
+  public static final int MAX_DB_THREAD_CNT = 20;
 
-  private static final int MAX_DB_THREAD_CNT = 20;
+  private static final String JOB_DATA_PREFIX = "job_data_";
 
   private Format format = Format.GEOJSON;
 
   private Phase phase;
 
+  @JsonView({Internal.class, Static.class})
   private double neededACUs = -1;
 
   @JsonView({Internal.class, Static.class})
   private int fileCount = -1;
 
   @JsonView({Internal.class, Static.class})
-  private int calculatedThreadCount;
+  private int calculatedThreadCount = -1;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
@@ -103,11 +104,18 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      double acus = calculateNeededAcus();
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
+      if(getExecutionMode().equals(ExecutionMode.ASYNC)) {
+        calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
+                ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
+        /** Calculate estimation for ACUs for all parallel running threads */
+        neededACUs = calculateNeededAcus(calculatedThreadCount);
+        Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
-      return List.of(new Load().withResource(db).withEstimatedVirtualUnits(acus),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+        return List.of(new Load().withResource(db).withEstimatedVirtualUnits(neededACUs),
+                new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+      }else{
+        return List.of(new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+      }
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -122,7 +130,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance()
+              .calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
       logger.info("[{}] Import estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
     }
     return estimatedSeconds;
@@ -197,12 +206,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     createAndFillTemporaryTable(db);
 
-    int dbThreadCnt = calculateDBThreadCount();
-    double neededAcusForOneThread = calculateNeededAcus() / dbThreadCnt;
+    calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
+              ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
+    double neededAcusForOneThread = calculateNeededAcus(1);
 
     logAndSetPhase(Phase.EXECUTE_IMPORT);
 
-    for (int i = 1; i <= dbThreadCnt; i++) {
+    for (int i = 1; i <= calculatedThreadCount; i++) {
       logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
       runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread , false);
     }
@@ -498,14 +508,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", getTemporaryTableName());
   }
 
-  private double calculateNeededAcus() {
-    if (neededACUs != -1)
-      return neededACUs;
-
-    // Each ACU needs 2GB RAM
-    final double GB_TO_BYTES = 1024 * 1024 * 1024;
-    final int ACU_RAM = 2; // GB
-    long bytesPerThreads;
+  private double calculateNeededAcus(int threadCount){
+    double neededACUs;
 
     if (fileCount == -1)
       fileCount = currentInputsCount(UploadUrl.class);
@@ -513,36 +517,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (fileCount == 0)
       return 0;
 
-    int threadCount = calculateDBThreadCount();
+    neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
+            getUncompressedUploadBytesEstimation(), fileCount, threadCount);
 
-    //Only take into account the max parallel execution
-    bytesPerThreads = getUncompressedUploadBytesEstimation() / fileCount * threadCount;
-
-    //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
-    //Calculate the needed ACUs
-    double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
-    neededACUs = threadCount * requiredRAMPerThreads / ACU_RAM;
-
-    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: " + getUncompressedUploadBytesEstimation()
-        + ", bytesPerThreads:"+bytesPerThreads+", requiredRAMPerThreads:"+requiredRAMPerThreads
-        + ", neededACUs:"+neededACUs);
-
+    logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: " + getUncompressedUploadBytesEstimation() +" => neededACUs:" + neededACUs);
     return neededACUs;
-  }
-
-  private int calculateDBThreadCount() {
-    //1GB for maxThreads
-    long uncompressedByteSizeForMaxThreads = 1024L * 1024 * 1024;
-
-    if (getUncompressedUploadBytesEstimation() >= uncompressedByteSizeForMaxThreads)
-      calculatedThreadCount = MAX_DB_THREAD_CNT;
-    else {
-      // Calculate linearly scaled thread count
-      int threadCnt = (int) ((double) getUncompressedUploadBytesEstimation() / uncompressedByteSizeForMaxThreads * MAX_DB_THREAD_CNT);
-      calculatedThreadCount = threadCnt == 0 ? 1 : threadCnt;
-    }
-
-    return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
   }
 
   private void logAndSetPhase(Phase newPhase, String... messages) {

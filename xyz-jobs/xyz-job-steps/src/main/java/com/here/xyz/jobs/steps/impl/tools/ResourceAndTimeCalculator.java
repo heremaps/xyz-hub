@@ -1,7 +1,26 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.jobs.steps.impl.tools;
 
 import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
@@ -27,17 +46,62 @@ public class ResourceAndTimeCalculator implements Initializable {
         }
     }
 
+    //Import Related...
     protected double importTimeFactor(String spaceId, double bytesPerBillion){
         return 0.44 * bytesPerBillion;
     }
 
-    public int calculateImportTimeInSeconds(String spaceId, long byteSize){
-        int warmUpTime = 10;
-        double bytesPerBillion = byteSize  / 1_000_000_000d;
-
-        return (int) (warmUpTime + importTimeFactor(spaceId, bytesPerBillion) * 60);
+    public int calculateImportTimeInSeconds(String spaceId, long byteSize, LambdaBasedStep.ExecutionMode executionMode){
+        if(executionMode.equals(LambdaBasedStep.ExecutionMode.ASYNC)) {
+            int warmUpTime = 10;
+            double bytesPerBillion = byteSize / 1_000_000_000d;
+            return (int) (warmUpTime + importTimeFactor(spaceId, bytesPerBillion) * 60);
+        }else{
+            int expectedHubThroughPutBytesPerSec = 800_000;
+            int overhead = 2;
+            return (int) (byteSize / expectedHubThroughPutBytesPerSec * overhead);
+        }
     }
 
+    public double calculateNeededImportAcus(long uncompressedUploadBytesEstimation, int fileCount, int threadCount) {
+        //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
+        final double maxAcus = 70;
+        // Each ACU needs 2GB RAM
+        final double GB_TO_BYTES = 1024 * 1024 * 1024;
+        final int ACU_RAM = 2; // GB
+        final long bytesPerThreads;
+
+        if (fileCount == 0)
+            return 0;
+
+        //Only take into account the max parallel execution
+        bytesPerThreads = uncompressedUploadBytesEstimation / fileCount * threadCount;
+
+        //RDS processing of 9,5GB zipped leads into ~120 GB RDS Mem
+        //Calculate the needed ACUs
+        double requiredRAMPerThreads = bytesPerThreads / GB_TO_BYTES;
+        double neededAcus = threadCount * requiredRAMPerThreads / ACU_RAM;
+
+        return neededAcus > maxAcus ? maxAcus : neededAcus;
+    }
+
+    public int calculateNeededImportDBThreadCount(long uncompressedUploadBytesEstimation, int fileCount, int maxDbThreadCount) {
+        int calculatedThreadCount;
+        //1GB for maxThreads
+        long uncompressedByteSizeForMaxThreads = 1024L * 1024 * 1024;
+
+        if (uncompressedUploadBytesEstimation >= uncompressedByteSizeForMaxThreads)
+            calculatedThreadCount = maxDbThreadCount;
+        else {
+            // Calculate linearly scaled thread count
+            int threadCnt = (int) ((double) uncompressedUploadBytesEstimation / uncompressedByteSizeForMaxThreads * maxDbThreadCount);
+            calculatedThreadCount = threadCnt == 0 ? 1 : threadCnt;
+        }
+
+        return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
+    }
+
+    // Index Related...
     protected double geoIndexFactor(String spaceId, double bytesPerBillion){
         return  0.091 * bytesPerBillion;
     }
