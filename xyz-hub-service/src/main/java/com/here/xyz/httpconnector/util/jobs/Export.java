@@ -285,6 +285,13 @@ public class Export extends JDBCBasedJob<Export> {
                     if (version >= 0) {
                       versionRefSource.setVersionRef(new Ref(version));
                       setTargetVersion(String.valueOf(version));
+                    } 
+                    else
+                    {
+                     setTargetVersion("-1");   
+                     setErrorDescription("tag on no-data");
+                     setErrorType("no_operation");
+                     setStatus(finalized);
                     }
                   }
                   catch (WebClientException e) {
