@@ -287,7 +287,8 @@ public class Export extends JDBCBasedJob<Export> {
                       setTargetVersion(String.valueOf(version));
                     } 
                     else if(readParamExtends() == null) // non composite tag on empty -> finalize job
-                    { 
+                    {
+                     setStatistic( new ExportStatistic().withBytesUploaded(0).withFilesUploaded(0).withRowsUploaded(0) );    
                      setTargetVersion("-1");   
                      setErrorDescription("tag on no-data");
                      setErrorType("no_operation");
