@@ -66,6 +66,7 @@ import com.here.naksha.lib.core.models.storage.ForwardCursor;
 import com.here.naksha.lib.core.models.storage.MutableCursor;
 import com.here.naksha.lib.core.models.storage.NonIndexedPRef;
 import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.POpHelper;
 import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
@@ -79,7 +80,9 @@ import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
+
 import java.util.ArrayList;
+
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
@@ -90,6 +93,7 @@ import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -514,8 +518,22 @@ public class PsqlStorageTests extends PsqlTests {
              session.execute(requestForPreviousVersion).getXyzMutableCursor()) {
       cursor.next();
       XyzNamespace xyzNamespace = cursor.getFeature().getProperties().getXyzNamespace();
-      assertEquals(puuid,  xyzNamespace.getUuid());
-      assertTrue( txnOfMiddleVersion >  xyzNamespace.getTxn());
+      assertEquals(puuid, xyzNamespace.getUuid());
+      assertTrue(txnOfMiddleVersion > xyzNamespace.getTxn());
+      assertFalse(cursor.hasNext());
+    }
+
+    // get closest version
+    long futureTxn = txnOfMiddleVersion + 100;
+    final ReadFeatures requestForClosestVersion = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
+    requestForClosestVersion.withReturnAllVersions(true);
+    requestForClosestVersion.setPropertyOp(POpHelper.closestTxnNotGreaterThan(futureTxn));
+
+    try (final MutableCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(requestForClosestVersion).getXyzMutableCursor()) {
+      cursor.next();
+      XyzNamespace xyzNamespace = cursor.getFeature().getProperties().getXyzNamespace();
+      assertTrue(futureTxn > xyzNamespace.getTxn());
       assertFalse(cursor.hasNext());
     }
   }
@@ -651,6 +669,26 @@ public class PsqlStorageTests extends PsqlTests {
   }
 
   @Test
+  @Order(62)
+  @EnabledIf("runTest")
+  void multiCollectionRead() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // given
+    /**
+     * data inserted in {@link #singleFeatureCreate()} test and updated by {@link #singleFeatureUpdate()}.
+     */
+    final ReadFeatures request = RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
+    request.setCollections(List.of(collectionId(), collectionId()));
+
+    try (final MutableCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(request).getXyzMutableCursor()) {
+      // then
+      assertEquals(2, cursor.asList().size());
+    }
+  }
+
+  @Test
   @Order(64)
   @EnabledIf("runTest")
   void singleFeatureDeleteById() throws NoCursor {
@@ -662,7 +700,7 @@ public class PsqlStorageTests extends PsqlTests {
     request.add(EWriteOp.CREATE, feature);
 
     // when
-    try(final Result result = session.execute(request)) {
+    try (final Result result = session.execute(request)) {
       final WriteXyzFeatures delRequest = new WriteXyzFeatures(collectionId());
       delRequest.delete("TO_DEL_BY_ID", null);
       try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
@@ -742,33 +780,31 @@ public class PsqlStorageTests extends PsqlTests {
     final ReadFeatures requestWithDeleted =
         RequestHelper.readFeaturesByIdRequest(collectionId(), SINGLE_FEATURE_ID);
     requestWithDeleted.withReturnDeleted(true);
-    String featureJsonBeforeDeletion;
+    String featureJsonFromDel;
 
-    /* TODO uncomment it when read with deleted is ready.
-
-    try (final ResultCursor<XyzFeature> cursor =
-    session.execute(requestWithDeleted).cursor()) {
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+             session.execute(requestWithDeleted).getXyzFeatureCursor()) {
     cursor.next();
     final XyzFeature feature = cursor.getFeature();
     XyzNamespace xyz = feature.xyz();
 
     // then
-    assertSame(EExecutedOp.DELETED, cursor.getOp());
+    assertSame(EExecutedOp.READ, cursor.getOp());
     final String id = cursor.getId();
     assertEquals(SINGLE_FEATURE_ID, id);
     final String uuid = cursor.getUuid();
     assertNotNull(uuid);
     final Geometry geometry = cursor.getGeometry();
     assertNotNull(geometry);
-    assertEquals(new Coordinate(5.1d, 6.0d, 2.1d), geometry.getCoordinate());
+    assertEquals(new Coordinate(5.0d, 6.0d, 2.0d), geometry.getCoordinate());
     assertNotNull(feature);
     assertEquals(SINGLE_FEATURE_ID, feature.getId());
     assertEquals(uuid, feature.xyz().getUuid());
     assertSame(EXyzAction.DELETE, feature.xyz().getAction());
-    featureJsonBeforeDeletion = cursor.getJson()
-    assertFalse(cursor.next());
+    featureJsonFromDel = cursor.getJson();
+    assertFalse(cursor.hasNext());
     }
-    */
+
     /**
      * Check directly _del table.
      */
@@ -778,10 +814,7 @@ public class PsqlStorageTests extends PsqlTests {
 
       // feature exists in _del table
       assertTrue(rs.next());
-
-      /* FIXME uncomment this when read with deleted is ready.
-      assertEquals(featureJsonBeforeDeletion, rs.getString(1));
-      */
+      assertEquals(featureJsonFromDel, rs.getString(1));
     }
   }
 
@@ -858,14 +891,14 @@ public class PsqlStorageTests extends PsqlTests {
 
     // CREATE feature
     final XyzFeature featureToDel = new XyzFeature(SINGLE_FEATURE_ID);
-    try(final Result result = session.execute(createFeatureRequest(collectionWithAutoPurge, featureToDel))) {
+    try (final Result result = session.execute(createFeatureRequest(collectionWithAutoPurge, featureToDel))) {
       assertTrue(result instanceof SuccessResult);
     } finally {
       session.commit(true);
     }
 
     // DELETE feature
-    try(final Result result = session.execute(deleteFeatureByIdRequest(collectionWithAutoPurge, featureToDel.getId()))) {
+    try (final Result result = session.execute(deleteFeatureByIdRequest(collectionWithAutoPurge, featureToDel.getId()))) {
       assertTrue(result instanceof SuccessResult);
     } finally {
       session.commit(true);
@@ -961,7 +994,7 @@ public class PsqlStorageTests extends PsqlTests {
         assertNotNull(tags);
         assertTrue(tags.size() > 0);
         assertTrue(tags.contains("@:firstName:" + fg.firstNames[0])
-                   || tags.contains("@:firstName:" + fg.firstNames[1]));
+                       || tags.contains("@:firstName:" + fg.firstNames[1]));
       }
     } finally {
       session.commit(true);
@@ -1047,7 +1080,7 @@ public class PsqlStorageTests extends PsqlTests {
   private void limitToN(final long limit) throws NoCursor {
     final ReadFeatures request = new ReadFeatures(collectionId()).withLimit(limit);
     try (final @NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
-                 session.execute(request).getXyzFeatureCursor()) {
+             session.execute(request).getXyzFeatureCursor()) {
 
       for (long row = 1; row <= limit; row++) {
         assertTrue(cursor.hasNext());

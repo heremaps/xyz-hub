@@ -83,6 +83,11 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
     return collections;
   }
 
+  @AvailableSince(NakshaVersion.v2_0_17)
+  public boolean isReturnDeleted() {
+    return returnDeleted;
+  }
+
   @AvailableSince(NakshaVersion.v2_0_7)
   public void setCollections(@NotNull List<@NotNull String> collections) {
     this.collections = collections;
