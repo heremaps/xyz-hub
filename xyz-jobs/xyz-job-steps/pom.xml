@@ -42,6 +42,11 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-util</artifactId>
     </dependency>
+    <!-- TODO: Get rid of the following dependency again -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-psql-connector</artifactId>
+    </dependency>
 
     <!-- AWS SDK -->
     <dependency>
