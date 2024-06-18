@@ -80,7 +80,7 @@ public class Service extends Core {
   private static final Logger logger = LogManager.getLogger();
 
 
-  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + BUILD_VERSION;
+  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + buildVersion();
 
   /**
    * The host ID.
@@ -265,7 +265,7 @@ public class Service extends Core {
       //At this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
-      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+      logger.info("XYZ Hub " + buildVersion() + " was started at " + new Date().toString());
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
