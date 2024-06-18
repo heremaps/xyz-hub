@@ -1,11 +1,12 @@
-FROM postgres:15.2
+FROM sibedge/postgres-plv8:15.2-3.1.6-bookworm
 
 ENV POSTGRES_PASSWORD password
 
+USER root
 RUN apt-get update && \
     apt-get -y install postgresql-15-postgis-3 postgresql-plpython3-15 git python3-boto3 make
 
-WORKDIR /home
+WORKDIR /home/1001
 #Clone forked AWS RDS S3-Extension mock called "chimpler"
 RUN git clone https://github.com/mchrza/postgres-aws-s3.git --branch v.1.0.8 .
 RUN make install

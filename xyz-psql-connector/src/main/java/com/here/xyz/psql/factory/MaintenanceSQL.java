@@ -40,13 +40,13 @@ public class MaintenanceSQL {
      */
     public static String generateCheckExtensionsSQL(boolean hasPropertySearch, String user, String db, boolean runsLocal){
         /** On local postgres aws_lambda extension is included in aws_s3 extension. @TODO: Create a own extension for aws_lambda */
-        return "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows,aws_s3"+ (!runsLocal ? ",aws_lambda" : "")
+        return "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows,plv8,aws_s3"+ (!runsLocal ? ",aws_lambda" : "")
                 + (hasPropertySearch ? ",dblink" : "") + "}', false) as all_ext_av,"
                 + "COALESCE(array_agg(extname)) as ext_av, "
                 + "(select has_database_privilege('"+user+"', '"+db+"', 'CREATE')) as has_create_permissions "
                 + "FROM ("
                 + "	SELECT extname FROM pg_extension"
-                + "		WHERE extname in('postgis','postgis_topology','tsm_system_rows','dblink','aws_s3','aws_lambda')"
+                + "		WHERE extname in('postgis','postgis_topology','tsm_system_rows','dblink','aws_s3','aws_lambda','plv8')"
                 + "	order by extname"
                 + ") A";
     }
@@ -95,6 +95,7 @@ public class MaintenanceSQL {
                 "CREATE EXTENSION IF NOT EXISTS postgis_topology; " +
                 "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public; " +
                 "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public; " +
+                "CREATE EXTENSION IF NOT EXISTS plv8 SCHEMA public; " +
                 "BEGIN" +
                 "   CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE; " +
                 "   EXCEPTION WHEN OTHERS THEN " +
