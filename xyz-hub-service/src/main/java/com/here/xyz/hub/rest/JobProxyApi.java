@@ -313,11 +313,17 @@ public class JobProxyApi extends Api{
         this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));
     }
 
-    private Boolean checkSpaceId(HttpResponse<Buffer> res, String spaceId) throws DecodeException{
-        Job job = res.bodyAsJson(Job.class);
+    private Boolean checkSpaceId(HttpResponse<Buffer> res, String spaceId) throws DecodeException {
+        
+        Job job = null;
+        String errmsg = "";
+
+        try { job = res.bodyAsJson(Job.class); }
+        catch (Exception e)
+        { errmsg = e.getMessage(); }
 
         if (job == null || job.getTargetSpaceId() == null)
-            throw new DecodeException("");
+         throw new DecodeException( errmsg + (job != null ? "[ job.targetSpaceId == null ]" : "")  );
 
       return job.getTargetSpaceId().equalsIgnoreCase(spaceId);
     }
