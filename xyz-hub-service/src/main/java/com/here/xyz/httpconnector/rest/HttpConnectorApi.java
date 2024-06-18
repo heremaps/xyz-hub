@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,9 +49,9 @@ public class HttpConnectorApi extends Api {
     MainHealthCheck hc = new MainHealthCheck(false)
         .withReporter(
                 new Reporter()
-                        .withVersion(Core.BUILD_VERSION)
+                        .withVersion(Core.buildVersion())
                         .withName("HERE HTTP-Connector")
-                        .withBuildDate(Core.BUILD_TIME)
+                        .withBuildDate(Core.buildTime())
                         .withUpSince(Core.START_TIME)
         );
     Response r = hc.getResponse();
