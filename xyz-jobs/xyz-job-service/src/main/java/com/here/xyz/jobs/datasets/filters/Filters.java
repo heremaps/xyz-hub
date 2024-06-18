@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.datasets.filters;
 
+import static com.here.xyz.XyzSerializable.serialize;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -27,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.util.Hasher;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Filters {
@@ -77,5 +79,15 @@ public class Filters {
   public Filters withContext(SpaceContext context) {
     setContext(context);
     return this;
+  }
+
+  @JsonIgnore
+  public String getHash()
+  {
+   String input = "#" + (propertyFilter != null ? propertyFilter : "" ) 
+                + "#" + (spatialFilter != null ? serialize(spatialFilter) : "")
+                + "#";
+
+   return Hasher.getHash(input); 
   }
 }
