@@ -3,7 +3,7 @@
     "type": "Config",
     "httpPort": 7080,
     "requestBodyLimit": 25,
-    "maxParallelRequestsPerCPU": 30,
+    "maxParallelRequestsPerCPU": 100,
     "maxPctParallelRequestsPerActor": 100,
     "authMode": "JWT",
     "extensionConfigParams": {
