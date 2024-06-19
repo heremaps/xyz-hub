@@ -26,6 +26,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -214,9 +215,12 @@ public class Script {
     }
   }
 
-  private static List<String> scanResourceFolder(String resourceFolder) throws IOException, URISyntaxException {
+  private static List<String> scanResourceFolder(String resourceFolder) throws IOException {
     List<String> files = new ArrayList<>();
-    BufferedReader reader = new BufferedReader(new InputStreamReader(Script.class.getResourceAsStream(resourceFolder)));
+    final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
+    if (folderResource == null)
+      throw new FileNotFoundException("Resource folder " + resourceFolder + " was not found and can not be scanned for scripts.");
+    BufferedReader reader = new BufferedReader(new InputStreamReader(folderResource));
     String file;
     while ((file = reader.readLine()) != null)
       files.add(file);
