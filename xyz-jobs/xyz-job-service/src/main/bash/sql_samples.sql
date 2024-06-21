@@ -1,12 +1,22 @@
 
 select write_feature(
-   'public."test"'::regclass,
-   '{"id":"test2"}',
-   'REPLACE',
-   null,
-   false,
-   null,
-   1
+       'public."test"'::regclass,
+       '{"id":"id2","properties":{"foo": "bar","foo2":true}}',
+       'ERROR', --on_version_conflict
+       null, 	 --on_merge_conflict
+       false,	 --partial
+       'author',--author
+       1		 --version
+);
+
+select write_feature(
+       'public."test"'::regclass,
+       '{"id":"id1","properties":{"foo2": null},"geometry":{"type":"Point","coordinates":[-48.23256,20.12345]}}',
+       'REPLACE',	--on_version_conflict
+       null,		--on_merge_conflict
+       false,		--partial
+       'author2',  --author
+       2			--version
 );
 
 select delete_feature('test','test4',123, 'dw');
