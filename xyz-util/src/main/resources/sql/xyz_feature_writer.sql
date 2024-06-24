@@ -20,80 +20,109 @@
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
 -- The following methods are public and may be called by software directly
--- MergeConflictResolution: ERROR, RETAIN, REPLACE
--- VersionConflictResolution: ERROR, RETAIN, REPLACE, MERGE
--- if on_version_conflict = null => conflictDetection is off
--- TODO: add E(onExists) and NE=(OnNotExists) and Context (EXTENSION,DEFAULT,NULL)
-CREATE OR REPLACE FUNCTION write_feature(tbl regclass, input_feature JSONB, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN,
-       author TEXT, version BIGINT) RETURNS JSONB AS $BODY$
 
-	function loadHeadFeature(id){
-		sql = 'select * from loadFeature($1,$2)';
-		plan = plv8.prepare(sql, ['TEXT','TEXT']);
-        return plan.execute(tbl, id)[0].loadfeature;
+-- onExistsResolution           DELETE, REPLACE(default), RETAIN, ERROR
+-- onNotExistsResolution:       CREATE(default), ERROR, RETAIN
+-- MergeConflictResolution:     ERROR (default), RETAIN, REPLACE
+-- VersionConflictResolution:   ERROR, RETAIN, REPLACE (default for DELETE), MERGE (default for WRITE)
+-- if on_version_conflict==null => conflictDetection is off
+CREATE OR REPLACE FUNCTION write_feature(tbl regclass, context TEXT, historyEnabled BOOLEAN,
+       	input_feature JSONB, author TEXT, version BIGINT, is_partial BOOLEAN,
+		onExists TEXT, onNotExists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT
+    ) RETURNS JSONB AS $BODY$
+
+    if(input_feature.properties['@ns:com:here:xyz'].deleted == true)
+       //delete
     }
 
-	function enrichInput(createdAt){
-		sql = 'select enrich_feature($1,$2,$3,$4)';
-		plan = plv8.prepare(sql, ['JSONB','TEXT','BIGINT','BIGINT']);
-        return plan.execute(input_feature, author, version, createdAt)[0].enrich_feature;
+    if(historyEnabled == true){
+        //history
+    }else{
+
     }
 
-	function updateFeature(feature){
-		sql = 'select update_row($1, enrich_feature($2,$3,$4));';
-		let plan = plv8.prepare(sql, ['TEXT','JSONB','TEXT','BIGINT']);
-        return plan.execute(tbl, feature == undefined ? input_feature : feature, author, version)[0].update_row;
+	return null;
+$BODY$ LANGUAGE plv8 IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION write_feature_without_history(tbl regclass, context TEXT,
+       	input_feature JSONB, author TEXT, version BIGINT, is_partial BOOLEAN,
+		onExists TEXT, onNotExists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT
+    ) RETURNS JSONB AS $BODY$
+
+    var loadFeature = function(id, version){
+		version = version == undefined ? -1 : version;
+        return plv8.find_function('loadFeature(regclass, text, bigint)')(tbl, id, version);
     }
 
-	var sql = 'select write_row($1, enrich_feature($2,$3,$4));';
-	let plan = plv8.prepare(sql, ['TEXT','JSONB','TEXT','BIGINT']);
-	let cnt = plan.execute(tbl, input_feature, author, version);
-	plan.free();
+    var enrichInput = function(feature, author, version){
+        return plv8.find_function('enrich_feature')(feature, author, version);
+    }
 
-	if(cnt[0].write_row == 0){
-		//Insert is failed..
+    var updateFeature = function(feature){
+        return plv8.find_function("update_row(regclass, jsonb)")(tbl, enrichInput(feature, author, version));
+    }
 
-		switch(on_version_conflict){
-			case "RETAIN" :
-				plv8.elog(INFO, 'RETAIN - DO NOTHING!');
-				return;
+    var writeFeature = function(feature){
+        return plv8.find_function("write_row(regclass, jsonb)")(tbl, enrichInput(input_feature, author, version));
+    }
+
+    var patchJson = function(headFeature, enrichedFeature){
+        return plv8.find_function("patch(jsonb, jsonb)")(headFeature, enrichedFeature);
+    }
+
+    let isWritten = false;
+    try{
+        isWritten = (plv8.find_function("write_row(regclass, jsonb)")(tbl, enrichInput(input_feature, author, version)) == 1);
+        plv8.elog(INFO, 'FEATURE IS WRITTEN!');
+    }catch(e){
+        //UNIQUE VIOLATION
+        if(e.sqlerrcode != undefined && e.sqlerrcode == '23505')
+            isWritten = false;
+        else
+            plv8.elog(ERROR, e);
+    }
+
+    if(!isWritten){
+        //Insert is failed..
+
+        switch(on_version_conflict){
+            case "RETAIN" :
+                plv8.elog(INFO, 'RETAIN - DO NOTHING!');
+                        return;
             case "REPLACE" :
-				if(!is_partial){
-				//UPDATE ->Override feature
-                    let resCnt = updateFeature();
+                if(!is_partial){
+                    //UPDATE ->Override feature
+                    let resCnt = updateFeature(input_feature);
                     plv8.elog(INFO, 'REPLACED exisiting feature!');
                 }else{
-					//Patch feature - if possible than UPDATE
-					let headFeature = loadHeadFeature(input_feature.id);
-                    let enrichedInput = enrichInput(headFeature.properties['@ns:com:here:xyz'].createdAt);
-					plv8.elog(INFO, 'LOADED exisiting feature: ', JSON.stringify(headFeature), ' INPUT: ',JSON.stringify(enrichedInput));
+                    //Patch feature - if possible than UPDATE
+                    let headFeature = loadFeature(input_feature.id);
+                    let enrichedInput = enrichInput(headFeature, author, version);
 
-                    sql = 'select * from patch($1,$2)';
-					plan = plv8.prepare(sql, ['JSONB','JSONB']);
-					let patchedFeature = plan.execute(headFeature, enrichedInput)[0].patch;
+                    //plv8.elog(INFO, 'LOADED exisiting feature: ', JSON.stringify(headFeature), ' INPUT: ',JSON.stringify(enrichedInput));
 
-					plv8.elog(INFO, 'PATCH result: ', JSON.stringify(patchedFeature));
-					updateFeature(patchedFeature);
-					plv8.elog(INFO, 'PACHED exisiting!');
+                    let patchedFeature = patchJson(headFeature, enrichedInput)
+                    plv8.elog(INFO, 'PATCH result: ', JSON.stringify(patchedFeature));
+
+                    updateFeature(patchedFeature);
+                    plv8.elog(INFO, 'PACHED exisiting!');
                 }
-				break;
+                break;
             case "MERGE" :
-				plv8.elog(INFO, 'MERGE');
-
                 //MERGE feature - if possible than UPDATE
-                loadHeadFeature(tbl, input_feature.id);
+                plv8.elog(INFO, 'MERGE');
+                loadFeature(tbl, input_feature.id);
                 break;
             case "ERROR" :
                 default:
-                plv8.elog(ERROR, 'ERROR CONFLICT (id, version, next_version)!');
+                    plv8.elog(ERROR, 'ERROR CONFLICT (id, version, next_version)!');
             }
     }
     //TODO: what do we want to return in detail?
-	plan.free();
-    return null;
+	return null;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 -------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION delete_feature(tbl regclass, id TEXT, version BIGINT, on_version_conflict TEXT ) RETURNS JSONB AS $BODY$    -- History yes/no
+CREATE OR REPLACE FUNCTION delete_feature(tbl regclass, id TEXT, version BIGINT, on_version_conflict TEXT ) RETURNS JSONB AS $BODY$
     /**
        History yes/no
        Context extension| default | null
@@ -119,11 +148,7 @@ CREATE OR REPLACE FUNCTION delete_feature(tbl regclass, id TEXT, version BIGINT,
     }else{
 		/** with versioning! TODO: take composite into account */
 		/** TODO write null + check if we need version in NS (legacy history)) */
-		let sql ='select write_row($1,$2,$3,$4,$5,$6,ST_GeomFromGeoJSON($7)::GEOMETRY);';
-		let plan = plv8.prepare(sql, ['REGCLASS','TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
-
-		cnt = plan.execute(tbl, id, version , 'D', 'author', '{}', null);
-		plan.free();
+        let cnt = plv8.find_function("write_row(REGCLASS,TEXT,BIGINT,CHAR,TEXT,JSONB,JSONB)")(tbl, id, version , 'D', 'author', '{}', null);
     }
 	return cnt;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
@@ -148,43 +173,31 @@ CREATE OR REPLACE FUNCTION write_row(input_feature JSONB, input_head JSONB) RETU
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION write_row(tbl regclass, input_feature JSONB) RETURNS INTEGER AS $BODY$
-	let sql = 'select write_row($1, $2, $3, $4, $5, $6, ST_GeomFromGeoJSON($7)::GEOMETRY)';
-	let plan = plv8.prepare(sql, ['TEXT','TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
-
-	let cnt = plan.execute(
-		tbl,
-		input_feature.id,
-		input_feature.properties['@ns:com:here:xyz'].version,
-		input_feature.properties['@ns:com:here:xyz'].operation == undefined ? 'I' : input_feature.properties['@ns:com:here:xyz'].operation,
-		input_feature.properties['@ns:com:here:xyz'].author,
-		input_feature,
-		input_feature.geometry
-	);
-	plan.free();
-    return cnt[0].write_row;
+    return plv8.find_function('write_row(regclass, TEXT, BIGINT, CHAR, TEXT, JSONB, JSONB)')(
+        tbl,
+        input_feature.id,
+        input_feature.properties['@ns:com:here:xyz'].version,
+        input_feature.properties['@ns:com:here:xyz'].operation == undefined ? 'I' : input_feature.properties['@ns:com:here:xyz'].operation,
+        input_feature.properties['@ns:com:here:xyz'].author,
+        input_feature,
+        input_feature.geometry
+    );
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 -------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION write_row(tbl regclass, id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY) RETURNS INTEGER AS $BODY$
-    delete jsondata.geometry;
-	if(jsondata.properties != undefined){
-		delete jsondata.properties['@ns:com:here:xyz'].version;
-		delete jsondata.properties['@ns:com:here:xyz'].author;
-		delete jsondata.properties['@ns:com:here:xyz'].operation;
-    }
+CREATE OR REPLACE FUNCTION write_row(tbl regclass, id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo JSONB) RETURNS INTEGER AS $BODY$
+    //Clean up NS and remove Geometry
+    jsondata = plv8.find_function("clean_feature(jsonb)")(jsondata);
 
-	let sql = 'INSERT INTO '+tbl+' (id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5, ST_Force3D($6))';
-	let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','GEOMETRY']);
+	let sql = 'INSERT INTO '+tbl+' (id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5, ST_Force3D(ST_GeomFromGeoJSON($6)))';
+	let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
 	let cnt = plan.execute(id, version, operation, author, jsondata, geo);
 	plan.free();
     return cnt;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 --------------------------------------------------
 CREATE OR REPLACE FUNCTION update_row(tbl regclass, input_feature JSONB) RETURNS INTEGER AS $BODY$
-	let sql = 'select update_row($1, $2, $3, $4, $5, $6, ST_GeomFromGeoJSON($7)::GEOMETRY)';
-	let plan = plv8.prepare(sql, ['TEXT','TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
-
-	let cnt = plan.execute(
-		tbl,
+	return plv8.find_function("update_row(regclass, text, bigint, char, text, jsonb, jsonb)")(
+	    tbl,
 		input_feature.id,
 		input_feature.properties['@ns:com:here:xyz'].version,
 		input_feature.properties['@ns:com:here:xyz'].operation == undefined ? 'U' : input_feature.properties['@ns:com:here:xyz'].operation,
@@ -192,23 +205,17 @@ CREATE OR REPLACE FUNCTION update_row(tbl regclass, input_feature JSONB) RETURNS
 		input_feature,
 		input_feature.geometry
 	);
-	plan.free();
-return cnt[0].update_row;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 --------------------------------------------------
-CREATE OR REPLACE FUNCTION update_row(tbl regclass, id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY) RETURNS INTEGER AS $BODY$
-	delete jsondata.geometry;
-
+CREATE OR REPLACE FUNCTION update_row(tbl regclass, id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo JSONB) RETURNS INTEGER AS $BODY$
     //Part already handled inside enrich_feature
 	if(jsondata.properties == undefined)
 		jsondata.properties = {};
 	if(jsondata.properties['@ns:com:here:xyz'] == undefined)
 		jsondata.properties['@ns:com:here:xyz'] = {};
-    else{
-            delete jsondata.properties['@ns:com:here:xyz'].version;
-            delete jsondata.properties['@ns:com:here:xyz'].author;
-            delete jsondata.properties['@ns:com:here:xyz'].operation;
-    }
+
+	//Clean up NS and remove Geometry
+    jsondata = plv8.find_function("clean_feature(jsonb)")(jsondata);
 
 	let sql = 'UPDATE '+tbl+' SET '
 			+ 'version = $1, '
@@ -217,10 +224,10 @@ CREATE OR REPLACE FUNCTION update_row(tbl regclass, id TEXT, version BIGINT, ope
 			+ "jsondata = jsonb_set($4, '{properties,@ns:com:here:xyz,createdAt}', "
 			+ "  COALESCE(jsondata->'properties'->'@ns:com:here:xyz'->'createdAt', to_jsonb($5)) "
 			+ '),'
-			+ 'geo = ST_Force3D($6) '
+			+ 'geo = ST_Force3D(ST_GeomFromGeoJSON($6)) '
 			+ 'WHERE id = $7';
 
-	let plan = plv8.prepare(sql, ['BIGINT','CHAR','TEXT','JSONB','BIGINT','GEOMETRY','TEXT']);
+	let plan = plv8.prepare(sql, ['BIGINT','CHAR','TEXT','JSONB','BIGINT','JSONB','TEXT']);
 	//keep createdAt
 	let createdAt = (jsondata.properties != null  ? jsondata.properties['@ns:com:here:xyz'].createdAt : null);
 	let cnt = plan.execute(version, operation, author, jsondata, createdAt, geo, id);
@@ -250,12 +257,14 @@ CREATE OR REPLACE FUNCTION loadFeature(tbl regclass, id TEXT, version BIGINT = -
             +'AND operation != $2';
         let plan = plv8.prepare(sql, ['TEXT','CHAR']);
         res = plan.execute(id,'D');
+        plan.free();
     }else{
         sql += 'WHERE id = $1 '
             +'AND version = $2 '
             +'AND operation != $3';
         let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR']);
         res = plan.execute(id, version, 'D');
+        plan.free();
     }
 
     if(res.length == 0){
@@ -272,8 +281,6 @@ CREATE OR REPLACE FUNCTION loadFeature(tbl regclass, id TEXT, version BIGINT = -
         plv8.elog(ERROR, 'Found two Features with same id!');
     }
 
-    plan.free();
-
     return feature;
 $$ LANGUAGE plv8 IMMUTABLE;
 -------------------------------------------------------------------
@@ -284,7 +291,8 @@ CREATE OR REPLACE FUNCTION diff(minuend JSONB, subtrahend JSONB) RETURNS JSONB A
         if (subtrahend.hasOwnProperty(key)) {
             if (typeof subtrahend[key] === 'object' && !Array.isArray(subtrahend[key]) && subtrahend[key] !== null) {
                 // Recursively diff nested objects
-                let nestedDiff = diffGeoJSON(minuend[key] || {}, subtrahend[key]);
+                let nestedDiff= plv8.find_function('diff(jsonb, jsonb)')(minuend[key] || {}, subtrahend[key]);
+
                 if (Object.keys(nestedDiff).length > 0) {
                     diff[key] = nestedDiff;
                 }
@@ -314,10 +322,8 @@ CREATE OR REPLACE FUNCTION patch(target JSONB, input_diff JSONB) RETURNS JSONB A
                 if (!target[key]) {
                     target[key] = {};
                 }
-                var plan = plv8.prepare('select patch($1, $2)', ['jsonb','jsonb']);
                 plv8.elog(NOTICE,'patch [',key,'] -> ', JSON.stringify(target[key]),'-',JSON.stringify(input_diff[key]));
-                target[key] = plan.execute(target[key], input_diff[key])[0].patch;
-                plan.free();
+                target[key] = plv8.find_function('patch(jsonb, jsonb)')(target[key], input_diff[key]);
             } else {
                 target[key] = input_diff[key];
             }
@@ -339,8 +345,7 @@ CREATE OR REPLACE FUNCTION find_conflicts(obj1 JSONB, obj2 JSONB, path TEXT) RET
             if (obj2.hasOwnProperty(key)) {
                 // If both values are objects, recurse
                 if (isObject(obj1[key]) && isObject(obj2[key])) {
-					var plan = plv8.prepare('select find_conflicts($1, $2, $3)', ['jsonb','jsonb','text']);
-					plan.execute(obj1[key], obj2[key], currentPath);
+                    plv8.find_function('find_conflicts(jsonb, jsonb, text)')(obj1[key], obj2[key], currentPath);
                 } else if (obj1[key] !== obj2[key]) {
                     // If values differ, throw an error
                     let details = {
@@ -361,8 +366,7 @@ CREATE OR REPLACE FUNCTION find_conflicts(obj1 JSONB, obj2 JSONB, path TEXT) RET
 
             // Check if key is present in obj2 but not in obj1 and if both values are objects
             if (isObject(obj2[key]) && !isObject(obj1[key])) {
-				var plan = plv8.prepare('select find_conflicts($1, $2, $3)', ['jsonb','jsonb','text']);
-				plan.execute({}, obj2[key], currentPath);
+                plv8.find_function('find_conflicts(jsonb, jsonb, text)')({}, obj2[key], currentPath);
             }
         }
     }
@@ -389,7 +393,7 @@ CREATE OR REPLACE FUNCTION has_version_conflict(input_feature JSONB, head_featur
     return headVersion != inputVersion;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 -------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION enrich_feature(input_feature JSONB, author TEXT, version BIGINT, created_at BIGINT = -1) RETURNS JSONB AS $BODY$
+CREATE OR REPLACE FUNCTION enrich_feature(input_feature JSONB, author TEXT, version BIGINT) RETURNS JSONB AS $BODY$
     if(input_feature == null)
 		plv8.elog(ERROR, 'Feature is not allowed to be null!');
 	if(version == null)
@@ -406,7 +410,7 @@ CREATE OR REPLACE FUNCTION enrich_feature(input_feature JSONB, author TEXT, vers
 	if(input_feature.properties['@ns:com:here:xyz'] == undefined)
 		input_feature.properties['@ns:com:here:xyz'] = {};
 
-	input_feature.properties['@ns:com:here:xyz'].createdAt = (created_at == -1 || created_at == null) ? Date.now() : created_at;
+	input_feature.properties['@ns:com:here:xyz'].createdAt = (input_feature.properties['@ns:com:here:xyz'].createdAt == undefined) ? Date.now() : (input_feature.properties['@ns:com:here:xyz'].createdAt);
 	input_feature.properties['@ns:com:here:xyz'].updatedAt = Date.now();
 	input_feature.properties['@ns:com:here:xyz'].version = version;
 	input_feature.properties['@ns:com:here:xyz'].author = author;
@@ -443,6 +447,7 @@ CREATE OR REPLACE FUNCTION clean_feature(input_feature JSONB) RETURNS JSONB AS $
 	delete input_feature.geometry;
 	delete input_feature.properties['@ns:com:here:xyz'].version;
 	delete input_feature.properties['@ns:com:here:xyz'].author;
+    delete input_feature.properties['@ns:com:here:xyz'].operation;
 
     return input_feature;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
