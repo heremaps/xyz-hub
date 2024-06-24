@@ -1,4 +1,4 @@
-FROM sibedge/postgres-plv8:15.2-3.1.6-bookworm
+FROM sibedge/postgres-plv8-bigint:15.2-3.1.6-bookworm
 
 ENV POSTGRES_PASSWORD password
 
