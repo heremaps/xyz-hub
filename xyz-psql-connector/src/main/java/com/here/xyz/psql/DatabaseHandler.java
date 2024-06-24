@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,10 @@ import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.StaticDataSources;
+import com.here.xyz.util.db.pg.Script;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -62,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -72,6 +77,8 @@ public abstract class DatabaseHandler extends StorageConnector {
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
     private static final Logger logger = LogManager.getLogger();
     private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
+    public static final int SCRIPT_VERSIONS_TO_KEEP = 5;
+    private static Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -104,17 +111,43 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //Decrypt the ECPS into an instance of DatabaseSettings
         dbSettings = new DatabaseSettings(connectorId,
-            ECPSTool.decryptToMap(ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()));
-
-        //Set some additional DB settings
-        dbSettings
+            ECPSTool.decryptToMap(ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
             .withApplicationName(ConnectorRuntime.getInstance().getApplicationName());
+
+        dbSettings.withSearchPath(checkScripts(dbSettings));
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;
         dbMaintainer = new DatabaseMaintainer(dataSourceProvider, dbSettings, connectorParams,
             ConnectorRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
         DataSourceProvider.setDefaultProvider(dataSourceProvider);
+    }
+
+    /**
+     * Checks whether the lastest version of all SQL scripts is installed on the DB and returns all script schemas for the use in the
+     * search path.
+     * @return The script schema names (including the newest script version for each script) to be used in the search path
+     */
+    private synchronized static List<String> checkScripts(DatabaseSettings dbSettings) {
+        String softwareVersion = ConnectorRuntime.getInstance().getSoftwareVersion();
+        if (!sqlScripts.containsKey(dbSettings.getId())) {
+          logger.info("Checking / installing scripts for connector {} ...", dbSettings.getId());
+          try (DataSourceProvider dataSourceProvider = new StaticDataSources(dbSettings)) {
+            List<Script> scripts = Script.loadScripts("/sql", dataSourceProvider, softwareVersion);
+            sqlScripts.put(dbSettings.getId(), scripts);
+            scripts.forEach(script -> {
+                script.install();
+                script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
+            });
+          }
+          catch (IOException | URISyntaxException e) {
+            throw new RuntimeException("Error reading script resources.", e);
+          }
+          catch (Exception e) {
+            logger.error("Error checking / installing scripts.", e);
+          }
+        }
+        return sqlScripts.get(dbSettings.getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList();
     }
 
     protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {

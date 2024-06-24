@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,9 +57,9 @@ public class HealthApi extends Api {
   private static MainHealthCheck healthCheck = new MainHealthCheck(true)
       .withReporter(
           new Reporter()
-              .withVersion(Service.BUILD_VERSION)
+              .withVersion(Service.buildVersion())
               .withName("HERE XYZ Hub")
-              .withBuildDate(Core.BUILD_TIME)
+              .withBuildDate(Core.buildTime())
               .withUpSince(Core.START_TIME)
               .withEndpoint(getPublicServiceEndpoint())
       )

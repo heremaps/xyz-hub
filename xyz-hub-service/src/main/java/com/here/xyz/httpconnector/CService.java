@@ -47,7 +47,7 @@ import org.apache.logging.log4j.Logger;
  * Vertex deployment of HTTP-Connector.
  */
 public class CService extends Core {
-  public static final String USER_AGENT = "HTTP-Connector/" + BUILD_VERSION;
+  public static final String USER_AGENT = "HTTP-Connector/" + buildVersion();
 
   /**
    * The host ID.

@@ -37,6 +37,7 @@ import java.util.Properties;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,14 +79,35 @@ public class Core {
   protected static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
 
   /**
+   * The resource file that contains the build info properties
+   */
+  protected static String BUILD_PROPERTIES_FILE = "/build.properties";
+
+  /**
    * The build time.
    */
-  public static final long BUILD_TIME = getBuildTime();
+  private static long BUILD_TIME;
 
   /**
    * The build version.
    */
-  public static final String BUILD_VERSION = getBuildProperty("xyzhub.version");
+  private static String BUILD_VERSION;
+
+  public static long buildTime() {
+    if (BUILD_TIME == 0)
+      BUILD_TIME = loadBuildTime(BUILD_PROPERTIES_FILE);
+    return BUILD_TIME;
+  }
+
+  protected static Supplier<String> BUILD_VERSION_PROVIDER = () -> {
+    if (BUILD_VERSION == null)
+      BUILD_VERSION = loadBuildVersion(BUILD_PROPERTIES_FILE);
+    return BUILD_VERSION;
+  };
+
+  public static String buildVersion() {
+    return BUILD_VERSION_PROVIDER.get();
+  }
 
   /**
    * The default config file
@@ -126,7 +148,8 @@ public class Core {
             if (entry.getValue() instanceof String) {
               if (entry.getValue().equals("")) {
                 config.put(entry.getKey(), null);
-              } else {
+              }
+              else {
                 try {
                   config.put(entry.getKey(), decryptSecret((String) entry.getValue()));
                 } catch (CryptoException e) {
@@ -147,22 +170,18 @@ public class Core {
   }
 
   public static Future<JsonObject> initializeLogger(JsonObject config) {
-    if (!CONSOLE_LOG_CONFIG.equals(config.getString("LOG_CONFIG"))) {
+    if (!CONSOLE_LOG_CONFIG.equals(config.getString("LOG_CONFIG")))
       Configurator.reconfigure(NetUtils.toURI(config.getString("LOG_CONFIG")));
-    }
 
-    if (isDebugModeActive) {
+    if (isDebugModeActive)
       changeLogLevel("DEBUG");
-    }
 
     return Future.succeededFuture(config);
   }
 
   static void changeLogLevel(String level) {
     logger.info("LOG LEVEL UPDATE requested. New level will be: " + level);
-
     Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.getLevel(level));
-
     logger.info("LOG LEVEL UPDATE performed. New level is now: " + level);
   }
 
@@ -195,24 +214,29 @@ public class Core {
     }
   }
 
-  private static long getBuildTime() {
-    String buildTime = getBuildProperty("xyzhub.buildTime");
+  private static long loadBuildTime(String propertiesFile) {
+    String buildTime = loadBuildProperty(propertiesFile, "build.time");
     try {
       return new SimpleDateFormat("yyyy.MM.dd-HH:mm").parse(buildTime).getTime();
-    } catch (ParseException e) {
+    }
+    catch (ParseException e) {
       return 0;
     }
   }
 
-  protected static String getBuildProperty(String name) {
-    InputStream input = Core.class.getResourceAsStream("/build.properties");
+  protected static String loadBuildVersion(String propertiesFile) {
+    return loadBuildProperty(propertiesFile, "build.version");
+  }
 
-    // load a properties file
+  private static String loadBuildProperty(String propertiesFile, String name) {
+    InputStream input = Core.class.getResourceAsStream(propertiesFile);
+
+    //Load the according properties file
     Properties buildProperties = new Properties();
     try {
       buildProperties.load(input);
-    } catch (IOException ignored) {
     }
+    catch (IOException ignored) {}
 
     return buildProperties.getProperty(name);
   }

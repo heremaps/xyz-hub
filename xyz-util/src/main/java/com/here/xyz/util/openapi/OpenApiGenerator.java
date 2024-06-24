@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.util.openapi;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,6 +27,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
+import com.here.xyz.util.service.Core;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,8 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
-
-import com.here.xyz.util.service.Core;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,7 +64,7 @@ public class OpenApiGenerator {
   private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
   private static final Map<String, JsonNode> RECIPES_MAP = new HashMap<>();
   private static final Map<String, String> VALUES_MAP = new HashMap<>() {{
-    put(VERSION, Core.BUILD_VERSION);
+    put(VERSION, Core.buildVersion());
   }};
 
   private static boolean debug;

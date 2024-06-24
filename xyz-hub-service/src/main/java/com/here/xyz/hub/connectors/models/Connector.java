@@ -36,6 +36,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedde
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.Core;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
@@ -252,6 +253,12 @@ public class Connector extends com.here.xyz.models.hub.Connector {
        * See: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#delegation
        */
       public String roleARN;
+
+      public String lambdaARN() {
+        if (!lambdaARN.contains("$version"))
+          return lambdaARN;
+        return lambdaARN.replace("$version", Core.buildVersion().replace('.', '-'));
+      }
 
       @JsonIgnore
       @Override
