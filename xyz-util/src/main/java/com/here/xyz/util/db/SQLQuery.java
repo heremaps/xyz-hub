@@ -54,6 +54,7 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.postgresql.util.PGobject;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
@@ -82,6 +83,7 @@ public class SQLQuery {
   private PreparedStatement preparedStatement;
   private String queryId;
   private Map<String, String> labels = new HashMap<>();
+  private Map<String, Object> context;
   private List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
   private List<SQLQuery> queryBatch;
@@ -301,6 +303,7 @@ public class SQLQuery {
 
   private synchronized SQLQuery substitute(boolean usePlaceholders) {
     initQueryId();
+    injectContext();
     replaceVars();
     replaceFragments();
     replaceNamedParameters(usePlaceholders && !isAsync());
@@ -705,6 +708,48 @@ public class SQLQuery {
       throw new IllegalArgumentException("The char-sequence \"*/\" is not allowed in SQLQuery labels.");
     labels.put(labelIdentifier, labelValue);
     return this;
+  }
+
+  public Map<String, Object> getContext() {
+    return context;
+  }
+
+  public void setContext(Map<String, Object> context) {
+    this.context = new HashMap<>(context);
+  }
+
+  public SQLQuery withContext(Map<String, Object> context) {
+    setContext(context);
+    return this;
+  }
+
+  public Object context(String key) {
+    if (context == null)
+      return null;
+    return context.get(key);
+  }
+
+  public SQLQuery context(String key, Object value) {
+    if (context == null)
+      setContext(Map.of(key, value));
+    else
+      context.put(key, value);
+    return this;
+  }
+
+  private void injectContext() {
+    if (context != null) {
+      statement = "SELECT context(#{context}); " + statement;
+      final PGobject jsonbObject = new PGobject();
+      jsonbObject.setType("jsonb");
+      try {
+        jsonbObject.setValue(XyzSerializable.serialize(context));
+      }
+      catch (SQLException e) {
+        throw new RuntimeException(e);
+      }
+      setNamedParameter("context", jsonbObject);
+    }
   }
 
   public boolean isLabelsEnabled() {
