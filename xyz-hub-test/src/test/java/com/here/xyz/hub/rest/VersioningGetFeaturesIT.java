@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -323,7 +323,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=0&author=" + AUTHOR_1)
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&author=" + AUTHOR_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
