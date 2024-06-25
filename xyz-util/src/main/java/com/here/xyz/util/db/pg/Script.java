@@ -132,8 +132,9 @@ public class Script {
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
         .withQueryFragment("scriptContent", loadScriptContent());
 
-    SQLQuery.batchOf(buildCreateSchemaQuery(targetSchema), setCurrentSearchPath, buildHashFunctionQuery(), buildVersionFunctionQuery(),
-        scriptContent).writeBatch(dataSourceProvider);
+    SQLQuery.batchOf(buildCreateSchemaQuery(targetSchema), setCurrentSearchPath, buildHashFunctionQuery(), buildVersionFunctionQuery())
+        .writeBatch(dataSourceProvider);
+    scriptContent.write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
   }
 
