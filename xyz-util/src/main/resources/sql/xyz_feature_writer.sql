@@ -28,27 +28,26 @@
 -- if on_version_conflict==null => conflictDetection is off
 CREATE OR REPLACE FUNCTION write_feature(tbl regclass, context TEXT, historyEnabled BOOLEAN,
        	input_feature JSONB, author TEXT, version BIGINT, is_partial BOOLEAN,
-		onExists TEXT, onNotExists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT
+		on_exists TEXT, on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT
     ) RETURNS JSONB AS $BODY$
 
     if(input_feature.properties['@ns:com:here:xyz'].deleted == true)
-       //delete
+       //delete + return
     }
-
-    if(historyEnabled == true){
-        //history
-    }else{
-
-    }
+    //write row
 
 	return null;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 CREATE OR REPLACE FUNCTION write_feature_without_history(tbl regclass, context TEXT,
        	input_feature JSONB, author TEXT, version BIGINT, is_partial BOOLEAN,
-		onExists TEXT, onNotExists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT
+		on_exists TEXT, on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT
     ) RETURNS JSONB AS $BODY$
 
+    /**
+       Simple upsert versionConflict:
+
+    */
     var loadFeature = function(id, version){
 		version = version == undefined ? -1 : version;
         return plv8.find_function('loadFeature(regclass, text, bigint)')(tbl, id, version);
@@ -122,35 +121,42 @@ CREATE OR REPLACE FUNCTION write_feature_without_history(tbl regclass, context T
 	return null;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 -------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION delete_feature(tbl regclass, id TEXT, version BIGINT, on_version_conflict TEXT ) RETURNS JSONB AS $BODY$
-    /**
-       History yes/no
-       Context extension| default | null
-
-       Extension => with history (Insert with D)
-              => w/o (real delete)
-       Default  => no history (Insert with H (not exist in delta) | Update J (exists in delta))
-              => history Insert with (Operation=H )
-
-       TODO: Check why call with geo=null not works
-	*/
-	plv8.elog(NOTICE, 'Delete id=',id);
-
+CREATE OR REPLACE FUNCTION delete_feature(tbl regclass, input_feature JSONB, on_version_conflict TEXT, on_merge_conflict TEXT ) RETURNS JSONB AS $BODY$
+    //let cnt = plv8.find_function("write_row(REGCLASS,TEXT,BIGINT,CHAR,TEXT,JSONB,JSONB)")
+    //            (tbl, id, base_version , 'D', author, '{}', null);
+$BODY$ LANGUAGE plv8 IMMUTABLE;
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION delete_row(tbl regclass, input_feature JSONB, author TEXT,
+       base_version BIGINT, on_version_conflict TEXT ) RETURNS JSONB AS $BODY$
 	let cnt;
+    //base_version get provided from user (extend api endpoint)
+    plv8.elog(NOTICE, 'Delete id=', input_feature.id,);
+    let sql = 'DELETE FROM '+tbl+' WHERE id = $1';
+    let plan = plv8.prepare(sql, ['TEXT']);
 
-	if(on_version_conflict == ''){
-		/** w/o versioning! TODO: take composite into account */
-		let sql = 'DELETE FROM '+tbl+' WHERE id = $1';
+	if(on_version_conflict == null){
 		let plan = plv8.prepare(sql, ['TEXT']);
-
-		cnt = plan.execute(id);
-		plan.free();
+		cnt = plan.execute(input_feature.id);
     }else{
-		/** with versioning! TODO: take composite into account */
-		/** TODO write null + check if we need version in NS (legacy history)) */
-        let cnt = plv8.find_function("write_row(REGCLASS,TEXT,BIGINT,CHAR,TEXT,JSONB,JSONB)")(tbl, id, version , 'D', 'author', '{}', null);
+        if(base_version == 0){
+            sql = 'AND next_version = max_bigint();'
+            cnt = plan.execute(input_feature.id);
+        }else{
+            sql = 'AND version = $2;'
+        	plan = plv8.prepare(sql, ['TEXT','BIGINT']);
+            cnt = plan.execute(input_feature.id, base_version);
+        }
+        if(cnt == 0){
+            plv8.elog(NOTICE, 'HandleConflict for id=', input_feature.id,);
+        }
     }
-	return cnt;
+    plan.free();
+
+    return cnt;
+$BODY$ LANGUAGE plv8 IMMUTABLE;
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION handle_delete_version_conflict(tbl regclass, id TEXT, version BIGINT, on_version_conflict TEXT ) RETURNS JSONB AS $BODY$
+
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
