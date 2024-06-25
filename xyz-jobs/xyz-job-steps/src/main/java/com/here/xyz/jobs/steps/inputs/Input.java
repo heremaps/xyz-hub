@@ -40,7 +40,7 @@ import java.util.stream.Stream;
 public abstract class Input <T extends Input> implements Typed {
   @JsonIgnore
   private String s3Key;
-  private static Map<String, List<Input>> inputsCache = new WeakHashMap<>();
+  private static Map<String, List<Input>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
   private static Set<String> submittedJobs = new HashSet<>();
 
   public static String inputS3Prefix(String jobId) {
