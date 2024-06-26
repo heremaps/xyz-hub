@@ -65,7 +65,7 @@ $BODY$ LANGUAGE plv8 IMMUTABLE;
  * @public
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
-CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, auhor TEXT, on_exists TEXT,
+CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, author TEXT, on_exists TEXT,
     on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN)
     RETURNS JSONB AS $BODY$
 
@@ -106,15 +106,15 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.onVersionConflict = onVersionConflict;
             this.onMergeConflict = onMergeConflict;
             this.isPartial = isPartial;
+            this.enrichFeature();
         }
 
         /**
          * @throws VersionConflictError, MergeConflictError, FeatureExistsError
          */
         writeFeature() {
-            this.enrichFeature();
             if (this.inputFeature.properties["@ns:com:here:xyz"].deleted == true)
-                return this.deleteFeature();
+                this.deleteFeature();
 
             return this.writeRow();
         }
@@ -176,7 +176,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                       //TODO set version operation
                       this.operation,
                       feature.properties["@ns:com:here:xyz"].author,
-                      //TODO - check if nessecary - Isn't version & author also written now in status quo impl?
+                      //TODO - check if nessecary - Isnt version & author also written now in status quo impl?
                       plv8.find_function("clean_feature(jsonb)")(jsondata),
                       feature.geometry);
                 }
@@ -290,7 +290,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 feature.properties["@ns:com:here:xyz"].author = res[0].author;
                 if (feature.geometry != null)
                   delete feature.geometry.crs; //TODO: What is crs?!
-                //Cache the HEAD-feature in case it's needed later again
+                //Cache the HEAD-feature in case its needed later again
                 if (version == "HEAD")
                     this.headFeature = feature;
                 return feature;
@@ -346,23 +346,20 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         enrichFeature() {
-            let feature = this.inputFeature;
-            this.baseVersion = feature.properties && feature.properties["@ns:com:here:xyz"] && feature.properties["@ns:com:here:xyz"].version;
+            this.baseVersion = this.inputFeature.properties && this.inputFeature.properties["@ns:com:here:xyz"] && this.inputFeature.properties["@ns:com:here:xyz"].version;
 
-            feature.id = feature.id || Math.random().toString(36).slice(2, 10);
-            feature.type = feature.type || "Feature";
-            author = author || "ANOYMOUS";
-            feature.properties = feature.properties || {};
-            feature.properties["@ns:com:here:xyz"] = feature.properties["@ns:com:here:xyz"] || {};
+            this.inputFeature.id = this.inputFeature.id || Math.random().toString(36).slice(2, 10);
+            this.inputFeature.type = this.inputFeature.type || "Feature";
+            this.author = this.author || "ANOYMOUS";
+            this.inputFeature.properties = this.inputFeature.properties || {};
+            this.inputFeature.properties["@ns:com:here:xyz"] = this.inputFeature.properties["@ns:com:here:xyz"] || {};
 
             //TODO: Set the createdAt TS right before writing and only if it is an insert
             let now = Date.now();
-            feature.properties["@ns:com:here:xyz"].createdAt = (feature.properties["@ns:com:here:xyz"].createdAt == undefined) ? now : (input_feature.properties["@ns:com:here:xyz"].createdAt);
-            feature.properties["@ns:com:here:xyz"].updatedAt = now;
-            feature.properties["@ns:com:here:xyz"].version = this.version;
-            feature.properties["@ns:com:here:xyz"].author = this.author;
-
-            return inputFeature;
+            this.inputFeature.properties["@ns:com:here:xyz"].createdAt = (this.inputFeature.properties["@ns:com:here:xyz"].createdAt == undefined) ? now : (input_feature.properties["@ns:com:here:xyz"].createdAt);
+            this.inputFeature.properties["@ns:com:here:xyz"].updatedAt = now;
+            this.inputFeature.properties["@ns:com:here:xyz"].version = this.version;
+            this.inputFeature.properties["@ns:com:here:xyz"].author = this.author;
         }
     }
     plv8.FeatureWriter = FeatureWriter;
