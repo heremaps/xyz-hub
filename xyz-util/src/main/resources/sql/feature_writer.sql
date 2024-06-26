@@ -104,21 +104,21 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.inputFeature = inputFeature;
             this.version = version;
             this.author = author;
-            this.onExists = onExists;
-            this.onNotExists = onNotExists;
+            this.onExists = onExists == null ? 'REPLACE' : onExists;
+            this.onNotExists = onNotExists == null ? 'CREATE' : onNotExists;
             this.onVersionConflict = onVersionConflict;
             this.onMergeConflict = onMergeConflict;
             this.isPartial = isPartial;
 
-            this.isDelete = this._hasDeletedFlag(this.inputFeature);
             this.enrichFeature();
+            this.isDelete = this._hasDeletedFlag(this.inputFeature);
         }
 
         /**
          * @throws VersionConflictError, MergeConflictError, FeatureExistsError
          */
         writeFeature() {
-            return isDelete ? this.deleteFeature() : this.writeRow();
+            return this.isDelete ? this.deleteFeature() : this.writeRow();
         }
 
         /**
@@ -218,39 +218,55 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         /**
          * @throws FeatureExistsError
          */
-        writeRowWithoutHistory() {
+         writeRowWithoutHistory() {
             //TODO: onVersionConflict & baseVersion is missing in method signature
             if (this.onVersionConflict == null) {
-                let feature = this.inputFeature;
                 if (this.isPartial)
-                  //TODO: inputFeature has to be enriched already!
-                  feature = this.patch(this.loadFeature(inputFeature.id), inputFeature);
+                    this.inputFeature = this.patch(this.loadFeature(this.inputFeature.id), this.inputFeature);
 
-                //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
-                let sql = "INSERT INTO \""+ this.schema + "\".\"" + this.table + "\""
-                    + "(id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5, ST_Force3D(ST_GeomFromGeoJSON($6)))";
+                    //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
+                    let sql = "INSERT INTO \""+ this.schema + "\".\"" + this.table + "\" AS tbl "
+                        + "(id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5, ST_Force3D(ST_GeomFromGeoJSON($6))) ";
 
-                //TODO: Use plv8.execute() directly!
-                let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
-                try {
-                  let cnt = plan.execute(feature.id,
-                      feature.properties["@ns:com:here:xyz"].version,
-                      //TODO set version operation
-                      this.operation,
-                      feature.properties["@ns:com:here:xyz"].author,
-                      //TODO - check if nessecary - Isnt version & author also written now in status quo impl?
-                      plv8.find_function("clean_feature(jsonb)")(jsondata),
-                      feature.geometry);
-                }
-                catch(e) {
-                  //UNIQUE VIOLATION
-                  if (e.sqlerrcode != undefined && e.sqlerrcode == '23505')
-                      this.handleVersionConflict()
-                  else
-                      plv8.elog(ERROR, e);
-                }
+                    switch(this.onExists){
+                        case "REPLACE" :
+                            sql += ` ON CONFLICT (id, version, next_version) DO UPDATE SET
+                                  version = greatest(tbl.version, EXCLUDED.version),
+                                  operation = 'U',
+                                  author = EXCLUDED.author,
+                                  jsondata = jsonb_set(EXCLUDED.jsondata, '{properties,@ns:com:here:xyz,createdAt}',
+                                         tbl.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'),
+                                  geo = EXCLUDED.geo`;
+                            break;
+                        case "RETAIN" :
+                            sql += " ON CONFLICT(id, version, next_version) DO NOTHING"
+                            break;
+                        case "DELETE" :
+                            return this.deleteFeature();
+                        case "ERROR" : break;
+                    }
+
+                    sql += " RETURNING  COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB), jsondata) ";
+
+                    //TODO check if there is a possibility without a deep-copy!
+                    let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
+                    delete featureClone.geometry;
+
+                    let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
+                    let writtenFeature = plan.execute(this.inputFeature.id,
+                        this.version,
+                        //TODO set version operation
+                        this.operation,
+                        this.author,
+                        //TODO - check if nessecary - Isnt version & author also written now in status quo impl?
+                        featureClone,
+                        this.inputFeature.geometry
+                    );
+
+                    return writtenFeature.length > 0 ? writtenFeature[0].coalesce : null;
+            }else{
+                let headFeature = this.loadFeature(this.inputFeature.id);
             }
-            plan.free();
         }
 
         /**
@@ -476,6 +492,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         patch(target, inputDiff) {
+            if(target == null)
+                return inputDiff;
+
             for (let key in inputDiff) {
                 if (inputDiff.hasOwnProperty(key)) {
                     if (inputDiff[key] === null)
