@@ -31,6 +31,7 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     const writeFeature = plv8.find_function("write_feature");
     const getNextVersion = plv8.find_function("get_next_version");
     const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
+    const maxBigint = plv8.execute("SELECT max_bigint()")[0].max_bigint[0]
 
     //Actual executions
     if (input_features == null)
@@ -150,7 +151,63 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws VersionConflictError, MergeConflictError, FeatureExistsError
          */
         writeRowWithHistory() {
+            if (this.onVersionConflict != null) {
+                //Version conflict detection is active
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4 RETURNING *`, this.version, this.inputFeature.id, maxBigint(), this.baseVersion);
+                if (updatedRows.length == 1) {
+                    if (this.operation == "D") {
+                        if (updatedRows[0].operation != "D")
+                            this._insertHistoryRow();
+                    }
+                    else {
+                        this.operation = updatedRows[0].operation == "D" ? this.operation : this._transformToUpdate(this.operation);
+                        this._insertHistoryRow();
+                    }
+                }
+                else {
+                    if (this.loadFeature(this.inputFeature.id) != null)
+                        //The feature exists in HEAD and still no previous version was updated, so we have a version conflict
+                        this.handleVersionConflict();
+                    else {
+                        if (updatedRows[0].operation != "D")
+                            this._insertHistoryRow();
+                    }
+                }
+            }
+            else {
+                //Version conflict detection is not active
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, maxBigint());
+                if (updatedRows.length == 1)  {
+                    if (this.operation == "D") {
+                        if (updatedRows[0].operation != "D")
+                            this._insertHistoryRow();
+                    }
+                    else {
+                        this.operation = updatedRows[0].operation == "D" ? this.operation : this._transformToUpdate(this.operation);
+                        this._insertHistoryRow();
+                    }
+                }
+                else {
+                    if (this.operation != "D")
+                      this._insertHistoryRow();
+                }
+            }
+        }
 
+        _transformToUpdate(operation) {
+            return operation == "I" ? "U" : "J";
+        }
+
+        _insertHistoryRow() {
+            //TODO: Encode geo as WKB correctly!
+            plv8.execute(`INSERT INTO "${this.schema}"."${this.table}"
+                (id, version, operation, author, jsondata, geo)
+                VALUES (
+                    $1, $2, $3, $4,
+                    $5::JSONB - 'geometry',
+                    CASE WHEN $5->geometry::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB($5->geometry::BYTEA, 4326)) END
+                )`,
+                this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
         }
 
         /**
