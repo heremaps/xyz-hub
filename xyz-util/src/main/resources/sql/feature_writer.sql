@@ -93,6 +93,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         headFeature;
         operation = "I";
         isDelete = false;
+        attributeConflicts;
 
         constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             this.schema = context("schema");
@@ -337,7 +338,20 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws MergeConflictError
          */
         mergeChanges() {
+            //NOTE: This method will *only* be called in case a version conflict was detected and onVersionConflict == MERGE
+            let headFeature = this.loadFeature(this.inputFeature.id);
+            let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
+            let inputDiff = this.isPartial ? this.inputFeature : this.diff(this.inputFeature, baseFeature); //Our incoming change
+            let headDiff = this.diff(headFeature, baseFeature); //The other change
+            this.attributeConflicts = this.findConflicts(inputDiff, headDiff);
 
+            if (this.attributeConflicts.length > 0)
+                return this.handleMergeConflict();
+
+            this.inputFeature = this.patch(headFeature, inputDiff);
+            this.operation = this._transformToUpdate(this.operation);
+            this.onVersionConflict = null;
+            return this.writeRow();
         }
 
 
@@ -360,7 +374,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
         _throwMergeConflictError() {
             //TODO: Add error code XYZ49
-            //TODO: In case of write, add all conflicting attributes as info
+            //TODO: In case of write, add all conflicting attributes as info (stored in this.attributeConflicts)
             plv8.elog(ERROR, `Merge conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}. Base version ${this.baseVersion} was not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))} and a merge was not possible.`);
         }
 
@@ -422,6 +436,16 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
         _hasDeletedFlag(feature) {
             return feature.properties["@ns:com:here:xyz"].deleted == true;
+        }
+
+        /**
+         * Finds all conflicting attributes in two changes / diffs if existing.
+         * The returned result is a list of conflicting attributes including the two conflicting values.
+         * @private
+         * @return {{<string>: [<object>, <object>]}[]}
+         */
+        findConflicts(diff1, diff2) {
+            //TODO: Check if diffs are recursively disjunct or if not being disjunct the according value must be equal
         }
 
         diff(minuend, subtrahend) {
