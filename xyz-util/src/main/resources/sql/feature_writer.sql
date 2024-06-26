@@ -29,6 +29,7 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     //Import other functions
     const writeFeature = plv8.find_function("write_feature");
     const getNextVersion = plv8.find_function("get_next_version");
+    const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
 
     //Actual executions
     if (input_features == null)
@@ -45,7 +46,7 @@ $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 CREATE OR REPLACE FUNCTION get_next_version() RETURNS BIGINT AS $BODY$
     //Import other functions
-    const context = plv8.context = key => plv8.execute("select context($1)", key)[0].context[0];
+    const context = plv8.context;
 
     const VERSION_SEQUENCE_SUFFIX = "_version_seq";
     let sequenceName = context("table") + VERSION_SEQUENCE_SUFFIX;
@@ -64,7 +65,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
     RETURNS JSONB AS $BODY$
 
     //Init block of internal feature_writer functionality
-    const context = plv8.context = key => plv8.execute("select context($1)", key)[0].context[0];
+    const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
 
     /**
      * The unified implementation of the database-based feature writer.
