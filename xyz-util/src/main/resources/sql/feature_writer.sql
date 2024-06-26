@@ -114,7 +114,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         writeFeature() {
             this.enrichFeature();
             if (this.inputFeature.properties["@ns:com:here:xyz"].deleted == true)
-                this.deleteFeature();
+                return this.deleteFeature();
 
             return this.writeRow();
         }
@@ -143,7 +143,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         writeRow() {
           if (this.historyEnabled)
             return this.writeRowWithHistory();
-          return this.writeRowWithHistory();
+          return this.writeRowWithoutHistory();
         }
 
         /**
