@@ -23,7 +23,7 @@
 CREATE OR REPLACE FUNCTION context(key TEXT) RETURNS JSONB AS $BODY$
 BEGIN
     RETURN (current_setting('xyz.queryContext')::JSONB)[key];
-EXCEPTION WHEN OTHERS THEN RETURN NULL;
+    EXCEPTION WHEN OTHERS THEN RETURN NULL;
 END
 $BODY$ LANGUAGE plpgsql VOLATILE;
 
@@ -37,11 +37,21 @@ END
 $BODY$ LANGUAGE plpgsql VOLATILE;
 
 /**
+ * Returns the whole context object.
+ */
+CREATE OR REPLACE FUNCTION context() RETURNS JSONB AS $BODY$
+BEGIN
+    RETURN current_setting('xyz.queryContext')::JSONB;
+    EXCEPTION WHEN OTHERS THEN RETURN '{}'::JSONB;
+END
+$BODY$ LANGUAGE plpgsql VOLATILE;
+
+/**
  * Sets a context field to the specified value for the current query / transaction.
  */
--- CREATE OR REPLACE FUNCTION context(key TEXT, value ANYELEMENT) RETURNS VOID AS $BODY$
--- BEGIN
---     --TODO: Create empty context object if missing & inject field
---     PERFORM set_config('xyz.queryContext', context::TEXT, true);
--- END
--- $BODY$ LANGUAGE plpgsql VOLATILE;
+CREATE OR REPLACE FUNCTION context(key TEXT, value ANYELEMENT) RETURNS VOID AS $BODY$
+BEGIN
+    --Inject / overwrite the field
+    PERFORM context(jsonb_set(context(), ARRAY[key], to_jsonb(value), true));
+END
+$BODY$ LANGUAGE plpgsql VOLATILE;

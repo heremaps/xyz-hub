@@ -17,6 +17,28 @@
  * License-Filename: LICENSE
  */
 
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
+
+CREATE EXTENSION IF NOT EXISTS plv8;
+
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
 -- The following methods are public and may be called by software directly
@@ -33,7 +55,7 @@ CREATE OR REPLACE FUNCTION write_feature(tbl regclass, context TEXT, historyEnab
 
     if(input_feature.properties['@ns:com:here:xyz'].deleted == true)
        //delete + return
-    }
+
     //write row
 
 	return null;
