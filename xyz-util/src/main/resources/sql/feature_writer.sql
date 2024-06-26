@@ -26,19 +26,45 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN)
     RETURNS JSONB AS $BODY$
 
-    //TODO: Parse & iterate input -> enrich -> writeFeature
+    //Import other functions
+    const writeFeature = plv8.find_function("write_feature");
+    const getNextVersion = plv8.find_function("get_next_version");
 
+    //Actual executions
+    if (input_features == null)
+        plv8.elog(ERROR, "Parameter input_features must not be null.");
+
+    //TODO: Compare JSON parsing performance of PLSQL vs PLV8
+    let features = JSON.parse(input_features);
+    let version = getNextVersion();
+
+    for (let feature of features)
+        writeFeature(feature, version, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial);
 $BODY$ LANGUAGE plv8 IMMUTABLE;
+
+
+CREATE OR REPLACE FUNCTION get_next_version() RETURNS BIGINT AS $BODY$
+    //Import other functions
+    const context = plv8.context = key => plv8.execute("select context($1)", key)[0].context[0];
+
+    const VERSION_SEQUENCE_SUFFIX = "_version_seq";
+    let sequenceName = context("table") + VERSION_SEQUENCE_SUFFIX;
+    let fullQualifiedSequenceName = "\"" + context("schema") + "\".\"" + sequenceName + "\"";
+
+    //Actual executions
+    plv8.execute("SELECT nextval($1)", fullQualifiedSequenceName)[0].nextval[0];
+$BODY$ LANGUAGE plv8 IMMUTABLE;
+
 
 /**
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
-CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, base_version BIGINT, on_exists TEXT,
+CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, auhor TEXT, on_exists TEXT,
     on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN)
     RETURNS JSONB AS $BODY$
 
     //Init block of internal feature_writer functionality
-    let context = plv8.context = key => plv8.execute("select context($1)", key)[0].context[0];
+    const context = plv8.context = key => plv8.execute("select context($1)", key)[0].context[0];
 
     /**
      * The unified implementation of the database-based feature writer.
@@ -46,6 +72,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, base_version BIGIN
     class FeatureWriter {
         //Process input fields
         inputFeature;
+        version;
+        author;
         isPartial;
         baseVersion;
 
@@ -58,17 +86,27 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, base_version BIGIN
         headFeature;
         operation = "I";
 
-        constructor() {
+        constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             this.schema = context("schema");
             this.table = context("table");
             this.context = context("context");
             this.historyEnabled = context("historyEnabled");
+
+            this.inputFeature = inputFeature;
+            this.version = version;
+            this.author = author;
+            this.onExists = onExists;
+            this.onNotExists = onNotExists;
+            this.onVersionConflict = onVersionConflict;
+            this.onMergeConflict = onMergeConflict;
+            this.isPartial = isPartial;
         }
 
         /**
          * @throws VersionConflictError, MergeConflictError, FeatureExistsError
          */
         writeFeature() {
+            this.enrichFeature();
             if (this.inputFeature.properties["@ns:com:here:xyz"].deleted == true)
                 this.deleteFeature();
 
@@ -301,19 +339,22 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, base_version BIGIN
             return target;
         }
 
-        enrichFeature(inputFeature, version, author) {
-            inputFeature.id = inputFeature.id || Math.random().toString(36).slice(2, 10);
-            inputFeature.type = inputFeature.type || "Feature";
+        enrichFeature() {
+            let feature = this.inputFeature;
+            this.baseVersion = feature.properties && feature.properties["@ns:com:here:xyz"] && feature.properties["@ns:com:here:xyz"].version;
+
+            feature.id = feature.id || Math.random().toString(36).slice(2, 10);
+            feature.type = feature.type || "Feature";
             author = author || "ANOYMOUS";
-            inputFeature.properties = inputFeature.properties || {};
-            inputFeature.properties["@ns:com:here:xyz"] = inputFeature.properties["@ns:com:here:xyz"] || {};
+            feature.properties = feature.properties || {};
+            feature.properties["@ns:com:here:xyz"] = feature.properties["@ns:com:here:xyz"] || {};
 
             //TODO: Set the createdAt TS right before writing and only if it is an insert
             let now = Date.now();
-            inputFeature.properties["@ns:com:here:xyz"].createdAt = (inputFeature.properties["@ns:com:here:xyz"].createdAt == undefined) ? now : (input_feature.properties["@ns:com:here:xyz"].createdAt);
-            inputFeature.properties["@ns:com:here:xyz"].updatedAt = now;
-            inputFeature.properties["@ns:com:here:xyz"].version = version;
-            inputFeature.properties["@ns:com:here:xyz"].author = author;
+            feature.properties["@ns:com:here:xyz"].createdAt = (feature.properties["@ns:com:here:xyz"].createdAt == undefined) ? now : (input_feature.properties["@ns:com:here:xyz"].createdAt);
+            feature.properties["@ns:com:here:xyz"].updatedAt = now;
+            feature.properties["@ns:com:here:xyz"].version = this.version;
+            feature.properties["@ns:com:here:xyz"].author = this.author;
 
             return inputFeature;
         }
@@ -323,5 +364,5 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, base_version BIGIN
 
 
     //Run the actual command
-    return new FeatureWriter().writeFeature(input_feature, base_version, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial);
+    return new FeatureWriter(input_feature, version, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial).writeFeature();
 $BODY$ LANGUAGE plv8 IMMUTABLE;
