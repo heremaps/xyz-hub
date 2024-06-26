@@ -116,11 +116,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, base_version BIGIN
             //TODO: onVersionConflict & baseVersion is missing in method signature
             if (this.onVersionConflict == null) {
                 let feature = this.inputFeature;
-                if (this.isPartial) {
+                if (this.isPartial)
                   //TODO: inputFeature has to be enriched already!
                   feature = this.patch(this.loadFeature(inputFeature.id), inputFeature);
-                }
 
+                //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
                 let sql = "INSERT INTO \""+ this.schema + "\".\"" + this.table + "\""
                     + "(id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5, ST_Force3D(ST_GeomFromGeoJSON($6)))";
 
@@ -139,7 +139,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, base_version BIGIN
                 catch(e) {
                   //UNIQUE VIOLATION
                   if (e.sqlerrcode != undefined && e.sqlerrcode == '23505')
-                  //Update feature
+                      this.handleVersionConflict()
                   else
                       plv8.elog(ERROR, e);
                 }
