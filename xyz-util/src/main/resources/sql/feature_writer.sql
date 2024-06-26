@@ -246,7 +246,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                         case "ERROR" : break;
                     }
 
-                    sql += " RETURNING  COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB), jsondata) ";
+                    sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB), jsondata) ";
 
                     //TODO check if there is a possibility without a deep-copy!
                     let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
@@ -265,7 +265,12 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
                     return writtenFeature.length > 0 ? writtenFeature[0].coalesce : null;
             }else{
-                let headFeature = this.loadFeature(this.inputFeature.id);
+                let baseVersion = this.inputFeature.properties[@ns:com:here:xyz].version;
+
+                if(baseVersion == undefined)
+                    ;//throw Error!
+
+                let headFeature = this.loadFeature(this.inputFeature.id, baseVersion);
             }
         }
 

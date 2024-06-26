@@ -17,8 +17,8 @@ select write_feature_without_history(
        1,		 --version
        false,	 --partial
 
-       'REPLACE',  --onExists
-       'CREATE', 	 --on_merge_conflict,
+       'REPLACE',  --on_exists
+       'CREATE', 	 --on_not_exists,
        'ERROR',  --on_version_conflict
        'ERROR' 	 --on_merge_conflict
 );
@@ -34,7 +34,7 @@ select write_feature_without_history(
        false,	 --partial
 
        'REPLACE',   --onExists
-       'CREATE',    --on_merge_conflict,
+       'CREATE',    --on_not_exists,
        'REPLACE',     --on_version_conflict
        'ERROR'      --on_merge_conflict
 );
@@ -233,3 +233,21 @@ select clean_feature('{
 				"crs2" : { "test" : true}
 			}
        }'::JSONB);
+
+------------------------------------------------------------------------------------------------------------
+
+select context('schema','public'::text);
+select context('table','iml-import-test-max:test-layer-max-2'::text);
+select context('context','default'::text);
+select context('historyEnabled',false::boolean);
+
+select write_feature(
+               '{"id":"id3","properties":{"foo232": "bar","foo2":null},"geometry":null}',  --feature
+               1,       --version
+               'test',	 --author
+               null,  	--on_exists
+               null, 	--on_not_exists,
+               null,		--on_version_conflict
+               null,		--on_merge_conflict
+               false 		--isPartial
+       );
