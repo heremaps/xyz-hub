@@ -403,20 +403,21 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         enrichFeature() {
-            this.baseVersion = this.inputFeature.properties && this.inputFeature.properties["@ns:com:here:xyz"] && this.inputFeature.properties["@ns:com:here:xyz"].version;
+            let feature = this.inputFeature;
+            this.baseVersion = feature.properties && feature.properties["@ns:com:here:xyz"] && feature.properties["@ns:com:here:xyz"].version;
 
-            this.inputFeature.id = this.inputFeature.id || Math.random().toString(36).slice(2, 10);
-            this.inputFeature.type = this.inputFeature.type || "Feature";
+            feature.id = feature.id || Math.random().toString(36).slice(2, 10);
+            feature.type = feature.type || "Feature";
             this.author = this.author || "ANOYMOUS";
-            this.inputFeature.properties = this.inputFeature.properties || {};
-            this.inputFeature.properties["@ns:com:here:xyz"] = this.inputFeature.properties["@ns:com:here:xyz"] || {};
+            feature.properties = feature.properties || {};
+            feature.properties["@ns:com:here:xyz"] = feature.properties["@ns:com:here:xyz"] || {};
 
             //TODO: Set the createdAt TS right before writing and only if it is an insert
             let now = Date.now();
-            this.inputFeature.properties["@ns:com:here:xyz"].createdAt = (this.inputFeature.properties["@ns:com:here:xyz"].createdAt == undefined) ? now : (input_feature.properties["@ns:com:here:xyz"].createdAt);
-            this.inputFeature.properties["@ns:com:here:xyz"].updatedAt = now;
-            this.inputFeature.properties["@ns:com:here:xyz"].version = this.version;
-            this.inputFeature.properties["@ns:com:here:xyz"].author = this.author;
+            feature.properties["@ns:com:here:xyz"].createdAt = (feature.properties["@ns:com:here:xyz"].createdAt == undefined) ? now : (feature.properties["@ns:com:here:xyz"].createdAt);
+            feature.properties["@ns:com:here:xyz"].updatedAt = now;
+            feature.properties["@ns:com:here:xyz"].version = this.version;
+            feature.properties["@ns:com:here:xyz"].author = this.author;
         }
     }
     plv8.FeatureWriter = FeatureWriter;
