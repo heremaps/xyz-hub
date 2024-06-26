@@ -146,10 +146,11 @@ public class AccessLogUtil {
     final AccessLog accessLog = getOrCreateAccessLog(context);
     final HttpMethod method = context.request().method();
     final String uri = context.request().uri();
-    // Remove access_token part from uri for security concerns
     MDC.put("streamId", streamId);
+    // Remove access_token part from uri for security concerns
     logger.info("Request {} - {}", method.name(), getObscuredURI(uri));
 
+    accessLog.streamId = streamId;
     accessLog.reqInfo.method = method.name();
     final int endPos = uri.indexOf("?"); // query parameters not required for now
     accessLog.reqInfo.uri = (endPos > 0) ? uri.substring(0, endPos) : uri;

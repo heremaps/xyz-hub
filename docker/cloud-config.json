@@ -3,8 +3,8 @@
     "type": "Config",
     "httpPort": 7080,
     "requestBodyLimit": 25,
-    "maxParallelRequestsPerCPU": 30,
-    "maxPctParallelRequestsPerActor": 100,
+    "maxParallelRequestsPerCPU": 100,
+    "maxPctParallelRequestsPerActor": 25,
     "authMode": "JWT",
     "extensionConfigParams": {
         "whitelistClasses": [ "java.*", "javax.*", "com.here.*", "jdk.internal.reflect.*", "com.sun.*", "org.w3c.dom.*", "sun.misc.*","org.locationtech.jts.*"],

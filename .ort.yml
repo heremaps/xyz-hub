@@ -14,15 +14,36 @@ curations:
       reason: "CODE"
       comment: "The scanner matches an enumerator `ODbL-1.0`."
       concluded_license: "NONE"
+    - path: "here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/License.java"
+      start_lines: "55"
+      line_count: 1
+      detected_license: "MPL-2.0"
+      reason: "CODE"
+      comment: "The scanner matches an enumerator `MPL-2.0`."
+      concluded_license: "NONE"
+    - path: "here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/License.java"
+      start_lines: "58"
+      line_count: 1
+      detected_license: "OFL-1.1"
+      reason: "CODE"
+      comment: "The scanner matches an enumerator `OFL-1.1`."
+      concluded_license: "NONE"
+    - path: "here-naksha-lib-core/src/main/java/com/here/naksha/lib/core/models/License.java"
+      start_lines: "60"
+      line_count: 1
+      detected_license: "Unlicense"
+      reason: "CODE"
+      comment: "The scanner matches an enumerator `Unlicense`."
+      concluded_license: "NONE"
+    - path: "docs/diagrams/architecture.drawio"
+      start_lines: "63"
+      line_count: 1
+      detected_license: "LicenseRef-scancode-public-domain"
+      reason: "CODE"
+      comment: "The scanner matches a string `public domain`."
+      concluded_license: "NONE"
 excludes:
-  #paths:
-  #- pattern: "**/src/test/**"
-  #  reason: "TEST_TOOL_OF"
-  #  comment: "This directory only contains tests to verify correct functioning of XYZ Hub. Not included in released artifacts."
   scopes:
   - pattern: "provided"
     reason: "PROVIDED_DEPENDENCY_OF"
     comment: "Scope with dependencies provided by the JDK or container at runtime. Not included in released artifacts."
-  - pattern: "test"
-    reason: "TEST_DEPENDENCY_OF"
-    comment: "Scope with dependencies only used for testing. Not included in released artifacts."
