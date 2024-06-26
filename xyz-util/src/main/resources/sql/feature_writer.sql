@@ -20,6 +20,7 @@
 CREATE EXTENSION IF NOT EXISTS plv8;
 
 /**
+ * @public
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
 CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_exists TEXT,
@@ -44,6 +45,9 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 
+/**
+ * @private
+ */
 CREATE OR REPLACE FUNCTION get_next_version() RETURNS BIGINT AS $BODY$
     //Import other functions
     const context = plv8.context;
@@ -58,6 +62,7 @@ $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 
 /**
+ * @public
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
 CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, auhor TEXT, on_exists TEXT,
