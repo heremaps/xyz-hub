@@ -92,6 +92,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         //Process generated / tmp fields
         headFeature;
         operation = "I";
+        isDelete = false;
 
         constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             this.schema = context("schema");
@@ -107,6 +108,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.onVersionConflict = onVersionConflict;
             this.onMergeConflict = onMergeConflict;
             this.isPartial = isPartial;
+
+            this.isDelete = this._hasDeletedFlag(this.inputFeature);
             this.enrichFeature();
         }
 
@@ -114,10 +117,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws VersionConflictError, MergeConflictError, FeatureExistsError
          */
         writeFeature() {
-            if (this.inputFeature.properties["@ns:com:here:xyz"].deleted == true)
-                this.deleteFeature();
-
-            return this.writeRow();
+            return isDelete ? this.deleteFeature() : this.writeRow();
         }
 
         /**
@@ -210,6 +210,10 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
         }
 
+        _operation2HumanReadable(operation) {
+            return operation == "I" || operation == "H" ? "insert" : operation == "U" || operation == "J" ? "update" : "delete";
+        }
+
         /**
          * @throws FeatureExistsError
          */
@@ -287,7 +291,46 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws VersionConflictError, MergeConflictError
          */
         handleVersionConflict() {
+            return this.isDelete ? this.handleDeleteVersionConflict() : this.handleWriteVersionConflict();
+        }
 
+        handleWriteVersionConflict() {
+            switch (this.onVersionConflict) {
+                case "MERGE":
+                    return this.mergeChanges();
+                case "ERROR":
+                    this._throwVersionConflictError();
+                case "REPLACE": {
+                    this.onVersionConflict = null;
+                    return this.writeRow();
+                }
+                case "RETAIN":
+                    return null; //TODO: Check status-quo impl whether we should return the existing HEAD instead
+            }
+        }
+
+        handleDeleteVersionConflict() {
+            switch (this.onVersionConflict) {
+                case "MERGE":
+                    let headFeature = this.loadFeature(this.inputFeature.id);
+                    if (!this._hasDeletedFlag(headFeature))
+                        //Current HEAD state is not deleted
+                        return this.handleMergeConflict();
+                    return headFeature;
+                case "ERROR":
+                    this._throwVersionConflictError();
+                case "REPLACE": {
+                    this.onVersionConflict = null;
+                    return this.deleteRow();
+                }
+                case "RETAIN":
+                    return null; //TODO: Check status-quo impl whether we should return the existing HEAD instead
+            }
+        }
+
+        _throwVersionConflictError() {
+            //TODO: Add error code XYZ49
+            plv8.elog(ERROR, `Version conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}. Base version ${this.baseVersion} is not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))}.`);
         }
 
         /**
@@ -297,11 +340,28 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
         }
 
+
+        //TODO: Harmonize the following two methods
         /**
          * @throws MergeConflictError
          */
         handleMergeConflict() {
+            switch (this.onVersionConflict) {
+                case "ERROR":
+                    this._throwMergeConflictError();
+                case "REPLACE": {
+                    this.onVersionConflict = null;
+                    return this.isDelete ? this.deleteRow() : this.writeRow();
+                }
+                case "RETAIN":
+                    return null; //TODO: Check status-quo impl whether we should return the existing HEAD instead
+            }
+        }
 
+        _throwMergeConflictError() {
+            //TODO: Add error code XYZ49
+            //TODO: In case of write, add all conflicting attributes as info
+            plv8.elog(ERROR, `Merge conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}. Base version ${this.baseVersion} was not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))} and a merge was not possible.`);
         }
 
         loadFeature(id, version = "HEAD") {
@@ -354,6 +414,14 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             }
             else
                 plv8.elog(ERROR, "Found two Features with the same id!");
+        }
+
+        _getFeatureVersion(feature) {
+            return feature.properties["@ns:com:here:xyz"].version;
+        }
+
+        _hasDeletedFlag(feature) {
+            return feature.properties["@ns:com:here:xyz"].deleted == true;
         }
 
         diff(minuend, subtrahend) {
