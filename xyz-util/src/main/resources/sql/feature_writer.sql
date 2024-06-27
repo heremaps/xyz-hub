@@ -97,7 +97,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
         constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             if (isPartial && onNotExists != null)
-              plv8.elog(ERROR, "onNotExists must not be defined for partial writes.", this.inputFeature.id);
+                throw new Error("onNotExists must not be defined for partial writes.");
 
             this.schema = context("schema");
             this.table = context("table");
