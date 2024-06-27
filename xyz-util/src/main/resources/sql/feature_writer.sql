@@ -73,6 +73,45 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
     //Init block of internal feature_writer functionality
     const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
 
+    //TODO: Move classes to own JS file that can then be included by Script installer
+    class Exception extends Error {
+      code = 0;
+      context;
+      detail;
+      hint;
+
+      constructor(message) {
+        super(message);
+      }
+
+      withCode(code) {
+        //Valid characters are within the range of chars: "0" (ASCII: 49) - "o" (ASCII: 111), 00000 however will be mapped to "XX000"
+        if (code == null || typeof code != "string" || code.length != 5)
+          return this;
+
+        let numericCode = 0;
+        for (let i in code)
+          numericCode += Math.pow(64, i) * (code[i].charCodeAt(0) - 48);
+        this.code = numericCode;
+        return this;
+      }
+
+      withContext(context) {
+        this.context = context;
+        return this;
+      }
+
+      withDetail(detail) {
+        this.detail = detail;
+        return this;
+      }
+
+      withHint(hint) {
+        this.hint = hint;
+        return this;
+      }
+    }
+
     /**
      * The unified implementation of the database-based feature writer.
      */
@@ -228,8 +267,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             if (this.onVersionConflict == null) {
 
                    //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
-                let sql = "INSERT INTO \""+ this.schema + "\".\"" + this.table + "\" AS tbl "
-                    + "(id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5 - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6))) ";
+                let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
+                            (id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5 - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6)))`;
 
                 switch(this.onExists){
                     case "REPLACE" :
