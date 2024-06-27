@@ -101,17 +101,17 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.context = context("context");
             this.historyEnabled = context("historyEnabled");
 
+            this.isDelete = this._hasDeletedFlag(this.inputFeature);
             this.inputFeature = inputFeature;
             this.version = version;
             this.author = author;
-            this.onExists = onExists == null ? 'REPLACE' : onExists;
-            this.onNotExists = onNotExists == null ? 'CREATE' : onNotExists;
-            this.onVersionConflict = onVersionConflict;
+            this.onExists = onExists || "REPLACE";
+            this.onNotExists = onNotExists || "CREATE";
+            this.onVersionConflict = onVersionConflict || (this.isDelete ? "REPLACE" : "MERGE");
             this.onMergeConflict = onMergeConflict;
             this.isPartial = isPartial;
 
             this.enrichFeature();
-            this.isDelete = this._hasDeletedFlag(this.inputFeature);
         }
 
         /**
@@ -248,7 +248,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
                     sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB), jsondata) ";
 
-                    //TODO check if there is a possibility without a deep-copy!
+                    //TODO check if there is a possibility without a deep-copy! (See: #_insertHistoryRow method)
                     let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
                     delete featureClone.geometry;
 
@@ -496,19 +496,19 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             return diff;
         }
 
+        /**
+         * NOTE: target is mandatory to be a valid (existing) feature
+         */
         patch(target, inputDiff) {
-            if(target == null)
-                return inputDiff;
-
             for (let key in inputDiff) {
                 if (inputDiff.hasOwnProperty(key)) {
                     if (inputDiff[key] === null)
                         delete target[key];
-                    else if (typeof inputDiff[key] === 'object' && !Array.isArray(inputDiff[key]) && inputDiff[key] !== null) {
+                    else if (typeof inputDiff[key] == "object" && !Array.isArray(inputDiff[key]) && inputDiff[key] !== null) {
                         if (!target[key])
                           target[key] = {};
                         //TODO: Deactivate notices depending on a DEBUG env variable
-                        plv8.elog(NOTICE, 'patch [', key, '] -> ', JSON.stringify(target[key]), '-', JSON.stringify(inputDiff[key]));
+                        plv8.elog(NOTICE, "patch [", key, "] -> ", JSON.stringify(target[key]), "-", JSON.stringify(inputDiff[key]));
                         target[key] = this.patch(target[key], inputDiff[key]);
                     }
                     else
