@@ -101,8 +101,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.context = context("context");
             this.historyEnabled = context("historyEnabled");
 
-            this.isDelete = this._hasDeletedFlag(this.inputFeature);
             this.inputFeature = inputFeature;
+            this.isDelete = this._hasDeletedFlag(this.inputFeature);
             this.version = version;
             this.author = author;
             this.onExists = onExists || "REPLACE";
@@ -219,58 +219,110 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws FeatureExistsError
          */
          writeRowWithoutHistory() {
-            //TODO: onVersionConflict & baseVersion is missing in method signature
+              if (this.isPartial)
+                this.inputFeature = this.patch(this.loadFeature(this.inputFeature.id), this.inputFeature);
+
             if (this.onVersionConflict == null) {
-                if (this.isPartial)
-                    this.inputFeature = this.patch(this.loadFeature(this.inputFeature.id), this.inputFeature);
 
-                    //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
-                    let sql = "INSERT INTO \""+ this.schema + "\".\"" + this.table + "\" AS tbl "
-                        + "(id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5, ST_Force3D(ST_GeomFromGeoJSON($6))) ";
+                   //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
+                let sql = "INSERT INTO \""+ this.schema + "\".\"" + this.table + "\" AS tbl "
+                    + "(id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5 - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6))) ";
 
-                    switch(this.onExists){
-                        case "REPLACE" :
-                            sql += ` ON CONFLICT (id, version, next_version) DO UPDATE SET
-                                  version = greatest(tbl.version, EXCLUDED.version),
-                                  operation = 'U',
-                                  author = EXCLUDED.author,
-                                  jsondata = jsonb_set(EXCLUDED.jsondata, '{properties,@ns:com:here:xyz,createdAt}',
-                                         tbl.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'),
-                                  geo = EXCLUDED.geo`;
-                            break;
+                switch(this.onExists){
+                    case "REPLACE" :
+                        sql += `ON CONFLICT (id, version, next_version) DO UPDATE SET
+                              version = greatest(tbl.version, EXCLUDED.version),
+                              operation = 'U',
+                              author = EXCLUDED.author,
+                              jsondata = jsonb_set(EXCLUDED.jsondata, '{properties,@ns:com:here:xyz,createdAt}',
+                                     tbl.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'),
+                              geo = EXCLUDED.geo `;
+                        break;
+                    case "RETAIN" :
+                        sql += " ON CONFLICT(id, version, next_version) DO NOTHING "
+                        break;
+                    case "DELETE" :
+                        return this.deleteFeature();
+                    case "ERROR" : break;
+                        //TODO Catch exception and thrown own exception?
+                }
+
+                //sql += "RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature) ";
+                sql += "RETURNING (jsondata->'properties'->'@ns:com:here:xyz'->'createdAt') as created_at, operation ";
+
+                //TODO check if there is a possibility without a deep-copy!
+                let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
+                delete featureClone.geometry;
+
+                let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
+                let writtenFeature = plan.execute(this.inputFeature.id,
+                    this.version,
+                    //TODO set version operation
+                    this.operation,
+                    this.author,
+                    this.inputFeature,
+                    this.inputFeature.geometry
+                );
+
+                if(writtenFeature.length == 0){
+                    if(this.onExists == 'RETAIN')
+                        return null; //Expected
+                    plv8.elog(ERROR, "NOTHING WRITTEN!");
+                }
+
+                if(writtenFeature[0].operation == 'U'){
+                    //Inject createdAt
+                    this.inputFeature.properties['@ns:com:here:xyz'].createdAt = writtenFeature[0].created_at[0];
+                }else{
+                   switch(this.onNotExists){
+                        case "CREATE" : break; //NOTHING TO DO;
+                        case "ERROR" :
+                            plv8.elog(ERROR,`Feature with ID ${this.inputFeature.id} does not exists!`);
                         case "RETAIN" :
-                            sql += " ON CONFLICT(id, version, next_version) DO NOTHING"
-                            break;
-                        case "DELETE" :
-                            return this.deleteFeature();
-                        case "ERROR" : break;
+                            //TODO solve upsert
+                            this.deleteFeature();
+                            return null;
                     }
+                }
 
-                    sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB), jsondata) ";
-
-                    //TODO check if there is a possibility without a deep-copy! (See: #_insertHistoryRow method)
-                    let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
-                    delete featureClone.geometry;
-
-                    let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
-                    let writtenFeature = plan.execute(this.inputFeature.id,
-                        this.version,
-                        //TODO set version operation
-                        this.operation,
-                        this.author,
-                        //TODO - check if nessecary - Isnt version & author also written now in status quo impl?
-                        featureClone,
-                        this.inputFeature.geometry
-                    );
-
-                    return writtenFeature.length > 0 ? writtenFeature[0].coalesce : null;
+                return this.inputFeature;
             }else{
-                let baseVersion = this.inputFeature.properties[@ns:com:here:xyz].version;
+            /**
+                TODO : implement non-conflict Case! In this case we
+             */
+                if(this.baseVersion == undefined)
+                   this._throwUserError('Provided Feature does not have a baseVersion!');
 
-                if(baseVersion == undefined)
-                    ;//throw Error!
+                let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
+                delete featureClone.geometry;
 
-                let headFeature = this.loadFeature(this.inputFeature.id, baseVersion);
+                let sql = `UPDATE "${this.schema}"."${this.table}" AS tbl
+                          SET version = $1,
+                          operation = $2,
+                          author = $3,
+                          jsondata = jsonb_set($4, '{properties,@ns:com:here:xyz,createdAt}',
+                                    tbl.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'),
+                          geo = ST_Force3D(ST_GeomFromGeoJSON($5))
+                        WHERE
+                            id = $6 AND version = $7
+                        RETURNING (jsondata->'properties'->'@ns:com:here:xyz'->'createdAt') as created_at, operation `;
+
+                let plan = plv8.prepare(sql, ['BIGINT','CHAR','TEXT','JSONB','JSONB','TEXT','BIGINT']);
+                let writtenFeature = plan.execute(
+                    this.version,
+                    //TODO set version operation
+                    this.operation,
+                    this.author,
+                    featureClone,
+                    this.inputFeature.geometry,
+                    this.inputFeature.id,
+                    this.baseVersion
+                );
+
+                if(writtenFeature.length == 0){
+                    plv8.elog(NOTICE, "Version conflict");
+                    return this.handleVersionConflict()
+                }
             }
         }
 
@@ -348,6 +400,10 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 case "RETAIN":
                     return null; //TODO: Check status-quo impl whether we should return the existing HEAD instead
             }
+        }
+
+        _throwUserError(errMessage) {
+            plv8.elog(ERROR, 'Bad Request! '+errMessage);
         }
 
         _throwVersionConflictError() {
@@ -456,7 +512,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         _hasDeletedFlag(feature) {
-            return feature.properties["@ns:com:here:xyz"].deleted == true;
+            return this.inputFeature.properties == undefined ? false : this.inputFeature.properties["@ns:com:here:xyz"].deleted == true;
         }
 
         /**

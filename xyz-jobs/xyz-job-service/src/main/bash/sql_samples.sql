@@ -236,10 +236,12 @@ select clean_feature('{
 
 ------------------------------------------------------------------------------------------------------------
 
-select context('schema','public'::text);
-select context('table','iml-import-test-max:test-layer-max-2'::text);
-select context('context','default'::text);
-select context('historyEnabled',false::boolean);
+select context('{
+		"schema" : "public",
+		"table" : "iml-import-test-max:test-layer-max-2",
+		"context" : "default",
+		"historyEnabled" : false
+	}'::JSONB);
 
 select write_feature(
                '{"id":"id3","properties":{"foo232": "bar","foo2":null},"geometry":null}',  --feature
