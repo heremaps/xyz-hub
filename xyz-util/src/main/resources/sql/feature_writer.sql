@@ -82,6 +82,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
       constructor(message) {
         super(message);
+        this.withDetail(this.constructor.name + ": ");
       }
 
       withCode(code) {
@@ -112,6 +113,33 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
       }
     }
 
+    class XyzException extends Exception {
+      constructor(message) {
+        super(message);
+        this.withCode("XYZ50");
+      }
+    }
+
+    class VersionConflictError extends XyzException {
+      constructor(message) {
+        super(message);
+        this.withCode("XYZ49");
+      }
+    }
+
+    class MergeConflictError extends VersionConflictError {
+      constructor(message) {
+        super(message);
+      }
+    }
+
+    class IllegalArgumentException extends XyzException {
+      constructor(message) {
+        super(message);
+        this.withCode("XYZ40");
+      }
+    }
+
     /**
      * The unified implementation of the database-based feature writer.
      */
@@ -136,7 +164,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
         constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             if (isPartial && onNotExists != null)
-                throw new Error("onNotExists must not be defined for partial writes.");
+                throw new IllegalArgumentException("onNotExists must not be defined for partial writes.");
 
             this.schema = context("schema");
             this.table = context("table");
@@ -309,7 +337,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 if(writtenFeature.length == 0){
                     if(this.onExists == 'RETAIN')
                         return null; //Expected
-                    plv8.elog(ERROR, "NOTHING WRITTEN!");
+                    throw new XyzException("NOTHING WRITTEN!"); //Why to throw this here?
                 }
 
                 if(writtenFeature[0].operation == 'U'){
@@ -318,8 +346,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 }else{
                    switch(this.onNotExists){
                         case "CREATE" : break; //NOTHING TO DO;
-                        case "ERROR" :
-                            plv8.elog(ERROR,`Feature with ID ${this.inputFeature.id} does not exists!`);
+                        case "ERROR":
+                            throw new Exception(`Feature with ID ${this.inputFeature.id} does not exists!`).withCode("XYZ44");
                         case "RETAIN" :
                             //TODO solve upsert
                             this.deleteFeature();
@@ -332,8 +360,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             /**
                 TODO : implement non-conflict Case! In this case we
              */
-                if(this.baseVersion == undefined)
-                   this._throwUserError('Provided Feature does not have a baseVersion!');
+                if (this.baseVersion == undefined)
+                    throw new IllegalArgumentException("Provided Feature does not have a baseVersion!");
 
                 let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
                 delete featureClone.geometry;
@@ -444,13 +472,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             }
         }
 
-        _throwUserError(errMessage) {
-            plv8.elog(ERROR, 'Bad Request! '+errMessage);
-        }
-
         _throwVersionConflictError() {
-            //TODO: Add error code XYZ49
-            plv8.elog(ERROR, `Version conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}. Base version ${this.baseVersion} is not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))}.`);
+            throw new VersionConflictError(`Version conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}.`)
+                .withHint(`Base version ${this.baseVersion} is not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))}.`)
         }
 
         /**
@@ -492,9 +516,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         _throwMergeConflictError() {
-            //TODO: Add error code XYZ49
             //TODO: In case of write, add all conflicting attributes as info (stored in this.attributeConflicts)
-            plv8.elog(ERROR, `Merge conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}. Base version ${this.baseVersion} was not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))} and a merge was not possible.`);
+            throw new MergeConflictError(`Merge conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}.`)
+                .withHint(`Base version ${this.baseVersion} was not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))} and a merge was not possible.`);
         }
 
         loadFeature(id, version = "HEAD") {
@@ -546,7 +570,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 return feature;
             }
             else
-                plv8.elog(ERROR, "Found two Features with the same id!");
+                //Unexpected exception:
+                throw new XyzException("Found two Features with the same id!");
         }
 
         _getFeatureVersion(feature) {
