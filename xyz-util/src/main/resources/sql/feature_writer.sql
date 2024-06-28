@@ -140,6 +140,13 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
       }
     }
 
+    class FeatureExistsException extends XyzException {
+      constructor(message) {
+        super(message);
+        this.withCode("XYZ44");
+        }
+    }
+
     /**
      * The unified implementation of the database-based feature writer.
      */
@@ -325,36 +332,46 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 delete featureClone.geometry;
 
                 let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
-                let writtenFeature = plan.execute(this.inputFeature.id,
-                    this.version,
-                    //TODO set version operation
-                    this.operation,
-                    this.author,
-                    this.inputFeature,
-                    this.inputFeature.geometry
-                );
 
-                if(writtenFeature.length == 0){
-                    if(this.onExists == 'RETAIN')
-                        return null; //Expected
-                    throw new XyzException("NOTHING WRITTEN!"); //Why to throw this here?
-                }
+                try{
+                   let writtenFeature = plan.execute(this.inputFeature.id,
+                        this.version,
+                        //TODO set version operation
+                        this.operation,
+                        this.author,
+                        this.inputFeature,
+                        this.inputFeature.geometry
+                    );
 
-                if(writtenFeature[0].operation == 'U'){
-                    //Inject createdAt
-                    this.inputFeature.properties['@ns:com:here:xyz'].createdAt = writtenFeature[0].created_at[0];
-                }else{
-                   switch(this.onNotExists){
-                        case "CREATE" : break; //NOTHING TO DO;
-                        case "ERROR":
-                            throw new Exception(`Feature with ID ${this.inputFeature.id} does not exists!`).withCode("XYZ44");
-                        case "RETAIN" :
-                            //TODO solve upsert
-                            this.deleteFeature();
-                            return null;
+                    if(writtenFeature.length == 0){
+                      if(e.sqlerrcode == '23505')
+                        this._throwFeatureExistsError();
+
+                      throw new XyzException("Unexpected Error!")
+                        .withDetail(e.detail)
+                        .withHint(e.hint);
                     }
-                }
 
+                    if(writtenFeature[0].operation == 'U'){
+                        //Inject createdAt
+                        this.inputFeature.properties['@ns:com:here:xyz'].createdAt = writtenFeature[0].created_at[0];
+                    }else{
+                       switch(this.onNotExists){
+                            case "CREATE" : break; //NOTHING TO DO;
+                            case "ERROR":
+                                this._throwFeatureExistsError();
+                            case "RETAIN" :
+                                //TODO solve upsert
+                                this.deleteFeature();
+                            return null;
+                        }
+                    }
+                }catch(e){
+                    if(e.sqlerrcode != undefined && e.sqlerrcode == '23505')
+                        this._throwFeatureExistsError();
+                    //TODO - which kind of error we want to use here?
+                    throw e;
+                }
                 return this.inputFeature;
             }else{
             /**
@@ -394,6 +411,10 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                     return this.handleVersionConflict()
                 }
             }
+        }
+
+        _throwFeatureExistsError() {
+            throw new FeatureExistsException(`Feature with ID ${this.inputFeature.id} does not exists!`).withCode("XYZ44");
         }
 
         /**
