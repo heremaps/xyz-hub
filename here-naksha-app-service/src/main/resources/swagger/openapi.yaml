@@ -5,12 +5,14 @@ servers:
     description: "Local"
   - url: "https://naksha-v2-dev.ext.mapcreator.here.com/"
     description: "DEV"
+  - url: "https://naksha-v2-e2e.ext.mapcreator.here.com/"
+    description: "E2E"
   - url: "https://naksha-v2.ext.mapcreator.here.com/"
     description: "PRD"
 info:
   title: "Naskha Hub-API"
   description: "Naksha Hub-API is a REST API to provide simple access to geo data."
-  version: "2.0.18"
+  version: "2.0.19"
 
 security:
   - AccessToken: [ ]
