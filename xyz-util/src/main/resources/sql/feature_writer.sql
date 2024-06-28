@@ -58,7 +58,7 @@ CREATE OR REPLACE FUNCTION get_next_version() RETURNS BIGINT AS $BODY$
     let fullQualifiedSequenceName = "\"" + context("schema") + "\".\"" + sequenceName + "\"";
 
     //Actual executions
-    plv8.execute("SELECT nextval($1)", fullQualifiedSequenceName)[0].nextval[0];
+    return plv8.execute("SELECT nextval($1)", fullQualifiedSequenceName)[0].nextval;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 
@@ -177,7 +177,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.author = author;
             this.onExists = onExists || "REPLACE";
             this.onNotExists = onNotExists || (isPartial ? "ERROR" : "CREATE");
-            this.onVersionConflict = onVersionConflict || (this.isDelete ? "REPLACE" : "MERGE");
+            this.onVersionConflict = onVersionConflict == null ? null : onVersionConflict || (this.isDelete ? "REPLACE" : "MERGE");
             this.onMergeConflict = onMergeConflict;
             this.isPartial = isPartial;
 
@@ -294,7 +294,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
             if (this.onVersionConflict == null) {
 
-                   //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
+                //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
                 let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
                             (id, version, operation, author, jsondata, geo) VALUES ($1, $2, $3, $4, $5 - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6)))`;
 
@@ -579,7 +579,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         _hasDeletedFlag(feature) {
-            return this.inputFeature.properties == undefined ? false : this.inputFeature.properties["@ns:com:here:xyz"].deleted == true;
+            return this.inputFeature.properties == undefined
+				|| this.inputFeature.properties["@ns:com:here:xyz"] == undefined ?
+			false : this.inputFeature.properties["@ns:com:here:xyz"].deleted == true;
         }
 
         /**
