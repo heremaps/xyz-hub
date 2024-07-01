@@ -63,6 +63,6 @@ public class UploadUrl extends Input<UploadUrl> {
 
   @JsonIgnore
   public long getEstimatedUncompressedByteSize() {
-    return compressed ? byteSize * 10 : byteSize;
+    return compressed ? byteSize * 12 : byteSize;
   }
 }
