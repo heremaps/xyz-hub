@@ -65,7 +65,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @Override
   public int getTimeoutSeconds() {
-    int timeoutSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexTimeoutSeconds(getUncompressedUploadBytesEstimation(), index);
+    int timeoutSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexTimeoutSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), index);
     logger.info("[{}] {} timeoutSeconds {} ({})", getGlobalStepId(), index, timeoutSeconds, getUncompressedUploadBytesEstimation());
     return timeoutSeconds;
   }
