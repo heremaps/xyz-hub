@@ -19,7 +19,10 @@
 
 package com.here.xyz.jobs.service;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
+import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -40,6 +43,7 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import org.apache.http.client.HttpResponseException;
 
 public class JobAdminApi extends Api {
   private static final String ADMIN_JOBS = "/admin/jobs";
@@ -64,10 +68,15 @@ public class JobAdminApi extends Api {
   }
 
   private void getJob(RoutingContext context) {
-    Job.load(jobId(context))
+    loadJob(jobId(context))
         //TODO: Use internal serialization here
         .onSuccess(job -> sendResponseWithXyzSerialization(context, OK, job))
         .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private static Future<Job> loadJob(String jobId) {
+    return Job.load(jobId)
+        .compose(job -> job == null ? Future.failedFuture(new HttpResponseException(404, "NOT_FOUND")) : Future.succeededFuture(job));
   }
 
   private void deleteJob(RoutingContext context) throws HttpException {
@@ -78,14 +87,14 @@ public class JobAdminApi extends Api {
 
   private void postStep(RoutingContext context) throws HttpException {
     Step step = getStepFromBody(context);
-    Job.load(jobId(context))
+    loadJob(jobId(context))
         .compose(job -> job.updateStep(step).mapEmpty())
         .onSuccess(v -> sendResponseWithXyzSerialization(context, OK, null))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
   private void getStep(RoutingContext context) {
-    Job.load(jobId(context))
+    loadJob(jobId(context))
         .compose(job -> {
           Step step = job.getStepById(stepId(context));
           return step == null
@@ -136,31 +145,37 @@ public class JobAdminApi extends Api {
       else if (sfnStatus == null)
         logger.error("The state machine event does not include a status: {}", event);
       else
-        Job.load(jobId)
+        loadJob(jobId)
             .compose(job -> {
               State newJobState = switch (sfnStatus) {
                 case "SUCCEEDED" -> SUCCEEDED;
-                case "FAILED" -> FAILED;
-                case "TIMED_OUT" -> FAILED;
+                case "FAILED", "TIMED_OUT" -> FAILED;
                 default -> null;
               };
               if (newJobState != null) {
                 if (newJobState.isFinal())
                   JobService.callFinalizeObservers(job);
 
+                Future<Void> future = Future.succeededFuture();
                 if (newJobState == SUCCEEDED)
                   JobExecutor.getInstance().delete(job.getStateMachineArn());
-                else if (newJobState == FAILED && "TIMED_OUT".equals(sfnStatus)) {
-                  final String existingErrCause = job.getStatus().getErrorCause();
-                  job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
+                else if (newJobState == FAILED) {
+                  if ("TIMED_OUT".equals(sfnStatus)) {
+                    final String existingErrCause = job.getStatus().getErrorCause();
+                    job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
+                  }
+                  future = Future.all(job.getSteps().stepStream().filter(step -> step.getStatus().getState() == PENDING).map(pendingStep -> {
+                    pendingStep.getStatus().setState(CANCELLING);
+                    pendingStep.getStatus().setState(CANCELLED);
+                    return job.storeUpdatedStep(pendingStep);
+                  }).toList()).recover(t -> Future.succeededFuture()).map(null);
                 }
 
-                if (job.getStatus().getState() == newJobState)
-                  return Future.succeededFuture();
-
                 State oldState = job.getStatus().getState();
-                job.getStatus().setState(newJobState);
-                return job.storeStatus(oldState);
+                if (oldState != newJobState)
+                  job.getStatus().setState(newJobState);
+
+                return future.compose(v -> job.storeStatus(oldState));
               }
               else
                 return Future.succeededFuture();
