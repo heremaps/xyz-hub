@@ -168,7 +168,7 @@ public class JobAdminApi extends Api {
                     pendingStep.getStatus().setState(CANCELLING);
                     pendingStep.getStatus().setState(CANCELLED);
                     return job.storeUpdatedStep(pendingStep);
-                  }).toList()).recover(t -> Future.succeededFuture()).map(null);
+                  }).toList()).recover(t -> Future.succeededFuture()).mapEmpty();
                 }
 
                 State oldState = job.getStatus().getState();
@@ -180,7 +180,7 @@ public class JobAdminApi extends Api {
               else
                 return Future.succeededFuture();
             })
-            .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", t));
+            .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", jobId, t));
     }
     else
       logger.error("The state machine event does not include a detail field: {}", event);
