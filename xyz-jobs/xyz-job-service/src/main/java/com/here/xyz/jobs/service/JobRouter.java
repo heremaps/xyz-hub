@@ -60,7 +60,7 @@ public class JobRouter implements AbstractRouterBuilder {
     ObjectMapper om = new ObjectMapper(new YAMLFactory());
 
     try {
-      return OpenAPIContract.from(vertx, new JsonObject(om.readValue(CONTRACT_API, Map.class))).flatMap(contract -> {
+      return OpenAPIContract.from(vertx, new JsonObject(om.readValue(CONTRACT_API, Map.class))).compose(contract -> {
         RouterBuilder rb = RouterBuilder.create(vertx, contract);
 
         for (OpenAPIRoute route : rb.getRoutes())
