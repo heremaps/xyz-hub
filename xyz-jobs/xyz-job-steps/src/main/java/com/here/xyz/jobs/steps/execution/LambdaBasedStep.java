@@ -449,7 +449,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         catch (Exception e) {
           //Report error synchronously
           request.getStep().reportFailure(e, false, false);
-          throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
+          throw new RuntimeException("Error executing request of type " + request.getType() + " for step " + request.getStep().getGlobalStepId(), e);
         }
       }
 

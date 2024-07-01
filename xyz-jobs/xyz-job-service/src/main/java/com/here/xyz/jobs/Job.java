@@ -283,7 +283,6 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
-    State oldState = getStatus().getState();
     if (step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
