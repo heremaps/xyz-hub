@@ -126,7 +126,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 15 * 3600;
+    return ResourceAndTimeCalculator.getInstance().calculateImportTimeoutSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
   }
 
   @Override
