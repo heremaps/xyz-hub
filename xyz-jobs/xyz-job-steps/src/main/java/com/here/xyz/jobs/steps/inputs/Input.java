@@ -80,7 +80,9 @@ public abstract class Input <T extends Input> implements Typed {
       inputs = tmpPool.submit(() -> loadAndTransformInputs(jobId, -1)).get();
     }
     catch (InterruptedException | ExecutionException ignore) {}
-    tmpPool.shutdown();
+    finally {
+      tmpPool.shutdown();
+    }
     return inputs;
   }
 

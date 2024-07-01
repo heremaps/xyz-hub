@@ -35,6 +35,11 @@ public class UploadUrl extends Input<UploadUrl> {
     return S3Client.getInstance().generateUploadURL(getS3Key());
   }
 
+  @JsonView(Public.class)
+  public URL getDownloadUrl() {
+    return S3Client.getInstance().generateDownloadURL(getS3Key());
+  }
+
   public long getByteSize() {
     return byteSize;
   }
