@@ -28,8 +28,17 @@ import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 public abstract class AbstractHttpServerVerticle extends BaseHttpServerVerticle {
+
+  private static final Logger logger = LogManager.getLogger();
+  private static List<Consumer<RoutingContext>> responseEndObservers = new ArrayList<>();
 
   /**
    * The max request size handler.
@@ -76,5 +85,21 @@ public abstract class AbstractHttpServerVerticle extends BaseHttpServerVerticle 
       }
       context.next();
     };
+  }
+
+  public static void registerResponseEndObservers(Consumer<RoutingContext> consumer) {
+    responseEndObservers.add(consumer);
+  }
+
+  @Override
+  protected void onResponseEnd(RoutingContext context) {
+    super.onResponseEnd(context);
+    responseEndObservers.forEach(c -> {
+      try {
+        c.accept(context);
+      } catch (Exception e) {
+        logger.error("Error during execution of response end observer", e);
+      }
+    });
   }
 }
