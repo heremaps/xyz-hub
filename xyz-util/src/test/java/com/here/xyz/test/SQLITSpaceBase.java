@@ -19,9 +19,12 @@
 
 package com.here.xyz.test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import org.json.JSONObject;
@@ -37,13 +40,14 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class SQLITSpaceBase extends SQLITBase{
   private static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
 
   protected enum SQLErrorCodes {
     XYZ40, //Illegal Argument
-    XYZ44, //Feature not exists
+    XYZ44, //Feature exists
     XYZ49, //VersionConflictError
     XYZ50  //XyzException
   }
@@ -72,6 +76,14 @@ public class SQLITSpaceBase extends SQLITBase{
     REPLACE, //Default for DELETE
     RETAIN,
     ERROR
+  }
+
+  protected enum Operation {
+    I, //Insert
+    U, //Update
+    D, //Delete
+    H, //InsertHide
+    J  //UpdateHide
   }
   
   String table = this.getClass().getSimpleName();
@@ -112,11 +124,11 @@ public class SQLITSpaceBase extends SQLITBase{
 
   protected int[] runWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
                                     OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                                    SpaceContext spaceContext) throws Exception {
+                                    SpaceContext spaceContext, boolean historyEnabled) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       List<SQLQuery> q = generateWriteFeatureQuery(featureList, author,
               onExists, onNotExists, onVersionConflict, onMergeConflict,
-              isPartial, spaceContext);
+              isPartial, spaceContext, historyEnabled);
 
       return SQLQuery.batchOf(q).writeBatch(dsp);
     }
@@ -124,20 +136,20 @@ public class SQLITSpaceBase extends SQLITBase{
 
   protected void runWriteFeatureQueryWithSQLAssertion(List<Feature> featureList, String author, OnExists onExists,
              OnNotExists onNotExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-             boolean isPartial, SpaceContext spaceContext, SQLErrorCodes expectedErrorCode) throws Exception {
+             boolean isPartial, SpaceContext spaceContext, boolean historyEnabled, SQLErrorCodes expectedErrorCode) throws Exception {
 
     try{
-      runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext);
+      runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext, historyEnabled);
     }catch (SQLException e){
         if(expectedErrorCode != null)
-          assertEquals(e.getSQLState(), expectedErrorCode.toString());
+          assertEquals(expectedErrorCode.toString(), e.getSQLState());
     }
   }
 
   private List<SQLQuery> generateWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
                            OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                           SpaceContext spaceContext){
-      SQLQuery contextQuery = createContextQuery(spaceContext, isPartial);
+                           SpaceContext spaceContext, boolean historyEnabled){
+      SQLQuery contextQuery = createContextQuery(spaceContext, historyEnabled);
 
       SQLQuery writeFeaturesQuery = new SQLQuery("SELECT write_features(#{featureList}::TEXT, #{author}::TEXT, #{onExists}," +
               "#{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}::BOOLEAN);")
@@ -192,16 +204,15 @@ public class SQLITSpaceBase extends SQLITBase{
     return null;
   }
 
-  protected SQLQuery checkFeature(String id, Long version, Long next_version, Character operation,
-                                  String author, String jsondata, String geo) throws Exception {
+  protected SQLQuery checkExistingFeature(Feature feature, Long version, Long next_version, Operation operation, String author) throws Exception {
     //WIP
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      SQLQuery check = new SQLQuery("Select id, version, next_version, operation, author, jsondata, geo " +
+      SQLQuery check = new SQLQuery("Select id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) as geo " +
               " from ${schema}.${table} " +
               "WHERE id = #{id};")
               .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
               .withVariable(TABLE, table)
-              .withNamedParameter("id", id);
+              .withNamedParameter("id", feature.getId());
 
       check.run(dsp, rs -> {
         if(!rs.next())
@@ -209,7 +220,7 @@ public class SQLITSpaceBase extends SQLITBase{
 
         Long db_version = rs.getLong("version");
         Long db_next_version = rs.getLong("next_version");
-        Character db_operation = rs.getString("operation").charAt(0);
+        String db_operation = rs.getString("operation");
         String db_author = rs.getString("author");
         String db_jsondata = rs.getString("jsondata");
         String db_geo = rs.getString("geo");
@@ -219,17 +230,78 @@ public class SQLITSpaceBase extends SQLITBase{
         if(next_version != null)
           assertEquals(next_version, db_next_version);
         if(operation != null)
-          assertEquals(operation, db_operation);
+          assertEquals(operation.toString(), db_operation);
         if(author != null)
           assertEquals(author, db_author);
-        if(jsondata != null)
-          assertEquals(jsondata, db_jsondata);
-        if(geo != null)
-          assertEquals(geo, db_geo);
+        if(feature.getGeometry() != null)
+          checkGeometry(db_geo, feature.getGeometry());
+        if(feature.getProperties() != null)
+          checkProperties(db_jsondata, feature.getProperties());
 
+        checkNamespace(db_jsondata, author, operation, version);
         return null;
       });
     }
     return null;
+  }
+
+  protected SQLQuery checkNotExistingFeature(Feature feature) throws Exception {
+    //WIP
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      SQLQuery check = new SQLQuery("Select id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) as geo " +
+              " from ${schema}.${table} " +
+              "WHERE id = #{id};")
+              .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
+              .withVariable(TABLE, table)
+              .withNamedParameter("id", feature.getId());
+
+      check.run(dsp, rs -> {
+        if(rs.next())
+          throw new RuntimeException("Feature exists!");
+        return null;
+      });
+    }
+    return null;
+  }
+
+  protected void checkNamespace(String jsondata, String author, Operation operation, long version){
+    try {
+      Feature f = XyzSerializable.deserialize(jsondata);
+
+      long createdAt = f.getProperties().getXyzNamespace().getCreatedAt();
+      long updatedAt = f.getProperties().getXyzNamespace().getUpdatedAt();
+
+      assertEquals(author, f.getProperties().getXyzNamespace().getAuthor());
+      assertNotNull(createdAt);
+      assertNotNull(updatedAt);
+      assertEquals(version, f.getProperties().getXyzNamespace().getVersion() );
+
+      if(operation.equals(Operation.I)){
+        assertEquals(createdAt, updatedAt);
+      }
+
+    }catch (JsonProcessingException e){
+      throw new RuntimeException(e);
+    }
+  }
+
+  protected void checkGeometry(String dbGeometry, Geometry featureGeo){
+    try {
+      Geometry dbGeo = XyzSerializable.deserialize(dbGeometry);
+      dbGeo.getJTSGeometry().equalsExact(featureGeo.getJTSGeometry());
+    }catch (JsonProcessingException e){
+      throw new RuntimeException(e);
+    }
+  }
+
+  protected void checkProperties(String jsondata, Properties featureProperties){
+    try {
+      Feature f = XyzSerializable.deserialize(jsondata);
+      Properties dbProperties = f.getProperties();
+
+      featureProperties.keySet().equals(dbProperties.keySet());
+    }catch (JsonProcessingException e){
+      throw new RuntimeException(e);
+    }
   }
 }

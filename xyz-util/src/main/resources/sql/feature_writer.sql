@@ -307,7 +307,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
                 switch(this.onExists){
                     case "REPLACE" :
-                        sql += `ON CONFLICT (id, version, next_version) DO UPDATE SET
+                        sql += `ON CONFLICT (id, next_version) DO UPDATE SET
                               version = greatest(tbl.version, EXCLUDED.version),
                               operation = 'U',
                               author = EXCLUDED.author,
@@ -407,14 +407,14 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 );
 
                 if(writtenFeature.length == 0){
-                    plv8.elog(NOTICE, "Version conflict");
+                    //plv8.elog(NOTICE, "Version conflict");
                     return this.handleVersionConflict()
                 }
             }
         }
 
         _throwFeatureExistsError() {
-            throw new FeatureExistsException(`Feature with ID ${this.inputFeature.id} does not exists!`).withCode("XYZ44");
+            throw new FeatureExistsException(`Feature with ID ${this.inputFeature.id} exists!`).withCode("XYZ44");
         }
 
         /**
