@@ -25,10 +25,6 @@ import com.here.xyz.jobs.util.S3Client;
 import java.net.URL;
 
 public class UploadUrl extends Input<UploadUrl> {
-  @JsonView(Public.class)
-  private long byteSize;
-  @JsonView(Public.class)
-  private boolean compressed;
 
   @JsonView(Public.class)
   public URL getUrl() {
@@ -40,34 +36,22 @@ public class UploadUrl extends Input<UploadUrl> {
     return S3Client.getInstance().generateDownloadURL(getS3Key());
   }
 
-  public long getByteSize() {
-    return byteSize;
-  }
-
-  public void setByteSize(long byteSize) {
-    this.byteSize = byteSize;
-  }
-
-  public UploadUrl withByteSize(long byteSize) {
-    setByteSize(byteSize);
-    return this;
-  }
-
-  public boolean isCompressed() {
-    return compressed;
-  }
-
-  public void setCompressed(boolean compressed) {
-    this.compressed = compressed;
-  }
-
-  public UploadUrl withCompressed(boolean compressed) {
-    setCompressed(compressed);
-    return this;
-  }
-
   @JsonIgnore
   public long getEstimatedUncompressedByteSize() {
-    return compressed ? byteSize * 12 : byteSize;
+    return isCompressed() ? getByteSize() * 12 : getByteSize();
+  }
+
+  @JsonView(Public.class)
+  @JsonIgnore(false)
+  @Override
+  public long getByteSize() {
+    return super.getByteSize();
+  }
+
+  @JsonView(Public.class)
+  @JsonIgnore(false)
+  @Override
+  public boolean isCompressed() {
+    return super.isCompressed();
   }
 }

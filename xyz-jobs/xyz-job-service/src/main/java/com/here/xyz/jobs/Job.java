@@ -146,7 +146,6 @@ public class Job implements XyzSerializable {
    */
   public Future<Boolean> submit() {
     //TODO: Make sure that all state-transitions are persisted using the JobConfigClient#updateState() method
-    //TODO: Do not re-compile if the steps are set already?
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
           setSteps(stepGraph);
