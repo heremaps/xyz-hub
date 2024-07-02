@@ -132,7 +132,10 @@ public class Database extends ExecutionResource {
   }
 
   private static Future<List<Database>> initializeDatabases() {
-    return HubWebClientAsync.getInstance(Config.instance.HUB_ENDPOINT).loadConnectorsAsync()
+    final HubWebClientAsync hubClient = HubWebClientAsync.getInstance(Config.instance.HUB_ENDPOINT);
+    if (!hubClient.isServiceReachable())
+      return Future.succeededFuture(List.of());
+    return hubClient.loadConnectorsAsync()
         .compose(connectors -> {
           //TODO: Run the following asynchronously
           List<Database> allDbs = new CopyOnWriteArrayList<>();

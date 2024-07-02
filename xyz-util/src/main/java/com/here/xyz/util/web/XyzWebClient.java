@@ -68,6 +68,8 @@ public abstract class XyzWebClient {
     }
   }
 
+  public abstract boolean isServiceReachable();
+
   public static class WebClientException extends Exception {
     public WebClientException(String message) {
       super(message);

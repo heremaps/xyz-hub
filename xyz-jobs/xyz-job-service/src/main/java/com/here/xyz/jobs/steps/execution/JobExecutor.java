@@ -243,10 +243,11 @@ public abstract class JobExecutor implements Initializable {
     return ResourcesRegistry.getFreeVirtualUnits()
         .map(freeVirtualUnits -> job.calculateResourceLoads().stream()
             .allMatch(load -> {
-              final boolean sufficientFreeUnits = load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
+              final boolean sufficientFreeUnits = freeVirtualUnits.containsKey(load.getResource())
+                  && load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
               if (!sufficientFreeUnits)
-                logger.info("Job {} can not be executed (yet) as there are not sufficient units available of resource {}. "
-                        + "Needed units: {}, currently available units: {}",
+                logger.info("Job {} can not be executed (yet) as the resource {} is not available or there are not sufficient "
+                        + "resource units available. Needed units: {}, currently available units: {}",
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             }));

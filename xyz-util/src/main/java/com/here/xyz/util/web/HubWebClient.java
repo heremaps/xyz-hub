@@ -22,6 +22,7 @@ package com.here.xyz.util.web;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.JSON_UTF_8;
 import static com.here.xyz.XyzSerializable.deserialize;
+import static java.time.temporal.ChronoUnit.SECONDS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -33,6 +34,7 @@ import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,19 @@ public class HubWebClient extends XyzWebClient {
 
   protected HubWebClient(String baseUrl) {
     super(baseUrl);
+  }
+
+  @Override
+  public boolean isServiceReachable() {
+    try {
+      request(HttpRequest.newBuilder()
+          .uri(uri("/"))
+          .timeout(Duration.of(3, SECONDS)));
+    }
+    catch (WebClientException e) {
+      return false;
+    }
+    return true;
   }
 
   public static HubWebClient getInstance(String baseUrl) {
