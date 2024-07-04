@@ -476,8 +476,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 sum((state = 'FINISHED')::int) as finished_cnt,
                 sum((state = 'FAILED')::int) as failed_cnt
               FROM ${schema}.${table}
-            	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
-            	 AND STATE != 'SUBMITTED';
+            	 WHERE POSITION('SUCCESS_MARKER' in state) = 0;            	 
           """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryTableName());
