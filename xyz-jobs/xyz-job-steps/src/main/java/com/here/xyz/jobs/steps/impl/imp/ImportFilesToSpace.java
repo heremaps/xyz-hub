@@ -55,7 +55,7 @@ import org.apache.logging.log4j.Logger;
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
-  public static final int MAX_DB_THREAD_CNT = 20;
+  public static final int MAX_DB_THREAD_CNT = 15;
 
   private static final String JOB_DATA_PREFIX = "job_data_";
 
