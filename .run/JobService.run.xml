@@ -19,6 +19,9 @@
 
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="JobService" type="Application" factoryName="Application">
+    <envs>
+      <env name="PARALLEL_STEPS_SUPPORTED" value="false" />
+    </envs>
     <option name="MAIN_CLASS_NAME" value="com.here.xyz.jobs.service.JobService" />
     <module name="xyz-job-service" />
     <extension name="coverage">

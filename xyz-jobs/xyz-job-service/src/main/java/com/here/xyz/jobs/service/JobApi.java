@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.service;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
@@ -31,11 +32,13 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.HttpException;
@@ -44,6 +47,7 @@ import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.lang3.NotImplementedException;
 
 public class JobApi extends Api {
@@ -93,7 +97,6 @@ public class JobApi extends Api {
   private void postJobInput(final RoutingContext context) throws HttpException {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     Input input = getJobInputFromBody(context);
-
     if (input instanceof UploadUrl) {
       loadJob(jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
@@ -103,8 +106,24 @@ public class JobApi extends Api {
           .onSuccess(res -> sendResponse(context, CREATED.code(), res))
           .onFailure(err -> sendErrorResponse(context, err));
     }
+    else if (input instanceof ModelBasedInput modelBasedInput) {
+      loadJob(jobId)
+          .compose(job -> {
+            if (!job.isPipeline())
+              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs other than " + UploadUrl.class.getSimpleName() + "s can be "
+                  + "created for this job."));
+            else if (job.getStatus().getState() != RUNNING)
+              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created for this job before it is running."));
+            else if (context.request().bytesRead() > 256 * 1024)
+              return Future.failedFuture(new HttpException(BAD_REQUEST, "The maximum size of an input for this job is 256KB."));
+            else
+              return job.consumeInput(modelBasedInput);
+          })
+          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
+          .onFailure(err -> sendErrorResponse(context, err));
+    }
     else
-      throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported");
+      throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported.");
   }
 
   private void getJobInputs(final RoutingContext context) {
@@ -169,10 +188,16 @@ public class JobApi extends Api {
 
   private Input getJobInputFromBody(RoutingContext context) throws HttpException {
     try {
-      return XyzSerializable.deserialize(context.body().asString(), Input.class);
+      try {
+        return XyzSerializable.deserialize(context.body().asString(), Input.class);
+      }
+      catch (InvalidTypeIdException e) {
+        Map<String, Object> jsonInput = XyzSerializable.deserialize(context.body().asString(), Map.class);
+        throw new NotImplementedException("Input type " + jsonInput.get("type") + " is not supported.", e);
+      }
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request");
+      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
     }
   }
 

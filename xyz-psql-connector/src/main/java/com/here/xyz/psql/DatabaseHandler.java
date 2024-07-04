@@ -124,7 +124,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     /**
-     * Checks whether the lastest version of all SQL scripts is installed on the DB and returns all script schemas for the use in the
+     * Checks whether the latest version of all SQL scripts is installed on the DB and returns all script schemas for the use in the
      * search path.
      * @return The script schema names (including the newest script version for each script) to be used in the search path
      */

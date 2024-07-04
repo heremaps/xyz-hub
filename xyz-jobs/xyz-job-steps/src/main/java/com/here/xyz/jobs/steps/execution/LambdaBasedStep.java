@@ -45,6 +45,7 @@ import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.aws.SimulatedContext;
@@ -77,16 +78,27 @@ import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
     @JsonSubTypes.Type(value = DatabaseBasedStep.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
-  public static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
+  private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
+  private static final String RETRY_COUNT_TEMPLATE = "$$.State.RetryCount";
+  private static final String PIPELINE_INPUT_TEMPLATE = "$$.Execution.Input";
   public static final String HEART_BEAT_PREFIX = "HeartBeat-";
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
   @JsonView(Internal.class)
-  private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
+  private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
+
   @JsonView(Internal.class)
-  @JsonProperty("retryCount.$")
-  private String retryCount = "$$.State.RetryCount";
+  private int retryCount = -1; //Will be defined by the Step Function
+
+  /**
+   * Contains the raw (unparsed & unresolved) pipeline input if this LambdaBasedStep belongs to a job that is a pipeline.
+   * This value should not be used directly by implementing steps. Implementing steps can gather the input using the well-known
+   * method {@link #loadInputs()}. Using that method will ensure correct deserialization & resolving of the input references.
+   */
+  @JsonView(Internal.class)
+  private Map<String, Object> pipelineInput;
+
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
 
   private static final String INVOKE_SUCCESS = """
@@ -258,12 +270,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   @JsonIgnore
   private boolean isResume() {
-    try {
-      return Integer.parseInt(retryCount) > 0;
-    }
-    catch (Exception e) {
-      return false;
-    }
+    return retryCount > 0;
   }
 
   /**
@@ -351,6 +358,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void synchronizeStepState() {
+    //NOTE: For steps that are part of a pipeline job, do not synchronize the state
+    if (isPipeline())
+      return;
     logger.info("Synchronizing step state for {} with job service ...", getGlobalStepId());
     try {
       //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
@@ -410,6 +420,31 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private String getTaskTokenTemplate() {
     //NOTE: The task token template may only be used for the ASYNC mode
     return getExecutionMode().equals(SYNC) ? null : TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
+  }
+
+  @JsonProperty("retryCount.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getRetryCountTemplate() {
+    return retryCount == -1 ? RETRY_COUNT_TEMPLATE : null;
+  }
+
+  private void setRetryCount(int retryCount) {
+    this.retryCount = retryCount;
+  }
+
+  @JsonProperty("pipelineInput.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getPipelineInputTemplate() {
+    return pipelineInput == null ? PIPELINE_INPUT_TEMPLATE : null;
+  }
+
+  private void setPipelineInput(Map<String, Object> pipelineInput) {
+    this.pipelineInput = pipelineInput;
+  }
+
+  @Override
+  protected List<Input> loadInputs() {
+    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs();
   }
 
   public enum ExecutionMode {
@@ -500,8 +535,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         }
       }
       finally {
-        //The lambda call is complete, call the shutdown hook
-        request.getStep().onRuntimeShutdown();
+        if (request != null && request.getStep() != null)
+          //The lambda call is complete, call the shutdown hook
+          request.getStep().onRuntimeShutdown();
       }
 
       outputStream.write(INVOKE_SUCCESS.getBytes());

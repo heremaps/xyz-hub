@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.jobs.service.Config;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -120,7 +121,7 @@ public class StepGraph implements StepExecution {
   }
 
   public void setParallel(boolean parallel) {
-    this.parallel = parallel;
+    this.parallel = Config.instance.PARALLEL_STEPS_SUPPORTED && parallel;
   }
 
   public StepGraph withParallel(boolean parallel) {

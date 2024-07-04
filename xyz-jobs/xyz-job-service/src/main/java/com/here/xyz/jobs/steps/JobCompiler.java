@@ -65,7 +65,12 @@ public class JobCompiler {
           + "Multiple compilation interceptors were found: "
           + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")), errors);
 
-    return async.run(() -> interceptorCandidates.get(0).compile(job).enrich(job.getId()));
+    return async.run(() -> interceptorCandidates.get(0).compile(job).enrich(job.getId()))
+        .map(graph -> {
+          //Pass the info to all steps whether they belong to a "pipeline-job" or not
+          graph.stepStream().forEach(step -> step.withPipeline(job.isPipeline()));
+          return graph;
+        });
   }
 
   public static JobCompiler getInstance() {
