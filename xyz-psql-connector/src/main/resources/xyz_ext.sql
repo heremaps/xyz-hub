@@ -3272,7 +3272,8 @@ BEGIN
     ELSE
 --         PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
 --         RAISE NOTICE '~~~~~~~~~~~ Connection name %', connectionName;
-        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
+        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password
+                || ' application_name = ' || current_setting('application_name'));
 --         PERFORM pg_sleep(1);
         IF strpos(query, '/*labels(') != 1 THEN
             --Attach the same labels to the recursive async call

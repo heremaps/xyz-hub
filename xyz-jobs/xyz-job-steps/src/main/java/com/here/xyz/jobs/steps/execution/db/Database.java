@@ -88,7 +88,8 @@ public class Database extends ExecutionResource {
 
   DatabaseSettings getDatabaseSettings() {
     if (dbSettings == null)
-      dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap);
+      dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
+              .withApplicationName("JobFW_"+getName());
     return dbSettings;
   }
 
