@@ -47,4 +47,9 @@ public class Config extends com.here.xyz.jobs.steps.Config {
    * The ARN of the role needed for step function
    */
   public String STATE_MACHINE_ROLE;
+
+  /**
+   * Whether steps in a StepGraph can be executed in parallel at all within the target environment.
+   */
+  public boolean PARALLEL_STEPS_SUPPORTED = true;
 }

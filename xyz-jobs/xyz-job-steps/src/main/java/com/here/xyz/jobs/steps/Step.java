@@ -70,6 +70,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private final String MODEL_BASED_PREFIX = "/modelBased";
   @JsonIgnore
   private List<Input> inputs;
+  @JsonView({Internal.class, Static.class})
+  private boolean pipeline;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -207,7 +209,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return Input.currentInputsCount(jobId, inputType);
   }
 
-  protected <T extends Input> List<T> loadInputsSample(int maxSampleSize, Class<T> inputType) {
+  protected <I extends Input> List<I> loadInputsSample(int maxSampleSize, Class<I> inputType) {
     return Input.loadInputsSample(jobId, maxSampleSize, inputType);
   }
 
@@ -364,5 +366,18 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
             .stream()
             .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
             .sum());
+  }
+
+  public boolean isPipeline() {
+    return pipeline;
+  }
+
+  public void setPipeline(boolean pipeline) {
+    this.pipeline = pipeline;
+  }
+
+  public T withPipeline(boolean pipeline) {
+    setPipeline(pipeline);
+    return (T) this;
   }
 }

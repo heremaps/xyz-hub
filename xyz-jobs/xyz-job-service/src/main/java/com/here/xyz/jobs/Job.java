@@ -26,6 +26,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
@@ -40,11 +41,13 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
@@ -145,7 +148,6 @@ public class Job implements XyzSerializable {
    * @return Whether submission was done. If submission was not done, the Job remains in state NOT_READY.
    */
   public Future<Boolean> submit() {
-    //TODO: Make sure that all state-transitions are persisted using the JobConfigClient#updateState() method
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
           setSteps(stepGraph);
@@ -153,7 +155,7 @@ public class Job implements XyzSerializable {
           return prepare().compose(v -> validate());
         })
         .compose(isReady -> {
-          if (isReady) {
+          if (isPipeline() || isReady) {
             getStatus().setState(SUBMITTED);
             Input.registerSubmittedJob(getId());
             return store().compose(v -> start()).map(true);
@@ -332,7 +334,7 @@ public class Job implements XyzSerializable {
   }
 
   public Future<Void> storeUpdatedStep(Step<?> step) {
-    logger.info("{} StoreUpdateStep:{}", step.getGlobalStepId(), getStatus().getState());
+    logger.info("{} StoreUpdatedStep: {}", step.getGlobalStepId(), getStatus().getState());
     return JobConfigClient.getInstance().updateStep(this, step);
   }
 
@@ -414,6 +416,15 @@ public class Job implements XyzSerializable {
 
   public UploadUrl createUploadUrl() {
     return new UploadUrl().withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID());
+  }
+
+  public Future<Void> consumeInput(ModelBasedInput input) {
+    if (!isPipeline())
+      return Future.failedFuture(new IllegalStateException("This job does not accept ModelBasedInputs."));
+    final State state = getStatus().getState();
+    if (state != RUNNING)
+      return Future.failedFuture(new IllegalStateException("This job can not consume any input as it is not RUNNING. Current state: " + state));
+    return JobExecutor.getInstance().sendInput(this, input);
   }
 
   private Future<Void> deleteInputs() {
@@ -618,6 +629,11 @@ public class Job implements XyzSerializable {
   public Job withStatus(RuntimeStatus status) {
     setStatus(status);
     return this;
+  }
+
+  @JsonIgnore
+  public boolean isPipeline() {
+    return getSource() instanceof DynamicStream;
   }
 
   //TODO: Move that method into the cleanup logic

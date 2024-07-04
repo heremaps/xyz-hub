@@ -145,6 +145,13 @@ public abstract class Input <T extends Input> implements Typed {
     return (List<T>) inputsStream.collect(Collectors.toList());
   }
 
+  public static ModelBasedInput resolveRawInput(Map<String, Object> rawInput) {
+    if (rawInput == null)
+      throw new NullPointerException("The raw input may not be null");
+    //TODO: Support resolving InputReferences here
+    return XyzSerializable.fromMap(rawInput, ModelBasedInput.class);
+  }
+
   private static Input createInput(String s3Key, long byteSize, boolean isCompressed) {
     //TODO: Support ModelBasedInputs
     return new UploadUrl()

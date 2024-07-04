@@ -32,6 +32,7 @@ import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
@@ -82,10 +83,16 @@ public abstract class JobExecutor implements Initializable {
 
           //TODO: Update / invalidate the reserved unit maps?
           return job.storeStatus(PENDING)
+              .compose(v -> job.isPipeline() ? setStepsRunning(job) : Future.succeededFuture())
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
         });
+  }
+
+  private Future<Void> setStepsRunning(Job job) {
+    job.getSteps().stepStream().forEach(step -> step.getStatus().setState(RUNNING));
+    return job.store();
   }
 
   private void checkPendingJobs() {
@@ -223,6 +230,8 @@ public abstract class JobExecutor implements Initializable {
   protected abstract Future<String> execute(Job job);
 
   protected abstract Future<String> execute(StepGraph formerGraph, Job job);
+
+  public abstract Future<Void> sendInput(Job job, ModelBasedInput input);
 
   protected abstract Future<String> resume(Job job, String executionId);
 

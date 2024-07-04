@@ -20,12 +20,17 @@
 package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
+import static software.amazon.awssdk.services.sfn.model.StateMachineType.EXPRESS;
+import static software.amazon.awssdk.services.sfn.model.StateMachineType.STANDARD;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import io.vertx.core.Future;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineRequest;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineResponse;
 import software.amazon.awssdk.services.sfn.model.DeleteStateMachineRequest;
@@ -38,23 +43,50 @@ import software.amazon.awssdk.services.sfn.model.StateMachineListItem;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
 
 class StateMachineExecutor extends JobExecutor {
+  private static final Logger logger = LogManager.getLogger();
   private static final String STATE_MACHINE_NAME_PREFIX = "job-";
-  private GraphTransformer graphTransformer = new GraphTransformer(Config.instance.STEP_LAMBDA_ARN);
 
   StateMachineExecutor() {}
 
-  @Override
-  public Future<String> execute(Job job) {
-    return executeStateMachine(job.getId(), graphTransformer.compileToStateMachine(job.getDescription(), job.getSteps()));
+  private GraphTransformer transformer(Job job) {
+    return new GraphTransformer(Config.instance.STEP_LAMBDA_ARN, job.isPipeline());
   }
 
+  @Override
+  public Future<String> execute(Job job) {
+    //NOTE: In case of a pipeline job, *only create* the state machine and do not execute it
+    return createStateMachine(job.getId(), transformer(job).compileToStateMachine(job.getDescription(), job.getSteps()), job.isPipeline())
+        .compose(stateMachineArn -> job.isPipeline() ? Future.succeededFuture(stateMachineArn) : executeStateMachine(job.getId(), stateMachineArn, null));
+  }
+
+  /**
+   * This method can be used to *partially* re-run a job that has been run before.
+   * The former step graph has to partially match the step graph of the specified job.
+   * The common steps will not be part of the resulting state machine and their outputs will be re-used for the processing of the
+   * following steps.
+   *
+   * @param formerGraph
+   * @param job
+   * @return
+   */
   @Override
   public Future<String> execute(StepGraph formerGraph, Job job) {
     StepGraph newGraph = job.getSteps();
     //TODO: Implement graph diff logic here for partially re-usable jobs and put it into "resultGraph"
     StepGraph resultGraph = null;
     //TODO: Overwrite the re-used steps in the new graph with the counterpart of the formerGraph
-    return executeStateMachine(job.getId(), graphTransformer.compileToStateMachine(job.getDescription(), resultGraph));
+    return createStateMachine(job.getId(), transformer(job).compileToStateMachine(job.getDescription(), resultGraph), job.isPipeline())
+        .compose(stateMachineArn -> job.isPipeline() ? Future.succeededFuture(stateMachineArn) : executeStateMachine(job.getId(), stateMachineArn, null));
+  }
+
+  @Override
+  public Future<Void> sendInput(Job job, ModelBasedInput input) {
+    return executeStateMachine(job.getId(), job.getExecutionId(), input.serialize())
+        .map(sfnExecutionId -> {
+          logger.info("Executing express workflow step function {} with execution ID {} for job {} ...", job.getExecutionId(),
+              sfnExecutionId, job.getId());
+          return null;
+        });
   }
 
   @Override
@@ -123,21 +155,14 @@ class StateMachineExecutor extends JobExecutor {
     }
   }
 
-  //TODO: Care about retention of created State Machines! (e.g., automatically delete State Machines one week after having been completed successfully)
-
-  private Future<String> executeStateMachine(String jobId, String stateMachineDefinition) {
+  private Future<String> executeStateMachine(String jobId, String stateMachineArn, String input) {
     //TODO: Asyncify!
 
     try {
-      CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
-              .name(STATE_MACHINE_NAME_PREFIX + jobId)
-              .definition(stateMachineDefinition)
-              .roleArn(Config.instance.STATE_MACHINE_ROLE)
-          .build());
-
       StartExecutionResponse startExecutionResponse = sfnClient().startExecution(StartExecutionRequest.builder()
-              .stateMachineArn(creationResponse.stateMachineArn())
-              .name(jobId)
+          .stateMachineArn(stateMachineArn)
+          .name(jobId)
+          .input(input == null ? "{}" : input)
           .build());
 
       return Future.succeededFuture(startExecutionResponse.executionArn());
@@ -145,5 +170,17 @@ class StateMachineExecutor extends JobExecutor {
     catch (Exception e) {
       return Future.failedFuture(e);
     }
+  }
+
+  private static Future<String> createStateMachine(String jobId, String stateMachineDefinition, boolean isPipeline) {
+    //TODO: Asyncify!
+
+    CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
+        .name(STATE_MACHINE_NAME_PREFIX + jobId)
+        .definition(stateMachineDefinition)
+        .roleArn(Config.instance.STATE_MACHINE_ROLE)
+        .type(isPipeline ? EXPRESS : STANDARD)
+        .build());
+    return Future.succeededFuture(creationResponse.stateMachineArn());
   }
 }
