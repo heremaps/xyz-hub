@@ -185,6 +185,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    _execute(false);
+  }
+
+  public void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed {
     logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
         + " into space " + getSpaceId() + " ...");
 
@@ -193,18 +197,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-    logAndSetPhase(Phase.SET_READONLY);
-    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
+    if(!isResume) {
+      logAndSetPhase(Phase.SET_READONLY);
+      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-    logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-    long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
-            rs -> {
-              rs.next();
-              return rs.getLong(1);
-            });
+      logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
+      long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
+              rs -> {
+                rs.next();
+                return rs.getLong(1);
+              });
 
-    logAndSetPhase(Phase.CREATE_TRIGGER);
-    runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, 0);
+      logAndSetPhase(Phase.CREATE_TRIGGER);
+      runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS", newVersion), db, 0);
+    }
 
     createAndFillTemporaryTable(db);
 
@@ -358,7 +364,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public void resume() throws Exception {
-    execute();
+    _execute(true);
   }
 
   private SQLQuery buildTemporaryTableForImportQuery(String schema) {
