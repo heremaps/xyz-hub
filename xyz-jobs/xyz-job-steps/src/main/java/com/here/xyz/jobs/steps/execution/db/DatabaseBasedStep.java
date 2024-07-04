@@ -221,7 +221,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     for (RunningQuery runningQuery : runningQueries) {
       try {
         Database db = Database.loadDatabase(runningQuery.dbName, runningQuery.dbId);
-        SQLQuery.killByQueryId(runningQuery.queryId, db.getDataSources(), db.getRole() == READER);
+        SQLQuery.killByQueryId(runningQuery.queryId, requestResource(db, 0), db.getRole() == READER);
       }
       catch (SQLException e) {
         logger.error("Error cancelling query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
@@ -248,10 +248,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .stream()
         .anyMatch(runningQuery -> {
           try {
-            return SQLQuery.isRunning(Database.loadDatabase(runningQuery.dbName, runningQuery.dbId).getDataSources(), false,
+            return SQLQuery.isRunning(requestResource(Database.loadDatabase(runningQuery.dbName, runningQuery.dbId),0), false,
                 runningQuery.queryId);
           }
-          catch (SQLException e) {
+          catch (SQLException | TooManyResourcesClaimed e) {
             /*
             Ignore it if we cannot check the state for (one of) the queries (for now).
             In the worst case, this will lead to an UnknownStateException.
