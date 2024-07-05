@@ -97,6 +97,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return this;
   }
 
+  public void setCalculatedThreadCount(int calculatedThreadCount) {
+    this.calculatedThreadCount = calculatedThreadCount;
+  }
+
+  public ImportFilesToSpace withCalculatedThreadCount(int calculatedThreadCount) {
+      setCalculatedThreadCount(calculatedThreadCount);
+      return this;
+  }
+
   public Phase getPhase() {
     return phase;
   }
