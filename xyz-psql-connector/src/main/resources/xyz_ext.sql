@@ -3264,7 +3264,7 @@ CREATE OR REPLACE FUNCTION _asyncify(query TEXT, deferAfterCommit BOOLEAN, proce
 $BODY$
 DECLARE
     password TEXT := current_setting('xyz.password');
-    connectionName TEXT := xyz_random_string(6);
+    connectionName TEXT := xyz_random_string(10);
 BEGIN
     IF deferAfterCommit THEN
         --Defer the execution (spawn-point) of the query to the end of this thread's execution, to make sure that this thread's transaction has been fully completed / committed before
