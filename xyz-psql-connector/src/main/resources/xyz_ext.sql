@@ -4364,8 +4364,6 @@ AS $BODY$
 DECLARE
     import_statistics record;
     config record;
-    failure_row record;
-    retry_count integer := 2;
 BEGIN
     select * from xyz_import_get_import_config(format) into config;
 
@@ -4405,18 +4403,14 @@ BEGIN
                     38000 Lambda not available
             */
             EXECUTE format('UPDATE %1$s '
-                           ||'set state = %2$L, '
-                           ||'execution_count = execution_count +1 '
-                           ||'WHERE s3_path = %3$L RETURNING *',
+                            ||'set state = %2$L, '
+                            ||'execution_count = execution_count +1, '
+			                ||'data = data || ''{"error" : {"sqlstate":"%3$s"}}'''
+                            ||'WHERE s3_path = %4$L',
                        temporary_tbl,
                        'FAILED',
-                       s3_path) INTO failure_row;
-
-            IF failure_row.execution_count = retry_count THEN
-                RAISE EXCEPTION 'Error on importing file %. Maximum retries are reached %.', right(failure_row.s3_path, 36), retry_count
-                    USING HINT = 'Details: ' || SQLSTATE ,
-                        ERRCODE = 'XYZ52';
-            END IF;
+					   SQLSTATE,
+                       s3_path);
 END;
 $BODY$;
 ------------------------------------------------
@@ -4501,6 +4495,7 @@ $BODY$
 DECLARE
     work_item record;
     sql_text text;
+    retry_count integer := 2;
 BEGIN
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
@@ -4516,6 +4511,10 @@ BEGIN
         ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
             EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
             RETURN;
+        ELSEIF work_item.execution_count >= retry_count THEN
+             RAISE EXCEPTION 'Error on importing file %. Maximum retries are reached %.', right(work_item.s3_path, 36), retry_count
+                 USING HINT = 'Details: ' || (work_item.data->'error'->>'sqlstate') ,
+                    ERRCODE = 'XYZ52';
         END IF;
     END IF;
 
