@@ -3298,7 +3298,6 @@ BEGIN
                 COMMIT;
                 --Start the follow up thread if one has been registered
                 PERFORM CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
-                PERFORM pg_terminate_backend(pg_backend_pid());
             END
             $block$;
         $outer$;
@@ -3310,7 +3309,6 @@ BEGIN
             COMMIT;
             --Start the follow up thread if one has been registered
             SELECT CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
-            SELECT pg_terminate_backend(pg_backend_pid());
         $block$;
     END IF;
 END
