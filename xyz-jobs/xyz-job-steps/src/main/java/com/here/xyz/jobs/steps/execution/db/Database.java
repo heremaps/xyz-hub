@@ -97,6 +97,7 @@ public class Database extends ExecutionResource {
     if (usedDataSourceProvider != null)
       try {
         usedDataSourceProvider.close();
+        usedDataSourceProvider = null;
       }
       catch (Exception e) {
         logger.error("Error closing connections for database {}.", getName(), e);
