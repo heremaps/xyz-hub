@@ -4310,6 +4310,8 @@ BEGIN
             execution_count = result.execution_count;
             -- Result not null -> deliver work_item
             RETURN NEXT;
+        ELSE
+			RETURN QUERY SELECT xyz_import_get_work_item(temporary_tbl);
         END IF;
     ELSE
         EXECUTE format('SELECT count(1) FROM %1$s WHERE state IN (''RUNNING'',''SUBMITTED'');',
@@ -4343,6 +4345,8 @@ BEGIN
                     execution_count = result.execution_count;
                     -- Result not null -> deliver work_item
                     RETURN NEXT;
+                ELSE
+			        RETURN QUERY SELECT xyz_import_get_work_item(temporary_tbl);
                 END IF;
             END IF;
         END If;
@@ -4392,7 +4396,7 @@ BEGIN
                    json_build_object('import_statistics', import_statistics),
                    s3_path);
     EXCEPTION
-        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR SQLSTATE '38000' THEN
+        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
             /** Retryable errors:
                	    55P03 (lock_not_available)
                     23505 (duplicate key value violates unique constraint)
@@ -4500,14 +4504,15 @@ DECLARE
 BEGIN
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
-    IF work_item IS NULL THEN
+    IF work_item.state IS NULL THEN
         RETURN;
     ELSE
         IF work_item.state = 'LAST_ONES_RUNNING' THEN
             -- Last imports are running, no submitted files are left. We need to wait till last import is finished!
-            PERFORM PG_SLEEP(5);
+            PERFORM pg_sleep((random()* (5-2 + 1) + 2));
             PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
                                     schem, temporary_tbl, target_tbl, format, success_callback, failure_callback), false, true );
+            PERFORM pg_sleep(2);
         ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
             EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
             RETURN;
@@ -4517,44 +4522,35 @@ BEGIN
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
-        work_item record;
-        work_item_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
+        work_item_s3_bucket text := '$wrappedouter$||work_item.s3_bucket||$wrappedouter$'::text;
+        work_item_s3_region text := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::text;
+        work_item_s3_filesize bigint := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
+        work_item_s3_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
 		schem text := '$wrappedouter$||schem||$wrappedouter$'::text;
 		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
 		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
 		format text := '$wrappedouter$||format||$wrappedouter$'::text;
     BEGIN
-        EXECUTE format('SELECT * FROM %1$s WHERE s3_path = %2$L;',
-               temporary_tbl,
-               work_item_path) into work_item;
-
-        IF work_item.state IS NOT NULL THEN
 			BEGIN
-	            IF work_item.s3_path != 'SUCCESS_MARKER' THEN
-					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_bucket ,work_item.s3_path, work_item.s3_region,
-														 format, (work_item.data ->> 'filesize')::bigint);
+	            IF work_item_s3_bucket != 'SUCCESS_MARKER' THEN
+	                PERFORM pg_sleep((random()* (5-2 + 1) + 2));
+					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item_s3_bucket ,work_item_s3_path, work_item_s3_region,
+														 format, work_item_s3_filesize);
 	            END IF;
 
 				EXCEPTION
-					WHEN SQLSTATE '38000' THEN
-						-- Lambda not available
-						RETURN;
 					WHEN OTHERS THEN
 						-- Import has failed
 						BEGIN
 							$wrappedouter$ || failure_callback || $wrappedouter$
 							RETURN;
-						EXCEPTION
-							WHEN SQLSTATE '38000' THEN
-								-- Lambda not available!
-								RETURN;
 						END;
 			END;
 	 		PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
 					schem, temporary_tbl, target_tbl, format,
 					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
 					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), false, true );
-        END IF;
+            PERFORM pg_sleep(2);
     END;
 	$wrappedinner$ $wrappedouter$;
     EXECUTE sql_text;
