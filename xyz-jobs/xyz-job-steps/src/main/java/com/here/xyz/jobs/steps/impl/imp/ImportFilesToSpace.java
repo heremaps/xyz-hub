@@ -206,6 +206,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
+    //TODO: Move resume logic into #resume()
     if(!isResume) {
       logAndSetPhase(Phase.SET_READONLY);
       hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
