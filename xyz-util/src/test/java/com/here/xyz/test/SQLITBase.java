@@ -30,6 +30,7 @@ public class SQLITBase {
   protected static final String PG_USER = "postgres";
   protected static final String PG_PW = "password";
   protected static final DatabaseSettings DB_SETTINGS = new DatabaseSettings("testPSQL")
+      .withApplicationName(SQLITBase.class.getSimpleName())
       .withHost(PG_HOST)
       .withDb(PG_DB)
       .withUser(PG_USER)

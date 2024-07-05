@@ -134,23 +134,22 @@ public class SQLQueryIT extends SQLITBase {
   @Test
   public void runAsyncQueryWithRecursion() throws Exception {
     int waitTime = 0;
-    String chainATableName = "chain_A";
-    String chainBTableName = "chain_B";
+    int chainCount = 2;
+    int chainLength = 10;
 
-    startThreadChain(chainATableName, waitTime);
-    //Thread.sleep(500);
-    startThreadChain(chainBTableName, waitTime);
+    for (int i = 0; i < chainCount; i++)
+      startThreadChain("chain_" + i, waitTime, chainLength);
 
-    Thread.sleep(10 * waitTime * 1_000 + 500);
+    Thread.sleep(chainLength * waitTime * 1_000 + 500);
 
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
-        assertTableSize(dsp, chainATableName, 10);
-        assertTableSize(dsp, chainBTableName, 10);
+        for (int i = 0; i < chainCount; i++)
+          assertTableSize(dsp, "chain_" + i, chainLength);
       }
       finally {
-        dropTmpTable(dsp, chainATableName);
-        dropTmpTable(dsp, chainBTableName);
+        for (int i = 0; i < chainCount; i++)
+          dropTmpTable(dsp, "chain_" + i);
       }
     }
   }
@@ -161,7 +160,7 @@ public class SQLQueryIT extends SQLITBase {
         .run(dsp, rs -> rs.next() ? rs.getInt("count") : null));
   }
 
-  private static void startThreadChain(String tableName, int waitTime) throws Exception {
+  private static void startThreadChain(String tableName, int waitTime, int chainLength) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
         dropTmpTable(dsp, tableName);
@@ -181,7 +180,8 @@ public class SQLQueryIT extends SQLITBase {
                 
                 PERFORM pg_sleep(${{waitTime}});
                 
-                IF depth < 10 THEN
+                
+                IF depth < ${{chainLength}} THEN
                   PERFORM asyncify(format('SELECT test_func_${{tableName}}(%L , %s)', value, depth + 1));
                 END IF;
                 
@@ -193,6 +193,7 @@ public class SQLQueryIT extends SQLITBase {
             .withVariable("tableName", tableName)
             .withQueryFragment("tableName", tableName)
             .withQueryFragment("waitTime", "" + waitTime)
+            .withQueryFragment("chainLength", "" + chainLength)
             .write(dsp);
 
         new SQLQuery("SELECT test_func_${{tableName}}(#{value}, #{depth})")
