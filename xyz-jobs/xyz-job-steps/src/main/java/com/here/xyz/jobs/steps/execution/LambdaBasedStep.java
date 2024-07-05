@@ -418,7 +418,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     @Override
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
       LambdaStepRequest request = null;
-      try {
+      try{
         //Initialize Config from environment variables
         if (Config.instance == null)
           XyzSerializable.fromMap(Map.copyOf(getEnvironmentVariables()), Config.class);
@@ -480,8 +480,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           request.getStep().reportFailure(e, false, true); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
           throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
         }
-      }
-      finally {
+      }finally {
         //The lambda call is complete, call the shutdown hook
         request.getStep().onRuntimeShutdown();
       }

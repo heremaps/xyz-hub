@@ -35,6 +35,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   private double claimedAcuLoad;
   @JsonView(Internal.class)
   private List<RunningQuery> runningQueries = new ArrayList<>();
+  private Map<Database, DataSourceProvider> usedDataSourceProviders;
 
   @Override
   public abstract void execute() throws Exception;
@@ -57,7 +59,15 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   @Override
   protected final void onRuntimeShutdown() {
     super.onRuntimeShutdown();
-    Database.closeAll();
+    if (usedDataSourceProviders != null)
+      usedDataSourceProviders.forEach((db, dataSourceProvider) -> {
+        try {
+          dataSourceProvider.close();
+        }
+        catch (Exception e) {
+          logger.error("Error closing connections for database " + db.getName(), e);
+        }
+      });
   }
 
   protected final void runReadQueryAsync(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed, SQLException {
@@ -211,7 +221,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     for (RunningQuery runningQuery : runningQueries) {
       try {
         Database db = Database.loadDatabase(runningQuery.dbName, runningQuery.dbId);
-        SQLQuery.killByQueryId(runningQuery.queryId, db.getDataSources(), db.getRole() == READER);
+        SQLQuery.killByQueryId(runningQuery.queryId, requestResource(db, 0), db.getRole() == READER);
       }
       catch (SQLException e) {
         logger.error("Error cancelling query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
@@ -238,10 +248,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .stream()
         .anyMatch(runningQuery -> {
           try {
-            return SQLQuery.isRunning(Database.loadDatabase(runningQuery.dbName, runningQuery.dbId).getDataSources(), false,
+            return SQLQuery.isRunning(requestResource(Database.loadDatabase(runningQuery.dbName, runningQuery.dbId),0), false,
                 runningQuery.queryId);
           }
-          catch (SQLException e) {
+          catch (SQLException | TooManyResourcesClaimed e) {
             /*
             Ignore it if we cannot check the state for (one of) the queries (for now).
             In the worst case, this will lead to an UnknownStateException.
@@ -271,7 +281,13 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
           + claimedAcuLoad + "/" + neededResources.get(db) + " have been claimed before.");
 
     claimedAcuLoad += estimatedMaxAcuLoad;
-    return db.getDataSources();
+
+    if (usedDataSourceProviders == null)
+      usedDataSourceProviders = new HashMap<>();
+    DataSourceProvider dsp = usedDataSourceProviders.get(db);
+    if (dsp == null)
+      usedDataSourceProviders.put(db, dsp = db.getDataSources());
+    return dsp;
   }
 
   private record RunningQuery(@JsonProperty("queryId") String queryId, @JsonProperty("dbName") String dbName,
