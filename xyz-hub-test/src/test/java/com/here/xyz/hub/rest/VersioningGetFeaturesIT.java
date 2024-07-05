@@ -334,7 +334,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=3&author=" + AUTHOR_1)
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=4&author=" + AUTHOR_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -342,7 +342,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&author=" + AUTHOR_2)
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=2&author=" + AUTHOR_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -350,7 +350,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=3&author=" + AUTHOR_2)
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=4&author=" + AUTHOR_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))

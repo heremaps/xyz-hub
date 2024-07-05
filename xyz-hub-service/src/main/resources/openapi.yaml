@@ -1755,12 +1755,17 @@ components:
       style: form
       allowReserved: true
       schema:
-        type: array
+        type: object
         items:
           type: string
         example:
-          p.myProperty: 'someValue'
-          p.otherProperty: 5
+          {
+           "p.myProperty1": "someValue",
+           "p.myProperty2!":"not-equal",
+           "p.myNumber1": 5,
+           "p.myNumber2=gte":7
+          }
+          
     PropertiesSelection:
       name: selection
       in: query
