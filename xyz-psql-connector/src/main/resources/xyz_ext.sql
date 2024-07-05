@@ -4282,12 +4282,13 @@ DECLARE
     success_marker text := 'SUCCESS_MARKER';
     target_state text := 'RUNNING';
     work_item record;
+    updated_rows INTEGER;
     result record;
 BEGIN
     work_item := null;
 
     EXECUTE format('SELECT state, s3_path, execution_count FROM %1$s '
-                       ||'WHERE state IN( %2$L,%3$L) ORDER by s3_path LIMIT 1;',
+                       ||'WHERE state IN( %2$L,%3$L) ORDER by random() LIMIT 1;',
                    temporary_tbl,
                    'SUBMITTED',
                    'FAILED') into work_item;
@@ -4301,7 +4302,9 @@ BEGIN
                         work_item.s3_path,
                         work_item.state) INTO result;
 
-        IF result is NOT NULL THEN
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+        IF updated_rows = 1 THEN
             s3_bucket = result.s3_bucket;
             s3_path = result.s3_path;
             s3_region = result.s3_region;
@@ -4311,7 +4314,8 @@ BEGIN
             -- Result not null -> deliver work_item
             RETURN NEXT;
         ELSE
-			RETURN QUERY SELECT xyz_import_get_work_item(temporary_tbl);
+			state = 'RETRY';
+			RETURN NEXT;
         END IF;
     ELSE
         EXECUTE format('SELECT count(1) FROM %1$s WHERE state IN (''RUNNING'',''SUBMITTED'');',
@@ -4336,7 +4340,10 @@ BEGIN
                                work_item.state || '_' || target_state,
                                work_item.s3_path,
                                work_item.state) INTO result;
-                IF result is NOT NULL THEN
+
+                GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+                IF updated_rows = 1 THEN
                     s3_bucket = result.s3_bucket;
                     s3_path = result.s3_path;
                     s3_region = result.s3_region;
@@ -4346,12 +4353,12 @@ BEGIN
                     -- Result not null -> deliver work_item
                     RETURN NEXT;
                 ELSE
-			        RETURN QUERY SELECT xyz_import_get_work_item(temporary_tbl);
+			        state = 'RETRY';
+			        RETURN NEXT;
                 END IF;
             END IF;
         END If;
     END IF;
-    RETURN;
 END;
 $BODY$;
 ------------------------------------------------
@@ -4502,12 +4509,11 @@ BEGIN
     IF work_item.state IS NULL THEN
         RETURN;
     ELSE
-        IF work_item.state = 'LAST_ONES_RUNNING' THEN
+        IF work_item.state = 'RETRY' OR work_item.state = 'LAST_ONES_RUNNING' THEN
             -- Last imports are running, no submitted files are left. We need to wait till last import is finished!
-            PERFORM pg_sleep((random()* (5-2 + 1) + 2));
+            PERFORM pg_sleep(10);
             PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
                                     schem, temporary_tbl, target_tbl, format, success_callback, failure_callback), false, true );
-            PERFORM pg_sleep(2);
         ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
             EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
             RETURN;
@@ -4532,7 +4538,6 @@ BEGIN
     BEGIN
 			BEGIN
 	            IF work_item_s3_bucket != 'SUCCESS_MARKER' THEN
-	                PERFORM pg_sleep((random()* (5-2 + 1) + 2));
 					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item_s3_bucket ,work_item_s3_path, work_item_s3_region,
 														 format, work_item_s3_filesize);
 	            END IF;
@@ -4549,7 +4554,6 @@ BEGIN
 					schem, temporary_tbl, target_tbl, format,
 					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
 					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), false, true );
-            PERFORM pg_sleep(2);
     END;
 	$wrappedinner$ $wrappedouter$;
     EXECUTE sql_text;
