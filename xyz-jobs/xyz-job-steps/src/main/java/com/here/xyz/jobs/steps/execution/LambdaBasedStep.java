@@ -84,6 +84,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
+  @JsonView(Internal.class)
+  private String retryCount = "$$.State.RetryCount";
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
 
   private static final String INVOKE_SUCCESS = """
@@ -102,14 +104,19 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void startExecution() throws Exception {
     updateState(RUNNING);
-    //TODO: Check at the according StepFunction whether this execution is a "redrive" and call #resume() instead of execute() in such a case
     switch (getExecutionMode()) {
       case SYNC -> {
-        execute();
+        if (isResume())
+          resume();
+        else
+          execute();
         updateState(SUCCEEDED);
       }
       case ASYNC -> {
-        execute();
+        if (isResume())
+          resume();
+        else
+          execute();
         registerStateCheckTrigger();
         synchronizeStepState();
       }
@@ -246,6 +253,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         reportFailure(new RuntimeException("Error during cancellation.", ex), false, true);
       }
     }
+  }
+
+  @JsonIgnore
+  private boolean isResume() {
+    return Integer.parseInt(retryCount) > 0;
   }
 
   /**
