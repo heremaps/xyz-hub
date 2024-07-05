@@ -29,7 +29,7 @@ public class ResourceAndTimeCalculator implements Initializable {
     private static int MIN_IMPORT_TIME_IN_SECONDS = 30 * 60;
     private static int MAX_IMPORT_TIME_IN_SECONDS = 30 * 60 * 60;
 
-    private static int MIN_IDX_CREATION_TIME_IN_SECONDS = 10 * 60;
+    private static int MIN_IDX_CREATION_TIME_IN_SECONDS = 60 * 60;
     private static int MAX_IDX_CREATION_TIME_IN_SECONDS = 10 * 60 * 60;
 
     public static ResourceAndTimeCalculator getInstance() {
