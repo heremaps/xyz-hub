@@ -547,6 +547,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private String getTemporaryTableName() {
-    return JOB_DATA_PREFIX + getId();
+    return JOB_DATA_PREFIX + getGlobalStepId();
   }
 }
