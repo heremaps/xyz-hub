@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -348,6 +349,31 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJobs();
   }
 
+  public static Future<List<Job>> loadAllFiltered(State state, String resourceKey) {
+    if(state == null && resourceKey == null)
+      return JobConfigClient.getInstance().loadJobs();
+    else if(state != null && resourceKey == null)
+      return JobConfigClient.getInstance().loadJobs(state);
+    else if(state == null && resourceKey != null)
+      return JobConfigClient.getInstance().loadJobs(resourceKey);
+    else{
+      return JobConfigClient.getInstance().loadJobs(resourceKey)
+              .compose(list -> {
+                if(list.isEmpty())
+                  return Future.succeededFuture(new ArrayList<>());
+                return JobConfigClient.getInstance().loadJobs(state)
+                        .compose(list2 -> {
+                          List<Job> commonElementsFromBothList = new ArrayList<>();
+                          commonElementsFromBothList.addAll(
+                                  list.stream()
+                                          .filter(job -> list2.contains(job))
+                                          .collect(Collectors.toList()));
+                          return Future.succeededFuture(commonElementsFromBothList);
+                        });
+              });
+    }
+  }
+
   public static Future<Void> delete(String jobId) {
     return load(jobId)
         //First delete all the inputs / outputs of the job
@@ -632,5 +658,13 @@ public class Job implements XyzSerializable {
     }else {
       throw new IllegalArgumentException("Invalid execution ID format");
     }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    Job job = (Job) o;
+    return Objects.equals(id, job.id);
   }
 }
