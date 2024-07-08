@@ -26,6 +26,7 @@ import com.here.xyz.util.service.Core;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,7 +42,7 @@ public class WarmupRemoteFunctionThread extends Thread {
   private static final String RFC_WARMUP_CACHE_KEY = "RFC_WARMUP_CACHE_KEY";
 
   // minimum amount of milliseconds to wait between each run, also used as lock expiration period
-  private static final long CONNECTOR_WARMUP_INTERVAL = 120 * 1000;
+  private static final long CONNECTOR_WARMUP_INTERVAL = TimeUnit.MINUTES.toMillis(2);
 
   private static WarmupRemoteFunctionThread instance;
 
@@ -126,8 +127,6 @@ public class WarmupRemoteFunctionThread extends Thread {
         if (acquireLock()) {
           logger.info("Lock acquired, running.");
           executeWarmup();
-          // TODO: temporary monitoring for active connections
-          monitorActiveConnections();
           logger.info("Warm-up execution is finished.");
         }
         else {
