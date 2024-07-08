@@ -85,6 +85,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonView(Internal.class)
   private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
   @JsonView(Internal.class)
+  @JsonProperty("retryCount.$")
   private String retryCount = "$$.State.RetryCount";
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
 
@@ -257,7 +258,12 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   @JsonIgnore
   private boolean isResume() {
-    return Integer.parseInt(retryCount) > 0;
+    try {
+      return Integer.parseInt(retryCount) > 0;
+    }
+    catch (Exception e) {
+      return false;
+    }
   }
 
   /**
