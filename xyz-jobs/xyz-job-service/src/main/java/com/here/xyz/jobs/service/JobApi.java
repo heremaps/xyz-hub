@@ -32,6 +32,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
@@ -207,15 +208,22 @@ public class JobApi extends Api {
       return context.pathParam(param);
     }
 
-    public static class Path {
+    public static String getQueryParam(RoutingContext context, String param) {
+      return context.queryParams().get(param);
+    }
 
+    public static class Path {
       static final String SPACE_ID = "spaceId";
       static final String JOB_ID = "jobId";
     }
 
     public static class Query {
+      static final String STATE = "state";
+      static final String RESOURCE_KEY = "resourceKey";
 
+      public static State getState(String state) {
+        return RuntimeInfo.State.valueOf(state);
+      }
     }
-
   }
 }
