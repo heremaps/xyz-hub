@@ -4286,9 +4286,10 @@ BEGIN
     work_item := null;
 
     EXECUTE format('SELECT state, s3_path, execution_count FROM %1$s '
-                       ||'WHERE state IN( %2$L,%3$L) ORDER by random() LIMIT 1;',
+                       ||'WHERE state IN( %2$L,%3$L,%4$L) ORDER by random() LIMIT 1;',
                    temporary_tbl,
                    'SUBMITTED',
+                   'RETRY',
                    'FAILED') into work_item;
 
     IF work_item.state IS NOT NULL THEN
