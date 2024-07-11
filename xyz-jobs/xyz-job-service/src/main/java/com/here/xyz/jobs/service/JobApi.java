@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.service;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
@@ -32,8 +33,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
-import com.here.xyz.jobs.RuntimeInfo;
-import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -97,7 +96,7 @@ public class JobApi extends Api {
 
     if (input instanceof UploadUrl) {
       loadJob(jobId)
-          .compose(job -> job.getStatus().getState() == State.NOT_READY
+          .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
               : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
           .map(job -> job.createUploadUrl())
@@ -219,11 +218,6 @@ public class JobApi extends Api {
 
     public static class Query {
       static final String STATE = "state";
-      static final String RESOURCE_KEY = "resourceKey";
-
-      public static State getState(String state) {
-        return RuntimeInfo.State.valueOf(state);
-      }
     }
   }
 }

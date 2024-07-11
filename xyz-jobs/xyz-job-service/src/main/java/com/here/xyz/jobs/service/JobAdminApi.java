@@ -34,21 +34,17 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.service.JobApi.ApiParam;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
-import com.here.xyz.jobs.service.JobApi.ApiParam;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.http.client.HttpResponseException;
-
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class JobAdminApi extends Api {
   private static final String ADMIN_JOBS = "/admin/jobs";
@@ -67,14 +63,7 @@ public class JobAdminApi extends Api {
   }
 
   private void getJobs(RoutingContext context) {
-
-    Future.succeededFuture()
-        .compose(f -> getState(context))
-        .compose(state -> {
-          String rKey = ApiParam.getQueryParam(context, ApiParam.Query.RESOURCE_KEY);
-          Future<List<Job>> jobList = Job.loadAllFiltered(state, rKey);
-          return jobList;
-        })
+    Job.load(getState(context), null)
         .onSuccess(res -> sendInternalResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -225,15 +214,8 @@ public class JobAdminApi extends Api {
     return context.pathParam("stepId");
   }
 
-  private Future<State> getState(RoutingContext context){
-    String state = ApiParam.getQueryParam(context, ApiParam.Query.STATE);
-    if(state != null) {
-      try {
-        return Future.succeededFuture(ApiParam.Query.getState(state));
-      } catch (IllegalArgumentException e) {
-        return Future.failedFuture(new IllegalArgumentException("Invalid State. Allowed " + Stream.of(State.values()).map(Enum::name).collect(Collectors.toSet())));
-      }
-    }
-    return Future.succeededFuture();
+  private State getState(RoutingContext context) {
+    String stateParamValue = ApiParam.getQueryParam(context, ApiParam.Query.STATE);
+    return stateParamValue != null ? State.valueOf(stateParamValue) : null;
   }
 }

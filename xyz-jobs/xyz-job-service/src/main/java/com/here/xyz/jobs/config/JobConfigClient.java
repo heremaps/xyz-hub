@@ -55,7 +55,7 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<List<Job>> loadJobs();
 
   /**
-   * Load all jobs with a specified type.
+   * Load all jobs that are having the specified state.
    * @param state
    * @return
    */
@@ -67,6 +67,13 @@ public abstract class JobConfigClient implements Initializable {
    * @return
    */
   public abstract Future<List<Job>> loadJobs(String resourceKey);
+
+  /**
+   * Load all jobs related to a specified resourceKey (e.g., space ID) that are having the specified state.
+   * @param resourceKey
+   * @return
+   */
+  public abstract Future<List<Job>> loadJobs(String resourceKey, State state);
 
   public abstract Future<Void> storeJob(Job job);
 

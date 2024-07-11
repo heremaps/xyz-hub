@@ -57,7 +57,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -341,37 +340,19 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJob(jobId);
   }
 
+  public static Future<List<Job>> load(State state, String resourceKey) {
+    if (state == null && resourceKey == null)
+      return loadAll();
+    else
+      return JobConfigClient.getInstance().loadJobs(resourceKey, state);
+  }
+
   public static Future<List<Job>> loadByResourceKey(String resourceKey) {
     return JobConfigClient.getInstance().loadJobs(resourceKey);
   }
 
   public static Future<List<Job>> loadAll() {
     return JobConfigClient.getInstance().loadJobs();
-  }
-
-  public static Future<List<Job>> loadAllFiltered(State state, String resourceKey) {
-    if(state == null && resourceKey == null)
-      return JobConfigClient.getInstance().loadJobs();
-    else if(state != null && resourceKey == null)
-      return JobConfigClient.getInstance().loadJobs(state);
-    else if(state == null && resourceKey != null)
-      return JobConfigClient.getInstance().loadJobs(resourceKey);
-    else{
-      return JobConfigClient.getInstance().loadJobs(resourceKey)
-              .compose(list -> {
-                if(list.isEmpty())
-                  return Future.succeededFuture(new ArrayList<>());
-                return JobConfigClient.getInstance().loadJobs(state)
-                        .compose(list2 -> {
-                          List<Job> commonElementsFromBothList = new ArrayList<>();
-                          commonElementsFromBothList.addAll(
-                                  list.stream()
-                                          .filter(job -> list2.contains(job))
-                                          .collect(Collectors.toList()));
-                          return Future.succeededFuture(commonElementsFromBothList);
-                        });
-              });
-    }
   }
 
   public static Future<Void> delete(String jobId) {
@@ -639,9 +620,11 @@ public class Job implements XyzSerializable {
     return this;
   }
 
+  //TODO: Move that method into the cleanup logic
+  @Deprecated
   @JsonIgnore
-  public String getStateMachineArn(){
-    if(executionId == null)
+  public String getStateMachineArn() {
+    if (executionId == null)
       return null;
 
     String[] parts = executionId.split(":");
@@ -655,16 +638,8 @@ public class Job implements XyzSerializable {
       stringBuilder.append("stateMachine:");
       stringBuilder.append(parts[6]);
       return stringBuilder.toString();
-    }else {
-      throw new IllegalArgumentException("Invalid execution ID format");
     }
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    Job job = (Job) o;
-    return Objects.equals(id, job.id);
+    else
+      throw new IllegalArgumentException("Invalid execution ID format");
   }
 }
