@@ -96,8 +96,6 @@ public class XyzSpaceTableHelper {
         buildSpaceTableIndexQuery(schema, table, NEXT_VERSION),
         buildSpaceTableIndexQuery(schema, table, OPERATION),
         buildSpaceTableIndexQuery(schema, table, SERIAL),
-        buildSpaceTableIndexQuery(schema, table, UPDATED_AT),
-        buildSpaceTableIndexQuery(schema, table, CREATED_AT),
         buildSpaceTableIndexQuery(schema, table, VIZ),
         buildSpaceTableIndexQuery(schema, table, AUTHOR)
     ).stream().map(q -> addQueryComment(q, queryComment)).collect(Collectors.toList());
