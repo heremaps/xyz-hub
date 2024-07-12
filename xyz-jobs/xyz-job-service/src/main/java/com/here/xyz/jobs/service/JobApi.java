@@ -172,7 +172,7 @@ public class JobApi extends Api {
       return job;
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request");
+      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
     }
   }
 
@@ -206,7 +206,7 @@ public class JobApi extends Api {
       return XyzSerializable.deserialize(context.body().asString(), RuntimeStatus.class);
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request");
+      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
     }
   }
 
