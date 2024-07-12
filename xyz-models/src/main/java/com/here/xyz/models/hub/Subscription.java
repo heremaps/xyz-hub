@@ -119,7 +119,7 @@ public class Subscription {
         /**
          * The type of the subscription
          */
-        private SubscriptionType type;
+        private SubscriptionType type = SubscriptionType.PER_TRANSACTION;
 
         private Map<String, Object> params;
 
