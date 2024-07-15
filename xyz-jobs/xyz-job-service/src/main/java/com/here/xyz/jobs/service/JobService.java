@@ -76,6 +76,16 @@ public class JobService extends Core {
         .onSuccess(v -> JobExecutor.getInstance().init());
   }
 
+  protected static void loadPlugins() {
+    for (String plugin : Config.instance.jobPlugins())
+      try {
+        Class.forName(plugin);
+      }
+      catch (ClassNotFoundException e) {
+        throw new RuntimeException(e);
+      }
+  }
+
   private static Future<JsonObject> parseConfiguration(JsonObject config) {
     config.mapTo(Config.class);
     return Future.succeededFuture(config);
@@ -96,6 +106,8 @@ public class JobService extends Core {
         .setConfig(config)
         .setWorker(false)
         .setInstances(Runtime.getRuntime().availableProcessors() * 2);
+
+    loadPlugins();
 
     return vertx.deployVerticle(JobRESTVerticle.class, options)
         .onFailure(t -> logger.error("Unable to deploy JobVerticle.", t))

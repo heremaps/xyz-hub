@@ -22,6 +22,8 @@ package com.here.xyz.jobs.steps;
 import com.here.xyz.util.service.BaseConfig;
 import java.net.URI;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.List;
 
 public class Config extends BaseConfig {
   public static Config instance;
@@ -67,4 +69,15 @@ public class Config extends BaseConfig {
    * The load balancer endpoint of the job API, to be used by other components to call the job API (admin-)endpoints.
    */
   public URL JOB_API_ENDPOINT;
+
+  /**
+   * A string that contains the full qualified class names of Job plugins, separated by comma
+   */
+  public String STEP_PLUGINS;
+
+  public List<String> stepPlugins() {
+    if (STEP_PLUGINS == null)
+      return List.of();
+    return Arrays.asList(STEP_PLUGINS.split(","));
+  }
 }

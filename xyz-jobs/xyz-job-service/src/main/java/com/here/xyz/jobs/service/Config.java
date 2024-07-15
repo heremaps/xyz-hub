@@ -20,6 +20,8 @@
 package com.here.xyz.jobs.service;
 
 import com.here.xyz.util.ARN;
+import java.util.Arrays;
+import java.util.List;
 
 public class Config extends com.here.xyz.jobs.steps.Config {
   public static Config instance;
@@ -52,4 +54,15 @@ public class Config extends com.here.xyz.jobs.steps.Config {
    * Whether steps in a StepGraph can be executed in parallel at all within the target environment.
    */
   public boolean PARALLEL_STEPS_SUPPORTED = true;
+
+  /**
+   * A string that contains the full qualified class names of Job plugins, separated by comma
+   */
+  public String JOB_PLUGINS;
+
+  public List<String> jobPlugins() {
+    if (JOB_PLUGINS == null)
+      return List.of();
+    return Arrays.asList(JOB_PLUGINS.split(","));
+  }
 }

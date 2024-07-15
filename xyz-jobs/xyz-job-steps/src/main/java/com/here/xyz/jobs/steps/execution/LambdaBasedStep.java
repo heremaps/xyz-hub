@@ -473,8 +473,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       LambdaStepRequest request = null;
       try {
         //Initialize Config from environment variables
-        if (Config.instance == null)
+        if (Config.instance == null) {
           XyzSerializable.fromMap(Map.copyOf(getEnvironmentVariables()), Config.class);
+          loadPlugins();
+        }
         //Read the incoming request
         request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
@@ -545,6 +547,16 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
     protected Map<String, String> getEnvironmentVariables() {
       return System.getenv();
+    }
+
+    protected static void loadPlugins() {
+      for (String plugin : Config.instance.stepPlugins())
+        try {
+          Class.forName(plugin);
+        }
+        catch (ClassNotFoundException e) {
+          throw new RuntimeException(e);
+        }
     }
   }
 
