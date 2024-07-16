@@ -115,10 +115,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
         boolean isPropertyQuery = key.startsWith("properties.");
 
         /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
-        if (     key.equals("id")
-            ||  key.equals("properties.@ns:com:here:xyz.createdAt")
-            ||  key.equals("properties.@ns:com:here:xyz.updatedAt")
-        )
+        if ( key.equals("id") )
           return true;
 
         /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
