@@ -55,8 +55,6 @@ public class XyzSpaceTableHelper {
     NEXT_VERSION,
     OPERATION,
     SERIAL,
-//    UPDATED_AT,
-//    CREATED_AT,
     VIZ,
     AUTHOR;
   }
