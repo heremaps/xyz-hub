@@ -238,7 +238,13 @@ public class Job implements XyzSerializable {
 
     return storeStatus(null)
         //Cancel the execution in any case, to prevent race-conditions
-        .compose(v -> JobExecutor.getInstance().cancel(getExecutionId()))
+        .compose(v -> {
+          if (isPipeline()) {
+            getStatus().setState(CANCELLED);
+            return storeStatus(CANCELLING);
+          }
+          return JobExecutor.getInstance().cancel(getExecutionId());
+        })
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
         and update the Job to CANCELLED once all cancellations are completed.
