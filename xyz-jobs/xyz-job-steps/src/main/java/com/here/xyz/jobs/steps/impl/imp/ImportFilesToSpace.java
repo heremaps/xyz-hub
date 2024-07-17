@@ -279,17 +279,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       runReadQuerySync(buildProgressQuery(getSchema(db)), db, 0,
                rs -> {
                 rs.next();
-                int totalCnt = rs.getInt("total_cnt");
+
+                float progress = rs.getFloat("progress");
                 long processedBytes = rs.getLong("processed_bytes");
-                int submittedCnt = rs.getInt("submitted_cnt");
                 int finishedCnt = rs.getInt("finished_cnt");
                 int failedCnt = rs.getInt("failed_cnt");
 
-                float progress = Float.valueOf(processedBytes) / Float.valueOf(getUncompressedUploadBytesEstimation());
                 getStatus().setEstimatedProgress(progress);
 
-                logAndSetPhase(null, "Progress["+progress+"] => totalCnt:"+totalCnt
-                        +" ,processedBytes:"+processedBytes+" ,submittedCnt:"+submittedCnt+" ,finishedCnt:"+finishedCnt+" ,failedCnt:"+failedCnt);
+                logAndSetPhase(null, "Progress["+progress+"] => "
+                        +" processedBytes:"+processedBytes+" ,finishedCnt:"+finishedCnt+" ,failedCnt:"+failedCnt);
                 return progress;
               });
     }catch (Exception e){
@@ -480,14 +479,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildProgressQuery(String schema) {
     return new SQLQuery("""
-            SELECT
-                sum(1::int) as total_cnt,
-                sum((data->'filesize')::bigint) as processed_bytes,	
-                sum((state = 'SUBMITTED')::int) as submitted_cnt,
-                sum((state = 'FINISHED')::int) as finished_cnt,
-                sum((state = 'FAILED')::int) as failed_cnt
-              FROM ${schema}.${table}
-            	 WHERE POSITION('SUCCESS_MARKER' in state) = 0;            	 
+            SELECT 
+            	COALESCE(processed_bytes/overall_bytes, 0) as progress,
+            	COALESCE(processed_bytes,0) as processed_bytes,
+              	COALESCE(finished_cnt,0) as finished_cnt,
+              	COALESCE(failed_cnt,0) as failed_cnt
+              FROM(
+              	SELECT
+                    (SELECT sum((data->'filesize')::bigint ) FROM ${schema}.${table}) as overall_bytes,
+                    sum((data->'filesize')::bigint ) as processed_bytes,
+                    sum((state = 'FINISHED')::int) as finished_cnt,
+                    sum((state = 'FAILED')::int) as failed_cnt
+                  FROM ${schema}.${table}
+                	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
+              	   AND state IN ('FINISHED','FAILED')
+              )A          
           """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryTableName());
