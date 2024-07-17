@@ -129,8 +129,9 @@ public class Job implements XyzSerializable {
    */
   public Job create() {
     //Define the framework standard properties
-    return withId(randomAlpha())
-        .withStatus(new RuntimeStatus().withState(NOT_READY))
+    if (getId() == null)
+      setId(randomAlpha());
+    return withStatus(new RuntimeStatus().withState(NOT_READY))
         .withCreatedAt(Core.currentTimeMillis())
         .withUpdatedAt(getCreatedAt())
         .withKeepUntil(getKeepUntil() <= 0 ? getCreatedAt() + DEFAULT_JOB_TTL : getKeepUntil());
