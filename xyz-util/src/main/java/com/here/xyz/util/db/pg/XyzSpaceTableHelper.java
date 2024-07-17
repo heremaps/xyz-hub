@@ -72,8 +72,6 @@ public class XyzSpaceTableHelper {
       case NEXT_VERSION -> buildCreateIndexQuery(schema, table, "next_version", "BTREE");
       case OPERATION -> buildCreateIndexQuery(schema, table, "operation", "BTREE");
       case SERIAL -> buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial");
-      case UPDATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt')", "id"), "BTREE", "idx_" + table + "_updatedAt");
-      case CREATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'createdAt')", "id"), "BTREE", "idx_" + table + "_createdAt");
       case VIZ -> buildCreateIndexQuery(schema, table, "(left(md5('' || i), 5))", "BTREE", "idx_" + table + "_viz");
       case AUTHOR -> buildCreateIndexQuery(schema, table, "author", "BTREE");
     };
