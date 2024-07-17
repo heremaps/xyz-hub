@@ -23,14 +23,12 @@ import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.AUTHOR;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.CREATED_AT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID_VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.NEXT_VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.OPERATION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.SERIAL;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.UPDATED_AT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
@@ -57,8 +55,8 @@ public class XyzSpaceTableHelper {
     NEXT_VERSION,
     OPERATION,
     SERIAL,
-    UPDATED_AT,
-    CREATED_AT,
+//    UPDATED_AT,
+//    CREATED_AT,
     VIZ,
     AUTHOR;
   }
