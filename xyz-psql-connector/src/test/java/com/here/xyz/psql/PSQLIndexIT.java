@@ -191,10 +191,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 "serial",
                 "geo",
                 "viz",
-                "idnew",
                 "version",
                 "nextversion",
-                "idversion",
                 "operation",
                 "author"
             ));
