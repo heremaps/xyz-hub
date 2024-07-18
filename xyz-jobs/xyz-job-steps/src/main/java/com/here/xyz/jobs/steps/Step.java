@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
@@ -168,7 +169,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   protected void registerOutputs(List<Output> outputs, boolean userOutput) throws IOException {
     for (int i = 0; i < outputs.size(); i++)
       outputs.get(i).store(outputS3Prefix(stepS3Prefix(), userOutput, outputs.get(i) instanceof ModelBasedOutput)
-          + "/output" + i + ".json"); //TODO: Use proper file name
+          + "/" + UUID.randomUUID() + ".json"); //TODO: Use proper file suffix & content type
   }
 
   protected List<Output> loadPreviousOutputs(boolean userOutput) {
