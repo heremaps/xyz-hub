@@ -127,8 +127,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             // Default System Indices
             List<String> systemIndices = new ArrayList<>(){{
-                add("createdAt");
-                add("updatedAt");
                 add("serial");
                 add("geo");
             }};
@@ -190,8 +188,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             // Default System Indices
             List<String> systemIndices = new ArrayList<>(Arrays.asList(
-                "createdAt",
-                "updatedAt",
                 "serial",
                 "geo",
                 "viz",

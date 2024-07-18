@@ -23,14 +23,12 @@ import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.AUTHOR;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.CREATED_AT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID_VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.NEXT_VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.OPERATION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.SERIAL;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.UPDATED_AT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
@@ -57,8 +55,6 @@ public class XyzSpaceTableHelper {
     NEXT_VERSION,
     OPERATION,
     SERIAL,
-    UPDATED_AT,
-    CREATED_AT,
     VIZ,
     AUTHOR;
   }
@@ -72,8 +68,6 @@ public class XyzSpaceTableHelper {
       case NEXT_VERSION -> buildCreateIndexQuery(schema, table, "next_version", "BTREE");
       case OPERATION -> buildCreateIndexQuery(schema, table, "operation", "BTREE");
       case SERIAL -> buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial");
-      case UPDATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt')", "id"), "BTREE", "idx_" + table + "_updatedAt");
-      case CREATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'createdAt')", "id"), "BTREE", "idx_" + table + "_createdAt");
       case VIZ -> buildCreateIndexQuery(schema, table, "(left(md5('' || i), 5))", "BTREE", "idx_" + table + "_viz");
       case AUTHOR -> buildCreateIndexQuery(schema, table, "author", "BTREE");
     };
@@ -96,8 +90,6 @@ public class XyzSpaceTableHelper {
         buildSpaceTableIndexQuery(schema, table, NEXT_VERSION),
         buildSpaceTableIndexQuery(schema, table, OPERATION),
         buildSpaceTableIndexQuery(schema, table, SERIAL),
-        buildSpaceTableIndexQuery(schema, table, UPDATED_AT),
-        buildSpaceTableIndexQuery(schema, table, CREATED_AT),
         buildSpaceTableIndexQuery(schema, table, VIZ),
         buildSpaceTableIndexQuery(schema, table, AUTHOR)
     ).stream().map(q -> addQueryComment(q, queryComment)).collect(Collectors.toList());

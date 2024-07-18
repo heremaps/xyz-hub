@@ -132,10 +132,8 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
       // check for the indexes itself
       try (ResultSet rs = stmt.executeQuery("SELECT * FROM pg_indexes WHERE tablename = '" + hashedSpaceId + "';")) {
         final Set<String> indexes = new HashSet<>() {{
-          add("idx_" + hashedSpaceId + "_createdAt");
           add("idx_" + hashedSpaceId + "_geo");
           add("idx_" + hashedSpaceId + "_serial");
-          add("idx_" + hashedSpaceId + "_updatedAt");
         }};
 
         indexes.addAll(features.get(0).getProperties().keySet().stream()
