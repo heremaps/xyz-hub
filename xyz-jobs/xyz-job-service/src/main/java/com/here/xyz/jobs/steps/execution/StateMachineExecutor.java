@@ -96,7 +96,7 @@ class StateMachineExecutor extends JobExecutor {
       sfnClient().redriveExecution(RedriveExecutionRequest.builder()
           .executionArn(executionId)
           .build());
-      return Future.succeededFuture();
+      return Future.succeededFuture(executionId);
     }
     catch (Exception e) {
       return Future.failedFuture(e);
