@@ -18,10 +18,16 @@
  */
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
+import static java.util.concurrent.TimeUnit.MINUTES;
+
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.DynamoJobConfigClient;
 import com.here.xyz.jobs.steps.Step;
 import io.vertx.core.Future;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
@@ -32,110 +38,90 @@ import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsReque
 import software.amazon.awssdk.services.cloudwatchevents.model.Rule;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
-import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
-import static java.util.concurrent.TimeUnit.MINUTES;
-
 public class CleanUpExecutor {
-    private static final Logger logger = LogManager.getLogger();
-    private static final long CHECK_PERIOD_IN_MIN = 30;
-    private static final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
-    private static final CleanUpExecutor instance = new CleanUpExecutor();
-    private static final int CLEANUP_JOBS_OLDER_THAN = 14 * 24 * 60 * 60 * 1000;//14 Days
-    //TODO: Think about caching following Lists
-    private static List<String> AVAILABLE_STATE_MACHINES = new ArrayList<>();
-    private static List<String> AVAILABLE_CW_RULES = new ArrayList<>();
+  private static final Logger logger = LogManager.getLogger();
+  private static final long CHECK_PERIOD_IN_MIN = 30;
+  private static final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+  private static final CleanUpExecutor instance = new CleanUpExecutor();
+  private static final int CLEANUP_JOBS_OLDER_THAN = 14 * 24 * 60 * 60 * 1000;//14 Days
+  //TODO: Think about caching
 
-    public static CleanUpExecutor getInstance() {
-        return instance;
+  public static CleanUpExecutor getInstance() {
+    return instance;
+  }
+
+  public void start() {
+    exec.scheduleAtFixedRate(() -> cleanUp(), 0, CHECK_PERIOD_IN_MIN, MINUTES);
+  }
+
+  private void cleanUp() {
+    DynamoJobConfigClient.getInstance().loadNonResumableFailedJobsOlderThan(CLEANUP_JOBS_OLDER_THAN)
+        .onSuccess(jobs -> {
+          logger.info("Start cleanup of StateMachines ...");
+          deleteStateMachines(jobs);
+
+          logger.info("Start cleanup of CW Event Rules ...");
+          retrieveAvailableCloudwatchRules()
+              .compose(availableCwRules -> deleteOrphanedRulesIncludingTargets(availableCwRules, jobs));
+        });
+  }
+
+  private Future<List<String>> retrieveAvailableCloudwatchRules() {
+    //TODO: Asyncify!
+    ListRulesResponse listRulesResponse = cloudwatchEventsClient().listRules(
+        ListRulesRequest
+            .builder()
+            .namePrefix(LambdaBasedStep.HEART_BEAT_PREFIX)
+            .build());
+
+    try {
+      return Future.succeededFuture(listRulesResponse.rules().stream().map(Rule::name).toList());
     }
-
-    public void start(){
-        exec.scheduleAtFixedRate(() -> cleanUp(), 0, CHECK_PERIOD_IN_MIN, MINUTES);
+    catch (Exception e) {
+      logger.warn(e);
+      return Future.failedFuture("Can't get Cloudwatch Rules");
     }
+  }
 
-    protected void cleanUp() {
-        logger.info("Start cleanup of StateMachines!");
-        Future.succeededFuture()
-                .compose(f -> retrieveAvailableStateMachines())
-                .compose(f -> retrieveAvailableCloudwatchRules())
-                .compose(f -> DynamoJobConfigClient.getInstance().loadFailedAndSucceededJobsOlderThan(CLEANUP_JOBS_OLDER_THAN ))
-                .compose(jobs -> deleteStateMachines(jobs))
-                .compose(jobs -> deleteOrphanedRulesIncludingTargets(jobs));
+  private void deleteStateMachines(List<Job> jobs) {
+    jobs.stream().forEach(job -> JobExecutor.getInstance().deleteExecution(job.getExecutionId())
+        .onSuccess(deleted -> {
+          if (deleted)
+            logger.info("[{}] Deleted state machine of execution {}", job.getId(), job.getExecutionId());
+        })
+        .onFailure(e -> logger.info("[{}] Can't delete state machine of execution {}", job.getId(), job.getExecutionId(), e)));
+  }
+
+  private Future<Void> deleteOrphanedRulesIncludingTargets(List<String> availableCwRules, List<Job> jobs) {
+    jobs.stream().forEach(
+        job -> {
+          List<String> stepIds = job.getSteps().stepStream().map(Step::getGlobalStepId).toList();
+          stepIds.forEach(stepId -> {
+            String ruleName = LambdaBasedStep.HEART_BEAT_PREFIX + stepId;
+            if (availableCwRules.contains(ruleName))
+              deleteCloudWatchRule(ruleName, job.getId());
+          });
+        });
+    return Future.succeededFuture();
+  }
+
+  private void deleteCloudWatchRule(String ruleName, String jobId) {
+    try {
+      deleteCloudWatchRuleTargets(ruleName);
+      cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(ruleName).build());
+      logger.info("[{}] Deleted Cloudwatch-Rule and Target {}", jobId, ruleName);
     }
-
-    protected Future<Void> retrieveAvailableStateMachines() {
-        return JobExecutor.getInstance().list()
-                .compose(stateMachineList -> {
-                    AVAILABLE_STATE_MACHINES = new ArrayList<>(){{addAll(stateMachineList);}};
-                    return Future.succeededFuture();
-                });
+    catch (Exception e) {
+      logger.warn("Cant delete rule {}!", ruleName, e);
     }
+  }
 
-    protected Future<List<Job>> deleteStateMachines(List<Job> jobs) {
-         jobs.stream().forEach(
-                job -> {
-                    String stateMachineArn = job.getStateMachineArn();
-                    if(AVAILABLE_STATE_MACHINES.contains(stateMachineArn)) {
-                        JobExecutor.getInstance().delete(stateMachineArn)
-                                .onSuccess(f -> logger.info("[{}] Deleted state machine {}", job.getId(), job.getStateMachineArn()))
-                                .onFailure(e -> logger.info("[{}] Can`t delete state machine {}", job.getId(), job.getStateMachineArn(), e));
-                    }
-                });
-        return Future.succeededFuture(jobs);
-    }
+  private Future<Void> deleteCloudWatchRuleTargets(String ruleName) {
+    List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(
+            ListTargetsByRuleRequest.builder().rule(ruleName).build())
+        .targets().stream().map(Target::id).toList();
 
-    protected Future<Void> retrieveAvailableCloudwatchRules() {
-        ListRulesResponse listRulesResponse = cloudwatchEventsClient().listRules(
-                ListRulesRequest
-                        .builder()
-                        .namePrefix(LambdaBasedStep.HEART_BEAT_PREFIX)
-                        .build());
-        try {
-            List<String> ruleNames = listRulesResponse.rules().stream().map(Rule::name).toList();
-            AVAILABLE_CW_RULES = new ArrayList<>() {{
-                addAll(ruleNames);
-            }};
-        }catch (Exception e){
-            logger.warn(e);
-            return Future.failedFuture("Can`t get Cloudwatch Rules");
-        }
-        return Future.succeededFuture();
-    }
-
-    protected Future<Void> deleteOrphanedRulesIncludingTargets(List<Job> jobs) {
-        jobs.stream().forEach(
-            job -> {
-                List<String> stepIds = job.getSteps().stepStream().map(Step::getGlobalStepId).toList();
-                stepIds.forEach(stepId -> {
-                    String ruleName = LambdaBasedStep.HEART_BEAT_PREFIX + stepId;
-                    if(AVAILABLE_CW_RULES.contains(ruleName))
-                        deleteCloudWatchRule(ruleName, job.getId());
-                });
-            });
-        return Future.succeededFuture();
-    }
-
-    protected Future<Void> deleteCloudWatchRuleTargets(String ruleName) {
-        List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(
-                ListTargetsByRuleRequest.builder().rule(ruleName).build())
-                    .targets().stream().map(Target::id).toList();
-
-        cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().ids(targetIds).rule(ruleName).build());
-        return Future.succeededFuture();
-    }
-
-    protected void deleteCloudWatchRule(String ruleName, String jobId) {
-        try {
-            deleteCloudWatchRuleTargets(ruleName);
-            cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(ruleName).build());
-            logger.info("[{}] Deleted Cloudwatch-Rule and Target {}", jobId, ruleName);
-        }catch (Exception e){
-            logger.warn("Cant delete rule {}!", ruleName, e);
-        }
-    }
+    cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().ids(targetIds).rule(ruleName).build());
+    return Future.succeededFuture();
+  }
 }

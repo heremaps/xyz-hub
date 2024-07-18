@@ -237,9 +237,12 @@ public abstract class JobExecutor implements Initializable {
 
   public abstract Future<Void> cancel(String executionId);
 
-  public abstract Future<Void> delete(String executionId);
-
-  public abstract Future<List<String>> list();
+  /**
+   * Deletes all execution resources of the specified execution ID.
+   * @param executionId
+   * @return Whether a deletion actually took place. (Resources could've been deleted before already)
+   */
+  public abstract Future<Boolean> deleteExecution(String executionId);
 
   /**
    * Checks for all resource-loads of the specified job whether they can be fulfilled. If yes, the job may be executed.

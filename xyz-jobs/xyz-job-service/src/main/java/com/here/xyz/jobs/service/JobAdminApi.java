@@ -159,7 +159,7 @@ public class JobAdminApi extends Api {
 
                 Future<Void> future = Future.succeededFuture();
                 if (newJobState == SUCCEEDED)
-                  JobExecutor.getInstance().delete(job.getStateMachineArn());
+                  JobExecutor.getInstance().deleteExecution(job.getExecutionId());
                 else if (newJobState == FAILED) {
                   if ("TIMED_OUT".equals(sfnStatus)) {
                     final String existingErrCause = job.getStatus().getErrorCause();

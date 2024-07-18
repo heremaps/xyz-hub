@@ -27,19 +27,17 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
+import com.here.xyz.util.ARN;
 import io.vertx.core.Future;
-import java.util.List;
+import java.util.Arrays;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineRequest;
 import software.amazon.awssdk.services.sfn.model.CreateStateMachineResponse;
 import software.amazon.awssdk.services.sfn.model.DeleteStateMachineRequest;
-import software.amazon.awssdk.services.sfn.model.ListStateMachinesRequest;
-import software.amazon.awssdk.services.sfn.model.ListStateMachinesResponse;
 import software.amazon.awssdk.services.sfn.model.RedriveExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionRequest;
 import software.amazon.awssdk.services.sfn.model.StartExecutionResponse;
-import software.amazon.awssdk.services.sfn.model.StateMachineListItem;
 import software.amazon.awssdk.services.sfn.model.StopExecutionRequest;
 
 class StateMachineExecutor extends JobExecutor {
@@ -126,33 +124,28 @@ class StateMachineExecutor extends JobExecutor {
   }
 
   @Override
-  public Future<Void> delete(String executionId) {
+  public Future<Boolean> deleteExecution(String executionId) {
+    if (executionId == null)
+      return Future.succeededFuture(false);
     try {
+      //TODO: Asyncify!
       sfnClient().deleteStateMachine(DeleteStateMachineRequest.builder()
-              .stateMachineArn(executionId)
+              .stateMachineArn(stateMachineArnFromExecutionId(executionId))
               .build());
-      return Future.succeededFuture();
+      return Future.succeededFuture(true);
     }
     catch (Exception e) {
-      return Future.failedFuture(e);
+      return Future.succeededFuture(false);
     }
   }
 
-  @Override
-  public Future<List<String>> list() {
-    try {
-      ListStateMachinesResponse listStateMachinesResponse = sfnClient().listStateMachines(ListStateMachinesRequest.builder()
-              .build());
+  private static String stateMachineArnFromExecutionId(String executionId) {
+    String[] parts = executionId.split(":");
+    if (parts.length != 8)
+      throw new IllegalArgumentException("Invalid StateMachine execution ID.");
 
-      return Future.succeededFuture(listStateMachinesResponse
-              .stateMachines()
-              .stream()
-              .map(StateMachineListItem::stateMachineArn)
-              .toList());
-    }
-    catch (Exception e) {
-      return Future.failedFuture(e);
-    }
+    String stateMachineName = new ARN(executionId).getResourceWithoutType().split(":")[0];
+    return String.join(":", Arrays.asList(executionId.split(":")).subList(0, 5)) + ":stateMachine:" + stateMachineName;
   }
 
   private Future<String> executeStateMachine(String jobId, String stateMachineArn, String input) {

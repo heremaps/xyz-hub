@@ -377,8 +377,10 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
-    //TODO: Delete StateMachine if still existing
-    return deleteInputs() //Delete the inputs of this job
+    //Delete StateMachine if still existing
+    return JobExecutor.getInstance().deleteExecution(getExecutionId())
+        //Delete the inputs of this job
+        .compose(b -> deleteInputs())
         //Delete the outputs of all involved steps
         .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
             .mapEmpty());
@@ -641,28 +643,5 @@ public class Job implements XyzSerializable {
   @JsonIgnore
   public boolean isPipeline() {
     return getSource() instanceof DynamicStream;
-  }
-
-  //TODO: Move that method into the cleanup logic
-  @Deprecated
-  @JsonIgnore
-  public String getStateMachineArn() {
-    if (executionId == null)
-      return null;
-
-    String[] parts = executionId.split(":");
-
-    if (parts.length == 8) {
-      StringBuilder stringBuilder = new StringBuilder();
-      for (int i = 0; i < 5; i++) {
-        stringBuilder.append(parts[i]);
-        stringBuilder.append(":");
-      }
-      stringBuilder.append("stateMachine:");
-      stringBuilder.append(parts[6]);
-      return stringBuilder.toString();
-    }
-    else
-      throw new IllegalArgumentException("Invalid execution ID format");
   }
 }
