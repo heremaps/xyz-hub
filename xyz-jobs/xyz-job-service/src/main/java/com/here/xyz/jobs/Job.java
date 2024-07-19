@@ -349,11 +349,11 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJob(jobId);
   }
 
-  public static Future<List<Job>> load(State state, String resourceKey) {
-    if (state == null && resourceKey == null)
+  public static Future<List<Job>> load(State state, String source) {
+    if (state == null && source == null)
       return loadAll();
     else
-      return JobConfigClient.getInstance().loadJobs(resourceKey, state);
+      return JobConfigClient.getInstance().loadJobs(source, state);
   }
 
   public static Future<List<Job>> loadByResourceKey(String resourceKey) {
@@ -364,12 +364,10 @@ public class Job implements XyzSerializable {
     return JobConfigClient.getInstance().loadJobs();
   }
 
-  public static Future<Void> delete(String jobId) {
-    return load(jobId)
-        //First delete all the inputs / outputs of the job
-        .compose(job -> job.deleteJobResources())
+  public static Future<Void> delete(Job job) {
+    return job.deleteJobResources()
         //Now finally delete this job's configuration
-        .compose(v -> JobConfigClient.getInstance().deleteJob(jobId).mapEmpty());
+        .compose(v -> JobConfigClient.getInstance().deleteJob(job.getId()).mapEmpty());
   }
 
   /*

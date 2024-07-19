@@ -91,7 +91,13 @@ public class JobApi extends Api {
   protected void deleteJob(final RoutingContext context) {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     loadJob(context, jobId)
-        .compose(job -> Job.delete(jobId).map(job))
+        //State check
+        .compose(job -> {
+          if(job.getStatus().getState().equals(RUNNING))
+            return Future.failedFuture(new HttpException(BAD_REQUEST,"Deletion of 'RUNNING' jobs is not possible! Please 'CANCEL' execution before."));
+          return Future.succeededFuture(job);
+        })
+        .compose(job -> Job.delete(job).map(job))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -248,6 +254,7 @@ public class JobApi extends Api {
 
     public static class Query {
       static final String STATE = "state";
+      static final String SOURCE = "source";
     }
   }
 }
