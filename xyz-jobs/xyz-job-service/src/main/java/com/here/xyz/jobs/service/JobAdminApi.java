@@ -62,7 +62,7 @@ public class JobAdminApi extends Api {
   }
 
   private void getJobs(RoutingContext context) {
-    Job.load(getState(context), getSource(context))
+    Job.load(getState(context), getResource(context))
         .onSuccess(res -> sendInternalResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -76,7 +76,7 @@ public class JobAdminApi extends Api {
 
   private static Future<Job> loadJob(String jobId) {
     return Job.load(jobId)
-        .compose(job -> job == null ? Future.failedFuture(new HttpException(NOT_FOUND,"The requested resource does not exist.")) : Future.succeededFuture(job));
+        .compose(job -> job == null ? Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist.")) : Future.succeededFuture(job));
   }
 
   private void deleteJob(RoutingContext context) throws HttpException {
@@ -218,7 +218,7 @@ public class JobAdminApi extends Api {
     return stateParamValue != null ? State.valueOf(stateParamValue) : null;
   }
 
-  private String getSource(RoutingContext context) {
-    return ApiParam.getQueryParam(context, ApiParam.Query.SOURCE);
+  private String getResource(RoutingContext context) {
+    return ApiParam.getQueryParam(context, ApiParam.Query.RESOURCE);
   }
 }
