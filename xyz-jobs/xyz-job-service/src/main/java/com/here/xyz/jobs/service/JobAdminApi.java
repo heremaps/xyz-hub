@@ -44,7 +44,6 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import org.apache.http.client.HttpResponseException;
 
 public class JobAdminApi extends Api {
   private static final String ADMIN_JOBS = "/admin/jobs";
@@ -63,7 +62,7 @@ public class JobAdminApi extends Api {
   }
 
   private void getJobs(RoutingContext context) {
-    Job.load(getState(context), null)
+    Job.load(getState(context), getSource(context))
         .onSuccess(res -> sendInternalResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -77,7 +76,7 @@ public class JobAdminApi extends Api {
 
   private static Future<Job> loadJob(String jobId) {
     return Job.load(jobId)
-        .compose(job -> job == null ? Future.failedFuture(new HttpResponseException(404, "NOT_FOUND")) : Future.succeededFuture(job));
+        .compose(job -> job == null ? Future.failedFuture(new HttpException(NOT_FOUND,"The requested resource does not exist.")) : Future.succeededFuture(job));
   }
 
   private void deleteJob(RoutingContext context) throws HttpException {
@@ -217,5 +216,9 @@ public class JobAdminApi extends Api {
   private State getState(RoutingContext context) {
     String stateParamValue = ApiParam.getQueryParam(context, ApiParam.Query.STATE);
     return stateParamValue != null ? State.valueOf(stateParamValue) : null;
+  }
+
+  private String getSource(RoutingContext context) {
+    return ApiParam.getQueryParam(context, ApiParam.Query.SOURCE);
   }
 }
