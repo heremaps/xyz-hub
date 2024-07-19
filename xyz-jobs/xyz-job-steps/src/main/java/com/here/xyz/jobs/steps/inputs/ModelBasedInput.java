@@ -23,6 +23,6 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
-public class ModelBasedInput extends Input<ModelBasedInput> {
+public abstract class ModelBasedInput extends Input<ModelBasedInput> {
 
 }
