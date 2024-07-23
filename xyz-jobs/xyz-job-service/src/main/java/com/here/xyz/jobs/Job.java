@@ -97,7 +97,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
 
-  public static final Async async = new Async(20, Job.class);
+  private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = 2 * 7 * 24 * 3600 * 1000; //2 weeks
 
@@ -184,7 +184,7 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> prepareStep(Step step) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       step.prepare(getOwner(), getClientInfo());
       return null;
     });
@@ -201,7 +201,7 @@ public class Job implements XyzSerializable {
   }
 
   private static Future<Boolean> validateStep(Step step) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       boolean isReady = step.validate();
       if (isReady && step.getStatus().getState() != SUBMITTED)
         step.getStatus().setState(SUBMITTED);
@@ -389,7 +389,7 @@ public class Job implements XyzSerializable {
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       step.deleteOutputs();
       return null;
     });
@@ -443,11 +443,11 @@ public class Job implements XyzSerializable {
   }
 
   public Future<List<Input>> loadInputs() {
-    return async.run(() -> Input.loadInputs(getId()));
+    return ASYNC.run(() -> Input.loadInputs(getId()));
   }
 
   public Future<List<Output>> loadOutputs() {
-    return async.run(() -> steps.stepStream()
+    return ASYNC.run(() -> steps.stepStream()
         .map(step -> (List<Output>) step.loadOutputs(true))
         .flatMap(ol -> ol.stream())
         .collect(Collectors.toList()));

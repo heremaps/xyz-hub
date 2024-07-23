@@ -27,7 +27,7 @@ import java.util.List;
 
 public class AsyncS3Client extends S3Client {
   private static final AsyncS3Client instance = new AsyncS3Client(Config.instance.JOBS_S3_BUCKET);
-  private Async async = new Async(20, AsyncS3Client.class);
+  private static final Async ASYNC = new Async(20, AsyncS3Client.class);
 
   protected AsyncS3Client(String bucketName) {
     super(bucketName);
@@ -40,13 +40,13 @@ public class AsyncS3Client extends S3Client {
   //NOTE: Only the long-blocking methods are added as async variants
 
   public Future<Void> deleteFolderAsync(String folderPath) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       deleteFolder(folderPath);
       return null;
     });
   }
 
   public Future<List<S3ObjectSummary>> scanFolderAsync(String folderPath) {
-    return async.run(() -> scanFolder(folderPath));
+    return ASYNC.run(() -> scanFolder(folderPath));
   }
 }
