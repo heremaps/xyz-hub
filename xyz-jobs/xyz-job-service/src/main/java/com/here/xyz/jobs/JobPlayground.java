@@ -106,6 +106,10 @@ public class JobPlayground {
   private static String jobServiceBaseUrl = "http://localhost:7070";
 
   static {
+    XyzSerializable.registerSubtypes(StepGraph.class);
+    XyzSerializable.registerSubtypes(Input.class);
+    XyzSerializable.registerSubtypes(Output.class);
+
     VertxOptions vertxOptions = new VertxOptions()
         .setWorkerPoolSize(128)
         .setPreferNativeTransport(true)
