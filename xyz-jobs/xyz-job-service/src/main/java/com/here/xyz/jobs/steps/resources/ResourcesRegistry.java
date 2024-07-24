@@ -24,6 +24,9 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import io.vertx.core.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
 
 public class ResourcesRegistry {
 
+  private static final Logger logger = LogManager.getLogger();
   /**
    * Provides the overall number of virtual units being currently reserved for all resources in the system.
    *
@@ -42,9 +46,29 @@ public class ResourcesRegistry {
     return JobConfigClient.getInstance()
         .loadJobs(RUNNING)
         .compose(runningJobs -> {
-          Map<ExecutionResource, Double> reservations = new HashMap<>();
-          //TODO: Calculate the reservations of all resources for all running jobs
-          return Future.succeededFuture(reservations);
+            Map<ExecutionResource, Double> reservations = new HashMap<>();
+            runningJobs.forEach(job ->{
+                job.getSteps().stepStream()
+                        /** TODO:
+                         * Check if we only should take RUNNING steps into account. If yes we need to analyse
+                         * the following steps as well to prevent a overload of the according resource.
+                        */
+                        //.filter(Step::isRunning)
+                        .forEach(
+                                step -> {
+                                    Map<ExecutionResource, Double> aggregatedNeededResources = step.getAggregatedNeededResources();
+                                    aggregatedNeededResources.forEach((key, value) -> {
+                                        reservations.merge(key, value, Double::sum);
+                                    });
+                                }
+                        );
+            });
+
+            reservations.forEach((key, value) -> {
+                logger.info("{} ReservedVirtualUnits for resource {}",value, key.getId());
+            });
+
+            return Future.succeededFuture(reservations);
         });
   }
 
