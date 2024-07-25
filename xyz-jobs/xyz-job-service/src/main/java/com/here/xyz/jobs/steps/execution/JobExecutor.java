@@ -137,6 +137,10 @@ public abstract class JobExecutor implements Initializable {
     }
   }
 
+  private static long calculateEstimatedExecutionTime(Job job) {
+    return job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000;
+  }
+
   //TODO: integrate updatePendingTimeEstimations again.
   //    return updatePendingTimeEstimations(pendingJobs.stream().filter(job -> job.getStatus().getState() == PENDING)
   //            .collect(Collectors.toUnmodifiableList()));

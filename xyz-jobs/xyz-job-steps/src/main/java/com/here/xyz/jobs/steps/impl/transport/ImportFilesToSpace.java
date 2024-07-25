@@ -203,15 +203,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     public ExecutionMode getExecutionMode() {
         long max_sync_bytes = 100 * 1024 * 1024;
 
-        return getUncompressedUploadBytesEstimation() > max_sync_bytes ? ExecutionMode.ASYNC : ExecutionMode.SYNC;
+        return ExecutionMode.ASYNC;
     }
 
   @Override
-  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
     _execute(false);
   }
 
-  public void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed {
+  public void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
       if(getExecutionMode().equals(ExecutionMode.SYNC)) {
           //@TODO: For future add threading (if validation step is in place)
           for (Input input : loadInputs()) {
@@ -220,46 +220,46 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           }
       } else {
         logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
-            + " into space " + getSpaceId() + " ...");
+                + " into space " + getSpaceId() + " ...");
 
-        logAndSetPhase(null, "Loading space config for space "+getSpaceId());
-        Space space = loadSpace(getSpaceId());
-        logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
-        Database db = loadDatabase(space.getStorage().getId(), WRITER);
+          logAndSetPhase(null, "Loading space config for space " + getSpaceId());
+          Space space = loadSpace(getSpaceId());
+          logAndSetPhase(null, "Getting storage database for space  " + getSpaceId());
+          Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
-        //TODO: Move resume logic into #resume()
-        if(!isResume) {
-          logAndSetPhase(Phase.SET_READONLY);
-          hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
+          //TODO: Move resume logic into #resume()
+          if (!isResume) {
+              logAndSetPhase(Phase.SET_READONLY);
+              hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-          logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-          long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
-                  rs -> {
-                    rs.next();
-                    return rs.getLong(1);
-                  });
+              logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
+              long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
+                      rs -> {
+                          rs.next();
+                          return rs.getLong(1);
+                      });
 
-          logAndSetPhase(Phase.CREATE_TRIGGER);
-          runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS", newVersion), db, 0);
-        }
+              logAndSetPhase(Phase.CREATE_TRIGGER);
+              runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS", newVersion), db, 0);
+          }
 
-        createAndFillTemporaryTable(db);
+          createAndFillTemporaryTable(db);
 
-        calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
+          calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
                   ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
-        double neededAcusForOneThread = calculateNeededAcus(1);
+          double neededAcusForOneThread = calculateNeededAcus(1);
 
-        logAndSetPhase(Phase.EXECUTE_IMPORT);
+          logAndSetPhase(Phase.EXECUTE_IMPORT);
 
-        for (int i = 1; i <= calculatedThreadCount; i++) {
-          logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
-          runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread , false);
-        }
+          for (int i = 1; i <= calculatedThreadCount; i++) {
+              logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number " + i);
+              runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread, false);
+          }
       }
   }
 
-  private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed {
-    boolean tmpTableNotExistsAndHasNoData = true;
+    private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed {
+        boolean tmpTableNotExistsAndHasNoData = true;
     try {
       //Check if temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
       tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db)), db, 0,
