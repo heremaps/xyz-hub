@@ -106,35 +106,40 @@ public abstract class JobExecutor implements Initializable {
 
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)
-          .compose(pendingJobs -> {
-            try {
-              pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
-              logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
-              for (Job pendingJob : pendingJobs) {
-                if (stopRequested)
-                  break;
-                //Try to start the execution of the pending job
-                if (tryAndWaitForStart(pendingJob))
-                  break;
-              }
-              return updatePendingTimeEstimations(pendingJobs.stream().filter(job -> job.getStatus().getState() == PENDING)
-                  .collect(Collectors.toUnmodifiableList()));
-            }
-            catch (Exception e) {
-              return Future.failedFuture(e);
-            }
-          })
-          .onFailure(t -> logger.error("Error checking PENDING jobs", t))
-          .onComplete(ar -> running = false);
+              .compose(pendingJobs -> {
+                Future<Void> taskChain = Future.succeededFuture();
+                try {
+                  pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
+                  logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
+                  if (stopRequested)
+                    return Future.succeededFuture();
+
+                  //Now start one job after each other in the correct order
+                  for (Job pendingJob : pendingJobs)
+                    //Try to start the execution of the pending job
+                    taskChain = taskChain.compose(v -> tryAndWaitForStart(pendingJob));
+                }
+                catch (Exception e) {
+                  logger.error("Error checking PENDING jobs", e);
+                }
+                /*
+                The task chain is now fully created and will continue to be worked through, even if this thread ends now.
+                The "running" variable will be set to false again after the completion of the task chain (see: #onComplete() call below)
+                */
+                return taskChain;
+              })
+              .onFailure(t -> logger.error("Error checking PENDING jobs", t))
+              .onComplete(ar -> running = false);
     }
     catch (Exception e) {
       logger.error("Error checking PENDING jobs", e);
-    }
-    finally {
       running = false;
     }
   }
 
+  //TODO: integrate updatePendingTimeEstimations again.
+  //    return updatePendingTimeEstimations(pendingJobs.stream().filter(job -> job.getStatus().getState() == PENDING)
+  //            .collect(Collectors.toUnmodifiableList()));
   private Future<Void> updatePendingTimeEstimations(List<Job> pendingJobs) {
     return JobConfigClient.getInstance().loadJobs(RUNNING)
         .compose(runningJobs -> {
@@ -166,30 +171,17 @@ public abstract class JobExecutor implements Initializable {
 
   /**
    *
-   * @param pendingJob The job to be started
-   * @return <code>true</code> if there was a request to stop the PENDING-check thread
+   * @param pendingJob
+   * @return A future that succeeds when the job was started and fails if there was an error starting the job or
+   *  when there was a request to stop the PENDING-check thread
    */
-  private boolean tryAndWaitForStart(Job pendingJob) {
-    try {
-      Future<Void> executionStarted = startExecution(pendingJob, pendingJob.getExecutionId());
-      long waitStart = Core.currentTimeMillis();
-      while (!executionStarted.isComplete()) {
-        if (Core.currentTimeMillis() - waitStart > JOB_START_TIMEOUT) {
-          logger.error("Timeout while trying to start PENDING job {}", pendingJob.getId());
-          return false;
-        }
-        try {
-          if (stopRequested)
-            return true;
-          Thread.sleep(200);
-        }
-        catch (InterruptedException ignore) {}
-      }
-    }
-    catch (Exception e) {
-      logger.error("Error trying to start the execution of job {}", pendingJob.getId(), e);
-    }
-    return false;
+  private Future<Void> tryAndWaitForStart(Job pendingJob) {
+    //TODO: re-introduce starting timeout
+    Future<Void> executionStarted = startExecution(pendingJob, pendingJob.getExecutionId());
+    if (stopRequested)
+      return executionStarted
+              .compose(v -> Future.failedFuture(new RuntimeException("The PENDING-check thread has been stopped without completing.")));
+    return executionStarted;
   }
 
   @Override
@@ -293,6 +285,9 @@ public abstract class JobExecutor implements Initializable {
                 logger.info("Job {} can not be executed (yet) as the resource {} is not available or there are not sufficient "
                         + "resource units available. Needed units: {}, currently available units: {}",
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
+
+              logger.info("Job {} can be executed. Resource {}, needed units: {}, currently available units: {}",
+                      job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             }));
   }
