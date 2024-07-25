@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.core.util.StreamInfo;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.handlers.DefaultStorageHandlerTest.CollectionPriorityTestCase.ValidCollectionSource;
 import com.here.naksha.lib.psql.EPsqlState;
@@ -38,6 +39,7 @@ import java.sql.SQLException;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomUtils;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -46,6 +48,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.internal.stubbing.answers.AnswersWithDelay;
+import org.mockito.internal.stubbing.answers.Returns;
+import org.mockito.internal.stubbing.answers.ThrowsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -205,6 +210,50 @@ class DefaultStorageHandlerTest {
     verify(storageWriteSession, never()).execute(any(WriteXyzCollections.class));
   }
 
+  @Test
+  void shouldMeasureTimeInStorage() {
+    // Given: Naksha context with Stream Info
+    NakshaContext ctx = NakshaContext.currentContext();
+    ctx.attachStreamInfo(new StreamInfo());
+
+    // And: Configured Feature writes
+    long undefinedTableErrorDelay = 100;
+    long writeFeaturesDelay = 200;
+    when(storageWriteSession.execute(any(WriteXyzFeatures.class)))
+        // first attempt fails dues to missing collection ~ 100ms
+        .thenAnswer(delayedError(
+            undefinedTableErrorDelay,
+            new RuntimeException(new SQLException("Some message", EPsqlState.UNDEFINED_TABLE.toString()))
+        ))
+        // second attempt (after collection creation) succeeds ~ 200ms
+        .thenAnswer(delayed(
+            writeFeaturesDelay,
+            new SuccessResult()
+        ));
+
+    // And: configured collection writes ~ 150ms
+    long writeCollectionDelay = 150;
+    when(storageWriteSession.execute(any(WriteXyzCollections.class)))
+        .thenAnswer(delayed(writeCollectionDelay, new SuccessResult()));
+
+    // And: feature to be saved in potentially different collection
+    XyzFeature featureToCreate = new XyzFeature("sample_feature");
+    WriteXyzFeatures writeXyzFeatures = new WriteXyzFeatures("time_c").create(featureToCreate);
+
+    // And: Handler with autoCreateCollection enabled to test
+    DefaultStorageHandler handler = storageHandler(handlerPropertiesWithCollection("time_c"), new Space("test_space"));
+
+    // When: Processing write features
+    Result res = handler.processEvent(event(writeXyzFeatures));
+
+    // Then: elapsed time in Space storage checks out
+    StreamInfo streamInfo = ctx.getStreamInfo();
+    Assertions.assertNotNull(streamInfo);
+    long expectedTimeInStorageMs = undefinedTableErrorDelay + writeCollectionDelay + writeFeaturesDelay;
+    long marginMs = 30;
+    assertEquals(expectedTimeInStorageMs, streamInfo.getTimeInStorageMs(), marginMs);
+  }
+
   private static Stream<Named<CollectionPriorityTestCase>> collectionPriorityTestCases() {
     return Stream.of(
         named(
@@ -246,6 +295,15 @@ class DefaultStorageHandlerTest {
         new SQLException("Undefined table", EPsqlState.UNDEFINED_TABLE.toString())
     );
   }
+
+  private AnswersWithDelay delayed(long delayMs, Object answer) {
+    return new AnswersWithDelay(delayMs, new Returns(answer));
+  }
+
+  private AnswersWithDelay delayedError(long delayMs, Throwable error) {
+    return new AnswersWithDelay(delayMs, new ThrowsException(error));
+  }
+
 
   record CollectionPriorityTestCase(
       DefaultStorageHandlerProperties handlerProperties,

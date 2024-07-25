@@ -21,8 +21,14 @@ package com.here.naksha.app.service.util.logging;
 import static com.here.naksha.app.service.http.NakshaHttpHeaders.STREAM_ID;
 import static com.here.naksha.app.service.http.auth.actions.JwtUtil.extractJwtPayloadFromContext;
 import static com.here.naksha.common.http.apis.ApiParamsConst.ACCESS_TOKEN;
-import static io.vertx.core.http.HttpHeaders.*;
-import static io.vertx.core.http.HttpMethod.*;
+import static io.vertx.core.http.HttpHeaders.ACCEPT;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
+import static io.vertx.core.http.HttpHeaders.ORIGIN;
+import static io.vertx.core.http.HttpHeaders.REFERER;
+import static io.vertx.core.http.HttpHeaders.USER_AGENT;
+import static io.vertx.core.http.HttpMethod.PATCH;
+import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.http.auth.JWTPayload;
 import com.here.naksha.lib.core.util.StreamInfo;
@@ -141,7 +147,9 @@ public class AccessLogUtil {
    * @param context the routing context.
    */
   public static void addRequestInfo(final @Nullable RoutingContext context) {
-    if (context == null) return;
+    if (context == null) {
+      return;
+    }
     final String streamId = getStreamId(context);
     final AccessLog accessLog = getOrCreateAccessLog(context);
     final HttpMethod method = context.request().method();
@@ -171,19 +179,21 @@ public class AccessLogUtil {
   }
 
   /**
-   * Add the response information into the AccessLog object.
-   * As the authentication is done after the request has been received, this method will as well add
-   * the clientInfo to the request information. So, even while the clientInfo is part of the request
-   * information, for technical reasons it's added together with the response information,
-   * because the JWT token is processed after the {@link #addRequestInfo(RoutingContext)} was invoked
-   * and therefore this method does not have the necessary information.
+   * Add the response information into the AccessLog object. As the authentication is done after the request has been received, this method
+   * will as well add the clientInfo to the request information. So, even while the clientInfo is part of the request information, for
+   * technical reasons it's added together with the response information, because the JWT token is processed after the
+   * {@link #addRequestInfo(RoutingContext)} was invoked and therefore this method does not have the necessary information.
    *
    * @param context the routing context
    */
   public static @Nullable AccessLog addResponseInfo(final @Nullable RoutingContext context) {
-    if (context == null) return null;
+    if (context == null) {
+      return null;
+    }
     final AccessLog accessLog = getAccessLog(context);
-    if (accessLog == null) return null;
+    if (accessLog == null) {
+      return null;
+    }
     accessLog.respInfo.statusCode = context.response().getStatusCode();
     accessLog.respInfo.statusMsg = context.response().getStatusMessage();
     accessLog.respInfo.size = context.response().bytesWritten();
@@ -198,9 +208,13 @@ public class AccessLogUtil {
   }
 
   public static void writeAccessLog(final @Nullable RoutingContext context) {
-    if (context == null) return;
+    if (context == null) {
+      return;
+    }
     final AccessLog accessLog = getAccessLog(context);
-    if (accessLog == null) return;
+    if (accessLog == null) {
+      return;
+    }
 
     logger.info(accessLog.serialize());
 
@@ -209,13 +223,14 @@ public class AccessLogUtil {
     final AccessLog.ResponseInfo res = accessLog.respInfo;
     final StreamInfo si = accessLog.streamInfo;
     logger.info(
-        "[REST API stats => eventType,spaceId,storageId,method,uri,status,timeTakenMs,resSize] - RESTAPIStats {} {} {} {} {} {} {}",
+        "[REST API stats => spaceId,storageId,method,uri,status,timeTakenMs,resSize,timeWithoutStorageMs] - RESTAPIStats {} {} {} {} {} {} {} {}",
         (si == null || si.getSpaceId() == null || si.getSpaceId().isEmpty()) ? "-" : si.getSpaceId(),
         (si == null || si.getStorageId() == null || si.getStorageId().isEmpty()) ? "-" : si.getStorageId(),
         req.method,
         req.uri,
         res.statusCode,
         accessLog.ms,
-        res.size);
+        res.size,
+        accessLog.timeWithoutStorageMs);
   }
 }

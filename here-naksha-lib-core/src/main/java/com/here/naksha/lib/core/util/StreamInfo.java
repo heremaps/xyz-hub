@@ -22,8 +22,11 @@ import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 
 public class StreamInfo {
+
   private String spaceId;
   private String storageId;
+
+  private Long timeInStorageMs = 0L;
 
   public void setSpaceId(final String spaceId) {
     this.spaceId = spaceId;
@@ -34,11 +37,15 @@ public class StreamInfo {
   }
 
   public void setSpaceIdIfMissing(final String spaceId) {
-    if (this.spaceId == null) this.spaceId = spaceId;
+    if (this.spaceId == null) {
+      this.spaceId = spaceId;
+    }
   }
 
   public void setStorageIdIfMissing(final String storageId) {
-    if (this.storageId == null) this.storageId = storageId;
+    if (this.storageId == null) {
+      this.storageId = storageId;
+    }
   }
 
   public String getSpaceId() {
@@ -49,10 +56,22 @@ public class StreamInfo {
     return this.storageId;
   }
 
+  public long getTimeInStorageMs() {
+    return timeInStorageMs;
+  }
+
+  public void increaseTimeInStorage(long diffMs) {
+    timeInStorageMs += diffMs;
+  }
+
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
     StreamInfo that = (StreamInfo) o;
     return Objects.equals(spaceId, that.spaceId) && Objects.equals(storageId, that.storageId);
   }
@@ -64,6 +83,7 @@ public class StreamInfo {
 
   public @NotNull String toColonSeparatedString() {
     return "spaceId=" + ((spaceId == null || spaceId.isEmpty()) ? "-" : spaceId) + ";storageId="
-        + ((storageId == null || storageId.isEmpty()) ? "-" : storageId);
+        + ((storageId == null || storageId.isEmpty()) ? "-" : storageId)
+        + "timeInStorage=" + timeInStorageMs + "ms";
   }
 }

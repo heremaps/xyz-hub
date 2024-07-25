@@ -45,6 +45,7 @@ public class AccessLog extends AccessLogExtended implements JsonSerializable {
 
   public void end() {
     super.end();
+    timeWithoutStorageMs = ms - streamInfo.getTimeInStorageMs();
   }
 
   @JsonInclude(Include.ALWAYS)
@@ -89,6 +90,7 @@ class AccessLogExtended {
   public String time;
   public long ns;
   public long ms;
+  public long timeWithoutStorageMs = 0;
 
   public AccessLogExtended() {
     start = System.nanoTime();
