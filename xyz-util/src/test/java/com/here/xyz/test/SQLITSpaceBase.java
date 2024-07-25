@@ -49,7 +49,9 @@ public class SQLITSpaceBase extends SQLITBase{
     XYZ40, //Illegal Argument
     XYZ44, //Feature exists
     XYZ49, //VersionConflictError
-    XYZ50  //XyzException
+    XYZ50, //XyzException
+    XYZ51, //Import Format not supported
+    XYZ52  //Import Failed non retryable
   }
 
   protected enum OnExists {
