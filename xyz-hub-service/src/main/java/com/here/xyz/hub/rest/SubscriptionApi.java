@@ -22,12 +22,17 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.task.SpaceConnectorBasedHandler.getAndValidateSpace;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.task.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
@@ -39,6 +44,7 @@ import org.apache.logging.log4j.Marker;
 public class SubscriptionApi extends SpaceBasedApi {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final String JOB_TARGET_PREFIX = "job:";
 
   public SubscriptionApi(RouterBuilder rb) {
     rb.getRoute("getSubscriptions").setDoValidation(false).addHandler(this::getSubscriptions);
@@ -98,10 +104,11 @@ public class SubscriptionApi extends SpaceBasedApi {
       subscription.setSource(spaceId);
 
       logger.info(marker, "Registering subscription for space " + spaceId + ": " + JsonObject.mapFrom(subscription));
-      validateSubscriptionRequest(subscription);
+      validateRequestBody(subscription);
 
       getAndValidateSpace(marker, spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> validateSubscriptionDestination(subscription))
           .compose(v -> SubscriptionHandler.createSubscription(context, subscription))
           .onSuccess(s -> sendResponse(context, CREATED, s))
           .onFailure(t -> sendErrorResponse(context, t));
@@ -117,10 +124,11 @@ public class SubscriptionApi extends SpaceBasedApi {
       final Subscription subscription = getSubscriptionInput(context);
       subscription.setId(subscriptionId);
       subscription.setSource(spaceId);
-      validateSubscriptionRequest(subscription);
+      validateRequestBody(subscription);
 
       getAndValidateSpace(getMarker(context), spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> validateSubscriptionDestination(subscription))
           .compose(v -> SubscriptionHandler.createOrReplaceSubscription(context, subscription))
           .onSuccess(s -> sendResponse(context, OK, s))
           .onFailure(t -> sendErrorResponse(context, t));
@@ -145,7 +153,7 @@ public class SubscriptionApi extends SpaceBasedApi {
     }
   }
 
-  private void validateSubscriptionRequest(Subscription subscription) throws HttpException {
+  private void validateRequestBody(Subscription subscription) throws HttpException {
     if (subscription.getId() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
 
@@ -158,4 +166,33 @@ public class SubscriptionApi extends SpaceBasedApi {
     if (subscription.getConfig() == null || subscription.getConfig().getType() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property config 'type' cannot be empty.");
   }
+
+  private Future<Void> validateSubscriptionDestination(Subscription subscription) {
+    if(subscription.getDestination().startsWith(JOB_TARGET_PREFIX)) {
+      String jobId = subscription.getDestination().substring(JOB_TARGET_PREFIX.length());
+
+      if(Service.configuration.JOB_API_ENDPOINT == null || Service.configuration.JOB_API_ENDPOINT.isEmpty()) {
+        return Future.failedFuture(new HttpException(NOT_IMPLEMENTED, "The subscription with Job destination is not supported."));
+      }
+
+      return Service.webClient.getAbs(Service.configuration.JOB_API_ENDPOINT + "/jobs/" + jobId + "/status")
+              .send()
+              .compose(response -> {
+                if(response.statusCode() == 200) {
+                  JsonObject responseJson = response.bodyAsJsonObject();
+                  if(responseJson != null && "RUNNING".equals(responseJson.getString("state"))) {
+                    return Future.succeededFuture();
+                  } else {
+                    return Future.failedFuture(new IllegalStateException("The destination job " + jobId + " is not in RUNNING state"));
+                  }
+                } else if (response.statusCode() == 404){
+                  return Future.failedFuture(new HttpException(NOT_FOUND, "The destination job " + jobId + " does not exist"));
+                } else {
+                  return Future.failedFuture(new ValidationException("Failed to validate job " + jobId + " in Job API"));
+                }
+              });
+    }
+    return Future.succeededFuture();
+  }
+
 }

@@ -381,6 +381,11 @@ public class Config extends BaseConfig {
   public String HTTP_CONNECTOR_ENDPOINT;
 
   /**
+   * The load balancer endpoint of the job API, to be used by other components to call the job API (admin-)endpoints.
+   */
+  public String JOB_API_ENDPOINT;
+
+  /**
    * If set to true, the service responses will include headers with information about the decompressed size of the request and response
    * payloads.
    */
