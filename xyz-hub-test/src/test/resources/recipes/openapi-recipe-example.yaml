@@ -37,7 +37,6 @@ exclude:
   - components.schemas.Space.autoCacheProfile
   - components.schemas.Space.listeners
   - components.schemas.Space.processors
-  - components.schemas.SpaceClient
   - components.schemas.SpaceStorage
   - components.schemas.SpaceStorageParams
   - components.schemas.Changeset

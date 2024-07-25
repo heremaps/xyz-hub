@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 public class JobCompiler {
 
   private static Set<Class<? extends JobCompilationInterceptor>> interceptors = new ConcurrentHashSet<>();
-  public static final Async async = new Async(5, Job.class);
+  private static final Async ASYNC = new Async(5, JobCompiler.class);
 
   static {
     registerCompilationInterceptor(ImportFromFiles.class);
@@ -67,7 +67,17 @@ public class JobCompiler {
           + "Multiple compilation interceptors were found: "
           + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")), errors);
 
-    return async.run(() -> interceptorCandidates.get(0).compile(job).enrich(job.getId()));
+    /*
+    NOTE:
+    It's necessary to run the compilation on an async pool,
+    because some compilation interceptors call step methods that might take some time to be evaluated.
+     */
+    return ASYNC.run(() -> interceptorCandidates.get(0).compile(job).enrich(job.getId()))
+        .map(graph -> {
+          //Pass the info to all steps whether they belong to a "pipeline-job" or not
+          graph.stepStream().forEach(step -> step.withPipeline(job.isPipeline()));
+          return graph;
+        });
   }
 
   public static JobCompiler getInstance() {

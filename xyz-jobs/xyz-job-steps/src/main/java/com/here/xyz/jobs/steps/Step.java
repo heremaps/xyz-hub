@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
@@ -70,6 +71,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private final String MODEL_BASED_PREFIX = "/modelBased";
   @JsonIgnore
   private List<Input> inputs;
+  @JsonView({Internal.class, Static.class})
+  private boolean pipeline;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -166,7 +169,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   protected void registerOutputs(List<Output> outputs, boolean userOutput) throws IOException {
     for (int i = 0; i < outputs.size(); i++)
       outputs.get(i).store(outputS3Prefix(stepS3Prefix(), userOutput, outputs.get(i) instanceof ModelBasedOutput)
-          + "/output" + i + ".json"); //TODO: Use proper file name
+          + "/" + UUID.randomUUID() + ".json"); //TODO: Use proper file suffix & content type
   }
 
   protected List<Output> loadPreviousOutputs(boolean userOutput) {
@@ -207,7 +210,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return Input.currentInputsCount(jobId, inputType);
   }
 
-  protected <T extends Input> List<T> loadInputsSample(int maxSampleSize, Class<T> inputType) {
+  protected <I extends Input> List<I> loadInputsSample(int maxSampleSize, Class<I> inputType) {
     return Input.loadInputsSample(jobId, maxSampleSize, inputType);
   }
 
@@ -364,5 +367,18 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
             .stream()
             .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
             .sum());
+  }
+
+  public boolean isPipeline() {
+    return pipeline;
+  }
+
+  public void setPipeline(boolean pipeline) {
+    this.pipeline = pipeline;
+  }
+
+  public T withPipeline(boolean pipeline) {
+    setPipeline(pipeline);
+    return (T) this;
   }
 }

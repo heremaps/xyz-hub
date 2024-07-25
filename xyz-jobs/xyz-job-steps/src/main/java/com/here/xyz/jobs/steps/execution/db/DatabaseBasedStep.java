@@ -35,7 +35,6 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +50,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   private double claimedAcuLoad;
   @JsonView(Internal.class)
   private List<RunningQuery> runningQueries = new ArrayList<>();
-  private Map<Database, DataSourceProvider> usedDataSourceProviders;
 
   @Override
   public abstract void execute() throws Exception;
@@ -59,15 +57,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   @Override
   protected final void onRuntimeShutdown() {
     super.onRuntimeShutdown();
-    if (usedDataSourceProviders != null)
-      usedDataSourceProviders.forEach((db, dataSourceProvider) -> {
-        try {
-          dataSourceProvider.close();
-        }
-        catch (Exception e) {
-          logger.error("Error closing connections for database " + db.getName(), e);
-        }
-      });
+    Database.closeAll();
   }
 
   protected final void runReadQueryAsync(SQLQuery query, Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed, SQLException {
@@ -285,13 +275,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
           + claimedAcuLoad + "/" + neededResources.get(db) + " have been claimed before.");
 
     claimedAcuLoad += estimatedMaxAcuLoad;
-
-    if (usedDataSourceProviders == null)
-      usedDataSourceProviders = new HashMap<>();
-    DataSourceProvider dsp = usedDataSourceProviders.get(db);
-    if (dsp == null)
-      usedDataSourceProviders.put(db, dsp = db.getDataSources());
-    return dsp;
+    return db.getDataSources();
   }
 
   private record RunningQuery(@JsonProperty("queryId") String queryId, @JsonProperty("dbName") String dbName,

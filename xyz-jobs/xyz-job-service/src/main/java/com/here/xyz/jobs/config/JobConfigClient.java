@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.config;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
+
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.service.JobService;
@@ -26,7 +28,6 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
-import java.util.ArrayList;
 import java.util.List;
 
 public abstract class JobConfigClient implements Initializable {
@@ -55,7 +56,7 @@ public abstract class JobConfigClient implements Initializable {
   public abstract Future<List<Job>> loadJobs();
 
   /**
-   * Load all jobs with a specified type.
+   * Load all jobs that are having the specified state.
    * @param state
    * @return
    */
@@ -67,6 +68,13 @@ public abstract class JobConfigClient implements Initializable {
    * @return
    */
   public abstract Future<List<Job>> loadJobs(String resourceKey);
+
+  /**
+   * Load all jobs related to a specified resourceKey (e.g., space ID) that are having the specified state.
+   * @param resourceKey
+   * @return
+   */
+  public abstract Future<List<Job>> loadJobs(String resourceKey, State state);
 
   public abstract Future<Void> storeJob(Job job);
 
@@ -100,24 +108,17 @@ public abstract class JobConfigClient implements Initializable {
   /*
   TODO: Provide a more generic variant of the method #loadJobs ...
   E.g.:
-  public abstract Future<List<Job>> loadJobs(State[] state, long completedBefore);
+  public abstract Future<List<Job>> loadJobs(List<State> states, long completedBefore);
    */
 
-  public Future<List<Job>> loadFailedAndSucceededJobsOlderThan(Integer olderThanInMs) {
-    List<Job> jobList = new ArrayList<>();
-
-    return loadJobs(State.SUCCEEDED)
-            .compose(succeedJobs -> { jobList.addAll(succeedJobs); return loadJobs(State.FAILED);})
-            .compose(failedJobs -> Future.succeededFuture(failedJobs.stream().filter(job -> !job.isResumable()).toList()))
-            .compose(notResumableFailedJobs -> { jobList.addAll(notResumableFailedJobs); return Future.succeededFuture(jobList);})
-            .compose(result -> {
-                      if (olderThanInMs != null)
-                        /** Filter all results which are older than provided timestamp */
-                        return Future.succeededFuture(
-                                result.stream().filter(job -> (JobService.currentTimeMillis() - job.getCreatedAt()) > olderThanInMs).toList()
-                        );
-                      return Future.succeededFuture(result);
-                    }
-            );
+  @Deprecated
+  public Future<List<Job>> loadNonResumableFailedJobsOlderThan(int olderThanInMs) {
+    return loadJobs(FAILED)
+        .map(failedJobs -> failedJobs.stream()
+            //Keep only jobs that are non-resumable
+            .filter(job -> !job.isResumable())
+            //Keep only jobs that are older than provided timestamp
+            .filter(job -> (JobService.currentTimeMillis() - job.getCreatedAt()) > olderThanInMs)
+            .toList());
   }
 }

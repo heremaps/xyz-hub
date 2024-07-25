@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,10 +117,8 @@ public class SpaceAuthorization extends Authorization {
         return;
       }
 
-      if (tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream())
-          .noneMatch(f -> f.matches(xyzhubFilter))) {
+      if (tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream()).noneMatch(f -> f.matches(xyzhubFilter)))
         throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
-      }
     }
 
     /*

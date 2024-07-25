@@ -167,7 +167,9 @@ public class CombinedJob extends Job<CombinedJob> {
 
   private Future<Job> enqueue() {
     CService.exportQueue.addJob(this);
-    children.forEach(childJob -> CService.exportQueue.addJob(childJob));
+    children.stream()
+            .filter(childJob -> childJob.getStatus() != finalized )
+            .forEach(childJob -> CService.exportQueue.addJob(childJob));
     return Future.succeededFuture(this);
   }
 

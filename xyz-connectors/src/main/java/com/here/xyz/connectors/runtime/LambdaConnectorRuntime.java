@@ -80,6 +80,8 @@ public class LambdaConnectorRuntime extends ConnectorRuntime {
 
   private boolean isValidVersion(String version) {
     try {
+      if (version == null)
+        return false;
       Integer.parseInt(version.substring(0, 1));
       return version.contains(".");
     }

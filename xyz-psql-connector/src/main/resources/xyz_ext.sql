@@ -111,7 +111,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 193
+ select 194
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
@@ -3262,7 +3262,7 @@ CREATE OR REPLACE FUNCTION _asyncify(query TEXT, deferAfterCommit BOOLEAN, proce
 $BODY$
 DECLARE
     password TEXT := current_setting('xyz.password');
-    connectionName TEXT := xyz_random_string(6);
+    connectionName TEXT := xyz_random_string(10);
 BEGIN
     IF deferAfterCommit THEN
         --Defer the execution (spawn-point) of the query to the end of this thread's execution, to make sure that this thread's transaction has been fully completed / committed before
@@ -3270,7 +3270,8 @@ BEGIN
     ELSE
 --         PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
 --         RAISE NOTICE '~~~~~~~~~~~ Connection name %', connectionName;
-        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
+        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password
+                || ' application_name = ''' || current_setting('application_name') ||'''');
 --         PERFORM pg_sleep(1);
         IF strpos(query, '/*labels(') != 1 THEN
             --Attach the same labels to the recursive async call
@@ -3295,7 +3296,6 @@ BEGIN
                 COMMIT;
                 --Start the follow up thread if one has been registered
                 PERFORM CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
-                PERFORM pg_terminate_backend(pg_backend_pid());
             END
             $block$;
         $outer$;
@@ -3307,7 +3307,6 @@ BEGIN
             COMMIT;
             --Start the follow up thread if one has been registered
             SELECT CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
-            SELECT pg_terminate_backend(pg_backend_pid());
         $block$;
     END IF;
 END
@@ -4242,7 +4241,7 @@ AS $BODY$
                 NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
             END IF;
 
-            -- remove bbox on root
+            -- Remove bbox on root
             NEW.jsondata := NEW.jsondata - 'bbox';
 
             -- Inject type
@@ -4252,7 +4251,7 @@ AS $BODY$
             NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
 
             IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-            --GeoJson Feature Import
+                --GeoJson Feature Import
                 NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
                 NEW.jsondata := NEW.jsondata - 'geometry';
             ELSE
@@ -4279,20 +4278,19 @@ DECLARE
     success_marker text := 'SUCCESS_MARKER';
     target_state text := 'RUNNING';
     work_item record;
+    updated_rows INTEGER;
     result record;
 BEGIN
     work_item := null;
 
     EXECUTE format('SELECT state, s3_path, execution_count FROM %1$s '
-                       ||'WHERE state IN( %2$L,%3$L) ORDER by s3_path LIMIT 1;',
+                       ||'WHERE state IN( %2$L,%3$L,%4$L) ORDER by random() LIMIT 1;',
                    temporary_tbl,
                    'SUBMITTED',
+                   'RETRY',
                    'FAILED') into work_item;
 
     IF work_item.state IS NOT NULL THEN
-        --target_state := (CASE WHEN (work_item.state = success_marker) THEN (work_item.state || '_' || target_state) ELSE target_state END);
-        --RAISE NOTICE 'FOUND WORK ITEM %-%',work_item.s3_path, work_item.state;
-
         EXECUTE format('UPDATE %1$s '
                            ||'set state = %2$L '
                            ||'WHERE s3_path = %3$L AND state = %4$L RETURNING *',
@@ -4301,17 +4299,20 @@ BEGIN
                         work_item.s3_path,
                         work_item.state) INTO result;
 
-        IF result is NOT NULL THEN
-            --RAISE NOTICE 'RESULT NOT NULL.  DELIVER WORK ITEM  %',work_item.i;
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
 
+        IF updated_rows = 1 THEN
             s3_bucket = result.s3_bucket;
             s3_path = result.s3_path;
             s3_region = result.s3_region;
             filesize = result.data->'filesize';
             state = result.state;
             execution_count = result.execution_count;
-
+            -- Result not null -> deliver work_item
             RETURN NEXT;
+        ELSE
+			state = 'RETRY';
+			RETURN NEXT;
         END IF;
     ELSE
         EXECUTE format('SELECT count(1) FROM %1$s WHERE state IN (''RUNNING'',''SUBMITTED'');',
@@ -4323,7 +4324,6 @@ BEGIN
             s3_path = 'SUCCESS_MARKER';
             RETURN NEXT;
         ELSE
-            -- no items left
             EXECUTE format('SELECT s3_path, state FROM %1$s '
                                ||'WHERE state = %2$L ;',
                            temporary_tbl,
@@ -4337,22 +4337,25 @@ BEGIN
                                work_item.state || '_' || target_state,
                                work_item.s3_path,
                                work_item.state) INTO result;
-                IF result is NOT NULL THEN
-                    --RAISE NOTICE 'RESULT NOT NULL %',work_item.i;
 
+                GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+                IF updated_rows = 1 THEN
                     s3_bucket = result.s3_bucket;
                     s3_path = result.s3_path;
                     s3_region = result.s3_region;
                     filesize = result.data->'filesize';
                     state = result.state;
                     execution_count = result.execution_count;
-
+                    -- Result not null -> deliver work_item
                     RETURN NEXT;
+                ELSE
+			        state = 'RETRY';
+			        RETURN NEXT;
                 END IF;
             END IF;
         END If;
     END IF;
-    RETURN;
 END;
 $BODY$;
 ------------------------------------------------
@@ -4367,8 +4370,6 @@ DECLARE
     config record;
 BEGIN
     select * from xyz_import_get_import_config(format) into config;
-
-    --RAISE NOTICE '>>>>>>>> import of s3_path:% ', s3_path;
 
     EXECUTE format(
             'SELECT/*lables({"type": "ImortFilesToSpace","bytes":%1$L})*/ aws_s3.table_import_from_s3( '
@@ -4386,8 +4387,7 @@ BEGIN
             s3_region
             ) INTO import_statistics;
 
-    --PERFORM pg_sleep((random() * 4)::INT);
-    --Update success
+    -- Mark item as successfully imported. Store import_statistics.
     EXECUTE format('UPDATE %1$s '
                        ||'set state = %2$L, '
                        ||'execution_count = execution_count + 1, '
@@ -4397,24 +4397,24 @@ BEGIN
                    'FINISHED',
                    json_build_object('import_statistics', import_statistics),
                    s3_path);
-
-    --RAISE NOTICE 'SET WORK ITEM % to FISHED!', s3_uri ;
-
     EXCEPTION
-        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' OR SQLSTATE '38000' THEN
+        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
             /** Retryable errors:
+               	    55P03 (lock_not_available)
                     23505 (duplicate key value violates unique constraint)
                     22P02 (invalid input syntax for type json)
                     22P04 (extra data after last expected column)
+                    38000 Lambda not available
             */
             EXECUTE format('UPDATE %1$s '
-                           ||'set state = %2$L, '
-                           ||'execution_count = execution_count +1 '
-                           ||'WHERE s3_path = %3$L ',
+                            ||'set state = %2$L, '
+                            ||'execution_count = execution_count +1, '
+			                ||'data = data || ''{"error" : {"sqlstate":"%3$s"}}'''
+                            ||'WHERE s3_path = %4$L',
                        temporary_tbl,
                        'FAILED',
+					   SQLSTATE,
                        s3_path);
-    --next recursive call will retry if execution_count <= retry_count
 END;
 $BODY$;
 ------------------------------------------------
@@ -4424,7 +4424,6 @@ CREATE OR REPLACE FUNCTION xyz_import_get_import_config(format text)
     LANGUAGE 'plpgsql'
 AS $BODY$
 BEGIN
-    --default
     import_config := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
     format := lower(format);
 
@@ -4434,7 +4433,7 @@ BEGIN
         target_clomuns := 'jsondata';
     ELSEIF format = 'geojson' THEN
         target_clomuns := 'jsondata';
-        import_config := '(FORMAT TEXT, ENCODING ''UTF8'')';
+        import_config := format('(FORMAT CSV, ENCODING ''UTF8'', DELIMITER %1$L , QUOTE  %2$L)', CHR(2), CHR(1));
     ELSE
         RAISE EXCEPTION 'Format ''%'' not supported! ',format
             USING HINT = 'geojson | csv_geojson | csv_json_wkb are available',
@@ -4473,18 +4472,17 @@ BEGIN
 	            ) INTO import_results;
 
 	    IF  (import_results.finished_count+import_results.failed_count) = import_results.total_count THEN
-	        --Will only be executed from last worker
-	        --RAISE NOTICE 'Last Worker reports ... %',import_results;
+	        -- Will only be executed from last worker
 	        IF import_results.total_count = import_results.failed_count  THEN
-	            --RAISE EXCEPTION 'All imports are failed!';
+	            -- All imports are failed
 	        ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
-	            --RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count, import_results.total_count;
+	            -- Imports partially failed
 	        ELSE
-	            --RAISE NOTICE 'ALL DONE! INVOKE LAMBDA';
+	            -- All done invoke lambda
 	            $wrappedouter$ || success_callback || $wrappedouter$
 	        END IF;
 	    ELSE
-	        --RAISE NOTICE 'Import still in progress!';
+	        -- Imports still in progress!
 	    END IF;
 	END;
 	$wrappedinner$ $wrappedouter$;
@@ -4501,72 +4499,58 @@ $BODY$
 DECLARE
     work_item record;
     sql_text text;
+    retry_count integer := 2;
 BEGIN
-    --RAISE NOTICE '########################################### START';
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
-    IF work_item IS NULL THEN
+    IF work_item.state IS NULL THEN
         RETURN;
     ELSE
-        IF work_item.state = 'LAST_ONES_RUNNING' THEN
-            --Last imports are running, no submitted files are left. We need to wait till last import is finished!
-            PERFORM PG_SLEEP(5);
+        IF work_item.state = 'RETRY' OR work_item.state = 'LAST_ONES_RUNNING' THEN
+            -- Last imports are running, no submitted files are left. We need to wait till last import is finished!
+            PERFORM pg_sleep(10);
             PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
                                     schem, temporary_tbl, target_tbl, format, success_callback, failure_callback), false, true );
         ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
             EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
             RETURN;
+        ELSEIF work_item.execution_count >= retry_count THEN
+             RAISE EXCEPTION 'Error on importing file %. Maximum retries are reached %.', right(work_item.s3_path, 36), retry_count
+                 USING HINT = 'Details: ' || (work_item.data->'error'->>'sqlstate') ,
+                    ERRCODE = 'XYZ52';
         END IF;
     END IF;
 
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
-        work_item record;
-        work_item_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
+        work_item_s3_bucket text := '$wrappedouter$||work_item.s3_bucket||$wrappedouter$'::text;
+        work_item_s3_region text := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::text;
+        work_item_s3_filesize bigint := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
+        work_item_s3_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
 		schem text := '$wrappedouter$||schem||$wrappedouter$'::text;
 		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
 		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
 		format text := '$wrappedouter$||format||$wrappedouter$'::text;
-		retry_count integer := 2;
     BEGIN
-        EXECUTE format('SELECT * FROM %1$s WHERE s3_path = %2$L;',
-               temporary_tbl,
-               work_item_path) into work_item;
-
-        --RAISE NOTICE '######### RECEIVED work_item %', work_item;
-
-        IF work_item.state IS NOT NULL THEN
 			BEGIN
-	            IF work_item.s3_path != 'SUCCESS_MARKER' THEN
-                    IF work_item.execution_count = retry_count THEN
-                        RAISE EXCEPTION 'File ''%'' failed non retryable!',work_item.s3_path
-                            USING ERRCODE = 'XYZ52';
-                    END IF;
-					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item.s3_bucket ,work_item.s3_path, work_item.s3_region,
-														 format, (work_item.data ->> 'filesize')::bigint);
+	            IF work_item_s3_bucket != 'SUCCESS_MARKER' THEN
+					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item_s3_bucket ,work_item_s3_path, work_item_s3_region,
+														 format, work_item_s3_filesize);
 	            END IF;
 
 				EXCEPTION
-					WHEN SQLSTATE '38000' THEN
-						--RAISE NOTICE 'Lambda not available!';
-						RETURN;
 					WHEN OTHERS THEN
-						--RAISE NOTICE '-----------------------------Import has failed ';
+						-- Import has failed
 						BEGIN
 							$wrappedouter$ || failure_callback || $wrappedouter$
 							RETURN;
-						EXCEPTION
-							WHEN SQLSTATE '38000' THEN
-								--RAISE NOTICE 'Lambda not available!';
-								RETURN;
 						END;
 			END;
 	 		PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
 					schem, temporary_tbl, target_tbl, format,
 					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
 					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), false, true );
-        END IF;
     END;
 	$wrappedinner$ $wrappedouter$;
     EXECUTE sql_text;

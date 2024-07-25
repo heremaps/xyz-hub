@@ -32,11 +32,10 @@ import java.util.Map;
 
 public class HubWebClientAsync extends HubWebClient {
   private static Map<String, HubWebClientAsync> instances = new HashMap<>();
-  private Async async;
+  private static final Async ASYNC = new Async(20, HubWebClientAsync.class);
 
   protected HubWebClientAsync(String baseUrl) {
     super(baseUrl);
-    async = new Async(20, HubWebClientAsync.class);
   }
 
   public static HubWebClientAsync getInstance(String baseUrl) {
@@ -46,18 +45,18 @@ public class HubWebClientAsync extends HubWebClient {
   }
 
   public Future<Space> loadSpaceAsync(String spaceId) {
-    return async.run(() -> loadSpace(spaceId));
+    return ASYNC.run(() -> loadSpace(spaceId));
   }
 
   public Future<Void> patchSpaceAsync(String spaceId, Map<String, Object> spaceUpdates) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       patchSpace(spaceId, spaceUpdates);
       return null;
     });
   }
 
   public Future<StatisticsResponse> loadSpaceStatisticsAsync(String spaceId, SpaceContext context) {
-    return async.run(() -> loadSpaceStatistics(spaceId, context));
+    return ASYNC.run(() -> loadSpaceStatistics(spaceId, context));
   }
 
   public Future<StatisticsResponse> loadSpaceStatisticsAsync(String spaceId) {
@@ -65,23 +64,23 @@ public class HubWebClientAsync extends HubWebClient {
   }
 
   public Future<Connector> loadConnectorAsync(String connectorId) {
-    return async.run(() -> loadConnector(connectorId));
+    return ASYNC.run(() -> loadConnector(connectorId));
   }
 
   public Future<List<Connector>> loadConnectorsAsync() {
-    return async.run(() -> loadConnectors());
+    return ASYNC.run(() -> loadConnectors());
   }
 
   public Future<Tag> postTagAsync(String spaceId, Tag tag) {
-    return async.run(() -> postTag(spaceId, tag));
+    return ASYNC.run(() -> postTag(spaceId, tag));
   }
 
   public Future<Tag> loadTagAsync(String spaceId, String tagId) {
-    return async.run(() -> loadTag(spaceId, tagId));
+    return ASYNC.run(() -> loadTag(spaceId, tagId));
   }
 
   public Future<Void> deleteTagAsync(String spaceId, String tagId) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       deleteTag(spaceId, tagId);
       return null;
     });

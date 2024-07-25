@@ -30,71 +30,77 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class InMemJobConfigClient extends JobConfigClient {
-    private Map<String, Job> jobMap = new ConcurrentHashMap<>();
+  private Map<String, Job> jobMap = new ConcurrentHashMap<>();
 
-    public static class Provider extends JobConfigClient.Provider {
-        @Override
-        public boolean chooseMe() {
-            return "test".equals(System.getProperty("scope"));
-        }
-
-        @Override
-        protected JobConfigClient getInstance() {
-            return new InMemJobConfigClient();
-        }
-    }
-
-
+  public static class Provider extends JobConfigClient.Provider {
     @Override
-    public Future<Job> loadJob(String jobId) {
-        return Future.succeededFuture(jobMap.get(jobId));
+    public boolean chooseMe() {
+      return "test".equals(System.getProperty("scope"));
     }
 
     @Override
-    public Future<List<Job>> loadJobs() {
-        return Future.succeededFuture(List.copyOf(jobMap.values()));
+    protected JobConfigClient getInstance() {
+      return new InMemJobConfigClient();
     }
+  }
 
-    @Override
-    public Future<List<Job>> loadJobs(RuntimeInfo.State state) {
-        List<Job> jobs = jobMap.values().stream()
-            .filter(job -> job.getStatus().getState() == state)
-            .collect(Collectors.toList());
-        return Future.succeededFuture(jobs);
-    }
 
-    @Override
-    public Future<List<Job>> loadJobs(String resourceKey) {
-        List<Job> jobs = jobMap.values().stream()
-            .filter(job -> resourceKey.equals(job.getResourceKey()))
-            .collect(Collectors.toList());
-        return Future.succeededFuture(jobs);
-    }
+  @Override
+  public Future<Job> loadJob(String jobId) {
+    return Future.succeededFuture(jobMap.get(jobId));
+  }
 
-    @Override
-    public Future<Void> storeJob(Job job) {
-        jobMap.put(job.getId(), job);
-        return Future.succeededFuture();
-    }
+  @Override
+  public Future<List<Job>> loadJobs() {
+    return Future.succeededFuture(List.copyOf(jobMap.values()));
+  }
 
-    @Override
-    public Future<Void> updateState(Job job, State expectedPreviousState) {
-        return storeJob(job);
-    }
+  @Override
+  public Future<List<Job>> loadJobs(RuntimeInfo.State state) {
+    List<Job> jobs = jobMap.values().stream()
+        .filter(job -> job.getStatus().getState() == state)
+        .collect(Collectors.toList());
+    return Future.succeededFuture(jobs);
+  }
 
-    @Override
-    public Future<Void> updateStatus(Job job, State expectedPreviousState) {
-        return storeJob(job);
-    }
+  @Override
+  public Future<List<Job>> loadJobs(String resourceKey) {
+    List<Job> jobs = jobMap.values().stream()
+        .filter(job -> resourceKey.equals(job.getResourceKey()))
+        .collect(Collectors.toList());
+    return Future.succeededFuture(jobs);
+  }
 
-    @Override
-    public Future<Void> updateStep(Job job, Step<?> newStep) {
-        return storeJob(job);
-    }
+  @Override
+  public Future<List<Job>> loadJobs(String resourceKey, State state) {
+    return loadJobs().map(jobs -> jobs.stream().filter(job -> (resourceKey == null || job.getResourceKey().equals(resourceKey))
+        && (state == null || job.getStatus().getState() == state)).toList());
+  }
 
-    @Override
-    public Future<Void> deleteJob(String jobId) {
-        jobMap.remove(jobId);
-        return Future.succeededFuture();
-    }
+  @Override
+  public Future<Void> storeJob(Job job) {
+    jobMap.put(job.getId(), job);
+    return Future.succeededFuture();
+  }
+
+  @Override
+  public Future<Void> updateState(Job job, State expectedPreviousState) {
+    return storeJob(job);
+  }
+
+  @Override
+  public Future<Void> updateStatus(Job job, State expectedPreviousState) {
+    return storeJob(job);
+  }
+
+  @Override
+  public Future<Void> updateStep(Job job, Step<?> newStep) {
+    return storeJob(job);
+  }
+
+  @Override
+  public Future<Void> deleteJob(String jobId) {
+    jobMap.remove(jobId);
+    return Future.succeededFuture();
+  }
 }

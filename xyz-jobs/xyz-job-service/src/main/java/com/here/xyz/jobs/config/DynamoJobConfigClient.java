@@ -110,6 +110,17 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<List<Job>> loadJobs(String resourceKey, State state) {
+    if (resourceKey != null)
+      //TODO: Use an index with hash- *and* range-key
+      return loadJobs(resourceKey).map(jobs -> jobs.stream().filter(job -> state == null || job.getStatus().getState() == state).toList());
+    else if (state != null)
+      return loadJobs(state);
+    else
+      return loadJobs();
+  }
+
+  @Override
   public Future<Void> storeJob(Job job) {
     return dynamoClient.executeQueryAsync(() -> {
       //TODO: Ensure that concurrent writes do not produce invalid state-transitions using atomic writes

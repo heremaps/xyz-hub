@@ -1,13 +1,37 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.jobs.steps.impl.tools;
 
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 
 public class ResourceAndTimeCalculator implements Initializable {
+    private static int MIN_IMPORT_TIME_IN_SECONDS = 30 * 60;
+    private static int MAX_IMPORT_TIME_IN_SECONDS = 30 * 60 * 60;
+
+    private static int MIN_IDX_CREATION_TIME_IN_SECONDS = 60 * 60;
+    private static int MAX_IDX_CREATION_TIME_IN_SECONDS = 10 * 60 * 60;
+
     public static ResourceAndTimeCalculator getInstance() {
         return ResourceAndTimeCalculator.Provider.provideInstance();
     }
@@ -43,6 +67,11 @@ public class ResourceAndTimeCalculator implements Initializable {
             int overhead = 2;
             return (int) (byteSize / expectedHubThroughPutBytesPerSec * overhead);
         }
+    }
+
+    public int calculateImportTimeoutSeconds(String spaceId, long byteSize, LambdaBasedStep.ExecutionMode executionMode) {
+        int t = calculateImportTimeInSeconds(spaceId, byteSize, executionMode) * 3;
+        return Math.min(Math.max(t, MIN_IMPORT_TIME_IN_SECONDS), MAX_IMPORT_TIME_IN_SECONDS);
     }
 
     public double calculateNeededImportAcus(long uncompressedUploadBytesEstimation, int fileCount, int threadCount) {
@@ -106,10 +135,6 @@ public class ResourceAndTimeCalculator implements Initializable {
 
         double importTimeInMin =  switch (index){
             case GEO -> geoIndexFactor(spaceId, bytesPerBillion);
-            case CREATED_AT ->  0.064 * bytesPerBillion;
-            case UPDATED_AT ->  0.064 * bytesPerBillion;
-            case ID_VERSION ->  0.063 * bytesPerBillion;
-            case ID ->  0.063 * bytesPerBillion;
             case VERSION ->  0.014 * bytesPerBillion;
             case VIZ ->  0.025 * bytesPerBillion;
             case OPERATION ->  0.012 * bytesPerBillion;
@@ -128,10 +153,6 @@ public class ResourceAndTimeCalculator implements Initializable {
 
         return switch (index){
             case GEO -> interpolate(globalMax,30, byteSize, minACUs);
-            case CREATED_AT ->  interpolate(globalMax, 25, byteSize, minACUs);
-            case UPDATED_AT ->  interpolate(globalMax, 25, byteSize, minACUs);
-            case ID_VERSION ->  interpolate(globalMax, 25, byteSize, minACUs);
-            case ID ->  interpolate(globalMax, 20, byteSize, minACUs);
             case VIZ ->  interpolate(globalMax,10, byteSize, minACUs);
             case VERSION ->  interpolate(globalMax,  10, byteSize, minACUs);
             case OPERATION ->  interpolate(globalMax,10, byteSize, minACUs);
@@ -141,27 +162,9 @@ public class ResourceAndTimeCalculator implements Initializable {
         };
     }
 
-    public int calculateIndexTimeoutSeconds(long byteSize, XyzSpaceTableHelper.Index index) {
-        int minTimeoutInSeconds = 6 * 60;
-        //Threshold which defines when we scale to maximum
-        double globalMax = 400d * 1024 * 1024 * 1024;
-
-        if(index == null)
-            return minTimeoutInSeconds;
-
-        return switch (index){
-            case GEO -> (int)interpolate(globalMax, (4+2) * 3600, byteSize, minTimeoutInSeconds);
-            case CREATED_AT ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case UPDATED_AT ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case ID_VERSION ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case ID ->  (int)interpolate(globalMax, (2+1) * 3600, byteSize, minTimeoutInSeconds);
-            case VIZ ->  (int)interpolate(globalMax, (1 + 1) * 3600, byteSize, minTimeoutInSeconds);
-            case VERSION ->  (int)interpolate(globalMax,  (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case OPERATION ->  (int)interpolate(globalMax, (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case NEXT_VERSION ->  (int)interpolate(globalMax, (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case AUTHOR ->  (int)interpolate(globalMax, (0.5 + 0.5) * 3600, byteSize, minTimeoutInSeconds);
-            case SERIAL ->  (int)interpolate(globalMax, (0.4 + 0.4) * 3600, byteSize, minTimeoutInSeconds);
-        };
+    public int calculateIndexTimeoutSeconds(String spaceId, long byteSize, XyzSpaceTableHelper.Index index) {
+        int t = calculateIndexCreationTimeInSeconds(spaceId, byteSize, index) * 3;
+        return Math.min(Math.max(t, MIN_IDX_CREATION_TIME_IN_SECONDS), MAX_IDX_CREATION_TIME_IN_SECONDS);
     }
 
     private static double interpolate(double globalMax, double max, long real, double min){

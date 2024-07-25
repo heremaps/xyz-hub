@@ -26,6 +26,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
@@ -40,11 +41,13 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
@@ -94,7 +97,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
 
-  public static final Async async = new Async(20, Job.class);
+  private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = 2 * 7 * 24 * 3600 * 1000; //2 weeks
 
@@ -126,8 +129,9 @@ public class Job implements XyzSerializable {
    */
   public Job create() {
     //Define the framework standard properties
-    return withId(randomAlpha())
-        .withStatus(new RuntimeStatus().withState(NOT_READY))
+    if (getId() == null)
+      setId(randomAlpha());
+    return withStatus(new RuntimeStatus().withState(NOT_READY))
         .withCreatedAt(Core.currentTimeMillis())
         .withUpdatedAt(getCreatedAt())
         .withKeepUntil(getKeepUntil() <= 0 ? getCreatedAt() + DEFAULT_JOB_TTL : getKeepUntil());
@@ -145,8 +149,6 @@ public class Job implements XyzSerializable {
    * @return Whether submission was done. If submission was not done, the Job remains in state NOT_READY.
    */
   public Future<Boolean> submit() {
-    //TODO: Make sure that all state-transitions are persisted using the JobConfigClient#updateState() method
-    //TODO: Do not re-compile if the steps are set already?
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
           setSteps(stepGraph);
@@ -154,7 +156,7 @@ public class Job implements XyzSerializable {
           return prepare().compose(v -> validate());
         })
         .compose(isReady -> {
-          if (isReady) {
+          if (isPipeline() || isReady) {
             getStatus().setState(SUBMITTED);
             Input.registerSubmittedJob(getId());
             return store().compose(v -> start()).map(true);
@@ -182,7 +184,7 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> prepareStep(Step step) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       step.prepare(getOwner(), getClientInfo());
       return null;
     });
@@ -199,7 +201,7 @@ public class Job implements XyzSerializable {
   }
 
   private static Future<Boolean> validateStep(Step step) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       boolean isReady = step.validate();
       if (isReady && step.getStatus().getState() != SUBMITTED)
         step.getStatus().setState(SUBMITTED);
@@ -237,7 +239,13 @@ public class Job implements XyzSerializable {
 
     return storeStatus(null)
         //Cancel the execution in any case, to prevent race-conditions
-        .compose(v -> JobExecutor.getInstance().cancel(getExecutionId()))
+        .compose(v -> {
+          if (isPipeline()) {
+            getStatus().setState(CANCELLED);
+            return storeStatus(CANCELLING);
+          }
+          return JobExecutor.getInstance().cancel(getExecutionId());
+        })
         /*
         NOTE: Cancellation is still in progress. The JobExecutor will now monitor the different step cancellations
         and update the Job to CANCELLED once all cancellations are completed.
@@ -283,7 +291,6 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
-    State oldState = getStatus().getState();
     if (step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
@@ -334,12 +341,19 @@ public class Job implements XyzSerializable {
   }
 
   public Future<Void> storeUpdatedStep(Step<?> step) {
-    logger.info("{} StoreUpdateStep:{}", step.getGlobalStepId(), getStatus().getState());
+    logger.info("{} StoreUpdatedStep: {}", step.getGlobalStepId(), getStatus().getState());
     return JobConfigClient.getInstance().updateStep(this, step);
   }
 
   public static Future<Job> load(String jobId) {
     return JobConfigClient.getInstance().loadJob(jobId);
+  }
+
+  public static Future<List<Job>> load(State state, String resourceKey) {
+    if (state == null && resourceKey == null)
+      return loadAll();
+    else
+      return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
   public static Future<List<Job>> loadByResourceKey(String resourceKey) {
@@ -353,7 +367,9 @@ public class Job implements XyzSerializable {
   public static Future<Void> delete(String jobId) {
     return load(jobId)
         //First delete all the inputs / outputs of the job
-        .compose(job -> job.deleteJobResources())
+        .compose(job -> job.getStatus().getState() == RUNNING
+            ? Future.failedFuture(new IllegalStateException("Job can not be deleted as it is in state RUNNING."))
+            : job.deleteJobResources())
         //Now finally delete this job's configuration
         .compose(v -> JobConfigClient.getInstance().deleteJob(jobId).mapEmpty());
   }
@@ -363,15 +379,17 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
-    //TODO: Delete StateMachine if still existing
-    return deleteInputs() //Delete the inputs of this job
+    //Delete StateMachine if still existing
+    return JobExecutor.getInstance().deleteExecution(getExecutionId())
+        //Delete the inputs of this job
+        .compose(b -> deleteInputs())
         //Delete the outputs of all involved steps
         .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
             .mapEmpty());
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {
-    return async.run(() -> {
+    return ASYNC.run(() -> {
       step.deleteOutputs();
       return null;
     });
@@ -411,16 +429,25 @@ public class Job implements XyzSerializable {
     return new UploadUrl().withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID());
   }
 
+  public Future<Void> consumeInput(ModelBasedInput input) {
+    if (!isPipeline())
+      return Future.failedFuture(new IllegalStateException("This job does not accept ModelBasedInputs."));
+    final State state = getStatus().getState();
+    if (state != RUNNING)
+      return Future.failedFuture(new IllegalStateException("This job can not consume any input as it is not RUNNING. Current state: " + state));
+    return JobExecutor.getInstance().sendInput(this, input);
+  }
+
   private Future<Void> deleteInputs() {
     return AsyncS3Client.getInstance().deleteFolderAsync(inputS3Prefix(getId()));
   }
 
   public Future<List<Input>> loadInputs() {
-    return async.run(() -> Input.loadInputs(getId()));
+    return ASYNC.run(() -> Input.loadInputs(getId()));
   }
 
   public Future<List<Output>> loadOutputs() {
-    return async.run(() -> steps.stepStream()
+    return ASYNC.run(() -> steps.stepStream()
         .map(step -> (List<Output>) step.loadOutputs(true))
         .flatMap(ol -> ol.stream())
         .collect(Collectors.toList()));
@@ -433,7 +460,8 @@ public class Job implements XyzSerializable {
     return getStatus().getState().isValidSuccessor(RESUMING) && getSteps()
         .stepStream()
         .allMatch(step -> step.getStatus().getState() == CANCELLED
-            || step.getStatus().getState() == FAILED && step.getStatus().isFailedRetryable());
+                || step.getStatus().getState() == SUCCEEDED
+                || step.getStatus().getState() == FAILED && step.getStatus().isFailedRetryable());
   }
 
   public String getId() {
@@ -615,23 +643,7 @@ public class Job implements XyzSerializable {
   }
 
   @JsonIgnore
-  public String getStateMachineArn(){
-    if(executionId == null)
-      return null;
-
-    String[] parts = executionId.split(":");
-
-    if (parts.length == 8) {
-      StringBuilder stringBuilder = new StringBuilder();
-      for (int i = 0; i < 5; i++) {
-        stringBuilder.append(parts[i]);
-        stringBuilder.append(":");
-      }
-      stringBuilder.append("stateMachine:");
-      stringBuilder.append(parts[6]);
-      return stringBuilder.toString();
-    }else {
-      throw new IllegalArgumentException("Invalid execution ID format");
-    }
+  public boolean isPipeline() {
+    return getSource() instanceof DynamicStream;
   }
 }

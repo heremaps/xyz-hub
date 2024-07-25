@@ -32,6 +32,7 @@ import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
@@ -78,18 +79,21 @@ public abstract class JobExecutor implements Initializable {
           //Update the job status atomically to RUNNING to make sure no other node will try to start it.
           job.getStatus()
               .withState(RUNNING)
-              .withInitialEndTimeEstimation(Core.currentTimeMillis() + calculateEstimatedExecutionTime(job));
+              .withInitialEndTimeEstimation(Core.currentTimeMillis()
+                  + job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000);
 
           //TODO: Update / invalidate the reserved unit maps?
           return job.storeStatus(PENDING)
+              .compose(v -> job.isPipeline() ? setStepsRunning(job) : Future.succeededFuture())
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
         });
   }
 
-  private static long calculateEstimatedExecutionTime(Job job) {
-    return job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000;
+  private Future<Void> setStepsRunning(Job job) {
+    job.getSteps().stepStream().forEach(step -> step.getStatus().setState(RUNNING));
+    return job.store();
   }
 
   private void checkPendingJobs() {
@@ -259,13 +263,18 @@ public abstract class JobExecutor implements Initializable {
 
   protected abstract Future<String> execute(StepGraph formerGraph, Job job);
 
+  public abstract Future<Void> sendInput(Job job, ModelBasedInput input);
+
   protected abstract Future<String> resume(Job job, String executionId);
 
   public abstract Future<Void> cancel(String executionId);
 
-  public abstract Future<Void> delete(String executionId);
-
-  public abstract Future<List<String>> list();
+  /**
+   * Deletes all execution resources of the specified execution ID.
+   * @param executionId
+   * @return Whether a deletion actually took place. (Resources could've been deleted before already)
+   */
+  public abstract Future<Boolean> deleteExecution(String executionId);
 
   /**
    * Checks for all resource-loads of the specified job whether they can be fulfilled. If yes, the job may be executed.
@@ -278,10 +287,11 @@ public abstract class JobExecutor implements Initializable {
     return ResourcesRegistry.getFreeVirtualUnits()
         .map(freeVirtualUnits -> job.calculateResourceLoads().stream()
             .allMatch(load -> {
-              final boolean sufficientFreeUnits = load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
+              final boolean sufficientFreeUnits = freeVirtualUnits.containsKey(load.getResource())
+                  && load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
               if (!sufficientFreeUnits)
-                logger.info("Job {} can not be executed (yet) as there are not sufficient units available of resource {}. "
-                        + "Needed units: {}, currently available units: {}",
+                logger.info("Job {} can not be executed (yet) as the resource {} is not available or there are not sufficient "
+                        + "resource units available. Needed units: {}, currently available units: {}",
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             }));

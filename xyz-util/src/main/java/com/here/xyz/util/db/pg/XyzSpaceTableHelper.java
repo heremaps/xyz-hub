@@ -23,14 +23,10 @@ import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.AUTHOR;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.CREATED_AT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.ID_VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.NEXT_VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.OPERATION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.SERIAL;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.UPDATED_AT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
@@ -50,30 +46,22 @@ public class XyzSpaceTableHelper {
   public static final long PARTITION_SIZE = 100_000;
 
   public enum Index {
-    ID_VERSION,
     GEO,
-    ID,
     VERSION,
     NEXT_VERSION,
     OPERATION,
     SERIAL,
-    UPDATED_AT,
-    CREATED_AT,
     VIZ,
     AUTHOR
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
     return switch (index) {
-      case ID_VERSION -> buildCreateIndexQuery(schema, table, Arrays.asList("id", "version"), "BTREE");
       case GEO -> buildCreateIndexQuery(schema, table, "geo", "GIST");
-      case ID -> buildCreateIndexQuery(schema, table, "id", "BTREE", "idx_" + table + "_idnew");
       case VERSION -> buildCreateIndexQuery(schema, table, "version", "BTREE");
       case NEXT_VERSION -> buildCreateIndexQuery(schema, table, "next_version", "BTREE");
       case OPERATION -> buildCreateIndexQuery(schema, table, "operation", "BTREE");
       case SERIAL -> buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial");
-      case UPDATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt')", "id"), "BTREE", "idx_" + table + "_updatedAt");
-      case CREATED_AT -> buildCreateIndexQuery(schema, table, Arrays.asList("(jsondata->'properties'->'@ns:com:here:xyz'->'createdAt')", "id"), "BTREE", "idx_" + table + "_createdAt");
       case VIZ -> buildCreateIndexQuery(schema, table, "(left(md5('' || i), 5))", "BTREE", "idx_" + table + "_viz");
       case AUTHOR -> buildCreateIndexQuery(schema, table, "author", "BTREE");
     };
@@ -89,15 +77,11 @@ public class XyzSpaceTableHelper {
   @Deprecated
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
     return Arrays.asList(
-        buildSpaceTableIndexQuery(schema, table, ID_VERSION),
         buildSpaceTableIndexQuery(schema, table, GEO),
-        buildSpaceTableIndexQuery(schema, table, ID),
         buildSpaceTableIndexQuery(schema, table, VERSION),
         buildSpaceTableIndexQuery(schema, table, NEXT_VERSION),
         buildSpaceTableIndexQuery(schema, table, OPERATION),
         buildSpaceTableIndexQuery(schema, table, SERIAL),
-        buildSpaceTableIndexQuery(schema, table, UPDATED_AT),
-        buildSpaceTableIndexQuery(schema, table, CREATED_AT),
         buildSpaceTableIndexQuery(schema, table, VIZ),
         buildSpaceTableIndexQuery(schema, table, AUTHOR)
     ).stream().map(q -> addQueryComment(q, queryComment)).collect(Collectors.toList());

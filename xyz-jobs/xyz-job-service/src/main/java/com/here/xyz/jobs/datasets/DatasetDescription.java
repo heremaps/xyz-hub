@@ -32,6 +32,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.streams.Notifications;
 import com.here.xyz.models.hub.Ref;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -40,7 +41,8 @@ import com.here.xyz.models.hub.Ref;
     @JsonSubTypes.Type(value = Map.class, name = "Map"),
     @JsonSubTypes.Type(value = Space.class, name = "Space"),
     @JsonSubTypes.Type(value = Spaces.class, name = "Spaces"),
-    @JsonSubTypes.Type(value = Files.class, name = "Files")
+    @JsonSubTypes.Type(value = Files.class, name = "Files"),
+    @JsonSubTypes.Type(value = Notifications.class, name = "Notifications")
 })
 @JsonInclude(NON_DEFAULT)
 public abstract class DatasetDescription implements Typed {

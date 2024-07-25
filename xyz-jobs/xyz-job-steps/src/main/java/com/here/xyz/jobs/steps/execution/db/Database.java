@@ -42,10 +42,12 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -74,6 +76,8 @@ public class Database extends ExecutionResource {
   private double maxUnits;
   private Map<String, Object> connectorDbSettingsMap;
   private DatabaseSettings dbSettings;
+  private DataSourceProvider usedDataSourceProvider;
+  private static Set<Database> usedDbs = new HashSet<>();
 
   private Database(String clusterId, String instanceId, double maxUnits, Map<String, Object> connectorDbSettingsMap) {
     this.clusterId = clusterId;
@@ -83,12 +87,33 @@ public class Database extends ExecutionResource {
   }
 
   DataSourceProvider getDataSources() {
-    return new PooledDataSources(getDatabaseSettings());
+    if (usedDataSourceProvider == null)
+      usedDataSourceProvider = new PooledDataSources(getDatabaseSettings());
+    usedDbs.add(this);
+    return usedDataSourceProvider;
+  }
+
+  void close() {
+    if (usedDataSourceProvider != null)
+      try {
+        usedDataSourceProvider.close();
+        usedDataSourceProvider = null;
+      }
+      catch (Exception e) {
+        logger.error("Error closing connections for database {}.", getName(), e);
+      }
+  }
+
+  static void closeAll() {
+    for (Database db : usedDbs)
+      db.close();
+    usedDbs = new HashSet<>();
   }
 
   DatabaseSettings getDatabaseSettings() {
     if (dbSettings == null)
-      dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap);
+      dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
+          .withApplicationName("JobFramework");
     return dbSettings;
   }
 
@@ -132,7 +157,10 @@ public class Database extends ExecutionResource {
   }
 
   private static Future<List<Database>> initializeDatabases() {
-    return HubWebClientAsync.getInstance(Config.instance.HUB_ENDPOINT).loadConnectorsAsync()
+    final HubWebClientAsync hubClient = HubWebClientAsync.getInstance(Config.instance.HUB_ENDPOINT);
+    if (!hubClient.isServiceReachable())
+      return Future.succeededFuture(List.of());
+    return hubClient.loadConnectorsAsync()
         .compose(connectors -> {
           //TODO: Run the following asynchronously
           List<Database> allDbs = new CopyOnWriteArrayList<>();

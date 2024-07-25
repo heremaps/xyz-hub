@@ -56,7 +56,9 @@ import org.locationtech.jts.io.ParseException;
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
-  public static final int MAX_DB_THREAD_CNT = 20;
+  public static final int MAX_DB_THREAD_CNT = 15;
+
+  private static final String JOB_DATA_PREFIX = "job_data_";
 
   private Format format = Format.GEOJSON;
 
@@ -101,6 +103,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return this;
   }
 
+  public void setCalculatedThreadCount(int calculatedThreadCount) {
+    this.calculatedThreadCount = calculatedThreadCount;
+  }
+
+  public ImportFilesToSpace withCalculatedThreadCount(int calculatedThreadCount) {
+      setCalculatedThreadCount(calculatedThreadCount);
+      return this;
+  }
+
   public Phase getPhase() {
     return phase;
   }
@@ -130,7 +141,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 15 * 3600;
+    //return ResourceAndTimeCalculator.getInstance().calculateImportTimeoutSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
+    return 24 * 3600;
   }
 
   @Override
@@ -187,58 +199,63 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return true;
   }
 
-  @Override
-  public ExecutionMode getExecutionMode() {
-    long max_sync_bytes = 100 * 1024 * 1024;
+    @Override
+    public ExecutionMode getExecutionMode() {
+        long max_sync_bytes = 100 * 1024 * 1024;
 
-    return getUncompressedUploadBytesEstimation() > max_sync_bytes ? ExecutionMode.ASYNC : ExecutionMode.SYNC;
+        return getUncompressedUploadBytesEstimation() > max_sync_bytes ? ExecutionMode.ASYNC : ExecutionMode.SYNC;
+    }
+
+  @Override
+  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    _execute(false);
   }
 
-  @Override
-  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed,
-          IOException, InterruptedException, ParseException {
+  public void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed {
+      if(getExecutionMode().equals(ExecutionMode.SYNC)) {
+          //@TODO: For future add threading (if validation step is in place)
+          for (Input input : loadInputs()) {
+              logger.info("[{}] Sync upload from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
+              streamFileToSpace(input.getS3Key(), format, ((UploadUrl)input).isCompressed());
+          }
+      } else {
+        logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
+            + " into space " + getSpaceId() + " ...");
 
-    if(getExecutionMode().equals(ExecutionMode.SYNC)) {
-        //@TODO: For future add threading (if validation step is in place)
-        for (Input input : loadInputs()) {
-            logger.info("[{}] Sync upload from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
-            streamFileToSpace(input.getS3Key(), format, ((UploadUrl)input).isCompressed());
+        logAndSetPhase(null, "Loading space config for space "+getSpaceId());
+        Space space = loadSpace(getSpaceId());
+        logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
+        Database db = loadDatabase(space.getStorage().getId(), WRITER);
+
+        //TODO: Move resume logic into #resume()
+        if(!isResume) {
+          logAndSetPhase(Phase.SET_READONLY);
+          hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
+
+          logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
+          long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
+                  rs -> {
+                    rs.next();
+                    return rs.getLong(1);
+                  });
+
+          logAndSetPhase(Phase.CREATE_TRIGGER);
+          runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS", newVersion), db, 0);
         }
-    }else{
-      logAndSetPhase(Phase.SET_READONLY);
-      hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-      logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
-        + " into space " + getSpaceId() + " ...");
+        createAndFillTemporaryTable(db);
 
-      logAndSetPhase(null, "Loading space config for space "+getSpaceId());
-      Space space = loadSpace(getSpaceId());
-      logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
-      Database db = loadDatabase(space.getStorage().getId(), WRITER);
+        calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
+                  ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
+        double neededAcusForOneThread = calculateNeededAcus(1);
 
-      logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-      long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
-              rs -> {
-                rs.next();
-                return rs.getLong(1);
-              });
+        logAndSetPhase(Phase.EXECUTE_IMPORT);
 
-      logAndSetPhase(Phase.CREATE_TRIGGER);
-      runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS",newVersion), db, 0);
-
-      createAndFillTemporaryTable(db);
-
-      calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
-              ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
-      double neededAcusForOneThread = calculateNeededAcus(1);
-
-      logAndSetPhase(Phase.EXECUTE_IMPORT);
-
-      for (int i = 1; i <= calculatedThreadCount; i++) {
-        logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
-        runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread , false);
+        for (int i = 1; i <= calculatedThreadCount; i++) {
+          logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number "+i);
+          runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread , false);
+        }
       }
-    }
   }
 
   private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed {
@@ -283,17 +300,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       runReadQuerySync(buildProgressQuery(getSchema(db)), db, 0,
                rs -> {
                 rs.next();
-                int totalCnt = rs.getInt("total_cnt");
+
+                float progress = rs.getFloat("progress");
                 long processedBytes = rs.getLong("processed_bytes");
-                int submittedCnt = rs.getInt("submitted_cnt");
                 int finishedCnt = rs.getInt("finished_cnt");
                 int failedCnt = rs.getInt("failed_cnt");
 
-                float progress = Float.valueOf(processedBytes) / Float.valueOf(getUncompressedUploadBytesEstimation());
                 getStatus().setEstimatedProgress(progress);
 
-                logAndSetPhase(null, "Progress["+progress+"] => totalCnt:"+totalCnt
-                        +" ,processedBytes:"+processedBytes+" ,submittedCnt:"+submittedCnt+" ,finishedCnt:"+finishedCnt+" ,failedCnt:"+failedCnt);
+                logAndSetPhase(null, "Progress["+progress+"] => "
+                        +" processedBytes:"+processedBytes+" ,finishedCnt:"+finishedCnt+" ,failedCnt:"+failedCnt);
                 return progress;
               });
     }catch (Exception e){
@@ -379,7 +395,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @Override
   public void resume() throws Exception {
-    execute();
+    _execute(true);
   }
 
   private SQLQuery buildTemporaryTableForImportQuery(String schema) {
@@ -483,15 +499,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildProgressQuery(String schema) {
     return new SQLQuery("""
-            SELECT
-                sum(1::int) as total_cnt,
-                sum((data->'filesize')::bigint) as processed_bytes,	
-                sum((state = 'SUBMITTED')::int) as submitted_cnt,
-                sum((state = 'FINISHED')::int) as finished_cnt,
-                sum((state = 'FAILED')::int) as failed_cnt
-              FROM ${schema}.${table}
-            	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
-            	 AND STATE != 'SUBMITTED';
+            SELECT 
+            	COALESCE(processed_bytes/overall_bytes, 0) as progress,
+            	COALESCE(processed_bytes,0) as processed_bytes,
+              	COALESCE(finished_cnt,0) as finished_cnt,
+              	COALESCE(failed_cnt,0) as failed_cnt
+              FROM(
+              	SELECT
+                    (SELECT sum((data->'filesize')::bigint ) FROM ${schema}.${table}) as overall_bytes,
+                    sum((data->'filesize')::bigint ) as processed_bytes,
+                    sum((state = 'FINISHED')::int) as finished_cnt,
+                    sum((state = 'FAILED')::int) as failed_cnt
+                  FROM ${schema}.${table}
+                	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
+              	   AND state IN ('FINISHED','FAILED')
+              )A          
           """)
             .withVariable("schema", schema)
             .withVariable("table", TransportTools.getTemporaryTableName(this));

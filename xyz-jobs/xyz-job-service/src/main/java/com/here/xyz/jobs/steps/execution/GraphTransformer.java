@@ -28,6 +28,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest;
 import com.here.xyz.util.ARN;
 import java.util.ArrayList;
@@ -53,9 +54,11 @@ public class GraphTransformer {
   private static final int STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS = 3 * 60; //3min
   private Map<String, LambdaTaskParameters> lambdaTaskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private final ARN stepLambdaArn;
+  private boolean isPipeline;
 
-  GraphTransformer(ARN stepLambdaArn) {
+  GraphTransformer(ARN stepLambdaArn, boolean isPipeline) {
     this.stepLambdaArn = stepLambdaArn;
+    this.isPipeline = isPipeline;
   }
 
   //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
@@ -228,8 +231,10 @@ public class GraphTransformer {
   }
 
   private void compile(LambdaBasedStep<?> lambdaStep, NamedState<TaskState.Builder> state) {
-    //TODO: Also support synchronous integration
-    String taskResource = LAMBDA_INVOKE_RESOURCE + (lambdaStep.getExecutionMode() == ASYNC ? ".waitForTaskToken" : "");
+    final ExecutionMode executionMode = lambdaStep.getExecutionMode();
+    if (isPipeline && executionMode == ASYNC)
+      throw new IllegalStateException("The ASYNC execution mode is not supported for jobs that have a dynamic streaming input");
+    String taskResource = LAMBDA_INVOKE_RESOURCE + (executionMode == ASYNC ? ".waitForTaskToken" : "");
     LambdaStepRequest payload = new LambdaStepRequest()
         .withType(START_EXECUTION)
         .withStep(lambdaStep);

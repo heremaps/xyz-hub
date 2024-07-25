@@ -99,7 +99,6 @@ recipes:
       - components.schemas.Space.properties.processors
       - components.schemas.Space.properties.storage
       - components.schemas.Space.properties.client
-      - components.schemas.SpaceClient
       - components.schemas.SpaceStorage
       - components.schemas.SpaceStorageParams
       - components.schemas.StorageCapabilities
@@ -121,7 +120,7 @@ recipes:
   - name: contract
     extends: base
     include:
-      - path: paths.'spaces'.post
+      - path: paths.'/spaces'.post
         value:
           parameters:
             - name: connectorMapping

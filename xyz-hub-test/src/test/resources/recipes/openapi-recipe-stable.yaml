@@ -38,7 +38,6 @@ exclude:
   - components.schemas.Space.properties.processors
   - components.schemas.Space.properties.storage
   - components.schemas.Space.properties.client
-  - components.schemas.SpaceClient
   - components.schemas.SpaceStorage
   - components.schemas.SpaceStorageParams
   - components.schemas.Changeset

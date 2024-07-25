@@ -45,6 +45,7 @@ import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.aws.SimulatedContext;
@@ -77,13 +78,27 @@ import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
     @JsonSubTypes.Type(value = DatabaseBasedStep.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
-  public static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
+  private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
+  private static final String RETRY_COUNT_TEMPLATE = "$$.State.RetryCount";
+  private static final String PIPELINE_INPUT_TEMPLATE = "$$.Execution.Input";
   public static final String HEART_BEAT_PREFIX = "HeartBeat-";
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
   @JsonView(Internal.class)
-  private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function (using the $$.Task.Token placeholder)
+  private String taskToken = TASK_TOKEN_TEMPLATE; //Will be defined by the Step Function
+
+  @JsonView(Internal.class)
+  private int retryCount = -1; //Will be defined by the Step Function
+
+  /**
+   * Contains the raw (unparsed & unresolved) pipeline input if this LambdaBasedStep belongs to a job that is a pipeline.
+   * This value should not be used directly by implementing steps. Implementing steps can gather the input using the well-known
+   * method {@link #loadInputs()}. Using that method will ensure correct deserialization & resolving of the input references.
+   */
+  @JsonView(Internal.class)
+  private Map<String, Object> pipelineInput;
+
   private ARN ownLambdaArn; //Will be defined from Lambda's execution context
 
   private static final String INVOKE_SUCCESS = """
@@ -102,14 +117,19 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void startExecution() throws Exception {
     updateState(RUNNING);
-    //TODO: Check at the according StepFunction whether this execution is a "redrive" and call #resume() instead of execute() in such a case
     switch (getExecutionMode()) {
       case SYNC -> {
-        execute();
+        if (isResume())
+          resume();
+        else
+          execute();
         updateState(SUCCEEDED);
       }
       case ASYNC -> {
-        execute();
+        if (isResume())
+          resume();
+        else
+          execute();
         registerStateCheckTrigger();
         synchronizeStepState();
       }
@@ -248,6 +268,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
+  @JsonIgnore
+  private boolean isResume() {
+    return retryCount > 0;
+  }
+
   /**
    * Will be called for every STATE_CHECK request being performed for the step.
    * Subclasses may override this method to implement tasks which should be performed on a regular basis during the STAT_CHECK.
@@ -333,6 +358,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void synchronizeStepState() {
+    //NOTE: For steps that are part of a pipeline job, do not synchronize the state
+    if (isPipeline())
+      return;
     logger.info("Synchronizing step state for {} with job service ...", getGlobalStepId());
     try {
       //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
@@ -394,6 +422,31 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return getExecutionMode().equals(SYNC) ? null : TASK_TOKEN_TEMPLATE.equals(taskToken) ? taskToken : null;
   }
 
+  @JsonProperty("retryCount.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getRetryCountTemplate() {
+    return retryCount == -1 ? RETRY_COUNT_TEMPLATE : null;
+  }
+
+  private void setRetryCount(int retryCount) {
+    this.retryCount = retryCount;
+  }
+
+  @JsonProperty("pipelineInput.$")
+  @JsonInclude(Include.NON_NULL)
+  private String getPipelineInputTemplate() {
+    return pipelineInput == null ? PIPELINE_INPUT_TEMPLATE : null;
+  }
+
+  private void setPipelineInput(Map<String, Object> pipelineInput) {
+    this.pipelineInput = pipelineInput;
+  }
+
+  @Override
+  protected List<Input> loadInputs() {
+    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs();
+  }
+
   public enum ExecutionMode {
     SYNC,
     ASYNC
@@ -417,76 +470,93 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public static class LambdaBasedStepExecutor implements RequestStreamHandler {
     @Override
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
-      //Initialize Config from environment variables
-      if (Config.instance == null)
-        XyzSerializable.fromMap(Map.copyOf(getEnvironmentVariables()), Config.class);
-      //Read the incoming request
-      LambdaStepRequest request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
+      LambdaStepRequest request = null;
+      try {
+        //Initialize Config from environment variables
+        if (Config.instance == null) {
+          XyzSerializable.fromMap(Map.copyOf(getEnvironmentVariables()), Config.class);
+          loadPlugins();
+        }
+        //Read the incoming request
+        request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
-      if (request.getStep() == null)
-        throw new NullPointerException("Malformed step request, missing step definition.");
+        if (request.getStep() == null)
+          throw new NullPointerException("Malformed step request, missing step definition.");
 
-      //Set the own lambda ARN accordingly
-      if (context instanceof SimulatedContext) {
-        request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.AWS_REGION + ":000000000000:function:job-step");
-        request.getStep().isSimulation = true;
-      }
-      else
-        request.getStep().ownLambdaArn = new ARN(context.getInvokedFunctionArn());
-      Config.instance.AWS_REGION = request.getStep().ownLambdaArn.getRegion();
-      //Can be set to debug on a later state
-      logger.info("[{}] Received Request {}", request.getStep().getGlobalStepId(), XyzSerializable.serialize(request));
+        //Set the own lambda ARN accordingly
+        if (context instanceof SimulatedContext) {
+          request.getStep().ownLambdaArn = new ARN("arn:aws:lambda:" + Config.instance.AWS_REGION + ":000000000000:function:job-step");
+          request.getStep().isSimulation = true;
+        }
+        else
+          request.getStep().ownLambdaArn = new ARN(context.getInvokedFunctionArn());
+        Config.instance.AWS_REGION = request.getStep().ownLambdaArn.getRegion();
+        //Can be set to debug on a later state
+        logger.info("[{}] Received Request {}", request.getStep().getGlobalStepId(), XyzSerializable.serialize(request));
 
-      //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
-      //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method
+        //If this is the actual execution call, call the subclass execution, if not, check the status and just send a heartbeat or success (the appToken must be part of the incoming lambda event)
+        //If this is not the actual execution call but only a heartbeat call, then check the execution state and do the proper action, but do **not** call the sub-class execution method
 
-      if (request.getType() == START_EXECUTION) {
+        if (request.getType() == START_EXECUTION) {
+          try {
+            logger.info("Starting the execution of step {} ...", request.getStep().getGlobalStepId());
+            request.getStep().startExecution();
+            logger.info("Execution of step {} has been started successfully ...", request.getStep().getGlobalStepId());
+          }
+          catch (Exception e) {
+            //Report error synchronously
+            request.getStep().reportFailure(e, false, false);
+            throw new RuntimeException("Error executing request of type " + request.getType() + " for step " + request.getStep().getGlobalStepId(), e);
+          }
+        }
+
         try {
-          logger.info("Starting the execution of step {} ...", request.getStep().getGlobalStepId());
-          request.getStep().startExecution();
-          logger.info("Execution of step {} has been started successfully ...", request.getStep().getGlobalStepId());
+          switch (request.getType()) {
+            case STATE_CHECK -> {
+              logger.info("Checking async execution state of step {} ...", request.getStep().getGlobalStepId());
+              request.getStep().checkAsyncExecutionState();
+              logger.info("Async execution state of step {} has been checked & reported successfully.", request.getStep().getGlobalStepId());
+            }
+            case SUCCESS_CALLBACK -> {
+              logger.info("Reporting async success for step {} ...", request.getStep().getGlobalStepId());
+              request.getStep().reportAsyncSuccess();
+              logger.info("Reported async success for step {} successfully.", request.getStep().getGlobalStepId());
+            }
+            case FAILURE_CALLBACK -> {
+              logger.info("Cancelling and reporting async failure for step {} ...", request.getStep().getGlobalStepId());
+              request.getStep().cancel();
+              //NOTE: Assume that the error information has been injected into the status object by the callback caller already
+              request.getStep().reportFailure(null, false, true);
+              logger.info("Reported async failure for step {} failure successfully.", request.getStep().getGlobalStepId());
+            }
+          }
         }
         catch (Exception e) {
-          //Report error synchronously
-          request.getStep().reportFailure(e, false, false);
+          request.getStep().reportFailure(e, false, true); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
           throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
         }
       }
-
-      try {
-        switch (request.getType()) {
-          case STATE_CHECK -> {
-            logger.info("Checking async execution state of step {} ...", request.getStep().getGlobalStepId());
-            request.getStep().checkAsyncExecutionState();
-            logger.info("Async execution state of step {} has been checked & reported successfully.", request.getStep().getGlobalStepId());
-          }
-          case SUCCESS_CALLBACK -> {
-            logger.info("Reporting async success for step {} ...", request.getStep().getGlobalStepId());
-            request.getStep().reportAsyncSuccess();
-            logger.info("Reported async success for step {} successfully.", request.getStep().getGlobalStepId());
-          }
-          case FAILURE_CALLBACK -> {
-            logger.info("Cancelling and reporting async failure for step {} ...", request.getStep().getGlobalStepId());
-            request.getStep().cancel();
-            //NOTE: Assume that the error information has been injected into the status object by the callback caller already
-            request.getStep().reportFailure(null, false, true);
-            logger.info("Reported async failure for step {} failure successfully.", request.getStep().getGlobalStepId());
-          }
-        }
+      finally {
+        if (request != null && request.getStep() != null)
+          //The lambda call is complete, call the shutdown hook
+          request.getStep().onRuntimeShutdown();
       }
-      catch (Exception e) {
-        request.getStep().reportFailure(e, false, true); //TODO: Distinguish between sync / async execution once sync error reporting was implemented
-        throw new RuntimeException("Error executing request of type {} for step " + request.getStep().getGlobalStepId(), e);
-      }
-
-      //The lambda call is complete, call the shutdown hook
-      request.getStep().onRuntimeShutdown();
 
       outputStream.write(INVOKE_SUCCESS.getBytes());
     }
 
     protected Map<String, String> getEnvironmentVariables() {
       return System.getenv();
+    }
+
+    protected static void loadPlugins() {
+      for (String plugin : Config.instance.stepPlugins())
+        try {
+          Class.forName(plugin);
+        }
+        catch (ClassNotFoundException e) {
+          throw new RuntimeException(e);
+        }
     }
   }
 
