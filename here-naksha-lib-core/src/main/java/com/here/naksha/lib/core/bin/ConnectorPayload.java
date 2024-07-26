@@ -30,7 +30,7 @@ import java.nio.ByteOrder;
 @SuppressWarnings("unused")
 public final class ConnectorPayload extends Table {
   public static void ValidateVersion() {
-    Constants.FLATBUFFERS_23_5_9();
+    Constants.FLATBUFFERS_24_3_25();
   }
 
   public static ConnectorPayload getRootAsConnectorPayload(ByteBuffer _bb) {

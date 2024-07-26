@@ -29,7 +29,7 @@ public class OTelMetrics {
 
   private static final Logger logger = LoggerFactory.getLogger(OTelMetrics.class);
   private static final Meter meter = GlobalOpenTelemetry.meterBuilder("io.opentelemetry.metrics.memory")
-      .setInstrumentationVersion("1.28.0") // as per otel.version in pom.xml
+      .setInstrumentationVersion("1.40.0") // as per otel.version in pom.xml
       .build();
 
   public static void init() {
