@@ -166,7 +166,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
     //Second write with modifications
     List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(2L,false));
     writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.RETAIN, null,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
+            false, SpaceContext.EXTENSION, false, null);
 
     checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -181,7 +181,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
     //Second write with modifications
     List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
     writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE, null,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
+            false, SpaceContext.EXTENSION, false, null);
 
     //Third write with modifications
     modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
@@ -203,15 +203,15 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
     //Second write with modifications
     List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
     writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE, null,
-            true, SpaceContext.EXTENSION, false, null);
+            false, SpaceContext.EXTENSION, false, null);
 
     //Lead into a version conflict, because version 1 is not present anymore
-    //We have no conflicting changes!
+    //We have no conflicting versions! But we are able to merge.
     modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
 
     writeFeature(modifiedFeatureList, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createMergedTestFeatureResult(), 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(createModifiedTestFeature(null, false), 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 }

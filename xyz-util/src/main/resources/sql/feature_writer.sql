@@ -176,7 +176,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         operation = "I";
         isDelete = false;
         attributeConflicts;
-        ignoreConflictPathList = ['properties.@ns:com:here:xyz.version'];
+        ignoreConflictPathList = ['properties.@ns:com:here:xyz.version','properties.@ns:com:here:xyz.createdAt','properties.@ns:com:here:xyz.updatedAt'];
 
         constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             if (isPartial && onNotExists != null)
@@ -560,7 +560,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             let headDiff = this.diff(headFeature, baseFeature); //The other change
             this.attributeConflicts = this.findConflicts(inputDiff, headDiff, '');
 
-            if (this.attributeConflicts!= undefined && this.attributeConflicts.length > 0)
+            if (this.attributeConflicts!= undefined)
                 return this.handleMergeConflict();
 
             this.inputFeature = this.patch(headFeature, inputDiff);
@@ -575,7 +575,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws MergeConflictError
          */
         handleMergeConflict() {
-            switch (this.onVersionConflict) {
+            switch (this.onMergeConflict) {
                 case "ERROR":
                     this._throwMergeConflictError();
                 case "REPLACE": {
@@ -684,19 +684,19 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                             if(currentPath === 'geometry.coordinates' || (obj1[key].length == 2)){
                                 obj1[key].push(0);
                             }else if(this.ignoreConflictPathList.indexOf(currentPath) != -1)
-								return;
+								continue;
 
 							if(Array.isArray(obj1[key]) && Array.isArray(obj2[key])
 								&& JSON.stringify(obj1[key]) ===  JSON.stringify(obj2[key]))
-								return;
+								continue;
 
-                            let details = {
+                            this.attributeConflicts = {
                                 path : currentPath,
                                 value1 : obj1[key],
                                 value2 : obj2[key]
                             }
-                            //plv8.elog(ERROR, 'Conflict ', 'cause: ', JSON.stringify(details));
-                            return true;
+                            plv8.elog(NOTICE, 'Conflict ', 'cause: ', JSON.stringify(this.attributeConflicts));
+							this._throwMergeConflictError();
                         }
                     }
                 }
@@ -709,7 +709,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
                     // Check if key is present in obj2 but not in obj1 and if both values are objects
                     if (isObject(obj2[key]) && !isObject(obj1[key])) {
-                        this.findConflicts({}, obj2[key], currentPath);
+                       this.findConflicts({}, obj2[key], currentPath);
                     }
                 }
             }
@@ -752,7 +752,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * NOTE: target is mandatory to be a valid (existing) feature
          */
         patch(target, inputDiff) {
-            plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff));
+            //plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff));
             for (let key in inputDiff) {
                 if (inputDiff.hasOwnProperty(key)) {
                     if (inputDiff[key] === null)
@@ -761,7 +761,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                         if (!target[key])
                           target[key] = {};
                         //TODO: Deactivate notices depending on a DEBUG env variable
-                        plv8.elog(NOTICE, "patch [", key, "] -> ", JSON.stringify(target[key]), "-", JSON.stringify(inputDiff[key]));
+                        //plv8.elog(NOTICE, "patch [", key, "] -> ", JSON.stringify(target[key]), "-", JSON.stringify(inputDiff[key]));
                         target[key] = this.patch(target[key], inputDiff[key]);
                     }
                     else

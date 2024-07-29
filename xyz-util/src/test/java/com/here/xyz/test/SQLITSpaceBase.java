@@ -144,13 +144,16 @@ public class SQLITSpaceBase extends SQLITBase{
   protected void runWriteFeatureQueryWithSQLAssertion(List<Feature> featureList, String author, OnExists onExists,
              OnNotExists onNotExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
              boolean isPartial, SpaceContext spaceContext, boolean historyEnabled, SQLErrorCodes expectedErrorCode) throws Exception {
-
+    boolean exceptionThrown = false;
     try{
       runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext, historyEnabled);
     }catch (SQLException e){
+        exceptionThrown = true;
         if(expectedErrorCode != null)
           assertEquals(expectedErrorCode.toString(), e.getSQLState());
     }
+    if(expectedErrorCode != null && !exceptionThrown)
+      fail("Expected SQLException got not thrown");
   }
 
   private List<SQLQuery> generateWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
