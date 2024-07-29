@@ -26,15 +26,13 @@ import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.test.SQLITSpaceBase;
-import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.List;
 
 public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
 
   //********************** Helper Functions *******************************/
-  protected void writeFeature(List<Feature> modifiedFeatureList,
+  protected void writeFeature(List<Feature> modifiedFeatureList, String author,
                               OnExists onExists, OnNotExists onNotExists,
                               OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
                               SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
@@ -44,39 +42,31 @@ public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
             onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
   }
 
-  protected void createAndUpdateFeature(Long baseVersion, boolean hasConflictingAttributes,
-                                        OnExists onExists, OnNotExists onNotExists,
-                                        OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                                        SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
-          throws Exception {
-
-    //initial Insert
-    runWriteFeatureQueryWithSQLAssertion(Arrays.asList(createTestFeature(null)), author, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
-
-    List<Feature> modifiedFeatureList = baseVersion != null ? Arrays.asList(createModifiedTestFeature(baseVersion, hasConflictingAttributes))
-            : Arrays.asList(createModifiedTestFeature(null,false));
-
-    writeFeature(modifiedFeatureList, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
-            spaceContext, isHistoryActive, expectedError);
+  protected Feature createSimpleTestFeatureWithVersion(Long version) {
+    Feature feature = createSimpleTestFeature();
+    feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(version));
+    return feature;
   }
 
-  protected Feature createTestFeature(Long baseVersion) {
+  protected Feature createSimpleTestFeature() {
     Feature feature = new Feature()
-              .withId("id1")
+              .withId(DEFAULT_FEATURE_ID)
               .withProperties(new Properties().with("name", "t1"))
               .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)));
+    return feature;
+  }
 
-    if(baseVersion != null)
-      feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(baseVersion));
+  protected Feature createPartialTestFeature() {
+    Feature feature = new Feature()
+            .withId(DEFAULT_FEATURE_ID)
+            .withProperties(new Properties().with("partial", "true"))
+            .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50.1)));
 
     return feature;
   }
 
   protected Feature createModifiedTestFeature(Long baseVersion, boolean hasConflictingAttributes) {
-    Feature feature = new Feature()
-            .withId("id1")
-            .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)));
+    Feature feature = createSimpleTestFeature();
     if(hasConflictingAttributes){
       feature.setProperties(new Properties()
               //"name" is already present in initial write
@@ -99,16 +89,28 @@ public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
     return feature;
   }
 
-  protected Feature createMergedTestFeature(Long baseVersion) {
-    Feature feature = new Feature()
-            .withId("id1")
-            .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)));
+  /** Expected results */
+  protected Feature createMergedTestFeatureResult() {
+    Feature feature = createSimpleTestFeature();
     feature.setProperties(new Properties()
             .with("foo", "bar")
             .with("new", "value")
             .with("name", "t1"));
 
-    feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(baseVersion));
+    feature.getProperties().withXyzNamespace(new XyzNamespace());
+
+    return feature;
+  }
+
+  protected Feature createPartialTestFeatureResult() {
+    Feature feature = createSimpleTestFeature();
+
+    feature.setProperties(new Properties()
+        .with("name", "t1")
+        .with("partial", "true"));
+
+    feature.setGeometry(createPartialTestFeature().getGeometry());
+    feature.getProperties().withXyzNamespace(new XyzNamespace());
 
     return feature;
   }

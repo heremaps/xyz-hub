@@ -32,28 +32,39 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
   //********************** Feature exists + BaseVersion Conflict + merge conflict (OnVersionConflict.MERGE) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE_With_MergeConflict() throws Exception {
-    createAndUpdateFeature(1L,false,null,null, OnVersionConflict.REPLACE,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE,null,
             true, SpaceContext.EXTENSION, false, null);
 
     //Lead into a version conflict, because version 1 is not present anymore
     //We have conflicting changes!
-    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, true));
+    modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, true));
 
-    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.MERGE, null,
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
-    checkExistingFeature(createMergedTestFeature(1L), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createMergedTestFeatureResult(), 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE_With_MergeConflict_OnMergeConflictError() throws Exception {
-    createAndUpdateFeature(1L,false,null,null, OnVersionConflict.REPLACE, OnMergeConflict.ERROR,
-            true, SpaceContext.EXTENSION, false, null);
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
 
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE, OnMergeConflict.ERROR,
+            true, SpaceContext.EXTENSION, false, null);
     //Lead into a version conflict, because version 1 is not present anymore
     //We have conflicting changes!
-    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, true));
+    modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, true));
 
-    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.MERGE, null,
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
-    checkExistingFeature(createMergedTestFeature(1L), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createMergedTestFeatureResult(), 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 }

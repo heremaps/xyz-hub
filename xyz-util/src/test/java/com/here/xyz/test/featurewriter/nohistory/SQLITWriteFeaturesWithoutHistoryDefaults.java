@@ -20,26 +20,47 @@
 package com.here.xyz.test.featurewriter.nohistory;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 
 public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeaturesBase {
 
   @Test
   public void writeFeatureWithDefaults() throws Exception {
-    runWriteFeatureQueryWithSQLAssertion(Arrays.asList(createTestFeature(null)), author, null , null,
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeExistingFeatureWithDefaults() throws Exception {
-    createAndUpdateFeature(null, false, null,null,null,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(null,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+  }
+
+  @Test
+  public void writeExistingFeatureWithDefaultsPartial() throws Exception {
+    //Insert Feature
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //second write with partial modifications
+    writeFeature(Arrays.asList(createPartialTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, true, SpaceContext.EXTENSION,false, null);
+
+    checkExistingFeature(createPartialTestFeatureResult(), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 }

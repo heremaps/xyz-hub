@@ -32,108 +32,186 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   //********************** Feature exists (OnVersionConflict deactivated) *******************************/
   @Test
   public void writeToExistingFeature_OnExistsDELETE() throws Exception {
-    createAndUpdateFeature(null, false, OnExists.DELETE,null,null,null,
+    //initial write
+    writeFeature(Arrays.asList(createModifiedTestFeature(null,false)), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(null,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, OnExists.DELETE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkNotExistingFeature(createModifiedTestFeature(null, false));
+    checkNotExistingFeature(DEFAULT_FEATURE_ID);
   }
 
   @Test
   public void writeToExistingFeature_OnExistsREPLACE() throws Exception {
-    createAndUpdateFeature(null, false, OnExists.REPLACE,null,null,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(null,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, OnExists.REPLACE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, author);
+
+    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_OnExistsRETAIN() throws Exception {
-    createAndUpdateFeature(null, false, OnExists.RETAIN,null,null,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(null,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, OnExists.RETAIN,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_OnExistsERROR() throws Exception {
-    createAndUpdateFeature(null, false, OnExists.ERROR,null,null,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(null,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, OnExists.ERROR,null,null,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
-    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
+
+    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists (OnVersionConflict.REPLACE + BaseVersion Match) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsDELETE() throws Exception {
-    createAndUpdateFeature(1L,false, OnExists.DELETE,null, OnVersionConflict.REPLACE,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, OnExists.DELETE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkNotExistingFeature(createTestFeature(null));
+    checkNotExistingFeature(DEFAULT_FEATURE_ID);
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsREPLACE() throws Exception {
-    createAndUpdateFeature(1L,false, OnExists.REPLACE,null, OnVersionConflict.REPLACE,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, OnExists.REPLACE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, author);
+
+    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsRETAIN() throws Exception {
-    createAndUpdateFeature(1L,false, OnExists.RETAIN,null, OnVersionConflict.REPLACE,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR,OnExists.RETAIN,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
+
+    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsERROR() throws Exception {
-    createAndUpdateFeature(1L,false, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
-    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
+
+    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict (onVersionConflict.ERROR) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictERROR() throws Exception {
-    createAndUpdateFeature(2L,false, null,null, OnVersionConflict.ERROR, null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(2L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.ERROR, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
-    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict (onVersionConflict.RETAIN) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictRETAIN() throws Exception {
-    createAndUpdateFeature(2L,false,null,null, OnVersionConflict.RETAIN, null,
-            false, SpaceContext.EXTENSION, false, null);
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
 
-    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(2L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.RETAIN, null,
+            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
+
+    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict (OnVersionConflict.REPLACE) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictREPLACE() throws Exception {
-    createAndUpdateFeature(1L,false,null,null, OnVersionConflict.REPLACE, null,
-            false, SpaceContext.EXTENSION, false, null);
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
 
-    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE, null,
+            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
+
+    //Third write with modifications
+    modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
 
     //Lead into a version conflict, because version 1 is not present anymore
-    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.REPLACE, null,
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR,null,null, OnVersionConflict.REPLACE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createModifiedTestFeature(null, false), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createModifiedTestFeature(null, false), 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict + no merge conflict (OnVersionConflict.MERGE) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE() throws Exception {
-    createAndUpdateFeature(1L,false,null,null, OnVersionConflict.REPLACE, null,
+    //initial write
+    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Second write with modifications
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L,false));
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE, null,
             true, SpaceContext.EXTENSION, false, null);
 
     //Lead into a version conflict, because version 1 is not present anymore
     //We have no conflicting changes!
-    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
+    modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
 
-    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.MERGE, null,
+    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createMergedTestFeature(1L), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createMergedTestFeatureResult(), 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 }

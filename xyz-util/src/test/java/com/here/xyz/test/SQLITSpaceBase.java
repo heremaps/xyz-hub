@@ -45,7 +45,8 @@ import static org.junit.Assert.fail;
 
 public class SQLITSpaceBase extends SQLITBase{
   private static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
-  protected static String author = "testAuthor";
+  protected static String DEFAULT_AUTHOR = "testAuthor";
+  protected static String DEFAULT_FEATURE_ID = "id1";
 
   protected enum SQLErrorCodes {
     XYZ40, //Illegal Argument
@@ -251,15 +252,12 @@ public class SQLITSpaceBase extends SQLITBase{
     return null;
   }
 
-  protected SQLQuery checkNotExistingFeature(Feature feature) throws Exception {
-    //WIP
+  protected SQLQuery checkNotExistingFeature(String id) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      SQLQuery check = new SQLQuery("Select id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) as geo " +
-              " from ${schema}.${table} " +
-              "WHERE id = #{id};")
+      SQLQuery check = new SQLQuery("Select id from ${schema}.${table} WHERE id = #{id};")
               .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
               .withVariable(TABLE, table)
-              .withNamedParameter("id", feature.getId());
+              .withNamedParameter("id", id);
 
       check.run(dsp, rs -> {
         if(rs.next())
