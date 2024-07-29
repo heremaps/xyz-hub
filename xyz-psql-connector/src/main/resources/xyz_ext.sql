@@ -4427,7 +4427,7 @@ BEGIN
     import_config := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
     format := lower(format);
 
-    IF format = 'csv_json_wkb' THEN
+    IF format = 'csv_json_wkb' OR format = 'csv_jsonwkb' THEN
         target_clomuns := 'jsondata,geo';
     ELSEIF format = 'csv_geojson' THEN
         target_clomuns := 'jsondata';
