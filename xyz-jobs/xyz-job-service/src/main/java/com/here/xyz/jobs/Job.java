@@ -52,7 +52,6 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
-import com.here.xyz.jobs.util.AsyncS3Client;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
@@ -398,7 +397,7 @@ public class Job implements XyzSerializable {
   /**
    * Calculates the overall loads (needed resources) of this job by aggregating the resource loads of all steps of this job.
    * The aggregation of parallel steps is done in the way that all resource-loads of parallel running steps will be added while
-   * in the case of sequentially running steps always the maximum of each pairwise equal resources will be taken into account.
+   * in the case of sequentially running steps always the maximum of the step's resources will be taken into account.
    *
    * @return A list of overall resource-loads being reserved by this job
    */
@@ -439,7 +438,9 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> deleteInputs() {
-    return AsyncS3Client.getInstance().deleteFolderAsync(inputS3Prefix(getId()));
+    //TODO: Asyncify!
+    Input.deleteInputs(getId());
+    return Future.succeededFuture();
   }
 
   public Future<List<Input>> loadInputs() {

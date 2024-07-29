@@ -20,19 +20,19 @@
 package com.here.xyz.jobs.steps.resources;
 
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static com.here.xyz.jobs.steps.resources.Load.toLoadsMap;
 
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import io.vertx.core.Future;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ResourcesRegistry {
 
@@ -45,31 +45,8 @@ public class ResourcesRegistry {
   protected static final Future<Map<ExecutionResource, Double>> getReservedVirtualUnits() {
     return JobConfigClient.getInstance()
         .loadJobs(RUNNING)
-        .compose(runningJobs -> {
-            Map<ExecutionResource, Double> reservations = new HashMap<>();
-            runningJobs.forEach(job ->{
-                job.getSteps().stepStream()
-                        /** TODO:
-                         * Check if we only should take RUNNING steps into account. If yes we need to analyse
-                         * the following steps as well to prevent a overload of the according resource.
-                        */
-                        //.filter(Step::isRunning)
-                        .forEach(
-                                step -> {
-                                    Map<ExecutionResource, Double> aggregatedNeededResources = step.getAggregatedNeededResources();
-                                    aggregatedNeededResources.forEach((key, value) -> {
-                                        reservations.merge(key, value, Double::sum);
-                                    });
-                                }
-                        );
-            });
-
-            reservations.forEach((key, value) -> {
-                logger.info("{} ReservedVirtualUnits for resource {}",value, key.getId());
-            });
-
-            return Future.succeededFuture(reservations);
-        });
+        .compose(runningJobs -> Future.succeededFuture(toLoadsMap(runningJobs.stream()
+            .flatMap(job -> job.calculateResourceLoads().stream()).toList(), false)));
   }
 
   /**

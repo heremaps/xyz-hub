@@ -27,6 +27,7 @@ import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
@@ -38,6 +39,7 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -46,8 +48,10 @@ import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.commons.lang3.NotImplementedException;
 
 public class JobApi extends Api {
@@ -121,6 +125,25 @@ public class JobApi extends Api {
             else
               return job.consumeInput(modelBasedInput);
           })
+          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
+          .onFailure(err -> sendErrorResponse(context, err));
+    }
+    else if (input instanceof InputsFromJob inputsReference) {
+      //NOTE: Both jobs have to be loaded to authorize the user for both
+      loadJob(context, jobId)
+          .compose(job -> loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
+            try {
+              if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
+                return Future.failedFuture(new HttpException(FORBIDDEN, "Inputs of job " + inputsReference.getJobId()
+                    + " can not be referenced by job " + job.getId() + " as it has a different owner."));
+
+              inputsReference.dereference(job.getId());
+              return Future.succeededFuture();
+            }
+            catch (IOException e) {
+              return Future.failedFuture(e);
+            }
+          }))
           .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
           .onFailure(err -> sendErrorResponse(context, err));
     }

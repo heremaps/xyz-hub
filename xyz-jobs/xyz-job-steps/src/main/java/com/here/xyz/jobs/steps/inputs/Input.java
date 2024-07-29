@@ -41,7 +41,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = UploadUrl.class, name = "UploadUrl")
+    @JsonSubTypes.Type(value = UploadUrl.class, name = "UploadUrl"),
+    @JsonSubTypes.Type(value = InputsFromJob.class, name = "InputsFromJob")
 })
 public abstract class Input <T extends Input> implements Typed {
   private static final Logger logger = LogManager.getLogger();
@@ -88,27 +89,46 @@ public abstract class Input <T extends Input> implements Typed {
 
   private static List<Input> loadInputsAndWriteMetadata(String jobId) {
     try {
-      InputsMetadata metadata = XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(inputMetaS3Key(jobId)),
-          InputsMetadata.class);
-      return metadata.inputs.entrySet().stream().map(metaEntry -> createInput(metaEntry.getKey(), metaEntry.getValue().byteSize, metaEntry.getValue().compressed)).toList();
+      InputsMetadata metadata = loadMetadata(jobId);
+      return metadata.inputs.entrySet().stream()
+          .map(metaEntry -> createInput(metaEntry.getKey(), metaEntry.getValue().byteSize, metaEntry.getValue().compressed))
+          .toList();
     }
     catch (IOException | AmazonS3Exception ignore) {}
 
     final List<Input> inputs = loadInputsInParallel(jobId);
     //Only write metadata of jobs which are submitted already
-    if (inputs != null && submittedJobs.contains(jobId)) {
-      logger.info("Storing inputs metadata for job {} ...", jobId);
-      Map<String, InputMetadata> metadata = inputs.stream()
-          .collect(Collectors.toMap(input -> input.s3Key, input -> new InputMetadata(input.byteSize, input.compressed)));
-      try {
-        S3Client.getInstance().putObject(inputMetaS3Key(jobId), "application/json", new InputsMetadata(metadata).serialize());
-      }
-      catch (IOException e) {
-        logger.error("Error writing inputs metadata file for job {}.", jobId, e);
-        //NOTE: Next call to this method will try it again
-      }
-    }
+    if (inputs != null && submittedJobs.contains(jobId))
+      storeMetadata(jobId, inputs);
+
     return inputs;
+  }
+
+  static InputsMetadata loadMetadata(String jobId) throws IOException {
+    InputsMetadata metadata = XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(inputMetaS3Key(jobId)),
+        InputsMetadata.class);
+    return metadata;
+  }
+
+  static void storeMetadata(String jobId, InputsMetadata metadata) {
+    try {
+      S3Client.getInstance().putObject(inputMetaS3Key(jobId), "application/json", metadata.serialize());
+    }
+    catch (IOException e) {
+      logger.error("Error writing inputs metadata file for job {}.", jobId, e);
+      //NOTE: Next call to this method will try it again
+    }
+  }
+
+  private static void storeMetadata(String jobId, List<Input> inputs) {
+    storeMetadata(jobId, inputs, null);
+  }
+
+  static void storeMetadata(String jobId, List<Input> inputs, String referencedJobId) {
+    logger.info("Storing inputs metadata for job {} ...", jobId);
+    Map<String, InputMetadata> metadata = inputs.stream()
+        .collect(Collectors.toMap(input -> input.s3Key, input -> new InputMetadata(input.byteSize, input.compressed)));
+    storeMetadata(jobId, new InputsMetadata(metadata, Set.of(jobId), referencedJobId));
   }
 
   private static List<Input> loadInputsInParallel(String jobId) {
@@ -152,12 +172,39 @@ public abstract class Input <T extends Input> implements Typed {
     return XyzSerializable.fromMap(rawInput, ModelBasedInput.class);
   }
 
-  private static Input createInput(String s3Key, long byteSize, boolean isCompressed) {
+  public static void deleteInputs(String jobId) {
+    deleteInputs(jobId, jobId);
+  }
+
+  private static void deleteInputs(String owningJobId, String referencingJob) {
+    InputsMetadata metadata = null;
+    try {
+      metadata = loadMetadata(owningJobId);
+      metadata.referencingJobs().remove(referencingJob);
+    }
+    catch (IOException ignore) {}
+
+    //Only delete the inputs if no other job is referencing them anymore
+    if (metadata == null || metadata.referencingJobs().isEmpty()) {
+      if (metadata != null && metadata.referencedJob() != null)
+        /*
+        The owning job referenced the inputs of another job, remove the owning job from the list of referencing jobs
+        and check whether the referenced inputs may be deleted now.
+         */
+        deleteInputs(metadata.referencedJob(), owningJobId);
+
+      S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId));
+    }
+    else if (metadata != null)
+      storeMetadata(owningJobId, metadata);
+  }
+
+  private static Input createInput(String s3Key, long byteSize, boolean compressed) {
     //TODO: Support ModelBasedInputs
     return new UploadUrl()
         .withS3Key(s3Key)
         .withByteSize(byteSize)
-        .withCompressed(isCompressed);
+        .withCompressed(compressed);
   }
 
   private static boolean inputIsCompressed(String s3Key) {
@@ -199,5 +246,6 @@ public abstract class Input <T extends Input> implements Typed {
   }
 
   public record InputMetadata(@JsonProperty long byteSize, @JsonProperty boolean compressed) {}
-  public record InputsMetadata(@JsonProperty Map<String, InputMetadata> inputs) implements XyzSerializable {}
+  public record InputsMetadata(@JsonProperty Map<String, InputMetadata> inputs, @JsonProperty Set<String> referencingJobs,
+                               @JsonProperty String referencedJob) implements XyzSerializable {}
 }
