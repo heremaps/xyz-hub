@@ -145,7 +145,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
       constructor(message) {
         super(message);
         this.withCode("XYZ44");
-        }
+      }
     }
 
     class FeatureNotExistsException extends XyzException {
@@ -176,7 +176,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         operation = "I";
         isDelete = false;
         attributeConflicts;
-        ignoreConflictPathList = ['properties.@ns:com:here:xyz.version','properties.@ns:com:here:xyz.createdAt','properties.@ns:com:here:xyz.updatedAt'];
+        ignoreConflictPaths = {
+          "properties.@ns:com:here:xyz.version": true,
+          "properties.@ns:com:here:xyz.createdAt": true,
+          "properties.@ns:com:here:xyz.updatedAt": true
+        };
 
         constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             if (isPartial && onNotExists != null)
@@ -509,6 +513,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             return this.isDelete ? this.handleDeleteVersionConflict() : this.handleWriteVersionConflict();
         }
 
+        /**
+         * @throws VersionConflictError
+         */
         handleWriteVersionConflict() {
             switch (this.onVersionConflict) {
                 case "MERGE":
@@ -524,6 +531,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             }
         }
 
+        /**
+         * @throws VersionConflictError, MergeConflictError
+         */
         handleDeleteVersionConflict() {
             switch (this.onVersionConflict) {
                 case "MERGE":
@@ -552,15 +562,15 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws MergeConflictError
          */
         mergeChanges() {
-            plv8.elog(NOTICE, "MERGE changes");
+            plv8.elog(NOTICE, "MERGE changes"); //TODO: Use debug logging
             //NOTE: This method will *only* be called in case a version conflict was detected and onVersionConflict == MERGE
             let headFeature = this.loadFeature(this.inputFeature.id);
             let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
             let inputDiff = this.isPartial ? this.inputFeature : this.diff(this.inputFeature, baseFeature); //Our incoming change
             let headDiff = this.diff(headFeature, baseFeature); //The other change
-            this.attributeConflicts = this.findConflicts(inputDiff, headDiff, '');
+            this.attributeConflicts = this.findConflicts(inputDiff, headDiff);
 
-            if (this.attributeConflicts!= undefined)
+            if (this.attributeConflicts.length > 0)
                 return this.handleMergeConflict();
 
             this.inputFeature = this.patch(headFeature, inputDiff);
@@ -656,72 +666,73 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 			false : this.inputFeature.properties["@ns:com:here:xyz"].deleted == true;
         }
 
+        //Helper function to determine if a value is an object
+        _isObject(obj) {
+            return obj != null && typeof obj == "object" && !Array.isArray(obj);
+        }
+
         /**
          * Finds all conflicting attributes in two changes / diffs if existing.
          * The returned result is a list of conflicting attributes including the two conflicting values.
          * @private
          * @return {{<string>: [<object>, <object>]}[]}
          */
-        findConflicts(obj1, obj2, path){
-            //TODO: Check if diffs are recursively disjunct or if not being disjunct the according value must be equal
-            // Helper function to determine if a value is an object
-            function isObject(obj) {
-                return obj !== null && typeof obj === 'object' && !Array.isArray(obj);
-            }
+        findConflicts(obj1, obj2, path = "") {
+            let conflicts = [];
 
-            // Iterate over keys of the first object
+            //Check if diffs are recursively disjunct or if not being disjunct. The according value must be equal.
+            //Iterate over keys of the first object
             for (const key in obj1) {
-                if (obj1.hasOwnProperty(key)) {
-                    const currentPath = path ? (path+'.'+key) : key;
-                    if (obj2.hasOwnProperty(key)) {
-                        // If both values are objects, recurse
-                        if (isObject(obj1[key]) && isObject(obj2[key])) {
-                            this.findConflicts(obj1[key], obj2[key], currentPath);
-                        } else if (obj1[key] !== obj2[key]) {
-                            // If values differ, throw an error
-
-                            //2d coords
-                            if(currentPath === 'geometry.coordinates' || (obj1[key].length == 2)){
-                                obj1[key].push(0);
-                            }else if(this.ignoreConflictPathList.indexOf(currentPath) != -1)
+                if (key in obj1) {
+                    const currentPath = path ? path + "." + key : key;
+                    if (key in obj2) {
+                        //If both values are objects => recursion
+                        if (this._isObject(obj1[key]) && this._isObject(obj2[key]))
+                            conflicts = conflicts.concat(this.findConflicts(obj1[key], obj2[key], currentPath));
+                        else if (obj1[key] !== obj2[key]) {
+                            //Fix 2d coords => 3d coords
+                            if (currentPath == "geometry.coordinates")
+                                this._ensure3d(obj1[key]);
+                            else if (this.ignoreConflictPaths[currentPath])
 								continue;
 
-							if(Array.isArray(obj1[key]) && Array.isArray(obj2[key])
-								&& JSON.stringify(obj1[key]) ===  JSON.stringify(obj2[key]))
+							if (Array.isArray(obj1[key]) && Array.isArray(obj2[key])
+                                //TODO: Improve performance of the following
+								&& JSON.stringify(obj1[key]) == JSON.stringify(obj2[key]))
 								continue;
 
-                            this.attributeConflicts = {
-                                path : currentPath,
-                                value1 : obj1[key],
-                                value2 : obj2[key]
-                            }
-                            plv8.elog(NOTICE, 'Conflict ', 'cause: ', JSON.stringify(this.attributeConflicts));
-							this._throwMergeConflictError();
+                            conflicts.push({[currentPath]: [obj1[key], obj2[key]]});
                         }
                     }
                 }
             }
 
-            // Iterate over keys of the second object
+            //Iterate over keys of the second object
             for (const key in obj2) {
-                if (obj2.hasOwnProperty(key) && !obj1.hasOwnProperty(key)) {
-                    const currentPath = path ? (path+'.'+key) : key;
+                if (key in obj2 && !(key in obj1)) {
+                    const currentPath = path ? path + "." + key : key;
 
-                    // Check if key is present in obj2 but not in obj1 and if both values are objects
-                    if (isObject(obj2[key]) && !isObject(obj1[key])) {
-                       this.findConflicts({}, obj2[key], currentPath);
-                    }
+                    if (this._isObject(obj2[key]) && !this._isObject(obj1[key]))
+                        conflicts = conflicts.concat(this.findConflicts({}, obj2[key], currentPath));
                 }
             }
+
+            return conflicts;
+        }
+
+        _ensure3d(geometry) {
+          //FIXME: That only works for points, but not for lines (=> check type and act accordingly)
+          if (geometry.length == 2)
+            geometry.push(0);
         }
 
         diff(minuend, subtrahend) {
-            plv8.elog(NOTICE, "diff ", JSON.stringify(minuend), " ", JSON.stringify(subtrahend));
+            plv8.elog(NOTICE, "diff ", JSON.stringify(minuend), " ", JSON.stringify(subtrahend)); //TODO: Use debug logging
             let diff = {};
 
-            if(minuend == null)
+            if (minuend == null)
 				return subtrahend;
-			if(subtrahend == null)
+			if (subtrahend == null)
 				return minuend;
 
             //TODO: Ensure that null values are treated correctly!
@@ -752,7 +763,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * NOTE: target is mandatory to be a valid (existing) feature
          */
         patch(target, inputDiff) {
-            //plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff));
+            //plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff)); //TODO: Use debug logging
             for (let key in inputDiff) {
                 if (inputDiff.hasOwnProperty(key)) {
                     if (inputDiff[key] === null)
