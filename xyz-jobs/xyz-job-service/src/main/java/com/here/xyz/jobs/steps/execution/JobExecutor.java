@@ -105,30 +105,30 @@ public abstract class JobExecutor implements Initializable {
 
     try {
       JobConfigClient.getInstance().loadJobs(PENDING)
-              .compose(pendingJobs -> {
-                Future<Void> taskChain = Future.succeededFuture();
-                try {
-                  pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
-                  logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
-                  if (stopRequested)
-                    return Future.succeededFuture();
+          .compose(pendingJobs -> {
+            Future<Void> taskChain = Future.succeededFuture();
+            try {
+              pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
+              logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
+              if (stopRequested)
+                return Future.succeededFuture();
 
-                  //Now start one job after each other in the correct order
-                  for (Job pendingJob : pendingJobs)
-                    //Try to start the execution of the pending job
-                    taskChain = taskChain.compose(v -> tryAndWaitForStart(pendingJob));
-                }
-                catch (Exception e) {
-                  logger.error("Error checking PENDING jobs", e);
-                }
-                /*
-                The task chain is now fully created and will continue to be worked through, even if this thread ends now.
-                The "running" variable will be set to false again after the completion of the task chain (see: #onComplete() call below)
-                */
-                return taskChain;
-              })
-              .onFailure(t -> logger.error("Error checking PENDING jobs", t))
-              .onComplete(ar -> running = false);
+              //Now start one job after each other in the correct order
+              for (Job pendingJob : pendingJobs)
+                //Try to start the execution of the pending job
+                taskChain = taskChain.compose(v -> tryAndWaitForStart(pendingJob));
+            }
+            catch (Exception e) {
+              logger.error("Error checking PENDING jobs", e);
+            }
+            /*
+            The task chain is now fully created and will continue to be worked through, even if this thread ends now.
+            The "running" variable will be set to false again after the completion of the task chain (see: #onComplete() call below)
+            */
+            return taskChain;
+          })
+          .onFailure(t -> logger.error("Error checking PENDING jobs", t))
+          .onComplete(ar -> running = false);
     }
     catch (Exception e) {
       logger.error("Error checking PENDING jobs", e);

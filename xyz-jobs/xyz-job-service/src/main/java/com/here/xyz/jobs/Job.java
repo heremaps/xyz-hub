@@ -398,7 +398,7 @@ public class Job implements XyzSerializable {
   /**
    * Calculates the overall loads (needed resources) of this job by aggregating the resource loads of all steps of this job.
    * The aggregation of parallel steps is done in the way that all resource-loads of parallel running steps will be added while
-   * in the case of sequentially running steps always the maximum of each pairwise equal resources will be taken into account.
+   * in the case of sequentially running steps always the maximum of the step's resources will be taken into account.
    *
    * @return A list of overall resource-loads being reserved by this job
    */
