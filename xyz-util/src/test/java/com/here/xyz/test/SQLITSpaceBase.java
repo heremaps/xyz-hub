@@ -41,13 +41,17 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 public class SQLITSpaceBase extends SQLITBase{
   private static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
+  protected static String author = "testAuthor";
 
   protected enum SQLErrorCodes {
     XYZ40, //Illegal Argument
     XYZ44, //Feature exists
+    XYZ45, //Feature not exists
+    XYZ48, //MergeConflictError
     XYZ49, //VersionConflictError
     XYZ50, //XyzException
     XYZ51, //Import Format not supported
@@ -68,13 +72,13 @@ public class SQLITSpaceBase extends SQLITBase{
   }
 
   protected enum OnVersionConflict {
+    MERGE, //Default for WRITE
     REPLACE,
     RETAIN,
     ERROR //Default
   }
 
   protected enum OnMergeConflict {
-    MERGE, //Default for WRITE
     REPLACE, //Default for DELETE
     RETAIN,
     ERROR
@@ -301,7 +305,8 @@ public class SQLITSpaceBase extends SQLITBase{
       Feature f = XyzSerializable.deserialize(jsondata);
       Properties dbProperties = f.getProperties();
 
-      featureProperties.keySet().equals(dbProperties.keySet());
+      if(!featureProperties.keySet().equals(dbProperties.keySet()))
+        fail("Properties not equal."+featureProperties.keySet()+" != " + dbProperties.keySet());
     }catch (JsonProcessingException e){
       throw new RuntimeException(e);
     }
