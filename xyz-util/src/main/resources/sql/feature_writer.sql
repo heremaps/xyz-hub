@@ -130,6 +130,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
     class MergeConflictError extends VersionConflictError {
       constructor(message) {
         super(message);
+        this.withCode("XYZ48");
       }
     }
 
@@ -145,6 +146,13 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         super(message);
         this.withCode("XYZ44");
         }
+    }
+
+    class FeatureNotExistsException extends XyzException {
+      constructor(message) {
+        super(message);
+        this.withCode("XYZ45");
+      }
     }
 
     /**
@@ -168,6 +176,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         operation = "I";
         isDelete = false;
         attributeConflicts;
+        ignoreConflictPathList = ['properties.@ns:com:here:xyz.version'];
 
         constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
             if (isPartial && onNotExists != null)
@@ -374,11 +383,48 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 }
                 return this.inputFeature;
             }else{
-            /**
-                TODO : implement non-conflict Case! In this case we
-             */
+                plv8.elog(NOTICE, "version conflict handling! Base version:",this.baseVersion);
+
                 if (this.baseVersion == undefined)
                     throw new IllegalArgumentException("Provided Feature does not have a baseVersion!");
+
+	            /**
+	                TODO : implement non-conflict Case! In this case we
+					Check if we need onExists handling here. If its present is has a higher priority as onVersionConflict.
+	            */
+
+				let headFeature;
+
+				if(this.onExists == 'DELETE' || this.onExists == 'RETAIN' || this.onExists == 'ERROR'
+					|| this.onNotExists == 'RETAIN' || this.onNotExists == 'ERROR'){
+					headFeature = this.loadFeature(this.inputFeature.id);
+				}
+				switch(this.onExists){
+                    case "DELETE" :
+						if(headFeature != null){
+							return this.deleteFeature();
+                        }
+                        break;
+                    case "RETAIN" :
+                        if(headFeature != null)
+                            return null;
+                        break;
+                    case "ERROR" :
+                        if(headFeature != null)
+                            this._throwFeatureExistsError();
+                    //NOT handling REPLACE
+                }
+
+                switch(this.onNotExists){
+                    case "RETAIN" :
+                        if(headFeature == null)
+                            return null;
+                        break;
+                    case "ERROR" :
+                        if(headFeature == null)
+                            this._throwFeatureNotExistsError();
+                    //NOT handling CREATE
+                }
 
                 let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
                 delete featureClone.geometry;
@@ -398,7 +444,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 let writtenFeature = plan.execute(
                     this.version,
                     //TODO set version operation
-                    this.operation,
+                    'U',
                     this.author,
                     featureClone,
                     this.inputFeature.geometry,
@@ -417,6 +463,10 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             throw new FeatureExistsException(`Feature with ID ${this.inputFeature.id} exists!`).withCode("XYZ44");
         }
 
+        _throwFeatureNotExistsError() {
+            throw new FeatureExistsException(`Feature with ID ${this.inputFeature.id} not exists!`).withCode("XYZ45");
+        }
+
         /**
          * @throws VersionConflictError
          */
@@ -426,20 +476,20 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             //base_version get provided from user (extend api endpoint if necessary)
             //TODO: Deactivate notices depending on a DEBUG env variable
             plv8.elog(NOTICE, "Delete id = ", this.inputFeature.id);
-            let sql = "DELETE FROM \""+ this.schema + "\".\"" + this.table + "\" WHERE id = $1";
+            let sql = "DELETE FROM \""+ this.schema + "\".\"" + this.table + "\" WHERE id = $1 ";
             let plan = plv8.prepare(sql, ["TEXT"]);
 
             if (this.onVersionConflict == null)
                 //TODO: Use plv8.execute() directly!
                 cnt = plv8.prepare(sql, ["TEXT"]).execute(this.inputFeature.id);
             else {
-                if (base_version == 0) {
-                  sql = 'AND next_version = max_bigint();'
+                if (this.baseVersion == 0) {
+                  sql += 'AND next_version = max_bigint();'
                   cnt = plan.execute(this.inputFeature.id);
                 }
                 else {
                   //TODO: Use plv8.execute() directly!
-                  sql = 'AND version = $2;'
+                  sql += 'AND version = $2;'
                   plan = plv8.prepare(sql, ["TEXT", "BIGINT"]);
                   cnt = plan.execute(this.inputFeature.id, this.baseVersion);
                 }
@@ -502,14 +552,15 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws MergeConflictError
          */
         mergeChanges() {
+            plv8.elog(NOTICE, "MERGE changes");
             //NOTE: This method will *only* be called in case a version conflict was detected and onVersionConflict == MERGE
             let headFeature = this.loadFeature(this.inputFeature.id);
             let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
             let inputDiff = this.isPartial ? this.inputFeature : this.diff(this.inputFeature, baseFeature); //Our incoming change
             let headDiff = this.diff(headFeature, baseFeature); //The other change
-            this.attributeConflicts = this.findConflicts(inputDiff, headDiff);
+            this.attributeConflicts = this.findConflicts(inputDiff, headDiff, '');
 
-            if (this.attributeConflicts.length > 0)
+            if (this.attributeConflicts!= undefined && this.attributeConflicts.length > 0)
                 return this.handleMergeConflict();
 
             this.inputFeature = this.patch(headFeature, inputDiff);
@@ -611,12 +662,67 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @private
          * @return {{<string>: [<object>, <object>]}[]}
          */
-        findConflicts(diff1, diff2) {
+        findConflicts(obj1, obj2, path){
             //TODO: Check if diffs are recursively disjunct or if not being disjunct the according value must be equal
+            // Helper function to determine if a value is an object
+            function isObject(obj) {
+                return obj !== null && typeof obj === 'object' && !Array.isArray(obj);
+            }
+
+            // Iterate over keys of the first object
+            for (const key in obj1) {
+                if (obj1.hasOwnProperty(key)) {
+                    const currentPath = path ? (path+'.'+key) : key;
+                    if (obj2.hasOwnProperty(key)) {
+                        // If both values are objects, recurse
+                        if (isObject(obj1[key]) && isObject(obj2[key])) {
+                            this.findConflicts(obj1[key], obj2[key], currentPath);
+                        } else if (obj1[key] !== obj2[key]) {
+                            // If values differ, throw an error
+
+                            //2d coords
+                            if(currentPath === 'geometry.coordinates' || (obj1[key].length == 2)){
+                                obj1[key].push(0);
+                            }else if(this.ignoreConflictPathList.indexOf(currentPath) != -1)
+								return;
+
+							if(Array.isArray(obj1[key]) && Array.isArray(obj2[key])
+								&& JSON.stringify(obj1[key]) ===  JSON.stringify(obj2[key]))
+								return;
+
+                            let details = {
+                                path : currentPath,
+                                value1 : obj1[key],
+                                value2 : obj2[key]
+                            }
+                            //plv8.elog(ERROR, 'Conflict ', 'cause: ', JSON.stringify(details));
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            // Iterate over keys of the second object
+            for (const key in obj2) {
+                if (obj2.hasOwnProperty(key) && !obj1.hasOwnProperty(key)) {
+                    const currentPath = path ? (path+'.'+key) : key;
+
+                    // Check if key is present in obj2 but not in obj1 and if both values are objects
+                    if (isObject(obj2[key]) && !isObject(obj1[key])) {
+                        this.findConflicts({}, obj2[key], currentPath);
+                    }
+                }
+            }
         }
 
         diff(minuend, subtrahend) {
+            plv8.elog(NOTICE, "diff ", JSON.stringify(minuend), " ", JSON.stringify(subtrahend));
             let diff = {};
+
+            if(minuend == null)
+				return subtrahend;
+			if(subtrahend == null)
+				return minuend;
 
             //TODO: Ensure that null values are treated correctly!
             for (let key in subtrahend) {
@@ -646,6 +752,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * NOTE: target is mandatory to be a valid (existing) feature
          */
         patch(target, inputDiff) {
+            plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff));
             for (let key in inputDiff) {
                 if (inputDiff.hasOwnProperty(key)) {
                     if (inputDiff[key] === null)
