@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.steps.resources;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class Load {
@@ -68,5 +70,11 @@ public class Load {
       loads.put(resource, loads.containsKey(resource) ? Math.max(loads.get(resource), units) : units);
     else
       loads.put(resource, loads.containsKey(resource) ? loads.get(resource) + units : units);
+  }
+
+  public static Map<ExecutionResource, Double> toLoadsMap(List<Load> loads, boolean maximize) {
+    Map<ExecutionResource, Double> loadsMap = new HashMap<>();
+    loads.forEach(load -> addLoad(loadsMap, load.getResource(), load.getEstimatedVirtualUnits(), maximize));
+    return loadsMap;
   }
 }

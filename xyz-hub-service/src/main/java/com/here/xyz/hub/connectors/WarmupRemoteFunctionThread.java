@@ -25,16 +25,16 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.util.service.Core;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 /**
- *
+ * @deprecated The warmup logic is done by the infrastructure instead.
+ * TODO: Remove this class.
  */
+@Deprecated
 public class WarmupRemoteFunctionThread extends Thread {
 
   private static final String name = WarmupRemoteFunctionThread.class.getSimpleName();
@@ -96,22 +96,6 @@ public class WarmupRemoteFunctionThread extends Thread {
           logger.error("Unexpected exception while trying to send warm-up requests", e);
         }
       }
-    }
-  }
-
-  private void monitorActiveConnections() {
-    for (final RpcClient client : RpcClient.getAllInstances()) {
-      ConcurrentHashMap<String, AtomicInteger> connectionByRequster = client.getFunctionClient().getUsedConnectionsByRequester();
-      final StringBuilder sb = new StringBuilder("Active connections by requester for client ")
-          .append(client.getConnector().id).append(": ");
-      for( String requester : connectionByRequster.keySet() ){
-
-        int count = connectionByRequster.get(requester).get();
-        if(count > 0){
-            sb.append(requester).append(':').append(count).append(';');
-        }
-      }
-      logger.warn(sb.toString());
     }
   }
 

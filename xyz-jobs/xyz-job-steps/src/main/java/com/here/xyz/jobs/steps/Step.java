@@ -373,10 +373,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return pipeline;
   }
 
-  public boolean isRunning() {
-    return getStatus().getState().equals(RuntimeInfo.State.RUNNING);
-  }
-
   public void setPipeline(boolean pipeline) {
     this.pipeline = pipeline;
   }
