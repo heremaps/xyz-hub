@@ -20,8 +20,12 @@
 package com.here.xyz.test.featurewriter.nohistory;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFeaturesBase {
 
@@ -33,9 +37,11 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
 
     //Lead into a version conflict, because version 1 is not present anymore
     //We have conflicting changes!
-    writeFeature(1L,true,null,null, OnVersionConflict.MERGE, null,
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, true));
+
+    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
-    checkExistingFeature(createMergedTestFeatures(1L).get(0), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createMergedTestFeature(1L), 3L, Long.MAX_VALUE, Operation.U, author);
   }
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE_With_MergeConflict_OnMergeConflictError() throws Exception {
@@ -44,8 +50,10 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
 
     //Lead into a version conflict, because version 1 is not present anymore
     //We have conflicting changes!
-    writeFeature(1L,true,null,null, OnVersionConflict.MERGE, null,
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, true));
+
+    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
-    checkExistingFeature(createMergedTestFeatures(1L).get(0), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createMergedTestFeature(1L), 3L, Long.MAX_VALUE, Operation.U, author);
   }
 }

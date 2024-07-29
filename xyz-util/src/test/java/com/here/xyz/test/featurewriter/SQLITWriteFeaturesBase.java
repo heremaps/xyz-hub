@@ -33,26 +33,15 @@ import java.util.List;
 
 public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
 
-  @Test
-  public void writeFeaturesWithDefaults() throws Exception {
-    insertTestFeature(null,null,null);
-    checkExistingFeature(createTestFeatures().get(0), 1L, Long.MAX_VALUE, Operation.I, author);
-  }
-
-  @Test
-  public void writeExistingFeatureWithDefaults() throws Exception {
-    createAndUpdateFeature(null,null,null,null,
-            false, SpaceContext.EXTENSION, false, null);
-
-    checkExistingFeature(createModifiedTestFeatures().get(0), 2L, Long.MAX_VALUE, Operation.U, author);
-  }
-
   //********************** Helper Functions *******************************/
-  protected void createAndUpdateFeature(OnExists onExists, OnNotExists onNotExists,
-                                        OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                                        SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError) throws Exception {
-    createAndUpdateFeature(null, false, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
-            spaceContext, isHistoryActive, expectedError);
+  protected void writeFeature(List<Feature> modifiedFeatureList,
+                              OnExists onExists, OnNotExists onNotExists,
+                              OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
+                              SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
+          throws Exception {
+    //second write on existing feature
+    runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists , onNotExists,
+            onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
   }
 
   protected void createAndUpdateFeature(Long baseVersion, boolean hasConflictingAttributes,
@@ -62,72 +51,55 @@ public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
           throws Exception {
 
     //initial Insert
-    insertTestFeature(null, null,null);
-    writeFeature(baseVersion, hasConflictingAttributes, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
+    runWriteFeatureQueryWithSQLAssertion(Arrays.asList(createTestFeature(null)), author, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    List<Feature> modifiedFeatureList = baseVersion != null ? Arrays.asList(createModifiedTestFeature(baseVersion, hasConflictingAttributes))
+            : Arrays.asList(createModifiedTestFeature(null,false));
+
+    writeFeature(modifiedFeatureList, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
             spaceContext, isHistoryActive, expectedError);
   }
 
-  protected void writeFeature(Long baseVersion, boolean hasConflictingAttributes,
-                                      OnExists onExists, OnNotExists onNotExists,
-                                      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                                      SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
-          throws Exception {
+  protected Feature createTestFeature(Long baseVersion) {
+    Feature feature = new Feature()
+              .withId("id1")
+              .withProperties(new Properties().with("name", "t1"))
+              .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)));
 
-    //TODO impl baseVersionMatch / hasConflictingAttributes
-    //modify properties
-    List<Feature> modifiedFeatureList = baseVersion != null ? createModifiedTestFeatures(baseVersion, hasConflictingAttributes) : createModifiedTestFeatures();
+    if(baseVersion != null)
+      feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(baseVersion));
 
-    //second write on existing feature
-    runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists , onNotExists,
-            onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
+    return feature;
   }
 
-  protected void insertTestFeature( OnExists onExists, OnNotExists onNotExists, SQLErrorCodes expectedError)
-          throws Exception {
-
-    runWriteFeatureQueryWithSQLAssertion(createTestFeatures(), author, onExists , onNotExists,
-            null, null, false, SpaceContext.EXTENSION,false, expectedError);
-  }
-
-  protected List<Feature> createTestFeatures() {
-    return Arrays.asList(
-            new Feature()
-                    .withId("id1")
-                    .withProperties(new Properties().with("name", "t1"))
-                    .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)))
-    );
-  }
-
-  protected List<Feature> createModifiedTestFeatures() {
-    return createModifiedTestFeatures(false);
-  }
-
-  protected List<Feature> createModifiedTestFeatures(boolean hasConflictingAttributes) {
-    return createModifiedTestFeatures(null, hasConflictingAttributes);
-  }
-
-  private List<Feature> createModifiedTestFeatures(Long baseVersion, boolean hasConflictingAttributes) {
+  protected Feature createModifiedTestFeature(Long baseVersion, boolean hasConflictingAttributes) {
     Feature feature = new Feature()
             .withId("id1")
             .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)));
     if(hasConflictingAttributes){
       feature.setProperties(new Properties()
+              //"name" is already present in initial write
               .with("name", "modified")
+              //"foo" is new
               .with("foo", "bar2")
       );
     }else{
       feature.setProperties(new Properties()
+              //Both keys are new changes
               .with("foo", "bar")
               .with("new", "value")
       );
     }
+
+    //add a version which a user would provide
     if(baseVersion != null)
       feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(baseVersion));
 
-    return Arrays.asList(feature);
+    return feature;
   }
 
-  protected List<Feature> createMergedTestFeatures(Long baseVersion) {
+  protected Feature createMergedTestFeature(Long baseVersion) {
     Feature feature = new Feature()
             .withId("id1")
             .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)));
@@ -135,7 +107,9 @@ public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
             .with("foo", "bar")
             .with("new", "value")
             .with("name", "t1"));
+
     feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(baseVersion));
-    return Arrays.asList(feature);
+
+    return feature;
   }
 }

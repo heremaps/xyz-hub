@@ -20,39 +20,43 @@
 package com.here.xyz.test.featurewriter.nohistory;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFeaturesBase {
 
   //********************** Feature exists (OnVersionConflict deactivated) *******************************/
   @Test
   public void writeToExistingFeature_OnExistsDELETE() throws Exception {
-    createAndUpdateFeature(OnExists.DELETE,null,null,null,
+    createAndUpdateFeature(null, false, OnExists.DELETE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkNotExistingFeature(createModifiedTestFeatures().get(0));
+    checkNotExistingFeature(createModifiedTestFeature(null, false));
   }
 
   @Test
   public void writeToExistingFeature_OnExistsREPLACE() throws Exception {
-    createAndUpdateFeature(OnExists.REPLACE,null,null,null,
+    createAndUpdateFeature(null, false, OnExists.REPLACE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createModifiedTestFeatures().get(0), 2L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, author);
   }
 
   @Test
   public void writeToExistingFeature_OnExistsRETAIN() throws Exception {
-    createAndUpdateFeature(OnExists.RETAIN,null,null,null,
+    createAndUpdateFeature(null, false, OnExists.RETAIN,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createTestFeatures().get(0), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
   }
 
   @Test
   public void writeToExistingFeature_OnExistsERROR() throws Exception {
-    createAndUpdateFeature(OnExists.ERROR,null,null,null,
+    createAndUpdateFeature(null, false, OnExists.ERROR,null,null,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
-    checkExistingFeature(createTestFeatures().get(0), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
   }
 
   //********************** Feature exists (OnVersionConflict.REPLACE + BaseVersion Match) *******************************/
@@ -61,28 +65,28 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
     createAndUpdateFeature(1L,false, OnExists.DELETE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkNotExistingFeature(createTestFeatures().get(0));
+    checkNotExistingFeature(createTestFeature(null));
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsREPLACE() throws Exception {
     createAndUpdateFeature(1L,false, OnExists.REPLACE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createModifiedTestFeatures().get(0), 2L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, author);
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsRETAIN() throws Exception {
     createAndUpdateFeature(1L,false, OnExists.RETAIN,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createTestFeatures().get(0), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsERROR() throws Exception {
     createAndUpdateFeature(1L,false, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
-    checkExistingFeature(createTestFeatures().get(0), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
   }
 
   //********************** Feature exists + BaseVersion Conflict (onVersionConflict.ERROR) *******************************/
@@ -90,7 +94,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictERROR() throws Exception {
     createAndUpdateFeature(2L,false, null,null, OnVersionConflict.ERROR, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
-    checkExistingFeature(createTestFeatures().get(0), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
   }
 
   //********************** Feature exists + BaseVersion Conflict (onVersionConflict.RETAIN) *******************************/
@@ -99,7 +103,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
     createAndUpdateFeature(2L,false,null,null, OnVersionConflict.RETAIN, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createTestFeatures().get(0), 1L, Long.MAX_VALUE, Operation.I, author);
+    checkExistingFeature(createTestFeature(null), 1L, Long.MAX_VALUE, Operation.I, author);
   }
 
   //********************** Feature exists + BaseVersion Conflict (OnVersionConflict.REPLACE) *******************************/
@@ -108,11 +112,13 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
     createAndUpdateFeature(1L,false,null,null, OnVersionConflict.REPLACE, null,
             false, SpaceContext.EXTENSION, false, null);
 
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
+
     //Lead into a version conflict, because version 1 is not present anymore
-    writeFeature(1L,false,null,null, OnVersionConflict.REPLACE, null,
+    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.REPLACE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createModifiedTestFeatures().get(0), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createModifiedTestFeature(null, false), 3L, Long.MAX_VALUE, Operation.U, author);
   }
 
   //********************** Feature exists + BaseVersion Conflict + no merge conflict (OnVersionConflict.MERGE) *******************************/
@@ -123,9 +129,11 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
 
     //Lead into a version conflict, because version 1 is not present anymore
     //We have no conflicting changes!
-    writeFeature(1L,false,null,null, OnVersionConflict.MERGE, null,
+    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(1L, false));
+
+    writeFeature(modifiedFeatureList,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createMergedTestFeatures(1L).get(0), 3L, Long.MAX_VALUE, Operation.U, author);
+    checkExistingFeature(createMergedTestFeature(1L), 3L, Long.MAX_VALUE, Operation.U, author);
   }
 }
