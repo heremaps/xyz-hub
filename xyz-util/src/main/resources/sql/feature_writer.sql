@@ -598,9 +598,19 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         _throwMergeConflictError() {
-            //TODO: In case of write, add all conflicting attributes as info (stored in this.attributeConflicts)
-            throw new MergeConflictError(`Merge conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}.`)
+            let error = new MergeConflictError(`Merge conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}.`)
                 .withHint(`Base version ${this.baseVersion} was not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))} and a merge was not possible.`);
+
+            if (!isDelete) {
+                let detail = `The following conflicts occurred for the feature with ID ${this.inputFeature.id}:`;
+                for (let conflict of this.attributeConflicts) {
+                    let path = Object.getOwnPropertyNames(conflict)[0];
+                    detail += "\n\t" + `- ${path}: ${typeof conflict[path][0] == "string" ? `"${conflict[path][0]}"` : conflict[path][0]} <> ${typeof conflict[path][1] == "string" ? `"${conflict[path][1]}"` : conflict[path][1]}`
+                }
+                error.withDetail(detail);
+            }
+
+            throw error;
         }
 
         loadFeature(id, version = "HEAD") {
