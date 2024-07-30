@@ -198,7 +198,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.onExists = onExists || "REPLACE";
             this.onNotExists = onNotExists || (isPartial ? "ERROR" : "CREATE");
             this.onVersionConflict = onVersionConflict == null ? null : onVersionConflict || (this.isDelete ? "REPLACE" : "MERGE");
-            this.onMergeConflict = onMergeConflict;
+            this.onMergeConflict = onMergeConflict == null ? "ERROR" : onMergeConflict;
             this.isPartial = isPartial;
 
             this.enrichFeature();
@@ -562,7 +562,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws MergeConflictError
          */
         mergeChanges() {
-            plv8.elog(NOTICE, "MERGE changes"); //TODO: Use debug logging
+            plv8.elog(NOTICE, "MERGE changes",this.onVersionConflict, this.onMergeConflict ); //TODO: Use debug logging
             //NOTE: This method will *only* be called in case a version conflict was detected and onVersionConflict == MERGE
             let headFeature = this.loadFeature(this.inputFeature.id);
             let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
@@ -601,7 +601,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             let error = new MergeConflictError(`Merge conflict while trying to ${this._operation2HumanReadable(this.operation)} feature with ID ${this.inputFeature.id} in version ${this.version}.`)
                 .withHint(`Base version ${this.baseVersion} was not matching the current HEAD version ${this._getFeatureVersion(this.loadFeature(this.inputFeature.id))} and a merge was not possible.`);
 
-            if (!isDelete) {
+            if (!this.isDelete) {
                 let detail = `The following conflicts occurred for the feature with ID ${this.inputFeature.id}:`;
                 for (let conflict of this.attributeConflicts) {
                     let path = Object.getOwnPropertyNames(conflict)[0];

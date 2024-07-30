@@ -74,15 +74,15 @@ public class SQLITSpaceBase extends SQLITBase{
 
   protected enum OnVersionConflict {
     MERGE, //Default for WRITE
-    REPLACE,
+    REPLACE, //Default for DELETE
     RETAIN,
     ERROR //Default
   }
 
   protected enum OnMergeConflict {
-    REPLACE, //Default for DELETE
+    REPLACE,
     RETAIN,
-    ERROR
+    ERROR //Default
   }
 
   protected enum Operation {

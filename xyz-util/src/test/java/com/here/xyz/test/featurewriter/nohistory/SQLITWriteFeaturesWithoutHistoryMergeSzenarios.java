@@ -32,7 +32,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
   //********************** Feature exists + BaseVersion Conflict + merge conflict (OnVersionConflict.MERGE) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE_With_MergeConflict_OnMergeConflictDefault() throws Exception {
-    //Default is REPLACE
+    //Default is ERROR
     //initial write
     writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
@@ -46,9 +46,9 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
     //We have conflicting changes!
 
     f = createModifiedTestFeature(1L, true);
-    writeFeature(f, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, OnMergeConflict.REPLACE,
-            false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(f, 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    writeFeature(f, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, OnMergeConflict.ERROR,
+            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ48);
+    checkExistingFeature(createMergedTestFeatureResult(), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
     @Test
