@@ -19,26 +19,42 @@
 
 package com.here.xyz.test.featurewriter.nohistory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.List;
-
 public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFeaturesBase {
+  private Feature default_f1;
+
+  public SQLITWriteFeaturesWithoutHistoryFeatureExists() throws JsonProcessingException {
+    default_f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice"}
+            }
+            """, Feature.class);
+  }
 
   //********************** Feature exists (OnVersionConflict deactivated) *******************************/
   @Test
   public void writeToExistingFeature_OnExistsDELETE() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
     //Second write with modifications
-    Feature f = createModifiedTestFeature(null,false);
-    writeFeature(f, DEFAULT_AUTHOR, OnExists.DELETE,null,null,null,
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"will":"fail"}
+            }
+            """, Feature.class);
+    writeFeature(f2, DEFAULT_AUTHOR, OnExists.DELETE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
 
     checkNotExistingFeature(DEFAULT_FEATURE_ID);
@@ -47,169 +63,238 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   @Test
   public void writeToExistingFeature_OnExistsREPLACE() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice"}
+            }
+            """, Feature.class);
+    writeFeature(f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
     //Second write with modifications
-    Feature f = createModifiedTestFeature(null,false);
-    writeFeature(f, DEFAULT_AUTHOR, OnExists.REPLACE,null,null,null,
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"age":35, "gender":"female"}
+            }
+            """, Feature.class);
+
+    writeFeature(f2, DEFAULT_AUTHOR, OnExists.REPLACE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    Feature expected = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"age":35, "gender":"female"}
+            }
+            """, Feature.class);
+
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_OnExistsRETAIN() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
     //Second write with modifications
-    Feature f = createModifiedTestFeature(null,false);
-    writeFeature(f, DEFAULT_AUTHOR, OnExists.RETAIN,null,null,null,
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"will":"retain"}
+            }
+            """, Feature.class);
+
+    writeFeature(f2, DEFAULT_AUTHOR, OnExists.RETAIN,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_OnExistsERROR() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
     //Second write with modifications
-    Feature f = createModifiedTestFeature(null,false);
-    writeFeature(f, DEFAULT_AUTHOR, OnExists.ERROR,null,null,null,
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"will":"error"}
+            }
+            """, Feature.class);
+    writeFeature(f2, DEFAULT_AUTHOR, OnExists.ERROR,null,null,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
 
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists (OnVersionConflict.REPLACE + BaseVersion Match) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsDELETE() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
+    //Add matching Baseversion
+    default_f1.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1L));
 
     //Second write with modifications
-    Feature f = createModifiedTestFeature(1L,false);
-    writeFeature(f, DEFAULT_AUTHOR, OnExists.DELETE,null, OnVersionConflict.REPLACE,null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, OnExists.DELETE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkNotExistingFeature(DEFAULT_FEATURE_ID);
+    checkNotExistingFeature(default_f1.getId());
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsREPLACE() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    //Second write with modifications
-    Feature f = createModifiedTestFeature(1L,false);
-    writeFeature(f, DEFAULT_AUTHOR, OnExists.REPLACE,null, OnVersionConflict.REPLACE,null,
+    //Second write with modifications and matching baseversion
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{ "@ns:com:here:xyz":{"version":1}, "age":35, "gender":"female"}
+            }
+            """, Feature.class);
+
+    writeFeature(f2, DEFAULT_AUTHOR, OnExists.REPLACE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsRETAIN() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    //Second write with modifications
-    Feature f = createModifiedTestFeature(1L,false);
-    writeFeature(f, DEFAULT_AUTHOR,OnExists.RETAIN,null, OnVersionConflict.REPLACE,null,
+    //Second write with modifications and matching baseversion
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"@ns:com:here:xyz":{"version":1}, "will":"retain"}
+            }
+            """, Feature.class);
+    writeFeature(f2, DEFAULT_AUTHOR,OnExists.RETAIN,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   @Test
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsERROR() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    //Second write with modifications
-    Feature f = createModifiedTestFeature(1L,false);
-    writeFeature(f, DEFAULT_AUTHOR, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
+    //Second write with modifications and matching baseversion
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"@ns:com:here:xyz":{"version":1}, "will":"error"}
+            }
+            """, Feature.class);
+    writeFeature(f2, DEFAULT_AUTHOR, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
 
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict (onVersionConflict.ERROR) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictERROR() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    //Second write with modifications
-    Feature f = createModifiedTestFeature(2L,false);
-    writeFeature(f, DEFAULT_AUTHOR, null,null, OnVersionConflict.ERROR, null,
+    //Second write with modifications and NOT matching baseversion
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"@ns:com:here:xyz":{"version":0}, "will":"error"}
+            }
+            """, Feature.class);
+
+    writeFeature(f2, DEFAULT_AUTHOR, null,null, OnVersionConflict.ERROR, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict (onVersionConflict.RETAIN) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictRETAIN() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    //Second write with modifications
-    Feature f = createModifiedTestFeature(2L,false);
-    writeFeature(f, DEFAULT_AUTHOR, null,null, OnVersionConflict.RETAIN, null,
+    //Second write with modifications and NOT matching baseversion
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"@ns:com:here:xyz":{"version":0}, "will":"error"}
+            }
+            """, Feature.class);
+    writeFeature(f2, DEFAULT_AUTHOR, null,null, OnVersionConflict.RETAIN, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict (OnVersionConflict.REPLACE) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictREPLACE() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    //Second write with modifications
-    Feature f = createModifiedTestFeature(1L,false);
-    writeFeature(f, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE, null,
+    //Second write with modifications and NOT matching baseversion
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value"}
+            }
+            """, Feature.class);
+    writeFeature(f2, DEFAULT_AUTHOR,null,null, OnVersionConflict.REPLACE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    //Third write with modifications
-    //Lead into a version conflict, because version 1 is not present anymore
-    f.getProperties().with("test-new",true);
-    writeFeature(f, DEFAULT_AUTHOR,null,null, OnVersionConflict.REPLACE, null,
-            false, SpaceContext.EXTENSION, false, null);
-
-    checkExistingFeature(f, 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict + no merge conflict (OnVersionConflict.MERGE) *******************************/
   @Test
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE() throws Exception {
     //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
+    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);
 
-    //Second write with modifications
-    Feature f = createModifiedTestFeature(1L,false);
-    writeFeature(f, DEFAULT_AUTHOR, null,null, OnVersionConflict.REPLACE, null,
+    //Second write with modifications and NOT matching baseversion
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value"}
+            }
+            """, Feature.class);
+
+    writeFeature(f2, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    //Lead into a version conflict, because version 1 is not present anymore
-    //We have no conflicting versions! But we are able to merge.
-    f.getProperties().with("test-new",true);
-    writeFeature(f, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, null,
-            false, SpaceContext.EXTENSION, false, null);
-
-    checkExistingFeature(f, 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    Feature expected = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value", "firstName":"Alice"}
+            }
+            """, Feature.class);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 }

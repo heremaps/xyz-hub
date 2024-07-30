@@ -19,74 +19,215 @@
 
 package com.here.xyz.test.featurewriter.nohistory;
 
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.List;
-
 public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFeaturesBase {
 
-  //********************** Feature exists + BaseVersion Conflict + merge conflict (OnVersionConflict.MERGE) *******************************/
+  //********************** Feature exists + BaseVersion Conflict + Merge Conflict *******************************/
   @Test
-  public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE_With_MergeConflict_OnMergeConflictDefault() throws Exception {
+  public void merge_With_DefaultSettings() throws Exception {
     //Default is ERROR
-    //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","age":35}}
+            """, Feature.class);
 
-    Feature f = createModifiedTestFeature(1L, false);
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"@ns:com:here:xyz":{"version":0},"lastName":"Wonder","age":32}}
+            """, Feature.class);
 
-    //Second partial write with modifications
-    writeFeature(f, DEFAULT_AUTHOR, null,null, null, null,
-            true, SpaceContext.EXTENSION, false, null);
-    //Lead into a version conflict, because version 1 is not present anymore
-    //We have conflicting changes!
-
-    f = createModifiedTestFeature(1L, true);
-    writeFeature(f, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, OnMergeConflict.ERROR,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ48);
-    checkExistingFeature(createMergedTestFeatureResult(), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    //Conflict expected
+    performMerge(f1, f2, null, null, SQLErrorCodes.XYZ48);
+    checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
-    @Test
-  public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE_With_MergeConflict_OnMergeReplace() throws Exception {
-    //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
+  //********************** OnMergeConflict ERROR *******************************/
+  @Test
+  public void merge_With_OnMergeConflictERROR() throws Exception {
+    //Default is ERROR
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","age":35}}
+            """, Feature.class);
 
-    //Second partial write with modifications
-    Feature f = createModifiedTestFeature(1L, false);
-    writeFeature(f, DEFAULT_AUTHOR, null,null, null,null,
-            true, SpaceContext.EXTENSION, false, null);
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"@ns:com:here:xyz":{"version":0},"lastName":"Wonder","age":32}}
+            """, Feature.class);
+    //Conflict expected
+    performMerge(f1, f2, null, OnMergeConflict.ERROR, SQLErrorCodes.XYZ48);
+    checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+  }
 
-    //Lead into a version conflict, because version 1 is not present anymore
-    //We have conflicting changes!
-    f = createModifiedTestFeature(1L, true);
+  //********************** No Conflicts *******************************/
+  @Test
+  public void merge_WithoutConflict() throws Exception {
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"firstName":"Alice"}}
+            """, Feature.class);
 
-    writeFeature(f, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, OnMergeConflict.REPLACE,
-            false, SpaceContext.EXTENSION, false, null);
-    checkExistingFeature(f, 3L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"@ns:com:here:xyz":{"version":0},"lastName":"Wonder"}}
+            """, Feature.class);
+    //No Conflict expected
+    Feature expected =  XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"firstName":"Alice","lastName":"Wonder"}}
+               """, Feature.class);
+
+    performMerge(f1, f2, expected, OnMergeConflict.REPLACE, null);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 
   @Test
-  public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE_With_MergeConflict_OnMergeConflictError() throws Exception {
-    //initial write
-    writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
+  public void merge_NestedObject_WithoutConflict() throws Exception {
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties": {"nested": {"name":"Alice","gender":"female"}}}
+            """, Feature.class);
 
-    //Second partial write with modifications
-    Feature f = createModifiedTestFeature(1L,false);
-    writeFeature(f, DEFAULT_AUTHOR, null,null, null, null,
-            true, SpaceContext.EXTENSION, false, null);
-    //Lead into a version conflict, because version 1 is not present anymore
-    //We have conflicting changes!
-    f = createModifiedTestFeature(1L, true);
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties": { "@ns:com:here:xyz":{"version":0}, "nested": {"lastName":"Wonder","age":35}}}
+            """, Feature.class);
+    //No Conflict expected
+    Feature expected =  XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties": {"nested": {"name": "Alice", "gender":"female", "lastName":"Wonder","age":35}}}
+               """, Feature.class);
 
-    writeFeature(f, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, OnMergeConflict.ERROR,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ48);
-    checkExistingFeature(createMergedTestFeatureResult(), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    performMerge(f1, f2, expected,  OnMergeConflict.REPLACE, null);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+  }
+
+  @Test
+  public void merge_Same_Attributes() throws Exception {
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","age":35}}
+            """, Feature.class);
+
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"@ns:com:here:xyz":{"version":0},"lastName":"Wonder","age":35}}
+            """, Feature.class);
+    //No Conflict expected
+    Feature expected =  XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","lastName":"Wonder","age":35}}
+               """, Feature.class);
+
+    performMerge(f1, f2, expected, OnMergeConflict.REPLACE, null);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+  }
+
+  //********************** Conflicts with OnMergeConflict=REPLACE*******************************/
+  @Test
+  public void merge_And_Resolve_Conflict_REPLACE() throws Exception {
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","age":30}}
+            """, Feature.class);
+
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"@ns:com:here:xyz":{"version":0},"lastName":"Wonder","age":35}}
+            """, Feature.class);
+    //No Conflict expected
+    Feature expected =  XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"lastName":"Wonder","age":35}}
+               """, Feature.class);
+
+    performMerge(f1, f2, expected,  OnMergeConflict.REPLACE, null);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+  }
+
+  @Test
+  public void merge_NestedObject_And_Resolve_Conflict_REPLACE() throws Exception {
+    Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties": {"nested": {"firstName":"Alice","age":30}}}
+            """, Feature.class);
+
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties": { "@ns:com:here:xyz":{"version":0}, "nested": {"lastName":"Wonder","age":35}}}
+            """, Feature.class);
+    //No Conflict expected
+    Feature expected =  XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties": {"nested": {"lastName":"Wonder","age":35}}}
+               """, Feature.class);
+
+    performMerge(f1, f2, expected,  OnMergeConflict.REPLACE, null);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+  }
+
+  @Test
+  public void merge_Array_Resolve_Conflict_REPLACE() throws Exception {
+     Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties":{"items": ["apple", "banana"] }
+            }
+            """, Feature.class);
+
+    Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties": { "@ns:com:here:xyz":{"version":0}, "items": ["cherry"]}
+            }
+            """, Feature.class);
+    //No Conflict expected
+    Feature expected =  XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "properties": {"items": ["cherry"]}
+            }""", Feature.class);
+
+    performMerge(f1, f2, expected, OnMergeConflict.REPLACE, null);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
   }
 }

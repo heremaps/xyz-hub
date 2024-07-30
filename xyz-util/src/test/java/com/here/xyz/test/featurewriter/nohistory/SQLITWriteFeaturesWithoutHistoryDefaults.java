@@ -19,6 +19,7 @@
 
 package com.here.xyz.test.featurewriter.nohistory;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
@@ -30,37 +31,85 @@ import java.util.List;
 public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeaturesBase {
 
     @Test
-    public void writeFeatureWithDefaults() throws Exception {
-        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, null,
+    public void writeFeature_WithDefaults() throws Exception {
+        //Default is ERROR
+        Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","age":35}
+            }
+            """, Feature.class);
+
+        writeFeature(f1, DEFAULT_AUTHOR, null, null,
                 null, null, false, SpaceContext.EXTENSION, false, null);
 
-        checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+        checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
     }
 
     @Test
-    public void writeExistingFeatureWithDefaults() throws Exception {
+    public void writeToExistingFeature_WithDefaults() throws Exception {
         //initial write
-        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, null,
+        Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","age":35}
+            }
+            """, Feature.class);
+
+        writeFeature(f1, DEFAULT_AUTHOR, null, null,
                 null, null, false, SpaceContext.EXTENSION, false, null);
 
-        //second write with modifications
-        Feature f = createModifiedTestFeature(null, false);
-        writeFeature(f, DEFAULT_AUTHOR, null, null, null, null,
+        //second write || Default=REPLACE
+        Feature f2 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"lastName":"Wonder"}
+            }
+            """, Feature.class);
+        writeFeature(f2, DEFAULT_AUTHOR, null, null, null, null,
                 false, SpaceContext.EXTENSION, false, null);
 
-        checkExistingFeature(f, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+        checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
     }
 
     @Test
-    public void writeExistingFeatureWithDefaultsPartial() throws Exception {
+    public void writeTiExistingFeature_WithDefaults_Partial() throws Exception {
         //Insert Feature
-        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, null,
+        Feature f1 = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"firstName":"Alice","age":35}
+            }
+            """, Feature.class);
+
+        writeFeature(f1, DEFAULT_AUTHOR, null, null,
                 null, null, false, SpaceContext.EXTENSION, false, null);
 
+        Feature f2 = XyzSerializable.deserialize("""
+            { 
+              "type":"Feature",
+              "id":"id1",           
+              "geometry":{"type":"Point","coordinates":[50.0,50.0]},   
+              "properties": {"new":"value"}
+             }
+            """, Feature.class);
         //second write with partial modifications
-        writeFeature(createPartialTestFeature(), DEFAULT_AUTHOR, null, null,
+        writeFeature(f2, DEFAULT_AUTHOR, null, null,
                 null, null, true, SpaceContext.EXTENSION, false, null);
 
-        checkExistingFeature(createPartialTestFeatureResult(), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+        Feature expected = XyzSerializable.deserialize("""
+            { 
+              "type":"Feature",            
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[50.0,50.0]},
+              "properties":{"firstName":"Alice","age":35, "new" : "value"}
+             }
+            """, Feature.class);
+
+        checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
     }
 }

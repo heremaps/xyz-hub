@@ -34,6 +34,7 @@ import org.junit.Before;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
@@ -301,15 +302,40 @@ public class SQLITSpaceBase extends SQLITBase{
     }
   }
 
-  protected void checkProperties(String jsondata, Properties featureProperties){
+  protected void checkProperties(String dbFeature, Properties expectedProperties){
     try {
-      Feature f = XyzSerializable.deserialize(jsondata);
+      Feature f = XyzSerializable.deserialize(dbFeature);
       Properties dbProperties = f.getProperties();
 
-      if(!featureProperties.keySet().equals(dbProperties.keySet()))
-        fail("Properties not equal."+featureProperties.keySet()+" != " + dbProperties.keySet());
+      checkProperties((HashMap) f.getProperties().toMap(), (HashMap) expectedProperties.toMap());
     }catch (JsonProcessingException e){
       throw new RuntimeException(e);
     }
   }
+
+  protected void checkProperties(HashMap dbProperties, HashMap expectedProperties){
+    for (Object key : dbProperties.keySet()){
+      Object dbValue = dbProperties.get(key);
+      Object expectedValue = expectedProperties.get(key);
+
+      if(key.equals("@ns:com:here:xyz"))
+        continue;
+
+      if(dbValue instanceof HashMap<?,?>)
+        checkProperties((HashMap) dbValue, (HashMap) expectedValue);
+      if(dbValue instanceof ArrayList<?>){
+        if(((ArrayList<?>) dbValue).size() != ((ArrayList<?>) expectedValue).size())
+          fail("Array sizes are not equal "+dbValue+" != " + expectedValue);
+        for (Object item : (ArrayList<?>) dbValue){
+          if(((ArrayList<?>) expectedValue).indexOf(item) == -1)
+            fail("Array item is missing "+item+" not in " + expectedValue);
+        }
+        continue;
+      }
+
+      if(!dbValue.equals(expectedValue))
+        fail("Properties not equal: "+dbValue+" != " + expectedValue);
+    }
+  }
+
 }

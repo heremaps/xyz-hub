@@ -20,11 +20,7 @@
 package com.here.xyz.test.featurewriter;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.test.SQLITSpaceBase;
 
 import java.util.Arrays;
@@ -33,6 +29,17 @@ import java.util.List;
 public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
 
   //********************** Helper Functions *******************************/
+  protected void performMerge(Feature feature1, Feature feature2, Feature expected, OnMergeConflict onMergeConflict,
+                            SQLErrorCodes expectedError) throws Exception {
+    //initial write
+    writeFeature(feature1, DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Lead into a version conflict, because version 0 is not present anymore
+    writeFeature(feature2, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, onMergeConflict,
+            false, SpaceContext.EXTENSION, false, expectedError );
+  }
+
   protected void writeFeature(Feature modifiedFeature, String author,
                               OnExists onExists, OnNotExists onNotExists,
                               OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
@@ -49,78 +56,5 @@ public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
           throws Exception {
     runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists , onNotExists,
             onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
-  }
-
-  protected Feature createSimpleTestFeatureWithVersion(Long version) {
-    Feature feature = createSimpleTestFeature();
-    feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(version));
-    return feature;
-  }
-
-  protected Feature createSimpleTestFeature() {
-    Feature feature = new Feature()
-              .withId(DEFAULT_FEATURE_ID)
-              .withProperties(new Properties().with("name", "t1"))
-              .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)));
-    return feature;
-  }
-
-  protected Feature createPartialTestFeature() {
-    Feature feature = new Feature()
-            .withId(DEFAULT_FEATURE_ID)
-            .withProperties(new Properties().with("partial", "true"))
-            .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50.1)));
-
-    return feature;
-  }
-
-  protected Feature createModifiedTestFeature(Long baseVersion, boolean hasConflictingAttributes) {
-    Feature feature = createSimpleTestFeature();
-    if(hasConflictingAttributes){
-      feature.setProperties(new Properties()
-              //"name" is already present in initial write
-              .with("name", "modified")
-              //"foo" is new
-              .with("foo", "bar2")
-      );
-    }else{
-      feature.setProperties(new Properties()
-              //Both keys are new changes
-              .with("foo", "bar")
-              .with("new", "value")
-      );
-    }
-
-    //add a version which a user would provide
-    if(baseVersion != null)
-      feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(baseVersion));
-
-    return feature;
-  }
-
-  /** Expected results */
-  protected Feature createMergedTestFeatureResult() {
-    Feature feature = createSimpleTestFeature();
-    feature.setProperties(new Properties()
-            .with("foo", "bar")
-            .with("new", "value")
-            .with("name", "t1"));
-
-    feature.getProperties().withXyzNamespace(new XyzNamespace());
-
-    return feature;
-  }
-
-  protected Feature createPartialTestFeatureResult() {
-    Feature feature = createSimpleTestFeature();
-
-    feature.setProperties(new Properties()
-        .with("name", "t1")
-        .with("partial", "true"));
-
-    feature.setGeometry(createPartialTestFeature().getGeometry());
-    feature.getProperties().withXyzNamespace(new XyzNamespace());
-
-    return feature;
   }
 }
