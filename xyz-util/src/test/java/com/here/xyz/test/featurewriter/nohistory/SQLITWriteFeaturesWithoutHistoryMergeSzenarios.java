@@ -93,7 +93,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
                """, Feature.class);
 
     performMerge(f1, f2, expected, OnMergeConflict.REPLACE, null);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   @Test
@@ -120,7 +120,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
                """, Feature.class);
 
     performMerge(f1, f2, expected,  OnMergeConflict.REPLACE, null);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   @Test
@@ -147,7 +147,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
                """, Feature.class);
 
     performMerge(f1, f2, expected, OnMergeConflict.REPLACE, null);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   //********************** Conflicts with OnMergeConflict=REPLACE*******************************/
@@ -175,7 +175,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
                """, Feature.class);
 
     performMerge(f1, f2, expected,  OnMergeConflict.REPLACE, null);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   @Test
@@ -202,7 +202,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
                """, Feature.class);
 
     performMerge(f1, f2, expected,  OnMergeConflict.REPLACE, null);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   @Test
@@ -228,6 +228,6 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
             }""", Feature.class);
 
     performMerge(f1, f2, expected, OnMergeConflict.REPLACE, null);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 }

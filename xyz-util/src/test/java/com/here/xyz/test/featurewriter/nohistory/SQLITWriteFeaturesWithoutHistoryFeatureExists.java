@@ -54,7 +54,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
               "properties":{"will":"fail"}
             }
             """, Feature.class);
-    writeFeature(f2, DEFAULT_AUTHOR, OnExists.DELETE,null,null,null,
+    writeFeature(f2, UPDATE_AUTHOR, OnExists.DELETE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
 
     checkNotExistingFeature(DEFAULT_FEATURE_ID);
@@ -82,7 +82,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
 
-    writeFeature(f2, DEFAULT_AUTHOR, OnExists.REPLACE,null,null,null,
+    writeFeature(f2, UPDATE_AUTHOR, OnExists.REPLACE,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
 
     Feature expected = XyzSerializable.deserialize("""
@@ -93,7 +93,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
 
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   @Test
@@ -110,7 +110,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
 
-    writeFeature(f2, DEFAULT_AUTHOR, OnExists.RETAIN,null,null,null,
+    writeFeature(f2, UPDATE_AUTHOR, OnExists.RETAIN,null,null,null,
             false, SpaceContext.EXTENSION, false, null);
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -128,7 +128,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
               "properties":{"will":"error"}
             }
             """, Feature.class);
-    writeFeature(f2, DEFAULT_AUTHOR, OnExists.ERROR,null,null,null,
+    writeFeature(f2, UPDATE_AUTHOR, OnExists.ERROR,null,null,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
@@ -144,7 +144,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
     default_f1.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1L));
 
     //Second write with modifications
-    writeFeature(default_f1, DEFAULT_AUTHOR, OnExists.DELETE,null, OnVersionConflict.REPLACE,null,
+    writeFeature(default_f1, UPDATE_AUTHOR, OnExists.DELETE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
     checkNotExistingFeature(default_f1.getId());
@@ -165,10 +165,10 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
 
-    writeFeature(f2, DEFAULT_AUTHOR, OnExists.REPLACE,null, OnVersionConflict.REPLACE,null,
+    writeFeature(f2, UPDATE_AUTHOR, OnExists.REPLACE,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   @Test
@@ -184,7 +184,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
               "properties":{"@ns:com:here:xyz":{"version":1}, "will":"retain"}
             }
             """, Feature.class);
-    writeFeature(f2, DEFAULT_AUTHOR,OnExists.RETAIN,null, OnVersionConflict.REPLACE,null,
+    writeFeature(f2, UPDATE_AUTHOR,OnExists.RETAIN,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, null);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
@@ -203,7 +203,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
               "properties":{"@ns:com:here:xyz":{"version":1}, "will":"error"}
             }
             """, Feature.class);
-    writeFeature(f2, DEFAULT_AUTHOR, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
+    writeFeature(f2, UPDATE_AUTHOR, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
@@ -224,7 +224,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
 
-    writeFeature(f2, DEFAULT_AUTHOR, null,null, OnVersionConflict.ERROR, null,
+    writeFeature(f2, UPDATE_AUTHOR, null,null, OnVersionConflict.ERROR, null,
             false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -243,7 +243,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
               "properties":{"@ns:com:here:xyz":{"version":0}, "will":"error"}
             }
             """, Feature.class);
-    writeFeature(f2, DEFAULT_AUTHOR, null,null, OnVersionConflict.RETAIN, null,
+    writeFeature(f2, UPDATE_AUTHOR, null,null, OnVersionConflict.RETAIN, null,
             false, SpaceContext.EXTENSION, false, null);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
@@ -263,10 +263,10 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
               "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value"}
             }
             """, Feature.class);
-    writeFeature(f2, DEFAULT_AUTHOR,null,null, OnVersionConflict.REPLACE, null,
+    writeFeature(f2, UPDATE_AUTHOR,null,null, OnVersionConflict.REPLACE, null,
             false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 
   //********************** Feature exists + BaseVersion Conflict + no merge conflict (OnVersionConflict.MERGE) *******************************/
@@ -285,7 +285,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
 
-    writeFeature(f2, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, null,
+    writeFeature(f2, UPDATE_AUTHOR,null,null, OnVersionConflict.MERGE, null,
             false, SpaceContext.EXTENSION, false, null);
 
     Feature expected = XyzSerializable.deserialize("""
@@ -295,6 +295,6 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
               "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value", "firstName":"Alice"}
             }
             """, Feature.class);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
 }

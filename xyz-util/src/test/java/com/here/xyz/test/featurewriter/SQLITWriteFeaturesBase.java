@@ -29,17 +29,6 @@ import java.util.List;
 public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
 
   //********************** Helper Functions *******************************/
-  protected void performMerge(Feature feature1, Feature feature2, Feature expected, OnMergeConflict onMergeConflict,
-                            SQLErrorCodes expectedError) throws Exception {
-    //initial write
-    writeFeature(feature1, DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
-
-    //Lead into a version conflict, because version 0 is not present anymore
-    writeFeature(feature2, DEFAULT_AUTHOR,null,null, OnVersionConflict.MERGE, onMergeConflict,
-            false, SpaceContext.EXTENSION, false, expectedError );
-  }
-
   protected void writeFeature(Feature modifiedFeature, String author,
                               OnExists onExists, OnNotExists onNotExists,
                               OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
@@ -56,5 +45,16 @@ public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
           throws Exception {
     runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists , onNotExists,
             onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
+  }
+
+  protected void performMerge(Feature feature1, Feature feature2, Feature expected, OnMergeConflict onMergeConflict,
+                              SQLErrorCodes expectedError) throws Exception {
+    //initial write
+    writeFeature(feature1, DEFAULT_AUTHOR, null , null,
+            null, null, false, SpaceContext.EXTENSION,false, null);
+
+    //Lead into a version conflict, because version 0 is not present anymore
+    writeFeature(feature2, UPDATE_AUTHOR,null,null, OnVersionConflict.MERGE, onMergeConflict,
+            false, SpaceContext.EXTENSION, false, expectedError );
   }
 }

@@ -69,10 +69,10 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
               "properties":{"lastName":"Wonder"}
             }
             """, Feature.class);
-        writeFeature(f2, DEFAULT_AUTHOR, null, null, null, null,
+        writeFeature(f2, UPDATE_AUTHOR, null, null, null, null,
                 false, SpaceContext.EXTENSION, false, null);
 
-        checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+        checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
     }
 
     @Test
@@ -98,7 +98,7 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
              }
             """, Feature.class);
         //second write with partial modifications
-        writeFeature(f2, DEFAULT_AUTHOR, null, null,
+        writeFeature(f2, UPDATE_AUTHOR, null, null,
                 null, null, true, SpaceContext.EXTENSION, false, null);
 
         Feature expected = XyzSerializable.deserialize("""
@@ -110,6 +110,6 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
              }
             """, Feature.class);
 
-        checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+        checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
     }
 }

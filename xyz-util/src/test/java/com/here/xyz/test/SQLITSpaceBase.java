@@ -46,7 +46,8 @@ import static org.junit.Assert.fail;
 
 public class SQLITSpaceBase extends SQLITBase{
   private static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
-  protected static String DEFAULT_AUTHOR = "testAuthor";
+  protected static String DEFAULT_AUTHOR = "author";
+  protected static String UPDATE_AUTHOR = "updateAuthor";
   protected static String DEFAULT_FEATURE_ID = "id1";
 
   protected enum SQLErrorCodes {
@@ -247,7 +248,7 @@ public class SQLITSpaceBase extends SQLITBase{
         if(feature.getGeometry() != null)
           checkGeometry(db_geo, feature.getGeometry());
         if(feature.getProperties() != null)
-          checkProperties(db_jsondata, feature.getProperties());
+          checkProperties(db_jsondata, feature.getProperties(), author);
 
         checkNamespace(db_jsondata, author, operation, version);
         return null;
@@ -302,27 +303,31 @@ public class SQLITSpaceBase extends SQLITBase{
     }
   }
 
-  protected void checkProperties(String dbFeature, Properties expectedProperties){
+  protected void checkProperties(String dbFeature, Properties expectedProperties, String author){
     try {
       Feature f = XyzSerializable.deserialize(dbFeature);
-      Properties dbProperties = f.getProperties();
 
-      checkProperties((HashMap) f.getProperties().toMap(), (HashMap) expectedProperties.toMap());
+      checkProperties((HashMap) f.getProperties().toMap(), (HashMap) expectedProperties.toMap(), author);
     }catch (JsonProcessingException e){
       throw new RuntimeException(e);
     }
   }
 
-  protected void checkProperties(HashMap dbProperties, HashMap expectedProperties){
+  protected void checkProperties(HashMap dbProperties, HashMap expectedProperties, String author){
     for (Object key : dbProperties.keySet()){
       Object dbValue = dbProperties.get(key);
       Object expectedValue = expectedProperties.get(key);
 
-      if(key.equals("@ns:com:here:xyz"))
+      if(key.equals("@ns:com:here:xyz")) {
+        assertNotNull(((HashMap) dbValue).get("createdAt"));
+        assertNotNull(((HashMap) dbValue).get("updatedAt"));
+        assertNotNull(((HashMap) dbValue).get("version"));
+        assertEquals(author, ((HashMap) dbValue).get("author"));
         continue;
+      }
 
       if(dbValue instanceof HashMap<?,?>)
-        checkProperties((HashMap) dbValue, (HashMap) expectedValue);
+        checkProperties((HashMap) dbValue, (HashMap) expectedValue, author);
       if(dbValue instanceof ArrayList<?>){
         if(((ArrayList<?>) dbValue).size() != ((ArrayList<?>) expectedValue).size())
           fail("Array sizes are not equal "+dbValue+" != " + expectedValue);
