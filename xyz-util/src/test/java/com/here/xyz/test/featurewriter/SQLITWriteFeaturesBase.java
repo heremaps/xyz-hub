@@ -27,17 +27,26 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.test.SQLITSpaceBase;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
 
   //********************** Helper Functions *******************************/
-  protected void writeFeature(List<Feature> modifiedFeatureList, String author,
+  protected void writeFeature(Feature modifiedFeature, String author,
                               OnExists onExists, OnNotExists onNotExists,
                               OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
                               SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
           throws Exception {
-    //second write on existing feature
+    writeFeatures(Arrays.asList(modifiedFeature), author, onExists , onNotExists,
+            onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
+  }
+
+  protected void writeFeatures(List<Feature> modifiedFeatureList, String author,
+                              OnExists onExists, OnNotExists onNotExists,
+                              OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
+                              SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
+          throws Exception {
     runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists , onNotExists,
             onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
   }

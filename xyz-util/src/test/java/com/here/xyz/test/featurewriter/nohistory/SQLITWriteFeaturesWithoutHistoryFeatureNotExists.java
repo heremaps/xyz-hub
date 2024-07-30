@@ -27,58 +27,58 @@ import java.util.Arrays;
 
 public class SQLITWriteFeaturesWithoutHistoryFeatureNotExists extends SQLITWriteFeaturesBase {
 
-  //********************** Feature not exists (OnVersionConflict deactivated) *******************************/
-  @Test
-  public void writeToNotExistingFeature_OnNotExistsCREATE() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null ,  OnNotExists.CREATE,
-            null, null, false, SpaceContext.EXTENSION,false, null);
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
-  }
+    //********************** Feature not exists (OnVersionConflict deactivated) *******************************/
+    @Test
+    public void writeToNotExistingFeature_OnNotExistsCREATE() throws Exception {
+        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, OnNotExists.CREATE,
+                null, null, false, SpaceContext.EXTENSION, false, null);
+        checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    }
 
-  @Test
-  public void writeToNotExistingFeature_OnNotExistsERROR() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null ,  OnNotExists.ERROR,
-            null, null, false, SpaceContext.EXTENSION,false, SQLErrorCodes.XYZ44);
-    checkNotExistingFeature(DEFAULT_FEATURE_ID);
-  }
+    @Test
+    public void writeToNotExistingFeature_OnNotExistsERROR() throws Exception {
+        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, OnNotExists.ERROR,
+                null, null, false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
+        checkNotExistingFeature(DEFAULT_FEATURE_ID);
+    }
 
-  @Test
-  public void writeToNotExistingFeature_OnNotExistsRETAIN() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null ,  OnNotExists.RETAIN,
-            null, null, false, SpaceContext.EXTENSION,false, null);
-    checkNotExistingFeature(DEFAULT_FEATURE_ID);
-  }
+    @Test
+    public void writeToNotExistingFeature_OnNotExistsRETAIN() throws Exception {
+        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, OnNotExists.RETAIN,
+                null, null, false, SpaceContext.EXTENSION, false, null);
+        checkNotExistingFeature(DEFAULT_FEATURE_ID);
+    }
 
-  //********************** Feature not exists (OnVersionConflict.REPLACE) *******************************/
-  @Test
-  public void writeToNotExistingFeature_WithConflictHandling_WithoutBaseVersion() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR,null , OnNotExists.CREATE, OnVersionConflict.REPLACE,null,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ40);
+    //********************** Feature not exists (OnVersionConflict.REPLACE) *******************************/
+    @Test
+    public void writeToNotExistingFeature_WithConflictHandling_WithoutBaseVersion() throws Exception {
+        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, OnNotExists.CREATE, OnVersionConflict.REPLACE, null,
+                false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ40);
 
-    checkNotExistingFeature(DEFAULT_FEATURE_ID);
-  }
+        checkNotExistingFeature(DEFAULT_FEATURE_ID);
+    }
 
-  @Test
-  public void writeToNotExistingFeature_WithConflictHandling_OnNotExistsCREATE() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeatureWithVersion(1L)), DEFAULT_AUTHOR,null , OnNotExists.CREATE, OnVersionConflict.REPLACE,null,
-            false, SpaceContext.EXTENSION, false, null);
+    @Test
+    public void writeToNotExistingFeature_WithConflictHandling_OnNotExistsCREATE() throws Exception {
+        writeFeature(createSimpleTestFeatureWithVersion(1L), DEFAULT_AUTHOR, null, OnNotExists.CREATE, OnVersionConflict.REPLACE, null,
+                false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createSimpleTestFeatureWithVersion(1l), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
-  }
+        checkExistingFeature(createSimpleTestFeatureWithVersion(1l), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    }
 
-  @Test
-  public void writeToNotExistingFeature_WithConflictHandling_OnNotExistsERROR() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeatureWithVersion(1L)), DEFAULT_AUTHOR,null , OnNotExists.ERROR, OnVersionConflict.REPLACE,null,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ45);
+    @Test
+    public void writeToNotExistingFeature_WithConflictHandling_OnNotExistsERROR() throws Exception {
+        writeFeature(createSimpleTestFeatureWithVersion(1L), DEFAULT_AUTHOR, null, OnNotExists.ERROR, OnVersionConflict.REPLACE, null,
+                false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ45);
 
-    checkNotExistingFeature(DEFAULT_FEATURE_ID);
-  }
+        checkNotExistingFeature(DEFAULT_FEATURE_ID);
+    }
 
-  @Test
-  public void writeToNotExistingFeature_WithConflictHandling_OnNotExistsRETAIN() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeatureWithVersion(1L)), DEFAULT_AUTHOR,null , OnNotExists.RETAIN, OnVersionConflict.REPLACE,null,
-            false, SpaceContext.EXTENSION, false, null);
+    @Test
+    public void writeToNotExistingFeature_WithConflictHandling_OnNotExistsRETAIN() throws Exception {
+        writeFeature(createSimpleTestFeatureWithVersion(1L), DEFAULT_AUTHOR, null, OnNotExists.RETAIN, OnVersionConflict.REPLACE, null,
+                false, SpaceContext.EXTENSION, false, null);
 
-    checkNotExistingFeature(DEFAULT_FEATURE_ID);
-  }
+        checkNotExistingFeature(DEFAULT_FEATURE_ID);
+    }
 }

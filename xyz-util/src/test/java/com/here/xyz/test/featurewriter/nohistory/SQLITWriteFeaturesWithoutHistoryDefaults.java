@@ -29,38 +29,38 @@ import java.util.List;
 
 public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeaturesBase {
 
-  @Test
-  public void writeFeatureWithDefaults() throws Exception {
-    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
+    @Test
+    public void writeFeatureWithDefaults() throws Exception {
+        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, null,
+                null, null, false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
-  }
+        checkExistingFeature(createSimpleTestFeature(), 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+    }
 
-  @Test
-  public void writeExistingFeatureWithDefaults() throws Exception {
-    //initial write
-    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
+    @Test
+    public void writeExistingFeatureWithDefaults() throws Exception {
+        //initial write
+        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, null,
+                null, null, false, SpaceContext.EXTENSION, false, null);
 
-    //second write with modifications
-    List<Feature> modifiedFeatureList = Arrays.asList(createModifiedTestFeature(null,false));
-    writeFeature(modifiedFeatureList, DEFAULT_AUTHOR, null,null,null,null,
-            false, SpaceContext.EXTENSION, false, null);
+        //second write with modifications
+        Feature f = createModifiedTestFeature(null, false);
+        writeFeature(f, DEFAULT_AUTHOR, null, null, null, null,
+                false, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createModifiedTestFeature(null,false), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
-  }
+        checkExistingFeature(f, 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    }
 
-  @Test
-  public void writeExistingFeatureWithDefaultsPartial() throws Exception {
-    //Insert Feature
-    writeFeature(Arrays.asList(createSimpleTestFeature()), DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
+    @Test
+    public void writeExistingFeatureWithDefaultsPartial() throws Exception {
+        //Insert Feature
+        writeFeature(createSimpleTestFeature(), DEFAULT_AUTHOR, null, null,
+                null, null, false, SpaceContext.EXTENSION, false, null);
 
-    //second write with partial modifications
-    writeFeature(Arrays.asList(createPartialTestFeature()), DEFAULT_AUTHOR, null , null,
-            null, null, true, SpaceContext.EXTENSION,false, null);
+        //second write with partial modifications
+        writeFeature(createPartialTestFeature(), DEFAULT_AUTHOR, null, null,
+                null, null, true, SpaceContext.EXTENSION, false, null);
 
-    checkExistingFeature(createPartialTestFeatureResult(), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
-  }
+        checkExistingFeature(createPartialTestFeatureResult(), 2L, Long.MAX_VALUE, Operation.U, DEFAULT_AUTHOR);
+    }
 }
