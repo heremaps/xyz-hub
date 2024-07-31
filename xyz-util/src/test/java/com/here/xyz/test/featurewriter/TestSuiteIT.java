@@ -126,16 +126,57 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                     onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
         }
 
-        if(onExists != null && onExists.equals(OnExists.RETAIN)
-                || onVersionConflict != null && onVersionConflict.equals(OnVersionConflict.RETAIN)
-                || onMergeConflict != null && onMergeConflict.equals(onMergeConflict.RETAIN)){
-            //On RETAIN Strategy (feature exists) we expect no write and the existence of the old feature
+        if(onExists != null){
+            switch(onExists){
+                case ERROR, RETAIN -> checkRetainOrError();
+                case DELETE -> checkOnExistsDelete();
+                case REPLACE -> checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
+                        expectations.featureOperation(),expectations.author());
+            }
+        }
+
+        if(onNotExists != null){
+            switch(onNotExists){
+                case ERROR, RETAIN -> checkRetainOrError();
+                case CREATE -> checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
+                        expectations.featureOperation(),expectations.author());
+            }
+        }
+
+        if(onVersionConflict != null){
+            switch(onVersionConflict){
+                case ERROR, RETAIN -> checkRetainOrError();
+                case MERGE -> { }
+                case REPLACE -> { }
+            }
+        }
+
+        if(onMergeConflict != null){
+            switch(onMergeConflict){
+                case ERROR, RETAIN -> checkRetainOrError();
+                case REPLACE -> { }
+            }
+        }
+    }
+
+    private void checkOnExistsDelete() throws Exception {
+        if(!history)
+            checkNotExistingFeature(simpleFeature().getId());
+        else
+            checkDeletedFeatureOnHistory(simpleFeature().getId(), true);
+    }
+
+    private void checkRetainOrError() throws Exception {
+        if(onNotExists != null && (onNotExists.equals(OnNotExists.RETAIN) || onNotExists.equals(OnNotExists.ERROR))) {
+            checkNotExistingFeature(simpleFeature().getId());
+        }
+
+        if(this.featureExists) {
             checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
-                    expectations.featureOperation(),expectations.author());
-        }else if(onNotExists != null && onNotExists.equals(OnNotExists.RETAIN)
-            || onExists != null && onExists.equals(OnExists.DELETE)){
-            //On RETAIN Strategy (feature not exists) we expect no write
+                    expectations.featureOperation(), expectations.author());
+        }else{
             checkNotExistingFeature(simpleFeature().getId());
         }
     }
+
 }

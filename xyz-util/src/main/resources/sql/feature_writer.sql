@@ -270,9 +270,23 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 }
             }
             else {
+                switch(this.onExists){
+                    case "RETAIN":
+                        this.headFeature = this.loadFeature(this.inputFeature.id);
+                        if(this.headFeature != null)
+                            return null;
+                    case "ERROR": {
+                        this.headFeature = this.loadFeature(this.inputFeature.id);
+                        if(this.headFeature != null)
+                            this._throwFeatureExistsError();
+                    }
+                }
                 //Version conflict detection is not active
                 let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
                 if (updatedRows.length == 1)  {
+                    switch(this.onExists){
+                        case "DELETE" : this.operation = "D"; break;
+                    }
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
                             this._insertHistoryRow();
@@ -283,6 +297,14 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                     }
                 }
                 else {
+                    switch(this.onNotExists){
+                        case "CREATE" : break; //NOTHING TO DO;
+                        case "ERROR":
+                            this._throwFeatureNotExistsError();
+                        case "RETAIN" :
+                            return null;
+                    }
+
                     if (this.operation != "D")
                       this._insertHistoryRow();
                 }
@@ -404,35 +426,34 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 					Check if we need onExists handling here. If its present is has a higher priority as onVersionConflict.
 	            */
 
-				let headFeature;
-
 				if(this.onExists == 'DELETE' || this.onExists == 'RETAIN' || this.onExists == 'ERROR'
 					|| this.onNotExists == 'RETAIN' || this.onNotExists == 'ERROR'){
-					headFeature = this.loadFeature(this.inputFeature.id);
+					this.headFeature = this.loadFeature(this.inputFeature.id);
 				}
+
 				switch(this.onExists){
                     case "DELETE" :
-						if(headFeature != null){
+						if(this.headFeature != null){
 							return this.deleteFeature();
                         }
                         break;
                     case "RETAIN" :
-                        if(headFeature != null)
+                        if(this.headFeature != null)
                             return null;
                         break;
                     case "ERROR" :
-                        if(headFeature != null)
+                        if(this.headFeature != null)
                             this._throwFeatureExistsError();
                     //NOT handling REPLACE
                 }
 
                 switch(this.onNotExists){
                     case "RETAIN" :
-                        if(headFeature == null)
+                        if(this.headFeature == null)
                             return null;
                         break;
                     case "ERROR" :
-                        if(headFeature == null)
+                        if(this.headFeature == null)
                             this._throwFeatureNotExistsError();
                     //NOT handling CREATE
                 }

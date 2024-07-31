@@ -299,6 +299,25 @@ public class SQLITSpaceBase extends SQLITBase{
     return null;
   }
 
+  protected SQLQuery checkDeletedFeatureOnHistory(String id, boolean shouldExist) throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      SQLQuery check = new SQLQuery("Select id from ${schema}.${table} WHERE id = #{id} AND operation='D' AND next_version=max_bigint();")
+                .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
+                .withVariable(TABLE, table)
+                .withNamedParameter("id", id);
+
+      check.run(dsp, rs -> {
+        if(rs.next()) {
+            return null;
+        }
+        if(shouldExist)
+          throw new RuntimeException("History entry for deletion does not exist!");
+        return null;
+      });
+    }
+    return null;
+  }
+
   protected void checkNamespace(String jsondata, String author, Operation operation, long version){
     try {
       Feature f = XyzSerializable.deserialize(jsondata);

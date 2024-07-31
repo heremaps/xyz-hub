@@ -60,7 +60,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
          { "5", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
-                         Operation.I,  //expectedFeatureOperation
+                         Operation.U,  //expectedFeatureOperation
                          simpleModifiedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
@@ -71,11 +71,11 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
          { "6", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
-                         Operation.I,  //expectedFeatureOperation
-                         simpleFeature(),  //expectedFeature
-                         1L,  //expectedVersion
+                         Operation.U,  //expectedFeatureOperation
+                         simpleModifiedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         UPDATE_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
@@ -100,7 +100,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simpleModifiedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         UPDATE_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
