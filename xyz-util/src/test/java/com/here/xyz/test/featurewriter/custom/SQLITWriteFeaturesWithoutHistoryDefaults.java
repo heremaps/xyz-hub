@@ -17,16 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.nohistory;
+package com.here.xyz.test.featurewriter.custom;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
-
-import java.util.Arrays;
-import java.util.List;
 
 public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeaturesBase {
 

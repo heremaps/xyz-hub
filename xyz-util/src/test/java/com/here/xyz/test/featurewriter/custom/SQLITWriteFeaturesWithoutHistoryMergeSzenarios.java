@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.nohistory;
+package com.here.xyz.test.featurewriter.custom;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
