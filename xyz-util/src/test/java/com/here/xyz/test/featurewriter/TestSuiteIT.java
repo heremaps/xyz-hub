@@ -36,7 +36,6 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
     public TestSuiteIT(boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper,
                        Boolean featureExistsInExtension, UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
                        SpaceContext spaceContext, Expectations expectations) {
-
         this.composite = composite;
         this.history = history;
         this.featureExists = featureExists;
@@ -117,7 +116,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
     public static Collection<Object[]> testScenarios() throws JsonProcessingException {
         return Arrays.asList(new Object[][]{
                 //** NO History + Feature not exists */
-                {   false,  //composite
+/* #0 */            {   false,  //composite
                     false,  //history
                     false,  //featureExists
                     null,  //baseVersionMatch
@@ -142,11 +141,11 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                         null  //expectedSQLError
                     )
                 },
-                { false, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null, new Expectations(SQLError.FEATURE_NOT_EXISTS) },
-                { false, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null },
+/* #1 */        { false, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null, new Expectations(SQLError.FEATURE_NOT_EXISTS) },
+/* #2 */        { false, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null },
                 //** NO History + Feature exists */
-                { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null, null },
-                { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
+/* #3 */        { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null, null },
+/* #4 */        { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.I,  //expectedFeatureOperation
@@ -157,7 +156,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                                 null  //expectedSQLError
                         )
                 },
-                { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
+/* #5 */        { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.I,  //expectedFeatureOperation
@@ -168,7 +167,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                                 null  //expectedSQLError
                         )
                 },
-                { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
+/* #6 */        { false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.I,  //expectedFeatureOperation
@@ -180,8 +179,8 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                         )
                 },
                 //** NO History + Feature exists + BaseVersionMatch */
-                { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, null },
-                { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
+/* #7 */        { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, null },
+/* #8 */        { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
                         new Expectations(
                                 TableOperation.UPDATE,  //expectedTableOperation
                                 Operation.U,  //expectedFeatureOperation
@@ -192,7 +191,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                                 null  //expectedSQLError
                         )
                 },
-                { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null,
+/* #9 */       { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.I,  //expectedFeatureOperation
@@ -203,7 +202,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                                 null  //expectedSQLError
                         )
                 },
-                { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null,
+/* #10 */       { false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.I,  //expectedFeatureOperation
@@ -215,7 +214,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                         ),
                 },
                 //** NO History + Feature exists + BaseMISSVersionMatch */
-                { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
+/* #11 */       { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.I,  //expectedFeatureOperation
@@ -226,7 +225,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                                 SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
                         ),
                 },
-                { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
+/* #12 */       { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.I,  //expectedFeatureOperation
@@ -237,7 +236,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                                 null  //expectedSQLError
                         ),
                 },
-                { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, null,
+/* #13 */       { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, null,
                         new Expectations(
                                 TableOperation.INSERT,  //expectedTableOperation
                                 Operation.U,  //expectedFeatureOperation
@@ -248,20 +247,20 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                                 null  //expectedSQLError
                         ),
                 },
-//Discuss
-                { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
-                        new Expectations(
-                                TableOperation.INSERT,  //expectedTableOperation
-                                Operation.I,  //expectedFeatureOperation
-                                simpleFeature(),  //expectedFeature
-                                1L,  //expectedVersion
-                                Long.MAX_VALUE,  //expectedNextVersion
-                                DEFAULT_AUTHOR,  //expectedAuthor
-                                SQLError.ILLEGAL_ARGUMENT  //expectedSQLError
-                        ),
-                },
+////DISCUSS
+///* #14 */       { false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
+//                        new Expectations(
+//                                TableOperation.INSERT,  //expectedTableOperation
+//                                Operation.I,  //expectedFeatureOperation
+//                                simpleFeature(),  //expectedFeature
+//                                1L,  //expectedVersion
+//                                Long.MAX_VALUE,  //expectedNextVersion
+//                                DEFAULT_AUTHOR,  //expectedAuthor
+//                                SQLError.ILLEGAL_ARGUMENT  //expectedSQLError
+//                        ),
+//                },
                 //** WITH History + Feature NOT exists */
-                {   false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null, new Expectations(
+/* #15 */       {   false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null, new Expectations(
                             TableOperation.INSERT,  //expectedTableOperation
                             Operation.I,  //expectedFeatureOperation
                             simpleFeature(),  //expectedFeature
@@ -272,60 +271,38 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                     ),
                 },
 //FIX NEEDED
-                { false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,  new Expectations(SQLError.FEATURE_NOT_EXISTS) },
-                { false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null },
-
-                //** WITH History + Feature exists */
-//FIX NEEDED
-                { false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, SpaceContext.EXTENSION, null},
-
-//                {false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_EXISTS},
-//                {false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, SpaceContext.EXTENSION, TableOperation.DELETE, null, null},
-//                {false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_EXISTS},
-//                {false, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, SpaceContext.EXTENSION, null, null, SQLError.VERSION_CONFLICT_ERROR},
-//                {false, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, SpaceContext.EXTENSION, null, null, null},
-//                {false, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {false, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, SpaceContext.EXTENSION, null, null, SQLError.ILLEGAL_ARGUMENT},
-//                {false, true, true, false, null, null, true, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.ERROR, SpaceContext.EXTENSION, null, null, SQLError.MERGE_CONFLICT_ERROR},
-//                {false, true, true, false, null, null, true, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.RETAIN, SpaceContext.EXTENSION, null, null, null},
-//                {false, true, true, false, null, null, true, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.REPLACE, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, SpaceContext.EXTENSION, TableOperation.INSERT, Operation.I, null},
-//                {true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_NOT_EXISTS},
-//                {true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, SpaceContext.EXTENSION, TableOperation.DELETE, null, null},
-//                {true, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {true, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_EXISTS},
-//                {true, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, SpaceContext.EXTENSION, TableOperation.DELETE, null, null},
-//                {true, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {true, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_EXISTS},
-//                {true, false, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, SpaceContext.EXTENSION, null, null, SQLError.MERGE_CONFLICT_ERROR},
-//                {true, false, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, false, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {true, false, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, SpaceContext.EXTENSION, null, null, SQLError.ILLEGAL_ARGUMENT},
-//                {true, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, SpaceContext.EXTENSION, TableOperation.INSERT, Operation.I, null},
-//                {true, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_NOT_EXISTS},
-//                {true, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, SpaceContext.EXTENSION, TableOperation.DELETE, null, null},
-//                {true, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {true, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_EXISTS},
-//                {true, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, SpaceContext.EXTENSION, TableOperation.DELETE, null, null},
-//                {true, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {true, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, SpaceContext.EXTENSION, null, null, SQLError.FEATURE_EXISTS},
-//                {true, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, SpaceContext.EXTENSION, null, null, SQLError.VERSION_CONFLICT_ERROR},
-//                {true, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, SpaceContext.EXTENSION, null, null, null},
-//                {true, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null},
-//                {true, true, true, false, null, true, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, SpaceContext.EXTENSION, null, null, SQLError.ILLEGAL_ARGUMENT},
-//                {true, true, true, false, null, null, true, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.ERROR, SpaceContext.EXTENSION, null, null, SQLError.MERGE_CONFLICT_ERROR},
-//                {true, true, true, false, null, null, true, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.RETAIN, SpaceContext.EXTENSION, null, null, null},
-//                {true, true, true, false, null, null, true, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.REPLACE, SpaceContext.EXTENSION, TableOperation.UPDATE, Operation.U, null}
+///* #16 */       { false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,  new Expectations(SQLError.FEATURE_NOT_EXISTS) },
+///* #17 */       { false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null },
+//
+//                 //** WITH History + Feature exists + no ConflictHandling */
+///* #18 */        { false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null, null, null /*TBD*/ },
+///* #19 */        { false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null, null, null /*TBD*/ },
+///* #20 */        { false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null, null, null /*TBD*/ },
+///* #21 */        { false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null, null, null /*TBD*/ },
+//
+//                 //** WITH History + Feature exists + With ConflictHandling + BaseversionMatch */
+///* #22 */        { false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+///* #23 */        { false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+///* #24 */        { false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+///* #25 */        { false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+//
+//                 //** WITH History + Feature exists + With ConflictHandling + Baseversion Missmatch */
+///* #25 */        { false, true, true, true, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null, null, null, null, null, null /*TBD*/ },
+///* #26 */        { false, true, true, true, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null, null, null, null, null, null /*TBD*/ },
+//
+//                //** WITH History + Feature exists + With ConflictHandling + Baseversion Missmatch -> REPLACE*/
+///* #27 */        { false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+///* #28 */        { false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+///* #29 */        { false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+///* #30 */        { false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null, null, null, null, null, null /*TBD*/ },
+//
+//                //** WITH History + Feature exists + With ConflictHandling + Baseversion Missmatch -> MERGE NonConflicting*/
+///* #31 */        { false, true, true, false, false, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null, null, null, null, null, null /*TBD*/ },
+//
+//                //** WITH History + Feature exists + With ConflictHandling + Baseversion Missmatch -> MERGE Conflicting*/
+///* #32 */        { false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.ERROR, null, null, null, null, null, null /*TBD*/ },
+///* #33 */        { false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.RETAIN, null, null, null, null, null, null /*TBD*/ },
+///* #34 */        { false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, OnMergeConflict.REPLACE, null, null, null, null, null, null /*TBD*/ },
         });
     }
     
@@ -356,9 +333,11 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
             checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
                     expectations.featureOperation(),expectations.author());
         }else if(onNotExists != null && onNotExists.equals(OnNotExists.RETAIN)
-            && onExists != null && onExists.equals(OnExists.DELETE)){
+            || onExists != null && onExists.equals(OnExists.DELETE)){
             //On RETAIN Strategy (feature not exists) we expect no write
             checkNotExistingFeature(simpleFeature().getId());
         }
+
+//        if(onExists != null && onExists.equals(OnExists.DELETE)
     }
 }

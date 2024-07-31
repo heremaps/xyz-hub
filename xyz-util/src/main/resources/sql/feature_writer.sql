@@ -31,7 +31,7 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     const writeFeature = plv8.find_function("write_feature");
     const getNextVersion = plv8.find_function("get_next_version");
     const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
-    const maxBigint = plv8.execute("SELECT max_bigint()")[0].max_bigint[0]
+    const maxBigint = plv8.execute("SELECT max_bigint()")[0].max_bigint[0];
 
     //Actual executions
     if (input_features == null)
@@ -159,6 +159,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
      * The unified implementation of the database-based feature writer.
      */
     class FeatureWriter {
+        maxBigint = 9223372036854775807;
+
         //Process input fields
         inputFeature;
         version;
@@ -245,7 +247,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         writeRowWithHistory() {
             if (this.onVersionConflict != null) {
                 //Version conflict detection is active
-                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4 RETURNING *`, this.version, this.inputFeature.id, BigInt(Number.MAX_VALUE), this.baseVersion);
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint, this.baseVersion);
                 if (updatedRows.length == 1) {
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
@@ -268,7 +270,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             }
             else {
                 //Version conflict detection is not active
-                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, BigInt(Number.MAX_VALUE));
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
                 if (updatedRows.length == 1)  {
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
