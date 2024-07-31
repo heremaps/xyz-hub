@@ -176,6 +176,8 @@ public class SQLITSpaceBase extends SQLITBase{
         exceptionThrown = true;
         if(expectedErrorCode != null)
           assertEquals(expectedErrorCode.getErrorCode(), e.getSQLState());
+        else
+          fail("Unexpected Error "+ e);
     }
     if(expectedErrorCode != null && !exceptionThrown)
       fail("Expected SQLException got not thrown");

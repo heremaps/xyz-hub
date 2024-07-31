@@ -245,7 +245,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         writeRowWithHistory() {
             if (this.onVersionConflict != null) {
                 //Version conflict detection is active
-                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4 RETURNING *`, this.version, this.inputFeature.id, maxBigint(), this.baseVersion);
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4 RETURNING *`, this.version, this.inputFeature.id, BigInt(Number.MAX_VALUE), this.baseVersion);
                 if (updatedRows.length == 1) {
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
@@ -268,7 +268,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             }
             else {
                 //Version conflict detection is not active
-                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, maxBigint());
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, BigInt(Number.MAX_VALUE));
                 if (updatedRows.length == 1)  {
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
@@ -297,9 +297,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 VALUES (
                     $1, $2, $3, $4,
                     $5::JSONB - 'geometry',
-                    CASE WHEN $5->geometry::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB($5->geometry::BYTEA, 4326)) END
+                    ST_Force3D(ST_GeomFromGeoJSON($6::JSONB))
                 )`,
-                this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
+                this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature,  this.inputFeature.geometry);
         }
 
         _operation2HumanReadable(operation) {
@@ -358,7 +358,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                     );
 
                     if(writtenFeature.length == 0){
-                      if(e.sqlerrcode == '23505')
+                      if(e.sqlerrcode == '23505' && this.onExists != 'RETAIN')
                         this._throwFeatureExistsError();
 
                       throw new XyzException("Unexpected Error!")
@@ -381,8 +381,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                         }
                     }
                 }catch(e){
-                    if(e.sqlerrcode != undefined && e.sqlerrcode == '23505')
+                    if(e.sqlerrcode != undefined && e.sqlerrcode == '23505'){
+						if(this.onExists == 'RETAIN')
+						    return null;
                         this._throwFeatureExistsError();
+                    }
                     //TODO - which kind of error we want to use here?
                     throw e;
                 }

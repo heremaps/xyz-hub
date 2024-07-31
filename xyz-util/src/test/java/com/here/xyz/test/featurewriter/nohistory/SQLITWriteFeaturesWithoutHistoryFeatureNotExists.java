@@ -51,7 +51,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureNotExists extends SQLITWrite
     @Test
     public void writeToNotExistingFeature_OnNotExistsERROR() throws Exception {
         writeFeature(f1, DEFAULT_AUTHOR, null, OnNotExists.ERROR,
-                null, null, false, SpaceContext.EXTENSION, false, SQLError.FEATURE_EXISTS);
+                null, null, false, SpaceContext.EXTENSION, false, SQLError.FEATURE_NOT_EXISTS);
         checkNotExistingFeature(DEFAULT_FEATURE_ID);
     }
 
