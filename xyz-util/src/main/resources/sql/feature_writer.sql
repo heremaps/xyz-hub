@@ -373,7 +373,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                        switch(this.onNotExists){
                             case "CREATE" : break; //NOTHING TO DO;
                             case "ERROR":
-                                this._throwFeatureExistsError();
+                                this._throwFeatureNotExistsError();
                             case "RETAIN" :
                                 //TODO solve upsert
                                 this.deleteFeature();
@@ -469,7 +469,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         _throwFeatureNotExistsError() {
-            throw new FeatureExistsException(`Feature with ID ${this.inputFeature.id} not exists!`).withCode("XYZ45");
+            throw new FeatureNotExistsException(`Feature with ID ${this.inputFeature.id} not exists!`).withCode("XYZ45");
         }
 
         /**
