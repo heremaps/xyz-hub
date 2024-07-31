@@ -270,31 +270,31 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   }
 
   //********************** Feature exists + BaseVersion Conflict + no merge conflict (OnVersionConflict.MERGE) *******************************/
-  @Test
-  public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE() throws Exception {
-    //initial write
-    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
-
-    //Second write with modifications and NOT matching baseversion
-    Feature f2 = XyzSerializable.deserialize("""
-            { "type":"Feature",
-              "id":"id1",
-              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
-              "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value"}
-            }
-            """, Feature.class);
-
-    writeFeature(f2, UPDATE_AUTHOR,null,null, OnVersionConflict.MERGE, null,
-            false, SpaceContext.EXTENSION, false, null);
-
-    Feature expected = XyzSerializable.deserialize("""
-            { "type":"Feature",
-              "id":"id1",
-              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
-              "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value", "firstName":"Alice"}
-            }
-            """, Feature.class);
-    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
-  }
+//  @Test
+//  public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictMERGE() throws Exception {
+//    //initial write
+//    writeFeature(default_f1, DEFAULT_AUTHOR, null , null,
+//            null, null, false, SpaceContext.EXTENSION,false, null);
+//
+//    //Second write with modifications and NOT matching baseversion
+//    Feature f2 = XyzSerializable.deserialize("""
+//            { "type":"Feature",
+//              "id":"id1",
+//              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+//              "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value"}
+//            }
+//            """, Feature.class);
+//
+//    writeFeature(f2, UPDATE_AUTHOR,null,null, OnVersionConflict.MERGE, null,
+//            false, SpaceContext.EXTENSION, false, null);
+//
+//    Feature expected = XyzSerializable.deserialize("""
+//            { "type":"Feature",
+//              "id":"id1",
+//              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+//              "properties":{"@ns:com:here:xyz":{"version":0}, "new":"value", "firstName":"Alice"}
+//            }
+//            """, Feature.class);
+//    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
+//  }
 }

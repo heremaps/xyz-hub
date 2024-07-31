@@ -73,6 +73,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
     //Init block of internal feature_writer functionality
     const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
 
+
     //TODO: Move classes to own JS file that can then be included by Script installer
     class Exception extends Error {
       code = 0;
@@ -525,6 +526,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         handleWriteVersionConflict() {
             switch (this.onVersionConflict) {
                 case "MERGE":
+                    if(!this.historyEnabled)
+                        throw new IllegalArgumentException("MERGE is not allowed for spaces without history!");
                     return this.mergeChanges();
                 case "ERROR":
                     this._throwVersionConflictError();

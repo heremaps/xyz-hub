@@ -9,6 +9,7 @@ import org.junit.After;
 import org.junit.Before;
 
 public class TestSuiteIT extends SQLITWriteFeaturesBase{
+    private String testName;
     private boolean composite;
     private boolean history;
     private boolean featureExists;
@@ -26,9 +27,10 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
 
     private Expectations expectations;
 
-    public TestSuiteIT(boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper,
+    public TestSuiteIT(String testName, boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper,
                        Boolean featureExistsInExtension, UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
                        SpaceContext spaceContext, Expectations expectations) {
+        this.testName = testName;
         this.composite = composite;
         this.history = history;
         this.featureExists = featureExists;
