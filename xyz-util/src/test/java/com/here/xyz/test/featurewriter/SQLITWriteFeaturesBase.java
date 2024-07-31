@@ -27,12 +27,11 @@ import java.util.Arrays;
 import java.util.List;
 
 public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
-
   //********************** Helper Functions *******************************/
   protected void writeFeature(Feature modifiedFeature, String author,
                               OnExists onExists, OnNotExists onNotExists,
                               OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                              SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
+                              SpaceContext spaceContext, boolean isHistoryActive, SQLError expectedError)
           throws Exception {
     writeFeatures(Arrays.asList(modifiedFeature), author, onExists , onNotExists,
             onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
@@ -41,14 +40,14 @@ public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
   protected void writeFeatures(List<Feature> modifiedFeatureList, String author,
                               OnExists onExists, OnNotExists onNotExists,
                               OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                              SpaceContext spaceContext, boolean isHistoryActive, SQLErrorCodes expectedError)
+                              SpaceContext spaceContext, boolean isHistoryActive, SQLError expectedError)
           throws Exception {
     runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists , onNotExists,
             onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
   }
 
   protected void performMerge(Feature feature1, Feature feature2, Feature expected, OnMergeConflict onMergeConflict,
-                              SQLErrorCodes expectedError) throws Exception {
+                              SQLError expectedError) throws Exception {
     //initial write
     writeFeature(feature1, DEFAULT_AUTHOR, null , null,
             null, null, false, SpaceContext.EXTENSION,false, null);

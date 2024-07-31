@@ -129,7 +129,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
     writeFeature(f2, UPDATE_AUTHOR, OnExists.ERROR,null,null,null,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
+            false, SpaceContext.EXTENSION, false, SQLError.FEATURE_EXISTS);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -204,7 +204,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             }
             """, Feature.class);
     writeFeature(f2, UPDATE_AUTHOR, OnExists.ERROR,null, OnVersionConflict.REPLACE,null,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
+            false, SpaceContext.EXTENSION, false, SQLError.FEATURE_EXISTS);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -225,7 +225,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
             """, Feature.class);
 
     writeFeature(f2, UPDATE_AUTHOR, null,null, OnVersionConflict.ERROR, null,
-            false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ49);
+            false, SpaceContext.EXTENSION, false, SQLError.VERSION_CONFLICT_ERROR);
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 

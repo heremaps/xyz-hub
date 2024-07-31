@@ -50,15 +50,20 @@ public class SQLITSpaceBase extends SQLITBase{
   protected static String UPDATE_AUTHOR = "updateAuthor";
   protected static String DEFAULT_FEATURE_ID = "id1";
 
-  protected enum SQLErrorCodes {
-    XYZ40, //Illegal Argument
-    XYZ44, //Feature exists
-    XYZ45, //Feature not exists
-    XYZ48, //MergeConflictError
-    XYZ49, //VersionConflictError
-    XYZ50, //XyzException
-    XYZ51, //Import Format not supported
-    XYZ52  //Import Failed non retryable
+  protected enum SQLError {
+    ILLEGAL_ARGUMENT("XYZ40"),
+    FEATURE_EXISTS("XYZ44"),
+    FEATURE_NOT_EXISTS("XYZ45"),
+    MERGE_CONFLICT_ERROR("XYZ48"),
+    VERSION_CONFLICT_ERROR("XYZ49"),
+    XYZ_EXCEPTION("XYZ50"),
+    IMPORT_FORMAT_NOT_SUPPORTED("XYZ51"),
+    IMPORT_FAILED_NON_RETRYABLE("XYZ52");
+
+    public final String errorCode;
+    SQLError(String errorCode) {this.errorCode = errorCode;}
+
+    public String getErrorCode(){return errorCode;}
   }
 
   protected enum OnExists {
@@ -78,7 +83,7 @@ public class SQLITSpaceBase extends SQLITBase{
     MERGE, //Default for WRITE
     REPLACE, //Default for DELETE
     RETAIN,
-    ERROR //Default
+    ERROR
   }
 
   protected enum OnMergeConflict {
@@ -96,7 +101,7 @@ public class SQLITSpaceBase extends SQLITBase{
   }
   
   String table = this.getClass().getSimpleName();
-  
+
   @Before
   public void prepare() throws Exception {
     createSpaceTable();
@@ -107,28 +112,46 @@ public class SQLITSpaceBase extends SQLITBase{
     dropSpaceTable();
   }
 
-  private void createSpaceTable() throws Exception {
+  protected void createSpaceTable() throws Exception {
+    createSpaceTable(false);
+  }
+
+  protected void dropSpaceTable() throws Exception {
+    dropSpaceTable(false);
+  }
+
+  protected void createSpaceTable(boolean composite) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       List<SQLQuery> queries = new ArrayList<>();
       queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), table));
+      if(composite)
+        queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), table+"_ext"));
       SQLQuery.batchOf(queries).writeBatch(dsp);
     }
   }
 
-  private void dropSpaceTable() throws Exception {
+  protected void dropSpaceTable(boolean composite) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
 
-      SQLQuery q = new SQLQuery("${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
-              .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
-              .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
-              .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};")
-              .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
-              .withVariable(TABLE, table)
-              .withVariable("iSequence", table + VERSION_SEQUENCE_SUFFIX)
-              .withVariable("versionSequence", table + VERSION_SEQUENCE_SUFFIX);
-
+      SQLQuery q = buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), table);
       q.write(dsp);
+
+      if(composite){
+        q = buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), table+"_ext");
+        q.write(dsp);
+      }
     }
+  }
+
+  private SQLQuery buildDropSpaceQuery(String schema, String table) {
+    return new SQLQuery("${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
+            .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
+            .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
+            .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};")
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table)
+            .withVariable("iSequence", table + VERSION_SEQUENCE_SUFFIX)
+            .withVariable("versionSequence", table + VERSION_SEQUENCE_SUFFIX);
   }
 
   protected int[] runWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
@@ -145,14 +168,14 @@ public class SQLITSpaceBase extends SQLITBase{
 
   protected void runWriteFeatureQueryWithSQLAssertion(List<Feature> featureList, String author, OnExists onExists,
              OnNotExists onNotExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-             boolean isPartial, SpaceContext spaceContext, boolean historyEnabled, SQLErrorCodes expectedErrorCode) throws Exception {
+             boolean isPartial, SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode) throws Exception {
     boolean exceptionThrown = false;
     try{
       runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext, historyEnabled);
     }catch (SQLException e){
         exceptionThrown = true;
         if(expectedErrorCode != null)
-          assertEquals(expectedErrorCode.toString(), e.getSQLState());
+          assertEquals(expectedErrorCode.getErrorCode(), e.getSQLState());
     }
     if(expectedErrorCode != null && !exceptionThrown)
       fail("Expected SQLException got not thrown");
@@ -184,6 +207,7 @@ public class SQLITSpaceBase extends SQLITBase{
     JSONObject context = new JSONObject()
             .put("schema", schema)
             .put("table", table)
+            .put("extTable", table+"_ext")
             .put("context", spaceContext)
             .put("historyEnabled", historyEnabled);
 

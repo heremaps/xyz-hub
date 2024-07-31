@@ -51,7 +51,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureNotExists extends SQLITWrite
     @Test
     public void writeToNotExistingFeature_OnNotExistsERROR() throws Exception {
         writeFeature(f1, DEFAULT_AUTHOR, null, OnNotExists.ERROR,
-                null, null, false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ44);
+                null, null, false, SpaceContext.EXTENSION, false, SQLError.FEATURE_EXISTS);
         checkNotExistingFeature(DEFAULT_FEATURE_ID);
     }
 
@@ -66,7 +66,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureNotExists extends SQLITWrite
     @Test
     public void writeToNotExistingFeature_WithConflictHandling_WithoutBaseVersion() throws Exception {
         writeFeature(f1, DEFAULT_AUTHOR, null, OnNotExists.CREATE, OnVersionConflict.REPLACE, null,
-                false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ40);
+                false, SpaceContext.EXTENSION, false, SQLError.ILLEGAL_ARGUMENT);
 
         checkNotExistingFeature(f1.getId());
     }
@@ -86,7 +86,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureNotExists extends SQLITWrite
         //Add version
         f1.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1L));
         writeFeature(f1, DEFAULT_AUTHOR, null, OnNotExists.ERROR, OnVersionConflict.REPLACE, null,
-                false, SpaceContext.EXTENSION, false, SQLErrorCodes.XYZ45);
+                false, SpaceContext.EXTENSION, false, SQLError.FEATURE_NOT_EXISTS);
 
         checkNotExistingFeature(f1.getId());
     }

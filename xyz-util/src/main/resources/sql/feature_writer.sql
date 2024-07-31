@@ -177,6 +177,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         isDelete = false;
         attributeConflicts;
         ignoreConflictPaths = {
+          "properties.@ns:com:here:xyz.author": true,
           "properties.@ns:com:here:xyz.version": true,
           "properties.@ns:com:here:xyz.createdAt": true,
           "properties.@ns:com:here:xyz.updatedAt": true

@@ -45,7 +45,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
             """, Feature.class);
 
     //Conflict expected
-    performMerge(f1, f2, null, null, SQLErrorCodes.XYZ48);
+    performMerge(f1, f2, null, null, SQLError.MERGE_CONFLICT_ERROR);
     checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
@@ -67,7 +67,7 @@ public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFe
               "properties":{"@ns:com:here:xyz":{"version":0},"lastName":"Wonder","age":32}}
             """, Feature.class);
     //Conflict expected
-    performMerge(f1, f2, null, OnMergeConflict.ERROR, SQLErrorCodes.XYZ48);
+    performMerge(f1, f2, null, OnMergeConflict.ERROR, SQLError.MERGE_CONFLICT_ERROR);
     checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 

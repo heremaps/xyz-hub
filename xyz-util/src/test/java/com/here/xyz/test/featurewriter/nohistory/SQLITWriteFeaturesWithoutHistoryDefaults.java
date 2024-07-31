@@ -32,7 +32,6 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
 
     @Test
     public void writeFeature_WithDefaults() throws Exception {
-        //Default is ERROR
         Feature f1 = XyzSerializable.deserialize("""
             { "type":"Feature",
               "id":"id1",
