@@ -1,8 +1,8 @@
 # Introduction
 
-The team behind the [Naksha](https://github.com/xeus2001/xyz-hub) gratefully accepts contributions via
+The team behind the [Naksha](https://github.com/heremaps/naksha) gratefully accepts contributions via
 [pull requests](https://help.github.com/articles/about-pull-requests/) filed against the
-[GitHub project](https://github.com/xeus2001/xyz-hub/pulls).
+[GitHub project](https://github.com/heremaps/naksha/pulls).
 
 # Signing each Commit
 
@@ -48,4 +48,4 @@ Eventually, before making a pull request, ensure following:
 
 1. If any **new secret** parameter is introduced, then mention in pull-request as an indication for the repo-owner to add the secret in respective cloud environments.
 2. If any **new config** (not a secret) parameter is introduced in [default-config.json](here-naksha-lib-hub/src/main/resources/config/default-config.json),
-ensure the same is added into **deployment** [cloud-config.json](deployment/codedeploy/contents/naksha-hub/.config/cloud-config.json) as well.
+ensure the same is added into **docker** [cloud-config.json](docker/cloud-config.json) as well.

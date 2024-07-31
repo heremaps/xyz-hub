@@ -46,8 +46,8 @@ Naksha uses [GeoJSON](https://www.rfc-editor.org/rfc/rfc7946.html) as the main g
 Clone and install the project using:
 
 ```bash
-git clone https://github.com/xeus2001/xyz-hub.git
-cd xyz-hub
+git clone https://github.com/heremaps/naksha.git
+cd naksha
 gradle clean build
 ```
 

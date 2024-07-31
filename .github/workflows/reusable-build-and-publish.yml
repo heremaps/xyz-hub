@@ -1,23 +1,13 @@
 on:
   workflow_call:
-    outputs:
-      pipeline-artifact-name:
-        description: 'Name of the uploaded artifact which can be downloaded using actions/download-artifact within the same pipeline (e.g. codedeploy-artifact)'
-        value: ${{ jobs.main.outputs.pipeline-artifact-name }}
-      app-version:
-        description: 'Application version identified using maven (e.g. 1.1.1-SNAPSHOT, 1.2.0)'
-        value: ${{ jobs.main.outputs.app-version }}
-      codedeploy-artifact-version:
-        description: 'Unique version which should be used in next step(s) for CodeDeploy artifact (e.g. 20230528-144100_d63fd762704ef242d9827662b872b305744f753e)'
-        value: ${{ jobs.main.outputs.codedeploy-artifact-version }}
 
 
 env:
   MIN_COVERAGE_OVERALL: 0
   MIN_COVERAGE_CHANGED_FILES: 0
   SERVICE_JAR_DIR: ${{ github.workspace }}/build/libs
-  CODEDEPLOY_DIR: ${{ github.workspace }}/deployment/codedeploy
-  GITHUB_CODEDEPLOY_ARTIFACT_NAME: codedeploy-artifact
+  ARTIFACT_DIR: ${{ github.workspace }}/artifact
+  GITHUB_ARTIFACT_NAME: artifact
   NAKSHA_LOCAL_TEST_CONTEXT: LOCAL_STANDALONE
   # TODO - Disabling tests that are too big to succeed for Github free pipeline capacity
   DISABLE_BIG_PAYLOAD_TESTS: true
@@ -25,10 +15,6 @@ env:
 jobs:
   main:
     runs-on: ubuntu-latest
-    outputs:
-      pipeline-artifact-name: ${{ steps.save-artifact-name.outputs.name }}
-      app-version: ${{ steps.save-app-version.outputs.version }}
-      codedeploy-artifact-version: ${{ steps.save-artifact-version.outputs.version }}
     services:
       postgres:
         image: postgis/postgis
@@ -84,32 +70,18 @@ jobs:
       - name: List generated artifacts
         run: |
           ls -l $SERVICE_JAR_DIR/*
-      ### TODO : Publish to central repository
-      - name: Prepare CodeDeploy artifact content
+      ### Upload as pipeline artifact
+      - name: Prepare artifact content
         run: |
-          cp -p $SERVICE_JAR_DIR/naksha-*-all.jar $CODEDEPLOY_DIR/contents/naksha-hub/
-      - name: List CodeDeploy artifact content
+          mkdir $ARTIFACT_DIR
+          cp -p $SERVICE_JAR_DIR/naksha-*-all.jar $ARTIFACT_DIR/
+      - name: List artifact content
         run: |
-          ls -lR $CODEDEPLOY_DIR
-      - name: Save pipeline artifact name
-        id: save-artifact-name
-        run: echo "name=${{ env.GITHUB_CODEDEPLOY_ARTIFACT_NAME }}" >> "$GITHUB_OUTPUT"
-      - name: Save CodeDeploy artifact content
+          ls -lR $ARTIFACT_DIR
+      - name: Save artifact content
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.GITHUB_CODEDEPLOY_ARTIFACT_NAME }}
-          path: ${{ env.CODEDEPLOY_DIR }}
+          name: ${{ env.GITHUB_ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_DIR }}
           if-no-files-found: error
-      - name: Identify and save Application version
-        id: save-app-version
-        run: |
-          APP_VERSION=`gradle -q printAppVersion`
-          echo $APP_VERSION
-          echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
-      - name: Identify and save CodeDeploy artifact version
-        id: save-artifact-version
-        run: |
-          ARTIFACT_VERSION=`date +"%Y%m%d-%H%M%S"`_${{ github.sha }}
-          echo $ARTIFACT_VERSION
-          echo "version=$ARTIFACT_VERSION" >> "$GITHUB_OUTPUT"
       - run: echo "🍏 This job's status is ${{ job.status }}."
