@@ -201,51 +201,129 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
         if(onVersionConflict != null){
             switch(onVersionConflict){
                 case ERROR, RETAIN -> checkRetainOrError();
-                case MERGE -> { }
-                case REPLACE -> { /** onExists onNotExists have priority */ }
+                case MERGE -> checkFeaturesOnMerge();
+                case REPLACE -> {
+                    //Has priority
+                    if(onExists != null)
+                        break;
+                    checkFeaturesOnReplace();
+                }
             }
         }
 
         if(onMergeConflict != null){
             switch(onMergeConflict){
                 case ERROR, RETAIN -> checkRetainOrError();
-                case REPLACE -> { }
+                case REPLACE -> checkFeaturesOnReplace();
             }
         }
     }
 
     private void checkOnExistsDelete() throws Exception {
-        if(!history)
-            checkNotExistingFeature(simpleFeature().getId());
-        else
+        if(history){
             checkDeletedFeatureOnHistory(simpleFeature().getId(), true);
+
+            if(baseVersionMatch != null)
+                //1th insert, 2th update, 3th delete
+                checkFeatureCount(3);
+            else
+                //1th insert, 2th delete
+                checkFeatureCount(2);
+        }else{
+            checkNotExistingFeature(simpleFeature().getId());
+            //Feature should not exist in the table
+            checkFeatureCount(0);
+        }
     }
 
     private void checkRetainOrError() throws Exception {
-        if(onNotExists != null && (onNotExists.equals(OnNotExists.RETAIN) || onNotExists.equals(OnNotExists.ERROR))) {
-            checkNotExistingFeature(simpleFeature().getId());
-        }
-
         if(this.featureExists) {
             checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
                     expectations.featureOperation(), expectations.author());
         }else{
             checkNotExistingFeature(simpleFeature().getId());
         }
+        checkFeatureCountsForRetainOrError();
     }
 
     private void checkFeaturesOnReplace() throws Exception {
         if(history) {
-            //Last Write
+            //First Write
             checkExistingFeature(simpleFeature(), 1L, 2L, Operation.I, DEFAULT_AUTHOR);
             //Last Write
             checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
                     expectations.featureOperation(), expectations.author());
-            checkFeatureCount(2);
         }else {
+            //Head
+            checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
+                    expectations.featureOperation(), expectations.author());
+        }
+        checkFeatureCountsForReplace();
+    }
+
+
+    private void checkFeaturesOnMerge() throws Exception {
+        //In our merge tests we have at least one feature
+        if(history) {
+            //First Write
+            checkExistingFeature(simpleFeature(), 1L, 2L, Operation.I, DEFAULT_AUTHOR);
+            //Last Write
+            checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
+                    expectations.featureOperation(), expectations.author());
+            if(onMergeConflict != null && (onMergeConflict.equals(OnMergeConflict.ERROR) || onMergeConflict.equals(OnMergeConflict.RETAIN))) {
+                //1th insert / 2th update
+                checkFeatureCount(2);
+            }else
+                //1th insert / 2th update / 3th merge
+                checkFeatureCount(3);
+        }else {
+            //Head
             checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
                     expectations.featureOperation(), expectations.author());
             checkFeatureCount(1);
+        }
+    }
+
+/** Count checkers */
+    private void checkFeatureCountsForReplace() throws Exception {
+        if(history){
+            if(baseVersionMatch != null)
+                //1th insert, 2th update, 3th Update
+                checkFeatureCount(3);
+            else
+                //1th insert, 2th update
+                checkFeatureCount(2);
+        }else{
+            //Head
+            checkFeatureCount(1);
+        }
+    }
+
+    private void checkFeatureCountsForRetainOrError() throws Exception {
+        if(this.featureExists) {
+            if(history){
+                if(baseVersionMatch != null)
+                    //1th insert, 2th update
+                    checkFeatureCount(2);
+                else
+                    //1th insert
+                    checkFeatureCount(1);
+            }else{
+                //Feature should exist in the table
+                checkFeatureCount(1);
+            }
+        }else{
+            if(history){
+                if(baseVersionMatch != null)
+                    //1th insert
+                    checkFeatureCount(1);
+                else
+                    //Feature should not exist in the table
+                    checkFeatureCount(0);
+            }else{
+                //Feature should not exist in the table
+                checkFeatureCount(0);
+            }
         }
     }
 

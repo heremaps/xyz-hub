@@ -253,7 +253,7 @@ public class SQLITSpaceBase extends SQLITBase{
         if(rs.next()){
           count = rs.getInt(1);
         }
-        assertEquals(expectedCnt, expectedCnt);
+        assertEquals(expectedCnt, count);
         return null;
       });
     }
