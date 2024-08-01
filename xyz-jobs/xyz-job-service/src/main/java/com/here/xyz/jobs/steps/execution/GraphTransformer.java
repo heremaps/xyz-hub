@@ -49,10 +49,12 @@ import software.amazon.awssdk.services.stepfunctions.builder.states.TaskState;
 
 public class GraphTransformer {
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
+  private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 36 * 3600; //36h
   private static final int MIN_STEP_TIMEOUT_SECONDS = 5 * 60;
   private static final int STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS = 3 * 60; //3min
   private Map<String, LambdaTaskParameters> lambdaTaskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
+  private Map<String, Map<String, Object>> taskParametersLookup = new HashMap<>(); //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private final ARN stepLambdaArn;
   private boolean isPipeline;
 
@@ -98,10 +100,13 @@ public class GraphTransformer {
 
   //TODO: This is a workaround for an open issue with AWS SDK2 for StepFunctions
   private void tryFixLambdaTaskState(String taskName, Map<String, Object> taskState) {
-    if (taskState.containsKey("Resource") && taskState.get("Resource") instanceof String resource
-        && resource.contains(LAMBDA_INVOKE_RESOURCE)) {
-      LambdaTaskParameters lambdaParameters = lambdaTaskParametersLookup.get(taskName);
-      taskState.put("Parameters", Map.of("FunctionName", lambdaParameters.lambdaArn, "Payload", lambdaParameters.payload));
+    if (taskState.containsKey("Resource") && taskState.get("Resource") instanceof String resource) {
+      if (resource.contains(LAMBDA_INVOKE_RESOURCE)) {
+        LambdaTaskParameters lambdaParameters = lambdaTaskParametersLookup.get(taskName);
+        taskState.put("Parameters", Map.of("FunctionName", lambdaParameters.lambdaArn, "Payload", lambdaParameters.payload));
+      }
+      else if (resource.equals(EMR_INVOKE_RESOURCE))
+        taskState.put("Parameters", taskParametersLookup.get(taskName));
     }
   }
 
@@ -200,9 +205,11 @@ public class GraphTransformer {
         TaskState.builder());
     if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
+    else if (step instanceof RunEmrJob emrStep)
+      compile(emrStep, state);
     else
       throw new NotImplementedException("The provided step implementation (" + step.getClass().getSimpleName() + ") is not supported.");
-    //TODO: Add other implementations here (e.g. EmrStep)
+    //TODO: Add other implementations here (e.g. EcsBasedStep)
 
     state.stateBuilder
         .comment(step.getDescription())
@@ -243,6 +250,19 @@ public class GraphTransformer {
     lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString(), payload.toMap()));
 
     state.stateBuilder.resource(taskResource);
+  }
+
+  private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
+    taskParametersLookup.put(state.stateName, Map.of(
+        "ApplicationId", emrStep.getApplicationId(),
+        "ExecutionRoleArn", emrStep.getExecutionRoleArn(),
+        "JobDriver", Map.of(
+            "EntryPoint", emrStep.getJarUrl(),
+            "EntryPointArguments", emrStep.getScriptParams(),
+            "SparkSubmitParameters", emrStep.getSparkParams()
+        )
+    ));
+    state.stateBuilder.resource(EMR_INVOKE_RESOURCE);
   }
 
   private record NamedState<SB extends State.Builder>(String stateName, SB stateBuilder) {}
