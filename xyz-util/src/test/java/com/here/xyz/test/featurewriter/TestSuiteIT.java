@@ -127,6 +127,9 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
         public Expectations(SQLError sqlError){
             this(null, null, null, 0L, 0L, null, sqlError);
         }
+        public Expectations(TableOperation tableOperation){
+            this(tableOperation, null, null, 0L, 0L, null, null);
+        }
     }
 
     public void featureWriterExecutor() throws Exception {

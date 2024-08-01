@@ -53,18 +53,18 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  null  //expectedSQLError
              )
          },
-         /* No existing Feature expected */
+         /* No existing Feature expected. No TableOperation!  */
          { "2", false, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null, new Expectations(SQLError.FEATURE_NOT_EXISTS) },
-         /* No existing Feature expected */
+         /* No existing Feature expected. No TableOperation!  */
          { "3", false, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null },
 
          /** Feature exists */
          /* No existing Feature expected */
-         { "4", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null, null },
+         { "4", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null, new Expectations(TableOperation.DELETE) },
          { "5", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
                  /* Expected content of the replaced Feature */
                  new Expectations(
-                         TableOperation.INSERT,  //expectedTableOperation
+                         TableOperation.UPDATE,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
                          simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
@@ -74,7 +74,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  )
          },
          { "6", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
-                 /* Expected content of first written Feature which should stay untouched. */
+                 /* Expected content of first written Feature which should stay untouched. No TableOperation! */
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.I,  //expectedFeatureOperation
@@ -86,7 +86,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  )
          },
          { "7", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
-                 /* Expected content of first written Feature which should stay untouched. */
+                 /* SQLError.FEATURE_EXISTS & Expected content of first written Feature which should stay untouched. No TableOperation! */
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.I,  //expectedFeatureOperation
@@ -99,20 +99,10 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
          },
 
          /** Feature exists and got updated. Third write will have a Baseversion MATCH */
-         { "8", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null,
-                 /* Expected content of the untouched Feature (2th write). Deletion will get checked in checkOnExistsDelete() */
-                 new Expectations(
-                         TableOperation.UPDATE,  //expectedTableOperation
-                         Operation.U,  //expectedFeatureOperation
-                         simple1thModificatedFeature(),  //expectedFeature
-                         2L,  //expectedVersion
-                         Long.MAX_VALUE,  //expectedNextVersion
-                         UPDATE_AUTHOR,  //expectedAuthor
-                         null  //expectedSQLError
-                 )
-         },
-         { "9", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
-                 /* Expected content of the replaced Feature (3th write) */
+         /* No existing Feature expected */
+         { "8", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, new Expectations(TableOperation.DELETE) },
+         { "9", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, null,
+                 /* Expected content of the replaced Feature (3th write). */
                  new Expectations(
                          TableOperation.UPDATE,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
@@ -124,7 +114,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  )
          },
         { "10", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null,
-                /* Expected content of the untouched Feature (from 2th write) */
+                /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
@@ -136,7 +126,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  )
          },
          { "11", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null,
-                 /* Expected content of the untouched Feature (from 2th write) */
+                 /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 2th write). No TableOperation! */
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
@@ -149,7 +139,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
          },
          /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH */
          { "12", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
-                 /* Expected content of the untouched Feature (from 2th write) */
+                 /* SQLError.VERSION_CONFLICT_ERROR & Expected content of the untouched Feature (from 2th write). No TableOperation! */
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
@@ -161,7 +151,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  ),
          },
          { "13", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
-                 /* Expected content of the untouched Feature (from 2th write) */
+                 /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
@@ -173,9 +163,9 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  ),
          },
          { "14", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, null,
-                 /* Expected content of the replaced Feature (from 3th write) */
+                 /* Expected content of the replaced Feature (from 3th write). */
                  new Expectations(
-                         TableOperation.INSERT,  //expectedTableOperation
+                         TableOperation.UPDATE,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
                          simple2thModificatedFeature(3L, false),  //expectedFeature
                          3L,  //expectedVersion
@@ -185,7 +175,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  ),
          },
         { "15", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
-                /* Expected content of the untouched Feature (from 2th write) */
+                /* SQLError.ILLEGAL_ARGUMEN & Expected content of the untouched Feature (from 2th write). No TableOperation!  */
                 new Expectations(
                     TableOperation.INSERT,  //expectedTableOperation
                     Operation.U,  //expectedFeatureOperation
