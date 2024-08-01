@@ -61,7 +61,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
-                         simpleModifiedFeature(),  //expectedFeature
+                         simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
                          UPDATE_AUTHOR,  //expectedAuthor
@@ -72,7 +72,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
-                         simpleModifiedFeature(),  //expectedFeature
+                         simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
                          UPDATE_AUTHOR,  //expectedAuthor
@@ -91,14 +91,24 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  )
          },
 
-         /** Feature exists + Baseversion MATCH */
-         { "8", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, null },
+         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
+         { "8", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null,
+                 new Expectations(
+                         TableOperation.UPDATE,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         UPDATE_AUTHOR,  //expectedAuthor
+                         null  //expectedSQLError
+                 )
+         },
          { "9", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
                  new Expectations(
                          TableOperation.UPDATE,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
-                         simpleModifiedFeature(),  //expectedFeature
-                         2L,  //expectedVersion
+                         simple2thModificatedFeature(3L, false),  //expectedFeature
+                         3L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
                          UPDATE_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
@@ -107,9 +117,9 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
         { "10", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null,
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
-                         Operation.I,  //expectedFeatureOperation
-                         simpleFeature(),  //expectedFeature
-                         1L,  //expectedVersion
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
                          DEFAULT_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
@@ -118,22 +128,21 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
          { "11", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null,
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
-                         Operation.I,  //expectedFeatureOperation
-                         simpleFeature(),  //expectedFeature
-                         1L,  //expectedVersion
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
                          DEFAULT_AUTHOR,  //expectedAuthor
                          SQLError.FEATURE_EXISTS  //expectedSQLError
                  ),
          },
-
-         /** Feature exists + BaseVersionMISSMatch */
+         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH */
          { "12", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
-                         Operation.I,  //expectedFeatureOperation
-                         simpleFeature(),  //expectedFeature
-                         1L,  //expectedVersion
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
                          DEFAULT_AUTHOR,  //expectedAuthor
                          SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
@@ -142,9 +151,9 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
          { "13", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
-                         Operation.I,  //expectedFeatureOperation
-                         simpleFeature(),  //expectedFeature
-                         1L,  //expectedVersion
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
                          DEFAULT_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
@@ -154,10 +163,10 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  new Expectations(
                          TableOperation.INSERT,  //expectedTableOperation
                          Operation.U,  //expectedFeatureOperation
-                         simpleModifiedFeature(),  //expectedFeature
+                         simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         UPDATE_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  ),
          },
@@ -177,6 +186,6 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
 
     @Test
     public void start() throws Exception {
-        testFeatureWriterTextExecutor();
+        featureWriterExecutor();
     }
 }

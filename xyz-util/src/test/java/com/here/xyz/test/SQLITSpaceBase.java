@@ -242,17 +242,34 @@ public class SQLITSpaceBase extends SQLITBase{
     return null;
   }
 
-  protected SQLQuery checkExistingFeature(Feature feature, Long version, Long next_version, Operation operation, String author) throws Exception {
-    //WIP
+  protected void checkFeatureCount(int expectedCnt) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      SQLQuery check = new SQLQuery("Select id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) as geo " +
+      SQLQuery cntQuery = new SQLQuery("Select count(1) from ${schema}.${table} ")
+              .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
+              .withVariable(TABLE, table);
+
+      cntQuery.run(dsp, rs -> {
+        int count = 0;
+        if(rs.next()){
+          count = rs.getInt(1);
+        }
+        assertEquals(expectedCnt, expectedCnt);
+        return null;
+      });
+    }
+  }
+
+  protected SQLQuery checkExistingFeature(Feature feature, Long version, Long next_version, Operation operation, String author) throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      SQLQuery checkQuery = new SQLQuery("Select id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) as geo " +
               " from ${schema}.${table} " +
-              "WHERE id = #{id};")
+              "WHERE id = #{id} AND version = #{version};")
               .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
               .withVariable(TABLE, table)
-              .withNamedParameter("id", feature.getId());
+              .withNamedParameter("id", feature.getId())
+              .withNamedParameter("version", version);
 
-      check.run(dsp, rs -> {
+      checkQuery.run(dsp, rs -> {
         if(!rs.next())
           throw new RuntimeException("Feature does not exists");
 

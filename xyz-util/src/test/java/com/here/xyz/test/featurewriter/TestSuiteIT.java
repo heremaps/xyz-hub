@@ -1,5 +1,6 @@
 package com.here.xyz.test.featurewriter;
 
+import com.amazonaws.services.dynamodbv2.xspec.B;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -9,6 +10,8 @@ import org.junit.After;
 import org.junit.Before;
 
 public class TestSuiteIT extends SQLITWriteFeaturesBase{
+    protected final static String DEFAULT_AUTHOR = "author";
+
     private String testName;
     private boolean composite;
     private boolean history;
@@ -80,16 +83,16 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
             """, Feature.class);
     }
 
-    protected static Feature simpleModifiedFeature() throws JsonProcessingException {
-        return simpleModifiedFeature(null);
+    protected static Feature simple1thModificatedFeature() throws JsonProcessingException {
+        return simple1thModificatedFeature(null);
     }
 
-    private static Feature simpleModifiedFeature(Long version) throws JsonProcessingException {
+    private static Feature simple1thModificatedFeature(Long version) throws JsonProcessingException {
        Feature feature = XyzSerializable.deserialize("""
             { "type":"Feature",
               "id":"id1",
               "geometry":{"type":"Point","coordinates":[8.0,50.0]},
-              "properties":{"lastName":"Wonder"}
+              "properties":{"firstName":"Alice","age":35, "lastName":"Wonder"}
             }
             """, Feature.class);
 
@@ -97,6 +100,25 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
            feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(version));
        }
        return feature;
+    }
+
+    protected static Feature simple2thModificatedFeature(Long version, Boolean conflictingAttributes) throws JsonProcessingException {
+        Feature feature = XyzSerializable.deserialize("""
+            { "type":"Feature",
+              "id":"id1",
+              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+              "properties":{"age":"32"}
+            }
+            """, Feature.class);
+
+        if(conflictingAttributes != null && conflictingAttributes){
+            feature.getProperties().with("lastName","NotWonder");
+        }
+
+        if(version != null){
+            feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(version));
+        }
+        return feature;
     }
 
     public record Expectations(TableOperation tableOperation, Operation featureOperation,
@@ -107,7 +129,14 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
         }
     }
 
-    public void testFeatureWriterTextExecutor() throws Exception {
+    public void featureWriterExecutor() throws Exception {
+        if(baseVersionMatch != null){
+            featureWriterExecutor_WithBaseVersion();
+        }else
+            featureWriterExecutor_WithoutBaseVersion();
+    }
+
+    public void featureWriterExecutor_WithoutBaseVersion() throws Exception {
         //TODO: Check UserIntent
         if(this.spaceContext == null)
             this.spaceContext = SpaceContext.EXTENSION;
@@ -118,20 +147,46 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
         }else{
             //Simple 1th write
             writeFeature(simpleFeature(), DEFAULT_AUTHOR, null, null,
-                    null, null, false, SpaceContext.EXTENSION, false, null);
+                    null, null, false, SpaceContext.EXTENSION, history, null);
             //2th write
-            Long version = baseVersionMatch != null ? (baseVersionMatch ? 1L : 0L) : null;
-
-            writeFeature(simpleModifiedFeature(version), UPDATE_AUTHOR, onExists, onNotExists,
+            writeFeature(simple1thModificatedFeature(), UPDATE_AUTHOR, onExists, onNotExists,
                     onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
         }
 
+        checkStrategies();
+    }
+
+    public void featureWriterExecutor_WithBaseVersion() throws Exception {
+        //TODO: Check UserIntent
+        if(this.spaceContext == null)
+            this.spaceContext = SpaceContext.EXTENSION;
+
+        if(!this.featureExists) {
+            writeFeature(simpleFeature(), DEFAULT_AUTHOR, onExists, onNotExists,
+                    onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
+        }else{
+            //Simple 1th write
+            writeFeature(simpleFeature(), DEFAULT_AUTHOR, null, null,
+                    null, null, false, SpaceContext.EXTENSION, history, null);
+            //Simple 2th write
+            writeFeature(simple1thModificatedFeature(1L), DEFAULT_AUTHOR, null, null,
+                    null, null, false, SpaceContext.EXTENSION, history, null);
+            //3th write
+            Long version = baseVersionMatch != null ? (baseVersionMatch ? 2L : 1L) : null;
+            if( baseVersionMatch != null){
+                writeFeature(simple2thModificatedFeature(version, conflictingAttributes), UPDATE_AUTHOR, onExists, onNotExists,
+                        onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
+            }
+        }
+        checkStrategies();
+    }
+
+    private void checkStrategies() throws Exception {
         if(onExists != null){
             switch(onExists){
                 case ERROR, RETAIN -> checkRetainOrError();
                 case DELETE -> checkOnExistsDelete();
-                case REPLACE -> checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
-                        expectations.featureOperation(),expectations.author());
+                case REPLACE -> checkFeaturesOnReplace();
             }
         }
 
@@ -147,7 +202,7 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
             switch(onVersionConflict){
                 case ERROR, RETAIN -> checkRetainOrError();
                 case MERGE -> { }
-                case REPLACE -> { }
+                case REPLACE -> { /** onExists onNotExists have priority */ }
             }
         }
 
@@ -176,6 +231,21 @@ public class TestSuiteIT extends SQLITWriteFeaturesBase{
                     expectations.featureOperation(), expectations.author());
         }else{
             checkNotExistingFeature(simpleFeature().getId());
+        }
+    }
+
+    private void checkFeaturesOnReplace() throws Exception {
+        if(history) {
+            //Last Write
+            checkExistingFeature(simpleFeature(), 1L, 2L, Operation.I, DEFAULT_AUTHOR);
+            //Last Write
+            checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
+                    expectations.featureOperation(), expectations.author());
+            checkFeatureCount(2);
+        }else {
+            checkExistingFeature(expectations.feature(), expectations.version(), expectations.nextVersion(),
+                    expectations.featureOperation(), expectations.author());
+            checkFeatureCount(1);
         }
     }
 

@@ -30,6 +30,6 @@ public class CompositeNoHistoryTestSuiteIT extends TestSuiteIT {
 
     @Test
     public void start() throws Exception {
-        testFeatureWriterTextExecutor();
+        featureWriterExecutor();
     }
 }

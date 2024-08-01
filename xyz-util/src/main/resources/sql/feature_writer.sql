@@ -246,10 +246,25 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws VersionConflictError, MergeConflictError, FeatureExistsError
          */
         writeRowWithHistory() {
+            switch(this.onExists){
+                case "RETAIN":
+                    this.headFeature = this.loadFeature(this.inputFeature.id);
+                    if(this.headFeature != null)
+                        return null;
+                case "ERROR": {
+                    this.headFeature = this.loadFeature(this.inputFeature.id);
+                    if(this.headFeature != null)
+                        this._throwFeatureExistsError();
+                }
+            }
+
             if (this.onVersionConflict != null) {
                 //Version conflict detection is active
                 let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint, this.baseVersion);
                 if (updatedRows.length == 1) {
+                     if(this.onExists == "DELETE"){
+                        this.operation = "D";
+                    }
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
                             this._insertHistoryRow();
@@ -270,22 +285,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 }
             }
             else {
-                switch(this.onExists){
-                    case "RETAIN":
-                        this.headFeature = this.loadFeature(this.inputFeature.id);
-                        if(this.headFeature != null)
-                            return null;
-                    case "ERROR": {
-                        this.headFeature = this.loadFeature(this.inputFeature.id);
-                        if(this.headFeature != null)
-                            this._throwFeatureExistsError();
-                    }
-                }
                 //Version conflict detection is not active
                 let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
                 if (updatedRows.length == 1)  {
-                    switch(this.onExists){
-                        case "DELETE" : this.operation = "D"; break;
+                    if(this.onExists == "DELETE"){
+                        this.operation = "D";
                     }
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
@@ -596,8 +600,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             //NOTE: This method will *only* be called in case a version conflict was detected and onVersionConflict == MERGE
             let headFeature = this.loadFeature(this.inputFeature.id);
             let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
-            let inputDiff = this.isPartial ? this.inputFeature : this.diff(this.inputFeature, baseFeature); //Our incoming change
-            let headDiff = this.diff(headFeature, baseFeature); //The other change
+            let inputDiff = this.isPartial ? this.inputFeature : this.diff(baseFeature, this.inputFeature); //Our incoming change
+            let headDiff = this.diff(baseFeature, headFeature); //The other change
             this.attributeConflicts = this.findConflicts(inputDiff, headDiff);
 
             if (this.attributeConflicts.length > 0)
