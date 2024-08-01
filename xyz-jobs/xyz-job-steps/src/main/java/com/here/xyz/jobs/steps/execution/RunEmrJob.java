@@ -20,17 +20,18 @@
 package com.here.xyz.jobs.steps.execution;
 
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.List;
 
 public class RunEmrJob extends Step<RunEmrJob> {
-
   private String applicationId;
   private String executionRoleArn;
   private String jarUrl;
   private List<String> scriptParams;
   private String sparkParams;
+  private boolean inputsExpected;
 
   @Override
   public List<Load> getNeededResources() {
@@ -72,7 +73,7 @@ public class RunEmrJob extends Step<RunEmrJob> {
 
   @Override
   public boolean validate() throws ValidationException {
-    return true;
+    return isInputsExpected() && currentInputsCount(Input.class) > 0;
   }
 
   public String getApplicationId() {
@@ -137,6 +138,19 @@ public class RunEmrJob extends Step<RunEmrJob> {
 
   public RunEmrJob withSparkParams(String sparkParams) {
     setSparkParams(sparkParams);
+    return this;
+  }
+
+  public boolean isInputsExpected() {
+    return inputsExpected;
+  }
+
+  public void setInputsExpected(boolean inputsExpected) {
+    this.inputsExpected = inputsExpected;
+  }
+
+  public RunEmrJob withInputsExpected(boolean inputsExpected) {
+    setInputsExpected(inputsExpected);
     return this;
   }
 }

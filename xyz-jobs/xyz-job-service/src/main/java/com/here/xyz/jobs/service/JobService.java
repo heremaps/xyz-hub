@@ -86,7 +86,7 @@ public class JobService extends Core {
       }
   }
 
-  private static Future<JsonObject> parseConfiguration(JsonObject config) {
+  protected static Future<JsonObject> parseConfiguration(JsonObject config) {
     config.mapTo(Config.class);
     return Future.succeededFuture(config);
   }
