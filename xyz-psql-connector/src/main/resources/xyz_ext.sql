@@ -4266,7 +4266,38 @@ AS $BODY$
 END;
 $BODY$
 LANGUAGE plpgsql VOLATILE;
-
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty()
+    RETURNS trigger
+AS $BODY$
+DECLARE
+    author text := TG_ARGV[0];
+    curVersion bigint := TG_ARGV[1];
+    isPartial BOOLEAN := TG_ARGV[2];
+    onExists TEXT := TG_ARGV[3];
+    onNotExists TEXT := TG_ARGV[4];
+    onVersionConflict TEXT := TG_ARGV[5];
+    onMergeConflict TEXT := TG_ARGV[6];
+BEGIN
+    --TODO: Check how to fix "0 rows affected."
+    --Only Geojson input is currently supported.
+    IF NEW.operation IS NULL THEN
+        PERFORM write_feature(NEW.jsondata,
+                              curVersion,
+                              author,
+                              onExists,
+                              onNotExists,
+                              onVersionConflict,
+                              onMergeConflict,
+                              isPartial);
+        RETURN NULL;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)

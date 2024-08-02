@@ -41,8 +41,15 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     let features = JSON.parse(input_features);
     let version = getNextVersion();
 
-    for (let feature of features)
-        writeFeature(feature, version, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial);
+	let featureCollection = {"type": "FeatureCollection", features : [] };
+
+    for (let feature of features){
+        featureCollection.features.push(
+            //TODO: how to deal with "null" features
+            writeFeature(feature, version, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial)
+        );
+    }
+    return featureCollection;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 
