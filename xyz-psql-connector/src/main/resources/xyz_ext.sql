@@ -4283,6 +4283,10 @@ BEGIN
     --TODO: Check how to fix "0 rows affected."
     --Only Geojson input is currently supported.
     IF NEW.operation IS NULL THEN
+        --TODO: uses context with asyncify and remove this hack
+        PERFORM context(
+            format('{"schema":"%1$s","table":"%2$s","historyEnabled":false,"context":"EXTENSION"}',TG_TABLE_SCHEMA,TG_TABLE_NAME)::JSONB
+        );
         PERFORM write_feature(NEW.jsondata,
                               curVersion,
                               author,

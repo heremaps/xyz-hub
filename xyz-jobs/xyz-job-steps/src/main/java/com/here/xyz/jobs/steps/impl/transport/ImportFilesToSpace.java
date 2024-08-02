@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 import org.locationtech.jts.io.ParseException;
 
 
@@ -78,6 +80,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
+
+  @JsonView({Internal.class, Static.class})
+  private int versionsToKeep = -1;
 
   public enum Format {
     CSV_GEOJSON,
@@ -178,12 +183,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     try {
       logAndSetPhase(Phase.VALIDATE);
       //Check if the space is actually existing
-      loadSpace(getSpaceId());
+      Space space = loadSpace(getSpaceId());
+      versionsToKeep = space.getVersionsToKeep();
+
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
       targetTableFeatureCount = statistics.getCount().getValue();
 
-      if (targetTableFeatureCount > 0 && getExecutionMode().equals(ExecutionMode.ASYNC))
-        throw new ValidationException("Space is not empty - SYNC processing is only available for smaller spaces!");
+      //TODO: remove after featureWriter is in use
+//      if (targetTableFeatureCount > 0 && getExecutionMode().equals(ExecutionMode.ASYNC))
+//        throw new ValidationException("Space is not empty - SYNC processing is only available for smaller spaces!");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -201,8 +209,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     @Override
     public ExecutionMode getExecutionMode() {
+        //TODO: remove writing with HubClient and replace it with our new JDBC based FeatureWriter
         long max_sync_bytes = 100 * 1024 * 1024;
-
+        //return getUncompressedUploadBytesEstimation() > max_sync_bytes ? ExecutionMode.ASYNC : ExecutionMode.SYNC;
         return ExecutionMode.ASYNC;
     }
 
@@ -240,7 +249,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                       });
 
               logAndSetPhase(Phase.CREATE_TRIGGER);
-              runWriteQuerySync(buildCreatImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS", newVersion), db, 0);
+              runWriteQuerySync(buildCreateImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS", newVersion), db, 0);
           }
 
           createAndFillTemporaryTable(db);
@@ -253,7 +262,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
           for (int i = 1; i <= calculatedThreadCount; i++) {
               logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number " + i);
-              runReadQueryAsync(buildImportQuery(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread, false);
+              runReadQueryAsync(buildImportQueryBlock(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread, false);
           }
       }
   }
@@ -464,7 +473,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("schema", schema);
   }
 
-  private SQLQuery buildCreatImportTrigger(String schema, String table, String targetAuthor, long targetSpaceVersion){
+  private SQLQuery buildCreateImportTrigger(String schema, String table, String targetAuthor, long targetSpaceVersion){
+    if(targetTableFeatureCount == 0)
+      return buildCreateImportTriggerForEmptyLayer(schema, table, targetAuthor, targetSpaceVersion);
+    return buildCreateImportTriggerForNonEmptyLayer(schema, table, targetAuthor, targetSpaceVersion);
+  }
+
+  private SQLQuery buildCreateImportTriggerForEmptyLayer(String schema, String table, String targetAuthor, long targetSpaceVersion){
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
             + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_v2('${{author}}', ${{spaceVersion}});")
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
@@ -472,6 +487,46 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("schema", schema)
             .withVariable("table", table);
   }
+
+  private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String schema, String table, String targetAuthor, long targetSpaceVersion){
+    return new SQLQuery("""
+              CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
+                FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty(
+                  '${{author}}',
+                   ${{spaceVersion}},
+                   false,      --isPartial
+                   'REPLACE' --onExists
+                       --onNotExists
+                       --onVersionConflict
+                       --onMergeConflict
+                   )
+              """)
+            .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
+            .withQueryFragment("author", targetAuthor)
+            .withVariable("schema", schema)
+            .withVariable("table", table);
+  }
+
+  private SQLQuery buildContextQuery(String schema, String table, ContextAwareEvent.SpaceContext spaceContext){
+    JSONObject context = new JSONObject()
+            .put("schema", schema)
+            .put("table", table)
+            //TODO:
+//            .put("extTable", table+"_ext")
+            .put("context", spaceContext)
+            .put("historyEnabled", versionsToKeep > 0);
+
+    return new SQLQuery("""
+              DO
+              $context$
+              BEGIN
+                PERFORM context(#{context}::JSONB);
+              END
+              $context$;
+            """)
+            .withNamedParameter("context", context.toString());
+  }
+
   private SQLQuery buildDropImportTrigger(String schema, String table){
     return new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
             .withVariable("table", table)
@@ -530,6 +585,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
         .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
+  }
+
+  private SQLQuery buildImportQueryBlock(String schema, String table) {
+    /**
+     * TODO:
+     * The idea was to uses context with asyncify. The integration in "_create_asyncify_query_block" (same
+     * principal as with xzy.password) has not worked. If we find a solution with asyncify we can use the block
+     * query - if not, we can simply use buildImportQuery()
+    */
+    return new SQLQuery("${{contextQuery}} ${{importQuery}}")
+            .withAsyncProcedure(true)
+            //TODO take care about spaceContext
+            .withQueryFragment("contextQuery", buildContextQuery(schema, table, EXTENSION))
+            .withQueryFragment("importQuery", buildImportQuery(schema, table));
   }
 
   private SQLQuery buildTableCheckQuery(String schema) {
