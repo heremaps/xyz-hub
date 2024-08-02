@@ -18,12 +18,12 @@ import java.util.Arrays;
 import java.util.Collection;
 
 @RunWith(Parameterized.class)
-public class HubNonCompositeNoHistoryTestSuiteITTEST extends HubBasedTestSuite {
+public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
 
-    public HubNonCompositeNoHistoryTestSuiteITTEST(String testName, boolean composite, boolean history, boolean featureExists,
-                                                   Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension,
-                                                   UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
-                                                   OnMergeConflict onMergeConflict, SpaceContext spaceContext, Expectations expectations) {
+    public HubNonCompositeNoHistoryTestSuiteIT(String testName, boolean composite, boolean history, boolean featureExists,
+                                               Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension,
+                                               UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
+                                               OnMergeConflict onMergeConflict, SpaceContext spaceContext, Expectations expectations) {
         super(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension,
                 userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
     }
@@ -65,45 +65,45 @@ public class HubNonCompositeNoHistoryTestSuiteITTEST extends HubBasedTestSuite {
          /* No existing Feature expected. No TableOperation!  */
          { "3", false, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null },
 
-//         /** Feature exists */
-//         /* No existing Feature expected */
-//         { "4", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null, new Expectations(TableOperation.DELETE) },
-//         { "5", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
-//                 /* Expected content of the replaced Feature */
-//                 new Expectations(
-//                         TableOperation.UPDATE,  //expectedTableOperation
-//                         Operation.U,  //expectedFeatureOperation
-//                         simple1thModificatedFeature(),  //expectedFeature
-//                         2L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         null  //expectedSQLError
-//                 )
-//         },
-//         { "6", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
-//                 /* Expected content of first written Feature which should stay untouched. No TableOperation! */
-//                 new Expectations(
-//                         TableOperation.INSERT,  //expectedTableOperation
-//                         Operation.I,  //expectedFeatureOperation
-//                         simple1thModificatedFeature(),  //expectedFeature
-//                         1L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         null  //expectedSQLError
-//                 )
-//         },
-//         { "7", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
-//                 /* SQLError.FEATURE_EXISTS & Expected content of first written Feature which should stay untouched. No TableOperation! */
-//                 new Expectations(
-//                         TableOperation.INSERT,  //expectedTableOperation
-//                         Operation.I,  //expectedFeatureOperation
-//                         simpleFeature(),  //expectedFeature
-//                         1L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         SQLError.FEATURE_EXISTS  //expectedSQLError
-//                 )
-//         },
+         /** Feature exists */
+         /* No existing Feature expected */
+         { "4", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null, new Expectations(TableOperation.DELETE) },
+         { "5", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
+                 /* Expected content of the replaced Feature */
+                 new Expectations(
+                         TableOperation.UPDATE,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                         null  //expectedSQLError
+                 )
+         },
+         { "6", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
+                 /* Expected content of first written Feature which should stay untouched. No TableOperation! */
+                 new Expectations(
+                         TableOperation.INSERT,  //expectedTableOperation
+                         Operation.I,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         1L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                         null  //expectedSQLError
+                 )
+         },
+         { "7", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
+                 /* SQLError.FEATURE_EXISTS & Expected content of first written Feature which should stay untouched. No TableOperation! */
+                 new Expectations(
+                         TableOperation.INSERT,  //expectedTableOperation
+                         Operation.I,  //expectedFeatureOperation
+                         simpleFeature(),  //expectedFeature
+                         1L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                         SQLError.FEATURE_EXISTS  //expectedSQLError
+                 )
+         },
 //
 //         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
 //         /* No existing Feature expected */

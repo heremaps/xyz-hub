@@ -199,7 +199,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
           throws WebClientException, InterruptedException {
     try {
       logger.info("[{}] Uploading {} features-bytes to service.", getGlobalStepId(), bytes);
-      hubWebClient().putFeatures(spaceId, fc);
+      hubWebClient().putFeaturesWithoutResponse(spaceId, fc);
     } catch (WebClientException e) {
       if(e instanceof XyzWebClient.ErrorResponseException){
         //code>=400
