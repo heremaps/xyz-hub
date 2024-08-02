@@ -45,10 +45,12 @@ import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPOutputStream;
 
 public class S3Client {
-  private static S3Client instance;
+  private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
 
@@ -81,9 +83,13 @@ public class S3Client {
   }
 
   public static S3Client getInstance() {
-    if (instance == null)
-      instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
-    return instance;
+    return getInstance(Config.instance.JOBS_S3_BUCKET);
+  }
+
+  public static S3Client getInstance(String bucketName) {
+    if (!instances.containsKey(bucketName))
+      instances.put(bucketName, new S3Client(bucketName));
+    return instances.get(bucketName);
   }
 
   private URL generatePresignedUrl(String key, HttpMethod method) {

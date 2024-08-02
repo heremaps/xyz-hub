@@ -199,12 +199,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   public void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
-        + " into space " + getSpaceId() + " ...");
-
-    logAndSetPhase(null, "Loading space config for space "+getSpaceId());
+    logAndSetPhase(null, "Importing input files for job " + getJobId() + " into space " + getSpaceId() + " ...");
+    logAndSetPhase(null, "Loading space config for space " + getSpaceId() + " ...");
     Space space = loadSpace(getSpaceId());
-    logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
+    logAndSetPhase(null, "Getting storage database for space " + getSpaceId() + " ...");
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
 
     //TODO: Move resume logic into #resume()
@@ -251,9 +249,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     }catch (SQLException e){
       //We expect that
-      if(e.getSQLState() != null && !e.getSQLState().equals("42P01")) {
+      if (e.getSQLState() != null && !e.getSQLState().equals("42P01"))
         throw e;
-      }
+      //TODO: Should we really ignore all other SQLExceptions?
     }
 
     if(!tmpTableNotExistsAndHasNoData) {
@@ -264,7 +262,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
 
       logAndSetPhase(Phase.FILL_TMP_TABLE);
-      fillTemporaryTableWithInputs(db, loadInputs(), bucketName(), bucketRegion());
+      fillTemporaryTableWithInputs(db, loadInputs(), bucketRegion());
     }
   }
 
@@ -397,10 +395,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("primaryKey", getTemporaryTableName() + "_primKey");
   }
 
-  private void fillTemporaryTableWithInputs(Database db, List<Input> inputs, String bucketName, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
+  private void fillTemporaryTableWithInputs(Database db, List<Input> inputs, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
     List<SQLQuery> queryList = new ArrayList<>();
-    for (Input input : inputs){
-      if(input instanceof UploadUrl uploadUrl) {
+    for (Input input : inputs) {
+      if (input instanceof UploadUrl uploadUrl) {
         JsonObject data = new JsonObject()
                 .put("compressed", uploadUrl.isCompressed())
                 .put("filesize", uploadUrl.getByteSize());
@@ -414,7 +412,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                         .withVariable("schema", getSchema(db))
                         .withVariable("table", getTemporaryTableName())
                         .withNamedParameter("s3Key", input.getS3Key())
-                        .withNamedParameter("bucketName", bucketName)
+                        .withNamedParameter("bucketName", input.getS3Bucket())
                         .withNamedParameter("bucketRegion", bucketRegion)
                         .withNamedParameter("state", "SUBMITTED")
                         .withNamedParameter("data", data.toString())
@@ -431,9 +429,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                     .withVariable("schema", getSchema(db))
                     .withVariable("table", getTemporaryTableName())
                     .withNamedParameter("s3Key", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketName", bucketName)
+                    .withNamedParameter("bucketName", "SUCCESS_MARKER")
                     .withNamedParameter("state", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketRegion", bucketRegion)
+                    .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
                     .withNamedParameter("data", "{}"));
     runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
   }
