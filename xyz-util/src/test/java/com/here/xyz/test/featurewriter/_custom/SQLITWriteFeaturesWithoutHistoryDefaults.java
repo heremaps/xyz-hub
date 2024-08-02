@@ -17,15 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.custom;
+package com.here.xyz.test.featurewriter._custom;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
 
 public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeaturesBase {
+
+    public SQLITWriteFeaturesWithoutHistoryDefaults() {
+        super(false);
+    }
 
     @Test
     public void writeFeature_WithDefaults() throws Exception {

@@ -17,21 +17,21 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.custom;
+package com.here.xyz.test.featurewriter._custom;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
 
 public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFeaturesBase {
   private Feature default_f1;
 
   public SQLITWriteFeaturesWithoutHistoryFeatureExists() throws JsonProcessingException {
-    default_f1 = XyzSerializable.deserialize("""
+      super(false);
+      default_f1 = XyzSerializable.deserialize("""
             { "type":"Feature",
               "id":"id1",
               "geometry":{"type":"Point","coordinates":[8.0,50.0]},

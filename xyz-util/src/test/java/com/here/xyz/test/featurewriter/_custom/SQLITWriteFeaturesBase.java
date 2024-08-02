@@ -17,18 +17,38 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter;
+package com.here.xyz.test.featurewriter._custom;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.test.SQLITSpaceBase;
+import com.here.xyz.test.SQLBasedSpaceTest;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
 
-public class SQLITWriteFeaturesBase extends SQLITSpaceBase {
+//TODO: Remove if custom tests are getting removed.
+public class SQLITWriteFeaturesBase extends SQLBasedSpaceTest {
+
+  public SQLITWriteFeaturesBase(boolean composite) {
+    super(false);
+  }
+
+  /** TODO: Remove if custom tests are getting removed */
+  @Before
+  public void prepare() throws Exception {
+    createSpaceResources();
+  }
+
+  /** TODO: Remove if custom tests are getting removed */
+  @After
+  public void clean() throws Exception {
+    cleanSpaceResources();
+  }
+
   //********************** Helper Functions *******************************/
-  protected void writeFeature(Feature modifiedFeature, String author,
+  public void writeFeature(Feature modifiedFeature, String author,
                               OnExists onExists, OnNotExists onNotExists,
                               OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
                               SpaceContext spaceContext, boolean isHistoryActive, SQLError expectedError)

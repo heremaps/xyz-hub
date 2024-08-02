@@ -42,6 +42,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import com.here.xyz.responses.XyzResponse;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
@@ -86,14 +88,10 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public Space createSpace(String spaceId, String title) throws WebClientException {
-    return createSpace(spaceId, title, null);
+    return createSpace(new Space().withId(spaceId).withTitle(title));
   }
 
-  public Space createSpace(String spaceId, String title, Map<String, Object> spaceConfig) throws WebClientException {
-    spaceConfig = new HashMap<>(spaceConfig == null ? Map.of() : spaceConfig);
-    spaceConfig.put("id", spaceId);
-    spaceConfig.put("title", title);
-
+  public Space createSpace(Space spaceConfig) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
               .uri(uri("/spaces"))
@@ -112,12 +110,24 @@ public class HubWebClient extends XyzWebClient {
         .method("PATCH", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceUpdates).getBytes())));
   }
 
-  public void putFeatures(String spaceId, FeatureCollection fc) throws WebClientException {
+  public void putFeaturesWithoutResponse(String spaceId, FeatureCollection fc) throws WebClientException {
     request(HttpRequest.newBuilder()
         .uri(uri("/spaces/" + spaceId + "/features"))
         .header(CONTENT_TYPE, GEO_JSON.toString())
         .header(ACCEPT, "application/x-empty")
         .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
+  }
+
+  public XyzResponse postFeatures(String spaceId, FeatureCollection fc, String queryParams) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/features?" + queryParams))
+              .header(CONTENT_TYPE, GEO_JSON.toString())
+              .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes()))).body());
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
   }
 
   public void deleteSpace(String spaceId) throws WebClientException {

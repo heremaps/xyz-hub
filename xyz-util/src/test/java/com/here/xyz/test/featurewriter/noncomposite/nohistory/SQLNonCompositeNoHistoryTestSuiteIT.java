@@ -2,7 +2,14 @@ package com.here.xyz.test.featurewriter.noncomposite.nohistory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.test.featurewriter.TestSuiteIT;
+import com.here.xyz.test.GenericSpaceBased;
+import com.here.xyz.test.GenericSpaceBased.OnExists;
+import com.here.xyz.test.GenericSpaceBased.OnMergeConflict;
+import com.here.xyz.test.GenericSpaceBased.OnNotExists;
+import com.here.xyz.test.GenericSpaceBased.OnVersionConflict;
+import com.here.xyz.test.GenericSpaceBased.Operation;
+import com.here.xyz.test.GenericSpaceBased.SQLError;
+import com.here.xyz.test.featurewriter.SQLBasedTestSuite;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -11,12 +18,12 @@ import java.util.Arrays;
 import java.util.Collection;
 
 @RunWith(Parameterized.class)
-public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
+public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
 
-    public NonCompositeNoHistoryTestSuiteIT(String testName, boolean composite, boolean history, boolean featureExists,
-            Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension,
-            UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
-            OnMergeConflict onMergeConflict, SpaceContext spaceContext, TestSuiteIT.Expectations expectations) {
+    public SQLNonCompositeNoHistoryTestSuiteIT(String testName, boolean composite, boolean history, boolean featureExists,
+                                               Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension,
+                                               UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
+                                               OnMergeConflict onMergeConflict, SpaceContext spaceContext, Expectations expectations) {
         super(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension,
                 userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
     }
@@ -49,7 +56,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                  simpleFeature(),  //expectedFeature
                  1L,  //expectedVersion
                  Long.MAX_VALUE,  //expectedNextVersion
-                 DEFAULT_AUTHOR,  //expectedAuthor
+                 GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                  null  //expectedSQLError
              )
          },
@@ -69,7 +76,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         UPDATE_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
@@ -81,7 +88,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple1thModificatedFeature(),  //expectedFeature
                          1L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
@@ -93,7 +100,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simpleFeature(),  //expectedFeature
                          1L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                          SQLError.FEATURE_EXISTS  //expectedSQLError
                  )
          },
@@ -109,7 +116,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple2thModificatedFeature(3L, false),  //expectedFeature
                          3L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         UPDATE_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
@@ -121,7 +128,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
@@ -133,7 +140,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                          SQLError.FEATURE_EXISTS  //expectedSQLError
                  ),
          },
@@ -146,7 +153,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                          SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
                  ),
          },
@@ -158,7 +165,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         DEFAULT_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  ),
          },
@@ -170,7 +177,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                          simple2thModificatedFeature(3L, false),  //expectedFeature
                          3L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         UPDATE_AUTHOR,  //expectedAuthor
+                         GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
                          null  //expectedSQLError
                  ),
          },
@@ -182,7 +189,7 @@ public class NonCompositeNoHistoryTestSuiteIT extends TestSuiteIT {
                     simple1thModificatedFeature(),  //expectedFeature
                     2L,  //expectedVersion
                     Long.MAX_VALUE,  //expectedNextVersion
-                    DEFAULT_AUTHOR,  //expectedAuthor
+                    GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
                     SQLError.ILLEGAL_ARGUMENT  //expectedSQLError
                 ),
             },

@@ -17,16 +17,14 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.custom;
-
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
-import org.junit.Test;
+package com.here.xyz.test.featurewriter._custom;
 
 public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFeaturesBase {
+    public SQLITWriteFeaturesWithoutHistoryMergeSzenarios(boolean composite) {
+        super(composite);
+    }
 
-  //********************** Feature exists + BaseVersion Conflict + Merge Conflict *******************************/
+    //********************** Feature exists + BaseVersion Conflict + Merge Conflict *******************************/
 //  @Test
 //  public void merge_With_DefaultSettings() throws Exception {
 //    //Default is ERROR

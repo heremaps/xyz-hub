@@ -17,20 +17,20 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.custom;
+package com.here.xyz.test.featurewriter._custom;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.test.featurewriter.SQLITWriteFeaturesBase;
 import org.junit.Test;
 
 public class SQLITWriteFeaturesWithoutHistoryFeatureNotExists extends SQLITWriteFeaturesBase {
     private Feature f1;
 
     public SQLITWriteFeaturesWithoutHistoryFeatureNotExists() throws JsonProcessingException {
+        super(false);
         f1 = XyzSerializable.deserialize("""
             { "type":"Feature",
               "id":"id1",
