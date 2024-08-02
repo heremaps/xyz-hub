@@ -29,39 +29,32 @@ import com.here.xyz.util.web.XyzWebClient;
 
 import java.util.List;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
+
 public class HubBasedSpaceTest extends GenericSpaceBased {
   private HubWebClient webClient;
   private boolean composite;
   private boolean history;
-  private OnNotExists onNotExists;
-  private OnExists onExists;
-  private OnVersionConflict onVersionConflict;
-  private OnMergeConflict onMergeConflict;
 
-  public HubBasedSpaceTest(boolean composite, boolean history, OnNotExists onNotExists, OnExists onExists,
-                           OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict) {
+  public HubBasedSpaceTest(boolean composite, boolean history) {
     this.composite = composite;
     this.history = history;
-    this.onNotExists = onNotExists;
-    this.onExists = onExists;
-    this.onVersionConflict = onVersionConflict;
-    this.onMergeConflict = onMergeConflict;
 
     webClient = HubWebClient.getInstance("http://localhost:8080/hub");
   }
 
-  public static void main(String[] args) throws Exception {
-    HubBasedSpaceTest hubBasedSpaceTest = new HubBasedSpaceTest(true, true, null, null, null,null);
-    hubBasedSpaceTest.createSpaceResources();
-    hubBasedSpaceTest.cleanSpaceResources();
-  }
-
   @Override
   public void createSpaceResources() throws Exception {
-    webClient.createSpace(resource, resource+" Title ");
+    Space space = new Space()
+            .withId(resource)
+            .withTitle(resource+" Titel")
+            .withVersionsToKeep(this.history ? 100 : 1);
+    webClient.createSpace(space);
 
     if(this.composite){
-      Space space = new Space()
+      space = new Space()
               .withId(resource+"_ext")
               .withTitle(resource+"_ext Titel")
               .withExtension(new Space.Extension()
@@ -78,36 +71,65 @@ public class HubBasedSpaceTest extends GenericSpaceBased {
   }
 
   @Override
-  public void writeFeaturesWithAssertion(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode) throws Exception {
+  public void writeFeaturesWithAssertion(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
+           OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
+           SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode) {
     FeatureCollection featureCollection = new FeatureCollection().withFeatures(featureList);
 
     try {
-      XyzResponse xyzResponse = webClient.postFeatures(resource, featureCollection, generateQueryString());
+      XyzResponse xyzResponse = webClient.postFeatures(resource, featureCollection,
+              generateQueryString(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
+      System.out.println(xyzResponse);
     }catch (XyzWebClient.ErrorResponseException e){
       //ToDo impl assert
       if(e.getErrorResponse() != null){
         switch (e.getErrorResponse().statusCode()){
           case 409  : {
-            assert(onNotExists.equals(OnNotExists.ERROR));
+            if(onNotExists != null)
+              assertEquals(OnNotExists.ERROR, onNotExists);
+            if(onExists != null)
+              assertEquals(onExists.ERROR, onExists);
+            if(onExists == null && onVersionConflict != null) {
+              if(onMergeConflict != null){
+                //only on retain and error we will not find an object
+                assertNotEquals(onMergeConflict.REPLACE, onMergeConflict);
+              }else
+                assertEquals(onVersionConflict.ERROR, onVersionConflict);
+            }
+            break;
           }
+          default:
+            fail(onNotExists+" "+onExists+" "+onMergeConflict+" "+onMergeConflict+" => "+e.getErrorResponse().statusCode());
         }
       }
     }catch (XyzWebClient.WebClientException e){
       //TODO
+      fail();
     }
   }
 
-  public String generateQueryString(){
+  public String generateQueryString(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
+        OnMergeConflict onMergeConflict, SpaceContext spaceContext){
     String qs = "";
 
     if(onNotExists != null)
       qs +="&ne="+onNotExists.toString().toLowerCase();
-    if(onExists != null)
-      qs +="&e="+onExists.toString().toLowerCase();
-    if(onVersionConflict != null)
-      ;//qs +="&e="+onVersionConflict.toString();
+    if(onExists != null) {
+      if (onVersionConflict == null)
+        qs += "&e=" + onExists.toString().toLowerCase();
+    }
+    if (onVersionConflict != null){
+      if(onExists != null && onVersionConflict.equals(OnVersionConflict.REPLACE))
+        //onExists has priority
+        qs += "&e=" + onExists.toString().toLowerCase();
+      else
+        qs += "&e=" + onVersionConflict.toString().toLowerCase();
+    }
     if(onMergeConflict != null)
       ;//not implemented
+
+    if(spaceContext != null)
+      qs += "&context=" + spaceContext.toString().toLowerCase();;
 
     return qs;
   }

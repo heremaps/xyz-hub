@@ -17,7 +17,7 @@ public class SQLComposite_SUPER_NoHistoryTestSuiteIT extends SQLNonCompositeNoHi
                                                    Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension,
                                                    UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
                                                    OnMergeConflict onMergeConflict, SpaceContext spaceContext, Expectations expectations) {
-        super(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension,
+        super(testName, true, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension,
                 userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, SpaceContext.SUPER, expectations);
     }
 

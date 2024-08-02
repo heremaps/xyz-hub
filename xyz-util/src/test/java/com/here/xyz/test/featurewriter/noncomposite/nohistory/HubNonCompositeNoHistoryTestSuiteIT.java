@@ -34,7 +34,7 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
              /** Feature not exists */
              {
              "0",    //testName
-             false,  //composite
+             true,  //composite
              false,  //history
              false,  //featureExists
              null,  //baseVersionMatch
@@ -56,7 +56,7 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
                  simpleFeature(),  //expectedFeature
                  1L,  //expectedVersion
                  Long.MAX_VALUE,  //expectedNextVersion
-                 GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                 null,  //expectedAuthor - Hub is getting used without auth
                  null  //expectedSQLError
              )
          },
@@ -76,7 +76,7 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
                          simple1thModificatedFeature(),  //expectedFeature
                          2L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                         null,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
@@ -88,7 +88,7 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
                          simple1thModificatedFeature(),  //expectedFeature
                          1L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                         null,  //expectedAuthor
                          null  //expectedSQLError
                  )
          },
@@ -100,87 +100,88 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
                          simpleFeature(),  //expectedFeature
                          1L,  //expectedVersion
                          Long.MAX_VALUE,  //expectedNextVersion
-                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                         null,  //expectedAuthor
                          SQLError.FEATURE_EXISTS  //expectedSQLError
                  )
          },
-//
-//         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
-//         /* No existing Feature expected */
-//         { "8", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, new Expectations(TableOperation.DELETE) },
-//         { "9", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, null,
-//                 /* Expected content of the replaced Feature (3th write). */
-//                 new Expectations(
-//                         TableOperation.UPDATE,  //expectedTableOperation
-//                         Operation.U,  //expectedFeatureOperation
-//                         simple2thModificatedFeature(3L, false),  //expectedFeature
-//                         3L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         null  //expectedSQLError
-//                 )
-//         },
-//        { "10", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null,
-//                /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-//                 new Expectations(
-//                         TableOperation.INSERT,  //expectedTableOperation
-//                         Operation.U,  //expectedFeatureOperation
-//                         simple1thModificatedFeature(),  //expectedFeature
-//                         2L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         null  //expectedSQLError
-//                 )
-//         },
-//         { "11", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null,
-//                 /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 2th write). No TableOperation! */
-//                 new Expectations(
-//                         TableOperation.INSERT,  //expectedTableOperation
-//                         Operation.U,  //expectedFeatureOperation
-//                         simple1thModificatedFeature(),  //expectedFeature
-//                         2L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         SQLError.FEATURE_EXISTS  //expectedSQLError
-//                 ),
-//         },
-//         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH */
-//         { "12", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
-//                 /* SQLError.VERSION_CONFLICT_ERROR & Expected content of the untouched Feature (from 2th write). No TableOperation! */
-//                 new Expectations(
-//                         TableOperation.INSERT,  //expectedTableOperation
-//                         Operation.U,  //expectedFeatureOperation
-//                         simple1thModificatedFeature(),  //expectedFeature
-//                         2L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
-//                 ),
-//         },
-//         { "13", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
-//                 /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-//                 new Expectations(
-//                         TableOperation.INSERT,  //expectedTableOperation
-//                         Operation.U,  //expectedFeatureOperation
-//                         simple1thModificatedFeature(),  //expectedFeature
-//                         2L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         null  //expectedSQLError
-//                 ),
-//         },
-//         { "14", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, null,
-//                 /* Expected content of the replaced Feature (from 3th write). */
-//                 new Expectations(
-//                         TableOperation.UPDATE,  //expectedTableOperation
-//                         Operation.U,  //expectedFeatureOperation
-//                         simple2thModificatedFeature(3L, false),  //expectedFeature
-//                         3L,  //expectedVersion
-//                         Long.MAX_VALUE,  //expectedNextVersion
-//                         GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-//                         null  //expectedSQLError
-//                 ),
-//         },
+
+         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
+         /* No existing Feature expected */
+         { "8", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null, new Expectations(TableOperation.DELETE) },
+         { "9", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, null,
+                 /* Expected content of the replaced Feature (3th write). */
+                 new Expectations(
+                         TableOperation.UPDATE,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple2thModificatedFeature(3L, false),  //expectedFeature
+                         3L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         null,  //expectedAuthor
+                         null  //expectedSQLError
+                 )
+         },
+        { "10", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE, null, null,
+                /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
+                 new Expectations(
+                         TableOperation.INSERT,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         null,  //expectedAuthor
+                         null  //expectedSQLError
+                 )
+         },
+         { "11", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE, null, null,
+                 /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 2th write). No TableOperation! */
+                 new Expectations(
+                         TableOperation.INSERT,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         null,  //expectedAuthor
+                         SQLError.FEATURE_EXISTS  //expectedSQLError
+                 ),
+         },
+         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH */
+         { "12", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
+                 /* SQLError.VERSION_CONFLICT_ERROR & Expected content of the untouched Feature (from 2th write). No TableOperation! */
+                 new Expectations(
+                         TableOperation.INSERT,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         null,  //expectedAuthor
+                         SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
+                 ),
+         },
+         { "13", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
+                 /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
+                 new Expectations(
+                         TableOperation.INSERT,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple1thModificatedFeature(),  //expectedFeature
+                         2L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         null,  //expectedAuthor
+                         null  //expectedSQLError
+                 ),
+         },
+         { "14", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, null,
+                 /* Expected content of the replaced Feature (from 3th write). */
+                 new Expectations(
+                         TableOperation.UPDATE,  //expectedTableOperation
+                         Operation.U,  //expectedFeatureOperation
+                         simple2thModificatedFeature(3L, false),  //expectedFeature
+                         3L,  //expectedVersion
+                         Long.MAX_VALUE,  //expectedNextVersion
+                         null,  //expectedAuthor
+                         null  //expectedSQLError
+                 ),
+         },
+         //TODO: Hub does not raise an error
 //        { "15", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
 //                /* SQLError.ILLEGAL_ARGUMEN & Expected content of the untouched Feature (from 2th write). No TableOperation!  */
 //                new Expectations(
@@ -189,7 +190,7 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
 //                    simple1thModificatedFeature(),  //expectedFeature
 //                    2L,  //expectedVersion
 //                    Long.MAX_VALUE,  //expectedNextVersion
-//                    GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+//                    null,  //expectedAuthor
 //                    SQLError.ILLEGAL_ARGUMENT  //expectedSQLError
 //                ),
 //            },
