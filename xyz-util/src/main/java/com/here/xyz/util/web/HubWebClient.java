@@ -38,12 +38,13 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
-  private static Map<String, HubWebClient> instances = new HashMap<>();
+  private static Map<String, HubWebClient> instances = new ConcurrentHashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(3, TimeUnit.MINUTES)

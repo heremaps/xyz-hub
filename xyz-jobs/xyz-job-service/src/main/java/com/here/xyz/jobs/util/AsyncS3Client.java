@@ -24,9 +24,11 @@ import com.here.xyz.jobs.service.Config;
 import com.here.xyz.util.Async;
 import io.vertx.core.Future;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AsyncS3Client extends S3Client {
-  private static final AsyncS3Client instance = new AsyncS3Client(Config.instance.JOBS_S3_BUCKET);
+  private static final Map<String, AsyncS3Client> instances = new ConcurrentHashMap<>();
   private static final Async ASYNC = new Async(20, AsyncS3Client.class);
 
   protected AsyncS3Client(String bucketName) {
@@ -34,7 +36,13 @@ public class AsyncS3Client extends S3Client {
   }
 
   public static AsyncS3Client getInstance() {
-    return instance;
+    return getInstance(Config.instance.JOBS_S3_BUCKET);
+  }
+
+  public static AsyncS3Client getInstance(String bucketName) {
+    if (!instances.containsKey(bucketName))
+      instances.put(bucketName, new AsyncS3Client(bucketName));
+    return instances.get(bucketName);
   }
 
   //NOTE: Only the long-blocking methods are added as async variants

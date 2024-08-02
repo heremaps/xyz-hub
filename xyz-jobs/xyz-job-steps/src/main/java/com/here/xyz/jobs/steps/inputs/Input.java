@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -26,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.util.S3Client;
 import java.io.IOException;
 import java.util.HashSet;
@@ -49,6 +51,8 @@ public abstract class Input <T extends Input> implements Typed {
   protected long byteSize;
   protected boolean compressed;
   @JsonIgnore
+  private String s3Bucket;
+  @JsonIgnore
   private String s3Key;
   private static Map<String, List<Input>> inputsCache = new WeakHashMap<>();
   private static Set<String> submittedJobs = new HashSet<>();
@@ -59,6 +63,25 @@ public abstract class Input <T extends Input> implements Typed {
 
   private static String inputMetaS3Key(String jobId) {
     return jobId + "/meta/inputs.json";
+  }
+
+  private static String defaultBucket() {
+    return Config.instance.JOBS_S3_BUCKET;
+  }
+
+  public String getS3Bucket() {
+    if (s3Bucket == null)
+      return defaultBucket();
+    return s3Bucket;
+  }
+
+  public void setS3Bucket(String s3Bucket) {
+    this.s3Bucket = s3Bucket;
+  }
+
+  public T withS3Bucket(String s3Bucket) {
+    setS3Bucket(s3Bucket);
+    return (T) this;
   }
 
   public String getS3Key() {
@@ -87,16 +110,32 @@ public abstract class Input <T extends Input> implements Typed {
     return loadInputsAndWriteMetadata(jobId);
   }
 
+  private static AmazonS3URI toS3Uri(String s3Uri) {
+    return new AmazonS3URI(s3Uri);
+  }
+
   private static List<Input> loadInputsAndWriteMetadata(String jobId) {
     try {
       InputsMetadata metadata = loadMetadata(jobId);
       return metadata.inputs.entrySet().stream()
-          .map(metaEntry -> createInput(metaEntry.getKey(), metaEntry.getValue().byteSize, metaEntry.getValue().compressed))
+          .map(metaEntry -> {
+            final String metaKey = metaEntry.getKey();
+            String s3Bucket = null;
+            String s3Key;
+            if (metaKey.startsWith("s3://")) {
+              AmazonS3URI s3Uri = toS3Uri(metaKey);
+              s3Bucket = s3Uri.getBucket();
+              s3Key = "/" + s3Uri.getKey();
+            }
+            else
+              s3Key = metaKey;
+            return createInput(s3Bucket, s3Key, metaEntry.getValue().byteSize, metaEntry.getValue().compressed);
+          })
           .toList();
     }
     catch (IOException | AmazonS3Exception ignore) {}
 
-    final List<Input> inputs = loadInputsInParallel(jobId);
+    final List<Input> inputs = loadInputsInParallel(defaultBucket(), Input.inputS3Prefix(jobId));
     //Only write metadata of jobs which are submitted already
     if (inputs != null && submittedJobs.contains(jobId))
       storeMetadata(jobId, inputs);
@@ -104,13 +143,13 @@ public abstract class Input <T extends Input> implements Typed {
     return inputs;
   }
 
-  static InputsMetadata loadMetadata(String jobId) throws IOException {
+  static final InputsMetadata loadMetadata(String jobId) throws IOException {
     InputsMetadata metadata = XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(inputMetaS3Key(jobId)),
         InputsMetadata.class);
     return metadata;
   }
 
-  static void storeMetadata(String jobId, InputsMetadata metadata) {
+  static final void storeMetadata(String jobId, InputsMetadata metadata) {
     try {
       S3Client.getInstance().putObject(inputMetaS3Key(jobId), "application/json", metadata.serialize());
     }
@@ -124,19 +163,20 @@ public abstract class Input <T extends Input> implements Typed {
     storeMetadata(jobId, inputs, null);
   }
 
-  static void storeMetadata(String jobId, List<Input> inputs, String referencedJobId) {
+  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId) {
     logger.info("Storing inputs metadata for job {} ...", jobId);
     Map<String, InputMetadata> metadata = inputs.stream()
-        .collect(Collectors.toMap(input -> input.s3Key, input -> new InputMetadata(input.byteSize, input.compressed)));
+        .collect(Collectors.toMap(input -> (input.s3Bucket == null ? "" : "s3://" + input.s3Bucket) + input.s3Key,
+            input -> new InputMetadata(input.byteSize, input.compressed)));
     storeMetadata(jobId, new InputsMetadata(metadata, Set.of(jobId), referencedJobId));
   }
 
-  private static List<Input> loadInputsInParallel(String jobId) {
-    logger.info("Scanning inputs for job {} ...", jobId);
+  static final List<Input> loadInputsInParallel(String bucketName, String inputS3Prefix) {
+    logger.info("Scanning inputs from bucket {} and prefix {} ...", bucketName, inputS3Prefix);
     ForkJoinPool tmpPool = new ForkJoinPool(10);
     List<Input> inputs = null;
     try {
-      inputs = tmpPool.submit(() -> loadAndTransformInputs(jobId, -1, Input.class)).get();
+      inputs = tmpPool.submit(() -> loadAndTransformInputs(bucketName, inputS3Prefix, -1, Input.class)).get();
     }
     catch (InterruptedException | ExecutionException ignore) {}
     finally {
@@ -150,13 +190,14 @@ public abstract class Input <T extends Input> implements Typed {
   }
 
   public static <T extends Input> List<T> loadInputsSample(String jobId, int maxSampleSize, Class<T> inputType) {
-    return loadAndTransformInputs(jobId, maxSampleSize, inputType);
+    return loadAndTransformInputs(defaultBucket(), Input.inputS3Prefix(jobId), maxSampleSize, inputType);
   }
 
-  private static <T extends Input> List<T> loadAndTransformInputs(String jobId, int maxReturnSize, Class<T> inputType) {
-    Stream<Input> inputsStream = S3Client.getInstance().scanFolder(Input.inputS3Prefix(jobId))
+  private static <T extends Input> List<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
+    Stream<Input> inputsStream = S3Client.getInstance(bucketName).scanFolder(inputS3Prefix)
         .parallelStream()
-        .map(s3ObjectSummary -> createInput(s3ObjectSummary.getKey(), s3ObjectSummary.getSize(), inputIsCompressed(s3ObjectSummary.getKey())))
+        .map(s3ObjectSummary -> createInput(defaultBucket().equals(bucketName) ? null : bucketName, s3ObjectSummary.getKey(),
+            s3ObjectSummary.getSize(), inputIsCompressed(s3ObjectSummary.getKey())))
         .filter(input -> inputType.isAssignableFrom(input.getClass()));
 
     if (maxReturnSize > 0)
@@ -199,9 +240,10 @@ public abstract class Input <T extends Input> implements Typed {
       storeMetadata(owningJobId, metadata);
   }
 
-  private static Input createInput(String s3Key, long byteSize, boolean compressed) {
+  private static Input createInput(String s3Bucket, String s3Key, long byteSize, boolean compressed) {
     //TODO: Support ModelBasedInputs
     return new UploadUrl()
+        .withS3Bucket(s3Bucket)
         .withS3Key(s3Key)
         .withByteSize(byteSize)
         .withCompressed(compressed);
