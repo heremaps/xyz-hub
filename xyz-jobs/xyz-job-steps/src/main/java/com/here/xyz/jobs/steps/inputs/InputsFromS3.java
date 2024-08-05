@@ -30,11 +30,13 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   }
 
   public void setPrefix(String prefix) {
+    if (prefix.startsWith("/"))
+      prefix = prefix.substring(1);
     this.prefix = prefix;
   }
 
-  public InputsFromS3 withBucketArn(String bucketArn) {
-    setBucketArn(bucketArn);
+  public InputsFromS3 withPrefix(String prefix) {
+    setPrefix(prefix);
     return this;
   }
 
@@ -46,8 +48,8 @@ public class InputsFromS3 extends Input<InputsFromS3> {
     this.bucketArn = bucketArn;
   }
 
-  public InputsFromS3 withPrefix(String prefix) {
-    setPrefix(prefix);
+  public InputsFromS3 withBucketArn(String bucketArn) {
+    setBucketArn(bucketArn);
     return this;
   }
 
