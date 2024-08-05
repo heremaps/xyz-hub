@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.steps.impl.imp;
 
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.s3.model.S3Object;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.XyzSerializable;
@@ -30,11 +29,9 @@ import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.BufferedReader;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
 import org.json.JSONException;
@@ -47,11 +44,11 @@ public class ImportFilesQuickValidator {
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
 
   static void validate(UploadUrl uploadUrl, Format format) throws ValidationException {
-    validate(uploadUrl.getS3Key(), format, uploadUrl.isCompressed());
+    validate(uploadUrl.getS3Bucket(), uploadUrl.getS3Key(), format, uploadUrl.isCompressed());
   }
 
-  static void validate(String s3Key, Format format, boolean isCompressed) throws ValidationException {
-    S3Client client = S3Client.getInstance();
+  static void validate(String s3Bucket, String s3Key, Format format, boolean isCompressed) throws ValidationException {
+    S3Client client = S3Client.getInstance(s3Bucket);
     try {
       if (isCompressed)
         validateFirstCSVLine(client, s3Key, format, "", 0, true);

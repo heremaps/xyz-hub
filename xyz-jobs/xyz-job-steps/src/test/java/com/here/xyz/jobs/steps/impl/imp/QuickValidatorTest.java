@@ -21,10 +21,10 @@ package com.here.xyz.jobs.steps.impl.imp;
 
 import static org.junit.Assert.assertEquals;
 
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.TestSteps;
 import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-
 import java.io.IOException;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,9 +35,15 @@ public class QuickValidatorTest extends TestSteps {
     public void cleanUp() {
         cleanS3Files(TEST_PREFIX);
     }
+
     private String generateTestS3Key(String name){
         return TEST_PREFIX + name;
     }
+
+    private void validate(String s3Key, Format format, boolean isCompressed) throws ValidationException {
+        ImportFilesQuickValidator.validate(Config.instance.JOBS_S3_BUCKET, s3Key, format, isCompressed);
+    }
+
     private void uploadAndValidateValidFiles(boolean gzip) throws IOException, ValidationException {
         /** With no new line at end */
         uploadFileToS3(generateTestS3Key("test_valid_1_jsonwkb.csv"),
@@ -76,12 +82,12 @@ public class QuickValidatorTest extends TestSteps {
         );
 
         /** Should not fail - above are all valid */
-        ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_1_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
-        ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_1_geojson.csv"), Format.CSV_GEOJSON, gzip);
-        ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_1_geojson.txt"), Format.GEOJSON, gzip);
-        ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_2_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
-        ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_2_geojson.csv"), Format.CSV_GEOJSON, gzip);
-        ImportFilesQuickValidator.validate(generateTestS3Key("test_valid_2_geojson.txt"), Format.GEOJSON, gzip);
+        validate(generateTestS3Key("test_valid_1_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
+        validate(generateTestS3Key("test_valid_1_geojson.csv"), Format.CSV_GEOJSON, gzip);
+        validate(generateTestS3Key("test_valid_1_geojson.txt"), Format.GEOJSON, gzip);
+        validate(generateTestS3Key("test_valid_2_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
+        validate(generateTestS3Key("test_valid_2_geojson.csv"), Format.CSV_GEOJSON, gzip);
+        validate(generateTestS3Key("test_valid_2_geojson.txt"), Format.GEOJSON, gzip);
     }
 
     private void uploadAndValidateFilesWithInvalidJson(boolean gzip) throws IOException {
@@ -105,17 +111,17 @@ public class QuickValidatorTest extends TestSteps {
         );
 
         try{
-            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
+            validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
         }catch (ValidationException e){
             checkValidationException(e, "Bad JSON encoding! ");
         }
         try{
-            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_geojson.csv"), Format.CSV_GEOJSON, gzip);
+            validate(generateTestS3Key("test_invalid_1_geojson.csv"), Format.CSV_GEOJSON, gzip);
         }catch (ValidationException e){
             checkValidationException(e, "Bad JSON encoding! ");
         }
         try{
-            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_geojson.txt"), Format.GEOJSON, gzip);
+            validate(generateTestS3Key("test_invalid_1_geojson.txt"), Format.GEOJSON, gzip);
         }catch (ValidationException e){
             checkValidationException(e, "Bad JSON encoding! ");
         }
@@ -132,13 +138,13 @@ public class QuickValidatorTest extends TestSteps {
                 "\"{'\"properties'\": {'\"test'\": 1}}\",invalid".getBytes(),
                 gzip);
         try{
-            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
+            validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
         }catch (ValidationException e){
             checkValidationException(e, "Bad WKB encoding! ");
         }
 
         try{
-            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_2_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
+            validate(generateTestS3Key("test_invalid_2_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
         }catch (ValidationException e){
             checkValidationException(e, "Bad WKB encoding! ");
         }
@@ -159,13 +165,13 @@ public class QuickValidatorTest extends TestSteps {
         );
 
         try{
-            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_3_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
+            validate(generateTestS3Key("test_invalid_3_jsonwkb.csv"), Format.CSV_JSONWKB, gzip);
         }catch (ValidationException e){
             checkValidationException(e, "Empty Column detected!");
         }
 
         try{
-            ImportFilesQuickValidator.validate(generateTestS3Key("test_invalid_3_geojson.csv"), Format.CSV_GEOJSON, gzip);
+            validate(generateTestS3Key("test_invalid_3_geojson.csv"), Format.CSV_GEOJSON, gzip);
         }catch (ValidationException e){
             checkValidationException(e, "Empty Column detected!");
         }

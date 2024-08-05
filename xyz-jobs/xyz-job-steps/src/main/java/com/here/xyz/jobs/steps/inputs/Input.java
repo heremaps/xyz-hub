@@ -44,7 +44,8 @@ import org.apache.logging.log4j.Logger;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = UploadUrl.class, name = "UploadUrl"),
-    @JsonSubTypes.Type(value = InputsFromJob.class, name = "InputsFromJob")
+    @JsonSubTypes.Type(value = InputsFromJob.class, name = "InputsFromJob"),
+    @JsonSubTypes.Type(value = InputsFromS3.class, name = "InputsFromS3")
 })
 public abstract class Input <T extends Input> implements Typed {
   private static final Logger logger = LogManager.getLogger();
@@ -102,22 +103,22 @@ public abstract class Input <T extends Input> implements Typed {
     if (submittedJobs.contains(jobId)) {
       List<Input> inputs = inputsCache.get(jobId);
       if (inputs == null) {
-        inputs = loadInputsAndWriteMetadata(jobId);
+        inputs = loadInputsAndWriteMetadata(jobId, -1, Input.class);
         inputsCache.put(jobId, inputs);
       }
       return inputs;
     }
-    return loadInputsAndWriteMetadata(jobId);
+    return loadInputsAndWriteMetadata(jobId, -1, Input.class);
   }
 
   private static AmazonS3URI toS3Uri(String s3Uri) {
     return new AmazonS3URI(s3Uri);
   }
 
-  private static List<Input> loadInputsAndWriteMetadata(String jobId) {
+  private static <T extends Input> List<T> loadInputsAndWriteMetadata(String jobId, int maxReturnSize, Class<T> inputType) {
     try {
       InputsMetadata metadata = loadMetadata(jobId);
-      return metadata.inputs.entrySet().stream()
+      Stream<T> inputs = metadata.inputs.entrySet().stream()
           .map(metaEntry -> {
             final String metaKey = metaEntry.getKey();
             String s3Bucket = null;
@@ -125,20 +126,21 @@ public abstract class Input <T extends Input> implements Typed {
             if (metaKey.startsWith("s3://")) {
               AmazonS3URI s3Uri = toS3Uri(metaKey);
               s3Bucket = s3Uri.getBucket();
-              s3Key = "/" + s3Uri.getKey();
+              s3Key = s3Uri.getKey();
             }
             else
               s3Key = metaKey;
-            return createInput(s3Bucket, s3Key, metaEntry.getValue().byteSize, metaEntry.getValue().compressed);
-          })
-          .toList();
+            return (T) createInput(s3Bucket, s3Key, metaEntry.getValue().byteSize, metaEntry.getValue().compressed);
+          });
+
+      return (maxReturnSize > 0 ? inputs.unordered().limit(maxReturnSize) : inputs).toList();
     }
     catch (IOException | AmazonS3Exception ignore) {}
 
-    final List<Input> inputs = loadInputsInParallel(defaultBucket(), Input.inputS3Prefix(jobId));
+    final List<T> inputs = loadInputsInParallel(defaultBucket(), Input.inputS3Prefix(jobId), maxReturnSize, inputType);
     //Only write metadata of jobs which are submitted already
     if (inputs != null && submittedJobs.contains(jobId))
-      storeMetadata(jobId, inputs);
+      storeMetadata(jobId, (List<Input>) inputs);
 
     return inputs;
   }
@@ -166,19 +168,26 @@ public abstract class Input <T extends Input> implements Typed {
   static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId) {
     logger.info("Storing inputs metadata for job {} ...", jobId);
     Map<String, InputMetadata> metadata = inputs.stream()
-        .collect(Collectors.toMap(input -> (input.s3Bucket == null ? "" : "s3://" + input.s3Bucket) + input.s3Key,
+        .collect(Collectors.toMap(input -> (input.s3Bucket == null ? "" : "s3://" + input.s3Bucket + "/") + input.s3Key,
             input -> new InputMetadata(input.byteSize, input.compressed)));
     storeMetadata(jobId, new InputsMetadata(metadata, Set.of(jobId), referencedJobId));
   }
 
   static final List<Input> loadInputsInParallel(String bucketName, String inputS3Prefix) {
+    return loadInputsInParallel(bucketName, inputS3Prefix, -1, Input.class);
+  }
+
+  static final <T extends Input> List<T> loadInputsInParallel(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
     logger.info("Scanning inputs from bucket {} and prefix {} ...", bucketName, inputS3Prefix);
     ForkJoinPool tmpPool = new ForkJoinPool(10);
-    List<Input> inputs = null;
+    List<T> inputs = null;
     try {
-      inputs = tmpPool.submit(() -> loadAndTransformInputs(bucketName, inputS3Prefix, -1, Input.class)).get();
+      inputs = tmpPool.submit(() -> loadAndTransformInputs(bucketName, inputS3Prefix, maxReturnSize, inputType)).get();
     }
-    catch (InterruptedException | ExecutionException ignore) {}
+    catch (InterruptedException ignore) {}
+    catch (ExecutionException e) {
+      throw new RuntimeException(e);
+    }
     finally {
       tmpPool.shutdown();
     }
@@ -190,7 +199,7 @@ public abstract class Input <T extends Input> implements Typed {
   }
 
   public static <T extends Input> List<T> loadInputsSample(String jobId, int maxSampleSize, Class<T> inputType) {
-    return loadAndTransformInputs(defaultBucket(), Input.inputS3Prefix(jobId), maxSampleSize, inputType);
+    return loadInputsAndWriteMetadata(jobId, maxSampleSize, inputType);
   }
 
   private static <T extends Input> List<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {

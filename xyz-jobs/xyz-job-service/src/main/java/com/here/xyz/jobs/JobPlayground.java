@@ -313,7 +313,7 @@ public class JobPlayground {
         .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
         .withTarget(new DatasetDescription.Space<>().withId(spaceId));
 
-    System.out.println("Starting job ...");
+    System.out.println("Creating job ...");
     HttpResponse<byte[]> jobResponse = post("/jobs", job);
 
     System.out.println("Got response:");
