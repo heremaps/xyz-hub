@@ -52,7 +52,7 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   }
 
   public void dereference(String forJob) {
-    //First load the inputs from the (foreign bucket)
+    //First load the inputs from the (foreign) bucket
     List<Input> inputs = loadInputsInParallel(getBucketArn(), getPrefix());
     inputs.forEach(input -> input.setS3Bucket(getBucketArn()));
     //Store the metadata for the job that accesses the bucket
