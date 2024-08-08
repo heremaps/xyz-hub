@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,9 +62,9 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     isMvtRequested = isMvtRequested(event);
     Map<String, Object> tweakParams = getTweakParams(event);
-    
+
     SQLQuery query;
-          
+
     super.buildQuery(event); // force "geoFilter" to be not null, fixes fragment is null error when mvt is requested with mode=viz
 
     switch (event.getTweakType().toLowerCase()) {

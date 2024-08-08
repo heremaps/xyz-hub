@@ -19,14 +19,15 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
-import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
+import static com.here.xyz.responses.XyzError.TIMEOUT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
+import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -42,7 +43,6 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetChangesetStatistics;
@@ -60,51 +60,31 @@ import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
-import com.here.xyz.psql.tools.DhString;
-import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.BinaryResponse;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class PSQLXyzConnector extends DatabaseHandler {
-
   private static final Logger logger = LogManager.getLogger();
+  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
+      ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
   @Override
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    try {
-      logger.info("{} Received HealthCheckEvent", traceItem);
-      return processHealthCheckEventImpl(event);
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    catch (ErrorResponseException e) {
-      return new HealthStatus().withStatus("ERROR");
-    }
-    finally {
-      logger.info("{} Finished HealthCheckEvent", traceItem);
-    }
-  }
-
-  private XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException, ErrorResponseException {
+  protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
     if (event.getWarmupCount() == 0 && ConnectorRuntime.getInstance().isRunningLocally()) {
-      /** run DB-Maintenance - warmUp request is used */
+      //FIXME: Do not trigger maintenance on warmup calls, but on simple health-check (non-warmup) calls instead!
+      //Run DB-Maintenance - warmUp request is used
       if (event.getMinResponseTime() != 0) {
         logger.info("{} dbMaintainer start", traceItem);
         dbMaintainer.run(traceItem);
@@ -124,382 +104,185 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   @Override
-  protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws ErrorResponseException {
-    try {
-      logger.info("{} Received GetStatisticsEvent", traceItem);
-      return run(new GetStatistics(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished GetStatisticsEvent", traceItem);
-    }
+  protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+    return run(new GetStatistics(event));
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
-    try {
-      logger.info("{} Received GetFeaturesByIdEvent", traceItem);
-      if (event.getIds() == null || event.getIds().size() == 0)
-        return new FeatureCollection();
-
-      return run(new GetFeaturesById(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished GetFeaturesByIdEvent", traceItem);
-    }
+  protected FeatureCollection processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
+    return run(new GetFeaturesById(event));
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
-    try {
-      logger.info("{} Received GetFeaturesByGeometryEvent", traceItem);
-        return run(new GetFeaturesByGeometry(event));
-    }catch (SQLException e){
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished GetFeaturesByGeometryEvent", traceItem);
-    }
+  protected FeatureCollection processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
+    return run(new GetFeaturesByGeometry(event));
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
-    try {
-      logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-
-      if (event.getClusteringType() != null)
-        return run(new GetFeaturesByBBoxClustered<>(event));
-      if (event.getTweakType() != null || "viz".equals(event.getOptimizationMode()))
-          return run(new GetFeaturesByBBoxTweaked<>(event));
-      return run(new GetFeaturesByBBox<>(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished "+event.getClass().getSimpleName(), traceItem);
-    }
+  protected FeatureCollection processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
+    checkForInvalidHereTileClustering(event);
+    return run(getBBoxBasedQueryRunner(event));
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
+  protected BinaryResponse processBinaryGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
+    if (!mvtSupported(event))
+      //NOTE: For this connector implementation, we never want to fall back to the MVT transformation within the service
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "MVT format is not supported");
+
+    checkForInvalidHereTileClustering(event);
+    return run(getBBoxBasedQueryRunner(event));
+  }
+
+  private static void checkForInvalidHereTileClustering(GetFeaturesByTileEvent event) throws ErrorResponseException {
     if (event.getHereTileFlag() && event.getClusteringType() != null)
-      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
-
-    if ((event.getResponseType() == MVT || event.getResponseType() == MVT_FLATTENED)
-        && (event.getConnectorParams() == null || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE))
-      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
-
-    return processGetFeaturesByBBoxEvent(event);
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT,
+          "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
   }
 
   @Override
-  protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    try {
-      logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      return run(new IterateFeatures(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
-    }
+  protected FeatureCollection processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
+    return run(getBBoxBasedQueryRunner(event));
+  }
+
+  private <R extends XyzResponse> GetFeaturesByBBox<GetFeaturesByBBoxEvent, R> getBBoxBasedQueryRunner(GetFeaturesByBBoxEvent event)
+      throws Exception {
+    if (event.getClusteringType() != null)
+      return new GetFeaturesByBBoxClustered<>(event);
+    if (event.getTweakType() != null || "viz".equals(event.getOptimizationMode()))
+      return new GetFeaturesByBBoxTweaked<>(event);
+    return new GetFeaturesByBBox<>(event);
   }
 
   @Override
-  protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    try {
-      logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      SearchForFeatures.checkCanSearchFor(event, dataSourceProvider);
-
-      // For testing purposes.
-      if (event.getSpace().contains("illegal_argument")) //TODO: Remove testing code from the actual connector implementation
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-            .withErrorMessage("Invalid request parameters.");
-
-      return run(new SearchForFeatures<>(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
-    }
+  protected FeatureCollection processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
+    return run(new IterateFeatures(event));
   }
 
   @Override
-  protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    try{
-      logger.info("{} Received LoadFeaturesEvent", traceItem);
-      if (event.getIdsMap() == null || event.getIdsMap().size() == 0)
-        return new FeatureCollection();
-
-      return run(new LoadFeatures(event));
-    }catch (SQLException e){
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished LoadFeaturesEvent", traceItem);
-    }
+  protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
+    return run(new SearchForFeatures<>(event));
   }
 
   @Override
-  protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    try {
-      logger.info("{} Received ModifyFeaturesEvent", traceItem);
-
-      if (ConnectorParameters.fromEvent(event).isReadOnly())
-        throw new ErrorResponseException(NOT_IMPLEMENTED, "ModifyFeaturesEvent is not supported by this storage connector.");
-
-      //Update the features to insert
-      final List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(Collections.emptyList());
-      final List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(Collections.emptyList());
-      final List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(Collections.emptyList());
-
-      //Generate feature ID
-      Stream.of(inserts, upserts)
-          .flatMap(Collection::stream)
-          .filter(feature -> feature.getId() == null)
-          .forEach(feature -> feature.setId(RandomStringUtils.randomAlphanumeric(16)));
-
-      //Call finalize feature
-      Stream.of(inserts, updates, upserts)
-          .flatMap(Collection::stream)
-          .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace()));
-      return executeModifyFeatures(event);
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished ModifyFeaturesEvent", traceItem);
-    }
+  protected FeatureCollection processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
+    return run(new LoadFeatures(event));
   }
 
   @Override
-  protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    try {
-      logger.info("{} Received ModifySpaceEvent", traceItem);
-
-      if (event.isDryRun())
-        return new SuccessResponse().withStatus("OK");
-
-      validateModifySpaceEvent(event);
-
-      XyzResponse response = write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
-      logger.debug("{} Successfully created table for space id '{}'", traceItem, event.getSpace());
-      return response;
-    }
-    catch (SQLException e) {
-      logger.error("{} Failed to create table for space id: '{}': {}", traceItem, event.getSpace(), e);
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished ModifySpaceEvent", traceItem);
-    }
+  protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
+    return executeModifyFeatures(event);
   }
 
   @Override
-  protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    try {
-      logger.info("{} Received ModifySpaceEvent", traceItem);
-      return write(new ModifySubscription(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished ModifySpaceEvent", traceItem);
-    }
+  protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
+    return write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
   }
 
   @Override
-  protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
-    try {
-      logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      return run(new GetStorageStatistics(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
-    }
+  protected SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+    return write(new ModifySubscription(event));
   }
 
   @Override
-  protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
-    try {
-      logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      return write(new DeleteChangesets(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
-    }
+  protected StorageStatistics processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
+    return run(new GetStorageStatistics(event));
   }
 
   @Override
-  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
-    try {
-      logger.info("{} Received IterateChangesetsEvent", traceItem);
-      return run(new IterateChangesets(event));
-    }
-    catch (SQLException e) {
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }
-    finally {
-      logger.info("{} Finished IterateChangesetsEvent", traceItem);
-    }
+  protected SuccessResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
+    return write(new DeleteChangesets(event));
   }
 
   @Override
-  protected XyzResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
-    try {
-      logger.info("{} Received GetChangesetsStatisticsEvent", traceItem);
-      return run(new GetChangesetStatistics(event));
-    }catch (SQLException e){
-      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished GetChangesetsStatisticsEvent", traceItem);
-    }
+  protected ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+    return run(new IterateChangesets(event));
   }
 
-  private void validateModifySpaceEvent(ModifySpaceEvent event) throws Exception{
-    final ConnectorParameters connectorParameters = ConnectorParameters.fromEvent(event);
-    final boolean connectorSupportsAI = connectorParameters.isAutoIndexing();
-
-    if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
-            || ModifySpaceEvent.Operation.CREATE == event.getOperation())
-            && connectorParameters.isPropertySearch()) {
-
-      int onDemandLimit = connectorParameters.getOnDemandIdxLimit();
-      int onDemandCounter = 0;
-      if (event.getSpaceDefinition().getSearchableProperties() != null) {
-
-        for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
-          if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
-                  && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE) {
-            onDemandCounter++;
-          }
-          if ( onDemandCounter > onDemandLimit ) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " searchable properties per space!");
-          }
-          if (property.contains("'")) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "On-Demand-Indexing [" + property + "] - Character ['] not allowed!");
-          }
-          if (property.contains("\\")) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "On-Demand-Indexing [" + property + "] - Character [\\] not allowed!");
-          }
-          if (event.getSpaceDefinition().isEnableAutoSearchableProperties() != null
-                 && event.getSpaceDefinition().isEnableAutoSearchableProperties()
-                  && !connectorSupportsAI) {
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                    "Connector does not support Auto-indexing!");
-          }
-        }
-      }
-
-      if(event.getSpaceDefinition().getSortableProperties() != null )
-      { /* todo: eval #index limits, parameter validation  */
-        if( event.getSpaceDefinition().getSortableProperties().size() + onDemandCounter > onDemandLimit )
-         throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-                 "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " sortable + searchable properties per space!");
-
-        for( List<Object> l : event.getSpaceDefinition().getSortableProperties() )
-         for( Object p : l )
-         { String property = p.toString();
-           if( property.contains("\\") || property.contains("'") )
-            throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT,
-              "On-Demand-Indexing [" + property + "] - Characters ['\\] not allowed!");
-         }
-      }
-    }
+  @Override
+  protected ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
+    return run(new GetChangesetStatistics(event));
   }
 
-  private static final Pattern ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
-                               ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
+  @Override
+  protected void handleProcessingException(Exception exception, Event event) throws Exception {
+    if (!(exception instanceof SQLException sqlException))
+      throw exception;
 
-  protected XyzResponse checkSQLException(SQLException e, String table) {
+    checkSQLException(sqlException, XyzEventBasedQueryRunner.readTableFromEvent(event));
+  }
+
+  //TODO: Move error handling into according QueryRunners
+  private void checkSQLException(SQLException e, String table) throws ErrorResponseException {
     logger.warn("{} SQL Error ({}) on {} :", traceItem, e.getSQLState(), table, e);
 
-    String sqlState = (e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL");
+    String sqlState = e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL";
 
     switch (sqlState) {
-     case "XX000": /* XX000 - internal error */
-        if ( e.getMessage() == null ) break;
-        if ( e.getMessage().indexOf("interruptedException") != -1 ) break;
-        if ( e.getMessage().indexOf("ERROR: stats for") != -1 )
-         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "statistical data for this space is missing (analyze)" );
-        if ( e.getMessage().indexOf("TopologyException") != -1 )
-         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "geometry with irregular topology (self-intersection, clipping)" );
-        if ( e.getMessage().indexOf("ERROR: transform: couldn't project point") != -1 )
-         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "projection error" );
-        if ( e.getMessage().indexOf("ERROR: encode_geometry: 'GeometryCollection'") != -1 )
-         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "dataset contains invalid geometries" );
-        if ( e.getMessage().indexOf("ERROR: can not mix dimensionality in a geometry") != -1 )
-         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( "can not mix dimensionality in a geometry" );
+      case "XX000": //XX000 - internal error
+        if (e.getMessage() == null)
+          break;
+        if (e.getMessage().indexOf("interruptedException") != -1)
+          break;
+        if (e.getMessage().indexOf("ERROR: stats for") != -1)
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, "statistical data for this space is missing (analyze)");
+        if (e.getMessage().indexOf("TopologyException") != -1)
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, "geometry with irregular topology (self-intersection, clipping)");
+        if (e.getMessage().indexOf("ERROR: transform: couldn't project point") != -1)
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, "projection error");
+        if (e.getMessage().indexOf("ERROR: encode_geometry: 'GeometryCollection'") != -1)
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, "dataset contains invalid geometries");
+        if (e.getMessage().indexOf("ERROR: can not mix dimensionality in a geometry") != -1)
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, "can not mix dimensionality in a geometry");
         //fall thru - timeout assuming timeout
 
-     case "57014" : /* 57014 - query_canceled */
-     case "57P01" : /* 57P01 - admin_shutdown */
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                .withErrorMessage("Database query timed out or got canceled.");
+      case "57014": //57014 - query_canceled
+      case "57P01": //57P01 - admin_shutdown
+        throw new ErrorResponseException(TIMEOUT, "Database query timed out or got canceled.");
 
-     case "54000" :
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                .withErrorMessage("No time for retry left for database query.");
+      case "54000":
+        throw new ErrorResponseException(TIMEOUT, "No time for retry left for database query.");
 
-     case "22P02" : // specific handling in case to H3 clustering.property
-     {
-      if( e.getMessage() == null) {
-        break;
-      } else if (e.getMessage().contains("'H3'::text")) {
-        Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
-                .withErrorMessage(DhString.format("clustering.property: string(%s) can not be converted to numeric", (m.find() ? m.group(1) : "")));
-      } else {
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage(e.getMessage());
+      case "22P02": {
+        //Specific handling in case to H3 clustering.property
+        if (e.getMessage() == null)
+          break;
+        else if (e.getMessage().contains("'H3'::text")) {
+          Matcher m = ERRVALUE_22P02.matcher(e.getMessage());
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, "clustering.property: string(" + (m.find() ? m.group(1) : "") + ") can not be converted to numeric");
+        }
+        else
+          throw new ErrorResponseException(ILLEGAL_ARGUMENT, e.getMessage());
       }
-     }
 
-     case "22P05" :
-     {
-      if( e.getMessage() == null ) break;
-      String eMsg = "untranslatable character in payload";
-      Matcher m = ERRVALUE_22P05.matcher(e.getMessage());
+      case "22P05": {
+        if (e.getMessage() == null)
+          break;
+        String eMsg = "untranslatable character in payload";
+        Matcher m = ERRVALUE_22P05.matcher(e.getMessage());
 
-      if( m.find() )
-       eMsg = DhString.format( eMsg + ": %s - %s",m.group(1), m.group(2));
+        if (m.find())
+          eMsg = eMsg + ": " + m.group(1) + " - " + m.group(2);
 
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT).withErrorMessage( eMsg );
-     }
+        throw new ErrorResponseException(ILLEGAL_ARGUMENT, eMsg);
+      }
 
-     case "42P01" :
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT).withErrorMessage(e.getMessage());
+      case "42P01":
+        throw new ErrorResponseException(TIMEOUT, e.getMessage());
 
-     case "40P01" : // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."
-      return new ErrorResponse().withStreamId(streamId).withError(XyzError.CONFLICT).withErrorMessage(e.getMessage());
+      case
+          "40P01": // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."
+        throw new ErrorResponseException(EXCEPTION, e.getMessage());
 
       case "SNULL":
-        if (e.getMessage() == null) break;
-      // handle some dedicated messages
-      if( e.getMessage().indexOf("An attempt by a client to checkout a connection has timed out.") > -1 )
-       return new ErrorResponse().withStreamId(streamId).withError(XyzError.TIMEOUT)
-                                 .withErrorMessage("Cannot get a connection to the database.");
+        if (e.getMessage() == null)
+          break;
+        //Handle some dedicated messages
+        if (e.getMessage().indexOf("An attempt by a client to checkout a connection has timed out.") > -1)
+          throw new ErrorResponseException(TIMEOUT, "Cannot get a connection to the database.");
 
-       if( e.getMessage().indexOf("Maxchar limit") > -1 )
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.PAYLOAD_TO_LARGE)
-                                                         .withErrorMessage("Database result - Maxchar limit exceed");
+        if (e.getMessage().indexOf("Maxchar limit") > -1)
+          throw new ErrorResponseException(PAYLOAD_TO_LARGE, "Database result - Maxchar limit exceed");
 
         break; //others
 
@@ -507,10 +290,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
         break;
     }
 
-    return new ErrorResponse().withStreamId(streamId).withError(EXCEPTION).withErrorMessage(e.getMessage());
-  }
-
-  public DataSourceProvider getDataSourceProvider() {
-    return dataSourceProvider;
+    throw new ErrorResponseException(EXCEPTION, e.getMessage());
   }
 }

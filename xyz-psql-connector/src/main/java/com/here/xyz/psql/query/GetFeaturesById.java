@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,12 +23,21 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 
 public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCollection> {
 
+  private boolean emptyRequest;
+
   public GetFeaturesById(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
     super(event);
+    emptyRequest = event.getIds() == null || event.getIds().size() == 0;
+  }
+
+  @Override
+  protected FeatureCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    return emptyRequest ? new FeatureCollection() : super.run(dataSourceProvider);
   }
 
   @Override
