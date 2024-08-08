@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,12 +29,12 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, FeatureCollection> {
+public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, SuccessResponse> {
 
   public ModifySubscription(ModifySubscriptionEvent event)
       throws SQLException, ErrorResponseException {
@@ -63,13 +63,12 @@ public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, 
   }
 
   @Override
-  protected FeatureCollection handleWrite(int[] rowCounts) {
-    //TODO: Fix return type of this operation should not be a FeatureCollection but simply a SuccessResponse
-    return new FeatureCollection().withCount(1L);
+  protected SuccessResponse handleWrite(int[] rowCounts) {
+    return new SuccessResponse().withStatus("OK");
   }
 
   @Override
-  public FeatureCollection handle(ResultSet rs) throws SQLException {
+  public SuccessResponse handle(ResultSet rs) throws SQLException {
     return null;
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.FORBIDDEN;
 
 import com.amazonaws.services.lambda.AWSLambda;
@@ -63,10 +64,6 @@ import org.apache.logging.log4j.util.Strings;
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
  */
 public abstract class AbstractConnectorHandler implements RequestStreamHandler {
-
-  /**
-   * Logger
-   */
   private static final Logger logger = LogManager.getLogger();
 
   /**
@@ -242,7 +239,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         logger.error("{} Unexpected exception occurred:", traceItem, e);
         dataOut = new ErrorResponse()
             .withStreamId(this.streamId)
-            .withError(XyzError.EXCEPTION)
+            .withError(EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
       }
       catch (OutOfMemoryError e) {
@@ -372,7 +369,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * These type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
    * the connection to the database open.
    */
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
+  protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
     if (event.getWarmupCount() > 0 && !ConnectorRuntime.getInstance().isRunningLocally()) {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
@@ -395,10 +392,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         Thread.sleep((event.getMinResponseTime() + start) - System.currentTimeMillis());
       }
       catch (InterruptedException e) {
-        return new ErrorResponse()
-            .withErrorMessage(e.getMessage())
-            .withStreamId(streamId)
-            .withError(XyzError.EXCEPTION);
+        throw new ErrorResponseException(EXCEPTION, e.getMessage());
       }
     }
     return new HealthStatus();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.PropertyQuery.QueryOperation.CONTAINS;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.NOT_EQUALS;
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
@@ -28,7 +29,6 @@ import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.psql.query.helpers.GetIndexList;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
@@ -46,17 +46,25 @@ can be renamed to SearchForFeaturesEvent again.
  */
 public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzResponse> extends GetFeatures<E, R> {
   protected boolean hasSearch;
+  private SearchForFeaturesEvent tmpEvent; //TODO: Remove after refactoring
 
   public SearchForFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
+    tmpEvent = event;
     //hasSearch = (event.getPropertiesQuery() == null || event.getPropertiesQuery().size() == 0)
     //    && (event.getTags() == null || event.getTags().size() == 0);
   }
 
-  //TODO: Make protected & non-static to be able to simply access the dataSourceProvider of this QR
-  public static void checkCanSearchFor(SearchForFeaturesEvent event, DataSourceProvider dataSourceProvider) throws ErrorResponseException {
-    if (!canSearchFor(event, dataSourceProvider))
-      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
+  @Override
+  protected R run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    if (tmpEvent.getClass() == SearchForFeaturesEvent.class)
+      checkCanSearchFor(tmpEvent);
+    return super.run(dataSourceProvider);
+  }
+
+  protected void checkCanSearchFor(SearchForFeaturesEvent event) throws ErrorResponseException {
+    if (!canSearchFor(event))
+      throw new ErrorResponseException(ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this space.");
   }
 
@@ -94,7 +102,8 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return skeys;
   }
 
-  private static boolean canSearchFor(SearchForFeaturesEvent event, DataSourceProvider dataSourceProvider) {
+  private boolean canSearchFor(SearchForFeaturesEvent event) {
+    DataSourceProvider dataSourceProvider = getDataSourceProvider();
     String tableName = XyzEventBasedQueryRunner.readTableFromEvent(event);
     PropertiesQuery query = event.getPropertiesQuery();
 
