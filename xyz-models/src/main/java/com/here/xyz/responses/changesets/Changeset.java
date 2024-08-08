@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 package com.here.xyz.responses.changesets;
 
-import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
@@ -30,105 +30,104 @@ import com.here.xyz.responses.XyzResponse;
  */
 @JsonInclude(Include.NON_DEFAULT)
 public class Changeset extends XyzResponse<Changeset> {
+  long version = -1;
+  String author;
+  long createdAt;
+  private FeatureCollection inserted;
+  private FeatureCollection updated;
+  private FeatureCollection deleted;
+  private String nextPageToken;
 
-    long version = -1;
-    String author;
-    long createdAt;
-    private FeatureCollection inserted;
-    private FeatureCollection updated;
-    private FeatureCollection deleted;
-    private String nextPageToken;
+  public long getVersion() {
+    return version;
+  }
 
-    public long getVersion() {
-        return version;
-    }
+  public void setVersion(long version) {
+    this.version = version;
+  }
 
-    public void setVersion(long version) {
-        this.version = version;
-    }
+  public Changeset withVersion(long version) {
+    setVersion(version);
+    return this;
+  }
 
-    public Changeset withVersion(long version) {
-        setVersion(version);
-        return this;
-    }
+  public String getAuthor() {
+    return author;
+  }
 
-    public String getAuthor() {
-        return author;
-    }
+  public void setAuthor(String author) {
+    this.author = author;
+  }
 
-    public void setAuthor(String author) {
-        this.author = author;
-    }
+  public Changeset withAuthor(String author) {
+    setAuthor(author);
+    return this;
+  }
 
-    public Changeset withAuthor(String author) {
-        setAuthor(author);
-        return this;
-    }
+  public long getCreatedAt() {
+    return createdAt;
+  }
 
-    public long getCreatedAt() {
-        return createdAt;
-    }
+  public void setCreatedAt(long createdAt) {
+    this.createdAt = createdAt;
+  }
 
-    public void setCreatedAt(long createdAt) {
-        this.createdAt = createdAt;
-    }
+  public Changeset withCreatedAt(long createdAt) {
+    setCreatedAt(createdAt);
+    return this;
+  }
 
-    public Changeset withCreatedAt(long createdAt) {
-        setCreatedAt(createdAt);
-        return this;
-    }
+  public FeatureCollection getInserted() {
+    return inserted;
+  }
 
-    public FeatureCollection getInserted() {
-        return inserted;
-    }
+  public void setInserted(FeatureCollection inserted) {
+    this.inserted = inserted;
+  }
 
-    public void setInserted(FeatureCollection inserted) {
-        this.inserted = inserted;
-    }
+  public Changeset withInserted(final FeatureCollection inserted) {
+    setInserted(inserted);
+    return this;
+  }
 
-    public Changeset withInserted(final FeatureCollection inserted) {
-        setInserted(inserted);
-        return this;
-    }
+  public FeatureCollection getUpdated() {
+    return updated;
+  }
 
-    public FeatureCollection getUpdated() {
-        return updated;
-    }
+  public void setUpdated(FeatureCollection updated) {
+    this.updated = updated;
+  }
 
-    public void setUpdated(FeatureCollection updated) {
-        this.updated = updated;
-    }
+  public Changeset withUpdated(final FeatureCollection updated) {
+    setUpdated(updated);
+    return this;
+  }
 
-    public Changeset withUpdated(final FeatureCollection updated) {
-        setUpdated(updated);
-        return this;
-    }
+  public FeatureCollection getDeleted() {
+    return deleted;
+  }
 
-    public FeatureCollection getDeleted() {
-        return deleted;
-    }
+  public void setDeleted(FeatureCollection deleted) {
+    this.deleted = deleted;
+  }
 
-    public void setDeleted(FeatureCollection deleted) {
-        this.deleted = deleted;
-    }
+  public Changeset withDeleted(final FeatureCollection deleted) {
+    setDeleted(deleted);
+    return this;
+  }
 
-    public Changeset withDeleted(final FeatureCollection deleted) {
-        setDeleted(deleted);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public String getNextPageToken() {
+    return nextPageToken;
+  }
 
-    @SuppressWarnings("unused")
-    public String getNextPageToken() {
-        return nextPageToken;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setNextPageToken(String nextPageToken) {
+    this.nextPageToken = nextPageToken;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setNextPageToken(String nextPageToken) {
-        this.nextPageToken = nextPageToken;
-    }
-
-    public Changeset withNextPageToken(final String nextPageToken) {
-        setNextPageToken(nextPageToken);
-        return this;
-    }
+  public Changeset withNextPageToken(final String nextPageToken) {
+    setNextPageToken(nextPageToken);
+    return this;
+  }
 }

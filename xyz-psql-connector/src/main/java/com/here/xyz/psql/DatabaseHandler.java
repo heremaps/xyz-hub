@@ -25,6 +25,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
+import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -44,7 +45,6 @@ import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
@@ -69,6 +69,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -190,15 +191,30 @@ public abstract class DatabaseHandler extends StorageConnector {
         return false;
     }
 
-    protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
+    protected FeatureCollection executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
+        if (ConnectorParameters.fromEvent(event).isReadOnly())
+            throw new ErrorResponseException(NOT_IMPLEMENTED, "ModifyFeaturesEvent is not supported by this storage connector.");
+
+        //Update the features to insert
+        List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
+        List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
+        List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
+
+        //Generate feature ID
+        Stream.of(inserts, upserts)
+            .flatMap(Collection::stream)
+            .filter(feature -> feature.getId() == null)
+            .forEach(feature -> feature.setId(RandomStringUtils.randomAlphanumeric(16)));
+
+        //Call finalize feature
+        Stream.of(inserts, updates, upserts)
+            .flatMap(Collection::stream)
+            .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace()));
+
         final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
 
         final FeatureCollection collection = new FeatureCollection();
         collection.setFeatures(new ArrayList<>());
-
-        List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
-        List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
-        List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
 
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
@@ -352,13 +368,13 @@ public abstract class DatabaseHandler extends StorageConnector {
                                 throw e;
 
                             errorDetails.put("FailedList", fails);
-                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                         }
                         else {
                             errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
                                     (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
                                             ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
-                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                         }
                     }
                 }

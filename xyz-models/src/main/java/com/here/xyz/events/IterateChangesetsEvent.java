@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,38 +26,36 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "IterateChangesetsEvent")
 public final class IterateChangesetsEvent extends SearchForFeaturesEvent<IterateChangesetsEvent> {
-
   private String pageToken;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private Long startVersion;
+  private long startVersion;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private Long endVersion;
+  private long endVersion;
 
   private int versionsToKeep;
-  private boolean useCollection;
 
-  public Long getStartVersion() {
+  public long getStartVersion() {
     return startVersion;
   }
 
-  public void setStartVersion(Long startVersion) {
+  public void setStartVersion(long startVersion) {
     this.startVersion = startVersion;
   }
 
-  public IterateChangesetsEvent withStartVersion(Long startVersion) {
+  public IterateChangesetsEvent withStartVersion(long startVersion) {
     setStartVersion(startVersion);
     return this;
   }
 
-  public Long getEndVersion() {
+  public long getEndVersion() {
     return endVersion;
   }
 
-  public void setEndVersion(Long endVersion) {
+  public void setEndVersion(long endVersion) {
     this.endVersion = endVersion;
   }
 
-  public IterateChangesetsEvent withEndVersion(Long endVersion) {
+  public IterateChangesetsEvent withEndVersion(long endVersion) {
     setEndVersion(endVersion);
     return this;
   }
@@ -88,15 +86,6 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
 
   public IterateChangesetsEvent withVersionsToKeep(int setVersionsToKeep) {
     setVersionsToKeep(versionsToKeep);
-    return this;
-  }
-
-  public boolean isUseCollection() { return useCollection;  }
-
-  public void setUseCollection(boolean useCollection) { this.useCollection = useCollection; }
-
-  public IterateChangesetsEvent withUseCollection(boolean useCollection) {
-    setUseCollection(useCollection);
     return this;
   }
 }

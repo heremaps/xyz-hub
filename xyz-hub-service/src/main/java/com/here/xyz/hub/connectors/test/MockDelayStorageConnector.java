@@ -39,11 +39,12 @@ import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.responses.StatisticsResponse.Value;
+import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.responses.changesets.ChangesetCollection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -58,46 +59,46 @@ public class MockDelayStorageConnector extends StorageConnector {
   private static final Logger logger = LogManager.getLogger();
 
   @Override
-  protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
+  protected SuccessResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
     if (event.getSpace() != null)
       return new SuccessResponse();
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 
   @Override
-  protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
+  protected SuccessResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override
-  protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+  protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
+  protected FeatureCollection processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
     return new FeatureCollection()
         .withFeatures(event.getIds().stream().map(id -> storage.get(id)).filter(f -> f != null).collect(Collectors.toList()));
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
+  protected FeatureCollection processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
+  protected FeatureCollection processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override
-  protected XyzResponse processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
+  protected FeatureCollection processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
     return new FeatureCollection()
         .withFeatures(new ArrayList<>(storage.values()));
   }
 
   @Override
-  protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
+  protected FeatureCollection processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
     logger.warn("Iterate feature request in throttling storage.");
     Thread.sleep(2000);
     return new FeatureCollection()
@@ -105,18 +106,18 @@ public class MockDelayStorageConnector extends StorageConnector {
   }
 
   @Override
-  protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
+  protected FeatureCollection processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override
-  protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
+  protected FeatureCollection processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
     return new FeatureCollection()
         .withFeatures(Collections.emptyList());
   }
 
   @Override
-  protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
+  protected FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
     event.getInsertFeatures().forEach(f -> storage.put(f.getId(), f));
     return new FeatureCollection()
         .withFeatures(event.getInsertFeatures())
@@ -124,24 +125,28 @@ public class MockDelayStorageConnector extends StorageConnector {
   }
 
   @Override
-  protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
-    return new StatisticsResponse()
-        .withCount(new Value<>((long) storage.size()).withEstimated(false));
-  }
-
-  @Override
-  protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
+  protected StorageStatistics processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override
-  protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
+  protected SuccessResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override
-  protected XyzResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
+  protected ChangesetCollection processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
+  }
+
+  @Override
+  protected ChangesetsStatisticsResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
+    throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
+  }
+
+  @Override
+  protected void handleProcessingException(Exception exception, Event event) throws Exception {
+    throw exception;
   }
 
   @Override

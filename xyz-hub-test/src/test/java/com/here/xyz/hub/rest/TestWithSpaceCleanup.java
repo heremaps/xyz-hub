@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,9 +41,9 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
     return getCreateSpacePath(spaceName);
   }
 
-  static String getCreateSpacePath(String spaceName) {
+  static String getCreateSpacePath(String spaceId) {
     if (System.getenv().containsKey("SPACES_PATH"))
-      return getSpacesPath() + (Strings.isNullOrEmpty(spaceName) ? "" : ("/" + spaceName));
+      return getSpacesPath() + (Strings.isNullOrEmpty(spaceId) ? "" : ("/" + spaceId));
     return getSpacesPath();
   }
 
@@ -57,8 +57,7 @@ public class TestWithSpaceCleanup extends RestAssuredTest {
 
   @After
   public void tearDownTest() {
-    if (cleanUpId != null) {
+    if (cleanUpId != null)
       removeSpace(cleanUpId);
-    }
   }
 }

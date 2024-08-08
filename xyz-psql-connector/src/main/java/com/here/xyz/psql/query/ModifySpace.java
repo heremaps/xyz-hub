@@ -24,6 +24,7 @@ import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
@@ -39,6 +40,7 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
@@ -62,12 +64,67 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     private Operation operation;
     private String spaceId;
     private DatabaseMaintainer dbMaintainer;
+    private boolean dryRun;
 
     public ModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
         super(event);
+        dryRun = event.isDryRun();
+        validateModifySpaceEvent(event);
         setUseReadReplica(false);
         operation = event.getOperation();
         spaceId = event.getSpace();
+    }
+
+    private void validateModifySpaceEvent(ModifySpaceEvent event) throws ErrorResponseException {
+        final ConnectorParameters connectorParameters = ConnectorParameters.fromEvent(event);
+        final boolean connectorSupportsAI = connectorParameters.isAutoIndexing();
+
+        if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation() || ModifySpaceEvent.Operation.CREATE == event.getOperation())
+            && connectorParameters.isPropertySearch()) {
+            int onDemandLimit = connectorParameters.getOnDemandIdxLimit();
+            int onDemandCounter = 0;
+            if (event.getSpaceDefinition().getSearchableProperties() != null) {
+
+                for (String property : event.getSpaceDefinition().getSearchableProperties().keySet()) {
+                    if (event.getSpaceDefinition().getSearchableProperties().get(property) != null
+                        && event.getSpaceDefinition().getSearchableProperties().get(property) == Boolean.TRUE)
+                        onDemandCounter++;
+
+                    if ( onDemandCounter > onDemandLimit)
+                        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "On-Demand-Indexing - Maximum permissible: " + onDemandLimit
+                            + " searchable properties per space!");
+
+                    if (property.contains("'"))
+                        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "On-Demand-Indexing [" + property
+                            + "] - Character ['] not allowed!");
+
+                    if (property.contains("\\"))
+                        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "On-Demand-Indexing [" + property
+                            + "] - Character [\\] not allowed!");
+
+                    if (event.getSpaceDefinition().isEnableAutoSearchableProperties() != null
+                        && event.getSpaceDefinition().isEnableAutoSearchableProperties()
+                        && !connectorSupportsAI)
+                        throw new ErrorResponseException(ILLEGAL_ARGUMENT,
+                            "Connector does not support Auto-indexing!");
+                }
+            }
+
+            if(event.getSpaceDefinition().getSortableProperties() != null )
+            { //TODO: eval #index limits, parameter validation
+                if( event.getSpaceDefinition().getSortableProperties().size() + onDemandCounter > onDemandLimit )
+                    throw new ErrorResponseException(ILLEGAL_ARGUMENT,
+                        "On-Demand-Indexing - Maximum permissible: " + onDemandLimit + " sortable + searchable properties per space!");
+
+                for( List<Object> l : event.getSpaceDefinition().getSortableProperties() )
+                    for( Object p : l )
+                    { String property = p.toString();
+                        if( property.contains("\\") || property.contains("'") )
+                            throw new ErrorResponseException(ILLEGAL_ARGUMENT,
+                                "On-Demand-Indexing [" + property + "] - Characters ['\\] not allowed!");
+                    }
+            }
+        }
     }
 
     @Override
@@ -95,6 +152,9 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
     @Override
     public SuccessResponse write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+        if (dryRun)
+            return new SuccessResponse().withStatus("OK");
+
         SuccessResponse response = super.write(dataSourceProvider);
         if (operation != Operation.DELETE)
             getDbMaintainer().maintainSpace(ConnectorRuntime.getInstance().getStreamId(), getSchema(), spaceId);

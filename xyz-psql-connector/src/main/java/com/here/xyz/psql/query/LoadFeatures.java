@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,10 +38,17 @@ import java.util.stream.Collectors;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollection> {
   private boolean isForHistoryQuery;
+  private boolean emptyRequest;
 
   public LoadFeatures(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(false);
+    emptyRequest = event.getIdsMap() == null || event.getIdsMap().size() == 0;
+  }
+
+  @Override
+  protected FeatureCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    return emptyRequest ? new FeatureCollection() : super.run(dataSourceProvider);
   }
 
   @Override
