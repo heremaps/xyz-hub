@@ -185,10 +185,18 @@ public class JobProxyApi extends Api{
                                         this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                                         return;
                                     }
-                                    if(!checkSpaceId(res,spaceId)) {
-                                        this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
-                                        return;
+
+                                    try{
+                                     if(!checkSpaceId(res,spaceId)) {
+                                         this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
+                                         return;
+                                     }
                                     }
+                                    catch( DecodeException e ){
+                                     this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "job[" + jobId + "] - " + e.getMessage()));
+                                     return;
+                                    }
+
                                     Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT + "/jobs/" + jobId
                                             + "?deleteData=" + deleteData + "&force=" + force)
                                             .timeout(JOB_API_TIMEOUT)
