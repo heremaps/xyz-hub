@@ -1,16 +1,30 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.test.featurewriter;
 
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.test.GenericSpaceBased;
 import com.here.xyz.test.HubBasedSpaceTest;
-import com.here.xyz.test.SQLBasedSpaceTest;
-import org.junit.After;
-import org.junit.Before;
 
-public class HubBasedTestSuite extends TestSuite{
+public class HubBasedTestSuite extends TestSuite {
 
-    public HubBasedTestSuite(String testName, boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent, GenericSpaceBased.OnNotExists onNotExists, GenericSpaceBased.OnExists onExists, GenericSpaceBased.OnVersionConflict onVersionConflict, GenericSpaceBased.OnMergeConflict onMergeConflict, SpaceContext spaceContext, Expectations expectations) {
-        super(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
+    public HubBasedTestSuite(TestArgs args) {
+        super(args);
         genericSpaceWriter = new HubBasedSpaceTest(composite, history);
     }
 }

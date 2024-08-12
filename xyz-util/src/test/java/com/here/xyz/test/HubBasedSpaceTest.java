@@ -19,6 +19,10 @@
 
 package com.here.xyz.test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
+
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -26,12 +30,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
-
 import java.util.List;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.fail;
 
 public class HubBasedSpaceTest extends GenericSpaceBased {
   private HubWebClient webClient;

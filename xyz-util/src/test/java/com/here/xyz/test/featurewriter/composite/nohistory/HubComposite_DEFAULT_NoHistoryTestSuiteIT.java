@@ -1,73 +1,89 @@
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.test.featurewriter.composite.nohistory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.test.GenericSpaceBased;
-import com.here.xyz.test.GenericSpaceBased.OnExists;
-import com.here.xyz.test.GenericSpaceBased.OnMergeConflict;
 import com.here.xyz.test.GenericSpaceBased.OnNotExists;
-import com.here.xyz.test.GenericSpaceBased.OnVersionConflict;
 import com.here.xyz.test.GenericSpaceBased.Operation;
 import com.here.xyz.test.featurewriter.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
+import java.util.Collection;
+import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import java.util.Arrays;
-import java.util.Collection;
+import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
 
-    public HubComposite_DEFAULT_NoHistoryTestSuiteIT(String testName, boolean composite, boolean history, boolean featureExists,
-                                                     Boolean baseVersionMatch, Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension,
-                                                     UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
-                                                     OnMergeConflict onMergeConflict, SpaceContext spaceContext, Expectations expectations) {
-        super(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension,
-                userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
-    }
+  public HubComposite_DEFAULT_NoHistoryTestSuiteIT(TestArgs args) {
+    super(args);
+  }
 
-    @Parameterized.Parameters(name = "Test Number #{0}")
-    public static Collection<Object[]> testScenarios() throws JsonProcessingException {
-        return Arrays.asList(new Object[][]{
-                /** Feature not exists */
-                {
-                        "0",    //testName
-                        true,  //composite
-                        false,  //history
-                        false,  //featureExists
-                        null,  //baseVersionMatch
-                        null,  //conflictingAttributes
-                        null,  //featureExistsInSuper
-                        null,  //featureExistsInExtension
+  @Parameters(name = "{0}")
+  public static Collection<Object[]> parameterSets() throws JsonProcessingException {
+    return testScenarios().stream().map(args -> new Object[]{args}).toList();
+  }
 
-                        UserIntent.WRITE,  //userIntent
-                        OnNotExists.CREATE,  //onNotExists
-                        null,  //onExists
-                        null,  //onVersionConflict
-                        null,  //onMergeConflict
-                        SpaceContext.DEFAULT,  //spaceContext
+  public static List<TestArgs> testScenarios() throws JsonProcessingException {
+    return List.of(
+        /** Feature not exists */
+        new TestArgs(
+            "0",    //testName
+            true,  //composite
+            false,  //history
+            false,  //featureExists
+            null,  //baseVersionMatch
+            null,  //conflictingAttributes
+            null,  //featureExistsInSuper
+            null,  //featureExistsInExtension
 
-                        /* Expected content of newly created Feature */
-                        new Expectations(
-                                TableOperation.INSERT,  //expectedTableOperation
-                                Operation.I,  //expectedFeatureOperation
-                                simpleFeature(),  //expectedFeature
-                                1L,  //expectedVersion
-                                Long.MAX_VALUE,  //expectedNextVersion
-                                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                                null  //expectedSQLError
-                        )
-                },
+            UserIntent.WRITE,  //userIntent
+            OnNotExists.CREATE,  //onNotExists
+            null,  //onExists
+            null,  //onVersionConflict
+            null,  //onMergeConflict
+            SpaceContext.DEFAULT,  //spaceContext
+
+            /* Expected content of newly created Feature */
+            new Expectations(
+                TableOperation.INSERT,  //expectedTableOperation
+                Operation.I,  //expectedFeatureOperation
+                simpleFeature(),  //expectedFeature
+                1L,  //expectedVersion
+                Long.MAX_VALUE,  //expectedNextVersion
+                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null  //expectedSQLError
+            )
+        )
 //                /* No existing Feature expected. No TableOperation!  */
-//                { "2", true, false, false, null, null, null, SpaceContext.EXTENSION, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null, new Expectations(SQLError.FEATURE_NOT_EXISTS) },
+//                new TestArgs("2", true, false, false, null, null, null, SpaceContext.EXTENSION, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null, new Expectations(SQLError.FEATURE_NOT_EXISTS) ),
 //                /* No existing Feature expected. No TableOperation!  */
-//                { "3", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null },
-        });
-    }
+//                new TestArgs("3", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null ),
+    );
+  }
 
-    @Test
-    public void start() throws Exception {
-        featureWriterExecutor();
-    }
+  @Test
+  public void start() throws Exception {
+    featureWriterExecutor();
+  }
 }

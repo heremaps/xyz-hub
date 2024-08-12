@@ -20,17 +20,17 @@
 package com.here.xyz.test.featurewriter.noncomposite.history;
 
 import static com.here.xyz.test.GenericSpaceBased.Operation.U;
+import static com.here.xyz.test.GenericSpaceBased.SQLError.FEATURE_EXISTS;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.test.GenericSpaceBased;
 import com.here.xyz.test.GenericSpaceBased.OnExists;
 import com.here.xyz.test.GenericSpaceBased.OnMergeConflict;
 import com.here.xyz.test.GenericSpaceBased.OnNotExists;
 import com.here.xyz.test.GenericSpaceBased.OnVersionConflict;
 import com.here.xyz.test.GenericSpaceBased.Operation;
 import com.here.xyz.test.GenericSpaceBased.SQLError;
-import com.here.xyz.test.featurewriter.SQLBasedTestSuite;
+import com.here.xyz.test.featurewriter.HubBasedTestSuite;
 import java.util.Collection;
 import java.util.List;
 import org.junit.Test;
@@ -39,9 +39,9 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
-public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
+public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
 
-  public SQLNonCompositWithHistoryTestSuiteIT(TestArgs args) {
+  public HubNonCompositeWithHistoryTestSuiteIT(TestArgs args) {
     super(args);
   }
 
@@ -50,7 +50,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
     return testScenarios().stream().map(args -> new Object[]{args}).toList();
   }
 
-  public static List<TestArgs> testScenarios() throws JsonProcessingException {
+  public static Collection<TestArgs> testScenarios() throws JsonProcessingException {
     return List.of(
         /** Feature NOT exists */
         new TestArgs("0", false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
@@ -61,7 +61,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simpleFeature(),  //expectedFeature
                 1L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -80,7 +80,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -92,7 +92,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -104,7 +104,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simpleFeature(),  //expectedFeature
                 1L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -116,8 +116,8 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simpleFeature(),  //expectedFeature
                 1L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                SQLError.FEATURE_EXISTS  //expectedSQLError
+                null,  //expectedAuthor
+                FEATURE_EXISTS  //expectedSQLError
             )
         ),
         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
@@ -131,7 +131,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 //TODO: Check if version=3 is correct!
                 3L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -144,7 +144,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple2ndModifiedFeature(3L, false),  //expectedFeature
                 3L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -157,7 +157,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -170,8 +170,8 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                SQLError.FEATURE_EXISTS  //expectedSQLError
+                null,  //expectedAuthor
+                FEATURE_EXISTS  //expectedSQLError
             )
         ),
 
@@ -184,7 +184,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
             )
         ),
@@ -196,7 +196,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -210,7 +210,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 3L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -223,7 +223,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple2ndModifiedFeature(3L, false),  //expectedFeature
                 3L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -236,7 +236,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
@@ -249,8 +249,8 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                SQLError.FEATURE_EXISTS  //expectedSQLError
+                null,  //expectedAuthor
+                FEATURE_EXISTS  //expectedSQLError
             )
         ),
         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> MERGE (NoConflicting Changes) */
@@ -261,14 +261,15 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 //TODO: Check
                 U, //expectedFeatureOperation
                 simple1stModifiedFeature().withProperties(simple1stModifiedFeature().getProperties().with("age", "32")), //expectedFeature
-                3, //expectedVersion
+                3L, //expectedVersion
                 Long.MAX_VALUE, //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR, //expectedAuthor
+                null, //expectedAuthor
                 null //expectedSQLError
             )
         ),
 
         /** Feature exists + With ConflictHandling + Baseversion MISSMATCH -> MERGE Conflicting*/
+        //TODO: Test is flickering! Assumption: hub behavior is not consistent.
         new TestArgs("18", false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
             OnMergeConflict.ERROR,
             null,
@@ -279,10 +280,11 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 SQLError.MERGE_CONFLICT_ERROR  //expectedSQLError
             )
         ),
+        //TODO: Test is flickering! Assumption: hub behavior is not consistent.
         new TestArgs("19", false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
             OnMergeConflict.RETAIN,
             null,
@@ -293,10 +295,11 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple1stModifiedFeature(),  //expectedFeature
                 2L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         ),
+        //TODO: Test is flickering! Assumption: hub behavior is not consistent.
         new TestArgs("20", false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
             OnMergeConflict.REPLACE,
             null,
@@ -307,7 +310,7 @@ public class SQLNonCompositWithHistoryTestSuiteIT extends SQLBasedTestSuite {
                 simple2ndModifiedFeature(3L, true),  //expectedFeature
                 3L,  //expectedVersion
                 Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
+                null,  //expectedAuthor
                 null  //expectedSQLError
             )
         )

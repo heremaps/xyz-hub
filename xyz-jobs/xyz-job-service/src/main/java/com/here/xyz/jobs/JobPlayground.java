@@ -437,7 +437,7 @@ public class JobPlayground {
     for (int i = 0; i < count; i++)
       fc.getFeatures().add(new Feature().withProperties(new Properties().with("test", i))
               .withGeometry(new Point().withCoordinates(new PointCoordinates(i, i % 90))));
-    hubWebClient.putFeatures(spaceId, fc);
+    hubWebClient.putFeaturesWithoutResponse(spaceId, fc);
   }
 
   private static void uploadInputFile(byte[] data) throws IOException {

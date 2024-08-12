@@ -323,7 +323,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         _transformToUpdate(operation) {
-            return operation == "I" ? "U" : "J";
+            return operation == "I" || operation == "U" ? "U" : "J";
         }
 
         _insertHistoryRow() {
@@ -600,11 +600,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         }
 
         /**
-         * @throws MergeConflictError
+         * This method will *only* be called in case a version conflict was detected and onVersionConflict == MERGE
+         * @throws MergeConflictError If the both write diffs are not recursively disjunct and onMergeConflict == ERROR
          */
         mergeChanges() {
             plv8.elog(NOTICE, "MERGE changes",this.onVersionConflict, this.onMergeConflict ); //TODO: Use debug logging
-            //NOTE: This method will *only* be called in case a version conflict was detected and onVersionConflict == MERGE
             let headFeature = this.loadFeature(this.inputFeature.id);
             let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
             let inputDiff = this.isPartial ? this.inputFeature : this.diff(baseFeature, this.inputFeature); //Our incoming change
