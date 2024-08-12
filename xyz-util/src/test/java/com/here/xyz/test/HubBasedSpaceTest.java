@@ -19,6 +19,7 @@
 
 package com.here.xyz.test;
 
+import static com.here.xyz.test.GenericSpaceBased.OnVersionConflict.REPLACE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
@@ -30,7 +31,9 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class HubBasedSpaceTest extends GenericSpaceBased {
   private HubWebClient webClient;
@@ -47,16 +50,16 @@ public class HubBasedSpaceTest extends GenericSpaceBased {
   @Override
   public void createSpaceResources() throws Exception {
     Space space = new Space()
-            .withId(resource)
-            .withTitle(resource+" Titel")
-            .withVersionsToKeep(this.history ? 100 : 1);
+        .withId(resource)
+        .withTitle(resource + " Titel")
+        .withVersionsToKeep(this.history ? 100 : 1);
     webClient.createSpace(space);
 
-    if(this.composite){
+    if (this.composite) {
       space = new Space()
-              .withId(resource+"_ext")
-              .withTitle(resource+"_ext Titel")
-              .withExtension(new Space.Extension()
+          .withId(resource + "_ext")
+          .withTitle(resource + "_ext Titel")
+          .withExtension(new Space.Extension()
               .withSpaceId(resource));
       webClient.createSpace(space);
     }
@@ -65,71 +68,71 @@ public class HubBasedSpaceTest extends GenericSpaceBased {
   @Override
   public void cleanSpaceResources() throws Exception {
     webClient.deleteSpace(resource);
-    if(this.composite)
-      webClient.deleteSpace(resource+"_ext");
+    if (this.composite)
+      webClient.deleteSpace(resource + "_ext");
   }
 
   @Override
   public void writeFeaturesWithAssertion(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
-           OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-           SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode) {
+      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
+      SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode) {
     FeatureCollection featureCollection = new FeatureCollection().withFeatures(featureList);
 
     try {
       XyzResponse xyzResponse = webClient.postFeatures(resource, featureCollection,
-              generateQueryString(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
+          generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
       System.out.println(xyzResponse);
-    }catch (XyzWebClient.ErrorResponseException e){
+    }
+    catch (XyzWebClient.ErrorResponseException e) {
       //ToDo impl assert
-      if(e.getErrorResponse() != null){
-        switch (e.getErrorResponse().statusCode()){
-          case 409  : {
-            if(onNotExists != null)
+      if (e.getErrorResponse() != null) {
+        switch (e.getErrorResponse().statusCode()) {
+          case 409: {
+            if (onNotExists != null)
               assertEquals(OnNotExists.ERROR, onNotExists);
-            if(onExists != null)
+            if (onExists != null)
               assertEquals(onExists.ERROR, onExists);
-            if(onExists == null && onVersionConflict != null) {
-              if(onMergeConflict != null){
+            if (onExists == null && onVersionConflict != null) {
+              if (onMergeConflict != null)
                 //only on retain and error we will not find an object
                 assertNotEquals(onMergeConflict.REPLACE, onMergeConflict);
-              }else
+              else
                 assertEquals(onVersionConflict.ERROR, onVersionConflict);
             }
             break;
           }
           default:
-            fail(onNotExists+" "+onExists+" "+onMergeConflict+" "+onMergeConflict+" => "+e.getErrorResponse().statusCode());
+            fail(onNotExists + " " + onExists + " " + onMergeConflict + " " + onMergeConflict + " => " + e.getErrorResponse().statusCode());
         }
       }
-    }catch (XyzWebClient.WebClientException e){
+    }
+    catch (XyzWebClient.WebClientException e) {
       //TODO
       fail();
     }
   }
 
-  public String generateQueryString(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
-        OnMergeConflict onMergeConflict, SpaceContext spaceContext){
-    String qs = "";
+  public Map<String, String> generateQueryParams(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
+      OnMergeConflict onMergeConflict, SpaceContext spaceContext) {
+    Map<String, String> queryParams = new HashMap<>();
 
-    if(onNotExists != null)
-      qs +="&ne="+onNotExists.toString().toLowerCase();
-    if(onExists != null) {
-      if (onVersionConflict == null)
-        qs += "&e=" + onExists.toString().toLowerCase();
-    }
-    if (onVersionConflict != null){
-      if(onExists != null && onVersionConflict.equals(OnVersionConflict.REPLACE))
+    if (onNotExists != null)
+      queryParams.put("ne", onNotExists.toString());
+    if (onExists != null && onVersionConflict == null)
+      queryParams.put("e", onExists.toString());
+    if (onVersionConflict != null) {
+      if (onExists != null && onVersionConflict == REPLACE)
         //onExists has priority
-        qs += "&e=" + onExists.toString().toLowerCase();
+        queryParams.put("e", onExists.toString());
       else
-        qs += "&e=" + onVersionConflict.toString().toLowerCase();
+        queryParams.put("e", onVersionConflict.toString());
     }
-    if(onMergeConflict != null)
+    if (onMergeConflict != null)
       ;//not implemented
 
-    if(spaceContext != null)
-      qs += "&context=" + spaceContext.toString().toLowerCase();;
+    if (spaceContext != null)
+      queryParams.put("context", spaceContext.toString());
 
-    return qs;
+    return queryParams;
   }
 }

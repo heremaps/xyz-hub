@@ -31,7 +31,6 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     const writeFeature = plv8.find_function("write_feature");
     const getNextVersion = plv8.find_function("get_next_version");
     const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
-    const maxBigint = plv8.execute("SELECT max_bigint()")[0].max_bigint[0];
 
     //Actual executions
     if (input_features == null)
@@ -41,15 +40,10 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     let features = JSON.parse(input_features);
     let version = getNextVersion();
 
-	let featureCollection = {"type": "FeatureCollection", features : [] };
-
-    for (let feature of features){
-        featureCollection.features.push(
-            //TODO: how to deal with "null" features
-            writeFeature(feature, version, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial)
-        );
-    }
-    return featureCollection;
+	let result = {type: "FeatureCollection", features : []};
+    for (let feature of features)
+        result.features.push(writeFeature(feature, version, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial));
+    return result;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 
@@ -79,7 +73,6 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
     //Init block of internal feature_writer functionality
     const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];
-
 
     //TODO: Move classes to own JS file that can then be included by Script installer
     class Exception extends Error {
@@ -167,7 +160,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
      * The unified implementation of the database-based feature writer.
      */
     class FeatureWriter {
-        maxBigint = 9223372036854775807;
+        maxBigint = "9223372036854775807"; //NOTE: Must be a string because of JS precision
 
         //Process input fields
         inputFeature;
@@ -211,6 +204,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             this.onVersionConflict = onVersionConflict == null ? null : onVersionConflict || (this.isDelete ? "REPLACE" : "MERGE");
             this.onMergeConflict = onMergeConflict == null ? "ERROR" : onMergeConflict;
             this.isPartial = isPartial;
+
+            if (this.onVersionConflict == "MERGE" && !this.historyEnabled)
+                throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
             this.enrichFeature();
         }
@@ -267,11 +263,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
             if (this.onVersionConflict != null) {
                 //Version conflict detection is active
-                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version = $4 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint, this.baseVersion);
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3::BIGINT AND version = $4 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint, this.baseVersion);
                 if (updatedRows.length == 1) {
-                     if(this.onExists == "DELETE"){
+                    if (this.onExists == "DELETE")
                         this.operation = "D";
-                    }
+
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
                             this._insertHistoryRow();
@@ -293,11 +289,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
             }
             else {
                 //Version conflict detection is not active
-                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3 AND version < $1 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
+                let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}" SET next_version = $1 WHERE id = $2 AND next_version = $3::BIGINT AND version < $1 RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
                 if (updatedRows.length == 1)  {
-                    if(this.onExists == "DELETE"){
+                    if (this.onExists == "DELETE")
                         this.operation = "D";
-                    }
+
                     if (this.operation == "D") {
                         if (updatedRows[0].operation != "D")
                             this._insertHistoryRow();
@@ -333,9 +329,9 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                 VALUES (
                     $1, $2, $3, $4,
                     $5::JSONB - 'geometry',
-                    ST_Force3D(ST_GeomFromGeoJSON($6::JSONB))
+                    CASE WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry')) END
                 )`,
-                this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature,  this.inputFeature.geometry);
+                this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
         }
 
         _operation2HumanReadable(operation) {
@@ -383,7 +379,7 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 
                 let plan = plv8.prepare(sql, ['TEXT','BIGINT','CHAR','TEXT','JSONB','JSONB']);
 
-                try{
+                try {
                    let writtenFeature = plan.execute(this.inputFeature.id,
                         this.version,
                         //TODO set version operation
@@ -393,8 +389,8 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                         this.inputFeature.geometry
                     );
 
-                    if(writtenFeature.length == 0){
-                      if(e.sqlerrcode == '23505' && this.onExists != 'RETAIN')
+                    if (writtenFeature.length == 0) {
+                      if (e.sqlerrcode == "23505" && this.onExists != "RETAIN")
                         this._throwFeatureExistsError();
 
                       throw new XyzException("Unexpected Error!")
@@ -402,11 +398,11 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                         .withHint(e.hint);
                     }
 
-                    if(writtenFeature[0].operation == 'U'){
+                    if (writtenFeature[0].operation == "U")
                         //Inject createdAt
-                        this.inputFeature.properties['@ns:com:here:xyz'].createdAt = writtenFeature[0].created_at[0];
-                    }else{
-                       switch(this.onNotExists){
+                        this.inputFeature.properties["@ns:com:here:xyz"].createdAt = writtenFeature[0].created_at[0];
+                    else {
+                       switch (this.onNotExists) {
                             case "CREATE" : break; //NOTHING TO DO;
                             case "ERROR":
                                 this._throwFeatureNotExistsError();
@@ -416,9 +412,10 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
                             return null;
                         }
                     }
-                }catch(e){
-                    if(e.sqlerrcode != undefined && e.sqlerrcode == '23505'){
-						if(this.onExists == 'RETAIN')
+                }
+                catch(e) {
+                    if (e.sqlerrcode == "23505") {
+						if (this.onExists == "RETAIN")
 						    return null;
                         this._throwFeatureExistsError();
                     }
@@ -437,34 +434,35 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
 					Check if we need onExists handling here. If its present is has a higher priority as onVersionConflict.
 	            */
 
-				if(this.onExists == 'DELETE' || this.onExists == 'RETAIN' || this.onExists == 'ERROR'
-					|| this.onNotExists == 'RETAIN' || this.onNotExists == 'ERROR'){
-					this.headFeature = this.loadFeature(this.inputFeature.id);
-				}
+				let headFeature;
 
-				switch(this.onExists){
+				if (this.onExists == "DELETE" || this.onExists == "RETAIN"
+                    || this.onExists == "ERROR" || this.onNotExists == "RETAIN"
+                    || this.onNotExists == "ERROR")
+					headFeature = this.loadFeature(this.inputFeature.id);
+
+				switch (this.onExists) {
                     case "DELETE" :
-						if(this.headFeature != null){
+						if (headFeature != null)
 							return this.deleteFeature();
-                        }
                         break;
                     case "RETAIN" :
-                        if(this.headFeature != null)
+                        if (headFeature != null)
                             return null;
                         break;
                     case "ERROR" :
-                        if(this.headFeature != null)
+                        if (headFeature != null)
                             this._throwFeatureExistsError();
                     //NOT handling REPLACE
                 }
 
-                switch(this.onNotExists){
+                switch (this.onNotExists) {
                     case "RETAIN" :
-                        if(this.headFeature == null)
+                        if (headFeature == null)
                             return null;
                         break;
                     case "ERROR" :
-                        if(this.headFeature == null)
+                        if (headFeature == null)
                             this._throwFeatureNotExistsError();
                     //NOT handling CREATE
                 }
@@ -558,8 +556,6 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
         handleWriteVersionConflict() {
             switch (this.onVersionConflict) {
                 case "MERGE":
-                    if(!this.historyEnabled)
-                        throw new IllegalArgumentException("MERGE is not allowed for spaces without history!");
                     return this.mergeChanges();
                 case "ERROR":
                     this._throwVersionConflictError();
@@ -604,9 +600,10 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, au
          * @throws MergeConflictError If the both write diffs are not recursively disjunct and onMergeConflict == ERROR
          */
         mergeChanges() {
-            plv8.elog(NOTICE, "MERGE changes",this.onVersionConflict, this.onMergeConflict ); //TODO: Use debug logging
+            plv8.elog(NOTICE, "MERGE changes", this.onVersionConflict, this.onMergeConflict ); //TODO: Use debug logging
             let headFeature = this.loadFeature(this.inputFeature.id);
             let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
+            //TODO: Fix order of diff arguments
             let inputDiff = this.isPartial ? this.inputFeature : this.diff(baseFeature, this.inputFeature); //Our incoming change
             let headDiff = this.diff(baseFeature, headFeature); //The other change
             this.attributeConflicts = this.findConflicts(inputDiff, headDiff);

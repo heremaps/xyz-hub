@@ -35,6 +35,7 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.time.Duration;
@@ -42,8 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
-import com.here.xyz.responses.XyzResponse;
+import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
@@ -118,16 +118,22 @@ public class HubWebClient extends XyzWebClient {
         .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
   }
 
-  public XyzResponse postFeatures(String spaceId, FeatureCollection fc, String queryParams) throws WebClientException {
+  public XyzResponse postFeatures(String spaceId, FeatureCollection fc, Map<String, String> queryParams) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
-              .uri(uri("/spaces/" + spaceId + "/features?" + queryParams))
+              .uri(uri("/spaces/" + spaceId + "/features?" + serializeQueryParams(queryParams)))
               .header(CONTENT_TYPE, GEO_JSON.toString())
               .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes()))).body());
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
+  }
+
+  private String serializeQueryParams(Map<String, String> queryParams) {
+    return queryParams == null ? "" : queryParams.entrySet().stream()
+        .map(param -> param.getKey() + "=" + param.getValue())
+        .collect(Collectors.joining("&"));
   }
 
   public void deleteSpace(String spaceId) throws WebClientException {
