@@ -196,7 +196,6 @@ class FeatureWriter {
   }
 
   _insertHistoryRow() {
-    //TODO: Encode geo as WKB correctly!
     plv8.execute(`INSERT INTO "${this.schema}"."${this.table}"
                       (id, version, operation, author, jsondata, geo)
                   VALUES ($1, $2, $3, $4,
@@ -262,8 +261,8 @@ class FeatureWriter {
             this._throwFeatureExistsError();
 
           throw new XyzException("Unexpected Error!")
-          .withDetail(e.detail)
-          .withHint(e.hint);
+              .withDetail(e.detail)
+              .withHint(e.hint);
         }
 
         if (writtenFeature[0].operation == "U")
@@ -337,20 +336,17 @@ class FeatureWriter {
           //NOT handling CREATE
       }
 
-      let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
-      delete featureClone.geometry;
-
       let writtenFeature = plv8.execute(`UPDATE "${this.schema}"."${this.table}" AS tbl
                                          SET version   = $1,
                                              operation = $2,
                                              author    = $3,
-                                             jsondata  = jsonb_set($4::JSONB, '{properties, ${this.XYZ_NS}, createdAt}',
+                                             jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
                                                                    tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
                                              geo       = ST_Force3D(ST_GeomFromGeoJSON($5::JSONB))
                                          WHERE id = $6
                                            AND version = $7
                                          RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation`,
-          this.version, "U" /*TODO set version operation*/, this.author, featureClone, this.inputFeature.geometry, this.inputFeature.id,
+          this.version, "U" /*TODO set version operation*/, this.author, this.inputFeature, this.inputFeature.geometry, this.inputFeature.id,
           this.baseVersion);
 
       if (writtenFeature.length == 0)
