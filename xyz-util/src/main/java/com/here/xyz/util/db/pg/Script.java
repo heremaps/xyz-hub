@@ -70,6 +70,10 @@ public class Script {
     return scriptResourceLocation.substring(scriptResourceLocation.lastIndexOf("/") + 1);
   }
 
+  private String getScriptResourceFolder() {
+    return scriptResourceLocation.substring(0, scriptResourceLocation.lastIndexOf("/"));
+  }
+
   public String getCompatibleSchema() {
     return getCompatibleSchema(scriptVersion);
   }
@@ -131,6 +135,14 @@ public class Script {
 
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
         .withQueryFragment("scriptContent", loadScriptContent());
+
+    //Load JS-scripts to be injected
+    for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
+      String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
+      scriptContent
+          .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
+          .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
+    }
 
     SQLQuery.batchOf(buildCreateSchemaQuery(targetSchema), setCurrentSearchPath, buildHashFunctionQuery(), buildVersionFunctionQuery())
         .writeBatch(dataSourceProvider);
@@ -216,7 +228,7 @@ public class Script {
     }
   }
 
-  private static List<String> scanResourceFolder(String resourceFolder) throws IOException {
+  private static List<String> scanResourceFolder(String resourceFolder, String fileSuffix) throws IOException {
     List<String> files = new ArrayList<>();
     final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
     if (folderResource == null)
@@ -226,7 +238,7 @@ public class Script {
     while ((file = reader.readLine()) != null)
       files.add(file);
     return files.stream()
-        .filter(fileName -> fileName.endsWith(".sql"))
+        .filter(fileName -> fileName.endsWith(fileSuffix))
         .map(fileName -> resourceFolder + File.separator + fileName)
         .toList();
   }
@@ -246,9 +258,15 @@ public class Script {
    */
   public static List<Script> loadScripts(String scriptsResourcePath, DataSourceProvider dataSourceProvider, String scriptsVersion)
       throws IOException, URISyntaxException {
-    return scanResourceFolder(scriptsResourcePath).stream()
+    return scanResourceFolder(scriptsResourcePath, ".sql").stream()
         .map(scriptLocation -> new Script(scriptLocation, dataSourceProvider, scriptsVersion))
         .collect(Collectors.toUnmodifiableList());
+  }
+
+  private static List<Script> loadJsScripts(String scriptsResourcePath) throws IOException {
+    return scanResourceFolder(scriptsResourcePath, ".js").stream()
+        .map(scriptLocation -> new Script(scriptLocation, null, "0.0.0"))
+        .toList();
   }
 
   private String extractVersion(String targetSchema) {

@@ -19,6 +19,12 @@
 
 package com.here.xyz.test;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -27,17 +33,10 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
 
 public abstract class GenericSpaceBased extends SQLITBase{
   public static String DEFAULT_AUTHOR = "ANONYMOUS";
@@ -46,8 +45,8 @@ public abstract class GenericSpaceBased extends SQLITBase{
 
   public enum SQLError {
     ILLEGAL_ARGUMENT("XYZ40"),
-    FEATURE_EXISTS("XYZ44"),
-    FEATURE_NOT_EXISTS("XYZ45"),
+    FEATURE_EXISTS("XYZ20"),
+    FEATURE_NOT_EXISTS("XYZ44"),
     MERGE_CONFLICT_ERROR("XYZ48"),
     VERSION_CONFLICT_ERROR("XYZ49"),
     XYZ_EXCEPTION("XYZ50"),

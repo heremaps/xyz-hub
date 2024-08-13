@@ -74,4 +74,13 @@ public class SQLQueryUnitTests {
         .withQueryFragment("fragmentB", new SQLQuery("#{myParam}").withNamedParameter("myParam", "World"));
     assertThrows(RuntimeException.class, () -> q.substitute());
   }
+
+  @Test
+  public void testExtraFragmentProvided() {
+    SQLQuery q = new SQLQuery("${{fragmentA}}")
+        .withLabelsEnabled(false)
+        .withQueryFragment("fragmentA", "Hello")
+        .withQueryFragment("fragmentB", "World");
+    assertEquals("Hello", q.substitute().text());
+  }
 }
