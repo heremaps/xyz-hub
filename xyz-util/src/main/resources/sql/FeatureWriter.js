@@ -223,20 +223,20 @@ class FeatureWriter {
       //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
       let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
                      (id, version, operation, author, jsondata, geo)
-                 VALUES ($1, $2, $3, $4, $5 - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6)))`;
+                 VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)))`;
 
       switch (this.onExists) {
         case "REPLACE" :
-          sql += `ON CONFLICT (id, next_version) DO UPDATE SET
+          sql += ` ON CONFLICT (id, next_version) DO UPDATE SET
                               version = greatest(tbl.version, EXCLUDED.version),
                               operation = 'U',
                               author = EXCLUDED.author,
                               jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
                                      tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
-                              geo = EXCLUDED.geo `;
+                              geo = EXCLUDED.geo`;
           break;
         case "RETAIN" :
-          sql += " ON CONFLICT(id, version, next_version) DO NOTHING "
+          sql += " ON CONFLICT(id, version, next_version) DO NOTHING"
           break;
         case "DELETE" :
           return this.deleteFeature();
@@ -245,20 +245,13 @@ class FeatureWriter {
           //TODO Catch exception and thrown own exception?
       }
 
-      //sql += "RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature) ";
-      sql += `RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation `;
-
-      //TODO check if there is a possibility without a deep-copy!
-      let featureClone = JSON.parse(JSON.stringify(this.inputFeature));
-      delete featureClone.geometry;
-
-      let plan = plv8.prepare(sql, ['TEXT', 'BIGINT', 'CHAR', 'TEXT', 'JSONB', 'JSONB']);
+      //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
 
       try {
-        let writtenFeature = plan.execute(this.inputFeature.id,
+        let writtenFeature = plv8.execute(sql + ` RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation `,
+            this.inputFeature.id,
             this.version,
-            //TODO set version operation
-            this.operation,
+            this.operation, //TODO set version operation
             this.author,
             this.inputFeature,
             this.inputFeature.geometry
@@ -520,30 +513,12 @@ class FeatureWriter {
     if (id == null)
       return null;
 
-    //TODO: Use template strings instead!
-    let sql = "SELECT id, version, author, jsondata, geo::JSONB "  //operation,next_version,i
-        + "FROM \"" + this.schema + "\".\"" + this.table + "\"";
+    let sql = `SELECT id, version, author, jsondata, geo::JSONB FROM "${this.schema}"."${this.table}"`;
 
-    let res;
-    if (version == "HEAD") {
-      //next_version + operation supports head retrival if we have multiple versions
-      sql += "WHERE id = $1 "
-          + "AND next_version = max_bigint() "
-          + "AND operation != $2";
-      //TODO: Use plv8.execute() directly!
-      let plan = plv8.prepare(sql, ["TEXT", "CHAR"]);
-      res = plan.execute(id, "D");
-      plan.free();
-    }
-    else {
-      sql += "WHERE id = $1 "
-          + "AND version = $2 "
-          + "AND operation != $3";
-      //TODO: Use plv8.execute() directly!
-      let plan = plv8.prepare(sql, ["TEXT", "BIGINT", "CHAR"]);
-      res = plan.execute(id, version, "D");
-      plan.free();
-    }
+    let res = version == "HEAD"
+        //next_version + operation supports head retrieval if we have multiple versions
+        ? plv8.execute(sql + "WHERE id = $1 AND next_version = max_bigint() AND operation != $2", id, "D")
+        : plv8.execute(sql + "WHERE id = $1 AND version = $2 AND operation != $3", id, version, "D");
 
     if (res.length == 0)
       return null;
