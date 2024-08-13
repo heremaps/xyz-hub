@@ -149,7 +149,7 @@ public class Connector extends com.here.xyz.models.hub.Connector {
 
   @JsonIgnore
   public int getMaxConnectionsPerRequester() {
-    int connections = connectionSettings.maxConnectionsPerRequester == 0 ? 60 : connectionSettings.maxConnectionsPerRequester;
+    int connections = connectionSettings.maxConnectionsPerRequester == 0 ? 100 : connectionSettings.maxConnectionsPerRequester;
     return (int) Math.ceil((double) connections / Node.count());
   }
 
