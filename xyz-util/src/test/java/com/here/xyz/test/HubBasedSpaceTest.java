@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 public class HubBasedSpaceTest extends GenericSpaceBased {
+
   private HubWebClient webClient;
   private boolean composite;
   private boolean history;
