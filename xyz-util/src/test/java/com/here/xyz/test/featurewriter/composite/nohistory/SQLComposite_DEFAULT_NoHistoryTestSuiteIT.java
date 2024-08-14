@@ -48,39 +48,22 @@ public class SQLComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
   public static List<TestArgs> testScenarios() throws JsonProcessingException {
     return List.of(
         /** Feature not exists */
-        new TestArgs(
-            "0",
-            true,
-            false,
-            false,
-            null,
-            null,
-            null,
-            null,
-
-            UserIntent.WRITE,
-            OnNotExists.CREATE,
-            null,
-            null,
-            null,
-            DEFAULT,
-
-            //Expected content of newly created Feature
+        new TestArgs("1", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, DEFAULT,
             new Expectations(
                 TableOperation.INSERT,
                 Operation.I,
                 simpleFeature(),
-                1L,
+                1,
                 Long.MAX_VALUE,
                 GenericSpaceBased.DEFAULT_AUTHOR,
                 null
-            )
-        ),
+            )),
         /* No existing Feature expected. No TableOperation!  */
         new TestArgs("2", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, DEFAULT,
             new Expectations(SQLError.FEATURE_NOT_EXISTS))
         /* No existing Feature expected. No TableOperation!  */
-//                new TestArgs( "3", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, SpaceContext.DEFAULT, null )
+        //new TestArgs("3", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, SpaceContext.DEFAULT,
+        //    null)
     );
   }
 

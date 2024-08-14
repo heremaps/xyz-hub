@@ -70,6 +70,8 @@ class FeatureWriter {
     if (this.onVersionConflict == "MERGE" && !this.historyEnabled)
       throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
+    this.debugBox(JSON.stringify(this, null, 2));
+
     this.enrichFeature();
   }
 
@@ -195,17 +197,6 @@ class FeatureWriter {
     return operation == "I" || operation == "U" ? "U" : "J";
   }
 
-  _insertHistoryRow() {
-    plv8.execute(`INSERT INTO "${this.schema}"."${this.table}"
-                      (id, version, operation, author, jsondata, geo)
-                  VALUES ($1, $2, $3, $4,
-                          $5::JSONB - 'geometry',
-                          CASE
-                              WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL
-                              ELSE ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry')) END)`,
-        this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
-  }
-
   _operation2HumanReadable(operation) {
     return operation == "I" || operation == "H" ? "insert" : operation == "U" || operation == "J" ? "update" : "delete";
   }
@@ -266,7 +257,7 @@ class FeatureWriter {
         }
 
         if (writtenFeature[0].operation == "U")
-            //Inject createdAt
+          //Inject createdAt
           this.inputFeature.properties[this.XYZ_NS].createdAt = writtenFeature[0].created_at[0];
         else {
           switch (this.onNotExists) {
@@ -282,6 +273,7 @@ class FeatureWriter {
         }
       }
       catch (e) {
+        this.debugBox(JSON.stringify(e, null, 2));
         if (e.sqlerrcode == "23505") {
           if (this.onExists == "RETAIN")
             return null;
@@ -367,24 +359,14 @@ class FeatureWriter {
    */
   deleteRow() {
     //TODO: do we need the payload of the feature as return?
-    let cnt;
     //base_version get provided from user (extend api endpoint if necessary)
     //TODO: Deactivate notices depending on a DEBUG env variable
     plv8.elog(NOTICE, "Delete feature with id ", this.inputFeature.id);
-    let sql = `DELETE FROM "${this.schema}"."${this.table}" WHERE id = $1 `;
 
-    if (this.onVersionConflict == null)
-      cnt = plv8.execute(sql, this.inputFeature.id);
-    else {
-      if (this.baseVersion == 0)
-        cnt = plv8.execute(sql + "AND next_version = max_bigint();", this.inputFeature.id);
-      else
-        cnt = plv8.execute(sql + "AND version = $2;", this.inputFeature.id, this.baseVersion);
-
-      if (cnt == 0) {
-        plv8.elog(NOTICE, "HandleConflict for id=", this.inputFeature.id,);
-        //handleDeleteVersionConflict
-      }
+    let deletedRows = this.onVersionConflict == null ? this._deleteRow() : this._deleteRow(this.baseVersion);
+    if (deletedRows == 0) {
+      plv8.elog(NOTICE, "HandleConflict for id=", this.inputFeature.id,);
+      //handleDeleteVersionConflict
     }
   }
 
@@ -509,12 +491,7 @@ class FeatureWriter {
     if (id == null)
       return null;
 
-    let sql = `SELECT id, version, author, jsondata, geo::JSONB FROM "${this.schema}"."${this.table}"`;
-
-    let res = version == "HEAD"
-        //next_version + operation supports head retrieval if we have multiple versions
-        ? plv8.execute(sql + "WHERE id = $1 AND next_version = max_bigint() AND operation != $2", id, "D")
-        : plv8.execute(sql + "WHERE id = $1 AND version = $2 AND operation != $3", id, version, "D");
+    let res = this._loadFeature(version, id);
 
     if (res.length == 0)
       return null;
@@ -679,6 +656,49 @@ class FeatureWriter {
     feature.properties[this.XYZ_NS].updatedAt = now;
     feature.properties[this.XYZ_NS].version = this.version;
     feature.properties[this.XYZ_NS].author = this.author;
+  }
+
+  debugBox(message) {
+    // let width = 120;
+    // let lines = message.split("\n");
+    // let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
+    // let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
+    // lines = lines.map(line => "#" + leftPadding + line
+    //     + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
+    // plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
+  }
+
+  //Low level DB / table facing helper methods:
+
+  _loadFeature(version, id) {
+    let sql = `SELECT id, version, author, jsondata, geo::JSONB FROM "${this.schema}"."${this.table}"`;
+
+    let res = version == "HEAD"
+        //next_version + operation supports head retrieval if we have multiple versions
+        ? plv8.execute(sql + "WHERE id = $1 AND next_version = max_bigint() AND operation != $2", id, "D")
+        : plv8.execute(sql + "WHERE id = $1 AND version = $2 AND operation != $3", id, version, "D");
+    return res;
+  }
+
+  _insertHistoryRow() {
+    plv8.execute(`INSERT INTO "${this.schema}"."${this.table}"
+                      (id, version, operation, author, jsondata, geo)
+                  VALUES ($1, $2, $3, $4,
+                          $5::JSONB - 'geometry',
+                          CASE
+                              WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL
+                              ELSE ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry')) END)`,
+        this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
+  }
+
+  _deleteRow(baseVersion = -1) {
+    let sql = `DELETE FROM "${this.schema}"."${this.table}" WHERE id = $1 `;
+    if (baseVersion == 0)
+        //TODO: Check if this case is necessary. Why would we need to delete sth. on a space with v=0 (empty space)
+      return plv8.execute(sql + "AND next_version = max_bigint();", this.inputFeature.id);
+    else if (baseVersion > 0)
+      plv8.execute(sql + "AND version = $2;", this.inputFeature.id, baseVersion);
+    return plv8.execute(sql, this.inputFeature.id);
   }
 }
 

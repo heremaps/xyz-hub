@@ -22,7 +22,9 @@ package com.here.xyz.test;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -107,31 +109,35 @@ public abstract class GenericSpaceBased extends SQLITBase {
           .withVariable(TABLE, resource).withNamedParameter("id", feature.getId()).withNamedParameter("version", version);
 
       checkQuery.run(dsp, rs -> {
-        if (!rs.next())
-          throw new RuntimeException("Feature does not exists");
+        try {
+          assertTrue("Feature does not exist but was expected to exist", rs.next());
 
-        Long db_version = rs.getLong("version");
-        Long db_next_version = rs.getLong("next_version");
-        String db_operation = rs.getString("operation");
-        String db_author = rs.getString("author");
-        String db_jsondata = rs.getString("jsondata");
-        String db_geo = rs.getString("geo");
+          Long db_version = rs.getLong("version");
+          Long db_next_version = rs.getLong("next_version");
+          String db_operation = rs.getString("operation");
+          String db_author = rs.getString("author");
+          String db_jsondata = rs.getString("jsondata");
+          String db_geo = rs.getString("geo");
 
-        if (version != null)
-          assertEquals(version, db_version);
-        if (next_version != null)
-          assertEquals(next_version, db_next_version);
-        if (operation != null)
-          assertEquals(operation.toString(), db_operation);
-        if (author != null)
-          assertEquals(author, db_author);
-        if (feature.getGeometry() != null)
-          checkGeometry(db_geo, feature.getGeometry());
-        if (feature.getProperties() != null)
-          checkProperties(db_jsondata, feature.getProperties());
+          if (version != null)
+            assertEquals(version, db_version);
+          if (next_version != null)
+            assertEquals(next_version, db_next_version);
+          if (operation != null)
+            assertEquals(operation.toString(), db_operation);
+          if (author != null)
+            assertEquals(author, db_author);
+          if (feature.getGeometry() != null)
+            checkGeometry(db_geo, feature.getGeometry());
+          if (feature.getProperties() != null)
+            checkProperties(db_jsondata, feature.getProperties());
 
-        checkNamespace(db_jsondata, author, operation, version);
-        return null;
+          checkNamespace(db_jsondata, author, operation, version);
+          return null;
+        }
+        catch (JsonProcessingException e) {
+          throw new RuntimeException(e);
+        }
       });
     }
     return null;
@@ -143,8 +149,7 @@ public abstract class GenericSpaceBased extends SQLITBase {
           dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, resource).withNamedParameter("id", id);
 
       check.run(dsp, rs -> {
-        if (rs.next())
-          throw new RuntimeException("Feature exists!");
+        assertFalse("Feature exists but was expected to not exist!", rs.next());
         return null;
       });
     }
@@ -158,57 +163,38 @@ public abstract class GenericSpaceBased extends SQLITBase {
           dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, resource).withNamedParameter("id", id);
 
       check.run(dsp, rs -> {
-        if (rs.next())
-          return null;
         if (shouldExist)
-          throw new RuntimeException("History entry for deletion does not exist!");
+          assertTrue("History entry for deletion does not exist!", rs.next());
         return null;
       });
     }
     return null;
   }
 
-  protected void checkNamespace(String dbFeature, String author, Operation operation, long version) {
-    try {
-      Feature f = XyzSerializable.deserialize(dbFeature);
+  protected void checkNamespace(String dbFeature, String author, Operation operation, long version) throws JsonProcessingException {
+    Feature f = XyzSerializable.deserialize(dbFeature);
 
-      long createdAt = f.getProperties().getXyzNamespace().getCreatedAt();
-      long updatedAt = f.getProperties().getXyzNamespace().getUpdatedAt();
+    long createdAt = f.getProperties().getXyzNamespace().getCreatedAt();
+    long updatedAt = f.getProperties().getXyzNamespace().getUpdatedAt();
 
-      assertNotNull(createdAt);
-      assertNotNull(updatedAt);
-      //TODO: Hub does not write version & author - it gets injected. Align FeatureWriter!
-      //assertEquals(version, f.getProperties().getXyzNamespace().getVersion() );
-      //assertEquals(author, f.getProperties().getXyzNamespace().getAuthor());
+    assertNotNull(createdAt);
+    assertNotNull(updatedAt);
+    //TODO: Hub does not write version & author - it gets injected. Align FeatureWriter!
+    //assertEquals(version, f.getProperties().getXyzNamespace().getVersion() );
+    //assertEquals(author, f.getProperties().getXyzNamespace().getAuthor());
 
-      if (operation.equals(Operation.I))
-        assertEquals(createdAt, updatedAt);
-
-    }
-    catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+    if (operation.equals(Operation.I))
+      assertEquals(createdAt, updatedAt);
   }
 
-  protected void checkGeometry(String dbGeometry, Geometry featureGeo) {
-    try {
-      Geometry dbGeo = XyzSerializable.deserialize(dbGeometry);
-      dbGeo.getJTSGeometry().equalsExact(featureGeo.getJTSGeometry());
-    }
-    catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+  protected void checkGeometry(String dbGeometry, Geometry featureGeo) throws JsonProcessingException {
+    Geometry dbGeo = XyzSerializable.deserialize(dbGeometry);
+    dbGeo.getJTSGeometry().equalsExact(featureGeo.getJTSGeometry());
   }
 
-  protected void checkProperties(String dbFeature, Properties expectedProperties) {
-    try {
-      Feature f = XyzSerializable.deserialize(dbFeature);
-
-      checkProperties((HashMap) f.getProperties().toMap(), (HashMap) expectedProperties.toMap());
-    }
-    catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+  protected void checkProperties(String dbFeature, Properties expectedProperties) throws JsonProcessingException {
+    Feature f = XyzSerializable.deserialize(dbFeature);
+    checkProperties((HashMap) f.getProperties().toMap(), (HashMap) expectedProperties.toMap());
   }
 
   protected void checkProperties(HashMap dbProperties, HashMap expectedProperties) {

@@ -50,7 +50,7 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
     return List.of(
         /** Feature not exists */
         new TestArgs(
-            "0",
+            "1",
             false,
             false,
             false,
