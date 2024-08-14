@@ -56,13 +56,13 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
         new TestArgs("0", false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
             /* Expected content of the written Feature */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                Operation.I,  //expectedFeatureOperation
-                simpleFeature(),  //expectedFeature
-                1L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                Operation.I,
+                simpleFeature(),
+                1L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         /* No existing Feature expected. No TableOperation! */
@@ -75,49 +75,49 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
         new TestArgs("3", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null,
             /* Expected content of the deleted Feature (History). */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                Operation.D,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                Operation.D,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("4", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
             /* Expected content of the replaced Feature (2th write). */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("5", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
             /* Expected content of the untouched Feature (from 1th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                Operation.I,  //expectedFeatureOperation
-                simpleFeature(),  //expectedFeature
-                1L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                Operation.I,
+                simpleFeature(),
+                1L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("6", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
             /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 1th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                Operation.I,  //expectedFeatureOperation
-                simpleFeature(),  //expectedFeature
-                1L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                FEATURE_EXISTS  //expectedSQLError
+                INSERT,
+                Operation.I,
+                simpleFeature(),
+                1L,
+                Long.MAX_VALUE,
+                null,
+                FEATURE_EXISTS
             )
         ),
         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
@@ -125,53 +125,53 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             null, null,
             /* Expected content of the deleted Feature (3rd write) (History) */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                Operation.D,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
+                INSERT,
+                Operation.D,
+                simple1stModifiedFeature(),
                 //TODO: Check if version=3 is correct!
-                3L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                3L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("8", false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the replaced Feature (3th write) */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple2ndModifiedFeature(3L, false),  //expectedFeature
-                3L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple2ndModifiedFeature(3L, false),
+                3L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("9", false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("10", false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
             null, null,
             /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 2th write). No TableOperation!  */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                FEATURE_EXISTS  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                FEATURE_EXISTS
             )
         ),
 
@@ -179,25 +179,25 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
         new TestArgs("11", false, true, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
             /* SQLError.VERSION_CONFLICT_ERROR & Expected content of the untouched Feature (from 2th write). */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                SQLError.VERSION_CONFLICT_ERROR
             )
         ),
         new TestArgs("12", false, true, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         /**  Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> REPLACE */
@@ -205,66 +205,66 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             null, null,
             /* Expected content of the deleted Feature (3rd write) (History) */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                Operation.D,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                3L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                Operation.D,
+                simple1stModifiedFeature(),
+                3L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("14", false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the replaced Feature (3th write). */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple2ndModifiedFeature(3L, false),  //expectedFeature
-                3L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple2ndModifiedFeature(3L, false),
+                3L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("15", false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         new TestArgs("16", false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                FEATURE_EXISTS  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                FEATURE_EXISTS
             )
         ),
         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> MERGE (NoConflicting Changes) */
         new TestArgs("17", false, true, true, false, false, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
             /* Expected content of the merged Feature (from 2th&3th write). */
             new Expectations(
-                INSERT, //expectedTableOperation
+                INSERT,
                 //TODO: Check
-                U, //expectedFeatureOperation
-                simple1stModifiedFeature().withProperties(simple1stModifiedFeature().getProperties().with("age", "32")), //expectedFeature
-                3L, //expectedVersion
-                Long.MAX_VALUE, //expectedNextVersion
-                null, //expectedAuthor
-                null //expectedSQLError
+                U,
+                simple1stModifiedFeature().withProperties(simple1stModifiedFeature().getProperties().with("age", "32")),
+                3L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
 
@@ -275,13 +275,13 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                SQLError.MERGE_CONFLICT_ERROR  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                SQLError.MERGE_CONFLICT_ERROR
             )
         ),
         //TODO: Test is flickering! Assumption: hub behavior is not consistent.
@@ -290,13 +290,13 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         ),
         //TODO: Test is flickering! Assumption: hub behavior is not consistent.
@@ -305,13 +305,13 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             null,
             /* Expected content of the replaced Feature (3th write). */
             new Expectations(
-                INSERT,  //expectedTableOperation
-                U,  //expectedFeatureOperation
-                simple2ndModifiedFeature(3L, true),  //expectedFeature
-                3L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                null,  //expectedAuthor
-                null  //expectedSQLError
+                INSERT,
+                U,
+                simple2ndModifiedFeature(3L, true),
+                3L,
+                Long.MAX_VALUE,
+                null,
+                null
             )
         )
     );

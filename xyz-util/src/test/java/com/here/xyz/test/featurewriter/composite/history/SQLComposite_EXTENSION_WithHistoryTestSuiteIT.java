@@ -21,20 +21,20 @@ package com.here.xyz.test.featurewriter.composite.history;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
-import com.here.xyz.test.featurewriter.noncomposite.history.SQLNonCompositWithHistoryTestSuiteIT;
+import com.here.xyz.test.featurewriter.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class SQLComposite_EXTENSION_WithHistoryTestSuiteIT extends SQLNonCompositWithHistoryTestSuiteIT {
+public class SQLComposite_EXTENSION_WithHistoryTestSuiteIT extends SQLNonCompositeWithHistoryTestSuiteIT {
 
-    public SQLComposite_EXTENSION_WithHistoryTestSuiteIT(TestArgs args) {
-        super(args.withComposite(true).withContext(EXTENSION));
-    }
+  public SQLComposite_EXTENSION_WithHistoryTestSuiteIT(TestArgs args) {
+    super(args.withComposite(true).withContext(EXTENSION));
+  }
 
-    @Test
-    public void start() throws Exception {
-        featureWriterExecutor();
-    }
+  @Test
+  public void start() throws Exception {
+    featureWriterExecutor();
+  }
 }

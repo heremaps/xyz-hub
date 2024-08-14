@@ -48,31 +48,31 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
     return List.of(
         /** Feature not exists */
         new TestArgs(
-            "0",    //testName
-            true,  //composite
-            false,  //history
-            false,  //featureExists
-            null,  //baseVersionMatch
-            null,  //conflictingAttributes
-            null,  //featureExistsInSuper
-            null,  //featureExistsInExtension
+            "0",
+            true,
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
 
-            UserIntent.WRITE,  //userIntent
-            OnNotExists.CREATE,  //onNotExists
-            null,  //onExists
-            null,  //onVersionConflict
-            null,  //onMergeConflict
-            SpaceContext.DEFAULT,  //spaceContext
+            UserIntent.WRITE,
+            OnNotExists.CREATE,
+            null,
+            null,
+            null,
+            SpaceContext.DEFAULT,
 
-            /* Expected content of newly created Feature */
+            //Expected content of newly created Feature
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.I,  //expectedFeatureOperation
-                simpleFeature(),  //expectedFeature
-                1L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.I,
+                simpleFeature(),
+                1,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                null
             )
         )
 //                /* No existing Feature expected. No TableOperation!  */

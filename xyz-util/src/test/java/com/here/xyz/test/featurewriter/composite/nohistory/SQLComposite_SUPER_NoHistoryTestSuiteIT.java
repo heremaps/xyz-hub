@@ -29,12 +29,12 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class SQLComposite_SUPER_NoHistoryTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
 
-    public SQLComposite_SUPER_NoHistoryTestSuiteIT(TestArgs args) {
-        super(args.withComposite(true).withContext(SUPER));
-    }
+  public SQLComposite_SUPER_NoHistoryTestSuiteIT(TestArgs args) {
+    super(args.withComposite(true).withContext(SUPER));
+  }
 
-    @Test
-    public void start() throws Exception {
-        featureWriterExecutor();
-    }
+  @Test
+  public void start() throws Exception {
+    featureWriterExecutor();
+  }
 }

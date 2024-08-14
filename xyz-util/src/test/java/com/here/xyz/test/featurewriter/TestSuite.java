@@ -39,6 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 
 public abstract class TestSuite {
+
   protected GenericSpaceBased genericSpaceWriter;
 
   protected String testName;
@@ -81,15 +82,12 @@ public abstract class TestSuite {
   }
 
   protected static Feature featureWithEmptyProperties() {
-    return new Feature()
-        .withId("id1")
-        .withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)))
+    return new Feature().withId("id1").withGeometry(new Point().withCoordinates(new PointCoordinates(8, 50)))
         .withProperties(new Properties());
   }
 
   protected static Feature simpleFeature() throws JsonProcessingException {
-    return featureWithEmptyProperties()
-        .withProperties(new Properties().with("firstName", "Alice").with("age", 35));
+    return featureWithEmptyProperties().withProperties(new Properties().with("firstName", "Alice").with("age", 35));
   }
 
   protected static Feature simple1stModifiedFeature() throws JsonProcessingException {
@@ -140,15 +138,15 @@ public abstract class TestSuite {
     //TODO: Check UserIntent
 
     if (!this.featureExists)
-      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, onExists, onNotExists,
-          onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
+      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, onExists, onNotExists, onVersionConflict,
+          onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
     else {
       //Simple 1th write
-      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, null, null,
-          null, null, false, EXTENSION, history, null);
+      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, null, null, null, null, false, EXTENSION, history,
+          null);
       //2th write
-      genericSpaceWriter.writeFeature(simple1stModifiedFeature(), GenericSpaceBased.UPDATE_AUTHOR, onExists, onNotExists,
-          onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
+      genericSpaceWriter.writeFeature(simple1stModifiedFeature(), GenericSpaceBased.UPDATE_AUTHOR, onExists, onNotExists, onVersionConflict,
+          onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
     }
     checkStrategies();
   }
@@ -157,21 +155,21 @@ public abstract class TestSuite {
     //TODO: Check UserIntent
 
     if (!this.featureExists)
-      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, onExists, onNotExists,
-          onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
+      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, onExists, onNotExists, onVersionConflict,
+          onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
     else {
       //Simple 1th write
-      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, null, null,
-          null, null, false, EXTENSION, history, null);
+      genericSpaceWriter.writeFeature(simpleFeature(), GenericSpaceBased.DEFAULT_AUTHOR, null, null, null, null, false, EXTENSION, history,
+          null);
       //Simple 2th write
-      genericSpaceWriter.writeFeature(simple1stModifiedFeature(1), GenericSpaceBased.DEFAULT_AUTHOR, null, null,
-          null, null, false, EXTENSION, history, null);
+      genericSpaceWriter.writeFeature(simple1stModifiedFeature(1), GenericSpaceBased.DEFAULT_AUTHOR, null, null, null, null, false,
+          EXTENSION, history, null);
       //3th write
       Long version = baseVersionMatch != null ? (baseVersionMatch ? 2L : 1L) : null;
       if (baseVersionMatch != null)
-        genericSpaceWriter.writeFeature(simple2ndModifiedFeature(version, conflictingAttributes), GenericSpaceBased.UPDATE_AUTHOR,
-            onExists, onNotExists,
-            onVersionConflict, onMergeConflict, false, spaceContext, history, expectations != null ? expectations.sqlError() : null);
+        genericSpaceWriter.writeFeature(simple2ndModifiedFeature(version, conflictingAttributes), GenericSpaceBased.UPDATE_AUTHOR, onExists,
+            onNotExists, onVersionConflict, onMergeConflict, false, spaceContext, history,
+            expectations != null ? expectations.sqlError() : null);
     }
     checkStrategies();
   }
@@ -336,7 +334,6 @@ public abstract class TestSuite {
     DELETE
   }
 
-
   protected enum UserIntent {
     WRITE, //Illegal Argument
     DELETE
@@ -344,19 +341,18 @@ public abstract class TestSuite {
 
   //TODO: Use unboxed type instead of Booleans
   public record TestArgs(String testName, boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch,
-                            Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension,
-                            UserIntent userIntent, GenericSpaceBased.OnNotExists onNotExists, GenericSpaceBased.OnExists onExists,
-                            GenericSpaceBased.OnVersionConflict onVersionConflict, GenericSpaceBased.OnMergeConflict onMergeConflict,
-                            SpaceContext spaceContext, Expectations expectations) {
+      Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
+      GenericSpaceBased.OnNotExists onNotExists, GenericSpaceBased.OnExists onExists, GenericSpaceBased.OnVersionConflict onVersionConflict,
+      GenericSpaceBased.OnMergeConflict onMergeConflict, SpaceContext spaceContext, Expectations expectations) {
 
     public TestArgs withComposite(boolean composite) {
-      return new TestArgs(testName, true, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension,
-          userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
+      return new TestArgs(testName, true, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
     }
 
     public TestArgs withContext(SpaceContext spaceContext) {
-      return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper, featureExistsInExtension,
-          userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
+      return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations);
     }
 
     @Override
@@ -365,9 +361,8 @@ public abstract class TestSuite {
     }
   }
 
-  public record Expectations(TableOperation tableOperation, Operation featureOperation,
-                             Feature feature, long version, long nextVersion, String author,
-                             SQLError sqlError) {
+  public record Expectations(TableOperation tableOperation, Operation featureOperation, Feature feature, long version, long nextVersion,
+      String author, SQLError sqlError) {
 
     public Expectations(SQLError sqlError) {
       this(null, null, null, 0L, 0L, null, sqlError);

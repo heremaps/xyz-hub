@@ -68,13 +68,13 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
 
             /* Expected content of newly created Feature */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.I,  //expectedFeatureOperation
-                simpleFeature(),  //expectedFeature
-                1L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.I,
+                simpleFeature(),
+                1L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                null
             )
         ),
         /* No existing Feature expected. No TableOperation!  */
@@ -90,37 +90,37 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
         new TestArgs("5", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
             /* Expected content of the replaced Feature */
             new Expectations(
-                TableOperation.UPDATE,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.UPDATE,
+                Operation.U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.UPDATE_AUTHOR,
+                null
             )
         ),
         new TestArgs("6", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
             /* Expected content of first written Feature which should stay untouched. No TableOperation! */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.I,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                1L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.I,
+                simple1stModifiedFeature(),
+                1L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                null
             )
         ),
         new TestArgs("7", false, false, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
             /* SQLError.FEATURE_EXISTS & Expected content of first written Feature which should stay untouched. No TableOperation! */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.I,  //expectedFeatureOperation
-                simpleFeature(),  //expectedFeature
-                1L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                SQLError.FEATURE_EXISTS  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.I,
+                simpleFeature(),
+                1L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                SQLError.FEATURE_EXISTS
             )
         ),
 
@@ -133,88 +133,88 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
             null, null,
             /* Expected content of the replaced Feature (3th write). */
             new Expectations(
-                TableOperation.UPDATE,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple2ndModifiedFeature(3L, false),  //expectedFeature
-                3L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.UPDATE,
+                Operation.U,
+                simple2ndModifiedFeature(3L, false),
+                3L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.UPDATE_AUTHOR,
+                null
             )
         ),
         new TestArgs("10", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                null
             )
         ),
         new TestArgs("11", false, false, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
             null, null,
             /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                SQLError.FEATURE_EXISTS  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                SQLError.FEATURE_EXISTS
             )
         ),
         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH */
         new TestArgs("12", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
             /* SQLError.VERSION_CONFLICT_ERROR & Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                SQLError.VERSION_CONFLICT_ERROR  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                SQLError.VERSION_CONFLICT_ERROR
             )
         ),
         new TestArgs("13", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                null
             )
         ),
         new TestArgs("14", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.REPLACE, null, null,
             /* Expected content of the replaced Feature (from 3th write). */
             new Expectations(
-                TableOperation.UPDATE,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple2ndModifiedFeature(3L, false),  //expectedFeature
-                3L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.UPDATE_AUTHOR,  //expectedAuthor
-                null  //expectedSQLError
+                TableOperation.UPDATE,
+                Operation.U,
+                simple2ndModifiedFeature(3L, false),
+                3L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.UPDATE_AUTHOR,
+                null
             )
         ),
         new TestArgs("15", false, false, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
             /* SQLError.ILLEGAL_ARGUMEN & Expected content of the untouched Feature (from 2th write). No TableOperation!  */
             new Expectations(
-                TableOperation.INSERT,  //expectedTableOperation
-                Operation.U,  //expectedFeatureOperation
-                simple1stModifiedFeature(),  //expectedFeature
-                2L,  //expectedVersion
-                Long.MAX_VALUE,  //expectedNextVersion
-                GenericSpaceBased.DEFAULT_AUTHOR,  //expectedAuthor
-                SQLError.ILLEGAL_ARGUMENT  //expectedSQLError
+                TableOperation.INSERT,
+                Operation.U,
+                simple1stModifiedFeature(),
+                2L,
+                Long.MAX_VALUE,
+                GenericSpaceBased.DEFAULT_AUTHOR,
+                SQLError.ILLEGAL_ARGUMENT
             )
         )
     );

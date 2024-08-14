@@ -34,9 +34,8 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
 
     //Actual executions
     if (input_features == null)
-        plv8.elog(ERROR, "Parameter input_features must not be null.");
+        throw new Error("Parameter input_features must not be null.");
 
-    //TODO: Compare JSON parsing performance of PLSQL vs PLV8
     let features = JSON.parse(input_features);
     let version = getNextVersion();
 
@@ -55,9 +54,9 @@ CREATE OR REPLACE FUNCTION get_next_version() RETURNS BIGINT AS $BODY$
 
     const VERSION_SEQUENCE_SUFFIX = "_version_seq";
     let sequenceName = context("table") + VERSION_SEQUENCE_SUFFIX;
-    let fullQualifiedSequenceName = "\"" + context("schema") + "\".\"" + sequenceName + "\"";
+    let fullQualifiedSequenceName = `"${context("schema")}"."${sequenceName}"`;
 
-    //Actual executions
+    //Actual execution
     return plv8.execute("SELECT nextval($1)", fullQualifiedSequenceName)[0].nextval;
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
@@ -68,6 +67,8 @@ $BODY$ LANGUAGE plv8 IMMUTABLE;
 CREATE OR REPLACE FUNCTION write_feature(input_feature JSONB, version BIGINT, author TEXT, on_exists TEXT,
     on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN)
     RETURNS JSONB AS $BODY$
+
+    //TODO: Increase version if being called directly
 
     //Init block of internal feature_writer functionality
     const context = plv8.context = key => plv8.execute("SELECT context($1)", key)[0].context[0];

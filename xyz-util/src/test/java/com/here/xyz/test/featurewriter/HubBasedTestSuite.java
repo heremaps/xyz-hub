@@ -23,8 +23,8 @@ import com.here.xyz.test.HubBasedSpaceTest;
 
 public class HubBasedTestSuite extends TestSuite {
 
-    public HubBasedTestSuite(TestArgs args) {
-        super(args);
-        genericSpaceWriter = new HubBasedSpaceTest(composite, history);
-    }
+  public HubBasedTestSuite(TestArgs args) {
+    super(args);
+    genericSpaceWriter = new HubBasedSpaceTest(composite, history);
+  }
 }

@@ -22,11 +22,10 @@ package com.here.xyz.test.featurewriter._custom;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.test.SQLBasedSpaceTest;
+import java.util.Collections;
+import java.util.List;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.Arrays;
-import java.util.List;
 
 //TODO: Remove if custom tests are getting removed.
 public class SQLITWriteFeaturesBase extends SQLBasedSpaceTest {
@@ -35,45 +34,44 @@ public class SQLITWriteFeaturesBase extends SQLBasedSpaceTest {
     super(false);
   }
 
-  /** TODO: Remove if custom tests are getting removed */
+  /**
+   * TODO: Remove if custom tests are getting removed
+   */
   @Before
   public void prepare() throws Exception {
     createSpaceResources();
   }
 
-  /** TODO: Remove if custom tests are getting removed */
+  /**
+   * TODO: Remove if custom tests are getting removed
+   */
   @After
   public void clean() throws Exception {
     cleanSpaceResources();
   }
 
   //********************** Helper Functions *******************************/
-  public void writeFeature(Feature modifiedFeature, String author,
-                              OnExists onExists, OnNotExists onNotExists,
-                              OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                              SpaceContext spaceContext, boolean isHistoryActive, SQLError expectedError)
-          throws Exception {
-    writeFeatures(Arrays.asList(modifiedFeature), author, onExists , onNotExists,
-            onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
-  }
-
-  protected void writeFeatures(List<Feature> modifiedFeatureList, String author,
-                              OnExists onExists, OnNotExists onNotExists,
-                              OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-                              SpaceContext spaceContext, boolean isHistoryActive, SQLError expectedError)
-          throws Exception {
-    runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists , onNotExists,
-            onVersionConflict, onMergeConflict, isPartial, spaceContext, isHistoryActive, expectedError);
-  }
-
-  protected void performMerge(Feature feature1, Feature feature2, Feature expected, OnMergeConflict onMergeConflict,
-                              SQLError expectedError) throws Exception {
+  protected void performMerge(Feature feature1, Feature feature2, Feature expected, OnMergeConflict onMergeConflict, SQLError expectedError)
+      throws Exception {
     //initial write
-    writeFeature(feature1, DEFAULT_AUTHOR, null , null,
-            null, null, false, SpaceContext.EXTENSION,false, null);
+    writeFeature(feature1, DEFAULT_AUTHOR, null, null, null, null, false, SpaceContext.EXTENSION, false, null);
 
     //Lead into a version conflict, because version 0 is not present anymore
-    writeFeature(feature2, UPDATE_AUTHOR,null,null, OnVersionConflict.MERGE, onMergeConflict,
-            false, SpaceContext.EXTENSION, false, expectedError );
+    writeFeature(feature2, UPDATE_AUTHOR, null, null, OnVersionConflict.MERGE, onMergeConflict, false, SpaceContext.EXTENSION, false,
+        expectedError);
+  }
+
+  public void writeFeature(Feature modifiedFeature, String author, OnExists onExists, OnNotExists onNotExists,
+      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
+      boolean isHistoryActive, SQLError expectedError) throws Exception {
+    writeFeatures(Collections.singletonList(modifiedFeature), author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
+        spaceContext, isHistoryActive, expectedError);
+  }
+
+  protected void writeFeatures(List<Feature> modifiedFeatureList, String author, OnExists onExists, OnNotExists onNotExists,
+      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
+      boolean isHistoryActive, SQLError expectedError) throws Exception {
+    runWriteFeatureQueryWithSQLAssertion(modifiedFeatureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
+        spaceContext, isHistoryActive, expectedError);
   }
 }

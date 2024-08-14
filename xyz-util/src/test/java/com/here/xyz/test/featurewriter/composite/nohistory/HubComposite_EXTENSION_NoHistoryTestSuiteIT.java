@@ -29,12 +29,12 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class HubComposite_EXTENSION_NoHistoryTestSuiteIT extends HubNonCompositeNoHistoryTestSuiteIT {
 
-    public HubComposite_EXTENSION_NoHistoryTestSuiteIT(TestArgs args) {
-        super(args.withComposite(true).withContext(EXTENSION));
-    }
+  public HubComposite_EXTENSION_NoHistoryTestSuiteIT(TestArgs args) {
+    super(args.withComposite(true).withContext(EXTENSION));
+  }
 
-    @Test
-    public void start() throws Exception {
-        featureWriterExecutor();
-    }
+  @Test
+  public void start() throws Exception {
+    featureWriterExecutor();
+  }
 }

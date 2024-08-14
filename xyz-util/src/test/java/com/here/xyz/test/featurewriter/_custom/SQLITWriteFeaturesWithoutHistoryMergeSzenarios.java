@@ -20,11 +20,12 @@
 package com.here.xyz.test.featurewriter._custom;
 
 public class SQLITWriteFeaturesWithoutHistoryMergeSzenarios extends SQLITWriteFeaturesBase {
-    public SQLITWriteFeaturesWithoutHistoryMergeSzenarios(boolean composite) {
-        super(composite);
-    }
 
-    //********************** Feature exists + BaseVersion Conflict + Merge Conflict *******************************/
+  public SQLITWriteFeaturesWithoutHistoryMergeSzenarios(boolean composite) {
+    super(composite);
+  }
+
+  //********************** Feature exists + BaseVersion Conflict + Merge Conflict *******************************/
 //  @Test
 //  public void merge_With_DefaultSettings() throws Exception {
 //    //Default is ERROR

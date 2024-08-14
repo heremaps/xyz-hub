@@ -26,89 +26,89 @@ import org.junit.Test;
 
 public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeaturesBase {
 
-    public SQLITWriteFeaturesWithoutHistoryDefaults() {
-        super(false);
-    }
+  public SQLITWriteFeaturesWithoutHistoryDefaults() {
+    super(false);
+  }
 
-    @Test
-    public void writeFeature_WithDefaults() throws Exception {
-        Feature f1 = XyzSerializable.deserialize("""
-            { "type":"Feature",
-              "id":"id1",
-              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
-              "properties":{"firstName":"Alice","age":35}
-            }
-            """, Feature.class);
+  @Test
+  public void writeFeature_WithDefaults() throws Exception {
+    Feature f1 = XyzSerializable.deserialize("""
+        { "type":"Feature",
+          "id":"id1",
+          "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+          "properties":{"firstName":"Alice","age":35}
+        }
+        """, Feature.class);
 
-        writeFeature(f1, DEFAULT_AUTHOR, null, null,
-                null, null, false, SpaceContext.EXTENSION, false, null);
+    writeFeature(f1, DEFAULT_AUTHOR, null, null,
+        null, null, false, SpaceContext.EXTENSION, false, null);
 
-        checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
-    }
+    checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
+  }
 
-    @Test
-    public void writeToExistingFeature_WithDefaults() throws Exception {
-        //initial write
-        Feature f1 = XyzSerializable.deserialize("""
-            { "type":"Feature",
-              "id":"id1",
-              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
-              "properties":{"firstName":"Alice","age":35}
-            }
-            """, Feature.class);
+  @Test
+  public void writeToExistingFeature_WithDefaults() throws Exception {
+    //initial write
+    Feature f1 = XyzSerializable.deserialize("""
+        { "type":"Feature",
+          "id":"id1",
+          "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+          "properties":{"firstName":"Alice","age":35}
+        }
+        """, Feature.class);
 
-        writeFeature(f1, DEFAULT_AUTHOR, null, null,
-                null, null, false, SpaceContext.EXTENSION, false, null);
+    writeFeature(f1, DEFAULT_AUTHOR, null, null,
+        null, null, false, SpaceContext.EXTENSION, false, null);
 
-        //second write || Default=REPLACE
-        Feature f2 = XyzSerializable.deserialize("""
-            { "type":"Feature",
-              "id":"id1",
-              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
-              "properties":{"lastName":"Wonder"}
-            }
-            """, Feature.class);
-        writeFeature(f2, UPDATE_AUTHOR, null, null, null, null,
-                false, SpaceContext.EXTENSION, false, null);
+    //second write || Default=REPLACE
+    Feature f2 = XyzSerializable.deserialize("""
+        { "type":"Feature",
+          "id":"id1",
+          "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+          "properties":{"lastName":"Wonder"}
+        }
+        """, Feature.class);
+    writeFeature(f2, UPDATE_AUTHOR, null, null, null, null,
+        false, SpaceContext.EXTENSION, false, null);
 
-        checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
-    }
+    checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
+  }
 
-    @Test
-    public void writeTiExistingFeature_WithDefaults_Partial() throws Exception {
-        //Insert Feature
-        Feature f1 = XyzSerializable.deserialize("""
-            { "type":"Feature",
-              "id":"id1",
-              "geometry":{"type":"Point","coordinates":[8.0,50.0]},
-              "properties":{"firstName":"Alice","age":35}
-            }
-            """, Feature.class);
+  @Test
+  public void writeTiExistingFeature_WithDefaults_Partial() throws Exception {
+    //Insert Feature
+    Feature f1 = XyzSerializable.deserialize("""
+        { "type":"Feature",
+          "id":"id1",
+          "geometry":{"type":"Point","coordinates":[8.0,50.0]},
+          "properties":{"firstName":"Alice","age":35}
+        }
+        """, Feature.class);
 
-        writeFeature(f1, DEFAULT_AUTHOR, null, null,
-                null, null, false, SpaceContext.EXTENSION, false, null);
+    writeFeature(f1, DEFAULT_AUTHOR, null, null,
+        null, null, false, SpaceContext.EXTENSION, false, null);
 
-        Feature f2 = XyzSerializable.deserialize("""
-            { 
-              "type":"Feature",
-              "id":"id1",           
-              "geometry":{"type":"Point","coordinates":[50.0,50.0]},   
-              "properties": {"new":"value"}
-             }
-            """, Feature.class);
-        //second write with partial modifications
-        writeFeature(f2, UPDATE_AUTHOR, null, null,
-                null, null, true, SpaceContext.EXTENSION, false, null);
+    Feature f2 = XyzSerializable.deserialize("""
+        { 
+          "type":"Feature",
+          "id":"id1",           
+          "geometry":{"type":"Point","coordinates":[50.0,50.0]},   
+          "properties": {"new":"value"}
+         }
+        """, Feature.class);
+    //second write with partial modifications
+    writeFeature(f2, UPDATE_AUTHOR, null, null,
+        null, null, true, SpaceContext.EXTENSION, false, null);
 
-        Feature expected = XyzSerializable.deserialize("""
-            { 
-              "type":"Feature",            
-              "id":"id1",
-              "geometry":{"type":"Point","coordinates":[50.0,50.0]},
-              "properties":{"firstName":"Alice","age":35, "new" : "value"}
-             }
-            """, Feature.class);
+    Feature expected = XyzSerializable.deserialize("""
+        { 
+          "type":"Feature",            
+          "id":"id1",
+          "geometry":{"type":"Point","coordinates":[50.0,50.0]},
+          "properties":{"firstName":"Alice","age":35, "new" : "value"}
+         }
+        """, Feature.class);
 
-        checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
-    }
+    checkExistingFeature(expected, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
+  }
 }
