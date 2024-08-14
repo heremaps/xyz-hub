@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.composite.nohistory;
+package com.here.xyz.test.featurewriter.rest.composite.nohistory;
 
 public class HubComposite_SUPER_NoHistoryTestSuiteIT {
 
