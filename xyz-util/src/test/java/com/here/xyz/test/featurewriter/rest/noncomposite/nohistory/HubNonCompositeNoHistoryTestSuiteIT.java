@@ -48,21 +48,21 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
     return List.of(
         /** Feature not exists */
         new TestArgs(
-            "0",    //testName
-            true,  //composite
-            false,  //history
-            false,  //featureExists
-            null,  //baseVersionMatch
-            null,  //conflictingAttributes
-            null,  //featureExistsInSuper
-            null,  //featureExistsInExtension
+            "0",
+            true,
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
 
-            UserIntent.WRITE,  //userIntent
-            OnNotExists.CREATE,  //onNotExists
-            null,  //onExists
-            null,  //onVersionConflict
-            null,  //onMergeConflict
-            null,  //spaceContext
+            UserIntent.WRITE,
+            OnNotExists.CREATE,
+            null,
+            null,
+            null,
+            null,
 
             /* Expected content of newly created Feature */
             new Expectations(

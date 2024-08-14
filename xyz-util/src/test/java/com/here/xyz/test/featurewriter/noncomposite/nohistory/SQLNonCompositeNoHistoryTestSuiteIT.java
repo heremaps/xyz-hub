@@ -50,21 +50,21 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
     return List.of(
         /** Feature not exists */
         new TestArgs(
-            "0",    //testName
-            false,  //composite
-            false,  //history
-            false,  //featureExists
-            null,  //baseVersionMatch
-            null,  //conflictingAttributes
-            null,  //featureExistsInSuper
-            null,  //featureExistsInExtension
+            "0",
+            false,
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
 
-            UserIntent.WRITE,  //userIntent
-            OnNotExists.CREATE,  //onNotExists
-            null,  //onExists
-            null,  //onVersionConflict
-            null,  //onMergeConflict
-            null,  //spaceContext
+            UserIntent.WRITE,
+            OnNotExists.CREATE,
+            null,
+            null,
+            null,
+            null,
 
             /* Expected content of newly created Feature */
             new Expectations(
