@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.rest.noncomposite.history;
+package com.here.xyz.test.rest.noncomposite.history;
 
 import static com.here.xyz.test.GenericSpaceBased.Operation.U;
 import static com.here.xyz.test.GenericSpaceBased.SQLError.FEATURE_EXISTS;

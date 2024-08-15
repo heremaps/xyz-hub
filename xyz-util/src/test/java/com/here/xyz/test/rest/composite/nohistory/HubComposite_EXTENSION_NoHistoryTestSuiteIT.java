@@ -17,11 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.rest.composite.nohistory;
+package com.here.xyz.test.rest.composite.nohistory;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
-import com.here.xyz.test.featurewriter.rest.noncomposite.nohistory.HubNonCompositeNoHistoryTestSuiteIT;
+import com.here.xyz.test.rest.noncomposite.nohistory.HubNonCompositeNoHistoryTestSuiteIT;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;

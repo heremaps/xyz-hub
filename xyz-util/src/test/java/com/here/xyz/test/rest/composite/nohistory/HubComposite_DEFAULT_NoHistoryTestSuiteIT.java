@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.rest.composite.nohistory;
+package com.here.xyz.test.rest.composite.nohistory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
