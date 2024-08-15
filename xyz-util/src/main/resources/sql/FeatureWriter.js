@@ -58,9 +58,12 @@ class FeatureWriter {
     this.historyEnabled = context("historyEnabled");
 
     this.inputFeature = inputFeature;
-    this.isDelete = this._hasDeletedFlag(this.inputFeature);
     this.version = version;
-    this.author = author;
+    this.author = author || "ANOYMOUS";
+    this.baseVersion = (this.inputFeature.properties || {})[this.XYZ_NS]?.version;
+    this.enrichFeature();
+
+    this.isDelete = !!this.inputFeature.properties[this.XYZ_NS].deleted;
     this.onExists = onExists || "REPLACE";
     this.onNotExists = onNotExists || (isPartial ? "ERROR" : "CREATE");
     this.onVersionConflict = onVersionConflict == null ? null : onVersionConflict || (this.isDelete ? "REPLACE" : "MERGE");
@@ -70,9 +73,10 @@ class FeatureWriter {
     if (this.onVersionConflict == "MERGE" && !this.historyEnabled)
       throw new IllegalArgumentException("MERGE can not be executed for spaces without history!");
 
-    this.debugBox(JSON.stringify(this, null, 2));
+    if (this.onVersionConflict && this.baseVersion == null)
+      throw new IllegalArgumentException("The provided Feature does not have a baseVersion but a version conflict detection was requested!");
 
-    this.enrichFeature();
+    this.debugBox(JSON.stringify(this, null, 2));
   }
 
   /**
@@ -198,20 +202,59 @@ class FeatureWriter {
     if (this.isPartial)
       this.inputFeature = this.patch(this.loadFeature(this.inputFeature.id), this.inputFeature);
 
-    if (this.onVersionConflict == null) {
+    if (this.onVersionConflict != null) {
+      this.debugBox("Version conflict handling! Base version: " + this.baseVersion);
+
+      if (this.onExists == "DELETE")
+        //TODO: Ensure deletion is done with conflict detection
+        return this.deleteFeature();
+
+      /**
+       TODO: implement non-conflict Case!
+       In this case we check if we need onExists handling here. If its present is has a higher priority as onVersionConflict.
+       */
+
+      if (this.onExists != "REPLACE" || this.onNotExists != "CREATE") {
+        let headFeature = this.loadFeature(this.inputFeature.id);
+
+        switch (this.onExists) {
+          case "RETAIN":
+            if (headFeature != null)
+              return null;
+            break;
+          case "ERROR":
+            if (headFeature != null)
+              this._throwFeatureExistsError();
+            //NOT handling REPLACE
+        }
+
+        switch (this.onNotExists) {
+          case "RETAIN":
+            if (headFeature == null)
+              return null;
+            break;
+          case "ERROR":
+            if (headFeature == null)
+              this._throwFeatureNotExistsError();
+            //NOT handling CREATE
+        }
+      }
+
+      if (this._updateRow().length == 0)
+        return this.handleVersionConflict();
+    }
+    else {
       try {
         if (this.onExists == "DELETE")
           return this.deleteFeature();
 
         let writtenFeature = this._upsertRow();
 
-        if (writtenFeature[0].operation == "U")
+        if (writtenFeature[0]?.operation == "U")
           //Inject createdAt
           this.inputFeature.properties[this.XYZ_NS].createdAt = writtenFeature[0].created_at[0];
         else {
           switch (this.onNotExists) {
-            case "CREATE":
-              break; //NOTHING TO DO;
             case "ERROR":
               this._throwFeatureNotExistsError();
             case "RETAIN":
@@ -225,68 +268,16 @@ class FeatureWriter {
         if (e.sqlerrcode == SQLErrors.CONFLICT) {
           if (this.onExists == "ERROR")
             this._throwFeatureExistsError();
-          else if (this.onExists == "RETAIN")
-            return null;
           else
             throw new XyzException("Unexpected conflict while trying to perform write operation.").withDetail(e.detail).withHint(e.hint);
         }
 
-        this.debugBox(JSON.stringify({
-          message: e.toString(),
-          stack: e.stack
-        }, null, 2));
+        this.debugBox(e.stack);
 
         //Rethrow the original error, as it is unexpected
         throw e;
       }
       return this.inputFeature;
-    }
-    else {
-      plv8.elog(NOTICE, "version conflict handling! Base version:", this.baseVersion);
-
-      if (this.baseVersion == undefined)
-        throw new IllegalArgumentException("Provided Feature does not have a baseVersion!");
-
-      /**
-       TODO : implement non-conflict Case! In this case we
-       Check if we need onExists handling here. If its present is has a higher priority as onVersionConflict.
-       */
-
-      let headFeature;
-
-      if (this.onExists == "DELETE" || this.onExists == "RETAIN"
-          || this.onExists == "ERROR" || this.onNotExists == "RETAIN"
-          || this.onNotExists == "ERROR")
-        headFeature = this.loadFeature(this.inputFeature.id);
-
-      switch (this.onExists) {
-        case "DELETE":
-          if (headFeature != null)
-            return this.deleteFeature();
-          break;
-        case "RETAIN":
-          if (headFeature != null)
-            return null;
-          break;
-        case "ERROR":
-          if (headFeature != null)
-            this._throwFeatureExistsError();
-          //NOT handling REPLACE
-      }
-
-      switch (this.onNotExists) {
-        case "RETAIN":
-          if (headFeature == null)
-            return null;
-          break;
-        case "ERROR":
-          if (headFeature == null)
-            this._throwFeatureNotExistsError();
-          //NOT handling CREATE
-      }
-
-      if (this._updateRow().length == 0)
-        return this.handleVersionConflict()
     }
   }
 
@@ -427,6 +418,10 @@ class FeatureWriter {
     throw error;
   }
 
+  featureExists(id, version = "HEAD") {
+    //TODO: Check existence without actually loading feature data
+  }
+
   loadFeature(id, version = "HEAD") {
     if (version == "HEAD" && this.headFeature)
       return this.headFeature;
@@ -459,12 +454,6 @@ class FeatureWriter {
 
   _getFeatureVersion(feature) {
     return feature.properties[this.XYZ_NS].version;
-  }
-
-  _hasDeletedFlag(feature) {
-    return this.inputFeature.properties == undefined
-    || this.inputFeature.properties[this.XYZ_NS] == undefined ?
-        false : this.inputFeature.properties[this.XYZ_NS].deleted == true;
   }
 
   //Helper function to determine if a value is an object
@@ -565,6 +554,7 @@ class FeatureWriter {
    */
   patch(target, inputDiff) {
     //plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff)); //TODO: Use debug logging
+    target = target || {};
     for (let key in inputDiff) {
       if (inputDiff.hasOwnProperty(key)) {
         if (inputDiff[key] === null)
@@ -585,28 +575,26 @@ class FeatureWriter {
 
   enrichFeature() {
     let feature = this.inputFeature;
-    this.baseVersion = feature.properties && feature.properties[this.XYZ_NS] && feature.properties[this.XYZ_NS].version;
 
     feature.id = feature.id || Math.random().toString(36).slice(2, 10);
     feature.type = feature.type || "Feature";
-    this.author = this.author || "ANOYMOUS";
     feature.properties = feature.properties || {};
-    feature.properties[this.XYZ_NS] = feature.properties[this.XYZ_NS] || {};
-
-    //TODO: Set the createdAt TS right before writing and only if it is an insert
     let now = Date.now();
-    feature.properties[this.XYZ_NS].createdAt = (feature.properties[this.XYZ_NS].createdAt == undefined) ? now
-        : (feature.properties[this.XYZ_NS].createdAt);
-    feature.properties[this.XYZ_NS].updatedAt = now;
-    feature.properties[this.XYZ_NS].version = this.version;
-    feature.properties[this.XYZ_NS].author = this.author;
+    feature.properties[this.XYZ_NS] = {
+      ...feature.properties[this.XYZ_NS],
+      //TODO: Set the createdAt TS right before writing and only if it is an insert
+      createdAt: now,
+      updatedAt: now,
+      version: this.version,
+      author: this.author
+    };
   }
 
   debugBox(message) {
-    let width = 120;
+    let width = 140;
     let leftRightBuffer = 2;
     let maxLineLength = width - leftRightBuffer * 2;
-    let lines = message.split("\n").map(line => line.match(new RegExp(`.{1,${maxLineLength}}`, "g"))).flat();
+    let lines = message.split("\n").map(line => !line ? line : line.match(new RegExp(`.{1,${maxLineLength}}`, "g"))).flat();
     let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
     let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
     lines = lines.map(line => "#" + leftPadding + line
@@ -670,7 +658,7 @@ class FeatureWriter {
                               author = EXCLUDED.author,
                               jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
                                      tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
-                              geo = EXCLUDED.geo` : this.onExists == "RETAIN" ? " ON CONFLICT(id, version, next_version) DO NOTHING" : "";
+                              geo = EXCLUDED.geo` : this.onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
                         (id, version, operation, author, jsondata, geo)
