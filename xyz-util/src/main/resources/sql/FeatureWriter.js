@@ -127,12 +127,7 @@ class FeatureWriter {
 
     if (this.onVersionConflict != null) {
       //Version conflict detection is active
-      let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}"
-                                      SET next_version = $1
-                                      WHERE id = $2
-                                        AND next_version = $3::BIGINT
-                                        AND version = $4
-                                      RETURNING *`, this.version, this.inputFeature.id, this.maxBigint, this.baseVersion);
+      let updatedRows = this._updateNextVersion();
       if (updatedRows.length == 1) {
         if (this.onExists == "DELETE")
           this.operation = "D";
@@ -158,12 +153,7 @@ class FeatureWriter {
     }
     else {
       //Version conflict detection is not active
-      let updatedRows = plv8.execute(`UPDATE "${this.schema}"."${this.table}"
-                                      SET next_version = $1
-                                      WHERE id = $2
-                                        AND next_version = $3::BIGINT
-                                        AND version < $1
-                                      RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
+      let updatedRows = this._updateNextVersion();
       if (updatedRows.length == 1) {
         if (this.onExists == "DELETE")
           this.operation = "D";
@@ -179,11 +169,11 @@ class FeatureWriter {
       }
       else {
         switch (this.onNotExists) {
-          case "CREATE" :
+          case "CREATE":
             break; //NOTHING TO DO;
           case "ERROR":
             this._throwFeatureNotExistsError();
-          case "RETAIN" :
+          case "RETAIN":
             return null;
         }
 
@@ -209,63 +199,22 @@ class FeatureWriter {
       this.inputFeature = this.patch(this.loadFeature(this.inputFeature.id), this.inputFeature);
 
     if (this.onVersionConflict == null) {
-
-      //TODO: Use an ON CONFLICT clause here to directly UPDATE the feature instead of INSERTing it in case of existence (see: simple_upsert)
-      let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
-                     (id, version, operation, author, jsondata, geo)
-                 VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)))`;
-
-      switch (this.onExists) {
-        case "REPLACE" :
-          sql += ` ON CONFLICT (id, next_version) DO UPDATE SET
-                              version = greatest(tbl.version, EXCLUDED.version),
-                              operation = 'U',
-                              author = EXCLUDED.author,
-                              jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
-                                     tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
-                              geo = EXCLUDED.geo`;
-          break;
-        case "RETAIN" :
-          sql += " ON CONFLICT(id, version, next_version) DO NOTHING"
-          break;
-        case "DELETE" :
-          return this.deleteFeature();
-        case "ERROR" :
-          break;
-          //TODO Catch exception and thrown own exception?
-      }
-
-      //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
-
       try {
-        let writtenFeature = plv8.execute(sql + ` RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation `,
-            this.inputFeature.id,
-            this.version,
-            this.operation, //TODO set version operation
-            this.author,
-            this.inputFeature,
-            this.inputFeature.geometry
-        );
+        if (this.onExists == "DELETE")
+          return this.deleteFeature();
 
-        if (writtenFeature.length == 0) {
-          if (e.sqlerrcode == "23505" && this.onExists != "RETAIN")
-            this._throwFeatureExistsError();
-
-          throw new XyzException("Unexpected Error!")
-              .withDetail(e.detail)
-              .withHint(e.hint);
-        }
+        let writtenFeature = this._upsertRow();
 
         if (writtenFeature[0].operation == "U")
           //Inject createdAt
           this.inputFeature.properties[this.XYZ_NS].createdAt = writtenFeature[0].created_at[0];
         else {
           switch (this.onNotExists) {
-            case "CREATE" :
+            case "CREATE":
               break; //NOTHING TO DO;
             case "ERROR":
               this._throwFeatureNotExistsError();
-            case "RETAIN" :
+            case "RETAIN":
               //TODO solve upsert
               this.deleteFeature();
               return null;
@@ -273,13 +222,21 @@ class FeatureWriter {
         }
       }
       catch (e) {
-        this.debugBox(JSON.stringify(e, null, 2));
-        if (e.sqlerrcode == "23505") {
-          if (this.onExists == "RETAIN")
+        if (e.sqlerrcode == SQLErrors.CONFLICT) {
+          if (this.onExists == "ERROR")
+            this._throwFeatureExistsError();
+          else if (this.onExists == "RETAIN")
             return null;
-          this._throwFeatureExistsError();
+          else
+            throw new XyzException("Unexpected conflict while trying to perform write operation.").withDetail(e.detail).withHint(e.hint);
         }
-        //TODO - which kind of error we want to use here?
+
+        this.debugBox(JSON.stringify({
+          message: e.toString(),
+          stack: e.stack
+        }, null, 2));
+
+        //Rethrow the original error, as it is unexpected
         throw e;
       }
       return this.inputFeature;
@@ -303,45 +260,32 @@ class FeatureWriter {
         headFeature = this.loadFeature(this.inputFeature.id);
 
       switch (this.onExists) {
-        case "DELETE" :
+        case "DELETE":
           if (headFeature != null)
             return this.deleteFeature();
           break;
-        case "RETAIN" :
+        case "RETAIN":
           if (headFeature != null)
             return null;
           break;
-        case "ERROR" :
+        case "ERROR":
           if (headFeature != null)
             this._throwFeatureExistsError();
           //NOT handling REPLACE
       }
 
       switch (this.onNotExists) {
-        case "RETAIN" :
+        case "RETAIN":
           if (headFeature == null)
             return null;
           break;
-        case "ERROR" :
+        case "ERROR":
           if (headFeature == null)
             this._throwFeatureNotExistsError();
           //NOT handling CREATE
       }
 
-      let writtenFeature = plv8.execute(`UPDATE "${this.schema}"."${this.table}" AS tbl
-                                         SET version   = $1,
-                                             operation = $2,
-                                             author    = $3,
-                                             jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
-                                                                   tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
-                                             geo       = ST_Force3D(ST_GeomFromGeoJSON($5::JSONB))
-                                         WHERE id = $6
-                                           AND version = $7
-                                         RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation`,
-          this.version, "U" /*TODO set version operation*/, this.author, this.inputFeature, this.inputFeature.geometry, this.inputFeature.id,
-          this.baseVersion);
-
-      if (writtenFeature.length == 0)
+      if (this._updateRow().length == 0)
         return this.handleVersionConflict()
     }
   }
@@ -659,13 +603,15 @@ class FeatureWriter {
   }
 
   debugBox(message) {
-    // let width = 120;
-    // let lines = message.split("\n");
-    // let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
-    // let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
-    // lines = lines.map(line => "#" + leftPadding + line
-    //     + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
-    // plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
+    let width = 120;
+    let leftRightBuffer = 2;
+    let maxLineLength = width - leftRightBuffer * 2;
+    let lines = message.split("\n").map(line => line.match(new RegExp(`.{1,${maxLineLength}}`, "g"))).flat();
+    let longestLine = lines.map(line => line.length).reduce((a, b) => Math.max(a, b), -Infinity);
+    let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
+    lines = lines.map(line => "#" + leftPadding + line
+        + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
+    plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
   }
 
   //Low level DB / table facing helper methods:
@@ -699,6 +645,63 @@ class FeatureWriter {
     else if (baseVersion > 0)
       plv8.execute(sql + "AND version = $2;", this.inputFeature.id, baseVersion);
     return plv8.execute(sql, this.inputFeature.id);
+  }
+
+  _updateNextVersion() {
+    if (this.onVersionConflict != null)
+      return plv8.execute(`UPDATE "${this.schema}"."${this.table}"
+                           SET next_version = $1
+                           WHERE id = $2
+                             AND next_version = $3::BIGINT
+                             AND version = $4
+                           RETURNING *`, this.version, this.inputFeature.id, this.maxBigint, this.baseVersion);
+    else
+      return plv8.execute(`UPDATE "${this.schema}"."${this.table}"
+                           SET next_version = $1
+                           WHERE id = $2
+                             AND next_version = $3::BIGINT
+                             AND version < $1
+                           RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
+  }
+  _upsertRow() {
+    let onConflict = this.onExists == "REPLACE" ? ` ON CONFLICT (id, next_version) DO UPDATE SET
+                              version = greatest(tbl.version, EXCLUDED.version),
+                              operation = 'U',
+                              author = EXCLUDED.author,
+                              jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
+                                     tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
+                              geo = EXCLUDED.geo` : this.onExists == "RETAIN" ? " ON CONFLICT(id, version, next_version) DO NOTHING" : "";
+
+    let sql = `INSERT INTO "${this.schema}"."${this.table}" AS tbl
+                        (id, version, operation, author, jsondata, geo)
+                        VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', ST_Force3D(ST_GeomFromGeoJSON($6::JSONB))) ${onConflict}
+                        RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation`;
+
+    //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
+
+    return plv8.execute(sql,
+        this.inputFeature.id,
+        this.version,
+        this.operation, //TODO set version operation
+        this.author,
+        this.inputFeature,
+        this.inputFeature.geometry
+    );
+  }
+
+  _updateRow() {
+    return plv8.execute(`UPDATE "${this.schema}"."${this.table}" AS tbl
+                         SET version   = $1,
+                             operation = $2,
+                             author    = $3,
+                             jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
+                                                   tbl.jsondata -> 'properties' -> '${this.XYZ_NS}' -> 'createdAt'),
+                             geo       = ST_Force3D(ST_GeomFromGeoJSON($5::JSONB))
+                         WHERE id = $6
+                           AND version = $7
+                         RETURNING (jsondata -> 'properties' -> '${this.XYZ_NS}' -> 'createdAt') as created_at, operation`,
+        this.version, "U" /*TODO set version operation*/, this.author, this.inputFeature, this.inputFeature.geometry, this.inputFeature.id,
+        this.baseVersion);
   }
 }
 

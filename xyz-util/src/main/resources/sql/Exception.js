@@ -97,3 +97,7 @@ class FeatureNotExistsException extends XyzException {
     this.withCode("XYZ44");
   }
 }
+
+SQLErrors = {
+  CONFLICT: "23505"
+};
