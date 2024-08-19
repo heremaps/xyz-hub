@@ -46,7 +46,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_OnExistsDELETE() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications
     Feature f2 = XyzSerializable.deserialize("""
@@ -56,7 +56,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         }
         """, Feature.class);
     writeFeature(f2, UPDATE_AUTHOR, OnExists.DELETE, null, null, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     checkNotExistingFeature(DEFAULT_FEATURE_ID);
   }
@@ -72,7 +72,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         }
         """, Feature.class);
     writeFeature(f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications
     Feature f2 = XyzSerializable.deserialize("""
@@ -84,7 +84,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         """, Feature.class);
 
     writeFeature(f2, UPDATE_AUTHOR, OnExists.REPLACE, null, null, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     Feature expected = XyzSerializable.deserialize("""
         { "type":"Feature",
@@ -101,7 +101,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_OnExistsRETAIN() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications
     Feature f2 = XyzSerializable.deserialize("""
@@ -112,7 +112,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         """, Feature.class);
 
     writeFeature(f2, UPDATE_AUTHOR, OnExists.RETAIN, null, null, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
 
@@ -120,7 +120,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_OnExistsERROR() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications
     Feature f2 = XyzSerializable.deserialize("""
@@ -140,13 +140,13 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsDELETE() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
     //Add matching Baseversion
     default_f1.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1L));
 
     //Second write with modifications
     writeFeature(default_f1, UPDATE_AUTHOR, OnExists.DELETE, null, OnVersionConflict.REPLACE, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     checkNotExistingFeature(default_f1.getId());
   }
@@ -155,7 +155,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsREPLACE() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications and matching baseversion
     Feature f2 = XyzSerializable.deserialize("""
@@ -167,7 +167,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         """, Feature.class);
 
     writeFeature(f2, UPDATE_AUTHOR, OnExists.REPLACE, null, OnVersionConflict.REPLACE, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
@@ -176,7 +176,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsRETAIN() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications and matching baseversion
     Feature f2 = XyzSerializable.deserialize("""
@@ -186,7 +186,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         }
         """, Feature.class);
     writeFeature(f2, UPDATE_AUTHOR, OnExists.RETAIN, null, OnVersionConflict.REPLACE, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -195,7 +195,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_WithoutConflict_OnExistsERROR() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications and matching baseversion
     Feature f2 = XyzSerializable.deserialize("""
@@ -215,7 +215,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictERROR() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications and NOT matching baseversion
     Feature f2 = XyzSerializable.deserialize("""
@@ -235,7 +235,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictRETAIN() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications and NOT matching baseversion
     Feature f2 = XyzSerializable.deserialize("""
@@ -245,7 +245,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         }
         """, Feature.class);
     writeFeature(f2, UPDATE_AUTHOR, null, null, OnVersionConflict.RETAIN, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     checkExistingFeature(default_f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -255,7 +255,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
   public void writeToExistingFeature_WithBaseVersion_Conflict_OnVersionConflictREPLACE() throws Exception {
     //initial write
     writeFeature(default_f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //Second write with modifications and NOT matching baseversion
     Feature f2 = XyzSerializable.deserialize("""
@@ -265,7 +265,7 @@ public class SQLITWriteFeaturesWithoutHistoryFeatureExists extends SQLITWriteFea
         }
         """, Feature.class);
     writeFeature(f2, UPDATE_AUTHOR, null, null, OnVersionConflict.REPLACE, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }

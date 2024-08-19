@@ -27,17 +27,24 @@ let pgClient = new Client({
   database: "postgres"
 });
 
-pgClient.connect();
+let clientConnected = false;
+pgClient.connect().then(err => {
+  clientConnected = true;
+  console.log(err);
+});
+
 
 global.NOTICE = "NOTICE";
 global.ERROR = "ERROR";
 global.plv8 = {
   elog: console.log,
   execute(sql, ...params) {
+    if (!clientConnected)
+      deasync.loopWhile(() => !clientConnected);
+
     let queryResult = null;
     pgClient.query(sql, params).then(result => queryResult = result);
-    deasync.loopWhile(() => queryResult != null);
-    return queryResult;
+    deasync.loopWhile(() => queryResult == null);
+    return queryResult.rows;
   }
 };
-

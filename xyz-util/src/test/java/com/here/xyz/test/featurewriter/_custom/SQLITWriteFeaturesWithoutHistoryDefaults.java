@@ -41,7 +41,7 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
         """, Feature.class);
 
     writeFeature(f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     checkExistingFeature(f1, 1L, Long.MAX_VALUE, Operation.I, DEFAULT_AUTHOR);
   }
@@ -58,7 +58,7 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
         """, Feature.class);
 
     writeFeature(f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     //second write || Default=REPLACE
     Feature f2 = XyzSerializable.deserialize("""
@@ -69,7 +69,7 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
         }
         """, Feature.class);
     writeFeature(f2, UPDATE_AUTHOR, null, null, null, null,
-        false, SpaceContext.EXTENSION, false, null);
+        false, SpaceContext.EXTENSION, false);
 
     checkExistingFeature(f2, 2L, Long.MAX_VALUE, Operation.U, UPDATE_AUTHOR);
   }
@@ -86,7 +86,7 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
         """, Feature.class);
 
     writeFeature(f1, DEFAULT_AUTHOR, null, null,
-        null, null, false, SpaceContext.EXTENSION, false, null);
+        null, null, false, SpaceContext.EXTENSION, false);
 
     Feature f2 = XyzSerializable.deserialize("""
         { 
@@ -98,7 +98,7 @@ public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeatures
         """, Feature.class);
     //second write with partial modifications
     writeFeature(f2, UPDATE_AUTHOR, null, null,
-        null, null, true, SpaceContext.EXTENSION, false, null);
+        null, null, true, SpaceContext.EXTENSION, false);
 
     Feature expected = XyzSerializable.deserialize("""
         { 

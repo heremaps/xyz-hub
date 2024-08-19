@@ -20,11 +20,11 @@
 package com.here.xyz.test.rest.noncomposite.nohistory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.test.GenericSpaceBased.OnExists;
-import com.here.xyz.test.GenericSpaceBased.OnNotExists;
-import com.here.xyz.test.GenericSpaceBased.OnVersionConflict;
-import com.here.xyz.test.GenericSpaceBased.Operation;
-import com.here.xyz.test.GenericSpaceBased.SQLError;
+import com.here.xyz.test.SpaceWritingTest.OnExists;
+import com.here.xyz.test.SpaceWritingTest.OnNotExists;
+import com.here.xyz.test.SpaceWritingTest.OnVersionConflict;
+import com.here.xyz.test.SpaceWritingTest.Operation;
+import com.here.xyz.test.SpaceWritingTest.SQLError;
 import com.here.xyz.test.featurewriter.HubBasedTestSuite;
 import java.util.List;
 import org.junit.Test;
@@ -221,6 +221,6 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
 
   @Test
   public void start() throws Exception {
-    featureWriterExecutor();
+    runFeatureWriter();
   }
 }

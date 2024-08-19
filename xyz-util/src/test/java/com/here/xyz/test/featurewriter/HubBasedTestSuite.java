@@ -25,6 +25,6 @@ public class HubBasedTestSuite extends TestSuite {
 
   public HubBasedTestSuite(TestArgs args) {
     super(args);
-    genericSpaceWriter = new HubBasedSpaceTest(composite, history);
+    spaceWriter = new HubBasedSpaceTest(composite, history);
   }
 }

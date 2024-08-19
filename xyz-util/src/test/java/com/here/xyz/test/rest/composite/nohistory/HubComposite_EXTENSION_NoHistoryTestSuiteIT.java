@@ -35,6 +35,6 @@ public class HubComposite_EXTENSION_NoHistoryTestSuiteIT extends HubNonComposite
 
   @Test
   public void start() throws Exception {
-    featureWriterExecutor();
+    runFeatureWriter();
   }
 }

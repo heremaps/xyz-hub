@@ -20,11 +20,20 @@
 package com.here.xyz.test.featurewriter;
 
 import com.here.xyz.test.SQLBasedSpaceTest;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class SQLBasedTestSuite extends TestSuite {
 
   public SQLBasedTestSuite(TestArgs args) {
     super(args);
-    genericSpaceWriter = new SQLBasedSpaceTest(composite);
+    spaceWriter = new SQLBasedSpaceTest(composite);
+  }
+
+  @Test
+  public void start() throws Exception {
+    runTest();
   }
 }

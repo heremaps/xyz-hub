@@ -21,10 +21,10 @@ package com.here.xyz.test.rest.composite.nohistory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.test.GenericSpaceBased;
-import com.here.xyz.test.GenericSpaceBased.OnNotExists;
-import com.here.xyz.test.GenericSpaceBased.Operation;
-import com.here.xyz.test.featurewriter.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
+import com.here.xyz.test.SpaceWritingTest;
+import com.here.xyz.test.SpaceWritingTest.OnNotExists;
+import com.here.xyz.test.SpaceWritingTest.Operation;
+import com.here.xyz.test.featurewriter.matrix.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
 import java.util.Collection;
 import java.util.List;
 import org.junit.Test;
@@ -71,7 +71,7 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
                 simpleFeature(),
                 1,
                 Long.MAX_VALUE,
-                GenericSpaceBased.DEFAULT_AUTHOR,
+                SpaceWritingTest.DEFAULT_AUTHOR,
                 null
             )
         )
@@ -84,6 +84,6 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
 
   @Test
   public void start() throws Exception {
-    featureWriterExecutor();
+    runFeatureWriter();
   }
 }

@@ -22,36 +22,32 @@ package com.here.xyz.test;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQueries;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.json.JSONObject;
 
-public class SQLBasedSpaceTest extends GenericSpaceBased {
+public class SQLBasedSpaceTest extends SpaceWritingTest {
 
   protected static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
-  private boolean composite;
 
   public SQLBasedSpaceTest(boolean composite) {
-    this.composite = composite;
+    super(composite);
   }
 
   @Override
   public void createSpaceResources() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       List<SQLQuery> queries = new ArrayList<>();
-      queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), resource));
       if (this.composite)
-        queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), resource + "_ext"));
+        queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), superSpaceId()));
+      queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), spaceId()));
       SQLQuery.batchOf(queries).writeBatch(dsp);
     }
   }
@@ -59,14 +55,10 @@ public class SQLBasedSpaceTest extends GenericSpaceBased {
   @Override
   public void cleanSpaceResources() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
+      buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), spaceId()).write(dsp);
 
-      SQLQuery q = buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), resource);
-      q.write(dsp);
-
-      if (this.composite) {
-        q = buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), resource + "_ext");
-        q.write(dsp);
-      }
+      if (this.composite)
+        buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), superSpaceId()).write(dsp);
     }
   }
 
@@ -79,27 +71,15 @@ public class SQLBasedSpaceTest extends GenericSpaceBased {
   }
 
   @Override
-  protected void writeFeaturesWithAssertion(List<Feature> featureList, String author, GenericSpaceBased.OnExists onExists,
-      GenericSpaceBased.OnNotExists onNotExists, GenericSpaceBased.OnVersionConflict onVersionConflict,
-      GenericSpaceBased.OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled,
-      GenericSpaceBased.SQLError expectedErrorCode) throws Exception {
-    boolean exceptionThrown = false;
-    try {
-      runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
-          historyEnabled);
-    }
-    catch (SQLException e) {
-      exceptionThrown = true;
-      if (expectedErrorCode != null)
-        assertEquals(expectedErrorCode.getErrorCode(), e.getSQLState());
-      else
-        fail("Unexpected Error " + e);
-    }
-    if (expectedErrorCode != null && !exceptionThrown)
-      fail("Expected SQLException got not thrown");
+  protected void writeFeatures(List<Feature> featureList, String author, SpaceWritingTest.OnExists onExists,
+      SpaceWritingTest.OnNotExists onNotExists, SpaceWritingTest.OnVersionConflict onVersionConflict,
+      SpaceWritingTest.OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled,
+      SpaceWritingTest.SQLError expectedErrorCode) throws Exception {
+    runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
+        historyEnabled);
   }
 
-  protected int[] runWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
+  private int[] runWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
@@ -126,33 +106,21 @@ public class SQLBasedSpaceTest extends GenericSpaceBased {
     return Arrays.asList(contextQuery, writeFeaturesQuery);
   }
 
+  //TODO: Use query context directly instead
   private SQLQuery createContextQuery(SpaceContext spaceContext, boolean historyEnabled) {
-    return createContextQuery(getDataSourceProvider().getDatabaseSettings().getSchema(), resource, spaceContext, historyEnabled);
+    return createContextQuery(getDataSourceProvider().getDatabaseSettings().getSchema(), spaceContext, historyEnabled);
   }
 
-  private SQLQuery createContextQuery(String schema, String table, SpaceContext spaceContext, boolean historyEnabled) {
-    JSONObject context = new JSONObject().put("schema", schema).put("table", table).put("extTable", table + "_ext")
-        .put("context", spaceContext).put("historyEnabled", historyEnabled);
+  private SQLQuery createContextQuery(String schema, SpaceContext spaceContext, boolean historyEnabled) {
+    JSONObject context = new JSONObject()
+        .put("schema", schema)
+        .put("table", spaceId())
+        .put("context", spaceContext)
+        .put("historyEnabled", historyEnabled);
+
+    if (composite)
+      context.put("extendedTable", superSpaceId());
 
     return new SQLQuery("select context(#{context}::JSONB);").withNamedParameter("context", context.toString());
-  }
-
-  protected void runWriteFeatureQueryWithSQLAssertion(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
-      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
-      boolean historyEnabled, SQLError expectedErrorCode) throws Exception {
-    boolean exceptionThrown = false;
-    try {
-      runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
-          historyEnabled);
-    }
-    catch (SQLException e) {
-      exceptionThrown = true;
-      if (expectedErrorCode != null)
-        assertEquals(expectedErrorCode.getErrorCode(), e.getSQLState());
-      else
-        fail("Unexpected Error " + e);
-    }
-    if (expectedErrorCode != null && !exceptionThrown)
-      fail("Expected SQLException got not thrown");
   }
 }

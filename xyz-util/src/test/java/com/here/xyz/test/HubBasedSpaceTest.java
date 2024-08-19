@@ -19,7 +19,7 @@
 
 package com.here.xyz.test;
 
-import static com.here.xyz.test.GenericSpaceBased.OnVersionConflict.REPLACE;
+import static com.here.xyz.test.SpaceWritingTest.OnVersionConflict.REPLACE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
@@ -35,14 +35,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class HubBasedSpaceTest extends GenericSpaceBased {
+public class HubBasedSpaceTest extends SpaceWritingTest {
 
   private HubWebClient webClient;
-  private boolean composite;
   private boolean history;
 
   public HubBasedSpaceTest(boolean composite, boolean history) {
-    this.composite = composite;
+    super(composite);
     this.history = history;
 
     webClient = HubWebClient.getInstance("http://localhost:8080/hub");
@@ -51,36 +50,38 @@ public class HubBasedSpaceTest extends GenericSpaceBased {
   @Override
   public void createSpaceResources() throws Exception {
     Space space = new Space()
-        .withId(resource)
-        .withTitle(resource + " Titel")
+        .withId(spaceId())
+        .withTitle(spaceId() + " Titel")
         .withVersionsToKeep(this.history ? 100 : 1);
-    webClient.createSpace(space);
 
     if (this.composite) {
-      space = new Space()
-          .withId(resource + "_ext")
-          .withTitle(resource + "_ext Titel")
-          .withExtension(new Space.Extension()
-              .withSpaceId(resource));
+      Space superSpace = new Space()
+          .withId(superSpaceId())
+          .withTitle(superSpaceId() + " Titel");
       webClient.createSpace(space);
+
+      space.setExtension(new Space.Extension()
+              .withSpaceId(superSpaceId()));
     }
+
+    webClient.createSpace(space);
   }
 
   @Override
   public void cleanSpaceResources() throws Exception {
-    webClient.deleteSpace(resource);
+    webClient.deleteSpace(spaceId());
     if (this.composite)
-      webClient.deleteSpace(resource + "_ext");
+      webClient.deleteSpace(superSpaceId());
   }
 
   @Override
-  public void writeFeaturesWithAssertion(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
+  public void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
       SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode) {
     FeatureCollection featureCollection = new FeatureCollection().withFeatures(featureList);
 
     try {
-      XyzResponse xyzResponse = webClient.postFeatures(resource, featureCollection,
+      XyzResponse xyzResponse = webClient.postFeatures(spaceId(), featureCollection,
           generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
       System.out.println(xyzResponse);
     }

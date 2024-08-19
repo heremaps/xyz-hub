@@ -19,6 +19,10 @@
 
 package com.here.xyz.test;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_GEOMETRY;
+import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 import static org.junit.Assert.assertEquals;
@@ -35,17 +39,35 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public abstract class GenericSpaceBased extends SQLITBase {
+public abstract class SpaceWritingTest extends SQLITBase {
   public static String DEFAULT_AUTHOR = "ANONYMOUS";
+  public static String OTHER_AUTHOR = "Other Author";
   public static String UPDATE_AUTHOR = "ANONYMOUS_UPDATE";
-  public static String DEFAULT_FEATURE_ID = "id1";
+  public static String DEFAULT_FEATURE_ID = TEST_FEATURE_ID;
   //Used for Table or SpaceName
-  String resource = this.getClass().getSimpleName();
+  private String spaceId = this.getClass().getSimpleName();
+  protected boolean composite;
+
+  protected String superSpaceId() {
+    if (!composite)
+      throw new IllegalArgumentException(spaceId + " is not a composite space");
+    return spaceId + "_super";
+  }
+
+  protected String spaceId() {
+    return spaceId;
+  }
+
+  protected SpaceWritingTest(boolean composite) {
+    this.composite = composite;
+  }
 
   public abstract void createSpaceResources() throws Exception;
 
@@ -54,49 +76,94 @@ public abstract class GenericSpaceBased extends SQLITBase {
   public void writeFeature(Feature modifiedFeature, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean isHistoryActive, SQLError expectedError) throws Exception {
-    writeFeaturesWithAssertion(Arrays.asList(modifiedFeature), author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
-        spaceContext, isHistoryActive, expectedError);
+    try {
+      writeFeature(modifiedFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
+          spaceContext, isHistoryActive);
+    }
+    catch (SQLException e) {
+      assertEquals(expectedError, SQLError.fromErrorCode(e.getSQLState()));
+    }
   }
 
-  protected abstract void writeFeaturesWithAssertion(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
+  public void writeFeature(Feature modifiedFeature, String author, OnExists onExists, OnNotExists onNotExists,
+      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
+      boolean isHistoryActive) throws Exception {
+    writeFeatures(Arrays.asList(modifiedFeature), author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
+        spaceContext, isHistoryActive, null);
+  }
+
+  protected abstract void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled, SQLError expectedErrorCode) throws Exception;
 
-  protected SQLQuery getFeaturesByIds(List<String> featureIds) throws Exception {
-    //WIP
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
-      SQLQuery check = new SQLQuery("SELECT id, version, next_version, operation, author, jsondata, geo " + " FROM ${schema}.${table} "
-          + "WHERE id = ANY(#{ids});").withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, resource)
-          .withNamedParameter("ids", featureIds.toArray(new String[0]));
-
-      check.run(dsp, rs -> {
-        while (rs.next()) {
-          rs.getLong("version");
-          rs.getLong("next_version");
-          rs.getString("operation");
-          rs.getString("author");
-          rs.getString("jsondata");
-          rs.getString("geo");
-        }
-        return null;
-      });
-    }
-    return null;
+  public Feature getFeature(SpaceContext context) throws Exception {
+    return toFeature(getFeatureRow(context));
   }
 
-  public void checkFeatureCount(int expectedCnt) throws Exception {
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
-      SQLQuery cntQuery = new SQLQuery("SELECT count(1) FROM ${schema}.${table} ").withVariable(SCHEMA,
-          dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, resource);
+  public Feature toFeature(SpaceTableRow row) {
+    if (row == null)
+      return null;
 
-      cntQuery.run(dsp, rs -> {
-        int count = 0;
-        if (rs.next()) {
-          count = rs.getInt(1);
-        }
-        assertEquals(expectedCnt, count);
-        return null;
-      });
+    Feature feature = XyzSerializable.fromMap(row.jsondata);
+    feature.getProperties().getXyzNamespace()
+        .withVersion(row.version)
+        .withAuthor(row.author);
+    return feature
+        .withGeometry(row.geo);
+  }
+
+  public SpaceTableRow getFeatureRow(SpaceContext context) throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      return new SQLQuery("SELECT id, version, next_version, operation, author, jsondata, geo " + " FROM ${schema}.${table} "
+          + "WHERE id = #{id} AND next_version = #{MAX_BIGINT}")
+          .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
+          .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
+          .withNamedParameter("id", TEST_FEATURE_ID)
+          .withNamedParameter("MAX_BIGINT", Long.MAX_VALUE)
+          .run(dsp, rs -> {
+            try {
+              return rs.next()
+                  ? new SpaceTableRow(
+                      rs.getString("id"),
+                      rs.getLong("version"),
+                      rs.getLong("next_version"),
+                      Operation.valueOf(rs.getString("operation")),
+                      rs.getString("author"),
+                      XyzSerializable.deserialize(rs.getString("jsondata"), Map.class),
+                      TEST_FEATURE_GEOMETRY //TODO: Read & transform geo from row, when it becomes relevant
+                    )
+                  : null;
+            }
+            catch (JsonProcessingException e) {
+              throw new SQLException(e);
+            }
+          });
+    }
+  }
+
+  public record SpaceTableRow(String id, long version, long next_version, Operation operation, String author, Map<String, Object> jsondata,
+      Geometry geo) {}
+
+  public void checkFeatureCount(int expectedCount) throws Exception {
+    assertEquals(expectedCount, getRowCount(EXTENSION));
+  }
+
+  public int getRowCount(SpaceContext context) throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      return new SQLQuery("SELECT count(1) FROM ${schema}.${table} ")
+          .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
+          .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
+          .run(dsp, rs -> rs.next() ? rs.getInt(1) : 0);
+    }
+  }
+
+  public Operation getLastUsedFeatureOperation(SpaceContext context) throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      return new SQLQuery("SELECT operation FROM ${schema}.${table} WHERE id = #{id} ORDER BY version DESC LIMIT 1")
+          .withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
+          .withVariable(TABLE, context == SUPER ? superSpaceId() : spaceId())
+          .withNamedParameter("id", DEFAULT_FEATURE_ID)
+          .run(dsp, rs -> rs.next() ? Operation.valueOf(rs.getString(1)) : null);
     }
   }
 
@@ -106,7 +173,7 @@ public abstract class GenericSpaceBased extends SQLITBase {
       SQLQuery checkQuery = new SQLQuery(
           "SELECT id, version, next_version, operation, author, jsondata, ST_AsGeojson(geo) AS geo " + " FROM ${schema}.${table} "
               + "WHERE id = #{id} AND version = #{version};").withVariable(SCHEMA, dsp.getDatabaseSettings().getSchema())
-          .withVariable(TABLE, resource).withNamedParameter("id", feature.getId()).withNamedParameter("version", version);
+          .withVariable(TABLE, spaceId()).withNamedParameter("id", feature.getId()).withNamedParameter("version", version);
 
       checkQuery.run(dsp, rs -> {
         try {
@@ -146,7 +213,7 @@ public abstract class GenericSpaceBased extends SQLITBase {
   public SQLQuery checkNotExistingFeature(String id) throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       SQLQuery check = new SQLQuery("SELECT id FROM ${schema}.${table} WHERE id = #{id};").withVariable(SCHEMA,
-          dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, resource).withNamedParameter("id", id);
+          dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, spaceId()).withNamedParameter("id", id);
 
       check.run(dsp, rs -> {
         assertFalse("Feature exists but was expected to not exist!", rs.next());
@@ -160,7 +227,7 @@ public abstract class GenericSpaceBased extends SQLITBase {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       SQLQuery check = new SQLQuery(
           "SELECT id FROM ${schema}.${table} WHERE id = #{id} AND operation = 'D' AND next_version = max_bigint();").withVariable(SCHEMA,
-          dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, resource).withNamedParameter("id", id);
+          dsp.getDatabaseSettings().getSchema()).withVariable(TABLE, spaceId()).withNamedParameter("id", id);
 
       check.run(dsp, rs -> {
         if (shouldExist)
@@ -223,6 +290,8 @@ public abstract class GenericSpaceBased extends SQLITBase {
     }
   }
 
+  private static final Map<String, SQLError> SQLErrorLookup = new HashMap<>();
+
   public enum SQLError {
     ILLEGAL_ARGUMENT("XYZ40"),
     FEATURE_EXISTS("XYZ20"),
@@ -233,14 +302,20 @@ public abstract class GenericSpaceBased extends SQLITBase {
     IMPORT_FORMAT_NOT_SUPPORTED("XYZ51"),
     IMPORT_FAILED_NON_RETRYABLE("XYZ52");
 
+
     public final String errorCode;
 
     SQLError(String errorCode) {
       this.errorCode = errorCode;
+      SQLErrorLookup.put(errorCode, this);
     }
 
     public String getErrorCode() {
       return errorCode;
+    }
+
+    public static SQLError fromErrorCode(String errorCode) {
+      return SQLErrorLookup.get(errorCode);
     }
   }
 

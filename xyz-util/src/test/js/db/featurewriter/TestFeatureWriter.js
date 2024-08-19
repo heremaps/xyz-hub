@@ -22,16 +22,12 @@ require("../../../../main/resources/sql/Exception");
 require("../../../../main/resources/sql/FeatureWriter");
 const FeatureWriter = plv8.FeatureWriter;
 
-// this.schema = context("schema");
-//     this.table = context("table");
-//     this.context = context("context");
-//     this.historyEnabled = context("historyEnabled");
-
 global.context = key => ({
   schema: "public",
-  table: "JsTest",
+  table: "SQLBasedSpaceTest",
+  extendedTable: "SQLBasedSpaceTest_super",
   context: "DEFAULT",
-  historyEnabled: false
+  historyEnabled: true
 })[key];
 
 class TestFeatureWriter {
@@ -51,7 +47,7 @@ class TestFeatureWriter {
     }
   };
 
-  writer = new FeatureWriter(this.inputFeature, 1, null, "RETAIN", "CREATE", null, null, false);
+  writer = new FeatureWriter(this.inputFeature, 2, null, "DELETE", null, null, null, false);
 
   run() {
     this.writer.writeFeature();

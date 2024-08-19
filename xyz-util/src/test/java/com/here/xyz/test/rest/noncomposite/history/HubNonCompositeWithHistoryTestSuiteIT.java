@@ -19,17 +19,17 @@
 
 package com.here.xyz.test.rest.noncomposite.history;
 
-import static com.here.xyz.test.GenericSpaceBased.Operation.U;
-import static com.here.xyz.test.GenericSpaceBased.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.test.SpaceWritingTest.Operation.U;
+import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_EXISTS;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.test.GenericSpaceBased.OnExists;
-import com.here.xyz.test.GenericSpaceBased.OnMergeConflict;
-import com.here.xyz.test.GenericSpaceBased.OnNotExists;
-import com.here.xyz.test.GenericSpaceBased.OnVersionConflict;
-import com.here.xyz.test.GenericSpaceBased.Operation;
-import com.here.xyz.test.GenericSpaceBased.SQLError;
+import com.here.xyz.test.SpaceWritingTest.OnExists;
+import com.here.xyz.test.SpaceWritingTest.OnMergeConflict;
+import com.here.xyz.test.SpaceWritingTest.OnNotExists;
+import com.here.xyz.test.SpaceWritingTest.OnVersionConflict;
+import com.here.xyz.test.SpaceWritingTest.Operation;
+import com.here.xyz.test.SpaceWritingTest.SQLError;
 import com.here.xyz.test.featurewriter.HubBasedTestSuite;
 import java.util.Collection;
 import java.util.List;
@@ -53,7 +53,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
   public static Collection<TestArgs> testScenarios() throws JsonProcessingException {
     return List.of(
         /** Feature NOT exists */
-        new TestArgs("0", false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
+        new TestArgs("0", false, true, false, null, null, false, false, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
             /* Expected content of the written Feature */
             new Expectations(
                 INSERT,
@@ -66,13 +66,13 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             )
         ),
         /* No existing Feature expected. No TableOperation! */
-        new TestArgs("1", false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,
+        new TestArgs("1", false, true, false, null, null, false, false, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,
             new Expectations(SQLError.FEATURE_NOT_EXISTS)),
         /* No existing Feature expected. No TableOperation! */
-        new TestArgs("2", false, true, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null),
+        new TestArgs("2", false, true, false, null, null, false, false, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null),
 
         /** Feature exists + no ConflictHandling */
-        new TestArgs("3", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, null, null, null,
+        new TestArgs("3", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.DELETE, null, null, null,
             /* Expected content of the deleted Feature (History). */
             new Expectations(
                 INSERT,
@@ -84,7 +84,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("4", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
+        new TestArgs("4", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
             /* Expected content of the replaced Feature (2th write). */
             new Expectations(
                 INSERT,
@@ -96,7 +96,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("5", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
+        new TestArgs("5", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
             /* Expected content of the untouched Feature (from 1th write). No TableOperation! */
             new Expectations(
                 INSERT,
@@ -108,7 +108,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("6", false, true, true, null, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
+        new TestArgs("6", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
             /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 1th write). No TableOperation! */
             new Expectations(
                 INSERT,
@@ -121,7 +121,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             )
         ),
         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
-        new TestArgs("7", false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE,
+        new TestArgs("7", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the deleted Feature (3rd write) (History) */
             new Expectations(
@@ -135,7 +135,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("8", false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
+        new TestArgs("8", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the replaced Feature (3th write) */
             new Expectations(
@@ -148,7 +148,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("9", false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
+        new TestArgs("9", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
@@ -161,7 +161,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("10", false, true, true, true, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
+        new TestArgs("10", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
             null, null,
             /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 2th write). No TableOperation!  */
             new Expectations(
@@ -176,7 +176,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
         ),
 
         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> ERROR, RETAIN  */
-        new TestArgs("11", false, true, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
+        new TestArgs("11", false, true, true, false, null, false, false, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
             /* SQLError.VERSION_CONFLICT_ERROR & Expected content of the untouched Feature (from 2th write). */
             new Expectations(
                 INSERT,
@@ -188,7 +188,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 SQLError.VERSION_CONFLICT_ERROR
             )
         ),
-        new TestArgs("12", false, true, true, false, null, null, null, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
+        new TestArgs("12", false, true, true, false, null, false, false, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
                 INSERT,
@@ -201,7 +201,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             )
         ),
         /**  Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> REPLACE */
-        new TestArgs("13", false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE,
+        new TestArgs("13", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the deleted Feature (3rd write) (History) */
             new Expectations(
@@ -214,7 +214,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("14", false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
+        new TestArgs("14", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the replaced Feature (3th write). */
             new Expectations(
@@ -227,7 +227,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("15", false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
+        new TestArgs("15", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
@@ -240,7 +240,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
                 null
             )
         ),
-        new TestArgs("16", false, true, true, false, null, null, null, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
+        new TestArgs("16", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
             null, null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
             new Expectations(
@@ -254,7 +254,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             )
         ),
         /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> MERGE (NoConflicting Changes) */
-        new TestArgs("17", false, true, true, false, false, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
+        new TestArgs("17", false, true, true, false, false, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
             /* Expected content of the merged Feature (from 2th&3th write). */
             new Expectations(
                 INSERT,
@@ -270,7 +270,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
 
         /** Feature exists + With ConflictHandling + Baseversion MISSMATCH -> MERGE Conflicting*/
         //TODO: Test is flickering! Assumption: hub behavior is not consistent.
-        new TestArgs("18", false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
+        new TestArgs("18", false, true, true, false, true, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
             OnMergeConflict.ERROR,
             null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
@@ -285,7 +285,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             )
         ),
         //TODO: Test is flickering! Assumption: hub behavior is not consistent.
-        new TestArgs("19", false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
+        new TestArgs("19", false, true, true, false, true, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
             OnMergeConflict.RETAIN,
             null,
             /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
@@ -300,7 +300,7 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
             )
         ),
         //TODO: Test is flickering! Assumption: hub behavior is not consistent.
-        new TestArgs("20", false, true, true, false, true, null, null, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
+        new TestArgs("20", false, true, true, false, true, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
             OnMergeConflict.REPLACE,
             null,
             /* Expected content of the replaced Feature (3th write). */
@@ -319,6 +319,6 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
 
   @Test
   public void start() throws Exception {
-    featureWriterExecutor();
+    runFeatureWriter();
   }
 }

@@ -17,25 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.composite.history;
+package com.here.xyz.test.featurewriter.matrix.composite.nohistory;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 
-import com.here.xyz.test.featurewriter.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
+import com.here.xyz.test.featurewriter.matrix.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class SQLComposite_SUPER_WithHistoryTestSuiteIT extends SQLNonCompositeWithHistoryTestSuiteIT {
+public class SQLComposite_SUPER_NoHistoryTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
 
-  public SQLComposite_SUPER_WithHistoryTestSuiteIT(TestArgs args) {
-    super(args.withComposite(true).withContext(SUPER));
+  public SQLComposite_SUPER_NoHistoryTestSuiteIT(TestArgs args) {
+    super(args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.featureExists()));
   }
-
-  //TODO: Align Hub and featureWriter
-  //It's not permitted to perform modifications through context SUPER.
-//    @Test
-//    public void start() throws Exception {
-//        featureWriterExecutor();
-//    }
 }
