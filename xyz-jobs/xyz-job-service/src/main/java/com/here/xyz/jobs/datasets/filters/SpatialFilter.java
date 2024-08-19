@@ -64,11 +64,6 @@ public class SpatialFilter {
     return this;
   }
 
-  public boolean isValidGeom()
-  {
-    return true;
-  }
-
   /**
    * @deprecated Use {@link #isClip()} instead.
    */
