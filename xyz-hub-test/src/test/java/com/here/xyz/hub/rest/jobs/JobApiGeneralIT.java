@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
@@ -99,25 +100,6 @@ public class JobApiGeneralIT extends JobApiIT {
         postJob(job,getScopedSpaceId(testSpaceId1, scope))
                 .statusCode(CONFLICT.code());
     }
-
-/*  commented out, as SpatialFilter().withGeometry(.invalid.) is now throwing an exception
-    @Test
-    public void createJobWithInvalidFilter() {
-        // Create job
-        Export job = new Export()
-                .withId(testJobId + CService.currentTimeMillis())
-                .withDescription("Job Description")
-                .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD))
-                .withCsvFormat(Job.CSVFormat.GEOJSON);
-
-        job.setFilters(new Filters().withSpatialFilter(new SpatialFilter().withGeometry(new Point().withCoordinates(new PointCoordinates(399,399)))));
-
-        postJob(job,getScopedSpaceId(testSpaceId1, scope))
-                .statusCode(BAD_REQUEST.code());
-
-        //Add check if no config exists
-    }
-*/
 
     @Test
     public void getJob(){
