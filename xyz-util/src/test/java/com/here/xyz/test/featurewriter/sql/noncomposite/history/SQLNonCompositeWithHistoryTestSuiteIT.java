@@ -17,23 +17,23 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.matrix.noncomposite.history;
+package com.here.xyz.test.featurewriter.sql.noncomposite.history;
 
-import static com.here.xyz.test.SpaceWritingTest.Operation.D;
-import static com.here.xyz.test.SpaceWritingTest.Operation.I;
-import static com.here.xyz.test.SpaceWritingTest.Operation.U;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_EXISTS;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_NOT_EXISTS;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.MERGE_CONFLICT_ERROR;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.VERSION_CONFLICT_ERROR;
+import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.D;
+import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.I;
+import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.U;
+import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.MERGE_CONFLICT_ERROR;
+import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.VERSION_CONFLICT_ERROR;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.test.SpaceWritingTest.OnExists;
-import com.here.xyz.test.SpaceWritingTest.OnMergeConflict;
-import com.here.xyz.test.SpaceWritingTest.OnNotExists;
-import com.here.xyz.test.SpaceWritingTest.OnVersionConflict;
-import com.here.xyz.test.featurewriter.SQLBasedTestSuite;
+import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
+import com.here.xyz.test.featurewriter.SpaceWriter.OnMergeConflict;
+import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
+import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
+import com.here.xyz.test.featurewriter.sql.SQLTestSuite;
 import java.util.Collection;
 import java.util.List;
 import org.junit.runner.RunWith;
@@ -41,7 +41,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
-public class SQLNonCompositeWithHistoryTestSuiteIT extends SQLBasedTestSuite {
+public class SQLNonCompositeWithHistoryTestSuiteIT extends SQLTestSuite {
 
   public SQLNonCompositeWithHistoryTestSuiteIT(TestArgs args) {
     super(args);

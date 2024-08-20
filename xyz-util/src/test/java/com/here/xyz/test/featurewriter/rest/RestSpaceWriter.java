@@ -17,12 +17,12 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz.test.featurewriter.rest;
 
-import static com.here.xyz.test.SpaceWritingTest.OnVersionConflict.REPLACE;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_EXISTS;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_NOT_EXISTS;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.MERGE_CONFLICT_ERROR;
+import static com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict.REPLACE;
+import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.MERGE_CONFLICT_ERROR;
 import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
@@ -40,6 +40,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.web.HubWebClient;
@@ -51,10 +52,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class HubBasedSpaceTest extends SpaceWritingTest {
+public class RestSpaceWriter extends SpaceWriter {
   private boolean history;
 
-  public HubBasedSpaceTest(boolean composite, boolean history) {
+  public RestSpaceWriter(boolean composite, boolean history) {
     super(composite);
     this.history = history;
   }

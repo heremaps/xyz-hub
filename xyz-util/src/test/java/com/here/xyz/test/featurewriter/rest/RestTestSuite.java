@@ -17,18 +17,14 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.matrix.composite.history;
+package com.here.xyz.test.featurewriter.rest;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import com.here.xyz.test.featurewriter.TestSuite;
 
-import com.here.xyz.test.featurewriter.matrix.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+public abstract class RestTestSuite extends TestSuite {
 
-@RunWith(Parameterized.class)
-public class SQLComposite_EXTENSION_WithHistoryTestSuiteIT extends SQLNonCompositeWithHistoryTestSuiteIT {
-
-  public SQLComposite_EXTENSION_WithHistoryTestSuiteIT(TestArgs args) {
-    super(args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()));
+  public RestTestSuite(TestArgs args) {
+    super(args);
+    spaceWriter = new RestSpaceWriter(composite, history);
   }
 }

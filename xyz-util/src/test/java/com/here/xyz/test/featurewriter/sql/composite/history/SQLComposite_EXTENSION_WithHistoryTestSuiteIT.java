@@ -17,18 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.matrix.composite.nohistory;
+package com.here.xyz.test.featurewriter.sql.composite.history;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
-import com.here.xyz.test.featurewriter.matrix.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
+import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class SQLComposite_SUPER_NoHistoryTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
+public class SQLComposite_EXTENSION_WithHistoryTestSuiteIT extends SQLNonCompositeWithHistoryTestSuiteIT {
 
-  public SQLComposite_SUPER_NoHistoryTestSuiteIT(TestArgs args) {
-    super(args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.featureExists()));
+  public SQLComposite_EXTENSION_WithHistoryTestSuiteIT(TestArgs args) {
+    super(args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()));
   }
 }

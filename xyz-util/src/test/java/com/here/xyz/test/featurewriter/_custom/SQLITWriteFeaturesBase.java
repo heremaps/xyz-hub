@@ -31,7 +31,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.test.SQLBasedSpaceTest;
+import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import org.junit.After;
 import org.junit.Before;
 
 //TODO: Remove if custom tests are getting removed.
-public class SQLITWriteFeaturesBase extends SQLBasedSpaceTest {
+public class SQLITWriteFeaturesBase extends SQLSpaceWriter {
 
   public SQLITWriteFeaturesBase(boolean composite) {
     super(false);

@@ -17,17 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter;
+package com.here.xyz.test.featurewriter.rest.composite.nohistory;
 
-import com.here.xyz.test.SQLBasedSpaceTest;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+public class HubComposite_SUPER_NoHistoryTestSuiteIT {
 
-@RunWith(Parameterized.class)
-public abstract class SQLBasedTestSuite extends TestSuite {
-
-  public SQLBasedTestSuite(TestArgs args) {
-    super(args);
-    spaceWriter = new SQLBasedSpaceTest(composite);
-  }
+  //TODO: Align Hub and featureWriter
+  //It's not permitted to perform modifications through context SUPER.
 }

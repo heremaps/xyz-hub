@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz.test.featurewriter.sql;
 
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
@@ -26,6 +26,8 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQ
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.test.SQLITBase;
+import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.util.ArrayList;
@@ -33,17 +35,17 @@ import java.util.Arrays;
 import java.util.List;
 import org.json.JSONObject;
 
-public class SQLBasedSpaceTest extends SpaceWritingTest {
+public class SQLSpaceWriter extends SpaceWriter {
 
   protected static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
 
-  public SQLBasedSpaceTest(boolean composite) {
+  public SQLSpaceWriter(boolean composite) {
     super(composite);
   }
 
   @Override
   public void createSpaceResources() throws Exception {
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
+    try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
       List<SQLQuery> queries = new ArrayList<>();
       if (this.composite)
         queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), superSpaceId()));
@@ -54,7 +56,7 @@ public class SQLBasedSpaceTest extends SpaceWritingTest {
 
   @Override
   public void cleanSpaceResources() throws Exception {
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
+    try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
       buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), spaceId()).write(dsp);
 
       if (this.composite)
@@ -71,10 +73,10 @@ public class SQLBasedSpaceTest extends SpaceWritingTest {
   }
 
   @Override
-  protected void writeFeatures(List<Feature> featureList, String author, SpaceWritingTest.OnExists onExists,
-      SpaceWritingTest.OnNotExists onNotExists, SpaceWritingTest.OnVersionConflict onVersionConflict,
-      SpaceWritingTest.OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled,
-      SpaceWritingTest.SQLError expectedErrorCode) throws Exception {
+  protected void writeFeatures(List<Feature> featureList, String author, SpaceWriter.OnExists onExists,
+      SpaceWriter.OnNotExists onNotExists, SpaceWriter.OnVersionConflict onVersionConflict,
+      SpaceWriter.OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled,
+      SpaceWriter.SQLError expectedErrorCode) throws Exception {
     runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
         historyEnabled);
   }
@@ -82,7 +84,7 @@ public class SQLBasedSpaceTest extends SpaceWritingTest {
   private int[] runWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled) throws Exception {
-    try (DataSourceProvider dsp = getDataSourceProvider()) {
+    try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
       List<SQLQuery> q = generateWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict,
           isPartial, spaceContext, historyEnabled);
 
@@ -108,7 +110,7 @@ public class SQLBasedSpaceTest extends SpaceWritingTest {
 
   //TODO: Use query context directly instead
   private SQLQuery createContextQuery(SpaceContext spaceContext, boolean historyEnabled) {
-    return createContextQuery(getDataSourceProvider().getDatabaseSettings().getSchema(), spaceContext, historyEnabled);
+    return createContextQuery(SQLITBase.getDataSourceProvider().getDatabaseSettings().getSchema(), spaceContext, historyEnabled);
   }
 
   private SQLQuery createContextQuery(String schema, SpaceContext spaceContext, boolean historyEnabled) {

@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test;
+package com.here.xyz.test.featurewriter;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_GEOMETRY;
@@ -32,6 +32,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.test.SQLITBase;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
@@ -40,7 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class SpaceWritingTest extends SQLITBase {
+public abstract class SpaceWriter extends SQLITBase {
   public static String DEFAULT_AUTHOR = "ANONYMOUS";
   public static String OTHER_AUTHOR = "Other Author";
   public static String UPDATE_AUTHOR = "ANONYMOUS_UPDATE";
@@ -59,7 +60,7 @@ public abstract class SpaceWritingTest extends SQLITBase {
     return spaceId;
   }
 
-  protected SpaceWritingTest(boolean composite) {
+  protected SpaceWriter(boolean composite) {
     this.composite = composite;
   }
 

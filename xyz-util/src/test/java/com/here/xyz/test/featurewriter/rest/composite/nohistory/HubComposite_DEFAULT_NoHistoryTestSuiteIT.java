@@ -17,11 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.rest.composite.nohistory;
+package com.here.xyz.test.featurewriter.rest.composite.nohistory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.test.featurewriter.HubBasedTestSuite;
-import com.here.xyz.test.featurewriter.matrix.composite.nohistory.SQLComposite_DEFAULT_NoHistoryTestSuiteIT;
+import com.here.xyz.test.featurewriter.rest.RestTestSuite;
+import com.here.xyz.test.featurewriter.sql.composite.nohistory.SQLComposite_DEFAULT_NoHistoryTestSuiteIT;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -30,7 +30,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
-public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends HubBasedTestSuite {
+public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
 
   public HubComposite_DEFAULT_NoHistoryTestSuiteIT(TestArgs args) {
     super(args);

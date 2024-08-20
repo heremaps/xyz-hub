@@ -17,14 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter;
+package com.here.xyz.test.featurewriter.sql.composite.history;
 
-import com.here.xyz.test.HubBasedSpaceTest;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 
-public abstract class HubBasedTestSuite extends TestSuite {
+import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-  public HubBasedTestSuite(TestArgs args) {
-    super(args);
-    spaceWriter = new HubBasedSpaceTest(composite, history);
+@RunWith(Parameterized.class)
+public class SQLComposite_SUPER_WithHistoryTestSuiteIT extends SQLNonCompositeWithHistoryTestSuiteIT {
+
+  public SQLComposite_SUPER_WithHistoryTestSuiteIT(TestArgs args) {
+    super(args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.featureExists()));
   }
 }

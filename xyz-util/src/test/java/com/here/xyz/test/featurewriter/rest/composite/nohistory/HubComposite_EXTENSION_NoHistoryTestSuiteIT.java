@@ -17,10 +17,18 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.rest.composite.nohistory;
+package com.here.xyz.test.featurewriter.rest.composite.nohistory;
 
-public class HubComposite_SUPER_NoHistoryTestSuiteIT {
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
-  //TODO: Align Hub and featureWriter
-  //It's not permitted to perform modifications through context SUPER.
+import com.here.xyz.test.featurewriter.rest.noncomposite.nohistory.HubNonCompositeNoHistoryTestSuiteIT;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
+@RunWith(Parameterized.class)
+public class HubComposite_EXTENSION_NoHistoryTestSuiteIT extends HubNonCompositeNoHistoryTestSuiteIT {
+
+  public HubComposite_EXTENSION_NoHistoryTestSuiteIT(TestArgs args) {
+    super(args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()));
+  }
 }
