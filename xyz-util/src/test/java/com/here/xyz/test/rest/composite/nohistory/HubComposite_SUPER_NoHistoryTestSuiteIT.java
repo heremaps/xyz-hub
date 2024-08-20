@@ -21,6 +21,6 @@ package com.here.xyz.test.rest.composite.nohistory;
 
 public class HubComposite_SUPER_NoHistoryTestSuiteIT {
 
-  //TODO: Alin Hub and featureWriter
+  //TODO: Align Hub and featureWriter
   //It's not permitted to perform modifications through context SUPER.
 }

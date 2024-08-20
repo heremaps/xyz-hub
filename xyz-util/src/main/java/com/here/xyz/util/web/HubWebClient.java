@@ -48,7 +48,7 @@ import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
-  private static Map<String, HubWebClient> instances = new HashMap<>();
+  private static Map<InstanceKey, HubWebClient> instances = new HashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(3, TimeUnit.MINUTES)
@@ -56,6 +56,10 @@ public class HubWebClient extends XyzWebClient {
 
   protected HubWebClient(String baseUrl) {
     super(baseUrl);
+  }
+
+  protected HubWebClient(String baseUrl, Map<String, String> extraHeaders) {
+    super(baseUrl, extraHeaders);
   }
 
   @Override
@@ -72,9 +76,14 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public static HubWebClient getInstance(String baseUrl) {
-    if (!instances.containsKey(baseUrl))
-      instances.put(baseUrl, new HubWebClient(baseUrl));
-    return instances.get(baseUrl);
+    return getInstance(baseUrl, null);
+  }
+
+  public static HubWebClient getInstance(String baseUrl, Map<String, String> extraHeaders) {
+    InstanceKey key = new InstanceKey(baseUrl, extraHeaders);
+    if (!instances.containsKey(key))
+      instances.put(key, new HubWebClient(baseUrl, extraHeaders));
+    return instances.get(key);
   }
 
   public Space loadSpace(String spaceId) throws WebClientException {
@@ -211,4 +220,6 @@ public class HubWebClient extends XyzWebClient {
       throw new WebClientException("Error deserializing response", e);
     }
   }
+
+  protected record InstanceKey(String baseUrl, Map<String, String> extraHeaders) {}
 }

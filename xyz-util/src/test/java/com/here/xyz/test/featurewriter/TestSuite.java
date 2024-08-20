@@ -288,7 +288,7 @@ public abstract class TestSuite {
 
   private void checkAssertions(long beforeTestStartTimestamp) throws Exception {
     //Check the thrown errors (only against expected ones)
-    assertEquals((thrownError == null ? "No " : assertions.sqlError != null ? "Wrong " : "An ") + "error was thrown" + (assertions.sqlError == null ? " but none was expected." : ""), assertions.sqlError, thrownError);
+    assertEquals((thrownError == null ? "No " : assertions.sqlError != null ? "Wrong " : "An ") + "error was thrown" + (assertions.sqlError == null ? " but none was expected." : thrownError == null ? " but it was expected one." : ""), assertions.sqlError, thrownError);
 
     //Check the table operation
     SpaceTableState afterTableState = afterState.tableStateForContext(spaceContext);

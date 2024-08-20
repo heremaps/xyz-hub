@@ -22,7 +22,6 @@ package com.here.xyz.test.rest.composite.nohistory;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
 import com.here.xyz.test.rest.noncomposite.nohistory.HubNonCompositeNoHistoryTestSuiteIT;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -30,11 +29,6 @@ import org.junit.runners.Parameterized;
 public class HubComposite_EXTENSION_NoHistoryTestSuiteIT extends HubNonCompositeNoHistoryTestSuiteIT {
 
   public HubComposite_EXTENSION_NoHistoryTestSuiteIT(TestArgs args) {
-    super(args.withComposite(true).withContext(EXTENSION));
-  }
-
-  @Test
-  public void start() throws Exception {
-    runFeatureWriter();
+    super(args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()));
   }
 }

@@ -20,31 +20,36 @@
 package com.here.xyz.test;
 
 import static com.here.xyz.test.SpaceWritingTest.OnVersionConflict.REPLACE;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.fail;
+import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.test.SpaceWritingTest.SQLError.MERGE_CONFLICT_ERROR;
+import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class HubBasedSpaceTest extends SpaceWritingTest {
-
-  private HubWebClient webClient;
   private boolean history;
 
   public HubBasedSpaceTest(boolean composite, boolean history) {
     super(composite);
     this.history = history;
+  }
 
-    webClient = HubWebClient.getInstance("http://localhost:8080/hub");
+  private HubWebClient webClient(String author) {
+    return HubWebClient.getInstance("http://localhost:8080/hub", Map.of("Author", author));
   }
 
   @Override
@@ -58,59 +63,54 @@ public class HubBasedSpaceTest extends SpaceWritingTest {
       Space superSpace = new Space()
           .withId(superSpaceId())
           .withTitle(superSpaceId() + " Titel");
-      webClient.createSpace(space);
+      webClient(DEFAULT_AUTHOR).createSpace(superSpace);
 
       space.setExtension(new Space.Extension()
               .withSpaceId(superSpaceId()));
     }
 
-    webClient.createSpace(space);
+    webClient(DEFAULT_AUTHOR).createSpace(space);
   }
 
   @Override
   public void cleanSpaceResources() throws Exception {
-    webClient.deleteSpace(spaceId());
+    webClient(DEFAULT_AUTHOR).deleteSpace(spaceId());
     if (this.composite)
-      webClient.deleteSpace(superSpaceId());
+      webClient(DEFAULT_AUTHOR).deleteSpace(superSpaceId());
   }
 
   @Override
   public void writeFeatures(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial,
-      SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode) {
+      SpaceContext spaceContext, boolean historyEnabled, SQLError expectedErrorCode)
+      throws WebClientException, JsonProcessingException, SQLException {
     FeatureCollection featureCollection = new FeatureCollection().withFeatures(featureList);
 
     try {
-      XyzResponse xyzResponse = webClient.postFeatures(spaceId(), featureCollection,
+      XyzResponse xyzResponse = webClient(author).postFeatures(spaceId(), featureCollection,
           generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
       System.out.println(xyzResponse);
     }
-    catch (XyzWebClient.ErrorResponseException e) {
-      //ToDo impl assert
-      if (e.getErrorResponse() != null) {
-        switch (e.getErrorResponse().statusCode()) {
-          case 409: {
-            if (onNotExists != null)
-              assertEquals(OnNotExists.ERROR, onNotExists);
-            if (onExists != null)
-              assertEquals(onExists.ERROR, onExists);
-            if (onExists == null && onVersionConflict != null) {
-              if (onMergeConflict != null)
-                //only on retain and error we will not find an object
-                assertNotEquals(onMergeConflict.REPLACE, onMergeConflict);
-              else
-                assertEquals(onVersionConflict.ERROR, onVersionConflict);
-            }
-            break;
+    catch (ErrorResponseException e) {
+      switch (e.getErrorResponse().statusCode()) {
+        case 409: {
+          Map<String, Object> responseBody = XyzSerializable.deserialize(e.getErrorResponse().body(), Map.class);
+          //FIXME: respond with correct status codes in hub (e.g. not exists => 404)
+          String errorMessage = (String) responseBody.get("errorMessage");
+          switch (errorMessage) {
+            case "The record does not exist.":
+              throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
+            case "The record {" + TEST_FEATURE_ID + "} exists.":
+              throw new SQLException(errorMessage, FEATURE_EXISTS.errorCode, e);
+            case "Conflict while merging someConflictingValue with someValue":
+              throw new SQLException(errorMessage, MERGE_CONFLICT_ERROR.errorCode, e);
+            default:
+              throw e;
           }
-          default:
-            fail(onNotExists + " " + onExists + " " + onMergeConflict + " " + onMergeConflict + " => " + e.getErrorResponse().statusCode());
         }
+        default:
+          throw e;
       }
-    }
-    catch (XyzWebClient.WebClientException e) {
-      //TODO
-      fail();
     }
   }
 

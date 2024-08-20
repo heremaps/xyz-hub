@@ -52,7 +52,7 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
     return testScenarios().stream().map(args -> new Object[]{args}).toList();
   }
 
-  private static List<TestArgs> testScenarios() throws JsonProcessingException {
+  public static List<TestArgs> testScenarios() throws JsonProcessingException {
     return List.of(
         /** Feature not exists */
         new TestArgs("1", false, false, false, true, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,

@@ -25,7 +25,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class SQLBasedTestSuite extends TestSuite {
+public abstract class SQLBasedTestSuite extends TestSuite {
 
   public SQLBasedTestSuite(TestArgs args) {
     super(args);

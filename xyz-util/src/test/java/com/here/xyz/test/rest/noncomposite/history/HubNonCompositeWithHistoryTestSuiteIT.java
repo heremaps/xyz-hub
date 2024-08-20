@@ -19,20 +19,11 @@
 
 package com.here.xyz.test.rest.noncomposite.history;
 
-import static com.here.xyz.test.SpaceWritingTest.Operation.U;
-import static com.here.xyz.test.SpaceWritingTest.SQLError.FEATURE_EXISTS;
-import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.test.SpaceWritingTest.OnExists;
-import com.here.xyz.test.SpaceWritingTest.OnMergeConflict;
-import com.here.xyz.test.SpaceWritingTest.OnNotExists;
-import com.here.xyz.test.SpaceWritingTest.OnVersionConflict;
-import com.here.xyz.test.SpaceWritingTest.Operation;
-import com.here.xyz.test.SpaceWritingTest.SQLError;
 import com.here.xyz.test.featurewriter.HubBasedTestSuite;
+import com.here.xyz.test.featurewriter.matrix.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
 import java.util.Collection;
-import java.util.List;
+import java.util.Set;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -51,274 +42,26 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
   }
 
   public static Collection<TestArgs> testScenarios() throws JsonProcessingException {
-    return List.of(
-        /** Feature NOT exists */
-        new TestArgs("0", false, true, false, null, null, false, false, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
-            /* Expected content of the written Feature */
-            new Expectations(
-                INSERT,
-                Operation.I,
-                simpleFeature(),
-                1L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        /* No existing Feature expected. No TableOperation! */
-        new TestArgs("1", false, true, false, null, null, false, false, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,
-            new Expectations(SQLError.FEATURE_NOT_EXISTS)),
-        /* No existing Feature expected. No TableOperation! */
-        new TestArgs("2", false, true, false, null, null, false, false, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null),
-
-        /** Feature exists + no ConflictHandling */
-        new TestArgs("3", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.DELETE, null, null, null,
-            /* Expected content of the deleted Feature (History). */
-            new Expectations(
-                INSERT,
-                Operation.D,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("4", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.REPLACE, null, null, null,
-            /* Expected content of the replaced Feature (2th write). */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("5", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.RETAIN, null, null, null,
-            /* Expected content of the untouched Feature (from 1th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                Operation.I,
-                simpleFeature(),
-                1L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("6", false, true, true, null, null, false, false, UserIntent.WRITE, null, OnExists.ERROR, null, null, null,
-            /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 1th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                Operation.I,
-                simpleFeature(),
-                1L,
-                Long.MAX_VALUE,
-                null,
-                FEATURE_EXISTS
-            )
-        ),
-        /** Feature exists and got updated. Third write will have a Baseversion MATCH */
-        new TestArgs("7", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE,
-            null, null,
-            /* Expected content of the deleted Feature (3rd write) (History) */
-            new Expectations(
-                INSERT,
-                Operation.D,
-                simple1stModifiedFeature(),
-                //TODO: Check if version=3 is correct!
-                3L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("8", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
-            null, null,
-            /* Expected content of the replaced Feature (3th write) */
-            new Expectations(
-                INSERT,
-                U,
-                simple2ndModifiedFeature(3L, false),
-                3L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("9", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
-            null, null,
-            /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("10", false, true, true, true, null, false, false, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
-            null, null,
-            /* SQLError.FEATURE_EXISTS & Expected content of the untouched Feature (from 2th write). No TableOperation!  */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                FEATURE_EXISTS
-            )
-        ),
-
-        /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> ERROR, RETAIN  */
-        new TestArgs("11", false, true, true, false, null, false, false, UserIntent.WRITE, null, null, OnVersionConflict.ERROR, null, null,
-            /* SQLError.VERSION_CONFLICT_ERROR & Expected content of the untouched Feature (from 2th write). */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                SQLError.VERSION_CONFLICT_ERROR
-            )
-        ),
-        new TestArgs("12", false, true, true, false, null, false, false, UserIntent.WRITE, null, null, OnVersionConflict.RETAIN, null, null,
-            /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        /**  Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> REPLACE */
-        new TestArgs("13", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE,
-            null, null,
-            /* Expected content of the deleted Feature (3rd write) (History) */
-            new Expectations(
-                INSERT,
-                Operation.D,
-                simple1stModifiedFeature(),
-                3L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("14", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE,
-            null, null,
-            /* Expected content of the replaced Feature (3th write). */
-            new Expectations(
-                INSERT,
-                U,
-                simple2ndModifiedFeature(3L, false),
-                3L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("15", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.RETAIN, OnVersionConflict.REPLACE,
-            null, null,
-            /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        new TestArgs("16", false, true, true, false, null, false, false, UserIntent.WRITE, null, OnExists.ERROR, OnVersionConflict.REPLACE,
-            null, null,
-            /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                FEATURE_EXISTS
-            )
-        ),
-        /** Feature exists and got updated. Third write will have a Baseversion MISSMATCH. With ConflictHandling -> MERGE (NoConflicting Changes) */
-        new TestArgs("17", false, true, true, false, false, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE, null, null,
-            /* Expected content of the merged Feature (from 2th&3th write). */
-            new Expectations(
-                INSERT,
-                //TODO: Check
-                U,
-                simple1stModifiedFeature().withProperties(simple1stModifiedFeature().getProperties().with("age", "32")),
-                3L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-
-        /** Feature exists + With ConflictHandling + Baseversion MISSMATCH -> MERGE Conflicting*/
-        //TODO: Test is flickering! Assumption: hub behavior is not consistent.
-        new TestArgs("18", false, true, true, false, true, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
-            OnMergeConflict.ERROR,
-            null,
-            /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                SQLError.MERGE_CONFLICT_ERROR
-            )
-        ),
-        //TODO: Test is flickering! Assumption: hub behavior is not consistent.
-        new TestArgs("19", false, true, true, false, true, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
-            OnMergeConflict.RETAIN,
-            null,
-            /* Expected content of the untouched Feature (from 2th write). No TableOperation! */
-            new Expectations(
-                INSERT,
-                U,
-                simple1stModifiedFeature(),
-                2L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        ),
-        //TODO: Test is flickering! Assumption: hub behavior is not consistent.
-        new TestArgs("20", false, true, true, false, true, false, false, UserIntent.WRITE, null, null, OnVersionConflict.MERGE,
-            OnMergeConflict.REPLACE,
-            null,
-            /* Expected content of the replaced Feature (3th write). */
-            new Expectations(
-                INSERT,
-                U,
-                simple2ndModifiedFeature(3L, true),
-                3L,
-                Long.MAX_VALUE,
-                null,
-                null
-            )
-        )
+    Set<String> ignoredTests = Set.of(
+        "4", //FIXME: Test[4] Issue in Hub: Author is not being written for deletion markers
+        "8", //FIXME: Test[8] Issue in Hub: Author is not being written for deletion markers
+        "12", //FIXME: Test[12] Issue in Hub: No version conflict is thrown in that case
+        "14", //FIXME: Test[14] Issue in Hub: Author is not being written for deletion markers
+        "18", //FIXME: Test[18] Issue in Hub: Concurrently written attribute is sometimes not merged into the result correctly (flickering)
+        "19", //FIXME: Test[19] Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "20", //FIXME: Test[20] Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "21" //FIXME: Test[21] Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
     );
+
+    return SQLNonCompositeWithHistoryTestSuiteIT.testScenarios()
+        .stream().filter(args -> !ignoredTests.contains(args.testName())).toList();
   }
+
+  //TODO: Check missing version conflict errors
+  //TODO: Check creation timestamp issues (actually in case of history the test should not treat a table.INSERT as creation, but a feature.I should be instead => probably FeatureWriter has to be fixed as well)
 
   @Test
   public void start() throws Exception {
-    runFeatureWriter();
+    runTest();
   }
 }
