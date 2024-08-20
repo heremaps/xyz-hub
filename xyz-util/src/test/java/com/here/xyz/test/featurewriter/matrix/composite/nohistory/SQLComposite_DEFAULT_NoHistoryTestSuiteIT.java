@@ -57,40 +57,40 @@ public class SQLComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
   public static List<TestArgs> testScenarios() {
     return List.of(
 
-        new TestArgs("1.1", true, false, false, true, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, DEFAULT,
+        new TestArgs("1.1", true, false, UserIntent.WRITE, OnNotExists.CREATE, null, null, null,
             new TestAssertions(INSERT, I)),
 
-        new TestArgs("1.2", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, DEFAULT,
+        new TestArgs("1.2", true, false, UserIntent.WRITE, OnNotExists.ERROR, null, null, null,
             new TestAssertions(FEATURE_NOT_EXISTS)),
 
-        new TestArgs("1.3", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, DEFAULT,
+        new TestArgs("1.3", true, false, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null,
             new TestAssertions()),
 
-        new TestArgs("2.1", true, false, true, true, null, true, false, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("2.1", true, false, true, true, true, false, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(INSERT, H)),
 
-        new TestArgs("2.2", true, false, true, true, null, true, false, UserIntent.WRITE, null, OnExists.REPLACE, null, null, DEFAULT,
+        new TestArgs("2.2", true, false, true, true, true, false, UserIntent.WRITE, null, OnExists.REPLACE, null, null, DEFAULT,
             new TestAssertions(INSERT, I)),
 
-        new TestArgs("2.3", true, false, true, true, null, true, false, UserIntent.WRITE, null, OnExists.RETAIN, null, null, DEFAULT,
+        new TestArgs("2.3", true, false, true, true, true, false, UserIntent.WRITE, null, OnExists.RETAIN, null, null, DEFAULT,
             new TestAssertions()),
 
-        new TestArgs("2.4", true, false, true, true, null, true, false, UserIntent.WRITE, null, OnExists.ERROR, null, null, DEFAULT,
+        new TestArgs("2.4", true, false, true, true, true, false, UserIntent.WRITE, null, OnExists.ERROR, null, null, DEFAULT,
             new TestAssertions(FEATURE_EXISTS)),
 
-        new TestArgs("3.1", true, false, true, true, null, false, true, UserIntent.WRITE, null, OnExists.REPLACE, null, null, DEFAULT,
+        new TestArgs("3.1", true, false, true, true, false, true, UserIntent.WRITE, null, OnExists.REPLACE, null, null, DEFAULT,
             new TestAssertions(UPDATE, U)),
 
-        new TestArgs("3.2", true, false, true, true, null, false, true, UserIntent.WRITE, null, OnExists.RETAIN, null, null, DEFAULT,
+        new TestArgs("3.2", true, false, true, true, false, true, UserIntent.WRITE, null, OnExists.RETAIN, null, null, DEFAULT,
             new TestAssertions()),
 
-        new TestArgs("3.3", true, false, true, true, null, false, true, UserIntent.WRITE, null, OnExists.ERROR, null, null, DEFAULT,
+        new TestArgs("3.3", true, false, true, true, false, true, UserIntent.WRITE, null, OnExists.ERROR, null, null, DEFAULT,
             new TestAssertions(FEATURE_EXISTS)),
 
-        new TestArgs("4.1", true, false, true, true, null, true, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("4.1", true, false, true, true, true, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(UPDATE, J)),
 
-        new TestArgs("4.2", true, false, true, true, null, false, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
+        new TestArgs("4.2", true, false, true, true, false, true, UserIntent.WRITE, null, OnExists.DELETE, null, null, DEFAULT,
             new TestAssertions(DELETE)),
 
         new TestArgs("5.1", true, false, true, false, false, false, true, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.ERROR, null, DEFAULT,

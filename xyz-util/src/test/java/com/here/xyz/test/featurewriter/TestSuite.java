@@ -70,8 +70,8 @@ public abstract class TestSuite {
   protected boolean composite;
   protected boolean history;
   protected boolean featureExists;
-  protected Boolean baseVersionMatch; //TODO: Use unboxed type
-  protected Boolean conflictingAttributes; //TODO: Use unboxed type
+  protected boolean baseVersionMatch;
+  protected boolean conflictingAttributes;
   protected boolean featureExistsInSuper;
   protected boolean featureExistsInExtension;
   protected UserIntent userIntent;
@@ -85,7 +85,6 @@ public abstract class TestSuite {
       EXTENSION, new LongAdder()
   ));
   protected long baseVersion;
-
 
   protected SpaceState beforeState;
   protected SQLError thrownError;
@@ -360,6 +359,26 @@ public abstract class TestSuite {
 
       if (featureExistsInExtension == null)
         featureExistsInExtension = false;
+    }
+
+    public TestArgs(String testName, boolean composite, boolean history, boolean featureExists, boolean baseVersionMatch,
+        Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
+        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
+        SpaceContext spaceContext, TestAssertions assertions) {
+      this(testName, composite, history, featureExists, baseVersionMatch, false, featureExistsInSuper,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
+    }
+
+    public TestArgs(String testName, boolean composite, boolean history, Boolean baseVersionMatch,
+        Boolean conflictingAttributes, UserIntent userIntent,
+        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, TestAssertions assertions) {
+      this(testName, composite, history, false, baseVersionMatch, conflictingAttributes, false,
+          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, DEFAULT, assertions);
+    }
+
+    public TestArgs(String testName, boolean composite, boolean history, UserIntent userIntent,
+        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, TestAssertions assertions) {
+      this(testName, composite, history, true, false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, assertions);
     }
 
     public TestArgs(String testName, boolean history, boolean featureExists, Boolean baseVersionMatch,

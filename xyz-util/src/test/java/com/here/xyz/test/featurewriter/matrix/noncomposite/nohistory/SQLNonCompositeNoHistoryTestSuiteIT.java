@@ -55,15 +55,15 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
   public static List<TestArgs> testScenarios() throws JsonProcessingException {
     return List.of(
         /** Feature not exists */
-        new TestArgs("1", false, false, false, true, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
+        new TestArgs("1", false, false, false, true,  null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
             /* Expected content of newly created Feature */
             new TestAssertions(INSERT, I)
         ),
         /* No existing Feature expected. No TableOperation!  */
-        new TestArgs("2", false, false, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,
+        new TestArgs("2", false, false, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,
             new TestAssertions(FEATURE_NOT_EXISTS)),
         /* No existing Feature expected. No TableOperation!  */
-        new TestArgs("3", false, false, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null,
+        new TestArgs("3", false, false, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null,
             new TestAssertions()),
 
         /** Feature exists */
@@ -85,7 +85,7 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
 
         /** Feature exists and got updated. Third write will have a Baseversion MATCH */
         /* No existing Feature expected */
-        new TestArgs("8", false, true, true, null, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null,
+        new TestArgs("8", false, true, true, false, UserIntent.WRITE, null, OnExists.DELETE, OnVersionConflict.REPLACE, null, null,
             new TestAssertions(DELETE)),
         new TestArgs("9", false, true, true, UserIntent.WRITE, null, OnExists.REPLACE, OnVersionConflict.REPLACE, null, null,
             /* Expected content of the replaced Feature (3th write). */
