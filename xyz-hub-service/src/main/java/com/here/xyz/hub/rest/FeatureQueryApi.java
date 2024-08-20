@@ -185,6 +185,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final String refFeatureId = Query.getRefFeatureId(context);
       final String refSpaceId = Query.getRefSpaceId(context);
       final String h3Index = Query.getH3Index(context);
+      final int MAX_NR_COORDINATES = 1200; // DS-641
 
       Geometry geometry = null;
 
@@ -209,6 +210,9 @@ public class FeatureQueryApi extends SpaceBasedApi {
             throw new HttpException(BAD_REQUEST, "Invalid arguments! Define '"+Query.LAT+"' and '"+Query.LON+"' or reference a '"+Query.REF_FEATURE_ID+"' in a '"+Query.REF_SPACE_ID+"'!");
       } else if(context.request().method() == HttpMethod.POST) {
           geometry = getBodyAsGeometry(context);
+          int nrCoordinates = geometry.getJTSGeometry().getNumPoints();
+          if( MAX_NR_COORDINATES < nrCoordinates )
+           throw new HttpException(BAD_REQUEST, String.format("Invalid arguments! Geometry exceeds %d coordinates < %d", MAX_NR_COORDINATES, nrCoordinates) );
       }
 
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
