@@ -20,20 +20,18 @@
 package com.here.xyz.test.rest.composite.nohistory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.test.SpaceWritingTest;
-import com.here.xyz.test.SpaceWritingTest.OnNotExists;
-import com.here.xyz.test.SpaceWritingTest.Operation;
-import com.here.xyz.test.featurewriter.matrix.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
+import com.here.xyz.test.featurewriter.HubBasedTestSuite;
+import com.here.xyz.test.featurewriter.matrix.composite.nohistory.SQLComposite_DEFAULT_NoHistoryTestSuiteIT;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
-public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
+public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends HubBasedTestSuite {
 
   public HubComposite_DEFAULT_NoHistoryTestSuiteIT(TestArgs args) {
     super(args);
@@ -45,45 +43,26 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
   }
 
   public static List<TestArgs> testScenarios() throws JsonProcessingException {
-    return List.of(
-        /** Feature not exists */
-        new TestArgs(
-            "0",
-            true,
-            false,
-            false,
-            null,
-            null,
-            null,
-            null,
-
-            UserIntent.WRITE,
-            OnNotExists.CREATE,
-            null,
-            null,
-            null,
-            SpaceContext.DEFAULT,
-
-            //Expected content of newly created Feature
-            new Expectations(
-                TableOperation.INSERT,
-                Operation.I,
-                simpleFeature(),
-                1,
-                Long.MAX_VALUE,
-                SpaceWritingTest.DEFAULT_AUTHOR,
-                null
-            )
-        )
-//                /* No existing Feature expected. No TableOperation!  */
-//                new TestArgs("2", true, false, false, null, null, null, SpaceContext.EXTENSION, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null, new Expectations(SQLError.FEATURE_NOT_EXISTS) ),
-//                /* No existing Feature expected. No TableOperation!  */
-//                new TestArgs("3", true, false, false, null, null, null, null, UserIntent.WRITE, OnNotExists.RETAIN, null, null, null, null, null ),
+    Set<String> ignoredTests = Set.of(
+        "2.1", //FIXME: Issue in Hub: Hub currently does not allow to perform modifications through SUPER
+        "2.2", //FIXME: Issue in Hub: Hub currently does not allow to perform modifications through SUPER
+        "2.3", //FIXME: Issue in Hub: Hub currently does not allow to perform modifications through SUPER
+        "2.4", //FIXME: Issue in Hub: Hub currently does not allow to perform modifications through SUPER
+        "4.1", //FIXME: Issue in Hub: Hub currently does not allow to perform modifications through SUPER
+        "5.4", //FIXME: Issue in Hub: Hub currently does not allow to perform modifications through SUPER
+        "5.1", //FIXME: Issue in Hub: No version conflict is thrown in that case
+        "5.5" //FIXME: Issue in Hub: No illegal argument error is thrown in that case
     );
+
+    //TODO: Check missing version conflict errors
+    //TODO: Maybe also use the SQL writer for the preparation of the Hub tests
+
+    return SQLComposite_DEFAULT_NoHistoryTestSuiteIT.testScenarios()
+        .stream().filter(args -> !ignoredTests.contains(args.testName())).toList();
   }
 
   @Test
   public void start() throws Exception {
-    runFeatureWriter();
+    runTest();
   }
 }

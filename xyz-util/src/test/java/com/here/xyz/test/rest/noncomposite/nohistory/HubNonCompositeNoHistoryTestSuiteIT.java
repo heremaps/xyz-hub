@@ -43,8 +43,8 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
 
   public static List<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-      "12", //FIXME: Test[12] Issue in Hub: No version conflict is thrown in that case
-      "15" //FIXME: Test[15] Issue in Hub: No illegal argument error is thrown in that case
+      "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
+      "15" //FIXME: Issue in Hub: No illegal argument error is thrown in that case
     );
 
     return SQLNonCompositeNoHistoryTestSuiteIT.testScenarios()

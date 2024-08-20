@@ -43,14 +43,14 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends HubBasedTestSuite {
 
   public static Collection<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-        "4", //FIXME: Test[4] Issue in Hub: Author is not being written for deletion markers
-        "8", //FIXME: Test[8] Issue in Hub: Author is not being written for deletion markers
-        "12", //FIXME: Test[12] Issue in Hub: No version conflict is thrown in that case
-        "14", //FIXME: Test[14] Issue in Hub: Author is not being written for deletion markers
-        "18", //FIXME: Test[18] Issue in Hub: Concurrently written attribute is sometimes not merged into the result correctly (flickering)
-        "19", //FIXME: Test[19] Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
-        "20", //FIXME: Test[20] Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
-        "21" //FIXME: Test[21] Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "4", //FIXME: Issue in Hub: Author is not being written for deletion markers
+        "8", //FIXME: Issue in Hub: Author is not being written for deletion markers
+        "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
+        "14", //FIXME: Issue in Hub: Author is not being written for deletion markers
+        "18", //FIXME: Issue in Hub: Concurrently written attribute is sometimes not merged into the result correctly (flickering)
+        "19", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "20", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "21" //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
     );
 
     return SQLNonCompositeWithHistoryTestSuiteIT.testScenarios()

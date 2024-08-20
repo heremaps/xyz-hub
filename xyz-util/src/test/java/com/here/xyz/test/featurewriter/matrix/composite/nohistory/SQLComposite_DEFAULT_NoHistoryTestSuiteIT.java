@@ -36,6 +36,7 @@ import com.here.xyz.test.SpaceWritingTest.OnExists;
 import com.here.xyz.test.SpaceWritingTest.OnNotExists;
 import com.here.xyz.test.SpaceWritingTest.OnVersionConflict;
 import com.here.xyz.test.featurewriter.matrix.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
+import java.util.Collection;
 import java.util.List;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -49,7 +50,7 @@ public class SQLComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
   }
 
   @Parameters(name = "{0}")
-  public static List<Object[]> parameterSets() {
+  public static Collection<Object[]> parameterSets() {
     return testScenarios().stream().map(args -> new Object[]{args}).toList();
   }
 
