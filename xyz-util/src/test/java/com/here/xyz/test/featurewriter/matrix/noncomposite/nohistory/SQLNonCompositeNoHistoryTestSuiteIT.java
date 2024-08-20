@@ -57,7 +57,7 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLBasedTestSuite {
         /** Feature not exists */
         new TestArgs("1", false, false, false, true, null, null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
             /* Expected content of newly created Feature */
-            null, new TestAssertions(INSERT, I)
+            new TestAssertions(INSERT, I)
         ),
         /* No existing Feature expected. No TableOperation!  */
         new TestArgs("2", false, false, null, null, UserIntent.WRITE, OnNotExists.ERROR, null, null, null, null,

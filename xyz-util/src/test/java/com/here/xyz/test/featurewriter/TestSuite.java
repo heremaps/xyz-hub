@@ -58,6 +58,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 
 public abstract class TestSuite {
 
@@ -79,7 +80,6 @@ public abstract class TestSuite {
   protected OnVersionConflict onVersionConflict;
   protected OnMergeConflict onMergeConflict;
   protected SpaceContext spaceContext;
-  protected Expectations expectations;
   protected Map<SpaceContext, LongAdder> writtenSpaceVersions = new HashMap<>(Map.of(
       SUPER, new LongAdder(),
       EXTENSION, new LongAdder()
@@ -113,7 +113,6 @@ public abstract class TestSuite {
     onMergeConflict = args.onMergeConflict;
     spaceContext = args.spaceContext;
 
-    expectations = args.expectations;
     assertions = args.assertions;
 
     if (spaceContext == null)
@@ -177,33 +176,6 @@ public abstract class TestSuite {
     return feature;
   }
 
-  protected static Feature simple1stModifiedFeature() throws JsonProcessingException {
-    return simple1stModifiedFeature(-1);
-  }
-
-  protected static Feature simple1stModifiedFeature(long version) throws JsonProcessingException {
-    Feature feature = simpleFeature();
-    feature.getProperties().with("lastName", "Wonder");
-
-    if (version != -1)
-      feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(version));
-
-    return feature;
-  }
-
-  protected static Feature simple2ndModifiedFeature(Long version, Boolean conflictingAttributes) throws JsonProcessingException {
-    Feature feature = featureWithEmptyProperties();
-    feature.getProperties().with("age", "32");
-
-    if (conflictingAttributes != null && conflictingAttributes)
-      feature.getProperties().with("lastName", "NotWonder");
-
-    if (version != null)
-      feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(version));
-
-    return feature;
-  }
-
   @Before
   public void prepare() throws Exception {
     spaceWriter.createSpaceResources();
@@ -212,6 +184,11 @@ public abstract class TestSuite {
   @After
   public void clean() throws Exception {
     spaceWriter.cleanSpaceResources();
+  }
+
+  @Test
+  public void start() throws Exception {
+    runTest();
   }
 
   private void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
@@ -296,7 +273,7 @@ public abstract class TestSuite {
     assertEquals("A wrong table operation was performed.",assertions.performedTableOperation, performedTableOperation);
 
     //Check whether the feature was written properly
-    //TODO: Expect version increase on deletions?
+    //TODO: Expect version increase on table.DELETE?
     if (performedTableOperation == INSERT || performedTableOperation == UPDATE) {
       //Check the used feature operation
       Operation featureOperation = afterTableState.lastUsedFeatureOperation;
@@ -375,7 +352,7 @@ public abstract class TestSuite {
   public record TestArgs(String testName, boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch,
       Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
       OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-      SpaceContext spaceContext, Expectations expectations, TestAssertions assertions) {
+      SpaceContext spaceContext, TestAssertions assertions) {
 
     public TestArgs {
       if (featureExistsInSuper == null)
@@ -385,59 +362,49 @@ public abstract class TestSuite {
         featureExistsInExtension = false;
     }
 
-
-    public TestArgs(String testName, boolean composite, boolean history, boolean featureExists, Boolean baseVersionMatch,
-        Boolean conflictingAttributes, Boolean featureExistsInSuper, Boolean featureExistsInExtension, UserIntent userIntent,
-        OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
-        SpaceContext spaceContext, Expectations expectations) {
-      this(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations,
-          null);
-    }
-
     public TestArgs(String testName, boolean history, boolean featureExists, Boolean baseVersionMatch,
         Boolean conflictingAttributes, UserIntent userIntent, OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict,
         OnMergeConflict onMergeConflict, SpaceContext spaceContext, TestAssertions assertions) {
       this(testName, false, history, featureExists, baseVersionMatch, conflictingAttributes, false,
-          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, null, assertions);
+          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
     }
 
     public TestArgs(String testName, boolean history, boolean featureExists, Boolean baseVersionMatch, UserIntent userIntent,
         OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
         SpaceContext spaceContext, TestAssertions assertions) {
       this(testName, false, history, featureExists, baseVersionMatch, false, false,
-          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, null, assertions);
+          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, assertions);
     }
 
     public TestArgs(String testName, boolean history, boolean featureExists, UserIntent userIntent,
         OnNotExists onNotExists, OnExists onExists, OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict,
         SpaceContext spaceContext, TestAssertions assertions) {
       this(testName, false, history, featureExists, true, false, false,
-          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, null,
+          false, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
           assertions);
     }
 
     public TestArgs withComposite(boolean composite) {
       return new TestArgs(testName, true, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
           assertions);
     }
 
     public TestArgs withContext(SpaceContext spaceContext) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
           assertions);
     }
 
     public TestArgs withFeatureExistsInSuper(boolean featureExistsInSuper) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
           assertions);
     }
 
     public TestArgs withFeatureExistsInExtension(boolean featureExistsInExtension) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
-          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext, expectations,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
           assertions);
     }
 
@@ -503,18 +470,6 @@ public abstract class TestSuite {
 
     public TestAssertions() {
       this(NONE);
-    }
-  }
-
-  public record Expectations(TableOperation tableOperation, Operation featureOperation, Feature feature, long version, long nextVersion,
-      String author, SQLError sqlError) {
-
-    public Expectations(SQLError sqlError) {
-      this(null, null, null, 0L, 0L, null, sqlError);
-    }
-
-    public Expectations(TableOperation tableOperation) {
-      this(tableOperation, null, null, 0L, 0L, null, null);
     }
   }
 }

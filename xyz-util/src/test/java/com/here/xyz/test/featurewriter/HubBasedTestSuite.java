@@ -21,7 +21,7 @@ package com.here.xyz.test.featurewriter;
 
 import com.here.xyz.test.HubBasedSpaceTest;
 
-public class HubBasedTestSuite extends TestSuite {
+public abstract class HubBasedTestSuite extends TestSuite {
 
   public HubBasedTestSuite(TestArgs args) {
     super(args);

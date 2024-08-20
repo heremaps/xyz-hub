@@ -24,7 +24,6 @@ import com.here.xyz.test.featurewriter.HubBasedTestSuite;
 import com.here.xyz.test.featurewriter.matrix.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
 import java.util.List;
 import java.util.Set;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -52,9 +51,4 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends HubBasedTestSuite {
   }
 
   //TODO: Check missing version conflict errors
-
-  @Test
-  public void start() throws Exception {
-    runTest();
-  }
 }
