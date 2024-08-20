@@ -109,6 +109,12 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
     if (config.readOnly) {
       props.setProperty(PGProperty.READ_ONLY.getName(), "true");
     }
+    // TODO : can be changed to debug later, when timeout issues have settled (and logs are too noisy)
+    log.info(
+        "Init connection using connectTimeout={}ms, socketTimeout={}ms, cancelSignalTimeout={}ms",
+        connTimeoutInMillis,
+        sockedReadTimeoutInMillis,
+        cancelSignalTimeoutInMillis);
     props.setProperty(
         PGProperty.CONNECT_TIMEOUT.getName(),
         Long.toString(Math.min(Integer.MAX_VALUE, connTimeoutInMillis / 1000L)));
@@ -121,6 +127,7 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
     props.setProperty(PGProperty.RECEIVE_BUFFER_SIZE.getName(), Long.toString(receiveBufferSize));
     props.setProperty(PGProperty.SEND_BUFFER_SIZE.getName(), Long.toString(sendBufferSize));
     props.setProperty(PGProperty.REWRITE_BATCHED_INSERTS.getName(), "true");
+    props.setProperty(PGProperty.LOG_UNCLOSED_CONNECTIONS.getName(), "true");
 
     pgConnection = new PgConnection(new HostSpec[] {config.hostSpec}, props, config.url);
     pgConnection.setAutoCommit(false);

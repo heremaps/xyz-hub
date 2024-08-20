@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.psql.SQL.quote_ident;
 import static com.here.naksha.lib.psql.SQL.shouldEscapeIdent;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -57,14 +58,14 @@ import org.slf4j.LoggerFactory;
 final class PostgresStorage extends ClosableRootResource {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresStorage.class);
-  private static long MIN_CONN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(1);
-  private static long DEFAULT_CONN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(5);
+  private static final long MIN_CONN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(1);
+  private static final long DEFAULT_CONN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(5);
 
-  private static long MIN_STMT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(2);
-  private static long DEFAULT_STMT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(60);
+  private static final long MIN_STMT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(2);
+  private static final long DEFAULT_STMT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(60);
 
-  private static long MIN_LOCK_TIMEOUT_MILLIS = 100;
-  private static long DEFAULT_LOCK_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(1);
+  private static final long MIN_LOCK_TIMEOUT_MILLIS = 100;
+  private static final long DEFAULT_LOCK_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(1);
 
   private static long value(@Nullable Long value, long minValue, long defaultValue) {
     if (value == null) {
@@ -91,6 +92,7 @@ final class PostgresStorage extends ClosableRootResource {
     this.connTimeout = value(connTimeout, MIN_CONN_TIMEOUT_MILLIS, DEFAULT_CONN_TIMEOUT_MILLIS);
     this.stmtTimeout = value(stmtTimeout, MIN_STMT_TIMEOUT_MILLIS, DEFAULT_STMT_TIMEOUT_MILLIS);
     this.lockTimeout = value(lockTimeout, MIN_LOCK_TIMEOUT_MILLIS, DEFAULT_LOCK_TIMEOUT_MILLIS);
+    this.sockedReadTimeout = this.stmtTimeout + SECONDS.toMillis(1);
     this.logLevel = logLevel == null ? EPsqlLogLevel.OFF : logLevel;
     this.masterConfig = masterConfig;
     if (masterConfig != null) {
@@ -245,7 +247,7 @@ final class PostgresStorage extends ClosableRootResource {
     return fetchSize;
   }
 
-  private long sockedReadTimeout = TimeUnit.SECONDS.toMillis(15);
+  private long sockedReadTimeout;
 
   /**
    * Cancel command is sent out of band over its own connection, so cancel message can itself get stuck. This property controls "connect
@@ -323,6 +325,8 @@ final class PostgresStorage extends ClosableRootResource {
     }
     sql.add("SET SESSION work_mem TO '256 MB';\n");
     sql.add("SET SESSION enable_seqscan TO OFF;\n");
+    // TODO : can be changed to debug later, when timeout issues have settled (and logs are too noisy)
+    log.info("Init session using stmtTimeout={}ms, lockTimeout={}ms", stmtTimeout, lockTimeout);
     sql.add("SET SESSION statement_timeout TO ").add(stmtTimeout).add(";\n");
     sql.add("SET SESSION lock_timeout TO ").add(lockTimeout).add(";\n");
   }

@@ -1118,8 +1118,13 @@ BEGIN
 
   sql := format('CREATE TABLE IF NOT EXISTS %I PARTITION OF %I FOR VALUES FROM (%s) TO (%s);',
                 hst_partition_table_name, hst_table_name, from_part_id, to_part_id);
-  --RAISE NOTICE '%', sql;
-  EXECUTE sql;
+  BEGIN
+    --RAISE NOTICE '%', sql;
+    EXECUTE sql;
+  EXCEPTION
+    WHEN duplicate_table THEN
+      NULL; -- ignore if history partition table already exist (this is possible during concurrency)
+  END;
   PERFORM nk_optimize_table(hst_partition_table_name, true);
   PERFORM nk_create_indices(_collection, hst_partition_table_name, nk_get_collection_points_only(_collection), false);
 END $$;

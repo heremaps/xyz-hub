@@ -69,9 +69,6 @@ public final class PsqlInstance {
   /**
    * Returns a new connection from the pool.
    *
-   * @param applicationName              The application name to be used for the connection.
-   * @param schema                       The schema to select.
-   * @param fetchSize                    The default fetch-size to use.
    * @param connTimeoutInMillis         The connection timeout, if a new connection need to be established.
    * @param sockedReadTimeoutInMillis   The socket read-timeout to be used with the connection.
    * @param cancelSignalTimeoutInMillis The signal timeout to be used with the connection.

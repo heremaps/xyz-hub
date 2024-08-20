@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
@@ -239,9 +240,9 @@ public final class PsqlStorage implements IStorage, DataSource {
         p(storage).schema,
         p(storage).master,
         p(storage).reader,
-        null,
-        null,
-        null,
+        p(storage).connectTimeout == null ? null : SECONDS.toMillis(p(storage).connectTimeout),
+        p(storage).stmtTimeout == null ? null : SECONDS.toMillis(p(storage).stmtTimeout),
+        p(storage).lockTimeout == null ? null : SECONDS.toMillis(p(storage).lockTimeout),
         null);
   }
 

@@ -59,4 +59,25 @@ public class PsqlStorageProperties extends XyzProperties {
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonProperty("schema")
   public String schema;
+
+  /**
+   * The connect timeout (seconds).
+   */
+  @AvailableSince(NakshaVersion.v2_1_1)
+  @JsonProperty("connectTimeout")
+  public @Nullable Long connectTimeout;
+
+  /**
+   * The statement timeout (seconds).
+   */
+  @AvailableSince(NakshaVersion.v2_1_1)
+  @JsonProperty("stmtTimeout")
+  public @Nullable Long stmtTimeout;
+
+  /**
+   * The lock timeout (seconds), applicable during concurrent SQL operations in database.
+   */
+  @AvailableSince(NakshaVersion.v2_1_1)
+  @JsonProperty("lockTimeout")
+  public @Nullable Long lockTimeout;
 }

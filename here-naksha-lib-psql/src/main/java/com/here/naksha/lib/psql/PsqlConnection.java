@@ -52,7 +52,8 @@ public class PsqlConnection implements Connection {
    * Creates a new PSQL connection proxy and acquire a new PG connection.
    *
    * @param postgresInstance            The Postgres instance.
-   * @param connTimeoutInMillis         The connection timeout in milliseconds, will be set as well for socket read-timeout.
+   * @param connTimeoutInMillis         The connection timeout in milliseconds
+   * @param sockedReadTimeoutInMillis   The socket-read timeout in milliseconds
    * @param cancelSignalTimeoutInMillis The
    * @param receiveBufferSize           The receive-buffer size in byte.
    * @param sendBufferSize              The send-buffer size in byte.
@@ -61,6 +62,7 @@ public class PsqlConnection implements Connection {
   PsqlConnection(
       @NotNull PostgresInstance postgresInstance,
       long connTimeoutInMillis,
+      long sockedReadTimeoutInMillis,
       long cancelSignalTimeoutInMillis,
       long receiveBufferSize,
       long sendBufferSize)
@@ -69,7 +71,7 @@ public class PsqlConnection implements Connection {
         this,
         postgresInstance,
         connTimeoutInMillis,
-        connTimeoutInMillis,
+        sockedReadTimeoutInMillis,
         cancelSignalTimeoutInMillis,
         receiveBufferSize,
         sendBufferSize);

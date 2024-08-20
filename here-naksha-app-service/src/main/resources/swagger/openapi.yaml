@@ -12,7 +12,7 @@ servers:
 info:
   title: "Naskha Hub-API"
   description: "Naksha Hub-API is a REST API to provide simple access to geo data."
-  version: "2.1.0"
+  version: "2.1.1"
 
 security:
   - AccessToken: [ ]
@@ -1411,6 +1411,9 @@ components:
                   readOnly: true
               appName: app_name
               schema: schema_name
+              connectTimeout: 5
+              stmtTimeout: 60
+              lockTimeout: 1
     HandlerRequest:
       required: true
       content:
@@ -2122,6 +2125,18 @@ components:
           description: >-
             The application name to be used when connecting to the database.
           type: string
+        connectTimeout:
+          description: The storage connect timeout (seconds).
+          type: integer
+          default: 5
+        stmtTimeout:
+          description: The statement timeout (seconds).
+          type: integer
+          default: 60
+        lockTimeout:
+          description: The lock timeout (seconds), applicable during concurrent SQL operations in database.
+          type: integer
+          default: 1
     EventHandler:
       type: object
       description: >-
