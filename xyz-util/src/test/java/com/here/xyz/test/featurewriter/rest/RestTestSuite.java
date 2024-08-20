@@ -26,5 +26,10 @@ public abstract class RestTestSuite extends TestSuite {
   public RestTestSuite(TestArgs args) {
     super(args);
     spaceWriter = new RestSpaceWriter(composite, history);
+    /*
+    TODO: Hub currently only supports to define the author through JWT or request header.
+     Improve featurewriter tests to set author through JWT as the rest of the tests are doing it, then remove this workaround.
+     */
+    ignoreAuthor = true;
   }
 }

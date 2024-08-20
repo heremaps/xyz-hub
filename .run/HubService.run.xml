@@ -28,7 +28,6 @@
       <env name="SPACES_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-spaces" />
       <env name="SUBSCRIPTIONS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-subscriptions" />
       <env name="TAGS_DYNAMODB_TABLE_ARN" value="arn:aws:dynamodb:localhost:000000008000:table/xyz-hub-local-tags" />
-      <env name="USE_AUTHOR_FROM_HEADER" value="true" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="com.here.xyz.hub.Service" />
     <module name="xyz-hub-service" />

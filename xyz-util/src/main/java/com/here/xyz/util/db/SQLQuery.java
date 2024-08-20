@@ -53,7 +53,6 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.postgresql.util.PGobject;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
@@ -738,16 +737,8 @@ public class SQLQuery {
 
   private void injectContext() {
     if (context != null) {
-      statement = "SELECT context(#{context}); " + statement;
-      final PGobject jsonbObject = new PGobject();
-      jsonbObject.setType("jsonb");
-      try {
-        jsonbObject.setValue(XyzSerializable.serialize(context));
-      }
-      catch (SQLException e) {
-        throw new RuntimeException(e);
-      }
-      setNamedParameter("context", jsonbObject);
+      statement = "SELECT context(#{context}::JSONB); " + statement;
+      setNamedParameter("context", XyzSerializable.serialize(context));
     }
   }
 

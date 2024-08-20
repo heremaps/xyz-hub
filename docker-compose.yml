@@ -12,8 +12,6 @@ services:
             - "redis"
             - "xyz-http-connector"
             - "aws-localstack"
-        environment:
-            - USE_AUTHOR_FROM_HEADER=true
     xyz-http-connector:
         image: "xyz-hub"
         build:
