@@ -4273,7 +4273,7 @@ CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty()
 AS $BODY$
 DECLARE
     author text := TG_ARGV[0];
-    curVersion bigint := TG_ARGV[1];
+    currentVersion bigint := TG_ARGV[1];
     isPartial BOOLEAN := TG_ARGV[2];
     onExists TEXT := TG_ARGV[3];
     onNotExists TEXT := TG_ARGV[4];
@@ -4284,11 +4284,12 @@ BEGIN
     --Only Geojson input is currently supported.
     IF NEW.operation IS NULL THEN
         --TODO: uses context with asyncify and remove this hack
+        --TODO: Support composite spaces
         PERFORM context(
-            format('{"schema":"%1$s","table":"%2$s","historyEnabled":false,"context":"EXTENSION"}',TG_TABLE_SCHEMA,TG_TABLE_NAME)::JSONB
+            format('{"schema":"%1$s","table":"%2$s","historyEnabled":false,"context":"EXTENSION"}', TG_TABLE_SCHEMA, TG_TABLE_NAME)::JSONB
         );
         PERFORM write_feature(NEW.jsondata,
-                              curVersion,
+                              currentVersion, --FIXME: Replace by boolean param that disables version increment in FeatureWriter
                               author,
                               onExists,
                               onNotExists,
