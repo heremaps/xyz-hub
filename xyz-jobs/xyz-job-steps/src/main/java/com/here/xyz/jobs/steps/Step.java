@@ -73,6 +73,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private List<Input> inputs;
   @JsonView({Internal.class, Static.class})
   private boolean pipeline;
+  private boolean useSystemInput;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -173,6 +174,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected List<Output> loadPreviousOutputs(boolean userOutput) {
+    return loadPreviousOutputs(userOutput, Output.class);
+  }
+
+  protected List<Output> loadPreviousOutputs(boolean userOutput, Class<? extends Output> type) {
     return loadOutputs(true, userOutput);
   }
 
@@ -193,6 +198,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
                 ? ModelBasedOutput.load(s3ObjectSummary.getKey())
                 : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
         .collect(Collectors.toList());
+  }
+
+  protected List<S3DataFile> loadStepInputs() {
+    return useSystemInput
+        ? loadPreviousOutputs(false).stream().map(output -> (S3DataFile) output).toList()
+        : loadInputs().stream().map(output -> (S3DataFile) output).toList();
   }
 
   /**

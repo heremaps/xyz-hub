@@ -21,10 +21,11 @@ package com.here.xyz.jobs.steps.inputs;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.util.S3Client;
 import java.net.URL;
 
-public class UploadUrl extends Input<UploadUrl> {
+public class UploadUrl extends Input<UploadUrl> implements S3DataFile {
 
   @JsonView(Public.class)
   public URL getUrl() {
