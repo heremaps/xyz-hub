@@ -54,6 +54,8 @@ public class S3Client {
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
 
+  //TODO: Switch to AWS SDK2
+
   protected final AmazonS3 client;
 
   protected S3Client(String bucketName) {
@@ -67,10 +69,12 @@ public class S3Client {
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
           .withPathStyleAccessEnabled(true);
     }
-    else {
+    else if (Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
       final String region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
       builder.setRegion(region);
     }
+    else
+      builder.setRegion(getInstance().client.getBucketLocation(bucketName));
 
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
       synchronized (S3Client.class) {

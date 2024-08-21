@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.inputs;
 import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -206,7 +207,7 @@ public abstract class Input <T extends Input> implements Typed {
     Stream<Input> inputsStream = S3Client.getInstance(bucketName).scanFolder(inputS3Prefix)
         .parallelStream()
         .map(s3ObjectSummary -> createInput(defaultBucket().equals(bucketName) ? null : bucketName, s3ObjectSummary.getKey(),
-            s3ObjectSummary.getSize(), inputIsCompressed(s3ObjectSummary.getKey())))
+            s3ObjectSummary.getSize(), inputIsCompressed(s3ObjectSummary)))
         .filter(input -> inputType.isAssignableFrom(input.getClass()));
 
     if (maxReturnSize > 0)
@@ -258,9 +259,9 @@ public abstract class Input <T extends Input> implements Typed {
         .withCompressed(compressed);
   }
 
-  private static boolean inputIsCompressed(String s3Key) {
+  private static boolean inputIsCompressed(S3ObjectSummary objectSummary) {
     //TODO: Check compression in another way (e.g. file suffix?)
-    ObjectMetadata metadata = S3Client.getInstance().loadMetadata(s3Key);
+    ObjectMetadata metadata = S3Client.getInstance(objectSummary.getBucketName()).loadMetadata(objectSummary.getKey());
     return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
   }
 
