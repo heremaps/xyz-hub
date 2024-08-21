@@ -22,7 +22,6 @@ package com.here.xyz.jobs.steps;
 import com.here.xyz.util.service.BaseConfig;
 import java.net.URI;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.List;
 
 public class Config extends BaseConfig {
@@ -76,8 +75,15 @@ public class Config extends BaseConfig {
   public String STEP_PLUGINS;
 
   public List<String> stepPlugins() {
-    if (STEP_PLUGINS == null)
-      return List.of();
-    return Arrays.asList(STEP_PLUGINS.split(","));
+    return fromCommaSeparatedList(STEP_PLUGINS);
+  }
+
+  /**
+   * A comma separated list of AWS regions from which to not allow reading data (e.g. for import)
+   */
+  public String FORBIDDEN_SOURCE_REGIONS;
+
+  public List<String> forbiddenSourceRegions() {
+    return fromCommaSeparatedList(FORBIDDEN_SOURCE_REGIONS);
   }
 }
