@@ -73,8 +73,12 @@ public class S3Client {
       final String region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
       builder.setRegion(region);
     }
-    else
-      builder.setRegion(getInstance().client.getBucketLocation(bucketName));
+    else {
+      String bucketRegion = getInstance().client.getBucketLocation(bucketName);
+      if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
+        throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
+      builder.setRegion(bucketRegion);
+    }
 
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
       synchronized (S3Client.class) {
