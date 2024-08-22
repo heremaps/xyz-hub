@@ -188,8 +188,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //Inputs are missing, the step is not ready to be executed
       return false;
 
-    //Quick-validate the first UploadUrl that is found in the inputs
-    ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format);
+    if(!isUseSystemInput())
+      //Quick-validate the first UploadUrl that is found in the inputs
+      ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format);
 
     return true;
   }

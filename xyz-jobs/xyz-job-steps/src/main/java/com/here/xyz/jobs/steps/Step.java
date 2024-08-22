@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps;
 
+import static com.here.xyz.jobs.steps.outputs.Output.MODEL_BASED_PREFIX;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
 
@@ -63,12 +64,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonView({Internal.class, Static.class})
   private long estimatedUploadBytes = -1;
+  private float estimationFactor = 1.0f;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
   private Set<String> previousStepIds = Set.of();
   private RuntimeInfo status = new RuntimeInfo();
-  private final String MODEL_BASED_PREFIX = "/modelBased";
   @JsonIgnore
   private List<Input> inputs;
   @JsonView({Internal.class, Static.class})
@@ -148,7 +149,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected final String outputS3Prefix(String stepS3Prefix, boolean userOutput, boolean onlyModelBased) {
-    return stepS3Prefix + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
+    return Output.stepOutputS3Prefix(stepS3Prefix, userOutput, onlyModelBased);
   }
 
   protected final Set<String> previousOutputS3Prefixes(boolean userOutput, boolean onlyModelBased) {
@@ -373,11 +374,39 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   @JsonIgnore
   public long getUncompressedUploadBytesEstimation() {
-    return estimatedUploadBytes != -1 ? estimatedUploadBytes
+    long estimatedBytes = estimatedUploadBytes != -1 ? estimatedUploadBytes
         : (estimatedUploadBytes = loadInputs()
             .stream()
             .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
             .sum());
+
+    return (long) Math.ceil(estimationFactor * estimatedBytes);
+  }
+
+  public long getEstimatedUploadBytes() {
+    return estimatedUploadBytes;
+  }
+
+  public void setEstimatedUploadBytes(long estimatedUploadBytes) {
+    this.estimatedUploadBytes = estimatedUploadBytes;
+  }
+
+  public T withEstimatedUploadBytes(long estimatedUploadBytes) {
+    setEstimatedUploadBytes(estimatedUploadBytes);
+    return (T) this;
+  }
+
+  public float getEstimationFactor() {
+    return estimationFactor;
+  }
+
+  public void setEstimationFactor(float estimationFactor) {
+    this.estimationFactor = estimationFactor;
+  }
+
+  public T withEstimationFactor(float estimationFactor) {
+    setEstimationFactor(estimationFactor);
+    return (T) this;
   }
 
   public boolean isPipeline() {
@@ -390,6 +419,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public T withPipeline(boolean pipeline) {
     setPipeline(pipeline);
+    return (T) this;
+  }
+
+  public boolean isUseSystemInput() {
+    return useSystemInput;
+  }
+
+  public void setUseSystemInput(boolean useSystemInput) {
+    this.useSystemInput = useSystemInput;
+  }
+
+  public T withUseSystemInput(boolean useSystemInput) {
+    setUseSystemInput(useSystemInput);
     return (T) this;
   }
 }
