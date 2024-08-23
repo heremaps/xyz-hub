@@ -28,6 +28,8 @@ import com.here.xyz.Typed;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.JTSHelper;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
+
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -189,13 +191,26 @@ public abstract class Geometry implements Typed {
     // reject Polygons that do not follow the right-hand rule.
     //
     // --> Therefore we will not check the right-hand rule here, even while it would be possible!
+
+// HERESUP-1283   HashSet<Object> hset = new HashSet<Object>();
+
     for (int i = 0; i < points.size(); i++) {
       final Object point = points.get(i);
+      
       if (!(point instanceof List)) {
         throw new InvalidGeometryException("Expected Point at index #" + i + " in the LinearRing coordinates");
       }
+
       validatePointCoordinates(point);
+
+/* HERESUP-1283
+      if( hset.contains(point) && i < points.size() - 1 )
+       throw new InvalidGeometryException("Invalid Point (duplicate) at index #" + i + " in the LinearRing coordinates");
+      else 
+       hset.add(point);
+*/       
     }
+    
     final List<Number> firstPoint = (List<Number>) points.get(0);
     final List<Number> lastPoint = (List<Number>) points.get(points.size() - 1);
     if (firstPoint.size() != lastPoint.size() || //

@@ -44,11 +44,11 @@ public class ImportFilesQuickValidator {
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
 
   static void validate(UploadUrl uploadUrl, Format format) throws ValidationException {
-    validate(uploadUrl.getS3Key(), format, uploadUrl.isCompressed());
+    validate(uploadUrl.getS3Bucket(), uploadUrl.getS3Key(), format, uploadUrl.isCompressed());
   }
 
-  static void validate(String s3Key, Format format, boolean isCompressed) throws ValidationException {
-    S3Client client = S3Client.getInstance();
+  static void validate(String s3Bucket, String s3Key, Format format, boolean isCompressed) throws ValidationException {
+    S3Client client = S3Client.getInstance(s3Bucket);
     try {
       if (isCompressed)
         validateFirstCSVLine(client, s3Key, format, "", 0, true);

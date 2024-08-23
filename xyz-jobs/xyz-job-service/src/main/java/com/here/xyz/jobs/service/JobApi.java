@@ -40,6 +40,7 @@ import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
+import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -110,6 +111,18 @@ public class JobApi extends Api {
               : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
           .map(job -> job.createUploadUrl())
           .onSuccess(res -> sendResponse(context, CREATED.code(), res))
+          .onFailure(err -> sendErrorResponse(context, err));
+    }
+    else if (input instanceof InputsFromS3 s3Inputs) {
+      loadJob(context, jobId)
+          .compose(job -> job.getStatus().getState() == NOT_READY
+              ? Future.succeededFuture(job)
+              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
+          .compose(job -> {
+            s3Inputs.dereference(job.getId());
+            return Future.succeededFuture();
+          })
+          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
           .onFailure(err -> sendErrorResponse(context, err));
     }
     else if (input instanceof ModelBasedInput modelBasedInput) {

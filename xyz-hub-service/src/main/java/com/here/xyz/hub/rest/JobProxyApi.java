@@ -27,6 +27,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
@@ -138,14 +139,17 @@ public class JobProxyApi extends Api{
     private void getJob(final RoutingContext context) {
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
+        boolean bExportObjects = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.EXPORT_OBJECTS, false);
+        String paramExportObjects = bExportObjects ? "?" + HApiParam.HQuery.EXPORT_OBJECTS + "=true" : "";
+
 
       Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
-                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId)
+                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId + paramExportObjects )
                             .timeout(JOB_API_TIMEOUT)
                             .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                             .send()
-                            .onSuccess(res -> jobAPIResultHandler(context,res,spaceId))
+                            .onSuccess(res -> { if( !bExportObjects ) jobAPIResultHandler(context,res,spaceId); else _jobAPIResultHandler(context,res,spaceId); }) 
                             .onFailure(f -> this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Job-Api not ready!")));
                 })
                 .onFailure(f -> this.sendErrorResponse(context, new HttpException(FORBIDDEN, "No access to this space!")));
@@ -155,9 +159,11 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         Job.Status status = HApiParam.HQuery.getJobStatus(context);
 
+        String exportObjects = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.EXPORT_OBJECTS, false) ? "&" + HApiParam.HQuery.EXPORT_OBJECTS + "=true" : "";
+
       Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
-                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs?targetSpaceId="+spaceId+(status != null ? "&status="+status : ""))
+                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs?targetSpaceId="+spaceId+(status != null ? "&status="+status : "") + exportObjects)
                             .timeout(JOB_API_TIMEOUT)
                             .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                             .send()
@@ -185,10 +191,18 @@ public class JobProxyApi extends Api{
                                         this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                                         return;
                                     }
-                                    if(!checkSpaceId(res,spaceId)) {
-                                        this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
-                                        return;
+
+                                    try{
+                                     if(!checkSpaceId(res,spaceId)) {
+                                         this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
+                                         return;
+                                     }
                                     }
+                                    catch( DecodeException e ){
+                                     this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "job[" + jobId + "] - " + e.getMessage()));
+                                     return;
+                                    }
+
                                     Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT + "/jobs/" + jobId
                                             + "?deleteData=" + deleteData + "&force=" + force)
                                             .timeout(JOB_API_TIMEOUT)
@@ -266,6 +280,31 @@ public class JobProxyApi extends Api{
                             .onFailure(f -> this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Job-Api not ready!")));
                 })
                 .onFailure(f -> this.sendErrorResponse(context, new HttpException(FORBIDDEN, "No access to this space!")));
+    }
+
+
+    private void _jobAPIResultHandler(final RoutingContext context, HttpResponse<Buffer> res, String spaceId){
+// temp. workaround - only called when parm "exportObjects=true"
+        if (res.statusCode() < 500) {
+            try {
+                if(!checkSpaceId(res,spaceId)){
+                    this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
+                    return;
+                }
+            } catch (DecodeException e) {}
+
+//            try{
+//                this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()),
+//                        Json.decodeValue(DatabindCodec.mapper().writerWithView(Job.Public.class).writeValueAsString(res.bodyAsJson(Job.class))));
+//                return;
+//            } catch (Exception e){}
+            try{
+                this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
+                return;
+            } catch (Exception e){}
+        }
+
+        this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));
     }
 
     private void jobAPIResultHandler(final RoutingContext context, HttpResponse<Buffer> res, String spaceId){

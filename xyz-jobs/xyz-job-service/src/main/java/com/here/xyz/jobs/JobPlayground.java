@@ -364,7 +364,7 @@ public class JobPlayground {
               .withTarget(new DatasetDescription.Space<>().withId(targetSpaceId));
     }
 
-    System.out.println("Starting job ...");
+    System.out.println("Creating job ...");
     HttpResponse<byte[]> jobResponse = post("/jobs", job);
 
     System.out.println("Got response:");

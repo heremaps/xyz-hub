@@ -158,7 +158,7 @@ public class Connector {
     public int maxConnections = 512;
     private int minConnections = 0;
 
-    public int maxConnectionsPerRequester = 60;
+    public int maxConnectionsPerRequester = 100;
 
     @Override
     public boolean equals(Object o) {

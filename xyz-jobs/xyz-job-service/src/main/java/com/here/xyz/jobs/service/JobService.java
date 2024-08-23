@@ -44,6 +44,7 @@ import org.apache.logging.log4j.Logger;
 public class JobService extends Core {
 
   private static final Logger logger = LogManager.getLogger();
+  protected static Class<? extends Config> serviceConfigurationClass = Config.class;
 
   static {
     CONFIG_FILE = "jobs.config.json";
@@ -87,7 +88,7 @@ public class JobService extends Core {
   }
 
   private static Future<JsonObject> parseConfiguration(JsonObject config) {
-    config.mapTo(Config.class);
+    config.mapTo(serviceConfigurationClass);
     return Future.succeededFuture(config);
   }
 

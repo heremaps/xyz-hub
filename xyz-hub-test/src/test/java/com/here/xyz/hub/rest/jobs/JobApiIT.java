@@ -313,7 +313,8 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + spaceId + "/job/"+jobId);
+                .param("exportObjects", true)
+                .get("/spaces/" + spaceId + "/job/"+jobId );
 
         String body = response.getBody().asString();
         try {

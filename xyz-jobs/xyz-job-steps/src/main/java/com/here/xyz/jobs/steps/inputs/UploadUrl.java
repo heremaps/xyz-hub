@@ -28,12 +28,12 @@ public class UploadUrl extends Input<UploadUrl> {
 
   @JsonView(Public.class)
   public URL getUrl() {
-    return S3Client.getInstance().generateUploadURL(getS3Key());
+    return S3Client.getInstance(getS3Bucket()).generateUploadURL(getS3Key());
   }
 
   @JsonView(Public.class)
   public URL getDownloadUrl() {
-    return S3Client.getInstance().generateDownloadURL(getS3Key());
+    return S3Client.getInstance(getS3Bucket()).generateDownloadURL(getS3Key());
   }
 
   @JsonIgnore

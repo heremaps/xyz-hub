@@ -226,8 +226,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               streamFileToSpace(input.getS3Key(), format, ((UploadUrl)input).isCompressed());
           }
       } else {
-        log("Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
-                + " into space " + getSpaceId() + " ...");
+        log("Importing input files for job " + getJobId() + " into space " + getSpaceId() + " ...");
 
           //TODO: Move resume logic into #resume()
           if (!isResume) {
@@ -309,9 +308,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     }catch (SQLException e){
       //We expect that
-      if(e.getSQLState() != null && !e.getSQLState().equals("42P01")) {
+      if (e.getSQLState() != null && !e.getSQLState().equals("42P01"))
         throw e;
-      }
+      //TODO: Should we really ignore all other SQLExceptions?
     }
 
     if(!tmpTableNotExistsAndHasNoData) {
@@ -322,7 +321,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
 
       logAndSetPhase(Phase.FILL_TMP_TABLE);
-      fillTemporaryTableWithInputs(db, loadInputs(), bucketName(), bucketRegion());
+      fillTemporaryTableWithInputs(db, loadInputs(), bucketRegion());
     }
   }
 
@@ -434,10 +433,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("primaryKey", TransportTools.getTemporaryTableName(this) + "_primKey");
   }
 
-  private void fillTemporaryTableWithInputs(Database db, List<Input> inputs, String bucketName, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
+  private void fillTemporaryTableWithInputs(Database db, List<Input> inputs, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
     List<SQLQuery> queryList = new ArrayList<>();
-    for (Input input : inputs){
-      if(input instanceof UploadUrl uploadUrl) {
+    for (Input input : inputs) {
+      if (input instanceof UploadUrl uploadUrl) {
         JsonObject data = new JsonObject()
                 .put("compressed", uploadUrl.isCompressed())
                 .put("filesize", uploadUrl.getByteSize());
@@ -451,7 +450,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                         .withVariable("schema", getSchema(db))
                         .withVariable("table", TransportTools.getTemporaryTableName(this))
                         .withNamedParameter("s3Key", input.getS3Key())
-                        .withNamedParameter("bucketName", bucketName)
+                        .withNamedParameter("bucketName", input.getS3Bucket())
                         .withNamedParameter("bucketRegion", bucketRegion)
                         .withNamedParameter("state", "SUBMITTED")
                         .withNamedParameter("data", data.toString())
@@ -468,9 +467,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                     .withVariable("schema", getSchema(db))
                     .withVariable("table", TransportTools.getTemporaryTableName(this))
                     .withNamedParameter("s3Key", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketName", bucketName)
+                    .withNamedParameter("bucketName", "SUCCESS_MARKER")
                     .withNamedParameter("state", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketRegion", bucketRegion)
+                    .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
                     .withNamedParameter("data", "{}"));
     runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
   }

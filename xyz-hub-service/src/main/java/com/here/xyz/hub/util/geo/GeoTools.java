@@ -209,16 +209,18 @@ public class GeoTools {
   public static boolean geometryCrossesDateline(com.here.xyz.models.geojson.implementation.Geometry geometry, int radius) 
    throws NullPointerException, NoSuchAuthorityCodeException, FactoryException, MismatchedDimensionException, TransformException
   { 
-    MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
-    MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
 
-    Geometry degGeo = geometry.getJTSGeometry(),
-             mtrGeo = JTS.transform( degGeo, convertToMeter );
+    Geometry degGeo = geometry.getJTSGeometry();
+             
     if (radius > 0) {
+      MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
+      MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
+
+      Geometry mtrGeo = JTS.transform( degGeo, convertToMeter );
       mtrGeo = mtrGeo.buffer(radius);
+      degGeo = JTS.transform(mtrGeo, convertFromMeter);
     }
 
-    degGeo = JTS.transform(mtrGeo, convertFromMeter);
     Envelope envelope = degGeo.getEnvelopeInternal();
 
     boolean r1 = envelope.intersects( 179.999995, envelope.centre().y),
@@ -226,6 +228,6 @@ public class GeoTools {
             r3 = ( envelope.getMinX() * envelope.getMaxX() ) < 0;
     
     return (r1 || r2) && r3; 
-  }
+ }
 
 }

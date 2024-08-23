@@ -45,12 +45,16 @@ import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPOutputStream;
 
 public class S3Client {
-  private static S3Client instance;
+  private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
+
+  //TODO: Switch to AWS SDK2
 
   protected final AmazonS3 client;
 
@@ -65,9 +69,15 @@ public class S3Client {
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
           .withPathStyleAccessEnabled(true);
     }
-    else {
+    else if (Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
       final String region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
       builder.setRegion(region);
+    }
+    else {
+      String bucketRegion = getInstance().client.getBucketLocation(bucketName);
+      if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
+        throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
+      builder.setRegion(bucketRegion);
     }
 
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
@@ -81,9 +91,13 @@ public class S3Client {
   }
 
   public static S3Client getInstance() {
-    if (instance == null)
-      instance = new S3Client(Config.instance.JOBS_S3_BUCKET);
-    return instance;
+    return getInstance(Config.instance.JOBS_S3_BUCKET);
+  }
+
+  public static S3Client getInstance(String bucketName) {
+    if (!instances.containsKey(bucketName))
+      instances.put(bucketName, new S3Client(bucketName));
+    return instances.get(bucketName);
   }
 
   private URL generatePresignedUrl(String key, HttpMethod method) {

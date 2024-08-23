@@ -19,9 +19,12 @@
 
 package com.here.xyz.models.geojson.implementation;
 
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
+
 import org.junit.Test;
 
 public class TestGeometry {
@@ -68,4 +71,17 @@ public class TestGeometry {
     geometryCollection = mp.readValue(json, GeometryCollection.class);
     geometryCollection.validate();
   }
+
+  //  @Test HERESUP-1283
+  public void test_polygon_validate() throws Exception {
+    final ObjectMapper mp = new ObjectMapper();
+
+    // test invalid linestring with some duplicate coords
+    assertThrows(InvalidGeometryException.class, 
+                 () -> mp.readValue("{\"type\":\"Polygon\",\"coordinates\":[[[8.00,49.00,0],[8.00,49.01,0],[8.00,49.02,0],[8.00,49.00,0],[8.00,49.00,0]]]}", Geometry.class).validate() );
+    
+   // test valid linestring, no duplicate coords
+    mp.readValue("{\"type\":\"Polygon\",\"coordinates\":[[[8.00,49.00,0],[8.00,49.01,0],[8.00,49.02,0],[8.00,49.03,0],[8.00,49.00,0]]]}", Geometry.class).validate();
+  }
+
 }

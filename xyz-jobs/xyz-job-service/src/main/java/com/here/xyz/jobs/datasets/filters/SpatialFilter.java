@@ -22,6 +22,7 @@ package com.here.xyz.jobs.datasets.filters;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
@@ -40,11 +41,13 @@ public class SpatialFilter {
     return geometry;
   }
 
-  public void setGeometry(Geometry geometry) {
+  public void setGeometry(Geometry geometry) throws InvalidGeometryException {
+// uncommeted validation s.  https://here-technologies.atlassian.net/browse/DS-657
+//    geometry.validate();
     this.geometry = geometry;
   }
 
-  public SpatialFilter withGeometry(Geometry geometry) {
+  public SpatialFilter withGeometry(Geometry geometry) throws InvalidGeometryException {
     this.setGeometry(geometry);
     return this;
   }

@@ -157,18 +157,15 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
       error = new ErrorMessage(context, exception);
       if (error.statusCode == 500) {
         error.message = null;
-        logger.error(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
-        logger.error(marker, "Error:", exception);
+        logger.error(marker, "Sending error response: {} {}", error.statusCode, error.reasonPhrase, exception);
       }
-      else {
-        logger.warn(marker, "Sending error response: {} {} {}", error.statusCode, error.reasonPhrase, exception);
-        logger.warn(marker, "Error:", exception);
-      }
+      else
+        logger.warn(marker, "Sending error response: {} {}", error.statusCode, error.reasonPhrase, exception);
     }
     catch (Exception e) {
-      logger.error("Error {} while preparing error response {}", e, exception);
-      logger.error("Error:", e);
-      logger.error("Original error:", exception);
+      logger.error(marker, "Error {} while preparing error response {}", e, exception);
+      logger.error(marker, "Error:", e);
+      logger.error(marker, "Original error:", exception);
       error = new ErrorMessage();
     }
 
