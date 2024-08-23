@@ -39,6 +39,7 @@ import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
 import java.util.Collection;
 import java.util.List;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -140,5 +141,10 @@ public class SQLComposite_DEFAULT_WithHistoryTestSuiteIT extends SQLNonComposite
             new TestAssertions(INSERT, U, false))
 
     );
+  }
+
+  @Test
+  public void start() throws Exception {
+    runTest();
   }
 }

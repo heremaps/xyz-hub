@@ -29,13 +29,16 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
 $BODY$
 
     //Import other functions
-    const context = plv8.context = key => {
-      let rows = plv8.execute("SELECT context($1)", key);
-      if (!rows.length)
-        return null;
-      let results = rows[0].context;
-      return results?.length > 0 ? results[0] : null;
-    }; //TODO: find context function instead
+    let _queryContext;
+    const _context = plv8.context = () => {
+      let rows = plv8.execute("SELECT context()");
+      return rows[0].context;
+    };
+    const queryContext = key => {
+      if (_queryContext == null)
+        _queryContext = _context();
+      return _queryContext;
+    };
 
     //Init block of internal feature_writer functionality
     ${{Exception.js}}

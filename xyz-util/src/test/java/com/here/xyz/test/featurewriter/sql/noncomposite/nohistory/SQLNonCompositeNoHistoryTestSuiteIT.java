@@ -36,6 +36,7 @@ import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.sql.SQLTestSuite;
 import java.util.Collection;
 import java.util.List;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -119,5 +120,10 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLTestSuite {
             new TestAssertions(ILLEGAL_ARGUMENT)
         )
     );
+  }
+
+  @Test
+  public void start() throws Exception {
+    runTest();
   }
 }

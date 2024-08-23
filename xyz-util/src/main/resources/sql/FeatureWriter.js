@@ -60,11 +60,11 @@ class FeatureWriter {
       throw new IllegalArgumentException("onNotExists must not be defined for partial writes.");
 
     //TODO: Improve performance by getting the whole context as object and then read the fields instead of calling the PG_function multiple times
-    this.schema = context("schema");
-    this.table = context("table");
-    this.extendedTable = context("extendedTable");
-    this.context = context("context");
-    this.historyEnabled = context("historyEnabled");
+    this.schema = queryContext().schema;
+    this.table = queryContext().table;
+    this.extendedTable = queryContext().extendedTable;
+    this.context = queryContext().context;
+    this.historyEnabled = queryContext().historyEnabled;
 
     this.inputFeature = inputFeature;
     this.version = version;
@@ -642,14 +642,18 @@ class FeatureWriter {
 
   //Low level DB / table facing helper methods:
 
-  static getNextVersion(schema, targetTable) {
+  static getNextVersion() {
     const VERSION_SEQUENCE_SUFFIX = "_version_seq";
-    let fullQualifiedSequenceName = `"${schema}"."${(targetTable + VERSION_SEQUENCE_SUFFIX)}"`;
+    let fullQualifiedSequenceName = `"${queryContext().schema}"."${(this._targetTable() + VERSION_SEQUENCE_SUFFIX)}"`;
     return plv8.execute("SELECT nextval($1)", fullQualifiedSequenceName)[0].nextval;
   }
 
+  static _targetTable(context = queryContext().context) {
+    return context == "SUPER" ? queryContext().extendedTable : queryContext().table;
+  }
+
   _targetTable(context = this.context) {
-    return context == "SUPER" ? this.extendedTable : this.table;
+    return FeatureWriter._targetTable(context);
   }
 
   _loadFeature(id, version, table) {
@@ -748,11 +752,7 @@ class FeatureWriter {
         this.baseVersion);
   }
 
-  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
-    //TODO: Prevent unnecessary context() calls by adding a non-static #writeFeatures() method to the FeatureWriter
-    let _targetTable = context("context") == "SUPER" ? context("extendedTable") : context("table");
-    let version = FeatureWriter.getNextVersion(context("schema"), _targetTable);
-
+  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = FeatureWriter.getNextVersion()) {
     let result = {type: "FeatureCollection", features : []};
     for (let feature of inputFeatures) {
       let writer = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial);
@@ -761,9 +761,9 @@ class FeatureWriter {
     return result;
   }
 
-  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
+  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = undefined) {
     return FeatureWriter.writeFeatures([inputFeature], author, onExists, onNotExists, onVersionConflict, onMergeConflict,
-        isPartial);
+        isPartial, version);
   }
 }
 

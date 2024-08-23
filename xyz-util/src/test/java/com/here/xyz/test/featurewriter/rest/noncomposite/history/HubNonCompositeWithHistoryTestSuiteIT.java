@@ -24,6 +24,7 @@ import com.here.xyz.test.featurewriter.rest.RestTestSuite;
 import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
 import java.util.Collection;
 import java.util.Set;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -59,4 +60,8 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends RestTestSuite {
   //TODO: Check missing version conflict errors
   //TODO: Check creation timestamp issues (actually in case of history the test should not treat a table.INSERT as creation, but a feature.I should be instead => probably FeatureWriter has to be fixed as well)
 
+  @Test
+  public void start() throws Exception {
+    runTest();
+  }
 }

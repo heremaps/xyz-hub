@@ -22,6 +22,7 @@ package com.here.xyz.test.featurewriter.sql.composite.nohistory;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 
 import com.here.xyz.test.featurewriter.sql.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -30,5 +31,10 @@ public class SQLComposite_SUPER_NoHistoryTestSuiteIT extends SQLNonCompositeNoHi
 
   public SQLComposite_SUPER_NoHistoryTestSuiteIT(TestArgs args) {
     super(args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.featureExists()));
+  }
+
+  @Test
+  public void start() throws Exception {
+    runTest();
   }
 }

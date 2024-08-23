@@ -494,11 +494,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty(
                   '${{author}}',
                    ${{spaceVersion}},
-                   false,      --isPartial
-                   'REPLACE' --onExists
-                       --onNotExists
-                       --onVersionConflict
-                       --onMergeConflict
+                   false, --isPartial
+                   'REPLACE', --onExists
+                   'CREATE', --onNotExists
+                   NULL, --onVersionConflict
+                   NULL --onMergeConflict
                    )
               """)
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)

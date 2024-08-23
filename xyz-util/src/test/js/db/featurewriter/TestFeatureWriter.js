@@ -22,13 +22,13 @@ require("../../../../main/resources/sql/Exception");
 require("../../../../main/resources/sql/FeatureWriter");
 const FeatureWriter = plv8.FeatureWriter;
 
-global.context = key => ({
+global.context = () => ({
   schema: "public",
-  table: "SQLBasedSpaceTest",
-  extendedTable: "SQLBasedSpaceTest_super",
+  table: "SQLSpaceWriter",
+  extendedTable: "SQLSpaceWriter_super",
   context: "DEFAULT",
   historyEnabled: true
-})[key];
+});
 
 class TestFeatureWriter {
 

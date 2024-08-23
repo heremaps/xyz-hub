@@ -4289,13 +4289,13 @@ BEGIN
             format('{"schema":"%1$s","table":"%2$s","historyEnabled":false,"context":"EXTENSION"}', TG_TABLE_SCHEMA, TG_TABLE_NAME)::JSONB
         );
         PERFORM write_feature(NEW.jsondata,
-                              currentVersion, --FIXME: Replace by boolean param that disables version increment in FeatureWriter
                               author,
                               onExists,
                               onNotExists,
                               onVersionConflict,
                               onMergeConflict,
-                              isPartial);
+                              isPartial,
+                              currentVersion);
         RETURN NULL;
     ELSE
         RETURN NEW;

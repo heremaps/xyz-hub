@@ -57,7 +57,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 public abstract class TestSuite {
 
@@ -183,11 +182,6 @@ public abstract class TestSuite {
   @After
   public void clean() throws Exception {
     spaceWriter.cleanSpaceResources();
-  }
-
-  @Test
-  public void start() throws Exception {
-    runTest();
   }
 
   private void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {

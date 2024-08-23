@@ -25,6 +25,7 @@ import com.here.xyz.test.featurewriter.sql.composite.nohistory.SQLComposite_DEFA
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -58,5 +59,10 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
 
     return SQLComposite_DEFAULT_NoHistoryTestSuiteIT.testScenarios()
         .stream().filter(args -> !ignoredTests.contains(args.testName())).toList();
+  }
+
+  @Test
+  public void start() throws Exception {
+    runTest();
   }
 }

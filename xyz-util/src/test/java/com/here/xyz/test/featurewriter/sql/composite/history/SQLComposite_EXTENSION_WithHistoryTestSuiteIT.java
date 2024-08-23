@@ -22,6 +22,7 @@ package com.here.xyz.test.featurewriter.sql.composite.history;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
 import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -30,5 +31,10 @@ public class SQLComposite_EXTENSION_WithHistoryTestSuiteIT extends SQLNonComposi
 
   public SQLComposite_EXTENSION_WithHistoryTestSuiteIT(TestArgs args) {
     super(args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()));
+  }
+
+  @Test
+  public void start() throws Exception {
+    runTest();
   }
 }
