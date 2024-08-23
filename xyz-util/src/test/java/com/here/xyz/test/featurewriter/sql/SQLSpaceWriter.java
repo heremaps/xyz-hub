@@ -31,7 +31,6 @@ import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,14 +85,14 @@ public class SQLSpaceWriter extends SpaceWriter {
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled) throws Exception {
     try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
-      List<SQLQuery> q = generateWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict,
+      SQLQuery q = generateWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict,
           isPartial, spaceContext, historyEnabled);
 
       return SQLQuery.batchOf(q).writeBatch(dsp);
     }
   }
 
-  private List<SQLQuery> generateWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
+  private SQLQuery generateWriteFeatureQuery(List<Feature> featureList, String author, OnExists onExists, OnNotExists onNotExists,
       OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
       boolean historyEnabled) {
     final Map<String, Object> queryContext = new HashMap<>(Map.of(
@@ -114,6 +113,6 @@ public class SQLSpaceWriter extends SpaceWriter {
         .withNamedParameter("onMergeConflict", onMergeConflict != null ? onMergeConflict.toString() : null)
         .withNamedParameter("isPartial", isPartial)
         .withContext(queryContext);
-    return Arrays.asList(writeFeaturesQuery);
+    return writeFeaturesQuery;
   }
 }

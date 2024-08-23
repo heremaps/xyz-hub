@@ -19,13 +19,14 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -131,9 +132,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
         /** Calculate estimation for ACUs for all parallel running threads */
         overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededAcus(calculatedThreadCount);
-        Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
-
-        return List.of(new Load().withResource(db).withEstimatedVirtualUnits(overallNeededAcus),
+        return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
                 new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
       }else{
         return List.of(new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
@@ -183,8 +182,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     try {
       logAndSetPhase(Phase.VALIDATE);
       //Check if the space is actually existing
-      Space space = loadSpace(getSpaceId());
-      versionsToKeep = space.getVersionsToKeep();
+      versionsToKeep = space().getVersionsToKeep();
 
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
       targetTableFeatureCount = statistics.getCount().getValue();
@@ -220,7 +218,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     _execute(false);
   }
 
-  public void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
+  private void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
       if(getExecutionMode().equals(ExecutionMode.SYNC)) {
           //@TODO: For future add threading (if validation step is in place)
           for (Input input : loadInputs()) {
@@ -228,13 +226,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               streamFileToSpace(input.getS3Key(), format, ((UploadUrl)input).isCompressed());
           }
       } else {
-        logAndSetPhase(null, "Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
+        log("Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
                 + " into space " + getSpaceId() + " ...");
 
-          logAndSetPhase(null, "Loading space config for space " + getSpaceId());
-          Space space = loadSpace(getSpaceId());
-          logAndSetPhase(null, "Getting storage database for space  " + getSpaceId());
-          Database db = loadDatabase(space.getStorage().getId(), WRITER);
+          log("Loading space config for space " + getSpaceId());
+          Space space = space();
+          log("Getting storage database for space  " + getSpaceId());
+          Database db = db();
 
           //TODO: Move resume logic into #resume()
           if (!isResume) {
@@ -242,14 +240,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
               logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-              long newVersion = runReadQuerySync(buildVersionSequenceIncrement(getSchema(db), getRootTableName(space)), db, 0,
+              long newVersion = runReadQuerySync(buildVersionSequenceIncrement(), db, 0,
                       rs -> {
                           rs.next();
                           return rs.getLong(1);
                       });
 
               logAndSetPhase(Phase.CREATE_TRIGGER);
-              runWriteQuerySync(buildCreateImportTrigger(getSchema(db), getRootTableName(space), "ANONYMOUS", newVersion), db, 0);
+              runWriteQuerySync(buildCreateImportTrigger("ANONYMOUS", newVersion), db, 0);
           }
 
           createAndFillTemporaryTable(db);
@@ -262,9 +260,41 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
           for (int i = 1; i <= calculatedThreadCount; i++) {
               logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number " + i);
-              runReadQueryAsync(buildImportQueryBlock(getSchema(db), getRootTableName(space)), db, neededAcusForOneThread, false);
+              runReadQueryAsync(buildImportQueryBlock(), db, neededAcusForOneThread, false);
           }
       }
+  }
+
+  @JsonIgnore
+  private Space space;
+  private Space space() throws WebClientException {
+    if (space == null) {
+      log("Loading space config for space " + getSpaceId());
+      space = loadSpace(getSpaceId());
+    }
+    return space;
+  }
+
+  @JsonIgnore
+  private Space superSpace;
+  private Space superSpace() throws WebClientException {
+    if (superSpace == null) {
+      log("Loading space config for super-space " + getSpaceId());
+      if (space().getExtension() == null)
+        throw new IllegalStateException("The space does not extend some other space. Could not load the super space.");
+      superSpace = loadSpace(space().getExtension().getSpaceId());
+    }
+    return superSpace;
+  }
+
+  @JsonIgnore
+  private Database db;
+  private Database db() throws WebClientException {
+    if (db == null) {
+      log("Loading storage database for space " + getSpaceId());
+      db = loadDatabase(space().getStorage().getId(), WRITER);
+    }
+    return db;
   }
 
     private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed {
@@ -301,12 +331,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   protected void onStateCheck() {
     try {
-      logAndSetPhase(null, "Loading space config for space "+getSpaceId());
-      Space space = loadSpace(getSpaceId());
-      logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
-      Database db = loadDatabase(space.getStorage().getId(), WRITER);
-
-      runReadQuerySync(buildProgressQuery(getSchema(db)), db, 0,
+      runReadQuerySync(buildProgressQuery(getSchema(db())), db(), 0,
                rs -> {
                 rs.next();
 
@@ -317,7 +342,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
                 getStatus().setEstimatedProgress(progress);
 
-                logAndSetPhase(null, "Progress["+progress+"] => "
+                 log( "Progress["+progress+"] => "
                         +" processedBytes:"+processedBytes+" ,finishedCnt:"+finishedCnt+" ,failedCnt:"+failedCnt);
                 return progress;
               });
@@ -335,28 +360,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
      * - provide getStatistics
      * - release readOnly lock
      */
-
-    logAndSetPhase(null, "Loading space config for space "+getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    String rootTableName = getRootTableName(space);
-
-    logAndSetPhase(null, "Getting storage database for space  "+getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
     try {
 
     logAndSetPhase(Phase.RETRIEVE_STATISTICS);
-    FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(getSchema(db)), db,
+    FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
             0, rs -> rs.next()
                     ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
                     : new FeatureStatistics());
 
-    logAndSetPhase(null, "Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
+    log("Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
     registerOutputs(List.of(statistics), true);
 
     logAndSetPhase(Phase.WRITE_STATISTICS);
     registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
 
-    cleanUpDbRelatedResources(rootTableName, db);
+    cleanUpDbRelatedResources();
 
     logAndSetPhase(Phase.RELEASE_READONLY);
     hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
@@ -364,19 +382,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }catch (SQLException e){
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
       if(e.getSQLState() != null && e.getSQLState().equals("42P01")) {
-        logAndSetPhase(null,"_job_data table got already deleted!");
+        log("_job_data table got already deleted!");
         return;
       }
       throw e;
     }
   }
 
-  private void cleanUpDbRelatedResources(String rootTableName, Database db) throws TooManyResourcesClaimed, SQLException, WebClientException {
+  private void cleanUpDbRelatedResources() throws TooManyResourcesClaimed, SQLException, WebClientException {
       logAndSetPhase(Phase.DROP_TRIGGER);
-      runWriteQuerySync(buildDropImportTrigger(getSchema(db), rootTableName), db, 0);
+      runWriteQuerySync(buildDropImportTrigger(), db(), 0);
 
       logAndSetPhase(Phase.DROP_TMP_TABLE);
-      runWriteQuerySync(buildDropTemporaryTableForImportQuery(getSchema(db)), db, 0);
+      runWriteQuerySync(buildDropTemporaryTableForImportQuery(), db(), 0);
   }
 
   @Override
@@ -385,16 +403,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //TODO: Inspect the error provided in the status and decide whether it is retryable (return-value)
       boolean isRetryable = false;
 
-      if(!isRetryable) {
-        logAndSetPhase(null, "Loading space config for space " + getSpaceId());
-        Space space = loadSpace(getSpaceId());
-        String rootTableName = getRootTableName(space);
-
-        logAndSetPhase(null, "Getting storage database for space  " + getSpaceId());
-        Database db = loadDatabase(space.getStorage().getId(), WRITER);
-
-        cleanUpDbRelatedResources(rootTableName, db);
-      }
+      if(!isRetryable)
+        cleanUpDbRelatedResources();
 
       return isRetryable;
     } catch (Exception e) {
@@ -467,28 +477,29 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
   }
 
-  private SQLQuery buildDropTemporaryTableForImportQuery(String schema) {
+  private SQLQuery buildDropTemporaryTableForImportQuery() throws WebClientException {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
             .withVariable("table", TransportTools.getTemporaryTableName(this))
-            .withVariable("schema", schema);
+            .withVariable("schema", getSchema(db()));
   }
 
-  private SQLQuery buildCreateImportTrigger(String schema, String table, String targetAuthor, long targetSpaceVersion){
+  private SQLQuery buildCreateImportTrigger(String targetAuthor, long targetSpaceVersion) throws WebClientException {
     if(targetTableFeatureCount == 0)
-      return buildCreateImportTriggerForEmptyLayer(schema, table, targetAuthor, targetSpaceVersion);
-    return buildCreateImportTriggerForNonEmptyLayer(schema, table, targetAuthor, targetSpaceVersion);
+      return buildCreateImportTriggerForEmptyLayer(targetAuthor, targetSpaceVersion);
+    return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, targetSpaceVersion);
   }
 
-  private SQLQuery buildCreateImportTriggerForEmptyLayer(String schema, String table, String targetAuthor, long targetSpaceVersion){
+  private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
             + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_v2('${{author}}', ${{spaceVersion}});")
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
             .withQueryFragment("author", targetAuthor)
-            .withVariable("schema", schema)
-            .withVariable("table", table);
+            .withVariable("schema", getSchema(db()))
+            .withVariable("table", getRootTableName(space()));
   }
 
-  private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String schema, String table, String targetAuthor, long targetSpaceVersion){
+  private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
+    //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
               CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
                 FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty(
@@ -503,18 +514,22 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               """)
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
             .withQueryFragment("author", targetAuthor)
-            .withVariable("schema", schema)
-            .withVariable("table", table);
+            .withVariable("schema", getSchema(db()))
+            .withVariable("table", getRootTableName(space()));
   }
 
-  private SQLQuery buildContextQuery(String schema, String table, ContextAwareEvent.SpaceContext spaceContext){
+  private SQLQuery buildContextQuery() throws WebClientException {
+    String table = getRootTableName(space());
+
     JSONObject context = new JSONObject()
-            .put("schema", schema)
+            .put("schema", getSchema(db()))
             .put("table", table)
-            //TODO:
-//            .put("extTable", table+"_ext")
-            .put("context", spaceContext)
             .put("historyEnabled", versionsToKeep > 0);
+
+    if (space().getExtension() != null) {
+      context.put("extendedTable", getRootTableName(superSpace()));
+      context.put("context", DEFAULT);
+    }
 
     return new SQLQuery("""
               DO
@@ -527,20 +542,20 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withNamedParameter("context", context.toString());
   }
 
-  private SQLQuery buildDropImportTrigger(String schema, String table){
+  private SQLQuery buildDropImportTrigger() throws WebClientException {
     return new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
-            .withVariable("table", table)
-            .withVariable("schema", schema);
+            .withVariable("table", getRootTableName(space()))
+            .withVariable("schema", getSchema(db()));
   }
 
   //TODO: Move to XyzSpaceTableHelper or so (it's the nth time we have that implemented somewhere)
-  private SQLQuery buildVersionSequenceIncrement(String schema, String table) {
+  private SQLQuery buildVersionSequenceIncrement() throws WebClientException {
     return new SQLQuery("SELECT nextval('${schema}.${sequence}')")
-            .withVariable("schema", schema)
-            .withVariable("sequence", table + "_version_seq");
+            .withVariable("schema", getSchema(db()))
+            .withVariable("sequence", getRootTableName(space()) + "_version_seq");
   }
 
-  private SQLQuery buildStatisticDataOfTemporaryTableQuery(String schema) {
+  private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
     return new SQLQuery("""
             SELECT sum((data->'filesize')::bigint) as imported_bytes,
             	count(1) as imported_files,
@@ -548,7 +563,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             	FROM ${schema}.${table}
             WHERE POSITION('SUCCESS_MARKER' in state) = 0;
           """)
-            .withVariable("schema", schema)
+            .withVariable("schema", getSchema(db()))
             .withVariable("table", TransportTools.getTemporaryTableName(this));
   }
 
@@ -574,20 +589,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", TransportTools.getTemporaryTableName(this));
   }
 
-  private SQLQuery buildImportQuery(String schema, String table) {
+  private SQLQuery buildImportQuery() throws WebClientException {
+    String schema = getSchema(db());
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
     return new SQLQuery("CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
         .withAsyncProcedure(true)
         .withNamedParameter("schema", schema)
-        .withNamedParameter("target_tbl", schema+".\""+table+"\"")
+        .withNamedParameter("target_tbl", schema+".\""+getRootTableName(space())+"\"")
         .withNamedParameter("temporary_tbl",  schema+".\""+(TransportTools.getTemporaryTableName(this))+"\"")
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
         .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
   }
 
-  private SQLQuery buildImportQueryBlock(String schema, String table) {
+  private SQLQuery buildImportQueryBlock() throws WebClientException {
     /**
      * TODO:
      * The idea was to uses context with asyncify. The integration in "_create_asyncify_query_block" (same
@@ -596,9 +612,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     */
     return new SQLQuery("${{contextQuery}} ${{importQuery}}")
             .withAsyncProcedure(true)
-            //TODO take care about spaceContext
-            .withQueryFragment("contextQuery", buildContextQuery(schema, table, EXTENSION))
-            .withQueryFragment("importQuery", buildImportQuery(schema, table));
+            .withQueryFragment("contextQuery", buildContextQuery()) //TODO: Set the query context at the import query object
+            .withQueryFragment("importQuery", buildImportQuery());
   }
 
   private SQLQuery buildTableCheckQuery(String schema) {
@@ -635,6 +650,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     logAndSetPhase(Phase.CALCULATE_ACUS, "expectedMemoryConsumption: " + getUncompressedUploadBytesEstimation() +" => neededACUs:" + neededACUs);
     return neededACUs;
+  }
+
+  private void log(String ... messages) {
+    logAndSetPhase(null, messages);
   }
 
   private void logAndSetPhase(Phase newPhase, String... messages) {

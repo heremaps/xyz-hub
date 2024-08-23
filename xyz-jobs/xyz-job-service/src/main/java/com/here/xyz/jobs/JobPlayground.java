@@ -114,7 +114,7 @@ public class JobPlayground {
   private static int uploadFileCount = 2;
   private static String jobServiceBaseUrl = "http://localhost:7070";
 
-  private static Usecase playgroundUsecase = Usecase.COPY;
+  private static Usecase playgroundUsecase = Usecase.IMPORT;
 
   private enum Usecase {
     IMPORT,
