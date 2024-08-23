@@ -229,28 +229,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         log("Importing input files from s3://" + bucketName() + "/" + inputS3Prefix() + " in region " + bucketRegion()
                 + " into space " + getSpaceId() + " ...");
 
-          log("Loading space config for space " + getSpaceId());
-          Space space = space();
-          log("Getting storage database for space  " + getSpaceId());
-          Database db = db();
-
           //TODO: Move resume logic into #resume()
           if (!isResume) {
               logAndSetPhase(Phase.SET_READONLY);
               hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
               logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-              long newVersion = runReadQuerySync(buildVersionSequenceIncrement(), db, 0,
-                      rs -> {
-                          rs.next();
-                          return rs.getLong(1);
-                      });
+              long newVersion = increaseVersionSequence();
 
               logAndSetPhase(Phase.CREATE_TRIGGER);
-              runWriteQuerySync(buildCreateImportTrigger("ANONYMOUS", newVersion), db, 0);
+              runWriteQuerySync(buildCreateImportTrigger("ANONYMOUS", newVersion), db(), 0);
           }
 
-          createAndFillTemporaryTable(db);
+          createAndFillTemporaryTable();
 
           calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
                   ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
@@ -260,9 +251,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
           for (int i = 1; i <= calculatedThreadCount; i++) {
               logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number " + i);
-              runReadQueryAsync(buildImportQueryBlock(), db, neededAcusForOneThread, false);
+              runReadQueryAsync(buildImportQueryBlock(), db(), neededAcusForOneThread, false);
           }
       }
+  }
+
+  private long increaseVersionSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    return runReadQuerySync(buildVersionSequenceIncrement(), db(), 0, rs -> {
+      rs.next();
+      return rs.getLong(1);
+    });
   }
 
   @JsonIgnore
@@ -297,11 +295,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return db;
   }
 
-    private void createAndFillTemporaryTable(Database db) throws SQLException, TooManyResourcesClaimed {
+    private void createAndFillTemporaryTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
         boolean tmpTableNotExistsAndHasNoData = true;
     try {
-      //Check if temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
-      tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db)), db, 0,
+      //Check if the temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
+      tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db())), db(), 0,
               rs -> {
                 rs.next();
                 if(rs.getLong("count") == 0 )
@@ -499,23 +497,31 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
+    String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
-              CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
-                FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty(
-                  '${{author}}',
-                   ${{spaceVersion}},
-                   false, --isPartial
-                   'REPLACE', --onExists
-                   'CREATE', --onNotExists
-                   NULL, --onVersionConflict
-                   NULL --onMergeConflict
-                   )
-              """)
-            .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
-            .withQueryFragment("author", targetAuthor)
-            .withVariable("schema", getSchema(db()))
-            .withVariable("table", getRootTableName(space()));
+        CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
+          FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty(
+            '${{author}}',
+             ${{spaceVersion}},
+             false, --isPartial
+             'REPLACE', --onExists
+             'CREATE', --onNotExists
+             NULL, --onVersionConflict
+             NULL, --onMergeConflict
+             ${{historyEnabled}},
+             ${{context}},
+             ${{extendedTable}}
+             )
+        """)
+        //TODO: Use named params instead of fragments!
+        .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
+        .withQueryFragment("author", targetAuthor)
+        .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
+        .withQueryFragment("context", superTable != null ? "'DEFAULT'" : "NULL")
+        .withQueryFragment("extendedTable", superTable != null ? "'" + superTable + "'" : "NULL")
+        .withVariable("schema", getSchema(db()))
+        .withVariable("table", getRootTableName(space()));
   }
 
   private SQLQuery buildContextQuery() throws WebClientException {

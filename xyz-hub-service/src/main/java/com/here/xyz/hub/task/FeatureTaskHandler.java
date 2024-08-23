@@ -305,7 +305,7 @@ public class FeatureTaskHandler {
       if (task instanceof FeatureTask.ConditionalOperation) {
         long now = Core.currentTimeMillis();
         if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
-          task.space.contentUpdatedAt = Core.currentTimeMillis();
+          task.space.setContentUpdatedAt(Core.currentTimeMillis());
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space)
               .onSuccess(v -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()))

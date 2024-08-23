@@ -4279,14 +4279,21 @@ DECLARE
     onNotExists TEXT := TG_ARGV[4];
     onVersionConflict TEXT := TG_ARGV[5];
     onMergeConflict TEXT := TG_ARGV[6];
+    historyEnabled BOOLEAN := TG_ARGV[7];
+    context TEXT := TG_ARGV[8];
+    extendedTable TEXT := TG_ARGV[9];
 BEGIN
     --TODO: Check how to fix "0 rows affected."
     --Only Geojson input is currently supported.
     IF NEW.operation IS NULL THEN
         --TODO: uses context with asyncify and remove this hack
-        --TODO: Support composite spaces
         PERFORM context(
-            format('{"schema":"%1$s","table":"%2$s","historyEnabled":false,"context":"EXTENSION"}', TG_TABLE_SCHEMA, TG_TABLE_NAME)::JSONB
+            format('{"schema": "%1$s", "table": "%2$s", "historyEnabled": %3$s, "context": "%4$s", "extendedTable": "%5$s"}',
+                   TG_TABLE_SCHEMA,
+                   TG_TABLE_NAME,
+                   historyEnabled,
+                   context,
+                   extendedTable)::JSONB
         );
         PERFORM write_feature(NEW.jsondata,
                               author,
