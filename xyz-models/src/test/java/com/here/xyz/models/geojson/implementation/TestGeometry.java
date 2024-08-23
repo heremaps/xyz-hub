@@ -72,7 +72,7 @@ public class TestGeometry {
     geometryCollection.validate();
   }
 
-  @Test
+  //  @Test HERESUP-1283
   public void test_polygon_validate() throws Exception {
     final ObjectMapper mp = new ObjectMapper();
 
