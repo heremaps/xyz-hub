@@ -184,13 +184,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    if (currentInputsCount(UploadUrl.class) <= 0)
-      //Inputs are missing, the step is not ready to be executed
-      return false;
+    if(!isUseSystemInput()) {
+      if (currentInputsCount(UploadUrl.class) <= 0)
+        //Inputs are missing, the step is not ready to be executed
+        return false;
 
-    if(!isUseSystemInput())
       //Quick-validate the first UploadUrl that is found in the inputs
       ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format);
+    }
 
     return true;
   }

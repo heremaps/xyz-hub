@@ -74,6 +74,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private List<Input> inputs;
   @JsonView({Internal.class, Static.class})
   private boolean pipeline;
+  @JsonIgnore
   private boolean useSystemInput;
 
   /**
