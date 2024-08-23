@@ -191,7 +191,8 @@ public abstract class Geometry implements Typed {
     // reject Polygons that do not follow the right-hand rule.
     //
     // --> Therefore we will not check the right-hand rule here, even while it would be possible!
-    HashSet<Object> hset = new HashSet<Object>();
+
+// HERESUP-1283   HashSet<Object> hset = new HashSet<Object>();
 
     for (int i = 0; i < points.size(); i++) {
       final Object point = points.get(i);
@@ -202,10 +203,12 @@ public abstract class Geometry implements Typed {
 
       validatePointCoordinates(point);
 
+/* HERESUP-1283
       if( hset.contains(point) && i < points.size() - 1 )
        throw new InvalidGeometryException("Invalid Point (duplicate) at index #" + i + " in the LinearRing coordinates");
       else 
        hset.add(point);
+*/       
     }
     
     final List<Number> firstPoint = (List<Number>) points.get(0);
