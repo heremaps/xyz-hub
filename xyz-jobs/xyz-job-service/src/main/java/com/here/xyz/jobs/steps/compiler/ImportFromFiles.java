@@ -41,15 +41,20 @@ import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ImportFromFiles implements JobCompilationInterceptor {
 
+  public static Set<Class<? extends DatasetDescription.Space>> allowedTargetTypes = new HashSet<>(Set.of(DatasetDescription.Space.class));
+
   @Override
   public boolean chooseMe(Job job) {
-    return job.getSource() instanceof Files && job.getTarget() instanceof DatasetDescription.Space;
+    return job.getSource() instanceof Files && allowedTargetTypes.contains(job.getTarget().getClass());
   }
 
   @Override
