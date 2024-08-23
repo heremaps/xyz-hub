@@ -84,6 +84,7 @@ public class SQLQuery {
   private Map<String, Object> context;
   private List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
+  private boolean loggingEnabled = true;
   private List<SQLQuery> queryBatch;
 
   private SQLQuery() {} //Only added as workaround for an issue with Jackson's Include.NON_DEFAULT setting
@@ -755,6 +756,23 @@ public class SQLQuery {
     return this;
   }
 
+  public boolean isLoggingEnabled() {
+    return loggingEnabled;
+  }
+
+  /**
+   * Can be used to explicitly turn the logging off for this specific query.
+   * @param loggingEnabled
+   */
+  public void setLoggingEnabled(boolean loggingEnabled) {
+    this.loggingEnabled = loggingEnabled;
+  }
+
+  public SQLQuery withLoggingEnabled(boolean loggingEnabled) {
+    setLoggingEnabled(loggingEnabled);
+    return this;
+  }
+
   private void injectLabels() {
     if (isLabelsEnabled() && !labels.isEmpty())
       statement = "/*labels(" + XyzSerializable.serialize(labels) + ")*/ " + statement;
@@ -922,17 +940,19 @@ public class SQLQuery {
 
   private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,
       ExecutionContext executionContext) throws SQLException {
-    logger.info("Executing SQLQuery {}", this);
+    if (loggingEnabled)
+      logger.info("Executing SQLQuery {}", this);
     substitute();
 
     final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
     executionContext.attemptExecution();
     try {
-      logger.info("Sending query to database {} {}, substituted query-text: {}",
-          executionContext.useReplica ? "reader" : "writer",
-          dataSourceProvider.getDatabaseSettings() != null
-              ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
-          replaceUnnamedParametersForLogging());
+      if (loggingEnabled)
+        logger.info("Sending query to database {} {}, substituted query-text: {}",
+            executionContext.useReplica ? "reader" : "writer",
+            dataSourceProvider.getDatabaseSettings() != null
+                ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
+            replaceUnnamedParametersForLogging());
 
       if (isAsync())
         operation = ExecutionOperation.QUERY;

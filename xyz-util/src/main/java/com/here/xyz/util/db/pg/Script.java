@@ -134,7 +134,8 @@ public class Script {
     SQLQuery setCurrentSearchPath = buildSetCurrentSearchPathQuery(targetSchema);
 
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
-        .withQueryFragment("scriptContent", loadScriptContent());
+        .withQueryFragment("scriptContent", loadScriptContent())
+        .withLoggingEnabled(false);
 
     //Load JS-scripts to be injected
     for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
