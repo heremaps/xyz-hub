@@ -113,65 +113,9 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 194
+ select 195
 $BODY$
   LANGUAGE sql IMMUTABLE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_trigger()
- RETURNS trigger
-AS $BODY$
-	DECLARE
-        spaceId text := TG_ARGV[0];
-		addSpaceId boolean := TG_ARGV[1];
-		curVersion bigint := TG_ARGV[3];
-		author text := TG_ARGV[4];
-
-		fid text := NEW.jsondata->>'id';
-		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
-		meta jsonb := format(
-			'{
-                 "createdAt": %s,
-                 "updatedAt": %s
-			}', createdAt, createdAt
-        );
-    BEGIN
-		-- Inject id if not available
-		IF fid IS NULL THEN
-		    fid = xyz_random_string(10);
-			NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
-        END IF;
-
-		IF addSpaceId THEN
-			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
-        END IF;
-
-		-- remove bbox on root
-        NEW.jsondata := NEW.jsondata - 'bbox';
-
-        -- Inject type
-        NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
-
-		-- Inject meta
-		NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
-
-		IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-		--GeoJson Feature Import
-			NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
-			NEW.jsondata := NEW.jsondata - 'geometry';
-        ELSE
-			NEW.geo := ST_Force3D(NEW.geo);
-        END IF;
-
-        NEW.operation := 'I';
-        NEW.version := curVersion;
-        NEW.id := fid;
-		NEW.author := author;
-
-        RETURN NEW;
-    END;
-$BODY$
-LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR  REPLACE FUNCTION xyz_random_string(length integer)
@@ -192,7 +136,7 @@ $BODY$
         RETURN result;
     END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_dissolve_datatype(propkey text)
@@ -221,7 +165,7 @@ $BODY$
 		RETURN NULL;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
@@ -250,7 +194,7 @@ $BODY$
 		RETURN propkey;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -294,7 +238,7 @@ BEGIN
 	RETURN result;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function xyz_qk_envelope2lrc(geo geometry, lvl integer)
@@ -392,7 +336,7 @@ $BODY$
 		RETURN status;
 	END
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE; --> stable
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
@@ -487,7 +431,7 @@ $BODY$
 		RETURN bboxx;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
+  LANGUAGE plpgsql VOLATILE; --> stable
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_list_all_available(
@@ -3048,14 +2992,23 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_reducePrecision(geo GEOMETRY)
+    RETURNS GEOMETRY AS
+$BODY$
+   select ST_ReducePrecision(geo, 0.00000001) 
+$BODY$
+LANGUAGE sql immutable;
+------------------------------------------------
+------------------------------------------------
+
 CREATE OR REPLACE FUNCTION xyz_geoFromWkb(geo GEOMETRY)
     RETURNS GEOMETRY AS
 $BODY$
     BEGIN
-        RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END;
+        RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reducePrecision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
     END
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql immutable;
 ------------------------------------------------
 ------------------------------------------------
 DO $$
@@ -4221,6 +4174,62 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger()
+ RETURNS trigger
+AS $BODY$
+	DECLARE
+        spaceId text := TG_ARGV[0];
+		addSpaceId boolean := TG_ARGV[1];
+		curVersion bigint := TG_ARGV[3];
+		author text := TG_ARGV[4];
+
+		fid text := NEW.jsondata->>'id';
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+		meta jsonb := format(
+			'{
+                 "createdAt": %s,
+                 "updatedAt": %s
+			}', createdAt, createdAt
+        );
+    BEGIN
+		-- Inject id if not available
+		IF fid IS NULL THEN
+		    fid = xyz_random_string(10);
+			NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
+        END IF;
+
+		IF addSpaceId THEN
+			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
+        END IF;
+
+		-- remove bbox on root
+        NEW.jsondata := NEW.jsondata - 'bbox';
+
+        -- Inject type
+        NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
+
+		-- Inject meta
+		NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
+
+		IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+		--GeoJson Feature Import
+			NEW.geo := ST_GeomFromGeoJSON(NEW.jsondata->'geometry');
+			NEW.jsondata := NEW.jsondata - 'geometry';
+        END IF;
+
+		NEW.geo := xyz_reducePrecision( ST_Force3D(NEW.geo) );
+
+        NEW.operation := 'I';
+        NEW.version := curVersion;
+        NEW.id := fid;
+		NEW.author := author;
+
+        RETURN NEW;
+    END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger_v2()
  RETURNS trigger
 AS $BODY$
@@ -4252,13 +4261,13 @@ AS $BODY$
             -- Inject meta
             NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
 
-            IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-                --GeoJson Feature Import
-                NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
-                NEW.jsondata := NEW.jsondata - 'geometry';
-            ELSE
-                NEW.geo := ST_Force3D(NEW.geo);
-            END IF;
+			IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+			--GeoJson Feature Import
+				NEW.geo := ST_GeomFromGeoJSON(NEW.jsondata->'geometry');
+				NEW.jsondata := NEW.jsondata - 'geometry';
+        	END IF;
+
+			NEW.geo := xyz_reducePrecision( ST_Force3D(NEW.geo) );
 
             NEW.operation := 'I';
             NEW.version := curVersion;
