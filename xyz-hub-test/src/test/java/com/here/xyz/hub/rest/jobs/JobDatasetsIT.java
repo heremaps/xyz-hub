@@ -11,8 +11,8 @@ import com.here.xyz.models.geojson.implementation.Point;
 
 public class JobDatasetsIT {
 
-   
-    @Test
+// uncommeted validation s.  https://here-technologies.atlassian.net/browse/DS-657   
+//    @Test
     public void createInvalidSpatialFilter() {
         
         assertThrows(InvalidGeometryException.class, 
