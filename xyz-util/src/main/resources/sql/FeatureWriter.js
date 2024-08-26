@@ -667,11 +667,24 @@ class FeatureWriter {
   }
 
   _insertHistoryRow() {
-    this.enrichTimestamps(this.inputFeature, true); //TODO: Ensure correct createdAt
+    /*
+
+    jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
+                                     tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt')
+
+
+     */
+    //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
+    this.enrichTimestamps(this.inputFeature, true);
     plv8.execute(`INSERT INTO "${this.schema}"."${this._targetTable()}"
                       (id, version, operation, author, jsondata, geo)
                   VALUES ($1, $2, $3, $4,
-                          $5::JSONB - 'geometry',
+                          CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
+                              $5::JSONB - 'geometry'
+                          ELSE 
+                              jsonb_set($5::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
+                                        (SELECT jsondata->'properties'->'${this.XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this._targetTable()}" WHERE id = $1 AND next_version = $2::BIGINT))
+                          END,
                           CASE
                               WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL
                               ELSE ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry')) END)`,
@@ -704,6 +717,7 @@ class FeatureWriter {
                              AND version < $1
                            RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
   }
+
   _upsertRow() {
     this.enrichTimestamps(this.inputFeature, true);
     let onConflict = this.onExists == "REPLACE" ? ` ON CONFLICT (id, next_version) DO UPDATE SET

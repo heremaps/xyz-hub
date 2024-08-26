@@ -22,11 +22,11 @@ require("../../../../main/resources/sql/Exception");
 require("../../../../main/resources/sql/FeatureWriter");
 const FeatureWriter = plv8.FeatureWriter;
 
-global.context = () => ({
+global.queryContext = () => ({
   schema: "public",
   table: "SQLSpaceWriter",
   extendedTable: "SQLSpaceWriter_super",
-  context: "DEFAULT",
+  context: "EXTENSION",
   historyEnabled: true
 });
 
@@ -47,7 +47,7 @@ class TestFeatureWriter {
     }
   };
 
-  writer = new FeatureWriter(this.inputFeature, 2, null, "DELETE", null, null, null, false);
+  writer = new FeatureWriter(this.inputFeature, 2, null, "DELETE", "CREATE", null, null, false);
 
   run() {
     this.writer.writeFeature();

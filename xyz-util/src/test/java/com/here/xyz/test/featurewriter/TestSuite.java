@@ -26,6 +26,7 @@ import static com.here.xyz.test.featurewriter.SpaceWriter.DEFAULT_AUTHOR;
 import static com.here.xyz.test.featurewriter.SpaceWriter.OTHER_AUTHOR;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.D;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.H;
+import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.I;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.J;
 import static com.here.xyz.test.featurewriter.SpaceWriter.UPDATE_AUTHOR;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.DELETE;
@@ -275,6 +276,7 @@ public abstract class TestSuite {
       Operation featureOperation = afterTableState.lastUsedFeatureOperation;
       assertEquals("A wrong feature operation was used.", assertions.usedFeatureOperation, featureOperation);
 
+      //Check the written feature content
       long expectedVersion = getWrittenSpaceVersion(spaceContext) + 1;
       Feature expectedFeature = Set.of(D, H, J).contains(featureOperation) ? deletedFeature(expectedVersion)
           : assertions.featureWasMerged ? mergedFeature(expectedVersion) : modifiedFeature(expectedVersion);
@@ -290,9 +292,9 @@ public abstract class TestSuite {
       assertThat("The feature's update timestamp has to be higher than the timestamp when the test started.",
           afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt(), isGreaterThanBeforeTimestamp);
       //Check if the feature's creation timestamp has been written properly
-      assertThat("The feature's creation timestamp has to be " + (performedTableOperation == INSERT ? "higher" : "lower")
+      assertThat("The feature's creation timestamp has to be " + (featureOperation == I || featureOperation == H ? "higher" : "lower")
           + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
-          performedTableOperation != INSERT ? not(isGreaterThanBeforeTimestamp) : isGreaterThanBeforeTimestamp);
+          featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
     }
     //TODO: Check the feature state in other cases (e.g. deletion -> should not exist, NOOP -> should be state as before)
 
