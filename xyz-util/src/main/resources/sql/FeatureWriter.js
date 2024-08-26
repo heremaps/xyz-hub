@@ -21,7 +21,7 @@
  * The unified implementation of the database-based feature writer.
  */
 class FeatureWriter {
-  debugOutput = false;
+  debugOutput = false; //TODO: Read from queryContext
   maxBigint = "9223372036854775807"; //NOTE: Must be a string because of JS precision
   XYZ_NS = "@ns:com:here:xyz";
 
@@ -86,7 +86,8 @@ class FeatureWriter {
     if (this.onVersionConflict && this.baseVersion == null)
       throw new IllegalArgumentException("The provided Feature does not have a baseVersion but a version conflict detection was requested!");
 
-    //this.debugBox(JSON.stringify(this, null, 2));
+    if (this.debugOutput)
+      this.debugBox(JSON.stringify(this, null, 2));
   }
 
   /**
@@ -322,13 +323,11 @@ class FeatureWriter {
   deleteRow() {
     //TODO: do we need the payload of the feature as return?
     //base_version get provided from user (extend api endpoint if necessary)
-    if(this.debugOutput)
-      plv8.elog(NOTICE, "Delete feature with id ", this.inputFeature.id);
+    this.debugBox("Delete feature with id: " + this.inputFeature.id);
 
     let deletedRows = this.onVersionConflict == null ? this._deleteRow() : this._deleteRow(this.baseVersion);
     if (deletedRows == 0) {
-      if(this.debugOutput)
-        plv8.elog(NOTICE, "HandleConflict for id=", this.inputFeature.id);
+      this.debugBox("HandleConflict for id: " + this.inputFeature.id);
       //handleDeleteVersionConflict
     }
   }
@@ -337,8 +336,6 @@ class FeatureWriter {
    * @throws VersionConflictError, MergeConflictError
    */
   handleVersionConflict() {
-    if(this.debugOutput)
-      plv8.elog(NOTICE, "Version conflict");
     return this.isDelete ? this.handleDeleteVersionConflict() : this.handleWriteVersionConflict();
   }
 
@@ -394,8 +391,7 @@ class FeatureWriter {
    * @throws MergeConflictError If the both write diffs are not recursively disjunct and onMergeConflict == ERROR
    */
   mergeChanges() {
-    if(this.debugOutput)
-      plv8.elog(NOTICE, "MERGE changes", this.onVersionConflict, this.onMergeConflict); //TODO: Use debug logging
+    this.debugBox("MERGE changes: onVersionConflict(" + this.onVersionConflict + ") onMergeConflict(" +  this.onMergeConflict + ")");
     let headFeature = this.loadFeature(this.inputFeature.id);
     let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
     //TODO: Fix order of diff arguments
@@ -550,8 +546,6 @@ class FeatureWriter {
   }
 
   diff(minuend, subtrahend) {
-    if(this.debugOutput)
-      plv8.elog(NOTICE, "diff ", JSON.stringify(minuend), " ", JSON.stringify(subtrahend)); //TODO: Use debug logging
     let diff = {};
 
     if (minuend == null)
@@ -587,8 +581,6 @@ class FeatureWriter {
    * NOTE: target is mandatory to be a valid (existing) feature
    */
   patch(target, inputDiff) {
-    if(this.debugOutput)
-      plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff)); //TODO: Use debug logging
     target = target || {};
     for (let key in inputDiff) {
       if (inputDiff.hasOwnProperty(key)) {
@@ -597,8 +589,6 @@ class FeatureWriter {
         else if (typeof inputDiff[key] == "object" && !Array.isArray(inputDiff[key]) && inputDiff[key] !== null) {
           if (!target[key])
             target[key] = {};
-          if(this.debugOutput)
-            plv8.elog(NOTICE, "patch [", key, "]->", JSON.stringify(target[key]), "-", JSON.stringify(inputDiff[key]));
           target[key] = this.patch(target[key], inputDiff[key]);
         }
         else
@@ -635,6 +625,9 @@ class FeatureWriter {
   }
 
   debugBox(message) {
+    if (!this.debugOutput)
+      return;
+
     let width = 140;
     let leftRightBuffer = 2;
     let maxLineLength = width - leftRightBuffer * 2;
@@ -674,13 +667,6 @@ class FeatureWriter {
   }
 
   _insertHistoryRow() {
-    /*
-
-    jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
-                                     tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt')
-
-
-     */
     //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
     this.enrichTimestamps(this.inputFeature, true);
     plv8.execute(`INSERT INTO "${this.schema}"."${this._targetTable()}"
@@ -773,11 +759,8 @@ class FeatureWriter {
         this.baseVersion);
   }
 
-  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version) {
+  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = FeatureWriter.getNextVersion()) {
     let result = {type: "FeatureCollection", features : []};
-    if(version == undefined){
-      version = FeatureWriter.getNextVersion()
-    }
     for (let feature of inputFeatures) {
       let writer = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial);
       result.features.push(writer.writeFeature());
@@ -785,7 +768,7 @@ class FeatureWriter {
     return result;
   }
 
-  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version ) {
+  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = undefined) {
     return FeatureWriter.writeFeatures([inputFeature], author, onExists, onNotExists, onVersionConflict, onMergeConflict,
         isPartial, version);
   }

@@ -24,7 +24,7 @@ CREATE EXTENSION IF NOT EXISTS plv8;
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
 CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_exists TEXT,
-    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT)
+    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL)
     RETURNS JSONB AS
 $BODY$
 
@@ -47,9 +47,9 @@ $BODY$
 
     //Actual executions
     if (input_features == null)
-        throw new Error("Parameter input_features must not be null.");
+      throw new Error("Parameter input_features must not be null.");
 
-    return FeatureWriter.writeFeatures(JSON.parse(input_features), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version);
+    return FeatureWriter.writeFeatures(JSON.parse(input_features), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version == null ? undefined : version);
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 /**
@@ -57,7 +57,7 @@ $BODY$ LANGUAGE plv8 IMMUTABLE;
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
 CREATE OR REPLACE FUNCTION write_feature(input_feature TEXT, author TEXT, on_exists TEXT,
-    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT)
+    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL)
     RETURNS JSONB AS $BODY$
 
     //Import other functions
