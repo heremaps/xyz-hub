@@ -4275,11 +4275,11 @@ DECLARE
     author text := TG_ARGV[0];
     currentVersion bigint := TG_ARGV[1];
     isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := LOWER(TG_ARGV[3]);
-    onNotExists TEXT := LOWER(TG_ARGV[4]);
-    onVersionConflict TEXT := LOWER(TG_ARGV[5]);
-    onMergeConflict TEXT := LOWER(TG_ARGV[6]);
-    historyEnabled TEXT := TG_ARGV[7];
+    onExists TEXT := UPPER(TG_ARGV[3]);
+    onNotExists TEXT := UPPER(TG_ARGV[4]);
+    onVersionConflict TEXT := UPPER(TG_ARGV[5]);
+    onMergeConflict TEXT := UPPER(TG_ARGV[6]);
+    historyEnabled TEXT := TG_ARGV[7]; --FIXME: Why are parameters written as text?
     context TEXT := TG_ARGV[8];
     extendedTable TEXT := TG_ARGV[9];
 BEGIN
@@ -4295,12 +4295,13 @@ BEGIN
                    context,
                    extendedTable)::JSONB
         );
+        --TODO: Improve performance by not receiving the jsondata as JSONB at all here
         PERFORM write_feature(NEW.jsondata::TEXT,
                               author,
-                              (CASE WHEN (onVersionConflict = 'null') THEN null ELSE onExists END),
-                              (CASE WHEN (onNotExists = 'null') THEN null ELSE onNotExists END),
-                              (CASE WHEN (onVersionConflict = 'null') THEN null ELSE onVersionConflict END),
-                              (CASE WHEN (onMergeConflict = 'null') THEN null ELSE onMergeConflict END),
+                              (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onExists END),
+                              (CASE WHEN (onNotExists = 'NULL') THEN NULL ELSE onNotExists END),
+                              (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onVersionConflict END),
+                              (CASE WHEN (onMergeConflict = 'NULL') THEN NULL ELSE onMergeConflict END),
                               isPartial,
                               currentVersion);
         RETURN NULL;
