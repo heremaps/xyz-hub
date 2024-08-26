@@ -597,6 +597,12 @@
         <version>4.13.2</version>
       </dependency>
       <dependency>
+        <artifactId>hamcrest</artifactId>
+        <groupId>org.hamcrest</groupId>
+        <scope>test</scope>
+        <version>2.2</version>
+      </dependency>
+      <dependency>
         <groupId>io.rest-assured</groupId>
         <artifactId>json-path</artifactId>
         <version>5.3.1</version>

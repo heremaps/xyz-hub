@@ -32,8 +32,10 @@ import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.DELETE;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.NONE;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.UPDATE;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.number.OrderingComparison.greaterThan;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -55,6 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -283,11 +286,13 @@ public abstract class TestSuite {
       assertEquals("The feature was written incorrectly.", expectedFeature, afterTableState.feature);
 
       //Check if the feature's update timestamp has been written properly
-      assertTrue("The feature's update timestamp has to be higher than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt() > beforeTestStartTimestamp);
+      Matcher<Long> isGreaterThanBeforeTimestamp = greaterThan(beforeTestStartTimestamp);
+      assertThat("The feature's update timestamp has to be higher than the timestamp when the test started.",
+          afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt(), isGreaterThanBeforeTimestamp);
       //Check if the feature's creation timestamp has been written properly
-      assertTrue("The feature's creation timestamp has to be " + (performedTableOperation == INSERT ? "higher" : "lower")
-          + " than the timestamp when the test started.",
-          afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt() > beforeTestStartTimestamp ^ performedTableOperation != INSERT);
+      assertThat("The feature's creation timestamp has to be " + (performedTableOperation == INSERT ? "higher" : "lower")
+          + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
+          performedTableOperation != INSERT ? not(isGreaterThanBeforeTimestamp) : isGreaterThanBeforeTimestamp);
     }
     //TODO: Check the feature state in other cases (e.g. deletion -> should not exist, NOOP -> should be state as before)
 

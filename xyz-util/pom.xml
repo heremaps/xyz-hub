@@ -149,5 +149,10 @@
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <artifactId>hamcrest</artifactId>
+      <groupId>org.hamcrest</groupId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>
