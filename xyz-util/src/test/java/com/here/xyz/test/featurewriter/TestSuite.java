@@ -24,6 +24,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.test.featurewriter.SpaceWriter.DEFAULT_AUTHOR;
 import static com.here.xyz.test.featurewriter.SpaceWriter.OTHER_AUTHOR;
+import static com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict.MERGE;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.D;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.H;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.I;
@@ -53,7 +54,9 @@ import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.Operation;
 import com.here.xyz.test.featurewriter.SpaceWriter.SQLError;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -242,7 +245,7 @@ public abstract class TestSuite {
 
     //------------ Perform the actual test call ------------
     try {
-      //TODO: Also support partial to be influenced through test args
+      //TODO: Also support "partial" to be influenced through test args
       spaceWriter.writeFeature(modifiedFeature(baseVersion), UPDATE_AUTHOR, onExists, onNotExists,
           onVersionConflict, onMergeConflict,false, spaceContext, history);
     }
@@ -265,8 +268,9 @@ public abstract class TestSuite {
     assertEquals((thrownError == null ? "No " : assertions.sqlError != null ? "Wrong " : "An ") + "error was thrown" + (assertions.sqlError == null ? " but none was expected." : thrownError == null ? " but it was expected one." : ""), assertions.sqlError, thrownError);
 
     //Check the table operation
+    SpaceTableState beforeTableState = beforeState.tableStateForContext(spaceContext);
     SpaceTableState afterTableState = afterState.tableStateForContext(spaceContext);
-    TableOperation performedTableOperation = inferTableOperation(beforeState.tableStateForContext(spaceContext), afterTableState);
+    TableOperation performedTableOperation = inferTableOperation(beforeTableState, afterTableState);
     assertEquals("A wrong table operation was performed.",assertions.performedTableOperation, performedTableOperation);
 
     //Check whether the feature was written properly
@@ -296,9 +300,19 @@ public abstract class TestSuite {
           + " than the timestamp when the test started.", afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt(),
           featureOperation == I || featureOperation == H ? isGreaterThanBeforeTimestamp : not(isGreaterThanBeforeTimestamp));
     }
-    //TODO: Check the feature state in other cases (e.g. deletion -> should not exist, NOOP -> should be state as before)
+    else if (performedTableOperation == NONE) {
+      //Check the state of the feature operation
+      assertEquals("A feature operation was applied even if the expected table operation was NONE.",
+          beforeTableState.lastUsedFeatureOperation, afterTableState.lastUsedFeatureOperation);
 
-
+      //Check the feature content (including timestamps)
+      assertEquals("The feature content has changed even if the expected table operation was NONE.",
+          beforeTableState.feature, afterTableState.feature);
+    }
+    else if (performedTableOperation == DELETE) {
+      //Check whether the feature was actually deleted
+      assertEquals(null, afterTableState.feature);
+    }
   }
 
   private void applyAuthorWorkaround(Feature expectedFeature, Feature actualFeature) {
@@ -438,7 +452,91 @@ public abstract class TestSuite {
 
     @Override
     public String toString() {
-      return testName;
+      return testName + ": " + humanReadableName();
+    }
+
+    private String humanReadableName() {
+      String name = userIntent == UserIntent.DELETE ? "DeleteFeature from " : "WriteFeature to ";
+
+      name += composite ? "Composite" : "";
+      name += "Space ";
+      if (history)
+        name += "with history ";
+
+      String featureConditions = humanReadableFeatureConditions();
+      if (!featureConditions.trim().isEmpty())
+        name += " and " + featureConditions;
+      name += " -> ";
+
+      List<String> desiredActions = new ArrayList<>();
+      if (onNotExists != null)
+        desiredActions.add(toHumanReadable(onNotExists) + "IfNotExists");
+
+      if (onExists != null)
+        desiredActions.add(toHumanReadable(onExists) + "IfExists");
+
+      if (onVersionConflict != null && !baseVersionMatch) {
+        desiredActions.add(toHumanReadable(onVersionConflict) + "OnVersionConflict");
+        if (conflictingAttributes && onVersionConflict == MERGE && conflictingAttributes && onMergeConflict != null)
+          desiredActions.add(toHumanReadable(onMergeConflict) + "OnMergeConflict");
+      }
+
+      name += String.join(", ", desiredActions);
+
+      return name;
+    }
+
+    private String humanReadableFeatureConditions() {
+      List<String> featureConditions = new ArrayList<>();
+
+
+      String exists = "feature" + (featureExists ? "" : "Not") + "Exists";
+      if (featureExists && composite)
+        exists += "In(" + (featureExistsInSuper && featureExistsInExtension ? SUPER + " & " + EXTENSION : featureExistsInSuper ? SUPER : EXTENSION) + ")";
+      featureConditions.add(exists);
+
+      if (!baseVersionMatch) {
+        String conflict = "conflictingChange";
+        if (onVersionConflict == MERGE && conflictingAttributes)
+          conflict += "WithAttributesConflict";
+        featureConditions.add(conflict);
+      }
+
+      return String.join(" and ", featureConditions);
+    }
+
+    private String toHumanReadable(OnNotExists onNotExists) {
+      return switch (onNotExists) {
+        case CREATE -> "Create";
+        case RETAIN -> "DoNothing";
+        case ERROR -> "ThrowError";
+      };
+    }
+
+    private String toHumanReadable(OnExists onExists) {
+      return switch (onExists) {
+        case DELETE -> "Delete";
+        case REPLACE -> "Replace";
+        case RETAIN -> "Keep";
+        case ERROR -> "ThrowError";
+      };
+    }
+
+    private String toHumanReadable(OnVersionConflict onVersionConflict) {
+      return switch (onVersionConflict) {
+        case MERGE -> "Merge";
+        case REPLACE -> "Replace";
+        case RETAIN -> "DoNothing";
+        case ERROR -> "ThrowError";
+      };
+    }
+
+    private String toHumanReadable(OnMergeConflict onMergeConflict) {
+      return switch (onMergeConflict) {
+        case REPLACE -> "Replace";
+        case RETAIN -> "KeepCurrent";
+        case ERROR -> "ThrowError";
+      };
     }
   }
 
