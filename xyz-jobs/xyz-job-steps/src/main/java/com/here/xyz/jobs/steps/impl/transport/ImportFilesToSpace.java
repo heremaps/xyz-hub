@@ -82,9 +82,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
-  @JsonView({Internal.class, Static.class})
-  private int versionsToKeep = -1;
-
   public enum Format {
     CSV_GEOJSON,
     CSV_JSON_WKB,
@@ -182,7 +179,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     try {
       logAndSetPhase(Phase.VALIDATE);
       //Check if the space is actually existing
-      versionsToKeep = space().getVersionsToKeep();
+      space();
 
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
       targetTableFeatureCount = statistics.getCount().getValue();
@@ -221,10 +218,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
       if(getExecutionMode().equals(ExecutionMode.SYNC)) {
           //@TODO: For future add threading (if validation step is in place)
-          for (Input input : loadInputs()) {
-              logger.info("[{}] Sync upload from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
-              streamFileToSpace(input.getS3Key(), format, ((UploadUrl)input).isCompressed());
-          }
+          //TODO: Implement synchronous feature writing using new FeatureWriter
       } else {
         log("Importing input files for job " + getJobId() + " into space " + getSpaceId() + " ...");
 
@@ -529,7 +523,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     JSONObject context = new JSONObject()
             .put("schema", getSchema(db()))
             .put("table", table)
-            .put("historyEnabled", versionsToKeep > 0);
+            .put("historyEnabled", space().getVersionsToKeep() > 0);
 
     if (space().getExtension() != null) {
       context.put("extendedTable", getRootTableName(superSpace()));
