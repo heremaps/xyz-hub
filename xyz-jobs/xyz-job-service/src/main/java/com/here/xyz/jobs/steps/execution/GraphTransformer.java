@@ -257,9 +257,11 @@ public class GraphTransformer {
         "ApplicationId", emrStep.getApplicationId(),
         "ExecutionRoleArn", emrStep.getExecutionRoleArn(),
         "JobDriver", Map.of(
-            "EntryPoint", emrStep.getJarUrl(),
-            "EntryPointArguments", emrStep.getScriptParams(),
-            "SparkSubmitParameters", emrStep.getSparkParams()
+            "SparkSubmit", Map.of(
+                "EntryPoint", emrStep.getJarUrl(),
+                "EntryPointArguments", emrStep.getScriptParams(),
+                "SparkSubmitParameters", emrStep.getSparkParams()
+            )
         )
     ));
     state.stateBuilder.resource(EMR_INVOKE_RESOURCE);
