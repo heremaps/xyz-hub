@@ -22,9 +22,9 @@ package com.here.xyz.hub.connectors;
 import static org.junit.Assert.assertEquals;
 
 import com.here.xyz.hub.Config;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -80,7 +80,7 @@ public class RFCMeasurement {
                 long now = Core.currentTimeMillis();
                 rfc.submit(null, payload, false, false, r -> {
                     //Nothing to do
-                });
+                }, null);
             }
         }, offset, interval, TimeUnit.MILLISECONDS);
 

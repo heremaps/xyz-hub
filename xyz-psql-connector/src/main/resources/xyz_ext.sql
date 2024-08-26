@@ -1,55 +1,28 @@
---
--- Copyright (C) 2017-2023 HERE Europe B.V.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
--- http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
---
--- SPDX-License-Identifier: Apache-2.0
--- License-Filename: LICENSE
+/*
+ * Copyright (C) 2017-2024 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 --
 -- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-DROP FUNCTION IF EXISTS xyz_statistic_space( text, text);
 
-DROP FUNCTION IF EXISTS qk_inhabited(text, integer, geometry);
-DROP FUNCTION IF EXISTS qk_inhabited_g(text, integer, geometry);
-
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles(boolean, text[], regclass,boolean, boolean );
-DROP FUNCTION IF EXISTS exp_build_sql_inhabited(boolean, text, integer, regclass);
-DROP FUNCTION IF EXISTS exp_build_sql_inhabited(boolean, text, integer, regclass, integer);
-
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v1(
-	boolean,
-	text[],
-	text,
-	boolean,
-	boolean);
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v2(boolean, text[], text, boolean, boolean );
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v3(
-	boolean,
-	text[],
-	text,
-	boolean,
-	boolean,
-        boolean);
-DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
-	boolean,
-	text[],
-	text,
-	boolean,
-	boolean,
-        boolean);
 
 --
 ------ SAMPLE QUERIES ----
@@ -140,19 +113,9 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 185
+ select 194
 $BODY$
   LANGUAGE sql IMMUTABLE;
-----------
--- ADD NEW COLUMN TO IDX_STATUS TABLE
-DO $$
-BEGIN
-ALTER TABLE IF EXISTS xyz_config.xyz_idxs_status
-    ADD COLUMN auto_indexing BOOLEAN;
-EXCEPTION
-	    WHEN duplicate_column THEN RAISE NOTICE 'column <auto_indexing> already exists in <xyz_idxs_status>.';
-END;
-$$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger()
@@ -182,6 +145,9 @@ AS $BODY$
 		IF addSpaceId THEN
 			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
         END IF;
+
+		-- remove bbox on root
+        NEW.jsondata := NEW.jsondata - 'bbox';
 
         -- Inject type
         NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
@@ -900,12 +866,10 @@ $BODY$
 		END IF;
 
 		/** set indication that idx creation is running */
-		UPDATE xyz_config.xyz_idxs_status
-			SET idx_creation_finished = false
-				WHERE spaceid = space
-                  AND schem = schema;
-
-		EXECUTE xyz_index_check_comments(schema, space);
+        UPDATE xyz_config.xyz_idxs_status
+            SET idx_creation_finished = false
+        WHERE spaceid = space AND schem = schema;
+		--EXECUTE xyz_index_check_comments(schema, space);
 
 		/** Analyze IDX-ON DEMAND aka MANUAL MODE */
 		RAISE NOTICE 'ANALYSE MANUAL IDX on SPACE: %', space;
@@ -2908,10 +2872,7 @@ $BODY$
         updated_rows INTEGER;
         minVersion BIGINT;
     BEGIN
-        EXECUTE
-           format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-               schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
-
+        -- First update the affected old version of the feature to make its next_version pointing to the new version
         IF operation != 'I' AND operation != 'H' THEN
             IF concurrencyCheck THEN
                 IF baseVersion IS NULL THEN
@@ -2950,6 +2911,11 @@ $BODY$
                        schema, tableName, version, id, max_bigint(), version);
         END IF;
 
+        -- Now actually insert the new version of the feature (NOTE: The order is important here to not violate the (id, next_version) uniqueness constraint)
+        EXECUTE
+            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
+                   schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
+
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
             EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
@@ -2970,22 +2936,36 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN)
+CREATE OR REPLACE FUNCTION xyz_simple_upsert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, uniqueConstraintExists BOOLEAN)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
+        insertQuery TEXT;
         updated_rows INTEGER;
     BEGIN
-        updated_rows = xyz_simple_update(id, version, CASE WHEN xyz_isHideOperation(operation) THEN 'J' ELSE 'U' END, author, jsondata, geo, schema, tableName, false, NULL, false);
-        IF updated_rows = 0 THEN
-            updated_rows = xyz_simple_insert(id, version, operation, author, jsondata, geo, schema, tableName);
+        insertQuery = 'INSERT INTO %I.%I AS tbl (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)';
+        IF concurrencyCheck THEN
+            -- This query will throw an error in case of a conflict
+            EXECUTE
+                format(insertQuery,
+                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         ELSE
-            IF concurrencyCheck THEN
-                RAISE EXCEPTION 'Conflict while trying to insert feature with ID % in version %.', id, version
-                    USING HINT = 'Feature was already inserted in the meantime.',
-                        ERRCODE = 'XYZ49';
+            IF uniqueConstraintExists THEN
+                -- This query will perform an update instead of throwing an error in case of a conflict
+                insertQuery = insertQuery || ' ON CONFLICT (id, next_version) DO UPDATE SET ' ||
+                              'version = greatest(tbl.version, EXCLUDED.version), ' ||
+                              'operation = CASE WHEN xyz_isHideOperation(EXCLUDED.operation) THEN ''J'' ELSE ''U'' END, ' ||
+                              'author = EXCLUDED.author, ' ||
+                              'jsondata = EXCLUDED.jsondata, ' ||
+                              'geo = EXCLUDED.geo';
             END IF;
+
+            EXECUTE
+                format(insertQuery,
+                       schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
         END IF;
+
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
     END
 $BODY$
@@ -3034,22 +3014,6 @@ $BODY$
             END IF;
         END IF;
 
-        RETURN updated_rows;
-    END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_simple_insert(id TEXT, version BIGINT, operation CHAR, author TEXT, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT)
-    RETURNS INTEGER AS
-$BODY$
-    DECLARE
-        updated_rows INTEGER;
-    BEGIN
-        EXECUTE
-            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-                   schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo));
-        GET DIAGNOSTICS updated_rows = ROW_COUNT;
         RETURN updated_rows;
     END
 $BODY$
@@ -3121,48 +3085,6 @@ BEGIN
     END IF;
     --more types here...
 END$$;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[], versions BIGINT[])
-    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
-$BODY$
-DECLARE
-    output LOAD_FEATURE_VERSION_INPUT[];
-    item LOAD_FEATURE_VERSION_INPUT;
-BEGIN
-    IF coalesce(array_length(ids, 1),0) > 0 THEN
-        FOR i IN 1 .. array_upper(ids, 1)
-            LOOP
-                item := ROW(ids[i], versions[i]);
-                SELECT array_append(output, item) into output;
-
-            END LOOP;
-    END IF;
-    RETURN output;
-END
-$BODY$
-    LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION transform_load_features_input(ids TEXT[])
-    RETURNS LOAD_FEATURE_VERSION_INPUT[] AS
-$BODY$
-DECLARE
-    output LOAD_FEATURE_VERSION_INPUT[];
-    versions BIGINT[];
-BEGIN
-    IF array_length(ids, 1) IS NULL THEN
-        RETURN output;
-    ELSE
-        FOR i IN 1 .. array_upper(ids, 1)
-        LOOP
-            versions := array_append(versions, max_bigint());
-        END LOOP;
-        RETURN transform_load_features_input(ids, versions);
-    END IF;
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_create_history_partition(schema TEXT, rootTable TEXT, partitionNo BIGINT, partitionSize BIGINT)
@@ -3302,12 +3224,122 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from JDBC
 CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT) RETURNS VOID AS
 $BODY$
 BEGIN
-    PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
-    PERFORM dblink_connect('conn', 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password);
-    PERFORM dblink_send_query('conn', query || '; COMMIT; SELECT pg_terminate_backend(pg_backend_pid())');
+    PERFORM set_config('xyz.password', password, false);
+    PERFORM _asyncify(query, false, false);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from JDBC
+CREATE OR REPLACE FUNCTION asyncify(query TEXT, password TEXT, procedureCall BOOLEAN) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM set_config('xyz.password', password, false);
+    PERFORM _asyncify(query, false, procedureCall);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from within other async functions (that have been called through asyncify themselves)
+CREATE OR REPLACE FUNCTION asyncify(query TEXT) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM _asyncify(query, true, false);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from within other async functions (that have been called through asyncify themselves)
+CREATE OR REPLACE FUNCTION asyncify(query TEXT, deferAfterCommit BOOLEAN) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM _asyncify(query, deferAfterCommit, false);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is only to be called from within other async functions (that have been called through asyncify themselves)
+CREATE OR REPLACE FUNCTION asyncify(query TEXT, deferAfterCommit BOOLEAN, procedureCall BOOLEAN) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM _asyncify(query, deferAfterCommit, procedureCall);
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+-- **NOTE:** This variant of the asyncify function is private and should only be called by the other two variants of the asyncify function
+CREATE OR REPLACE FUNCTION _asyncify(query TEXT, deferAfterCommit BOOLEAN, procedureCall BOOLEAN) RETURNS VOID AS
+$BODY$
+DECLARE
+    password TEXT := current_setting('xyz.password');
+    connectionName TEXT := xyz_random_string(10);
+BEGIN
+    IF deferAfterCommit THEN
+        --Defer the execution (spawn-point) of the query to the end of this thread's execution, to make sure that this thread's transaction has been fully completed / committed before
+        PERFORM set_config('xyz.next_thread', query, false);
+    ELSE
+--         PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
+--         RAISE NOTICE '~~~~~~~~~~~ Connection name %', connectionName;
+        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password
+                || ' application_name = ''' || current_setting('application_name') ||'''');
+--         PERFORM pg_sleep(1);
+        IF strpos(query, '/*labels(') != 1 THEN
+            --Attach the same labels to the recursive async call
+            query = '/*labels(' || get_query_labels() || ')*/ ' || query;
+        END IF;
+        PERFORM dblink_send_query(connectionName, _create_asyncify_query_block(query, password, procedureCall));
+    END IF;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+CREATE OR REPLACE FUNCTION _create_asyncify_query_block(query TEXT, password TEXT, procedureCall BOOLEAN) RETURNS TEXT AS
+$BODY$
+BEGIN
+    IF procedureCall THEN
+        RETURN $outer$
+            DO
+            $block$
+            BEGIN
+                PERFORM set_config('xyz.password', '$outer$ || password || $outer$', false);
+                $outer$ || query || $outer$
+                COMMIT;
+                --Start the follow up thread if one has been registered
+                PERFORM CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
+            END
+            $block$;
+        $outer$;
+    ELSE
+        RETURN $block$
+            SELECT set_config('xyz.password', '$block$ || password || $block$', false);
+            START TRANSACTION;
+            $block$ || query || $block$;
+            COMMIT;
+            --Start the follow up thread if one has been registered
+            SELECT CASE WHEN current_setting('xyz.next_thread', true) IS NOT NULL THEN asyncify(current_setting('xyz.next_thread'), false) END;
+        $block$;
+    END IF;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION get_query_labels() RETURNS JSON AS
+$BODY$
+DECLARE
+    labels JSON;
+BEGIN
+    SELECT substring(query, strpos(query, '/*labels(') + 9, strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::JSON FROM pg_stat_activity WHERE strpos(query, '/*labels(') > 0 AND pid = pg_backend_pid() INTO labels;
+    return labels;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -3663,26 +3695,7 @@ end
 $_$;
 ------------------------------------------------
 ------------------------------------------------
-------------------------------------------------
-------------------------------------------------
-------------------------------------------------
-------------------------------------------------
 
-/*
-select * from exp_build_sql_inhabited(false, '1200232', 15, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass ) -- mercator tiles
-select * from exp_build_sql_inhabited(true, '12201201011111', 15, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass ) -- here tiles
-
-select * from exp_build_sql_inhabited(false, '1202011320', 14, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 3)
-select * from exp_build_sql_inhabited(true, '12201201011111', 15, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 3)
-
-sample usage:
-
-select
- (aws_s3.query_export_to_s3( o.s3sql , 'iml-http-connector-sit-s3bucket-9bnjg7jo97un', format('test-mnah-499/space/%s/%s/%s-%s', replace(o._tble::text,'"','') ,o.qk,o.bucket,o.nrbuckets) ,'eu-west-1','format text')).* ,
- o.*
-from
- exp_build_sql_inhabited(false, '1202011320', 14, 'public."56bd42b1a81b8f2753e8f2f6a235d2a8"'::regclass, 13) o
-*/
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_inhabited_txt(iqk text, mlevel integer, sql_with_geo text) RETURNS TABLE(qk text)
@@ -4029,7 +4042,6 @@ begin
 end
 $_$;
 
-
 ------------------------------------------------
 ------------------------------------------------
 
@@ -4213,7 +4225,6 @@ begin
     ) order by weight DESC) a;
 end
 $BODY$;
-
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION streamId() RETURNS TEXT AS
@@ -4232,3 +4243,342 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger_v2()
+ RETURNS trigger
+AS $BODY$
+	DECLARE
+        author text := TG_ARGV[0];
+        curVersion bigint := TG_ARGV[1];
+
+		fid text := NEW.jsondata->>'id';
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+		meta jsonb := format(
+			'{
+                 "createdAt": %s,
+                 "updatedAt": %s
+			}', createdAt, createdAt
+        );
+    BEGIN
+            -- Inject id if not available
+            IF fid IS NULL THEN
+                fid = xyz_random_string(10);
+                NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
+            END IF;
+
+            -- Remove bbox on root
+            NEW.jsondata := NEW.jsondata - 'bbox';
+
+            -- Inject type
+            NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
+
+            -- Inject meta
+            NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
+
+            IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+                --GeoJson Feature Import
+                NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
+                NEW.jsondata := NEW.jsondata - 'geometry';
+            ELSE
+                NEW.geo := ST_Force3D(NEW.geo);
+            END IF;
+
+            NEW.operation := 'I';
+            NEW.version := curVersion;
+            NEW.id := fid;
+            NEW.author := author;
+    RETURN NEW;
+END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
+    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint, execution_count int)
+    LANGUAGE 'plpgsql'
+AS $BODY$
+DECLARE
+    work_items_left integer := 1;
+    success_marker text := 'SUCCESS_MARKER';
+    target_state text := 'RUNNING';
+    work_item record;
+    updated_rows INTEGER;
+    result record;
+BEGIN
+    work_item := null;
+
+    EXECUTE format('SELECT state, s3_path, execution_count FROM %1$s '
+                       ||'WHERE state IN( %2$L,%3$L,%4$L) ORDER by random() LIMIT 1;',
+                   temporary_tbl,
+                   'SUBMITTED',
+                   'RETRY',
+                   'FAILED') into work_item;
+
+    IF work_item.state IS NOT NULL THEN
+        EXECUTE format('UPDATE %1$s '
+                           ||'set state = %2$L '
+                           ||'WHERE s3_path = %3$L AND state = %4$L RETURNING *',
+                        temporary_tbl,
+                        target_state,
+                        work_item.s3_path,
+                        work_item.state) INTO result;
+
+        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+        IF updated_rows = 1 THEN
+            s3_bucket = result.s3_bucket;
+            s3_path = result.s3_path;
+            s3_region = result.s3_region;
+            filesize = result.data->'filesize';
+            state = result.state;
+            execution_count = result.execution_count;
+            -- Result not null -> deliver work_item
+            RETURN NEXT;
+        ELSE
+			state = 'RETRY';
+			RETURN NEXT;
+        END IF;
+    ELSE
+        EXECUTE format('SELECT count(1) FROM %1$s WHERE state IN (''RUNNING'',''SUBMITTED'');',
+                       temporary_tbl) into work_items_left;
+
+        IF work_items_left > 0 THEN
+            -- Last Threads are running no work items left, wait till we are the last one which can do success report
+            state = 'LAST_ONES_RUNNING';
+            s3_path = 'SUCCESS_MARKER';
+            RETURN NEXT;
+        ELSE
+            EXECUTE format('SELECT s3_path, state FROM %1$s '
+                               ||'WHERE state = %2$L ;',
+                           temporary_tbl,
+                           success_marker) into work_item;
+
+            IF work_item.state IS NOT NULL THEN
+                EXECUTE format('UPDATE %1$s '
+                                   ||'set state = %2$L, execution_count = execution_count + 1 '
+                                   ||'WHERE s3_path = %3$L AND state = %4$L RETURNING *',
+                               temporary_tbl,
+                               work_item.state || '_' || target_state,
+                               work_item.s3_path,
+                               work_item.state) INTO result;
+
+                GET DIAGNOSTICS updated_rows = ROW_COUNT;
+
+                IF updated_rows = 1 THEN
+                    s3_bucket = result.s3_bucket;
+                    s3_path = result.s3_path;
+                    s3_region = result.s3_region;
+                    filesize = result.data->'filesize';
+                    state = result.state;
+                    execution_count = result.execution_count;
+                    -- Result not null -> deliver work_item
+                    RETURN NEXT;
+                ELSE
+			        state = 'RETRY';
+			        RETURN NEXT;
+                END IF;
+            END IF;
+        END If;
+    END IF;
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_perform(schem text, temporary_tbl regclass ,target_tbl regclass,
+                                              s3_bucket text, s3_path text, s3_region text, format text, filesize bigint)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+AS $BODY$
+DECLARE
+    import_statistics record;
+    config record;
+BEGIN
+    select * from xyz_import_get_import_config(format) into config;
+
+    EXECUTE format(
+            'SELECT/*lables({"type": "ImortFilesToSpace","bytes":%1$L})*/ aws_s3.table_import_from_s3( '
+                ||' ''%2$s.%3$s'', '
+                ||'	%4$L, '
+                ||'	%5$L, '
+                ||' aws_commons.create_s3_uri(%6$L,%7$L,%8$L)) ',
+            filesize,
+            schem,
+            target_tbl,
+            config.target_clomuns,
+            config.import_config,
+            s3_bucket,
+            s3_path,
+            s3_region
+            ) INTO import_statistics;
+
+    -- Mark item as successfully imported. Store import_statistics.
+    EXECUTE format('UPDATE %1$s '
+                       ||'set state = %2$L, '
+                       ||'execution_count = execution_count + 1, '
+                       ||'data = data || %3$L '
+                       ||'WHERE s3_path = %4$L ',
+                   temporary_tbl,
+                   'FINISHED',
+                   json_build_object('import_statistics', import_statistics),
+                   s3_path);
+    EXCEPTION
+        WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
+            /** Retryable errors:
+               	    55P03 (lock_not_available)
+                    23505 (duplicate key value violates unique constraint)
+                    22P02 (invalid input syntax for type json)
+                    22P04 (extra data after last expected column)
+                    38000 Lambda not available
+            */
+            EXECUTE format('UPDATE %1$s '
+                            ||'set state = %2$L, '
+                            ||'execution_count = execution_count +1, '
+			                ||'data = data || ''{"error" : {"sqlstate":"%3$s"}}'''
+                            ||'WHERE s3_path = %4$L',
+                       temporary_tbl,
+                       'FAILED',
+					   SQLSTATE,
+                       s3_path);
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_get_import_config(format text)
+    RETURNS TABLE(target_clomuns text, import_config text)
+    LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+    import_config := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
+    format := lower(format);
+
+    IF format = 'csv_jsonwkb' THEN
+        target_clomuns := 'jsondata,geo';
+    ELSEIF format = 'csv_geojson' THEN
+        target_clomuns := 'jsondata';
+    ELSEIF format = 'geojson' THEN
+        target_clomuns := 'jsondata';
+        import_config := format('(FORMAT CSV, ENCODING ''UTF8'', DELIMITER %1$L , QUOTE  %2$L)', CHR(2), CHR(1));
+    ELSE
+        RAISE EXCEPTION 'Format ''%'' not supported! ',format
+            USING HINT = 'geojson | csv_geojson | csv_jsonwkb are available',
+                ERRCODE = 'XYZ51';
+    END IF;
+
+    RETURN NEXT;
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_report_success(temporary_tbl regclass, success_callback text)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    VOLATILE PARALLEL SAFE
+AS $BODY$
+DECLARE
+    sql_text text;
+BEGIN
+    sql_text = $wrappedouter$ DO
+    $wrappedinner$
+    DECLARE
+		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
+	    import_results record;
+	    retry_count integer := 2;
+	BEGIN
+	    EXECUTE format('SELECT '
+	                       || '   COUNT(*) FILTER (WHERE state = %1$L) AS finished_count,'
+	                       || '   COUNT(*) FILTER (WHERE state = %2$L and execution_count=%3$L) AS failed_count,'
+	                       || '   COUNT(*) AS total_count '
+	                       || 'FROM %4$s WHERE NOT starts_with(state,''SUCCESS_MARKER'');',
+	                   'FINISHED',
+	                   'FAILED',
+	                   retry_count,
+	                   temporary_tbl
+	            ) INTO import_results;
+
+	    IF  (import_results.finished_count+import_results.failed_count) = import_results.total_count THEN
+	        -- Will only be executed from last worker
+	        IF import_results.total_count = import_results.failed_count  THEN
+	            -- All imports are failed
+	        ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
+	            -- Imports partially failed
+	        ELSE
+	            -- All done invoke lambda
+	            $wrappedouter$ || success_callback || $wrappedouter$
+	        END IF;
+	    ELSE
+	        -- Imports still in progress!
+	    END IF;
+	END;
+	$wrappedinner$ $wrappedouter$;
+    EXECUTE sql_text;
+END;
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE PROCEDURE xyz_import_start(schem text, temporary_tbl regclass, target_tbl regclass, format text,
+                                         success_callback text, failure_callback text)
+    LANGUAGE 'plpgsql'
+AS
+$BODY$
+DECLARE
+    work_item record;
+    sql_text text;
+    retry_count integer := 2;
+BEGIN
+    SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
+    COMMIT;
+    IF work_item.state IS NULL THEN
+        RETURN;
+    ELSE
+        IF work_item.state = 'RETRY' OR work_item.state = 'LAST_ONES_RUNNING' THEN
+            -- Last imports are running, no submitted files are left. We need to wait till last import is finished!
+            PERFORM pg_sleep(10);
+            PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
+                                    schem, temporary_tbl, target_tbl, format, success_callback, failure_callback), false, true );
+        ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
+            EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
+            RETURN;
+        ELSEIF work_item.execution_count >= retry_count THEN
+             RAISE EXCEPTION 'Error on importing file %. Maximum retries are reached %.', right(work_item.s3_path, 36), retry_count
+                 USING HINT = 'Details: ' || (work_item.data->'error'->>'sqlstate') ,
+                    ERRCODE = 'XYZ52';
+        END IF;
+    END IF;
+
+    sql_text = $wrappedouter$ DO
+    $wrappedinner$
+    DECLARE
+        work_item_s3_bucket text := '$wrappedouter$||work_item.s3_bucket||$wrappedouter$'::text;
+        work_item_s3_region text := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::text;
+        work_item_s3_filesize bigint := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
+        work_item_s3_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
+		schem text := '$wrappedouter$||schem||$wrappedouter$'::text;
+		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
+		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
+		format text := '$wrappedouter$||format||$wrappedouter$'::text;
+    BEGIN
+			BEGIN
+	            IF work_item_s3_bucket != 'SUCCESS_MARKER' THEN
+					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item_s3_bucket ,work_item_s3_path, work_item_s3_region,
+														 format, work_item_s3_filesize);
+	            END IF;
+
+				EXCEPTION
+					WHEN OTHERS THEN
+						-- Import has failed
+						BEGIN
+							$wrappedouter$ || failure_callback || $wrappedouter$
+							RETURN;
+						END;
+			END;
+	 		PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
+					schem, temporary_tbl, target_tbl, format,
+					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
+					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), false, true );
+    END;
+	$wrappedinner$ $wrappedouter$;
+    EXECUTE sql_text;
+END;
+$BODY$;

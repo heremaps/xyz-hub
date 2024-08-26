@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.here.xyz</groupId>
+    <artifactId>xyz-hub</artifactId>
+    <version>3.9.42-SNAPSHOT</version>
+  </parent>
+
+  <name>XYZ Job Framework</name>
+  <description>The aggregator project for the XYZ Job Framework</description>
+  <artifactId>xyz-jobs</artifactId>
+  <packaging>pom</packaging>
+  <modules>
+    <module>xyz-job-service</module>
+    <module>xyz-job-steps</module>
+  </modules>
+
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <skipTests>true</skipTests>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <executions>
+          <execution>
+            <configuration>
+              <encoding>UTF-8</encoding>
+              <skip>${skipTests}</skip>
+            </configuration>
+            <goals>
+              <goal>integration-test</goal>
+            </goals>
+            <id>integration-test</id>
+          </execution>
+          <execution>
+            <goals>
+              <goal>verify</goal>
+            </goals>
+            <id>verify</id>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

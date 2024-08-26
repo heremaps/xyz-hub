@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -176,7 +176,6 @@ public class HCMaintenanceTestIT {
                 .accept(APPLICATION_JSON)
                 .when()
                 .get(host+"/connectors/"+defaultConnector+"/status")
-            .prettyPeek()
                 .then()
                 .statusCode(OK.code())
                 .body("initialized", equalTo(true))
@@ -230,7 +229,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size()", equalTo(12))
+                .body("idxAvailable.size()", equalTo(8))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }
@@ -271,7 +270,7 @@ public class HCMaintenanceTestIT {
                 .get(host+"/maintain/spaces/"+testSpace2)
                 .then()
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size()", equalTo(12))
+                .body("idxAvailable.size()", equalTo(8))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }

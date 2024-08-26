@@ -58,12 +58,13 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
-import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
+import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.HashMap;
@@ -201,7 +202,7 @@ public abstract class Job<T extends Job> extends Payload {
     public abstract Future<T> init();
 
     protected static String generateRandomId() {
-        return RandomStringUtils.randomAlphanumeric(6);
+        return RandomStringUtils.randomAlphabetic(1) + RandomStringUtils.randomAlphanumeric(5);
     }
 
     public Future<Job> injectConfigValues() {
@@ -216,7 +217,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     private Future<Boolean> readEnableHashedSpaceId() {
-        return HubWebClient.getConnectorConfig(getTargetConnector())
+        return LegacyHubWebClient.getConnectorConfig(getTargetConnector())
             .compose(connector -> {
                 boolean enableHashedSpaceId = connector.params.containsKey("enableHashedSpaceId")
                     ? (boolean) connector.params.get("enableHashedSpaceId") : false;
@@ -289,7 +290,7 @@ public abstract class Job<T extends Job> extends Payload {
         if (getTargetSpaceId() == null)
             return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!"));
 
-        return HubWebClient.getSpace(getTargetSpaceId())
+        return LegacyHubWebClient.getSpace(getTargetSpaceId())
                 .compose(space -> {
                     setTargetSpaceId(space.getId());
                     setTargetConnector(space.getStorage().getId());
@@ -300,7 +301,7 @@ public abstract class Job<T extends Job> extends Payload {
 
                     if (space.getExtension() != null) {
                         /** Resolve Extension */
-                        HubWebClient.getSpace(space.getExtension().getSpaceId())
+                        LegacyHubWebClient.getSpace(space.getExtension().getSpaceId())
                                 .onSuccess(baseSpace -> {
                                     p.complete(space.resolveCompositeParams(baseSpace));
                                 })
@@ -312,7 +313,7 @@ public abstract class Job<T extends Job> extends Payload {
                     Promise<Map> p = Promise.promise();
                     if (extension != null && extension.get("extends") != null  && ((Map)extension.get("extends")).get("extends") != null) {
                         /** Resolve 2nd Level Extension */
-                        HubWebClient.getSpace((String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
+                        LegacyHubWebClient.getSpace((String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
                                 .onSuccess(baseSpace -> {
                                     /** Add persistExport flag to Parameters */
                                     Map<String, Object> ext = new HashMap<>();
@@ -763,9 +764,16 @@ public abstract class Job<T extends Job> extends Payload {
         if (source instanceof DatasetDescription.Space space) {
             setTargetSpaceId(space.getId());
             if (this instanceof Export export) {
+
+                Ref ref = space.getVersionRef();
+
+                if (ref != null && !ref.isHead() && ( ref.isSingleVersion() || ref.isRange() ) )
+                  export.setTargetVersion( ref.toString() );
+
                 export.setFilters(space.getFilters());
-                if (export.getFilters() != null)
-                    addParam(PARAM_CONTEXT, export.getFilters().getContext());
+                if (export.getFilters() != null) {
+                 addParam(PARAM_CONTEXT, export.getFilters().getContext());
+                }
             }
         }
     }
@@ -782,7 +790,7 @@ public abstract class Job<T extends Job> extends Payload {
     public void setTarget(DatasetDescription target) {
         this.target = target;
         //Keep BWC
-        if (target instanceof DatasetDescription.Space space)
+        if (this instanceof Import && target instanceof DatasetDescription.Space space)
             setTargetSpaceId(space.getId());
     }
 

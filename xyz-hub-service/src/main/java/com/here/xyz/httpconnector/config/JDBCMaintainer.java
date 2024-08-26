@@ -19,25 +19,25 @@
 
 package com.here.xyz.httpconnector.config;
 
-import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
 import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.PARTITION_SIZE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
-import com.here.xyz.hub.Core;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.DatabaseMaintainer;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.JdbcClient;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -49,7 +49,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JDBCMaintainer extends JdbcBasedHandler {
     private static final Logger logger = LogManager.getLogger();
-    private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink","aws_s3"};
+    private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink","aws_s3", "aws_lambda"};
     private static final String localExtScript = "/xyz_ext.sql";
     private static final String localH3Script = "/h3Core.sql";
     public static final String SPACE_NOT_FOUND_OR_INVALID = "SNFOI";
@@ -106,7 +106,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
   }
 
   public Future<SpaceStatus> getMaintenanceStatusOfSpace(String spaceId) {
-      return HubWebClient.getSpace(spaceId)
+      return LegacyHubWebClient.getSpace(spaceId)
               .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
               //Load space-config
               .compose(space -> {
@@ -356,7 +356,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
 
     public Future<Void> maintainSpace(String spaceId) {
         //Load space-config
-        return HubWebClient.getSpace(spaceId)
+        return LegacyHubWebClient.getSpace(spaceId)
                 .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
                 .compose(space -> {
                     //Load JDBC Client
@@ -389,7 +389,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
     }
 
     public Future<Void> purgeOldVersions(String spaceId, Long minTagVersion) {
-       return HubWebClient.getSpace(spaceId)
+       return LegacyHubWebClient.getSpace(spaceId)
                .compose(space -> injectEnableHashedSpaceIdIntoParams(space))
                //Load space-config
                .compose(space -> {
@@ -418,7 +418,7 @@ public class JDBCMaintainer extends JdbcBasedHandler {
     }
 
     private Future<Space> injectEnableHashedSpaceIdIntoParams(Space space) {
-        return HubWebClient.getConnectorConfig(space.getStorage().getId())
+        return LegacyHubWebClient.getConnectorConfig(space.getStorage().getId())
                 .compose(connector -> {
                     boolean enableHashedSpaceId = connector.params.containsKey("enableHashedSpaceId")
                             ? (boolean) connector.params.get("enableHashedSpaceId") : false;

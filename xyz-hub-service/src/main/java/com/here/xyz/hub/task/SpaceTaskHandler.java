@@ -37,11 +37,8 @@ import com.here.xyz.Payload;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.auth.ActionMatrix;
-import com.here.xyz.hub.auth.AttributeMap;
-import com.here.xyz.hub.auth.JWTPayload;
+import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -49,7 +46,6 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
@@ -63,7 +59,12 @@ import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.models.hub.jwt.ActionMatrix;
+import com.here.xyz.models.hub.jwt.AttributeMap;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
@@ -71,6 +72,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -163,7 +165,7 @@ public class SpaceTaskHandler {
 
     final List<String> authorizedListSpacesOps = Arrays
         .asList(ADMIN_SPACES, MANAGE_SPACES, READ_FEATURES, CREATE_FEATURES, UPDATE_FEATURES, DELETE_FEATURES);
-    final ActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
+    final ActionMatrix tokenRights = Authorization.getXyzHubMatrix(task.getJwt());
 
     if (tokenRights != null) {
       final Supplier<Stream<AttributeMap>> sup = () -> tokenRights
@@ -437,7 +439,7 @@ public class SpaceTaskHandler {
     List<String> operations = Arrays
         .asList("readFeatures", "createFeatures", "updateFeatures", "deleteFeatures", "manageSpaces", "adminSpaces");
 
-    final ActionMatrix accessMatrix = task.getJwt().getXyzHubMatrix();
+    final ActionMatrix accessMatrix = Authorization.getXyzHubMatrix(task.getJwt());
 
     task.responseSpaces = task.responseSpaces.stream().map(g -> {
           final SpaceWithRights space = DatabindCodec.mapper().convertValue(g, SpaceWithRights.class);
@@ -704,20 +706,42 @@ public class SpaceTaskHandler {
     return p.future();
   }
 
-    public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-      if (task.isDelete()) {
-        String spaceId = task.responseSpaces.get(0).getId();
-        Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
-            .onSuccess(a-> callback.call(task))
-            .onFailure(a->{
-              logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, a);
-              callback.call(task);
-            });
-      }
-      else {
-        callback.call(task);
-      }
+  public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (!task.isDelete()) {
+      callback.call(task);
+      return;
     }
+
+    final String spaceId = task.responseSpaces.get(0).getId();
+
+    final Future<List<Tag>> tagsFuture = Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
+        .onFailure(e->logger.error(task.getMarker(), "Failed to delete tags for space {}", spaceId, e));
+
+    final Future<Void> deactivateFuture = getAllDependentSpaces(task.getMarker(), spaceId)
+        .map(spaces -> spaces.stream().map(space -> Service.spaceConfigClient.store(task.getMarker(), (Space) space.withActive(false))).collect(Collectors.toList()))
+        .map(Future::all)
+        .mapEmpty();
+
+    Future.all(tagsFuture, deactivateFuture)
+        .onComplete(v -> {
+          if (v.failed())
+            logger.error(task.getMarker(), "Failed to complete clean dependent resources for space {}", spaceId, v.cause());
+          callback.call(task);
+        });
+  }
+
+  private static Future<List<Space>> getAllDependentSpaces(Marker marker, String spaceId) {
+    return Service.spaceConfigClient.getSpacesFromSuper(marker, spaceId)
+        .compose(spaces -> {
+          final List<Future<List<Space>>> childrenFutures = spaces.stream().map(space ->
+              Service.spaceConfigClient.getSpacesFromSuper(marker, space.getId())).toList();
+
+          return Future.all(childrenFutures).map(cf -> {
+            spaces.addAll(cf.<List<Space>>list().stream().flatMap(Collection::stream).toList());
+            return spaces;
+          });
+        });
+  }
 
   static void invokeConditionally(final ModifySpaceQuery task, final Callback<ModifySpaceQuery> callback) {
     if (task.getEvent().isDryRun() && Payload.compareVersions(task.storage.getRemoteFunction().protocolVersion, DRY_RUN_SUPPORT_VERSION) < 0) {

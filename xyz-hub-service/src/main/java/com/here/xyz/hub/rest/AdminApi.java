@@ -19,21 +19,22 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.Authorization;
-import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.connectors.RemoteFunctionClient;
 import com.here.xyz.hub.connectors.statistics.StorageStatisticsProvider;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.models.hub.jwt.ActionMatrix;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
@@ -90,7 +91,7 @@ public class AdminApi extends Api {
 
   private void onStorageStatistics(final RoutingContext context) {
     try {
-      Marker marker = Api.Context.getMarker(context);
+      Marker marker = getMarker(context);
       AdminAuthorization.authorizeAdminCapability(context, ADMIN_CAPABILITY_STATISTICS);
       StorageStatisticsProvider.provideStorageStatistics(marker, Query.getLong(context, INCLUDE_CHANGES_SINCE, 0L))
           .onFailure(t -> sendErrorResponse(context, t))
@@ -142,12 +143,11 @@ public class AdminApi extends Api {
 
   private static class AdminAuthorization extends Authorization {
     private static void authorizeAdminCapability(RoutingContext context, String capability) throws HttpException {
-      JWTPayload jwt = Api.Context.getJWT(context);
-      final ActionMatrix tokenRights = jwt.getXyzHubMatrix();
+      final ActionMatrix tokenRights = getXyzHubMatrix(BaseHttpServerVerticle.getJWT(context));
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix()
           .useAdminCapabilities(XyzHubAttributeMap.forIdValues(capability));
 
-      evaluateRights(Api.Context.getMarker(context), requestRights, tokenRights);
+      evaluateRights(getMarker(context), requestRights, tokenRights);
     }
   }
 }

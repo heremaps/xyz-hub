@@ -22,12 +22,12 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.config.ConnectorParameters;
-import com.here.xyz.util.Hasher;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.SQLException;
+import java.util.Map;
 
 public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object> extends QueryRunner<E, R> {
-  private static final String TABLE_NAME = "tableName";
   private boolean preferPrimaryDataSource;
 
   public XyzEventBasedQueryRunner(E event) throws SQLException, ErrorResponseException {
@@ -36,25 +36,18 @@ public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object
   }
 
   public static String readTableFromEvent(Event event) {
-    if (event != null && event.getParams() != null) {
-      Object tableName = event.getParams().get(TABLE_NAME);
-      if (tableName instanceof String && ((String) tableName).length() > 0)
-        return (String) tableName;
-    }
+    Map<String, Object> spaceParams = event != null ? event.getParams() : null;
+    boolean hashed = ConnectorParameters.fromEvent(event).isEnableHashedSpaceId();
+
     String spaceId = null;
     if (event != null && event.getSpace() != null && event.getSpace().length() > 0)
       spaceId = event.getSpace();
-    return getTableNameForSpaceId(event, spaceId);
+
+    return XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId(spaceParams, spaceId, hashed);
   }
 
   protected static String getTableNameForSpaceId(Event event, String spaceId) {
-    if (spaceId != null && spaceId.length() > 0) {
-      if (ConnectorParameters.fromEvent(event).isEnableHashedSpaceId())
-        return Hasher.getHash(spaceId);
-      else
-        return spaceId;
-    }
-    return null;
+    return XyzSpaceTableHelper.getTableNameForSpaceId(spaceId, ConnectorParameters.fromEvent(event).isEnableHashedSpaceId());
   }
 
   protected String getDefaultTable(E event) {

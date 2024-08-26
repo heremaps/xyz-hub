@@ -19,12 +19,11 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
-import io.restassured.RestAssured;
 import io.restassured.response.ValidatableResponse;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -48,7 +47,7 @@ public class ListSpaceContentUpdatedAtTestIT extends TestSpaceWithFeature {
   @BeforeClass
   public static void setupClass() {
     remove();
-    
+
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
     cleanUpIds.add(createSpace(AuthProfile.ACCESS_OWNER_1_ADMIN, "shared", true));
@@ -87,7 +86,7 @@ public class ListSpaceContentUpdatedAtTestIT extends TestSpaceWithFeature {
 
       response1.statusCode(OK.code())
       .body("$.size()", equalTo(5));
-    
+
       // sort contentUpdateAt and find a timestamp for other tests
       long [] ts1 = new long[5];
       for(int i = 0; i<5; i++ ){
@@ -128,7 +127,7 @@ public class ListSpaceContentUpdatedAtTestIT extends TestSpaceWithFeature {
       .then()
       .statusCode(OK.code())
       .body("$.size()", equalTo(3));
-    
+
 
     given()
       .contentType(APPLICATION_JSON)

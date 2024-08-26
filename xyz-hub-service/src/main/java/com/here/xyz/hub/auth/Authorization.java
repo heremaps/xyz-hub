@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,18 @@ import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
-import com.here.xyz.hub.rest.Api.Context;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import com.here.xyz.models.hub.jwt.ActionMatrix;
+import com.here.xyz.models.hub.jwt.AttributeMap;
+import com.here.xyz.models.hub.jwt.JWTPayload;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -45,7 +50,7 @@ public abstract class Authorization {
     final HttpException unauthorized = new HttpException(UNAUTHORIZED, "Authorization failed");
 
     compositeAuthorizationHandler.authorize(task.context)
-        .flatMap(authorized -> authorized ? Future.succeededFuture() : Future.failedFuture(unauthorized))
+        .compose(authorized -> authorized ? Future.succeededFuture() : Future.failedFuture(unauthorized))
         .onSuccess(v -> callback.call(task))
         .onFailure(e -> {
           if (!(e instanceof HttpException))
@@ -90,10 +95,26 @@ public abstract class Authorization {
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix().manageSpaces(attributeMap);
     try {
-      evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
+      evaluateRights(LogUtil.getMarker(context), requestRights, getXyzHubMatrix(BaseHttpServerVerticle.getJWT(context)));
       return Future.succeededFuture();
     } catch (HttpException e) {
       return Future.failedFuture(e);
     }
+  }
+
+  public static XyzHubActionMatrix getXyzHubMatrix(JWTPayload jwt) {
+    if (jwt.urm == null)
+      return null;
+    final ActionMatrix hereActionMatrix = jwt.urm.get(URMServiceId.XYZ_HUB);
+    if (hereActionMatrix == null)
+      return null;
+    return DatabindCodec.mapper().convertValue(hereActionMatrix, XyzHubActionMatrix.class);
+  }
+
+  /**
+   * Constants for all services that may be part of the JWT token.
+   */
+  public static final class URMServiceId {
+    static final String XYZ_HUB = "xyz-hub";
   }
 }

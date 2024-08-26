@@ -87,29 +87,29 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
     //Delete the feature in the composite space (Creates version 2, see #before() above)
     deleteFeature(DELTA, "f1");
     //Check that versions 0 & 1 are still accessible correctly
-    getFeature(DELTA, "f1", 0, "EXTENSION", 200);
-    getFeature(DELTA, "f1", 0, "DEFAULT", 200);
     getFeature(DELTA, "f1", 1, "EXTENSION", 200);
     getFeature(DELTA, "f1", 1, "DEFAULT", 200);
-    //Check that version 2 (the deletion marker) is only accessible in context EXTENSION
     getFeature(DELTA, "f1", 2, "EXTENSION", 200);
-    getFeature(DELTA, "f1", 2, "DEFAULT", 404);
+    getFeature(DELTA, "f1", 2, "DEFAULT", 200);
+    //Check that version 2 (the deletion marker) is only accessible in context EXTENSION
+    getFeature(DELTA, "f1", 3, "EXTENSION", 200);
+    getFeature(DELTA, "f1", 3, "DEFAULT", 404);
     //"Recover" the feature in the composite space (by hardly deleting it from the EXTENSION, creates version 3)
     deleteFeature(DELTA, "f1", "EXTENSION");
     //Check that version 3 is only accessible through context DEFAULT
-    getFeature(DELTA, "f1", 3, "EXTENSION", 404);
-    getFeature(DELTA, "f1", 3, "DEFAULT", 200);
-    getFeature(DELTA, "f1", 3, 200);
+    getFeature(DELTA, "f1", 4, "EXTENSION", 404);
+    getFeature(DELTA, "f1", 4, "DEFAULT", 200);
+    getFeature(DELTA, "f1", 4, 200);
     //Write another new version of the feature (creates version 4)
     postFeature(DELTA, newFeature().withProperties(new Properties().with("key3", "value3")), AuthProfile.ACCESS_OWNER_1_ADMIN,
         true);
     //Check that version 3 is still only accessible through context DEFAULT
-    getFeature(DELTA, "f1", 3, "EXTENSION", 404);
-    getFeature(DELTA, "f1", 3, "DEFAULT", 200);
-    getFeature(DELTA, "f1", 3, 200);
-    //Check that version 4 is accessible through both contexts
-    getFeature(DELTA, "f1", 4, "EXTENSION", 200);
+    getFeature(DELTA, "f1", 4, "EXTENSION", 404);
     getFeature(DELTA, "f1", 4, "DEFAULT", 200);
     getFeature(DELTA, "f1", 4, 200);
+    //Check that version 4 is accessible through both contexts
+    getFeature(DELTA, "f1", 5, "EXTENSION", 200);
+    getFeature(DELTA, "f1", 5, "DEFAULT", 200);
+    getFeature(DELTA, "f1", 5, 200);
   }
 }

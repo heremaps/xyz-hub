@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.connectors;
 
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.settings.EnvironmentVariableOverrides;
 import com.here.xyz.hub.config.settings.EnvironmentVariableOverrides.VariableOverrideException;
@@ -27,6 +26,7 @@ import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthCheck;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.AsyncResult;
 import java.util.HashMap;
 import java.util.List;

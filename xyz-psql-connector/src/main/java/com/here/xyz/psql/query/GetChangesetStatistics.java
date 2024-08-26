@@ -19,10 +19,14 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 

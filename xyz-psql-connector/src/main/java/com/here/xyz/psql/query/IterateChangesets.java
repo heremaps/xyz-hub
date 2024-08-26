@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,8 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, XyzResponse> {
+  public static long DEFAULT_LIMIT = 10_000L;
 
   private String pageToken;
   private long limit;
@@ -62,8 +64,10 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   public XyzResponse run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
     long min = new GetMinAvailableVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
 
-    if (start < min)
-      throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Min Version=" + min);
+    if (start < min) {
+      start = min;
+      event.setStartVersion(start);
+    }
 
     return super.run(dataSourceProvider);
   }
@@ -114,7 +118,9 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     query.setQueryFragment("end_version", event.getEndVersion() != null ?
             new SQLQuery("AND version <= #{end}")
                     .withNamedParameter("end", event.getEndVersion()) : new SQLQuery(""));
-    query.setQueryFragment("limit", event.getLimit() != 0 ? new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit()) : new SQLQuery(""));
+
+    //Query one more feature as requested, to be able to determine, if we need to include a nextPageToken
+    query.setQueryFragment("limit", event.getLimit() != 0 ? new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", event.getLimit() + 1) : new SQLQuery(""));
 
     return query;
   }
@@ -130,6 +136,11 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     List<Feature> deletes = new ArrayList<>();
 
     while (rs.next()) {
+      numFeatures++;
+      //skip the additional added feature
+      if(!rs.isFirst() && rs.isLast() && numFeatures > limit)
+        continue;
+
       Feature feature;
       String operation = rs.getString("Operation");
       if(author == null)
@@ -157,7 +168,6 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
           break;
       }
       pageToken = rs.getString("vid");
-      numFeatures++;
     }
 
     cc.setVersion(numFeatures > 0 ? start : -1l);
@@ -167,7 +177,8 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     cc.setUpdated(new FeatureCollection().withFeatures(updates));
     cc.setDeleted(new FeatureCollection().withFeatures(deletes));
 
-    if (numFeatures > 0 && numFeatures == limit) {
+    //Only add pageToke if we have further results
+    if (numFeatures > 0 && numFeatures == (limit + 1) && numFeatures > limit)  {
       cc.setNextPageToken(pageToken);
     }
 
@@ -188,6 +199,11 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     List<Feature> deletes = new ArrayList<>();
 
     while (rs.next()) {
+      numFeatures++;
+      //skip the additional added feature
+      if(!rs.isFirst() && rs.isLast() && numFeatures > limit)
+        continue;
+
       Feature feature;
       String operation = rs.getString("operation");
       Integer version = rs.getInt("version");
@@ -229,7 +245,6 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
       pageToken = rs.getString("vid");
       lastVersion = version;
-      numFeatures++;
     }
 
     if(wroteStart){
@@ -246,7 +261,8 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
     ccol.setVersions(versions);
 
-    if (numFeatures > 0 && numFeatures == limit) {
+    //Only add pageToke if we have further results
+    if (numFeatures > 0 && numFeatures == (limit + 1 ) && numFeatures > limit) {
       ccol.setNextPageToken(pageToken);
     }
     return ccol;

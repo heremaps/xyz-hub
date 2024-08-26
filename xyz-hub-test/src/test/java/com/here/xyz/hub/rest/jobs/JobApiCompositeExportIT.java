@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,12 +31,14 @@ import static org.junit.Assert.assertNull;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.util.service.HttpException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -175,9 +177,13 @@ public class JobApiCompositeExportIT extends JobApiIT{
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         checkUrls(urls, true);
 
-//        job =  generateExportJob(testExportJobId, 4);
-//        urls = performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-//        checkUrls(urls, true);
+        Export compositeJob = (Export)loadJob(testSpaceId1Ext, job.getId());
+        Export baseJob = (Export)loadJob(testSpaceId1, job.getId()+ "_missing_base");
+
+        assertEquals(4, compositeJob.getMaxSpaceVersion());
+        assertEquals(1, compositeJob.getMaxSuperSpaceVersion());
+        assertEquals(1, baseJob.getMaxSpaceVersion());
+        assertEquals(-42, baseJob.getMaxSuperSpaceVersion());
     }
 
     @Test
@@ -208,11 +214,11 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         /** Composite Export with filter - requires new Export of base */
         job =  generateExportJob(testExportJobId, 6);
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(41.65012, 38.968056)))
                 .withRadius(5000);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         job.setFilters(filters);
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
@@ -230,7 +236,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         /** Composite Export with new property filter - requires new Export of base */
         job =  generateExportJob(testExportJobId, 7);
-        filters = new Export.Filters()
+        filters = new Filters()
                 .withPropertyFilter( "p.foo=test2");
         job.setFilters(filters);
 
@@ -241,7 +247,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         /** Composite Export with existing configuration - requires NO new Export of base */
         job =  generateExportJob(testExportJobId, 7);
-        filters = new Export.Filters()
+        filters = new Filters()
                 .withPropertyFilter( "p.foo=test2");
         job.setFilters(filters);
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
@@ -268,7 +274,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContentTILEID_FC_B64);
 
         //7 Features from base + 5 tiles from base+delta changes.
-        downloadAndCheck(urls, 3313, 7, mustContain);
+        downloadAndCheck(urls, 2738, 7, mustContain);
     }
 
     @Test
@@ -286,7 +292,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContentTILEID_FC_B64);
 
         //7 Features from base + 5 tiles from base+delta changes.
-        downloadAndCheck(urls, 3313, 7, mustContain);
+        downloadAndCheck(urls, 2738, 7, mustContain);
     }
 
     @Test
@@ -310,7 +316,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.add("iQG5zOmNvbTpoZXJlOnh5");
 
         //7 Features from base + 5 tiles from base+delta changes.
-        downloadAndCheckFC(urls, 3006, 7, mustContain, 7);
+        downloadAndCheckFC(urls, 2546, 7, mustContain, 7);
     }
 
     @Test
@@ -326,7 +332,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContentTILEID_FC_B64);
 
         //7 Features from base + 5 tiles from base+delta changes.
-        downloadAndCheck(urls, 3313, 7, mustContain);
+        downloadAndCheck(urls, 2738, 7, mustContain);
     }
 
     @Test
@@ -337,7 +343,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, false);
 
         //3 Features from base+delta changes. 5 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 1346, 3, l1ChangesContentTILEID_FC_B64, 5);
+        downloadAndCheckFC(urls, 1142, 3, l1ChangesContentTILEID_FC_B64, 5);
     }
 
     @Test
@@ -359,7 +365,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l2ChangesContentTILEID_FC_B64);
 
         //7 Features from base + 2 tiles from base+delta changes.
-        downloadAndCheck(urls, 2399, 7 , mustContain);
+        downloadAndCheck(urls, 1952, 7 , mustContain);
     }
 
     @Test
@@ -371,7 +377,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, false);
 
         //* One Feature got added and one got deleted .. so we expect 1 Feature + 2 Tiles (one is empty) */
-        downloadAndCheckFC(urls, 432, 1, l2ChangesContentTILEID_FC_B64, 2);
+        downloadAndCheckFC(urls, 356, 1, l2ChangesContentTILEID_FC_B64, 2);
     }
 
     /** ######################## JSON_WKB / PARTITIONED_JSON_WKB ################################ **/
@@ -390,7 +396,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
         //7 Features from base + 5 Features from delta - including 2 deletions.
-        downloadAndCheck(urls, 2910, 10, mustContain);
+        downloadAndCheck(urls, 2368, 10, mustContain);
 
         Job job1 = loadJob(testSpaceId1Ext, job.getId());
         assertEquals(PARTITIONED_JSON_WKB, job1.getCsvFormat());
@@ -413,7 +419,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
         //7 Features from base + 5 Features from delta - including 2 deletions.
-        downloadAndCheck(urls, 2910, 10, mustContain);
+        downloadAndCheck(urls, 2368, 10, mustContain);
 
         // Same test with type DOWNLOAD
         job =  buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), PARTITIONED_JSON_WKB);
@@ -423,7 +429,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, true);
 
         //7 Features from base + 2 base+delta tiles with changes
-        downloadAndCheck(urls, 2910, 10, mustContain);
+        downloadAndCheck(urls, 2368, 10, mustContain);
     }
 
     @Test
@@ -446,7 +452,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
         //7 Features from base + 5 Features from delta - including 2 deletions.
-        downloadAndCheck(urls, 2910, 10, mustContain);
+        downloadAndCheck(urls, 2368, 10, mustContain);
     }
 
     @Test
@@ -460,7 +466,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
         //3 Features from delta + 2 empty tiles
-        downloadAndCheck(urls, 943, 3, mustContain);
+        downloadAndCheck(urls, 772, 3, mustContain);
     }
 
     @Test
@@ -482,7 +488,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l2ChangesContentPARTITIONED_JSON_WKB);
 
         //8 Features from base + delta + 1 empty tile
-        downloadAndCheck(urls, 2288, 8 , mustContain);
+        downloadAndCheck(urls, 1856, 8 , mustContain);
     }
 
     /** ######################################################## **/

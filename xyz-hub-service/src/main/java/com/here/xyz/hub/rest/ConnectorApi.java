@@ -19,15 +19,20 @@
 
 package com.here.xyz.hub.rest;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getJWT;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
-import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.task.ConnectorHandler;
 import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.models.hub.jwt.AttributeMap;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -104,7 +109,7 @@ public class ConnectorApi extends Api {
               }
           );
         } else {
-          ConnectorHandler.getConnectors(context, Context.getJWT(context).aid, ar -> {
+          ConnectorHandler.getConnectors(context, getJWT(context).aid, ar -> {
                 if (ar.failed()) {
                   sendErrorResponse(context, ar.cause());
                 } else {
@@ -216,7 +221,7 @@ public class ConnectorApi extends Api {
     public static void authorizeManageConnectorsRights(RoutingContext context, String connectorId, Handler<AsyncResult<Void>> handler) {
       authorizeManageConnectorsRights(context, Collections.singletonList(connectorId), handler);
     }
-      
+
     public static void authorizeManageConnectorsRights(RoutingContext context, List<String> connectorIds, Handler<AsyncResult<Void>> handler) {
       final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
       List<CompletableFuture<Void>> futureList = connectorIds == null ? Collections.emptyList()
@@ -225,7 +230,7 @@ public class ConnectorApi extends Api {
       CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0]))
           .thenRun(() -> {
             try {
-              evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
+              evaluateRights(getMarker(context), requestRights, getXyzHubMatrix(getJWT(context)));
               handler.handle(Future.succeededFuture());
             } catch (HttpException e) {
               handler.handle(Future.failedFuture(e));
@@ -245,7 +250,7 @@ public class ConnectorApi extends Api {
           f.complete(null);
         } else {
           //If connector does not exist.
-          requestRights.manageConnectors(XyzHubAttributeMap.forIdValues(Context.getJWT(context).aid, connectorId));
+          requestRights.manageConnectors(XyzHubAttributeMap.forIdValues(getJWT(context).aid, connectorId));
           f.complete(null);
         }
       });
@@ -255,14 +260,14 @@ public class ConnectorApi extends Api {
     public static void validateAdminChanges(RoutingContext context, Difference.DiffMap diffMap) throws HttpException {
       //Is Admin change?
       if (!isAdmin(context)) {
-        checkParameterChange(diffMap.get("owner"), "owner", Api.Context.getJWT(context).aid);
+        checkParameterChange(diffMap.get("owner"), "owner", getJWT(context).aid);
         checkParameterChange(diffMap.get("skipAutoDisable"), "skipAutoDisable", false);
         checkParameterChange(diffMap.get("trusted"), "trusted", false);
       }
     }
 
     private static boolean isAdmin(RoutingContext context) {
-      XyzHubActionMatrix xyzHubActionMatrix = Api.Context.getJWT(context).getXyzHubMatrix();
+      XyzHubActionMatrix xyzHubActionMatrix = getXyzHubMatrix(getJWT(context));
       if (xyzHubActionMatrix == null) return false;
       List<AttributeMap> manageConnectorsRights = xyzHubActionMatrix.get(XyzHubActionMatrix.MANAGE_CONNECTORS);
       if (manageConnectorsRights != null) {

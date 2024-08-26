@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,13 @@
 package com.here.xyz.httpconnector;
 
 import com.here.xyz.httpconnector.config.AwsCWClient;
-import com.here.xyz.httpconnector.config.AwsSecretManagerClient;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.config.JobS3Client;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
-import com.here.xyz.hub.Core;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.HubWebClientAsync;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
@@ -47,7 +47,7 @@ import org.apache.logging.log4j.Logger;
  * Vertex deployment of HTTP-Connector.
  */
 public class CService extends Core {
-  public static final String USER_AGENT = "HTTP-Connector/" + BUILD_VERSION;
+  public static final String USER_AGENT = "HTTP-Connector/" + buildVersion();
 
   /**
    * The host ID.
@@ -61,6 +61,11 @@ public class CService extends Core {
   public static JobConfigClient jobConfigClient;
 
   /**
+   * The client to access the Hub REST API
+   */
+  public static HubWebClientAsync hubWebClient;
+
+  /**
    * The client to access job configs
    */
   public static JobS3Client jobS3Client;
@@ -69,11 +74,6 @@ public class CService extends Core {
    * The client to access job configs
    */
   public static AwsCWClient jobCWClient;
-
-  /**
-   * The client to access secrets from AWS Secret Manager
-   */
-  public static AwsSecretManagerClient jobSecretClient;
 
   /**
    * Queue for executed importJobs
@@ -139,6 +139,7 @@ public class CService extends Core {
   }
 
   private static Future<JsonObject> initializeClients(JsonObject config) {
+    hubWebClient = HubWebClientAsync.getInstance(configuration.HUB_ENDPOINT);
     jobConfigClient = JobConfigClient.getInstance();
 
     return jobConfigClient.init()
@@ -151,7 +152,6 @@ public class CService extends Core {
               .setTcpQuickAck(true)
               .setTcpFastOpen(true));
 
-          jobSecretClient = new AwsSecretManagerClient();
           jobS3Client = new JobS3Client();
           jobCWClient = new AwsCWClient();
           importQueue = new ImportQueue();

@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.restassured.RestAssured.given;
 
 import org.junit.AfterClass;
@@ -49,7 +49,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022")
         .then()
         .header("X-Decompressed-Input-Size", "0")
-        .header("X-Decompressed-Output-Size", "493");
+        .header("X-Decompressed-Output-Size", "469");
   }
 
   @Test
@@ -62,6 +62,6 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         .put(getSpacesPath() + "/x-psql-test/features")
         .then()
         .header("X-Decompressed-Input-Size", "63")
-        .header("X-Decompressed-Output-Size", "310");
+        .header("X-Decompressed-Output-Size", "278");
   }
 }

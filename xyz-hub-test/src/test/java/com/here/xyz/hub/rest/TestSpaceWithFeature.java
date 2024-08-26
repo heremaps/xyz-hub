@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -244,6 +244,32 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     executorService.awaitTermination(10, TimeUnit.SECONDS);
   }
 
+  static void add10ThousandFeatures2()  {
+
+
+    for (int i = 0; i < 50; i++) {
+
+        FeatureCollection f = new FeatureCollection();
+        for (int j = 0; j < 200; j++) 
+          try {
+            f.getFeatures().add(new Feature().withProperties(new Properties().with("ticketPrice", 200 * i + j))
+                .withGeometry(new Point().withCoordinates(new PointCoordinates(i, j % 90))));
+          }
+          catch (JsonProcessingException ignored){}
+
+        given()
+            .contentType(APPLICATION_GEO_JSON)
+            .accept(APPLICATION_GEO_JSON)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+            .body(f.serialize())
+            .when()
+            .post(getSpacesPath() + "/x-psql-test/features")
+            .then()
+            .statusCode(OK.code());
+    }
+  }
+
+
   @SuppressWarnings("SameParameterValue")
   static void publishSpace(String spaceId) {
     given()
@@ -466,12 +492,15 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .statusCode(OK.code());
   }
 
-  protected static void createSpaceWithExtension(String extendingSpaceId) {
-    String extensionId = extendingSpaceId + "-ext";
+  protected static void createSpaceWithExtension(String extendingSpaceId, int versionsToKeep) {
+    String extensionId = extendingSpaceId + "-ext",
+           reqBody = String.format("{\"id\":\"%s\",\"title\":\"x-psql-test-extension\",\"extends\":{\"spaceId\":\"%s\"}%s}"
+                                   ,extensionId,extendingSpaceId, (versionsToKeep <= 0 ? "" : ",\"versionsToKeep\":" + versionsToKeep) );
+
     given()
             .contentType(APPLICATION_JSON)
             .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-            .body("{\"id\":\""+extensionId+ "\",\"title\":\"x-psql-test-extension\",\"extends\":{\"spaceId\":\""+extendingSpaceId+"\"}}")
+            .body(reqBody)
             .when()
             .post("/spaces")
             .then()
@@ -479,4 +508,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .body("id", equalTo(extensionId))
             .body("extends.spaceId", equalTo(extendingSpaceId));
   }
+
+  protected static void createSpaceWithExtension(String extendingSpaceId) {
+    createSpaceWithExtension(extendingSpaceId,0);
+  }
+
+
 }

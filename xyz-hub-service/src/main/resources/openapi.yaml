@@ -316,6 +316,27 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/tags':
+    get:
+      tags:
+        - Manage Tags
+      summary: List tags
+      description: >-
+        List tags available in the space.
+        
+        List can include system tags when includeSystemTags parameter is set to true.
+      operationId: listTags
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/IncludeSystemTags'
+      responses:
+        '200':
+          $ref: '#/components/responses/TagsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
     post:
       tags:
         - Manage Tags
@@ -341,6 +362,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
   '/spaces/{spaceId}/tags/{tagId}':
     patch:
       tags:
@@ -424,6 +447,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
+        - $ref: '#/components/parameters/VersionRefStar'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -636,6 +660,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/VersionStar'
+        - $ref: '#/components/parameters/VersionRefStar'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -768,6 +793,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -814,6 +840,7 @@ paths:
         - $ref: '#/components/parameters/VizSampling'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -854,6 +881,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -886,6 +914,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       requestBody:
         $ref: '#/components/requestBodies/GeometryRequest'
       responses:
@@ -920,6 +949,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
         - $ref: '#/components/parameters/Author'
       responses:
         '200':
@@ -958,6 +988,7 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/VersionRef'
       responses:
         '200':
           $ref: '#/components/responses/IterateResponse'
@@ -1569,6 +1600,16 @@ components:
           - error
           - create
         default: create
+    IncludeSystemTags:
+      name: includeSystemTags
+      in: query
+      description: >-
+        If set to _true_, the tags which are marked as 'system tags' are included in
+        the response.
+      required: false
+      schema:
+        type: boolean
+        default: false
     Latitude:
       name: lat
       in: query
@@ -1714,12 +1755,17 @@ components:
       style: form
       allowReserved: true
       schema:
-        type: array
+        type: object
         items:
           type: string
         example:
-          p.myProperty: 'someValue'
-          p.otherProperty: 5
+          {
+           "p.myProperty1": "someValue",
+           "p.myProperty2!":"not-equal",
+           "p.myNumber1": 5,
+           "p.myNumber2=gte":7
+          }
+          
     PropertiesSelection:
       name: selection
       in: query
@@ -1936,6 +1982,24 @@ components:
       in: query
       description: >-
         The query parameter used to specify the version of a feature or feature collection to be loaded.
+      required: false
+      schema:
+        type: string
+    VersionRef:
+      name: version
+      in: query
+      description: >-
+        The query parameter used to specify the version reference pointing to a tag or a version.
+      required: false
+      schema:
+        type: string
+    VersionRefStar:
+      name: versionRef
+      in: query
+      description: >-
+        The query parameter used to specify the version reference pointing to a tag or a version
+        with also the possibility to use the star '*' to load all versions or 'HEAD' to load the
+        latest available version.
       required: false
       schema:
         type: string
@@ -2245,6 +2309,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Tag'
+    TagsResponse:
+      description: A list of tags response.
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Tag'
+            type: array
     SpaceResponse:
       description: The space.
       content:
@@ -3274,9 +3346,12 @@ components:
         version:
           type: integer
           format: int64
-          readOnly: true
           description: >-
             The referenced version.
+        system:
+          type: boolean
+          description: >-
+            The flag indicating the tag is a system tag and cannot be modified or deleted.
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import com.amazonaws.services.emrserverless.model.JobRunState;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.collect.ImmutableList;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -64,21 +65,27 @@ import com.here.xyz.httpconnector.util.emr.config.Step.ConvertToGeoparquet;
 import com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV;
 import com.here.xyz.httpconnector.util.emr.config.Step.ReplaceWkbWithGeo;
 import com.here.xyz.httpconnector.util.emr.config.Step.WriteGeoparquet;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
-import com.here.xyz.httpconnector.util.jobs.datasets.FileOutputSettings;
-import com.here.xyz.httpconnector.util.jobs.datasets.Files;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
-import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
-import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
+import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.FileBasedTarget;
+import com.here.xyz.jobs.datasets.FileOutputSettings;
+import com.here.xyz.jobs.datasets.Identifiable;
+import com.here.xyz.jobs.datasets.VersionedSource;
+import com.here.xyz.jobs.datasets.files.Csv;
+import com.here.xyz.jobs.datasets.files.FileFormat;
+import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.datasets.files.GeoParquet;
+import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
@@ -87,9 +94,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -107,10 +115,10 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonIgnore
     private AtomicBoolean executing = new AtomicBoolean();
 
-    @JsonView({Public.class})
+    @JsonIgnore
     private Map<String,ExportObject> exportObjects;
 
-    @JsonView({Public.class})
+    @JsonIgnore
     private Map<String,ExportObject> superExportObjects;
 
     @JsonView({Public.class})
@@ -173,8 +181,16 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonView({Static.class})
     private String s3Key;
     private static final long UNKNOWN_MAX_SPACE_VERSION = -42;
-    @JsonView(Internal.class)
+    @JsonView(Public.class)
     private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+
+    @JsonView(Public.class)
+    private long minSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
+    @JsonView(Public.class)
+    private long spaceCreatedAt = 0;
+
+    @JsonView(Public.class)
+    private long maxSuperSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
     private static String PARAM_PERSIST_EXPORT = "persistExport";
@@ -184,11 +200,16 @@ public class Export extends JDBCBasedJob<Export> {
     private static String PARAM_SCOPE = "scope";
     private static String PARAM_EXTENDS = "extends";
     private static String PARAM_SKIP_TRIGGER = "skipTrigger";
+    private static String PARAM_INCREMENTAL_MODE = "incrementalMode";
 
     public static String PARAM_CONTEXT = "context";
 
     public Export() {
         super();
+    }
+
+    public static CSVFormat toBWCFormat(Csv csv) {
+      return csv.isAddPartitionKey() ? PARTITIONED_JSON_WKB : JSON_WKB;
     }
 
     @Override
@@ -201,7 +222,7 @@ public class Export extends JDBCBasedJob<Export> {
         //TODO: Do field initialization at instance initialization time
         return super.setDefaults()
             .compose(job -> {
-                if (   getExportTarget() != null && getExportTarget().getType() == VML
+                if (getExportTarget() != null && getExportTarget().getType() == VML
                     && (getCsvFormat() == null || ( getCsvFormat() != PARTITIONID_FC_B64 && getCsvFormat() != PARTITIONED_JSON_WKB ))) {
                     setCsvFormat(TILEID_FC_B64);
                     if (getMaxTilesPerFile() == 0)
@@ -225,8 +246,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //L2 Composite
                         superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
 
-                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly
-                        && !(getTarget() instanceof Files files && files.getOutputSettings().getFormat() instanceof GeoParquet)) {
+                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
                         //Enabled by default
                         params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
                     }
@@ -256,20 +276,75 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                SpaceContext ctx = (   job.readParamContext() == EXTENSION
-                                    || job.readParamCompositeMode() == CHANGES
-                                    || job.readParamCompositeMode() == FULL_OPTIMIZED
-                                    ? EXTENSION : null
-                                   );
+                if (getSource() instanceof VersionedSource<?> versionRefSource
+                    && getSource() instanceof Identifiable<?> identifiable
+                    && versionRefSource.getVersionRef() != null
+                    && versionRefSource.getVersionRef().isTag()) {
+                  final Ref ref = versionRefSource.getVersionRef();
+                  try {
+                    long version = CService.hubWebClient.loadTag(identifiable.getId(), ref.getTag()).getVersion();
+                    if (version >= 0) {
+                      versionRefSource.setVersionRef(new Ref(version));
+                      setTargetVersion(String.valueOf(version));
+                    } 
+                    else if(readParamExtends() == null) // non composite tag on empty -> finalize job
+                    {
+                     setStatistic( new ExportStatistic().withBytesUploaded(0).withFilesUploaded(0).withRowsUploaded(0) );    
+                     setTargetVersion("-1");   
+                     setErrorDescription("tag on no-data");
+                     setErrorType("no_operation");
+                     setStatus(finalized);
+                    }
+                    else // for composite 
+                    {
+                     versionRefSource.setVersionRef(new Ref(0));
+                     setTargetVersion("0");   
+                    }
+                  }
+                  catch (WebClientException e) {
+                    return Future.failedFuture(e);
+                  }
+                }
 
+                if (getSource() instanceof Identifiable<?> identifiable) {
+
+                  try {
+                    Space space = CService.hubWebClient.loadSpace(identifiable.getId());
+                    setSpaceCreatedAt( space.getCreatedAt() );
+                  }
+                  catch (WebClientException e) {
+                    return Future.failedFuture(e);
+                  }
+                }
+
+
+                return Future.succeededFuture();
+            }).compose(f -> {
                 String superSpaceId = extractSuperSpaceId();
-                return HubWebClient.getSpaceStatistics(superSpaceId != null ? superSpaceId : job.getTargetSpaceId(), ctx)
-                    .compose(statistics -> {
-                        setMaxSpaceVersion(statistics.getMaxVersion().getValue());
-                        return superSpaceId == null
-                            ? Future.succeededFuture(statistics)
-                            : HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx);
-                    });
+
+                if(superSpaceId != null) {
+                    return LegacyHubWebClient.getSpaceStatistics(superSpaceId, null)
+                        .compose(statistics -> {
+                            //Set version of base space
+                            setMaxSuperSpaceVersion(statistics.getMaxVersion().getValue());
+                            return Future.succeededFuture();
+                        });
+                }else
+                    return Future.succeededFuture();
+            }).compose(f -> {
+                SpaceContext ctx = (   readParamContext() == EXTENSION
+                        || readParamCompositeMode() == CHANGES
+                        || readParamCompositeMode() == FULL_OPTIMIZED
+                        ? EXTENSION : null
+                );
+                return LegacyHubWebClient.getSpaceStatistics(getTargetSpaceId(), ctx)
+                        .compose(statistics ->{
+                            //Set version of target space
+                            
+                            setMaxSpaceVersion(statistics.getMaxVersion().getValue());
+                            setMinSpaceVersion(statistics.getMinVersion().getValue());
+                            return Future.succeededFuture(statistics);
+                        });
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer
@@ -452,7 +527,7 @@ public class Export extends JDBCBasedJob<Export> {
         }
     }
 
-    @JsonView({Public.class})
+    @JsonIgnore
     public Map<String,ExportObject> getSuperExportObjects() {
         if (CService.jobS3Client == null) //If being used as a model on the client side
             return this.superExportObjects == null ? Collections.emptyMap() : this.superExportObjects;
@@ -465,6 +540,7 @@ public class Export extends JDBCBasedJob<Export> {
         return superExportObjects == null ? Collections.emptyMap() : superExportObjects;
     }
 
+    @JsonProperty
     public void setSuperExportObjects(Map<String, ExportObject> superExportObjects) {
         this.superExportObjects = superExportObjects;
     }
@@ -481,7 +557,7 @@ public class Export extends JDBCBasedJob<Export> {
         return exportObjectList;
     }
 
-    @JsonView({Public.class})
+    @JsonIgnore
     public Map<String,ExportObject> getExportObjects() {
         if (CService.jobS3Client == null) //If being used as a model on the client side
             return exportObjects == null ? Collections.emptyMap() : exportObjects;
@@ -490,7 +566,10 @@ public class Export extends JDBCBasedJob<Export> {
 
         Map<String, ExportObject> exportObjects = null;
 
-        if (getSuperId() != null && readPersistExport())
+        boolean isPersistExport = getSuperId() != null && readPersistExport();
+        boolean isEmptyGeoparquet = getSuperId() != null && getStatus() == finalized && "geoparquet".equals(getEmrType()) && getStatistic().rowsUploaded == 0;
+
+        if (isPersistExport  || isEmptyGeoparquet)
             return getSuperJob() != null ? getSuperJob().getExportObjects() : Collections.emptyMap();
         else if (getS3Key() != null) {
             if (getStatus() == finalized)
@@ -501,7 +580,8 @@ public class Export extends JDBCBasedJob<Export> {
 
         return exportObjects == null ? Collections.emptyMap() : exportObjects;
     }
-
+    
+    @JsonProperty
     public void setExportObjects(Map<String, ExportObject> exportObjects) {
         this.exportObjects = exportObjects;
     }
@@ -539,8 +619,15 @@ public class Export extends JDBCBasedJob<Export> {
         //Keep BWC
         if (target instanceof FileBasedTarget fbt) {
             final FileOutputSettings os = fbt.getOutputSettings();
+
+            setTargetLevel(os.getTileLevel());
+            setClipped(os.isClipped());
+            setMaxTilesPerFile(os.getMaxTilesPerFile());
+            setPartitionKey(os.getPartitionKey());
+
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
             //setCsvFormat(fbt.getOutputSettings().getFormat());
+
             if (getCsvFormat() == null) {
                 if (os.getFormat() instanceof GeoJson)
                     setCsvFormat(GEOJSON);
@@ -548,14 +635,12 @@ public class Export extends JDBCBasedJob<Export> {
                     setCsvFormat(JSON_WKB);
                     setEmrTransformation(true);
                     setEmrType("geoparquet");
+                    setPartitionKey("id");
+                    os.setPartitionKey("id");
                 }
                 else if (os.getFormat() instanceof Csv csv)
-                    setCsvFormat(csv.toBWCFormat());
+                    setCsvFormat(toBWCFormat(csv));
             }
-            setTargetLevel(os.getTileLevel());
-            setClipped(os.isClipped());
-            setMaxTilesPerFile(os.getMaxTilesPerFile());
-            setPartitionKey(os.getPartitionKey());
         }
     }
 
@@ -661,6 +746,36 @@ public class Export extends JDBCBasedJob<Export> {
     public SpaceContext readParamContext() {
         return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf(this.params.get(PARAM_CONTEXT).toString()) : null;
     }
+
+/* incremental */
+
+    public int readParamVersionsToKeep() {
+     return params != null && params.containsKey(PARAM_VERSIONS_TO_KEEP) ? (int) this.getParam(PARAM_VERSIONS_TO_KEEP) : 1;
+    }
+
+    @JsonIgnore
+    public boolean isIncrementalMode() { 
+     return params != null && params.containsKey(PARAM_INCREMENTAL_MODE);
+    }
+
+    public void setIncrementalValid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.VALID); 
+    }
+
+    public void setIncrementalInvalid() { 
+     addParam(PARAM_INCREMENTAL_MODE, IncrementalMode.INVALID); 
+    }
+    
+    @JsonIgnore
+    public boolean isIncrementalValid() { 
+     return isIncrementalMode() && (IncrementalMode.VALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+
+    @JsonIgnore
+    public boolean isIncrementalInvalid() { 
+     return isIncrementalMode() && (IncrementalMode.INVALID == IncrementalMode.valueOf( params.get(PARAM_INCREMENTAL_MODE).toString()));
+    }
+/* incremental */
 
     public CompositeMode readParamCompositeMode() {
         return params != null && params.containsKey(PARAM_COMPOSITE_MODE)
@@ -821,132 +936,6 @@ public class Export extends JDBCBasedJob<Export> {
         }
     }
 
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    public static class SpatialFilter {
-
-        @JsonView({Public.class})
-        private Geometry geometry;
-
-        @JsonView({Public.class})
-        private int radius;
-
-        @JsonView({Public.class})
-        private boolean clip;
-
-        public Geometry getGeometry() {
-            return geometry;
-        }
-
-        public void setGeometry(Geometry geometry) {
-            this.geometry = geometry;
-        }
-
-        public SpatialFilter withGeometry(Geometry geometry){
-            this.setGeometry(geometry);
-            return this;
-        }
-
-        public int getRadius() {
-            return radius;
-        }
-
-        public void setRadius(int radius) {
-            this.radius = radius;
-        }
-
-        public SpatialFilter withRadius(final int radius) {
-            setRadius(radius);
-            return this;
-        }
-
-        /**
-         * @deprecated Use {@link #isClip()} instead.
-         */
-        @Deprecated
-        public boolean isClipped() {
-            return isClip();
-        }
-
-        /**
-         * @deprecated Use {@link #setClip(boolean)} instead.
-         */
-        @Deprecated
-        public void setClipped(boolean clipped) {
-            setClip(clipped);
-        }
-
-        /**
-         * @deprecated Use {@link #withClip(boolean)} instead.
-         */
-        @Deprecated
-        public SpatialFilter withClipped(final boolean clipped) {
-            return withClip(clipped);
-        }
-
-        public boolean isClip() {
-            return clip;
-        }
-
-        public void setClip(boolean clipped) {
-            this.clip = clipped;
-        }
-
-        public SpatialFilter withClip(final boolean clipped) {
-            setClipped(clipped);
-            return this;
-        }
-    }
-
-    public static class Filters {
-        @JsonView({Public.class})
-        private String propertyFilter;
-
-        @JsonView({Public.class})
-        private SpatialFilter spatialFilter;
-
-        @JsonView({Public.class, Static.class})
-        private SpaceContext context = DEFAULT;
-
-        public String getPropertyFilter() {
-            return propertyFilter;
-        }
-
-        public void setPropertyFilter(String propertyFilter) {
-            this.propertyFilter = propertyFilter;
-        }
-
-        public Filters withPropertyFilter(String propertyFilter) {
-            setPropertyFilter(propertyFilter);
-            return this;
-        }
-
-        public SpatialFilter getSpatialFilter() {
-            return spatialFilter;
-        }
-
-        public void setSpatialFilter(SpatialFilter spatialFilter) {
-            this.spatialFilter = spatialFilter;
-        }
-
-        public Filters withSpatialFilter(SpatialFilter spatialFilter) {
-            setSpatialFilter(spatialFilter);
-            return this;
-        }
-
-        public SpaceContext getContext() {
-            return context;
-        }
-
-        public void setContext(SpaceContext context) {
-            this.context = context;
-        }
-
-        public Filters withContext(SpaceContext context) {
-            setContext(context);
-            return this;
-        }
-    }
-
     @Override
     public String getQueryIdentifier() {
         return "export_hint";
@@ -962,53 +951,56 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Future<Job> checkPersistentExports() {
         //Check if we already have persistent exports. May trigger one.
-        if(readPersistExport())
+        if (readPersistExport())
             return checkPersistentExport();
-        else if(isSuperSpacePersist() && readParamCompositeMode().equals(CompositeMode.FULL_OPTIMIZED))
-            return checkPersistentSuperExport();
+        else if (isSuperSpacePersist() && readParamCompositeMode().equals(CompositeMode.FULL_OPTIMIZED))
+          return checkPersistentSuperExport();
         //No indication for persistent exports are given - proceed normal
         return updateJobStatus(this, prepared);
     }
 
-    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat format){
+    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat csvFormat, long targetVersion){
         return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
-                .compose(jobs -> {
-                    Export existingJob = null;
+            //Sort the candidates in reverse order by updated TS to get the oldest candidate
+            .map(jobs -> jobs.stream().sorted(Comparator.comparingLong(Job::getUpdatedAt)).toList())
+            .map(sortedJobs -> {
+              for (Job<?> job : sortedJobs) {
+                // filter out non Export jobs
+                if (!(job instanceof Export exportJob)) continue;
 
-                    //Sort the candidates in reverse order by updated TS to get the oldest candidate
-                    final List<Job> sortedJobs = jobs
-                        .stream()
-                        .sorted(Comparator.comparingLong(job -> job.getUpdatedAt()))
-                        .collect(Collectors.toList());
-                    for (Job jobCandidate : sortedJobs) {
-                        if (!(jobCandidate instanceof Export exportCandidate))
-                            continue;
+                // filter out non persistent
+                if (exportJob.getKeepUntil() >= 0) continue;
 
-                        //exp=-1 => persistent
-                        //hash must fit
-                        logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if (jobCandidate.getKeepUntil() < 0
-                            && exportCandidate.getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))
-                            && exportCandidate.getMaxSpaceVersion() == getMaxSpaceVersion()) {
-                            //try to find a finalized one - doesn't matter if it's the original export
-                            if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
-                                logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                                existingJob = (Export) jobCandidate;
-                                break;
-                            }else if(jobCandidate.getStatus().equals(failed) && jobCandidate.getId().equalsIgnoreCase(getId() + "_missing_base")) {
-                                logger.info(getMarker(), "job[{}] Spawned job has failed {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                                existingJob = (Export) jobCandidate;
-                                break;
-                            }
-                        }
-                    }
-                    return Future.succeededFuture(existingJob);
-                });
+                // filter out the non-matching hash
+                if (!exportJob.getHashForPersistentStorage(null).equals(getHashForPersistentStorage(csvFormat))) continue;
+
+                // filter out the ones with different EMR configuration
+                if (exportJob.isEmrTransformation() != isEmrTransformation()
+                    || !Objects.equals(exportJob.getEmrType(), getEmrType())) continue;
+
+                // filter out the ones with different max space version
+                if (exportJob.getMaxSpaceVersion() != targetVersion) continue;
+
+                // try to find a finalized one - doesn't matter if it's the original export
+                if (exportJob.getStatus().equals(finalized)
+                    || exportJob.getStatus().equals(trigger_executed)
+                    || (exportJob.getStatus().equals(failed) && exportJob.getId().equalsIgnoreCase(getId() + "_missing_base"))) {
+                  return Optional.of(exportJob);
+                }
+              }
+              return Optional.<Export>empty();
+            })
+            // log the result
+            .map(candidate -> candidate.map(job -> {
+              final String logMessage = job.getStatus().equals(failed) ? "Spawned job has failed {}:{} " : "Found existing persistent job {}:{} ";
+              logger.info(getMarker(), "job[{}] " + logMessage, getId(), job.getId(), job.getStatus());
+              return job;
+            }).orElse(null));
     }
 
     public Future<Job> checkPersistentExport() {
         //Deliver result if Export is already available
-        return searchPersistentJobOnTarget(targetSpaceId, null)
+        return searchPersistentJobOnTarget(targetSpaceId, null, getMaxSpaceVersion())
             .compose(existingJob -> {
                 if (existingJob != null) {
                     //metafile is present but Export is not started yet
@@ -1048,7 +1040,7 @@ public class Export extends JDBCBasedJob<Export> {
         //Check if we can find a persistent export and check status. If no persistent export is available we are starting one.
         String superSpaceId = extractSuperSpaceId();
 
-        return searchPersistentJobOnTarget(superSpaceId, JSON_WKB)
+        return searchPersistentJobOnTarget(superSpaceId, JSON_WKB, getMaxSuperSpaceVersion())
             .compose(existingJob -> {
                 if (existingJob == null) {
                     logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), superSpaceId);
@@ -1072,7 +1064,7 @@ public class Export extends JDBCBasedJob<Export> {
                     baseExport.addParam(PARAM_PERSIST_EXPORT, true);
 
                     logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), superSpaceId);
-                    return HubWebClient.performBaseLayerExport(superSpaceId, baseExport)
+                    return LegacyHubWebClient.performBaseLayerExport(superSpaceId, baseExport)
                         .compose(newBaseExport -> {
                             logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
                             setSuperId(newBaseExport.getId());
@@ -1145,8 +1137,7 @@ public class Export extends JDBCBasedJob<Export> {
         public static final String APPLICATION_ID = System.getenv("EMR_APPLICATION_ID");
         public static final String EMR_RUNTIME_ROLE_ARN = System.getenv("EMR_RUNTIME_ROLE_ARN");
         public static final String JAR_PATH = System.getenv("EMR_JAR_PATH");
-        public static final String SPARK_PARAMS = "--class com.here.xyz.FeatureAggregator " +
-            "--conf spark.hadoop.hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory";
+        public static final String SPARK_PARAMS = System.getenv("EMR_SPARK_PARAMS");
         public static final String S3_PATH_SUFFIX = "-transformed";
     }
 
@@ -1213,6 +1204,45 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
+    public long getMaxSuperSpaceVersion() {
+        return maxSuperSpaceVersion;
+    }
+
+    public void setMaxSuperSpaceVersion(long maxSuperSpaceVersion) {
+        this.maxSuperSpaceVersion = maxSuperSpaceVersion;
+    }
+
+    public Export withMaxSuperSpaceVersion(long maxSuperSpaceVersion) {
+        setMaxSuperSpaceVersion(maxSuperSpaceVersion);
+        return this;
+    }
+
+    public long getMinSpaceVersion() {
+        return minSpaceVersion;
+    }
+
+    public void setMinSpaceVersion(long minSpaceVersion) {
+        this.minSpaceVersion = minSpaceVersion;
+    }
+
+    public Export withMinSpaceVersion(long minSpaceVersion) {
+        setMinSpaceVersion(minSpaceVersion);
+        return this;
+    }
+
+    public long getSpaceCreatedAt() {
+        return spaceCreatedAt;
+    }
+
+    public void setSpaceCreatedAt(long spaceCreatedAt) {
+        this.spaceCreatedAt = spaceCreatedAt;
+    }
+
+    public Export withSpaceCreatedAt(long spaceCreatedAt) {
+        setSpaceCreatedAt(spaceCreatedAt);
+        return this;
+    }
+
     @Deprecated
     public String getEmrJobId() {
         return emrJobId;
@@ -1231,31 +1261,43 @@ public class Export extends JDBCBasedJob<Export> {
         return super.executeAbort();
     }
 
+    private long targetToVersion( String targetVersion )
+    {
+     if( targetVersion == null ) return -1;
+     String[] s = targetVersion.split("\\.\\.");
+     return Long.parseLong( (s.length == 1 ? s[0] : s[1]) );
+    }
+
+    @Override
+    public Future<Job> prepareStart() {
+
+      String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
+
+      long targetVersion = targetToVersion( getTargetVersion() );
+
+      Future<Tag> pushVersionTag = ( targetVersion < 0 )
+       ? Future.succeededFuture()
+       : CService.hubWebClient.postTagAsync( srcKey, new Tag().withId(getId()).withVersion( targetVersion ).withSystem(true) );
+
+      return pushVersionTag.compose( v -> super.prepareStart() );
+    }
+
     @Override
     public Future<Void> finalizeJob() {
-        return finalizeJob(true);
+
+        String srcKey = (getSource() != null ? getSource().getKey() : getTargetSpaceId() ); // when legacy export used
+
+        Future<Void> deleteVersionTag = ( getTargetVersion() == null )
+        ? Future.succeededFuture()
+        : CService.hubWebClient.deleteTagAsync( srcKey, getId() ).compose( tag -> Future.succeededFuture());
+
+        return finalizeJob(true).compose( v -> deleteVersionTag  );
     }
 
     protected Future<Void> finalizeJob(boolean finalizeAfterCompletion) {
         if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
-            final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
-            String sourceS3Url = sourceS3UrlWithoutSlash + "/";
-            String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
             return updateJobStatus(this, finalizing)
-                .compose(job -> {
-                    //Start EMR Job, return jobId
-                    List<String> scriptParams = new ArrayList<>();
-                    scriptParams.add(sourceS3Url);
-                    scriptParams.add(targetS3Url);
-                    scriptParams.add("--type=" + getEmrType());
-                    if (readParamCompositeMode() == FULL_OPTIMIZED)
-                        scriptParams.add("--delta");
-
-                    String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
-                        EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
-                    this.emrJobId = emrJobId;
-                    return Future.succeededFuture(emrJobId);
-                })
+                .compose(job -> startEmrJob(job))
                 .onFailure(err -> {
                     logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
                     setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
@@ -1266,6 +1308,31 @@ public class Export extends JDBCBasedJob<Export> {
             return super.finalizeJob();
         else
             return Future.succeededFuture();
+    }
+
+    private Future<String> startEmrJob(Job job) {
+        final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
+        String sourceS3Url = sourceS3UrlWithoutSlash + "/";
+        String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+
+        //Start EMR Job, return jobId
+        List<String> scriptParams = new ArrayList<>();
+        scriptParams.add(sourceS3Url);
+        scriptParams.add(targetS3Url);
+        scriptParams.add("--type=" + getEmrType());
+        if (readParamCompositeMode() == FULL_OPTIMIZED || isIncrementalValid()) {
+          scriptParams.add("--delta");
+          if ("geoparquet".equals(getEmrType())) {
+            final String sourceSuperS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(getSuperJob()));
+            String targetSuperS3Url = sourceSuperS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
+            scriptParams.add("--baseInputDir=" + targetSuperS3Url);
+          }
+        }
+
+        String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
+            EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
+        this.emrJobId = emrJobId;
+        return store().map(emrJobId);
     }
 
     private String buildEmrJsonConfig(String inputDirectory, String outputDirectory) {
@@ -1355,16 +1422,16 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     @JsonIgnore
-    public String getHashForPersistentStorage(CSVFormat targetFormat) {
+    public String getHashForPersistentStorage(CSVFormat targetCSVFormat) {
         return Hasher.getHash(
                 (targetLevel != null ? targetLevel.toString() : "")
                 + maxTilesPerFile
                 + partitionKey
-                + (targetFormat == null ? csvFormat : targetFormat)
-                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() : "")
+                + (targetCSVFormat == null ? csvFormat : targetCSVFormat)
+                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getGeometry().getJTSGeometry().hashCode() : "")
                 + (filters != null && filters.getPropertyFilter() != null ? filters.getPropertyFilter().hashCode() : "")
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getRadius() : "")
-                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().isClipped() : false));
+                + (filters != null && filters.getSpatialFilter() != null && filters.getSpatialFilter().isClipped()));
     }
 
     public enum CompositeMode {
@@ -1374,6 +1441,23 @@ public class Export extends JDBCBasedJob<Export> {
         DEACTIVATED;
 
         public static CompositeMode of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
+    public enum IncrementalMode {
+
+        VALID,
+        INVALID;
+
+        public static IncrementalMode of(String value) {
             if (value == null) {
                 return null;
             }

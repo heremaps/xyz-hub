@@ -44,7 +44,6 @@ import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetChangesetStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
@@ -58,6 +57,7 @@ import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.IterateFeaturesSorted;
 import com.here.xyz.psql.query.LoadFeatures;
+import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
@@ -67,6 +67,7 @@ import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
@@ -201,9 +202,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      SearchForFeatures.checkCanSearchFor(event, dataSourceProvider);
-
-      if (IterateFeatures.isOrderByEvent(event))
+      if (IterateFeaturesSorted.isOrderByEvent(event))
         return run(new IterateFeaturesSorted(event));
 
       return run(new IterateFeatures(event));
@@ -287,18 +286,23 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    try{
+    try {
       logger.info("{} Received ModifySpaceEvent", traceItem);
 
       if (event.isDryRun())
         return new SuccessResponse().withStatus("OK");
 
-      this.validateModifySpaceEvent(event);
+      validateModifySpaceEvent(event);
 
-      return executeModifySpace(event);
-    }catch (SQLException e){
+      XyzResponse response = write(new ModifySpace(event).withDbMaintainer(dbMaintainer));
+      logger.debug("{} Successfully created table for space id '{}'", traceItem, event.getSpace());
+      return response;
+    }
+    catch (SQLException e) {
+      logger.error("{} Failed to create table for space id: '{}': {}", traceItem, event.getSpace(), e);
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }finally {
+    }
+    finally {
       logger.info("{} Finished ModifySpaceEvent", traceItem);
     }
   }

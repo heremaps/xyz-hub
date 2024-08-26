@@ -38,14 +38,15 @@ public class MaintenanceSQL {
     /**
      * Check if all required database extensions are installed
      */
-    public static String generateCheckExtensionsSQL(boolean hasPropertySearch, String user, String db){
-        return "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows,aws_s3"
+    public static String generateCheckExtensionsSQL(boolean hasPropertySearch, String user, String db, boolean runsLocal){
+        /** On local postgres aws_lambda extension is included in aws_s3 extension. @TODO: Create a own extension for aws_lambda */
+        return "SELECT COALESCE(array_agg(extname) @> '{postgis,postgis_topology,tsm_system_rows,aws_s3"+ (!runsLocal ? ",aws_lambda" : "")
                 + (hasPropertySearch ? ",dblink" : "") + "}', false) as all_ext_av,"
                 + "COALESCE(array_agg(extname)) as ext_av, "
                 + "(select has_database_privilege('"+user+"', '"+db+"', 'CREATE')) as has_create_permissions "
                 + "FROM ("
                 + "	SELECT extname FROM pg_extension"
-                + "		WHERE extname in('postgis','postgis_topology','tsm_system_rows','dblink','aws_s3')"
+                + "		WHERE extname in('postgis','postgis_topology','tsm_system_rows','dblink','aws_s3','aws_lambda')"
                 + "	order by extname"
                 + ") A";
     }
@@ -98,6 +99,12 @@ public class MaintenanceSQL {
                 "   CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE; " +
                 "   EXCEPTION WHEN OTHERS THEN " +
                 "       RAISE NOTICE 'Not able to install plpython3u extension'; " +
+                "   END;" +
+                "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
+                "BEGIN" +
+                "   CREATE EXTENSION IF NOT EXISTS aws_lambda CASCADE;" +
+                "   EXCEPTION WHEN OTHERS THEN " +
+                "       RAISE NOTICE 'Not able to install aws_lambda extension'; " +
                 "   END;" +
                 "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
                 "END; " +
@@ -199,6 +206,7 @@ public class MaintenanceSQL {
                     "  id VARCHAR(255)," +
                     "  space VARCHAR (255)," +
                     "  version BIGINT," +
+                    "  system boolean," +
                     "  PRIMARY KEY(id, space)"+
                     "); ";
 

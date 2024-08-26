@@ -27,7 +27,8 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.psql.DatabaseHandler;
-import com.here.xyz.psql.tools.ECPSTool;
+import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.service.Initializable;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -38,7 +39,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
@@ -250,7 +250,7 @@ public abstract class ConnectorConfigClient implements Initializable {
       try {
         return ECPSTool.encrypt(ecpsPhrase, ecpsJson);
       }
-      catch (GeneralSecurityException | UnsupportedEncodingException e) {
+      catch (GeneralSecurityException e) {
         return null;
       }
     }, "$encrypt(", ")");

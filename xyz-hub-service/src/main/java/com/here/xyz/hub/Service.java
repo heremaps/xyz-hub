@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -79,7 +80,7 @@ public class Service extends Core {
   private static final Logger logger = LogManager.getLogger();
 
 
-  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + BUILD_VERSION;
+  public static final String XYZ_HUB_USER_AGENT = "XYZ-Hub/" + buildVersion();
 
   /**
    * The host ID.
@@ -264,7 +265,7 @@ public class Service extends Core {
       //At this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
-      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
+      logger.info("XYZ Hub " + buildVersion() + " was started at " + new Date().toString());
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 

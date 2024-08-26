@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,18 +20,21 @@
 package com.here.xyz.hub.connectors;
 
 import com.here.xyz.events.HealthCheckEvent;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.util.service.Core;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 /**
- *
+ * @deprecated The warmup logic is done by the infrastructure instead.
+ * TODO: Remove this class.
  */
+@Deprecated
 public class WarmupRemoteFunctionThread extends Thread {
 
   private static final String name = WarmupRemoteFunctionThread.class.getSimpleName();
@@ -39,7 +42,7 @@ public class WarmupRemoteFunctionThread extends Thread {
   private static final String RFC_WARMUP_CACHE_KEY = "RFC_WARMUP_CACHE_KEY";
 
   // minimum amount of milliseconds to wait between each run, also used as lock expiration period
-  private static final long CONNECTOR_WARMUP_INTERVAL = 120 * 1000;
+  private static final long CONNECTOR_WARMUP_INTERVAL = TimeUnit.MINUTES.toMillis(2);
 
   private static WarmupRemoteFunctionThread instance;
 

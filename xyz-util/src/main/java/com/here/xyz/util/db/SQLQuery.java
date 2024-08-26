@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,16 +21,18 @@ package com.here.xyz.util.db;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_FAILED_ATTEMPT;
+import static com.here.xyz.util.db.pg.LockHelper.advisoryLock;
+import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,13 +59,13 @@ import org.apache.logging.log4j.Logger;
  */
 @JsonInclude(NON_DEFAULT)
 public class SQLQuery {
-
   private static final Logger logger = LogManager.getLogger();
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
   public static final String QUERY_ID = "queryId";
+  public static final String TEXT_QUOTE = "\\$sqlq\\$";
   private String statement = "";
   @JsonProperty
   private List<Object> parameters = new ArrayList<>();
@@ -71,14 +73,19 @@ public class SQLQuery {
   private Map<String, String> variables;
   private Map<String, SQLQuery> queryFragments;
   private boolean async = false;
+  private boolean asyncProcedure = false;
+  private String lock;
   private int timeout = Integer.MAX_VALUE;
   private int maximumRetries;
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
   private PreparedStatement preparedStatement;
-  private volatile String queryId;
+  private String queryId;
   private Map<String, String> labels = new HashMap<>();
-  private static List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
+  private List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
+  private List<SQLQuery> queryBatch;
+
+  private SQLQuery() {} //Only added as workaround for an issue with Jackson's Include.NON_DEFAULT setting
 
   public SQLQuery(String text) {
     if (text != null)
@@ -124,6 +131,60 @@ public class SQLQuery {
   }
 
   /**
+   * Returns whether this query is a batch of queries which can be executed
+   * all at once by calling {@link #writeBatch(DataSourceProvider)}.
+   *
+   * @return True, if this query is a query batch
+   */
+  public boolean isBatch() {
+    return queryBatch != null && !queryBatch.isEmpty();
+  }
+
+  /**
+   * Adds another query to the collection of queries which form this query batch.
+   * Calling the method {@link #writeBatch(DataSourceProvider)} will cause all queries of this query batch to be executed.
+   * Whether an SQLQuery object is a batch or not, can be checked by calling the method {@link #isBatch()}.
+   *
+   * @param query The query to be added to this query batch
+   */
+  public void addBatch(SQLQuery query) {
+    if (queryBatch == null)
+      queryBatch = new ArrayList<>();
+    queryBatch.add(query);
+  }
+
+  /**
+   * Creates a new SQLQuery, which is a query batch of all the provided SQL queries.
+   * All contained queries can be executed all at once by calling {@link #writeBatch(DataSourceProvider)}.
+   * Whether an SQLQuery object is a batch or not, can be checked by calling the method {@link #isBatch()}.
+   *
+   * @param queries The queries to be added to the batch
+   * @return An SQLQuery object which contains all the provided queries as batch
+   */
+  public static SQLQuery batchOf(List<SQLQuery> queries) {
+    if (queries.size() == 0)
+      throw new IllegalArgumentException("A batch of queries cannot be empty.");
+
+    SQLQuery result = new SQLQuery();
+    for (SQLQuery query : queries)
+      result.addBatch(query);
+
+    return result;
+  }
+
+  /**
+   * Creates a new SQLQuery, which is a query batch of all the provided SQL queries.
+   * All contained queries can be executed all at once by calling {@link #writeBatch(DataSourceProvider)}.
+   * Whether an SQLQuery object is a batch or not, can be checked by calling the method {@link #isBatch()}.
+   *
+   * @param queries The queries to be added to the batch
+   * @return An SQLQuery object which contains all the provided queries as batch
+   */
+  public static SQLQuery batchOf(SQLQuery... queries) {
+    return batchOf(Arrays.asList(queries));
+  }
+
+  /**
    * Returns the query text as it has been defined for this SQLQuery.
    * Use method {@link #substitute()} prior to this method to retrieve to substitute all placeholders of this query.
    * @return
@@ -133,14 +194,23 @@ public class SQLQuery {
     return statement;
   }
 
+  private List<String> batchTexts() {
+    if (queryBatch == null || queryBatch.isEmpty())
+      throw new IllegalStateException("This SQLQuery is not a query batch.");
+    List<String> batchTexts = new ArrayList<>();
+    batchTexts.add(text());
+    batchTexts.addAll(queryBatch.stream().map(query -> query.text()).collect(Collectors.toList()));
+    return batchTexts;
+  }
+
   @Override
   public String toString() {
     return serializeForLogging();
   }
 
   /**
-   * NOTE: This implementation does not always produce an actually executable SQL query.
-   *  It's only used for logging purposes.
+   * NOTE: This implementation does not produce an actually executable SQL query for all cases.
+   *  So handle the usage of this method with care.
    * @return A representation of the query text with all parameters being replaced by
    *  their string-representation.
    */
@@ -150,16 +220,16 @@ public class SQLQuery {
     String text = text();
     for (Object paramValue : parameters()) {
       Pattern p = Pattern.compile("\\?");
-      text = text.replaceFirst(p.pattern(), paramValueToLoggingRepresentation(paramValue));
+      text = text.replaceFirst(p.pattern(), paramValueToString(paramValue));
     }
     return text;
   }
 
-  private String paramValueToLoggingRepresentation(Object paramValue) {
+  private String paramValueToString(Object paramValue) {
     if (paramValue == null)
       return "NULL";
     if (paramValue instanceof String)
-      return "'" + paramValue + "'";
+      return TEXT_QUOTE + paramValue + TEXT_QUOTE;
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
@@ -167,9 +237,9 @@ public class SQLQuery {
     if (paramValue instanceof Boolean)
       return paramValue + "::BOOLEAN";
     if (paramValue instanceof Object[] arrayValue)
-      return "{" + Arrays.stream(arrayValue)
-          .map(elementValue -> paramValueToLoggingRepresentation(elementValue))
-          .collect(Collectors.joining(",")) + "}";
+      return "ARRAY[" + Arrays.stream(arrayValue)
+          .map(elementValue -> paramValueToString(elementValue))
+          .collect(Collectors.joining(",")) + "]";
     return paramValue.toString();
   }
 
@@ -211,12 +281,30 @@ public class SQLQuery {
     return parameters;
   }
 
-  public synchronized SQLQuery substitute() {
+  private List<List<Object>> batchParameters() {
+    if (queryBatch == null || queryBatch.isEmpty())
+      throw new IllegalStateException("This SQLQuery is not a query batch.");
+    List<List<Object>> batchParameters = new ArrayList<>();
+    batchParameters.add(parameters());
+    batchParameters.addAll(queryBatch.stream().map(query -> query.parameters()).collect(Collectors.toList()));
+    return batchParameters;
+  }
+
+  public SQLQuery substitute() {
+    substitute(!isBatch());
+    if (isBatch())
+      queryBatch.forEach(query -> query.substitute(false));
+
+    return this;
+  }
+
+  private synchronized SQLQuery substitute(boolean usePlaceholders) {
     initQueryId();
     replaceVars();
     replaceFragments();
-    replaceNamedParameters(!isAsync());
+    replaceNamedParameters(usePlaceholders && !isAsync());
     injectLabels();
+
     return this;
   }
 
@@ -268,7 +356,7 @@ public class SQLQuery {
     Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
     Matcher m = p.matcher(text());
 
-    while(m.find()) {
+    while (m.find()) {
       String nParam = m.group(1);
       if (!namedParameters.containsKey(nParam))
         throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
@@ -284,15 +372,6 @@ public class SQLQuery {
 
     if (usePlaceholders)
       statement = m.replaceAll("?");
-  }
-
-  private String paramValueToString(Object paramValue) {
-    if (paramValue instanceof String)
-      return "'" + paramValue + "'";
-    if (paramValue instanceof Number)
-      return paramValue.toString();
-    throw new RuntimeException("Only strings or numeric values are allowed for parameters of async queries. Provided: "
-        + paramValue.getClass().getSimpleName());
   }
 
   private void replaceVars() {
@@ -516,14 +595,56 @@ public class SQLQuery {
     this.async = async;
   }
 
-  private String serializeForLogging() {
-    initQueryId();
-    return XyzSerializable.serialize(this);
-  }
-
   public SQLQuery withAsync(boolean async) {
     setAsync(async);
     return this;
+  }
+
+  public boolean isAsyncProcedure() {
+    return asyncProcedure;
+  }
+
+  public void setAsyncProcedure(boolean asyncProcedure) {
+    setAsync(true);
+    this.asyncProcedure = asyncProcedure;
+  }
+
+  public SQLQuery withAsyncProcedure(boolean asyncProcedure) {
+    setAsyncProcedure(asyncProcedure);
+    return this;
+  }
+
+  /**
+   * The advisory lock key which was provided to be applied during the runtime of this query.
+   *
+   * @return The advisory lock key
+   */
+  public String getLock() {
+    return lock;
+  }
+
+  /**
+   * Can be used to apply an advisory lock on the provided lock key during the runtime of this query.
+   *
+   * @param lock The advisory lock key on which to apply the lock
+   */
+  public void setLock(String lock) {
+    this.lock = lock;
+  }
+
+  /**
+   * Can be used to apply an advisory lock on the provided lock key during the runtime of this query.
+   *
+   * @param lock The advisory lock key on which to apply the lock
+   */
+  public SQLQuery withLock(String lock) {
+    setLock(lock);
+    return this;
+  }
+
+  private String serializeForLogging() {
+    initQueryId();
+    return XyzSerializable.serialize(this);
   }
 
   public int getTimeout() {
@@ -564,6 +685,7 @@ public class SQLQuery {
   }
 
   public String getQueryId() {
+    //TODO: Call initQueryId() here?
     return queryId;
   }
 
@@ -603,38 +725,68 @@ public class SQLQuery {
   }
 
   public void cancel(long timeout) throws SQLException {
-    kill(QUERY_ID, getQueryId(), timeout);
+    killByLabel(QUERY_ID, getQueryId(), timeout);
   }
 
-  public static void cancelByLabel(String labelIdentifier, String labelValue, long timeout)
-      throws SQLException {
-    kill(labelIdentifier, labelValue, timeout);
+  public static void cancelByLabel(String labelIdentifier, String labelValue, long timeout, DataSourceProvider dataSourceProvider,
+      boolean useReplica) throws SQLException {
+    killByLabel(labelIdentifier, labelValue, timeout, dataSourceProvider, useReplica);
   }
 
   public void kill() throws SQLException {
-    kill(QUERY_ID, getQueryId(), 0);
+    killByLabel(QUERY_ID, getQueryId(), 0);
   }
 
-  public static void killByLabel(String labelIdentifier, String labelValue) throws SQLException {
-    kill(labelIdentifier, labelValue, 0);
+  public static void killByQueryId(String queryId, DataSourceProvider dataSourceProvider, boolean useReplica) throws SQLException {
+    killByLabel(QUERY_ID, queryId, dataSourceProvider, useReplica);
   }
 
-  private static void kill(String labelIdentifier, String labelValue, long timeout)
+  public static void killByLabel(String labelIdentifier, String labelValue, DataSourceProvider dataSourceProvider, boolean useReplica)
       throws SQLException {
-    SQLQuery labelMatching = new SQLQuery("substring(query, "
+    killByLabel(labelIdentifier, labelValue, 0, dataSourceProvider, useReplica);
+  }
+
+  private void killByLabel(String labelIdentifier, String labelValue, long timeout) throws SQLException {
+    for (ExecutionContext execution : executions)
+      killByLabel(labelIdentifier, labelValue, timeout, execution.dataSourceProvider, execution.useReplica);
+  }
+
+  private static void killByLabel(String labelIdentifier, String labelValue, long timeout, DataSourceProvider dataSourceProvider,
+      boolean useReplica) throws SQLException {
+    new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        + "WHERE state = 'active' "
+        + "AND ${{labelMatching}} "
+        + "AND pid != pg_backend_pid()")
+        .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
+        .run(dataSourceProvider, useReplica);
+  }
+
+  private static SQLQuery buildLabelMatchQuery(String labelIdentifier, String labelValue) {
+    return new SQLQuery("strpos(query, '/*labels(') > 0 AND substring(query, "
         + "strpos(query, '/*labels(') + 9, "
-        + "strpos(query, ')*/') - 10)::json->>#{labelIdentifier} = #{labelValue}")
+        + "strpos(query, ')*/') - 9 - strpos(query, '/*labels('))::json->>#{labelIdentifier} = #{labelValue}")
         .withNamedParameter("labelIdentifier", labelIdentifier)
         .withNamedParameter("labelValue", labelValue);
+  }
 
-    for (ExecutionContext execution : executions)
-      new SQLQuery("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-          + "WHERE state = 'active' "
-          + "AND ${{labelMatching}} "
-          + "AND pid != pg_backend_pid()")
-          .withQueryFragment("labelMatching", labelMatching)
-          .withNamedParameter("labelValue", labelValue)
-          .run(execution.dataSourceProvider, execution.useReplica);
+  public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String queryId) throws SQLException {
+    return isRunning(dataSourceProvider, useReplica, QUERY_ID, queryId);
+  }
+
+  /**
+   * Checks whether there exists at least one running query on the target database that is matching the specified label value.
+   * @param labelIdentifier
+   * @param labelValue
+   * @return Whether a running query exists with the specified label
+   */
+  private static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
+      throws SQLException {
+    return new SQLQuery("""
+        SELECT 1 FROM pg_stat_activity
+          WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()
+        """)
+        .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
+        .run(dataSourceProvider, rs -> rs.next(), useReplica);
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
@@ -646,72 +798,119 @@ public class SQLQuery {
     return null;
   }
 
+  /**
+   * If this query is a reading query, use this method to execute it on the database writer.
+   *
+   * @param dataSourceProvider The data source provider depicting the target database to execute the query
+   * @return Nothing, this method is just used for queries that do not produce a result or no result is needed
+   * @throws SQLException
+   */
   public void run(DataSourceProvider dataSourceProvider) throws SQLException {
     run(dataSourceProvider, false);
   }
 
+  /**
+   * If this query is a reading query, use this method to execute it on the database writer.
+   *
+   * @param dataSourceProvider The data source provider depicting the target database to execute the query
+   * @param handler The handler to process the ResultSet of the query execution
+   * @return The value which has been processed by the specified ResultSetHandler
+   * @param <R> The type of the return value being produced by the ResultSetHandler
+   * @throws SQLException
+   */
   public <R> R run(DataSourceProvider dataSourceProvider, ResultSetHandler<R> handler) throws SQLException {
     return run(dataSourceProvider, handler, false);
   }
 
+  /**
+   * If this query is a reading query, use this method to execute it on the database reader or writer.
+   *
+   * @param dataSourceProvider The data source provider depicting the target database to execute the query
+   * @param useReplica Whether to run on the reader of the data source provider
+   * @return Nothing, this method is just used for queries that do not produce a result or no result is needed
+   * @throws SQLException
+   */
   public void run(DataSourceProvider dataSourceProvider, boolean useReplica) throws SQLException {
     run(dataSourceProvider, rs -> null, useReplica);
   }
 
+  /**
+   * If this query is a reading query, use this method to execute it on the database reader or writer.
+   *
+   * @param dataSourceProvider The data source provider depicting the target database to execute the query
+   * @param handler The handler to process the ResultSet of the query execution
+   * @param useReplica Whether to run on the reader of the data source provider
+   * @return The value which has been processed by the specified ResultSetHandler
+   * @param <R> The type of the return value being produced by the ResultSetHandler
+   * @throws SQLException
+   */
   public <R> R run(DataSourceProvider dataSourceProvider, ResultSetHandler<R> handler, boolean useReplica) throws SQLException {
-    return (R) execute(dataSourceProvider, useReplica, handler, ExecutionOperation.QUERY,
+    return (R) execute(dataSourceProvider, handler, ExecutionOperation.QUERY,
         new ExecutionContext(getTimeout(), getMaximumRetries(), dataSourceProvider, useReplica));
   }
 
+  /**
+   * If this query is an updating query, use this method to execute it on the database writer.
+   *
+   * @param dataSourceProvider The data source provider depicting the target database to execute the query
+   * @return The update result (e.g. row counts)
+   * @throws SQLException
+   */
   public int write(DataSourceProvider dataSourceProvider) throws SQLException {
-    return (int) execute(dataSourceProvider, false, null, ExecutionOperation.UPDATE,
+    return (int) execute(dataSourceProvider, rs -> -1, ExecutionOperation.UPDATE,
+        new ExecutionContext(getTimeout(), getMaximumRetries(), dataSourceProvider, false));
+  }
+
+  /**
+   * Executes all queries of a query batch at once on the database writer.
+   * Batches of queries can be created by using the methods {@link #addBatch(SQLQuery)},
+   * {@link #batchOf(SQLQuery...)} or {@link #batchOf(List)}.
+   *
+   * NOTE: This method will throw a {@link RuntimeException} if it is executed on a query which is not a batch.
+   * If a query is actually a batch of queries can be checked using the {@link #isBatch()} method.
+   *
+   * @param dataSourceProvider The data source provider depicting the target database to execute the query
+   * @return An array of update results (e.g. row counts)
+   * @throws SQLException
+   */
+  public int[] writeBatch(DataSourceProvider dataSourceProvider) throws SQLException {
+    return (int[]) execute(dataSourceProvider, null, ExecutionOperation.UPDATE_BATCH,
         new ExecutionContext(getTimeout(), getMaximumRetries(), dataSourceProvider, false));
   }
 
   private enum ExecutionOperation {
     QUERY,
-    UPDATE
+    UPDATE,
+    UPDATE_BATCH
   }
 
-  private Object execute(DataSourceProvider dataSourceProvider, boolean useReplica, ResultSetHandler<?> handler,
-      ExecutionOperation operation, ExecutionContext executionContext) throws SQLException {
+  private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,
+      ExecutionContext executionContext) throws SQLException {
     logger.info("Executing SQLQuery {}", this);
-    String queryText = substitute().text();
-    List<Object> queryParameters = parameters();
+    substitute();
 
-    if (isAsync()) {
-      if (dataSourceProvider instanceof PooledDataSources pooledDataSources) {
-        SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
-            .withNamedParameter("query", queryText)
-            .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword());
-        queryText = asyncQuery.substitute().text();
-      }
-      else
-        throw new RuntimeException("Async SQLQueries must be performed using an instance of PooledDataSources as DataSourceProvider");
-    }
-
-    final DataSource dataSource = useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
-    StatementConfiguration statementConfig = executionContext.remainingQueryTimeout > 0
-        ? new StatementConfiguration.Builder().queryTimeout(executionContext.remainingQueryTimeout).build()
-        : null;
+    final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
     executionContext.attemptExecution();
-    final QueryRunner runner = new QueryRunner(dataSource, statementConfig);
     try {
       logger.info("Sending query to database {} {}, substituted query-text: {}",
-          useReplica ? "reader" : "writer",
-          dataSourceProvider instanceof PooledDataSources pooledDataSources
-              ? pooledDataSources.getDatabaseSettings().getId() : "unknown",
+          executionContext.useReplica ? "reader" : "writer",
+          dataSourceProvider.getDatabaseSettings() != null
+              ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
           replaceUnnamedParametersForLogging());
+
+      if (isAsync())
+        operation = ExecutionOperation.QUERY;
       return switch (operation) {
-        case QUERY -> runner.query(queryText, handler, queryParameters.toArray());
-        case UPDATE -> runner.update(queryText, queryParameters.toArray());
+        case QUERY -> executeQuery(dataSource, executionContext, handler);
+        case UPDATE -> executeUpdate(dataSource, executionContext);
+        case UPDATE_BATCH -> executeBatchUpdate(dataSource, executionContext);
       };
     }
     catch (SQLException e) {
       if (executionContext.mayRetry(e)) {
         logger.info("{} Retry Query permitted.", getQueryId());
         executionContext.addRetriedException(e);
-        return execute(dataSourceProvider, useReplica, handler, operation, executionContext);
+        return execute(dataSourceProvider, handler, operation, executionContext);
       }
       else
         throw e;
@@ -730,6 +929,77 @@ public class SQLQuery {
       logger.info("{} query time: {}ms, {}dataSource: {}", getQueryId(), overallTime, usedTimeMsg,
           dataSource instanceof ComboPooledDataSource comboPooledDataSource ? comboPooledDataSource.getJdbcUrl() : "n/a");
     }
+  }
+
+  private SQLQuery prepareFinalQuery(ExecutionContext executionContext) {
+    if (isAsync()) {
+      if (executionContext.dataSourceProvider.getDatabaseSettings() != null) {
+        return new SQLQuery("SELECT asyncify(#{query}, #{password}, #{procedureCall})")
+            .withNamedParameter("query", text())
+            .withNamedParameter("password", executionContext.dataSourceProvider.getDatabaseSettings().getPassword())
+            .withNamedParameter("procedureCall", isAsyncProcedure())
+            .substitute();
+      }
+      else
+        throw new RuntimeException("Async SQLQueries must be performed using an instance of PooledDataSources as DataSourceProvider");
+    }
+    return this;
+  }
+
+  private int executeUpdate(DataSource dataSource, ExecutionContext executionContext) throws SQLException {
+    SQLQuery query = prepareFinalQuery(executionContext);
+    return getRunner(dataSource, executionContext).update(query.text(), query.parameters().toArray());
+  }
+
+  private Object executeQuery(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
+    SQLQuery query = prepareFinalQuery(executionContext);
+    return getRunner(dataSource, executionContext).query(query.text(), handler, query.parameters().toArray());
+  }
+
+  private static QueryRunner getRunner(DataSource dataSource, ExecutionContext executionContext) {
+    StatementConfiguration statementConfig = executionContext.remainingQueryTimeout > 0
+        ? new StatementConfiguration.Builder().queryTimeout(executionContext.remainingQueryTimeout).build()
+        : null;
+    return new QueryRunner(dataSource, statementConfig);
+  }
+
+  private int[] executeBatchUpdate(DataSource dataSource, ExecutionContext executionContext) throws SQLException {
+    int[] batchResult;
+    try (final Connection connection = dataSource.getConnection()) {
+      if (getLock() != null)
+        advisoryLock(getLock(), connection);
+
+      boolean previousCommitState = connection.getAutoCommit();
+      try {
+        if (previousCommitState)
+          connection.setAutoCommit(false);
+
+        List<String> queryTexts = batchTexts();
+        List<List<Object>> params = batchParameters();
+        try (Statement stmt = connection.createStatement()) {
+          for (String queryText : queryTexts)
+            stmt.addBatch(queryText); //TODO: Use parameters
+
+          if (executionContext.remainingQueryTimeout > 0)
+            stmt.setQueryTimeout(executionContext.remainingQueryTimeout);
+
+          batchResult = stmt.executeBatch();
+          connection.commit();
+        }
+      }
+      catch (SQLException e) {
+        connection.rollback();
+        throw e;
+      }
+      finally {
+        if (getLock() != null)
+          advisoryUnlock(getLock(), connection);
+
+        if (previousCommitState)
+          connection.setAutoCommit(true);
+      }
+    }
+    return batchResult;
   }
 
   protected class ExecutionContext {
@@ -784,7 +1054,7 @@ public class SQLQuery {
     private boolean isRecoverable(Exception e) {
       if (e instanceof SQLException sqlEx && sqlEx.getSQLState() != null && (
           /*
-          If a timeout occurs right after the invocation it could be caused
+          If a timeout occurs right after the invocation, it could be caused
           by a serverless aurora scaling. Then we should retry again.
           57014 - query_canceled
           57P01 - admin_shutdown

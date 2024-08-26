@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -98,7 +98,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
-        .body("properties.@ns:com:here:xyz.version", equalTo(1));
+        .body("properties.@ns:com:here:xyz.version", equalTo(2));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -107,13 +107,13 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo(""))
-        .body("properties.@ns:com:here:xyz.version", equalTo(0));
+        .body("properties.@ns:com:here:xyz.version", equalTo(1));
   }
 
   @Test
   public void testNonTransactional() {
-    Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "conflicting change").withXyzNamespace(new XyzNamespace().withVersion(0)));
-    Feature f2 = new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "non-conflicting change").withXyzNamespace(new XyzNamespace().withVersion(0)));
+    Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "conflicting change").withXyzNamespace(new XyzNamespace().withVersion(1)));
+    Feature f2 = new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "non-conflicting change").withXyzNamespace(new XyzNamespace().withVersion(1)));
     FeatureCollection fc = new FeatureCollection().withFeatures(Arrays.asList(f1, f2));
 
     given()
@@ -123,8 +123,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .when()
         .post(getSpacesPath() + "/"+ SPACE_ID_2 +"/features?transactional=false&conflictDetection=true")
         .then()
-        .statusCode(OK.code())
-        .extract().body().asString();
+        .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -133,7 +132,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
-        .body("properties.@ns:com:here:xyz.version", equalTo(1));
+        .body("properties.@ns:com:here:xyz.version", equalTo(2));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -142,7 +141,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("non-conflicting change"))
-        .body("properties.@ns:com:here:xyz.version", equalTo(2));
+        .body("properties.@ns:com:here:xyz.version", equalTo(3));
   }
 
   //@Test
@@ -172,7 +171,7 @@ public class VersioningIT extends TestSpaceWithFeature {
 
   @Test
   public void testConflictDetectionEnabled() {
-    Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "conflicting change").withXyzNamespace(new XyzNamespace().withVersion(0)));
+    Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "conflicting change").withXyzNamespace(new XyzNamespace().withVersion(1)));
     FeatureCollection fc = new FeatureCollection().withFeatures(Collections.singletonList(f1));
 
     given()
@@ -191,12 +190,12 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
-        .body("properties.@ns:com:here:xyz.version", equalTo(1));
+        .body("properties.@ns:com:here:xyz.version", equalTo(2));
   }
 
   @Test
   public void testWriteWithVersionInNamespace() {
-    Feature f1 = new Feature().withId("F1").withProperties(new Properties().with("name", "abc").withXyzNamespace(new XyzNamespace().withVersion(0)));
+    Feature f1 = new Feature().withId("F1").withProperties(new Properties().with("name", "abc").withXyzNamespace(new XyzNamespace().withVersion(1)));
     FeatureCollection fc = new FeatureCollection().withFeatures(Collections.singletonList(f1));
 
     given()
@@ -211,7 +210,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1?version=0")
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1?version=1")
         .then()
         .statusCode(NOT_FOUND.code());
 
@@ -222,7 +221,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("abc"))
-        .body("properties.@ns:com:here:xyz.version", equalTo(2));
+        .body("properties.@ns:com:here:xyz.version", equalTo(3));
   }
 
   @Test
@@ -242,7 +241,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1?version=0")
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1?version=1")
         .then()
         .statusCode(NOT_FOUND.code());
 
@@ -253,12 +252,12 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("abc"))
-        .body("properties.@ns:com:here:xyz.version", equalTo(2));
+        .body("properties.@ns:com:here:xyz.version", equalTo(3));
   }
 
   @Test
   public void testMerge() {
-    Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("quantity", 123).withXyzNamespace(new XyzNamespace().withVersion(0)));
+    Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("quantity", 123).withXyzNamespace(new XyzNamespace().withVersion(1)));
     FeatureCollection fc = new FeatureCollection().withFeatures(Collections.singletonList(f1));
 
     given()
@@ -277,7 +276,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
         .body("properties.quantity", equalTo(123))
-        .body("properties.@ns:com:here:xyz.version", equalTo(2));
+        .body("properties.@ns:com:here:xyz.version", equalTo(3));
   }
 
   @Test
@@ -290,9 +289,9 @@ public class VersioningIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
         .body("features[0].properties.name", equalTo("Stade Tata Raphaël"))
-        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(0))
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(1))
         .body("features[1].properties.name", equalTo("updated name"))
-        .body("features[1].properties.@ns:com:here:xyz.version", equalTo(1));
+        .body("features[1].properties.@ns:com:here:xyz.version", equalTo(2));
   }
 
   @Test
@@ -303,7 +302,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1)
         .then()
         .statusCode(OK.code())
-        .body("properties.@ns:com:here:xyz.version", equalTo(1));
+        .body("properties.@ns:com:here:xyz.version", equalTo(2));
   }
 
   @Test
@@ -311,7 +310,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 +"/features/" + FEATURE_ID_1 + "?version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 +"/features/" + FEATURE_ID_1 + "?version=1")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("Stade Tata Raphaël"));
@@ -319,7 +318,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features/"+ FEATURE_ID_1 + "?version=1")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features/"+ FEATURE_ID_1 + "?version=2")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"));
@@ -337,7 +336,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features?id=" + FEATURE_ID_1 + "&id="+FEATURE_ID_2 + "&version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features?id=" + FEATURE_ID_1 + "&id="+FEATURE_ID_2 + "&version=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -347,7 +346,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features?id="+  FEATURE_ID_1 + "&id="+FEATURE_ID_2 + "&version=1")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features?id="+  FEATURE_ID_1 + "&id="+FEATURE_ID_2 + "&version=2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -439,7 +438,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=0&author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=1&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(3))
@@ -449,7 +448,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=3&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -459,7 +458,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=0&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=1&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -475,7 +474,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=1&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -483,7 +482,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=3&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .statusCode(OK.code())
@@ -509,7 +508,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=2&author=" + USER_1 + "&p.capacity=58500")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=3&author=" + USER_1 + "&p.capacity=58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -517,7 +516,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=2&author=" + USER_2 + "&p.capacity>58500")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=3&author=" + USER_2 + "&p.capacity>58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -527,7 +526,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=10&author=" + USER_2 + "&p.capacity=58505")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=11&author=" + USER_2 + "&p.capacity=58505")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -537,13 +536,13 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?f.id=" + FEATURE_ID_2 + "&version=2&author=" + USER_2 + "&p.capacity<=58505")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?f.id=" + FEATURE_ID_2 + "&version=3&author=" + USER_2 + "&p.capacity<=58505")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].id", equalTo(FEATURE_ID_2))
         .body("features[0].properties.capacity", equalTo(58505))
-        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(2));
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(3));
   }
 
   @Test

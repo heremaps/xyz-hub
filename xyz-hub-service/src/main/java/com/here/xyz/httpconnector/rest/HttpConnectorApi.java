@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,12 +23,13 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.httpconnector.PsqlHttpConnectorVerticle;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient.EmbeddedContext;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import java.io.ByteArrayInputStream;
@@ -48,9 +49,9 @@ public class HttpConnectorApi extends Api {
     MainHealthCheck hc = new MainHealthCheck(false)
         .withReporter(
                 new Reporter()
-                        .withVersion(Core.BUILD_VERSION)
+                        .withVersion(Core.buildVersion())
                         .withName("HERE HTTP-Connector")
-                        .withBuildDate(Core.BUILD_TIME)
+                        .withBuildDate(Core.buildTime())
                         .withUpSince(Core.START_TIME)
         );
     Response r = hc.getResponse();
@@ -58,12 +59,12 @@ public class HttpConnectorApi extends Api {
   }
 
   private void postEvent(final RoutingContext context) {
-    String streamId = Context.getMarker(context).getName();
+    String streamId = LogUtil.getMarker(context).getName();
     byte[] inputBytes = new byte[context.getBody().length()];
     context.getBody().getBytes(inputBytes);
     InputStream inputStream = new ByteArrayInputStream(inputBytes);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    EmbeddedContext embeddedContext = new EmbeddedContext(Context.getMarker(context),"psql",
+    EmbeddedContext embeddedContext = new EmbeddedContext(LogUtil.getMarker(context),"psql",
         PsqlHttpConnectorVerticle.getEnvMap());
     connector.handleRequest(inputStream, os, embeddedContext, streamId);
     this.sendResponse(context, OK, os);

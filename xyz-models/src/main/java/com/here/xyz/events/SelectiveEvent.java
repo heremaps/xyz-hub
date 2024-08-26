@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@
 
 package com.here.xyz.events;
 
+import com.here.xyz.models.hub.Ref;
 import java.util.List;
 
 public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<T> {
-
   private List<String> selection;
   private boolean force2D;
-  private String ref;
+  private Ref ref = new Ref("HEAD");
   private long minVersion;
   private String author;
 
@@ -45,66 +45,17 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     return (T) this;
   }
 
-  public String getRef() {
+  public Ref getRef() {
     return ref;
   }
 
-  public void setRef(String ref) {
+  public void setRef(Ref ref) {
     this.ref = ref;
   }
 
-  public T withRef(String ref) {
+  public T withRef(Ref ref) {
     setRef(ref);
     return (T) this;
-  }
-
-  public static class Ref {
-    public static final String HEAD = "HEAD";
-    public static final String ALL_VERSIONS = "*";
-    private long version = -1;
-    private boolean head;
-    private boolean allVersions;
-
-    public Ref(String ref) {
-      if (ref == null || ref.isEmpty() || HEAD.equals(ref))
-        head = true;
-      else if (ALL_VERSIONS.equals(ref))
-        allVersions = true;
-      else
-        try {
-          version = Long.parseLong(ref);
-        }
-        catch (NumberFormatException e) {
-          throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
-        }
-    }
-
-    public boolean isHead() {
-      return head;
-    }
-
-    public boolean isAllVersions() {
-      return allVersions;
-    }
-
-    public boolean isSingleVersion() {
-      return !isAllVersions();
-    }
-
-    @Override
-    public String toString() {
-      if (version < 0 && !head)
-        throw new IllegalArgumentException("Not a valid ref");
-      if (head)
-        return HEAD;
-      return String.valueOf(version);
-    }
-
-    public static class InvalidRef extends IllegalArgumentException {
-      private InvalidRef(String message) {
-        super(message);
-      }
-    }
   }
 
   public long getMinVersion() {

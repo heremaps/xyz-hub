@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,9 @@
 
 package com.here.xyz.hub.rest.health;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
-import com.google.common.base.Strings;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.admin.Node;
@@ -37,6 +35,7 @@ import com.here.xyz.hub.util.health.checks.RedisHealthCheck;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthAggregator;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
@@ -58,9 +57,9 @@ public class HealthApi extends Api {
   private static MainHealthCheck healthCheck = new MainHealthCheck(true)
       .withReporter(
           new Reporter()
-              .withVersion(Service.BUILD_VERSION)
+              .withVersion(Service.buildVersion())
               .withName("HERE XYZ Hub")
-              .withBuildDate(Core.BUILD_TIME)
+              .withBuildDate(Core.buildTime())
               .withUpSince(Core.START_TIME)
               .withEndpoint(getPublicServiceEndpoint())
       )
@@ -131,7 +130,7 @@ public class HealthApi extends Api {
           .end(responseString);
     }
     catch (Exception e) {
-      logger.error(Context.getMarker(context), "Error while doing the health-check: ", e);
+      logger.error(getMarker(context), "Error while doing the health-check: ", e);
       context.response().setStatusCode(OK.code())
           .putHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON)
           .end(new JsonObject().put("status", new JsonObject().put("result", "WARNING")).encode());

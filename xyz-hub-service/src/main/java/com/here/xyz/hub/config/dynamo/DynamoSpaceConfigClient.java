@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
-import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
@@ -38,13 +37,16 @@ import com.amazonaws.services.dynamodbv2.model.GetItemResult;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
+import com.google.common.base.Strings;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.util.ARN;
+import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
+import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
@@ -56,15 +58,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -83,8 +83,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
     logger.info("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     spaces = dynamoClient.db.getTable(dynamoClient.tableName);
-    packages = dynamoClient.db
-        .getTable(new ARN(configuration.PACKAGES_DYNAMODB_TABLE_ARN).getResourceWithoutType());
+    packages = dynamoClient.db.getTable(new ARN(configuration.PACKAGES_DYNAMODB_TABLE_ARN).getResourceWithoutType());
   }
 
   public static class Provider extends SpaceConfigClient.Provider {
@@ -106,12 +105,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
       try {
         List<IndexDefinition> indexes = List.of(
+                new IndexDefinition("extendsFrom"),
                 new IndexDefinition("owner"),
                 new IndexDefinition("shared"),
                 new IndexDefinition("region"),
                 new IndexDefinition("type", "contentUpdatedAt")
         );
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N", "id", indexes, "exp");
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N,extendsFrom:S", "id", indexes, "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -125,30 +125,25 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
-    logger.info(marker, "Getting space with ID: {}", spaceId);
+    return dynamoClient.executeQueryAsync(() -> {
+      logger.info(marker, "Getting space with ID: {}", spaceId);
 
-    return DynamoClient.dynamoWorkers.executeBlocking(p -> {
-      try {
-        Item spaceItem = spaces.getItem("id", spaceId);
-        if (spaceItem == null) {
-          logger.info(marker, "Getting space with ID: {} returned null", spaceId);
-          p.complete();
-        }
-        else {
-          Map<String, Object> itemData = spaceItem.asMap();
-          itemData.put("shared", ((Number) itemData.get("shared")).intValue() == 1);
-          //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
-          itemData.putIfAbsent("versionsToKeep", 0);
-          final Space space = mapper().convertValue(itemData, Space.class);
-          if (space != null)
-            logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());
-          else
-            logger.info(marker, "Space ID: {} has been decoded to null", spaceId);
-          p.complete(space);
-        }
+      Item spaceItem = spaces.getItem("id", spaceId);
+      if (spaceItem == null) {
+        logger.info(marker, "Getting space with ID: {} returned null", spaceId);
+        return null;
       }
-      catch (Exception e) {
-        p.fail(e);
+      else {
+        Map<String, Object> itemData = spaceItem.asMap();
+        itemData.put("shared", ((Number) itemData.get("shared")).intValue() == 1);
+        //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
+        itemData.putIfAbsent("versionsToKeep", 0);
+        final Space space = mapper().convertValue(itemData, Space.class);
+        if (space != null)
+          logger.info(marker, "Space ID: {} with title: \"{}\" has been decoded", spaceId, space.getTitle());
+        else
+          logger.info(marker, "Space ID: {} has been decoded to null", spaceId);
+        return space;
       }
     });
   }
@@ -161,19 +156,31 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   private Future<Void> storeSpace(Marker marker, Space space, Space originalSpace) {
-    boolean deletePackages = false, insertPackages = false;
+    boolean deletePackages, insertPackages;
+
     if (originalSpace == null) {
       //This is a space creation
       deletePackages = false;
       insertPackages = space.getPackages() != null && !space.getPackages().isEmpty();
     }
-    else {
+    else
       //This is a space update
       deletePackages = insertPackages = !packagesEqual(originalSpace.getPackages(), space.getPackages());
-    }
+
     final boolean delPackages = deletePackages, insPackages = insertPackages;
 
-    return DynamoClient.dynamoWorkers.<Void>executeBlocking(p -> storeSpaceSync(space, p))
+    return dynamoClient.executeQueryAsync(() -> {
+      final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
+      itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
+      itemData.put("type", "SPACE");
+
+      if (space.getExtension() != null && !Strings.isNullOrEmpty(space.getExtension().getSpaceId()))
+        itemData.put("extendsFrom", space.getExtension().getSpaceId());
+
+      sanitize(itemData);
+      spaces.putItem(Item.fromMap(itemData));
+      return null;
+    })
         .onFailure(t -> logger.error(marker, "Failure storing a space into DynamoDB", t))
         .compose(v -> delPackages ? deleteSpaceFromPackages(marker, originalSpace) : Future.succeededFuture())
         .compose(v -> insPackages ? storeSpaceIntoPackages(marker, space) : Future.succeededFuture())
@@ -182,15 +189,6 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   private boolean packagesEqual(List<String> packages1, List<String> packages2) {
     return Objects.equals(packages1 != null ? new HashSet<>(packages1) : null, packages2 != null ? new HashSet<>(packages2) : null);
-  }
-
-  private void storeSpaceSync(Space space, Promise<Void> p) {
-    final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
-    itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
-    itemData.put("type", "SPACE");
-    sanitize(itemData);
-    spaces.putItem(Item.fromMap(itemData));
-    p.complete();
   }
 
   @Override
@@ -350,153 +348,137 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         selectedCondition.spaceIds, selectedCondition.ownerIds, selectedCondition.packages, selectedCondition.shared,
         selectedCondition.negateOwnerIds, selectedCondition.region);
 
-    return DynamoClient.dynamoWorkers.<List<Space>>executeBlocking(p -> getSelectedSpacesSync(marker, authorizedCondition,
-        selectedCondition, propsQuery, p))
+    return getSelectedSpacesSync(marker, authorizedCondition, selectedCondition, propsQuery)
         .onSuccess(spaces -> logger.info(marker, "Number of spaces retrieved from DynamoDB: {}", spaces.size()))
         .onFailure(t -> logger.error(marker, "Failure getting authorized spaces", t));
   }
 
-  private void getSelectedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Promise<List<Space>> p) {
+  @Override
+  public Future<List<Space>> getSpacesFromSuper(Marker marker, String superSpaceId) {
+    return dynamoClient.executeQueryAsync(() -> {
+      final List<Space> resultSpaces = new ArrayList<>();
+      spaces.getIndex("extendsFrom-index")
+          .query(new QuerySpec().withHashKey("extendsFrom", superSpaceId))
+          .pages()
+          .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem))));
+      return resultSpaces;
+    });
+  }
 
-    if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
-      getSpace(marker, selectedCondition.spaceIds.iterator().next())
-              .onSuccess(space -> {
-                if(space != null) {
-                  p.complete(Collections.singletonList(space));
-                } else {
-                  p.complete(Collections.emptyList());
-                }
-              })
-              .onFailure(e ->
-                      p.fail(e)
-              );
-      return;
-    }
+  private Future<List<Space>> getSelectedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+
+    if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds))
+      return getSpace(marker, selectedCondition.spaceIds.iterator().next())
+          .compose(space -> Future.succeededFuture(space != null ? Collections.singletonList(space) : Collections.emptyList()));
 
     boolean hasFullAccess = CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds) &&
             CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds) &&
             CollectionUtils.isNullOrEmpty(authorizedCondition.packages);
-    try {
-      var result = hasFullAccess ? getSpacesWithFullAccess(selectedCondition, propsQuery) : getSpacesWithoutFullAccess(marker, authorizedCondition, selectedCondition, propsQuery);
-      p.complete(result);
-    }
-    catch (Exception e) {
-      p.fail(e);
-    }
+
+    if (hasFullAccess)
+      return getSpacesWithFullAccess(selectedCondition, propsQuery);
+    else
+      return getSpacesWithoutFullAccess(marker, authorizedCondition, selectedCondition, propsQuery);
   }
 
-  private List<Space> getSpacesWithFullAccess(SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
-    var valueMap = new HashMap<String, Object>();
-    var resultSpaces = new ArrayList<Space>();
-    if (propsQuery != null) {
-      var contentUpdatedAt = propsQuery.get(0).get(0).getValues().get(0);
-      valueMap.put(":typeValue", "SPACE");
-      valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
-      String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
+  private Future<List<Space>> getSpacesWithFullAccess(SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+    //TODO: Improve method to not use PropertiesQuery here anymore, but more specific predicate types
+    return dynamoClient.executeQueryAsync(() -> {
+      Map<String, Object> valueMap = new HashMap<>();
+      List<Space> resultSpaces = new ArrayList<>();
+      if (propsQuery != null) {
+        valueMap.put(":typeValue", "SPACE");
+        valueMap.put(":contentUpdatedAtValue", propsQuery.get(0).get(0).getValues().get(0));
+        String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
 
-      spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
-              .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " + operator + " :contentUpdatedAtValue")
-              .withNameMap(Map.of("#type", "type"))
-              .withValueMap(valueMap)
-      ).pages().forEach(page -> page.forEach(i -> {
-        resultSpaces.add(mapItemToSpace(i));
-      }));
-    } else if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds) && !selectedCondition.negateOwnerIds) {
-      selectedCondition.ownerIds.forEach(ownerId ->
-              spaces.getIndex("owner-index")
-                      .query(new QuerySpec().withHashKey("owner", ownerId))
-                      .pages()
-                      .forEach(page -> page.forEach(i -> {
-                        resultSpaces.add(mapItemToSpace(i));
-                      })));
-    } else if (selectedCondition.region != null) {
-      spaces.getIndex("region-index")
-              .query(new QuerySpec().withHashKey("region", selectedCondition.region))
-              .pages()
-              .forEach(page -> page.forEach(i -> {
-                resultSpaces.add(mapItemToSpace(i));
-              }));
-    } else {
-      // if there are no filtering conditions we need to fetch all spaces, we can do that with type index + contentUpdated > 0
-      valueMap.put(":typeValue", "SPACE");
-      valueMap.put(":contentUpdatedAtValue", 0L);
+        spaces.getIndex("type-contentUpdatedAt-index")
+            .query(new QuerySpec()
+                .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " + operator + " :contentUpdatedAtValue")
+                .withNameMap(Map.of("#type", "type"))
+                .withValueMap(valueMap)
+            )
+            .pages()
+            .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem))));
+        //TODO: Extract & re-use page iteration / transformation of item list
+      }
+      else if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds) && !selectedCondition.negateOwnerIds) {
+        selectedCondition.ownerIds.forEach(ownerId ->
+            spaces.getIndex("owner-index")
+                .query(new QuerySpec().withHashKey("owner", ownerId))
+                .pages()
+                .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem)))));
+      }
+      else if (selectedCondition.region != null) {
+        spaces.getIndex("region-index")
+            .query(new QuerySpec().withHashKey("region", selectedCondition.region))
+            .pages()
+            .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem))));
+      }
+      else {
+        //If there are no filtering conditions we need to fetch all spaces, we can do that with type index + contentUpdated > 0
+        valueMap.put(":typeValue", "SPACE");
+        valueMap.put(":contentUpdatedAtValue", 0L);
 
-      spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
-              .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt > :contentUpdatedAtValue")
-              .withNameMap(Map.of("#type", "type"))
-              .withValueMap(valueMap)
-      ).pages().forEach(page -> page.forEach(i -> {
-        resultSpaces.add(mapItemToSpace(i));
-      }));
-    }
+        spaces
+            .getIndex("type-contentUpdatedAt-index")
+            .query(new QuerySpec()
+                .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt > :contentUpdatedAtValue")
+                .withNameMap(Map.of("#type", "type"))
+                .withValueMap(valueMap))
+            .pages()
+            .forEach(page -> page.forEach(spaceItem -> resultSpaces.add(mapItemToSpace(spaceItem))));
+      }
 
-    // Filter by region
-    if(selectedCondition.region != null) {
-      resultSpaces.removeIf(space -> space.getRegion() == null || !space.getRegion().equals(selectedCondition.region));
-    }
+      //Filter by region
+      if (selectedCondition.region != null)
+        resultSpaces.removeIf(space -> space.getRegion() == null || !space.getRegion().equals(selectedCondition.region));
 
-    // Filter by owner
-    if(!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
-      Predicate<Space> condition = selectedCondition.negateOwnerIds ?
-              space -> selectedCondition.ownerIds.contains(space.getOwner()) :
-              space -> !selectedCondition.ownerIds.contains(space.getOwner());
-      resultSpaces.removeIf(condition);
-    }
+      //Filter by owner
+      if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
+        Predicate<Space> condition = selectedCondition.negateOwnerIds ?
+            space -> selectedCondition.ownerIds.contains(space.getOwner()) :
+            space -> !selectedCondition.ownerIds.contains(space.getOwner());
+        resultSpaces.removeIf(condition);
+      }
 
-    // Filter by prefix
-    if (selectedCondition.prefix != null) {
-      resultSpaces.removeIf(space -> !space.getId().startsWith(selectedCondition.prefix));
-    }
+      //Filter by prefix
+      if (selectedCondition.prefix != null)
+        resultSpaces.removeIf(space -> !space.getId().startsWith(selectedCondition.prefix));
 
-    // Filter by selected spaces
-    if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
-      resultSpaces.removeIf(space -> !selectedCondition.spaceIds.contains(space.getId()));
-    }
-    return resultSpaces;
+      //Filter by selected spaces
+      if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds))
+        resultSpaces.removeIf(space -> !selectedCondition.spaceIds.contains(space.getId()));
+
+      return resultSpaces;
+    });
   }
 
-  private List<Space> getSpacesWithoutFullAccess(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-                                                 SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
-    List<Space> result = new ArrayList<>();
-
-    Set<String> allSpaceIds = getAllSpaceIds(authorizedCondition, selectedCondition);
-
-    // Filter by prefix
-    if (selectedCondition.prefix != null) {
-      allSpaceIds.removeIf(i -> !i.startsWith(selectedCondition.prefix));
-    }
-
-    // Filter by region
-    filterByRegion(selectedCondition, allSpaceIds);
-
-    // Filter by owner
-    filterByOwner(selectedCondition, allSpaceIds);
-
-    // Filter by contentUpdatedAt
-    filterByContentUpdatedAt(propsQuery, allSpaceIds);
-
-    logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", allSpaceIds.size());
-
-    if (!allSpaceIds.isEmpty()) {
-      getSpacesByIdsAndUpdate(allSpaceIds, result);
-    }
-    return result;
+  private Future<List<Space>> getSpacesWithoutFullAccess(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+    return getAllSpaceIds(authorizedCondition, selectedCondition)
+        .compose(allSpaceIds -> {
+          //Filter by prefix
+          if (selectedCondition.prefix != null)
+            allSpaceIds.removeIf(i -> !i.startsWith(selectedCondition.prefix));
+          return Future.succeededFuture(allSpaceIds);
+        })
+        .compose(allSpaceIds -> filterByRegion(selectedCondition, allSpaceIds).map(allSpaceIds))
+        .compose(allSpaceIds -> filterByOwner(selectedCondition, allSpaceIds).map(allSpaceIds))
+        .compose(allSpaceIds -> filterByContentUpdatedAt(propsQuery, allSpaceIds).map(allSpaceIds))
+        .onSuccess(allSpaceIds -> logger.debug(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", allSpaceIds.size()))
+        .compose(allSpaceIds -> getSpacesByIdsAndUpdate(allSpaceIds));
   }
 
-  private Set<String> getAllSpaceIds(SpaceAuthorizationCondition authorizedCondition,
-                                     SpaceSelectionCondition selectedCondition) {
-    var sharedSpaceIdsFuture = CompletableFuture.supplyAsync(() -> getSharedSpaceIds(selectedCondition));
-    var ownersSpaceIdsFuture = CompletableFuture.supplyAsync(() -> getOwnersSpaceIds(authorizedCondition));
-    var packageSpaceIdsFuture = CompletableFuture.supplyAsync(() -> getPackageSpaceIds(authorizedCondition));
-
-    CompletableFuture<Void> allFutures = CompletableFuture.allOf(sharedSpaceIdsFuture, ownersSpaceIdsFuture, packageSpaceIdsFuture);
-    //wait until all the request are executed
-    allFutures.join();
-
-    return Stream.of(authorizedCondition.spaceIds, sharedSpaceIdsFuture.join(), ownersSpaceIdsFuture.join(), packageSpaceIdsFuture.join())
-            .flatMap(Set::stream)
-            .collect(Collectors.toSet());
+  private Future<Set<String>> getAllSpaceIds(SpaceAuthorizationCondition authorizedCondition, SpaceSelectionCondition selectedCondition) {
+    return dynamoClient.executeQueryAsync(() -> {
+      Set<String> result = new HashSet<>();
+      result.addAll(authorizedCondition.spaceIds);
+      result.addAll(getSharedSpaceIds(selectedCondition));
+      result.addAll(getOwnersSpaceIds(authorizedCondition));
+      result.addAll(getPackageSpaceIds(authorizedCondition));
+      return result;
+    });
   }
 
   private Set<String> getSharedSpaceIds(SpaceSelectionCondition selectedCondition) {
@@ -533,64 +515,83 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return packageSpaceIds;
   }
 
-  private void getSpacesByIdsAndUpdate(Set<String> ids, List<Space> result) {
-    int batches = (int) Math.ceil((double) ids.size() / 100);
-    for (int i = 0; i < batches; i++) {
-      final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
-      ids.stream().skip(i * 100L).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
+  private Future<List<Space>> getSpacesByIdsAndUpdate(Set<String> ids) {
+    if (ids.isEmpty())
+      return Future.succeededFuture(Collections.emptyList());
 
-      BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
-      processOutcome(outcome, result);
+    return dynamoClient.executeQueryAsync(() -> {
+      List<Space> spaces = new LinkedList<>();
+      int batches = (int) Math.ceil((double) ids.size() / 100);
+      for (int i = 0; i < batches; i++) {
+        final TableKeysAndAttributes keys = new TableKeysAndAttributes(dynamoClient.tableName);
+        ids.stream().skip(i * 100L).limit(100).forEach(id -> keys.addHashOnlyPrimaryKey("id", id));
 
-      while (!outcome.getUnprocessedKeys().isEmpty()) {
-        outcome = dynamoClient.db.batchGetItemUnprocessed(outcome.getUnprocessedKeys());
-        processOutcome(outcome, result);
+        BatchGetItemOutcome outcome = dynamoClient.db.batchGetItem(keys);
+        spaces.addAll(processOutcome(outcome));
+
+        while (!outcome.getUnprocessedKeys().isEmpty()) {
+          outcome = dynamoClient.db.batchGetItemUnprocessed(outcome.getUnprocessedKeys());
+          spaces.addAll(processOutcome(outcome));
+        }
       }
-    }
+      return spaces;
+    });
   }
 
-  private void filterByRegion(SpaceSelectionCondition selectedCondition, Set<String> allSpaceIds) {
-    if (selectedCondition.region != null) {
-      var regionSpaceIds = new HashSet<String>();
+  private Future<Void> filterByRegion(SpaceSelectionCondition selectedCondition, Set<String> allSpaceIds) {
+    if (selectedCondition.region == null)
+      return Future.succeededFuture();
+
+    return dynamoClient.executeQueryAsync(() -> {
+      Set<String> regionSpaceIds = new HashSet<>();
       spaces.getIndex("region-index")
-              .query(new QuerySpec().withHashKey("region", selectedCondition.region).withProjectionExpression("id"))
-              .pages()
-              .forEach(page -> page.forEach(i -> regionSpaceIds.add(i.getString("id"))));
+          .query(new QuerySpec().withHashKey("region", selectedCondition.region).withProjectionExpression("id"))
+          .pages()
+          .forEach(page -> page.forEach(i -> regionSpaceIds.add(i.getString("id"))));
       allSpaceIds.removeIf(id -> !regionSpaceIds.contains(id));
-    }
+      return null;
+    });
   }
 
-  private void filterByOwner(SpaceSelectionCondition selectedCondition, Set<String> allSpaceIds) {
-    var selectedOwnersSpaceIds = new HashSet<>();
-    if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
+  private Future<Void> filterByOwner(SpaceSelectionCondition selectedCondition, Set<String> allSpaceIds) {
+    if (CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds))
+      return Future.succeededFuture();
+
+    return dynamoClient.executeQueryAsync(() -> {
+      Set<String> selectedOwnersSpaceIds = new HashSet<>();
       selectedCondition.ownerIds.forEach(ownerId ->
-              spaces.getIndex("owner-index")
-                      .query(new QuerySpec().withHashKey("owner", ownerId).withProjectionExpression("id"))
-                      .pages()
-                      .forEach(page -> page.forEach(i -> selectedOwnersSpaceIds.add(i.getString("id")))));
+          spaces.getIndex("owner-index")
+              .query(new QuerySpec().withHashKey("owner", ownerId).withProjectionExpression("id"))
+              .pages()
+              .forEach(page -> page.forEach(i -> selectedOwnersSpaceIds.add(i.getString("id")))));
 
       // HINT: A ^ TRUE == !A (negateOwnerIds: keep or remove the spaces contained in the owner's spaces list)
       allSpaceIds.removeIf(i -> !selectedCondition.negateOwnerIds ^ selectedOwnersSpaceIds.contains(i));
-    }
+      return null;
+    });
   }
 
-  private void filterByContentUpdatedAt(PropertiesQuery propsQuery, Set<String> allSpaceIds) {
-    if (propsQuery != null) {
-      var contentUpdatedAt = propsQuery.get(0).get(0).getValues().get(0);
-      var valueMap = new HashMap<String, Object>();
+  private Future<Void> filterByContentUpdatedAt(PropertiesQuery propsQuery, Set<String> allSpaceIds) {
+    //TODO: Improve method to not use PropertiesQuery here anymore, but more specific predicate types
+    if (propsQuery == null)
+      return Future.succeededFuture();
+
+    return dynamoClient.executeQueryAsync(() -> {
+      Map<String, Object> valueMap = new HashMap<>();
       valueMap.put(":typeValue", "SPACE");
-      valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
+      valueMap.put(":contentUpdatedAtValue", propsQuery.get(0).get(0).getValues().get(0));
       String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
       var contentUpdatedAtSpaceIds = new HashSet<String>();
       spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
-                      .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " +  operator + " :contentUpdatedAtValue")
-                      .withNameMap(Map.of("#type", "type"))
-                      .withValueMap(valueMap)
-                      .withProjectionExpression("id")
-              ).pages()
-              .forEach(page -> page.forEach(i -> contentUpdatedAtSpaceIds.add(i.getString("id"))));
+              .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " +  operator + " :contentUpdatedAtValue")
+              .withNameMap(Map.of("#type", "type"))
+              .withValueMap(valueMap)
+              .withProjectionExpression("id")
+          ).pages()
+          .forEach(page -> page.forEach(i -> contentUpdatedAtSpaceIds.add(i.getString("id"))));
       allSpaceIds.removeIf(id -> !contentUpdatedAtSpaceIds.contains(id));
-    }
+      return null;
+    });
   }
 
   private Space mapItemToSpace(Item item) {
@@ -601,65 +602,15 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return DatabindCodec.mapper().convertValue(itemData, Space.class);
   }
 
-  private Set<String> getAuthorizedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition) throws AmazonDynamoDBException {
-    final Set<String> authorizedSpaces = new LinkedHashSet<>();
-
-    logger.info(marker, "Getting authorized spaces by condition");
-
-    try {
-      //Get the space ids which are authorized by the authorizedCondition
-      if (authorizedCondition.spaceIds != null) {
-        authorizedSpaces.addAll(authorizedCondition.spaceIds);
-        logger.debug(marker, "Number of space IDs after addition from authorized condition space IDs: {}", authorizedSpaces.size());
-      }
-
-      //Then get the owners which are authorized by the authorizedCondition
-      if (authorizedCondition.ownerIds != null) {
-        authorizedCondition.ownerIds.forEach(owner ->
-            spaces.getIndex("owner-index").query("owner", owner).pages().forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("id"));
-            }))
-        );
-        logger.debug(marker, "Number of space IDs after addition from owners: {}", authorizedSpaces.size());
-      }
-
-      //Then get the packages which are authorized by the authorizedCondition
-      if (authorizedCondition.packages != null) {
-        authorizedCondition.packages.forEach(packageName ->
-            packages.query("packageName", packageName).pages().forEach(p -> p.forEach(i -> {
-              authorizedSpaces.add(i.getString("spaceId"));
-            }))
-        );
-        logger.debug(marker, "Number of space IDs after addition from packages: {}", authorizedSpaces.size());
-      }
-
-      //Then get the "empty" case, when no spaceIds or ownerIds os packages are provided, meaning select ALL spaces
-      if (CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds)
-          && CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds)
-          && CollectionUtils.isNullOrEmpty(authorizedCondition.packages)) {
-        spaces
-            .scan(new ScanSpec().withProjectionExpression("id"))
-            .pages()
-            .forEach(p -> p.forEach(i -> authorizedSpaces.add(i.getString("id"))));
-      }
-    }
-    catch (AmazonDynamoDBException e) {
-      logger.error(marker, "Failure to get the authorized spaces", e);
-      throw e;
-    }
-
-    logger.info(marker, "Returning the list of authorized spaces with size of: {}", authorizedSpaces.size());
-    return authorizedSpaces;
-  }
-
   /**
    * Fills the result list transforming the raw elements from the outcome into real Space objects
    *
    * @param outcome the query result
-   * @param result the transformed resulting elements
    */
-  private void processOutcome(BatchGetItemOutcome outcome, List<Space> result) {
-    outcome.getTableItems().get(dynamoClient.tableName).forEach(i -> result.add(Json.decodeValue(i.toJSON(), Space.class)));
+  private List<Space> processOutcome(BatchGetItemOutcome outcome) {
+    List<Space> spaces = new ArrayList<>();
+    outcome.getTableItems().get(dynamoClient.tableName).forEach(spaceItem -> spaces.add(Json.decodeValue(spaceItem.toJSON(), Space.class)));
+    return spaces;
   }
 
   /**

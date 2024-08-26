@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,25 +19,45 @@
 
 package com.here.xyz.models.hub;
 
-public class Tag {
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+import static com.here.xyz.models.hub.Ref.ALL_VERSIONS;
+import static com.here.xyz.models.hub.Ref.HEAD;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.google.common.base.Strings;
+import com.here.xyz.XyzSerializable;
+import java.util.regex.Pattern;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class Tag implements XyzSerializable {
   /**
    * The reader id.
    */
+  @JsonView({Public.class, Static.class})
   private String id;
 
   /**
    * The space id.
    */
+  @JsonView(Static.class)
   private String spaceId;
 
   /**
-   * The version pointer.
-   * Versions below -2 are invalid versions.
-   * The version -2 is the default version, when version is not provided for example.
-   * The version -1 points to the initial version of a space without data.
-   * The version 0 points to the initial version of a space with data.
+   * The version this tag is pointing to.
+   *
+   * @see Ref#getVersion()
    */
+  @JsonView({Public.class, Static.class})
   private long version = -2;
+
+  /**
+   * The indicator that this tag is a system tag, which is not allowed to be deleted or modified by users.
+   */
+  @JsonView({Public.class, Static.class})
+  @JsonInclude(NON_DEFAULT)
+  private boolean system;
 
   public String getId() {
     return id;
@@ -76,5 +96,23 @@ public class Tag {
   public Tag withVersion(long version) {
    setVersion(version);
    return this;
+  }
+
+  public boolean isSystem() {
+    return system;
+  }
+
+  public void setSystem(boolean system) {
+    this.system = system;
+  }
+
+  public Tag withSystem(boolean system) {
+   setSystem(system);
+   return this;
+  }
+
+  public static boolean isValidId(String tagId) {
+    return !Strings.isNullOrEmpty(tagId) && !HEAD.equals(tagId) && !ALL_VERSIONS.equals(tagId)
+        && Pattern.matches("^[a-zA-Z][a-zA-Z0-9_-]{0,49}$", tagId);
   }
 }

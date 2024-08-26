@@ -49,7 +49,7 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<Tag> getTag(Marker marker, String id, String spaceId) {
-    SQLQuery query = client.getQuery("SELECT id, space, version FROM ${schema}.${table} "
+    SQLQuery query = client.getQuery("SELECT id, space, version, system FROM ${schema}.${table} "
             + "WHERE id = #{tagId} AND space = #{spaceId}")
         .withNamedParameter("tagId", id)
         .withNamedParameter("spaceId", spaceId);
@@ -61,7 +61,8 @@ public class JDBCTagConfigClient extends TagConfigClient {
     return new Tag()
         .withId(rs.getString("id"))
         .withSpaceId(rs.getString("space"))
-        .withVersion(rs.getLong("version"));
+        .withVersion(rs.getLong("version"))
+        .withSystem(rs.getBoolean("system"));
   }
 
   @Override
@@ -72,8 +73,10 @@ public class JDBCTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String spaceId) {
-    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId}").withNamedParameter("spaceId", spaceId));
+  public Future<List<Tag>> getTags(Marker marker, String spaceId, boolean includeSystemTags) {
+    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId} ${{includeSystemTags}}")
+        .withNamedParameter("spaceId", spaceId)
+        .withQueryFragment("includeSystemTags", includeSystemTags ? "" : "AND system = false"));
   }
 
   @Override
@@ -93,7 +96,7 @@ public class JDBCTagConfigClient extends TagConfigClient {
   }
 
   private Future<List<Tag>> _getTags(Marker marker, SQLQuery whereClause) {
-    SQLQuery query = client.getQuery("SELECT id, space, version FROM ${schema}.${table} ${{whereClause}}")
+    SQLQuery query = client.getQuery("SELECT id, space, version, system FROM ${schema}.${table} ${{whereClause}}")
         .withQueryFragment("whereClause", whereClause);
 
     return client.run(query, rs -> {
@@ -107,12 +110,13 @@ public class JDBCTagConfigClient extends TagConfigClient {
   @Override
   public Future<Void> storeTag(Marker marker, Tag tag) {
     final SQLQuery query = client.getQuery("INSERT INTO ${schema}.${table} "
-            + "(id, space, version) VALUES (#{tagId}, #{spaceId}, #{version}) "
+            + "(id, space, version, system) VALUES (#{tagId}, #{spaceId}, #{version}, #{system}) "
             + "ON CONFLICT (id,space) DO "
-            + "UPDATE SET id = #{tagId}, space = #{spaceId}, version = #{version}")
+            + "UPDATE SET id = #{tagId}, space = #{spaceId}, version = #{version}, system = #{system}")
         .withNamedParameter("tagId", tag.getId())
         .withNamedParameter("spaceId", tag.getSpaceId())
-        .withNamedParameter("version", tag.getVersion());
+        .withNamedParameter("version", tag.getVersion())
+        .withNamedParameter("system", tag.isSystem());
 
     return client.write(query).mapEmpty();
   }
@@ -130,7 +134,7 @@ public class JDBCTagConfigClient extends TagConfigClient {
   public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
     final SQLQuery query = client.getQuery("DELETE FROM ${schema}.${table} WHERE space = #{spaceId}")
         .withNamedParameter("spaceId", spaceId);
-    return getTags(marker, spaceId)
+    return getTags(marker, spaceId, true)
         .compose(tags -> client.write(query).map(tags));
   }
 
@@ -142,7 +146,7 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   private Future<Void> initTable() {
     return client.write(client.getQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} "
-            + "(id TEXT, space TEXT, version BIGINT, PRIMARY KEY(id, space))"))
+            + "(id TEXT, space TEXT, version BIGINT, system boolean, PRIMARY KEY(id, space))"))
         .onFailure(e -> logger.error("Can not create table {}!", TAG_TABLE, e))
         .mapEmpty();
   }

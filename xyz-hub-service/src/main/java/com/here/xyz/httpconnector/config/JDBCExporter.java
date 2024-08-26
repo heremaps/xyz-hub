@@ -22,30 +22,34 @@ package com.here.xyz.httpconnector.config;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.query.ExportSpace;
+import com.here.xyz.httpconnector.config.query.ExportSpaceByGeometry;
+import com.here.xyz.httpconnector.config.query.ExportSpaceByProperties;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
-import com.here.xyz.httpconnector.util.jobs.Export.Filters;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription.Space;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
+import com.here.xyz.jobs.datasets.DatasetDescription.Space;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
-import com.here.xyz.psql.query.GetFeatures;
-import com.here.xyz.psql.query.GetFeaturesByGeometry;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.JdbcClient;
@@ -80,56 +84,82 @@ public class JDBCExporter extends JdbcBasedHandler {
       return instance;
     }
 
+    static private final int PSEUDO_NEXT_VERSION = 0;
     //Space-Copy Begin
     private SQLQuery buildCopySpaceQuery(JdbcClient client, Export job,
         Connector targetSpaceConnector, boolean targetVersioningEnabled) throws SQLException {
       boolean enableHashedSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
-          ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
-          : false;
+                                    ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
+                                    : false;
       String targetSpaceId = job.getTarget().getKey();
       final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
       return new SQLQuery(
-        "WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */ "
-            + "(INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version) "
-            + "SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version "
-            + "FROM "
-            + "  (${{contentQuery}} AND next_version = #{MAX_BIGINT} ) idata "
-            + "  LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint()) "
-            + "  RETURNING id, version "
-            + "), "
-            + "upd_data as "
-            + "(UPDATE ${schema}.${table} "
-            + "   SET next_version = (SELECT version FROM ins_data LIMIT 1) "
-            + " WHERE ${{targetVersioningEnabled}}"
-            + "    AND next_version = max_bigint()"
-            + "    AND id IN (SELECT id FROM ins_data)"
-            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
-            + "  RETURNING id, version"
-            + "), "
-            + "del_data AS "
-            + "(DELETE FROM ${schema}.${table} "
-            + "  WHERE not ${{targetVersioningEnabled}}"
-            + "    AND id IN (SELECT id FROM ins_data)"
-            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
-            + "  RETURNING id, version "
-            + ") "
-            + "SELECT count(1) AS rows_uploaded, 0::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded, "
-            +  "      (SELECT count(1) FROM upd_data) AS version_updated, "
-            +  "      (SELECT count(1) FROM del_data) AS version_deleted "
-            + "FROM ins_data l")
-          .withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
-          .withVariable("table", tableName)
-          .withQueryFragment("jobId", job.getId())
-          .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
-          .withVariable("versionSequenceName", tableName + "_version_seq")
-          .withNamedParameter("MAX_BIGINT", GetFeatures.MAX_BIGINT)
-          .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
+          """
+            WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */
+            (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
+            SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id,
+                   (SELECT nextval('${schema}.${versionSequenceName}')) AS version,
+                   CASE WHEN edata.id isnull THEN max_bigint() ELSE ${{pseudoNextVersion}} END as next_version
+            FROM
+              (${{contentQuery}} ) idata
+              LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint())
+              RETURNING id, version, (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint as bytes_size
+            ),
+            upd_data as
+            (UPDATE ${schema}.${table}
+               SET next_version = (SELECT version FROM ins_data LIMIT 1)
+             WHERE ${{targetVersioningEnabled}}
+                AND next_version = max_bigint()
+                AND id IN (SELECT id FROM ins_data)
+                AND version < (SELECT version FROM ins_data LIMIT 1)
+              RETURNING id, version
+            ),
+            del_data AS
+            (DELETE FROM ${schema}.${table}
+              WHERE not ${{targetVersioningEnabled}}
+                AND id IN (SELECT id FROM ins_data)
+                AND version < (SELECT version FROM ins_data LIMIT 1)
+              RETURNING id, version
+            )
+            SELECT count(1) AS rows_uploaded, sum(bytes_size)::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded,
+                  (SELECT count(1) FROM upd_data) AS version_updated,
+                  (SELECT count(1) FROM del_data) AS version_deleted
+            FROM ins_data l
+          """
+          ).withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
+           .withVariable("table", tableName)
+           .withQueryFragment("jobId", job.getId())
+           .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
+           .withVariable("versionSequenceName", tableName + "_version_seq")
+           .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" )
+           .withQueryFragment("contentQuery", buildCopyContentQuery(client, job, enableHashedSpaceId));
+    }
+
+    private SQLQuery buildCopySpaceNextVersionUpdate(JdbcClient client, Export job, Connector targetSpaceConnector) throws SQLException {
+      boolean enableHashedSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
+                                    ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId")
+                                    : false;
+      String targetSpaceId = job.getTarget().getKey();
+      final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
+      /* adjust next_version to max_bigint(), except in case of concurency set it to concurrent inserted version */
+      //TODO: case of extern concurency && same id in source & target && non-versiond layer a duplicate id can occure with next_version = concurrent_inserted.version
+      return new SQLQuery(
+          """
+            UPDATE /* space_copy_hint m499#jobId(${{jobId}}) */ 
+             ${schema}.${table} t
+             set next_version = coalesce(( select version from ${schema}.${table} i where i.id = t.id and i.next_version = max_bigint() ), max_bigint())
+            where 
+             next_version = ${{pseudoNextVersion}}
+          """
+          ).withVariable("schema", getDbSettings(job.getTargetConnector()).getSchema())
+           .withVariable("table", tableName)
+           .withQueryFragment("jobId", job.getId())
+           .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" );
     }
 
   private static SQLQuery buildCopyContentQuery(JdbcClient client, Export job, boolean enableHashedSpaceId) throws SQLException {
-
     String propertyFilter = null;
-    Export.SpatialFilter spatialFilter = null;
+    SpatialFilter spatialFilter = null;
 ////// get filters from source space
     if( job.getSource() != null && job.getSource() instanceof Space )
     { Filters f = ((Space) job.getSource()).getFilters();
@@ -150,8 +180,10 @@ public class JDBCExporter extends JdbcBasedHandler {
         .withContext(EXTENSION)
         .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", enableHashedSpaceId));
 
-//      if (targetVersion != null)
-//           event.setRef(targetVersion);
+      if( event.getParams() != null && event.getParams().get("versionsToKeep") != null )
+       event.setVersionsToKeep((int) event.getParams().get("versionsToKeep") ); // -> forcing "...AND next_version = maxBigInt..." in query
+
+      event.setRef( job.getTargetVersion() == null ? new Ref("HEAD") : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
           PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
@@ -164,40 +196,20 @@ public class JDBCExporter extends JdbcBasedHandler {
           event.setClip(spatialFilter.isClipped());
       }
 
-
-    SQLQuery contentQuery;
     try {
 
-      GetFeatures queryRunner;
-
-      if (spatialFilter == null)
-        queryRunner = new SearchForFeatures(event);
-      else
-        queryRunner = new GetFeaturesByGeometry(event);
-
-      queryRunner.setDataSourceProvider(client.getDataSourceProvider());
-      contentQuery = queryRunner._buildQuery(event)
-          .withQueryFragment("limit", "")
-          .withQueryFragment("geo", "geo")
-          .withQueryFragment("selection", "jsondata, operation, author");
+      return ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+          //TODO: Why not selecting the feature id / geo here?
+          //FIXME: Do not select operation / author as part of the "property-selection"-fragment
+          .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
+          .withGeoOverride(buildGeoFragment(spatialFilter))
+          .buildQuery(event);
     }
     catch (Exception e) {
       throw new SQLException(e);
     }
-
-    if (spatialFilter != null && spatialFilter.isClipped()) 
-    { SQLQuery geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
-               geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
-               geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
-
-      contentQuery.setQueryFragment("geo", geoFragment);
-    }
-
-    //Remove Limit
-    contentQuery.setQueryFragment("limit", "");
-
-    return contentQuery;
   }
+
 
   private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, Export job) {
       logger.info("job[{}] Execute Query Space-Copy {}->{} {}", job.getId(), job.getTargetSpaceId(), "Space-Destination", q.text());
@@ -212,38 +224,61 @@ public class JDBCExporter extends JdbcBasedHandler {
       });
     }
 
+  private Future<ExportStatistic> executeCopyQuery(JdbcClient client, SQLQuery q, SQLQuery q2, Export job)
+  {
+    return executeCopyQuery( client, q, job )
+             .compose( e -> {
+               return client.write(q2).compose( i -> Future.succeededFuture(e) );
+            } );
+  }
+
     public Future<ExportStatistic> executeCopy(Export job) {
       Promise<Export.ExportStatistic> promise = Promise.promise();
       List<Future> exportFutures = new ArrayList<>();
 
       String spaceId = job.getTarget().getKey();
-      return HubWebClient.getSpace( spaceId )
-          .compose(space -> HubWebClient.getConnectorConfig(space.getStorage().getId())
+      return LegacyHubWebClient.getSpace( spaceId )
+          .compose(space -> LegacyHubWebClient.getConnectorConfig(space.getStorage().getId())
               .compose(connector -> getClient(connector.id)
                   .compose(client -> {
                     try {
-                      SQLQuery copyQuery = buildCopySpaceQuery(client, job, connector, space.getVersionsToKeep() > 1);
-                      exportFutures.add(executeCopyQuery(client, copyQuery, job));
+                      boolean targetVersioningEnabled = space.getVersionsToKeep() > 1;
+
+                      SQLQuery copyQuery = buildCopySpaceQuery(client, job, connector, targetVersioningEnabled ),
+                               setNextVersionUpdateSql = buildCopySpaceNextVersionUpdate(client, job, connector );
+
+                      exportFutures.add(executeCopyQuery(client, copyQuery, setNextVersionUpdateSql, job));
                       return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
                     }
                     catch (SQLException e) {
                       return Future.failedFuture(e);
                     }
                   }))
-              .compose(statistics -> HubWebClient.updateSpaceConfig(new JsonObject().put("contentUpdatedAt", System.currentTimeMillis()), space.getId())
+              .compose(statistics -> LegacyHubWebClient.updateSpaceConfig(new JsonObject().put("contentUpdatedAt", System.currentTimeMillis()), space.getId())
                     .map(statistics))
           );
     }
 
     //Space-Copy End
 
+    private boolean isIncrementalExportNonComposite( CSVFormat csvFormat, String targetVersion, boolean compositeCalculation )
+    {
+      return
+         compositeCalculation == false
+      && csvFormat == PARTITIONED_JSON_WKB
+      && targetVersion != null
+      && (new Ref( targetVersion )).isRange();
+    }
+
     public Future<ExportStatistic> executeExport(Export job, String s3Bucket, String s3Path, String s3Region) {
+      logger.info("job[{}] Execute Export-legacy csvFormat({}) ParamCompositeMode({}) PartitionKey({})", job.getId(), job.getCsvFormat(), job.readParamCompositeMode(), job.getPartitionKey() ); 
+      
       return getClient(job.getTargetConnector())
           .compose(client -> {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
             try {
               String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
-              Export.SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
+              SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery;
 
               boolean compositeCalculation =   job.readParamCompositeMode() == Export.CompositeMode.CHANGES
@@ -255,9 +290,10 @@ public class JDBCExporter extends JdbcBasedHandler {
                                           );
 
               switch ( pseudoCsvFormat ) {
-                  case PARTITIONID_FC_B64:                      exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                              job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
-                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
+                  case PARTITIONID_FC_B64:
+                            exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                 job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
+                                 compositeCalculation , job.getPartitionKey(), job.getOmitOnNull(), false);
                       return calculateThreadCountForDownload(job, schema, exportQuery)
                               .compose(threads -> {
                                   try {
@@ -290,14 +326,17 @@ public class JDBCExporter extends JdbcBasedHandler {
 
                            exportQuery = generateFilteredExportQuery(client, schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                               job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
-                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
+                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull(), false);
                       /*
                       Is used for incremental exports (tiles) - here we have to export modified tiles.
                       Those tiles we need to calculate separately
                        */
-                      final SQLQuery qkQuery = compositeCalculation
+                      boolean isIncrementalExport =   job.isIncrementalMode() 
+                                                   || isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation) ;
+
+                      final SQLQuery qkQuery = ( compositeCalculation || isIncrementalExport )
                               ? generateFilteredExportQueryForCompositeTileCalculation(client, schema, job.getTargetSpaceId(),
-                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat())
+                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat(), isIncrementalExport)
                               : null;
 
                       return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
@@ -452,17 +491,24 @@ public class JDBCExporter extends JdbcBasedHandler {
                                               boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
 
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
-        s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
+        s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export";
         SQLQuery exportSelectString = generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
                 j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, isForCompositeContentDetection,
-                j.getPartitionKey(), j.getOmitOnNull());
+                j.getPartitionKey(), j.getOmitOnNull(), false);
+
+        String options = "'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' '";
+        if(j.getCsvFormat().equals(GEOJSON)){
+            options = " 'FORMAT TEXT, ENCODING ''UTF8'' '";
+            s3Path += ".geojson";
+        }else
+            s3Path += ".csv";
 
         SQLQuery q = new SQLQuery("SELECT * /* s3_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
                 " aws_commons.create_s3_uri(#{s3Bucket}, #{s3Path}, #{s3Region}),"+
-                " options := 'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' ' );"
+                " options := "+options+");"
         );
 
         q.setQueryFragment("exportSelectString", exportSelectString);
@@ -477,13 +523,13 @@ public class JDBCExporter extends JdbcBasedHandler {
         String s3Region, boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
         //Generic partition
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
 
         SQLQuery exportSelectString = generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
                 j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, isForCompositeContentDetection,
-                j.getPartitionKey(), j.getOmitOnNull());
+                j.getPartitionKey(), j.getOmitOnNull(), false);
 
         SQLQuery q = new SQLQuery("SELECT * /* vml_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
@@ -503,12 +549,21 @@ public class JDBCExporter extends JdbcBasedHandler {
         SQLQuery qkTileQry) throws SQLException {
         //Tiled export
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+        SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
 
+       /* incremental -> for tiled export the exportSelect should be crafted like query by "toVersion" query.*/
+        String targetVersion = j.getTargetVersion();
+        if (targetVersion != null)
+        { Ref ref = new Ref(targetVersion);
+          if( ref.isRange() )
+           targetVersion = "" + ref.getToVersion();
+        }
+       /* incremental */
+
         SQLQuery exportSelectString =  generateFilteredExportQuery(client, schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-            j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+            targetVersion, j.getParams(), j.getCsvFormat());
 
         /** QkTileQuery gets used if we are exporting in compositeMode. In this case we need to also include empty tiles to our export. */
         boolean includeEmpty = qkTileQry != null,
@@ -545,35 +600,31 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false);
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false, false);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, isForCompositeContentDetection, null, false);
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, isForCompositeContentDetection, null, false,false);
     }
 
 
     private SQLQuery generateFilteredExportQueryForCompositeTileCalculation(JdbcClient client, String schema, String spaceId, String propertyFilter,
-                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
-        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false);
+                                                        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isIncrementalExport) throws SQLException {
+        return generateFilteredExportQuery(client, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false, isIncrementalExport);
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, 
+        boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalExport
+        )
         throws SQLException {
 
-        csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
-        //TODO: Re-use existing QR rather than the following duplicated code
-        SQLQuery geoFragment;
+        if( isIncrementalExport ) // in this case, behave like "isForCompositeContentDetection" for tile calculations
+         isForCompositeContentDetection = true;
 
-        if (spatialFilter != null && spatialFilter.isClipped()) {
-            geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
-            geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
-            geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
-        } else
-            geoFragment = new SQLQuery("geo");
+        csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
 
         GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent();
         event.setSpace(spaceId);
@@ -604,7 +655,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         }
 
         if (targetVersion != null)
-            event.setRef(targetVersion);
+            event.setRef(new Ref(targetVersion));
 
         if (propertyFilter != null) {
             PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
@@ -626,52 +677,39 @@ public class JDBCExporter extends JdbcBasedHandler {
         if (isForCompositeContentDetection)
             event.setContext( (partitionByFeatureId || downloadAsJsonWkb) ? EXTENSION : COMPOSITE_EXTENSION);
 
-        SQLQuery sqlQuery,
-                 sqlQueryContentByPropertyValue = null;
+        SQLQuery contentQuery,
+                 contentQueryByPropertyValue = null;
 
-        try {
-          GetFeatures queryRunner;
+      try {
+        final ExportSpace queryRunner = (ExportSpace) getQueryRunner(client, spatialFilter, event);
 
-          if (spatialFilter == null)
-            queryRunner = new SearchForFeatures(event);
-          else
-            queryRunner = new GetFeaturesByGeometry(event);
+        if (customWhereCondition != null && (csvFormat != PARTITIONID_FC_B64 || partitionByFeatureId))
+          queryRunner.withCustomWhereClause(customWhereCondition);
 
-          queryRunner.setDataSourceProvider(client.getDataSourceProvider());
-          sqlQuery = queryRunner._buildQuery(event);
+        contentQuery = queryRunner
+              .withGeoOverride(buildGeoFragment(spatialFilter))
+              .buildQuery(event);
 
-          if( partitionByPropertyValue && isForCompositeContentDetection )
-          { event.setContext(ctxStashed);
-            sqlQueryContentByPropertyValue = queryRunner._buildQuery(event);
+          if (partitionByPropertyValue && isForCompositeContentDetection) {
+            event.setContext(ctxStashed);
+            contentQueryByPropertyValue = ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+                .withGeoOverride(buildGeoFragment(spatialFilter))
+                .buildQuery(event);
           }
-
         }
         catch (Exception e) {
           throw new SQLException(e);
         }
 
-        //Override geoFragment
-        sqlQuery.setQueryFragment("geo", geoFragment);
-        //Remove Limit
-        sqlQuery.setQueryFragment("limit", "");
-
-        if( sqlQueryContentByPropertyValue != null )
-        {
-         sqlQueryContentByPropertyValue.setQueryFragment("geo", geoFragment);
-         sqlQueryContentByPropertyValue.setQueryFragment("limit", "");
-        }
-
-        if (customWhereCondition != null && csvFormat != PARTITIONID_FC_B64 )
-            addCustomWhereClause(sqlQuery, customWhereCondition);
+        char cFlag = isForCompositeContentDetection ? 'C' : 'P'; // fix/prevent name clash for namedparameter during export
 
         switch (csvFormat) {
           case GEOJSON :
           {
             SQLQuery geoJson = new SQLQuery("select jsondata || jsonb_build_object('geometry', ST_AsGeoJSON(geo, 8)::jsonb) "
                 + "from (${{contentQuery}}) X")
-                .withQueryFragment("contentQuery", sqlQuery)
-                .substitute();
-            return queryToText(geoJson);
+                .withQueryFragment("contentQuery", contentQuery);
+            return queryToText(geoJson,"va" + cFlag );
           }
 
          case PARTITIONED_JSON_WKB :
@@ -702,22 +740,23 @@ public class JDBCExporter extends JdbcBasedHandler {
            {
               String converted = ApiParam.getConvertedKey(partitionKey);
               partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
-              partQry = String.format(
+              //TODO: Simplify / structure the following query blob
+              partQry =
                  " with  "
                 +" plist as  "
                 +" ( select o.* from "
                 +"   ( select ( dense_rank() over (order by key) )::integer as i, key  "
                 +"     from "
                 +"     ( select coalesce( key, '\"CSVNULL\"'::jsonb) as key "
-                +"       from ( select distinct jsondata->'%1$s' as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata->'%1$s' isnull " ) +" ) oo "
+                +"       from ( select distinct jsondata->'${{partitionKey}}' as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata->'${{partitionKey}}' isnull " ) +" ) oo "
                 +"     ) d1"
                 +"   ) o "
-                +"   where 1 = 1 " + ( customWhereCondition != null ? "${{customWhereClause}}" :"" )
+                +"   where 1 = 1 ${{customWhereCondition}}"
                 +" ), "
                 +" iidata as  "
-                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 20000000)::integer as chunk, r.jsondata, r.geo from ( ${{%2$s}} ) r right join plist l on ( coalesce( r.jsondata->'%1$s', '\"CSVNULL\"'::jsonb) = l.key )  "
+                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 20000000)::integer as chunk, r.jsondata, r.geo from (${{contentQueryReal}}) r right join plist l on ( coalesce( r.jsondata->'${{partitionKey}}', '\"CSVNULL\"'::jsonb) = l.key )  "
                 +" ), "
-                + ( csvFormat == PARTITIONID_FC_B64
+                + ( csvFormat == PARTITIONID_FC_B64 //TODO: Generalize / structure the following two fragments and re-use similar parts
                    ? " iiidata as  "
                     +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode(convert_to(('{\"type\":\"FeatureCollection\",\"features\":[' || coalesce( string_agg( (jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb))::text, ',' ), null::text ) || ']}'),'UTF8'),'base64') ,chr(10),'') as data "
                     +"   from iidata group by 1, chunk order by 1, 3 desc   "
@@ -728,53 +767,68 @@ public class JDBCExporter extends JdbcBasedHandler {
                     +"   from iidata "
                     +" )   "
                     +" select id, jsondata, geo from iiidata "
-                  ), partitionKey, sqlQueryContentByPropertyValue != null ? "contentQueryReal" : "contentQuery" );
+                  );
            }
 
-                SQLQuery geoJson = new SQLQuery(partQry)
-                        .withQueryFragment("customWhereCondition", "");
+          SQLQuery geoJson = new SQLQuery(partQry)
+              .withQueryFragment("partitionKey", partitionKey)
+              .withQueryFragment("contentQueryReal", contentQueryByPropertyValue != null ? contentQueryByPropertyValue : contentQuery)
+              .withQueryFragment("customWhereCondition", partitionByPropertyValue && customWhereCondition != null ? customWhereCondition : new SQLQuery(""))
+              .withQueryFragment("contentQuery", contentQuery);
 
-           if (  partitionByFeatureId && customWhereCondition != null )
-            addCustomWhereClause(sqlQuery, customWhereCondition);
-
-           if ( partitionByPropertyValue && customWhereCondition != null )
-             geoJson.withQueryFragment("customWhereClause", customWhereCondition);
-
-           geoJson.setQueryFragment("contentQuery", sqlQuery);
-
-           if( sqlQueryContentByPropertyValue != null )
-            geoJson.setQueryFragment("contentQueryReal", sqlQueryContentByPropertyValue);
-
-           geoJson.substitute();
-           return queryToText(geoJson);
+           return queryToText(geoJson,"vb" + cFlag);
          }
 
             default:
             {
-                sqlQuery
-                        .withQueryFragment("id", "")
-                        .substitute();
-                return queryToText(sqlQuery);
+              // JSON_WKB, DOWNLOAD
+              contentQuery = new SQLQuery("SELECT jsondata, geo FROM (${{innerContentQuery}}) contentQuery")
+                  .withQueryFragment("innerContentQuery", contentQuery);
+                return queryToText(contentQuery,"vc" + cFlag);
             }
         }
 
     }
 
-    private static void addCustomWhereClause(SQLQuery query, SQLQuery customWhereClause) {
-        SQLQuery filterWhereClause = query.getQueryFragment("filterWhereClause");
-        SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} ${{customWhereClause}}")
-            .withQueryFragment("innerFilterWhereClause", filterWhereClause)
-            .withQueryFragment("customWhereClause", customWhereClause);
-        query.setQueryFragment("filterWhereClause", customizedWhereClause);
+  private static SQLQuery buildGeoFragment(SpatialFilter spatialFilter) {
+    if (spatialFilter != null && spatialFilter.isClipped()) {
+     if( spatialFilter.getRadius() != 0 ) 
+      return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo")
+          .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()))
+          .withNamedParameter("radius", spatialFilter.getRadius());
+     else
+      return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometry} ),4326 )) as geo")
+          .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
     }
+    else
+        return new SQLQuery("geo");
+  }
 
-    /*
-    FIXME:
-     The following works only for very specific kind of queries, do not try to compile dynamic queries in software,
-     but inside SQL functions directly and pass the parameters as function-arguments instead
-     */
-    private static SQLQuery queryToText(SQLQuery q) {
-        String queryText = q.text()
+  private static SearchForFeatures getQueryRunner(JdbcClient client, SpatialFilter spatialFilter, GetFeaturesByGeometryEvent event)
+      throws SQLException, ErrorResponseException {
+    SearchForFeatures queryRunner;
+    if (spatialFilter == null)
+      queryRunner = new ExportSpaceByProperties(event);
+    else
+      queryRunner = new ExportSpaceByGeometry(event);
+
+    queryRunner.setDataSourceProvider(client.getDataSourceProvider());
+    return queryRunner;
+  }
+
+  /**
+   * @deprecated This method is deprecated, please do not use it for new implementations
+   * @param q
+   * @return
+   */
+    @Deprecated
+    private static SQLQuery queryToText(SQLQuery q,String prefixParamName) {
+        /*
+      FIXME:
+       The following works only for very specific kind of queries, do not try to compile dynamic queries in software,
+       but inside SQL functions directly and pass the parameters as function-arguments instead
+       */
+        String queryText = q.substitute().text()
             .replace("?", "%L")
             .replace("'","''");
 
@@ -782,7 +836,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         String formatArgs = "";
         Map<String, Object> newParams = new HashMap<>();
         for (Object paramValue : q.parameters()) {
-            String paramName = "var" + i++;
+            String paramName = prefixParamName + i++;
             formatArgs += ",(#{" + paramName + "}::" + getType(paramValue) + ")";
             newParams.put(paramName, paramValue);
         }
@@ -792,7 +846,12 @@ public class JDBCExporter extends JdbcBasedHandler {
       return sq;
     }
 
-    @Deprecated
+  /**
+   * @deprecated See above
+   * @param o
+   * @return
+   */
+  @Deprecated
     private static String getType(Object o) {
       if (o instanceof String)
         return "TEXT";

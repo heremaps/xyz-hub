@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,14 +22,14 @@ package com.here.xyz.hub.task;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.BBOX;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.ID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -37,6 +37,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -54,12 +55,10 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SelectiveEvent;
-import com.here.xyz.events.SelectiveEvent.Ref;
-import com.here.xyz.hub.AbstractHttpServerVerticle;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.auth.JWTPayload;
+import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.cache.CacheClient;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -67,12 +66,11 @@ import com.here.xyz.hub.connectors.models.Connector.ForwardParamsConfig;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.connectors.models.Space.ConnectorType;
+import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
 import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.Api.Context;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.ReadQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
@@ -89,7 +87,10 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space.Extension;
+import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
@@ -100,6 +101,9 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -273,8 +277,9 @@ public class FeatureTaskHandler {
               scheduleContentModifiedNotification(task);
             }
           });
-        }, task.space);
-        AbstractHttpServerVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
+        }, task.space, task.getRequesterId());
+
+        XYZHubRESTVerticle.addStreamInfo(task.context, "SReqSize", responseContext.rpcContext.getRequestSize());
         task.addCancellingHandler(unused -> responseContext.rpcContext.cancelRequest());
       }
       catch (IllegalStateException e) {
@@ -330,9 +335,9 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void addConnectorPerformanceInfo(T task, long storageTime, RpcContext rpcContext, String eventPrefix) {
-    AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "Time", storageTime);
+    XYZHubRESTVerticle.addStreamInfo(task.context, eventPrefix + "Time", storageTime);
     if (rpcContext != null)
-      AbstractHttpServerVerticle.addStreamInfo(task.context, eventPrefix + "ResSize", rpcContext.getResponseSize());
+      XYZHubRESTVerticle.addStreamInfo(task.context, eventPrefix + "ResSize", rpcContext.getResponseSize());
   }
 
   private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, long processorTime, RpcContext rpcContext, int processorNo) {
@@ -383,7 +388,7 @@ public class FeatureTaskHandler {
         .onSuccess(cacheResult -> {
           if (cacheResult == null) {
             //Cache MISS: Just go on in the task pipeline
-            AbstractHttpServerVerticle.addStreamInfo(task.context, "CH",0);
+            XYZHubRESTVerticle.addStreamInfo(task.context, "CH",0);
             logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
           }
           else {
@@ -392,9 +397,9 @@ public class FeatureTaskHandler {
               task.setResponse(transformCacheValue(cacheResult));
               task.setCacheHit(true);
               //Add "Cache-Hit" stream-info
-              AbstractHttpServerVerticle.addStreamInfo(task.context, "CH", 1);
+              XYZHubRESTVerticle.addStreamInfo(task.context, "CH", 1);
               //Add "Cache-Type" stream-info (static / volatile)
-              AbstractHttpServerVerticle.addStreamInfo(task.context, "CT", cacheClient == Service.staticCacheClient ? "S" : "V");
+              XYZHubRESTVerticle.addStreamInfo(task.context, "CT", cacheClient == Service.staticCacheClient ? "S" : "V");
               logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
             }
             catch (JsonProcessingException e) {
@@ -403,7 +408,7 @@ public class FeatureTaskHandler {
               logger.info(task.getMarker(), "Cache MISS (as of JSON parse exception) for cache key {} {}", cacheKey, e);
             }
           }
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
+          XYZHubRESTVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
           callback.call(task);
         })
         .onFailure(t -> {
@@ -568,7 +573,7 @@ public class FeatureTaskHandler {
       long interval, boolean adminNotification) {
     if (!timerMap.containsKey(nc.space.getId())) {
       //Schedule a new notification
-      long timerId = Service.vertx.setTimer(interval, tId -> {
+      long timerId = Core.vertx.setTimer(interval, tId -> {
         timerMap.remove(nc.space.getId());
         ContentModifiedNotification cmn = new ContentModifiedNotification().withSpace(nc.space.getId());
         Long spaceVersion = latestSeenContentVersions.get(nc.space.getId());
@@ -585,7 +590,7 @@ public class FeatureTaskHandler {
       //Check whether some other thread also just scheduled a new timer
       if (timerMap.putIfAbsent(nc.space.getId(), timerId) != null)
         //Another thread scheduled a new timer in the meantime. Cancelling this one ...
-        Service.vertx.cancelTimer(timerId);
+        Core.vertx.cancelTimer(timerId);
     }
   }
 
@@ -764,14 +769,36 @@ public class FeatureTaskHandler {
     return f;
   }
 
-  public static <T extends FeatureTask> void checkSpaceIsActive(T task, Callback<T> callback) {
-    if (!task.space.isActive()) {
-      callback.exception(new HttpException(METHOD_NOT_ALLOWED,
-          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is not active."));
+  static <X extends FeatureTask> void resolveVersionRef(final X task, final Callback<X> callback) {
+    if (!(task.getEvent() instanceof SelectiveEvent event)) {
+      callback.call(task);
       return;
     }
 
-    callback.call(task);
+    if (event.getRef() == null || !event.getRef().isTag()) {
+      callback.call(task);
+      return;
+    }
+
+    TagConfigClient.getInstance().getTag(task.getMarker(), event.getRef().getTag(), task.space.getId())
+        .compose(tag -> {
+          if (tag == null) {
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Version ref not found: " + event.getRef().getTag()));
+          }
+
+          try {
+            event.setRef(new Ref(tag.getVersion()));
+          } catch (InvalidRef e) {
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid version ref: " + event.getRef().getTag()));
+          }
+
+          return Future.succeededFuture(tag);
+        })
+        .onSuccess(tag -> callback.call(task))
+        .onFailure(t -> {
+          logger.error(task.getMarker(), "Error while resolving version ref.", t);
+          callback.exception(t instanceof HttpException ? t : new HttpException(INTERNAL_SERVER_ERROR, "Error while resolving version ref.", t));
+        });
   }
 
   private static class RpcContextHolder {
@@ -797,13 +824,13 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask> void resolveSpace(final X task, final Callback<X> callback) {
     try {
       resolveSpace(task)
-          .compose(space -> Future.all(
-              resolveStorageConnector(task),
-              resolveListenersAndProcessors(task),
-              resolveExtendedSpaces(task, space)
-          ))
-          .onFailure(callback::exception)
-          .onSuccess(connector -> callback.call(task));
+        .compose(space -> Future.all(
+            resolveStorageConnector(task),
+            resolveListenersAndProcessors(task),
+            resolveExtendedSpaces(task, space)
+        ))
+        .onFailure(callback::exception)
+        .onSuccess(connector -> callback.call(task));
     }
     catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
@@ -813,47 +840,60 @@ public class FeatureTaskHandler {
   private static <X extends FeatureTask> Future<Space> resolveSpace(final X task) {
     try {
       //FIXME: Can be removed once the Space events are handled by the SpaceTaskHandler (refactoring pending ...)
-      if (task.space != null) //If the space is already given we don't need to retrieve it
+      if (task.space != null) { //If the space is already given we don't need to retrieve it
         return Future.succeededFuture(task.space);
+      }
 
       //Load the space definition.
       return Space.resolveSpace(task.getMarker(), task.getEvent().getSpace())
-          .compose(
-              space -> {
-                if (space != null) {
-                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER == ((ContextAwareEvent<?>) task.getEvent()).getContext())
-                    return switchToSuperSpace(task, space);
-                  task.space = space;
-                  //Inject the extension-map
-                  return space.resolveCompositeParams(task.getMarker()).compose(resolvedExtensions -> {
-                    Map<String, Object> storageParams = new HashMap<>();
-                    if (space.getStorage().getParams() != null)
-                      storageParams.putAll(space.getStorage().getParams());
-                    storageParams.putAll(resolvedExtensions);
+          .compose(space -> {
+            if (space == null) {
+              return Future.succeededFuture();
+            }
 
-                    task.getEvent().setParams(storageParams);
+            if (!(task instanceof FeatureTask.ModifySpaceQuery) && !space.isActive()) {
+              return Future.failedFuture(new HttpException(PRECONDITION_REQUIRED,
+                  "The method is not allowed, because the resource \"" + space.getId() + "\" is not active."));
+            }
 
-                    //Inject the minVersion from the space config
-                    if (task.getEvent() instanceof SelectiveEvent)
-                      ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+            if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent
+                && SUPER == ((ContextAwareEvent<?>) task.getEvent()).getContext()) {
+              return switchToSuperSpace(task, space);
+            }
 
-                    //Inject the versionsToKeep from the space config
-                    if (task.getEvent() instanceof ContextAwareEvent)
-                      ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+            task.space = space;
 
-                    return Future.succeededFuture(space);
-                  });
-                }
-                else
-                  return Future.succeededFuture();
-              },
-              t -> {
-                logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
-                return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
-              }
-          );
-    }
-    catch (Exception e) {
+            //Inject the extension-map
+            return space.resolveCompositeParams(task.getMarker())
+                .compose(resolvedExtensions -> {
+                  Map<String, Object> storageParams = new HashMap<>();
+                  if (space.getStorage().getParams() != null) {
+                    storageParams.putAll(space.getStorage().getParams());
+                  }
+                  storageParams.putAll(resolvedExtensions);
+
+                  task.getEvent().setParams(storageParams);
+
+                  //Inject the minVersion from the space config
+                  if (task.getEvent() instanceof SelectiveEvent) {
+                    ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+                  }
+
+                  //Inject the versionsToKeep from the space config
+                  if (task.getEvent() instanceof ContextAwareEvent) {
+                    ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+                  }
+
+                  return Future.succeededFuture(space);
+                });
+          }, t -> {
+            if (t instanceof HttpException || t instanceof InvalidExtensionException)
+              return Future.failedFuture(t);
+
+            logger.warn(task.getMarker(), "Unable to load the space definition for space '{}' {}", task.getEvent().getSpace(), t);
+            return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition", t));
+          });
+    } catch (Exception e) {
       return Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }
@@ -906,7 +946,7 @@ public class FeatureTaskHandler {
     logger.debug(task.getMarker(), "Given space configuration is: {}", task.space);
 
     final String storageId = task.space.getStorage().getId();
-    AbstractHttpServerVerticle.addStreamInfo(task.context, "SID", storageId);
+    XYZHubRESTVerticle.addStreamInfo(task.context, "SID", storageId);
     return Space.resolveConnector(task.getMarker(), storageId)
         .compose(
             connector -> {
@@ -1019,7 +1059,7 @@ public class FeatureTaskHandler {
       //When ZGC is in use, only throttle requests if the service memory filled up over the specified service memory threshold
       if (Service.IS_USING_ZGC) {
         if (usedMemoryPercent > Service.configuration.SERVICE_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
+          XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node.");
         }
       }
@@ -1035,7 +1075,7 @@ public class FeatureTaskHandler {
 
         RpcClient rpcClient = getRpcClient(storage);
         if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE) {
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
+          XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
           throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
         }
       }
@@ -1086,7 +1126,7 @@ public class FeatureTaskHandler {
    * Parses the body of the request as a FeatureCollection, Feature or a FeatureModificationList object and returns the features as a list.
    */
   private static List<Map<String, Object>> getObjectsAsList(final RoutingContext context) throws HttpException {
-    final Marker logMarker = Context.getMarker(context);
+    final Marker logMarker = LogUtil.getMarker(context);
     try {
       JsonObject json = context.body().asJsonObject();
       return getJsonObjects(json, context);
@@ -1136,7 +1176,7 @@ public class FeatureTaskHandler {
       }
     }
     catch (Exception e) {
-      logger.info(Context.getMarker(context), "Error in the provided content", e);
+      logger.info(LogUtil.getMarker(context), "Error in the provided content", e);
       throw new HttpException(BAD_REQUEST, "Cannot read input JSON string.");
     }
   }
@@ -1262,8 +1302,8 @@ public class FeatureTaskHandler {
         if( task.hasNonModified ){
           task.modifyOp.entries.stream().filter(e -> !e.isModified).forEach(e -> {
             try {
-              if(e.result != null)
-                fc.getFeatures().add(e.result);
+              if(e.base != null)
+                fc.getFeatures().add(e.base);
             } catch (JsonProcessingException ignored) {}
           });
         }
@@ -1427,7 +1467,7 @@ public class FeatureTaskHandler {
               return;
             }
             handler.handle(Future.succeededFuture(count));
-          }, task.space);
+          }, task.space, task.getRequesterId());
     }
     catch (Exception e) {
       handler.handle(Future.failedFuture((e)));
@@ -1470,14 +1510,14 @@ public class FeatureTaskHandler {
   }
 
   public static <X extends FeatureTask<?, X>> void checkImmutability(X task, Callback<X> callback) {
-    if (task.getEvent() instanceof SelectiveEvent) {
-      Ref ref = new Ref(((SelectiveEvent<?>) task.getEvent()).getRef());
+    if (task.getEvent() instanceof SelectiveEvent selectiveEvent) {
+      Ref ref = selectiveEvent.getRef();
       if (ref.isSingleVersion()) {
         if (!ref.isHead())
-          //If the ref is a single specified version which is not HEAD, the response is immutable
+          //If the ref is a single specified version that is not HEAD, the response is immutable
           task.readOnlyAccess = true;
         else if (task.space.isReadOnly() && task.space.getReadOnlyHeadVersion() > -1) {
-          ((SelectiveEvent) task.getEvent()).setRef(String.valueOf(task.space.getReadOnlyHeadVersion()));
+          selectiveEvent.setRef(new Ref(task.space.getReadOnlyHeadVersion()));
           task.readOnlyAccess = true;
         }
       }
@@ -1644,7 +1684,7 @@ public class FeatureTaskHandler {
         if (task.getState().isFinal()) return;
         addConnectorPerformanceInfo(task, Core.currentTimeMillis() - storageRequestStart, responseContext.rpcContext, "LF");
         processLoadEvent(task, callback, r);
-      }, task.space);
+      }, task.space, task.getRequesterId());
     }
     catch (Exception e) {
       logger.warn(task.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
@@ -1833,25 +1873,6 @@ public class FeatureTaskHandler {
       queryParams = task.context.request().params();
       if (keepTask)
         this.task = task;
-    }
-  }
-
-  static <X extends FeatureTask> void validateReadFeaturesParams(final X task, final Callback<X> callback) {
-    if (task.getEvent() instanceof SelectiveEvent) {
-      String ref = ((SelectiveEvent) task.getEvent()).getRef();
-      if (ref != null && !isVersionValid(ref))
-        callback.exception(new HttpException(BAD_REQUEST, "Invalid value for version: " + ref));
-    }
-
-    callback.call(task);
-  }
-
-  private static boolean isVersionValid(String version) {
-    try {
-      return "*".equals(version) || Integer.parseInt(version) >= 0;
-    }
-    catch (NumberFormatException e) {
-      return false;
     }
   }
 }

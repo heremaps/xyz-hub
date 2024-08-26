@@ -1,13 +1,14 @@
 package com.here.xyz.httpconnector;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.here.xyz.util.service.BaseConfig;
 import java.util.List;
 
 /**
  * The http-connector configuration.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Config {
+public class Config extends BaseConfig {
 
   /**
    * The arn of the secret (in Secret Manager) that contains bot credentials.

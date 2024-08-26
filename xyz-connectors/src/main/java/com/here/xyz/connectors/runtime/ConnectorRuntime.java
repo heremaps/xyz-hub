@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,15 @@ public abstract class ConnectorRuntime {
    */
   @Deprecated
   public abstract boolean isRunningLocally();
+
+  /**
+   * Provides the software version of the connector.
+   * A return value of <code>null</code> means "latest".
+   * @return The software version of the running connector
+   */
+  public String getSoftwareVersion() {
+    return null;
+  }
 
   public abstract String getStreamId();
 

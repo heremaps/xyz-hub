@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import java.net.URL;
@@ -68,7 +70,7 @@ public class JobApiExportIT extends JobApiIT {
             "foo_polygon"
         );
 
-        downloadAndCheck(urls, 5665, 11, mustContain);
+        downloadAndCheck(urls, 5060, 11, mustContain);
     }
 
     /**
@@ -78,12 +80,12 @@ public class JobApiExportIT extends JobApiIT {
      * */
     @Test
     public void testFilteredWKBExportWithSpatialFilterClipped() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
 
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
@@ -94,17 +96,17 @@ public class JobApiExportIT extends JobApiIT {
             "01030000A0E61000000100000021000000DA81E05D2D7E21404E355FE7F70B49400000000000000000DE78CF5FF67B2140D4078B84C70A494000000000000000007F932C6359782140671DB2C2AE094940000000000000000058FB14157A73214019160768B8084940000000000000000093A77370886D21405E1C90E7ED0749400000000000000000C6A82FE4BE6621400654E3045707494000000000000000000415FE15605F2140A53D7888F906494000000000000000008B4C9B57B457214055905B07D90649400000000000000000DD61AFE6065021400D6A58C0F6064940000000000000000048B14F11A34821409417DE8F5107494000000000000000005360E959D141214006CD13FBE507494000000000000000002CBA64B5D43B2140D53CB251AE0849400000000000000000513B80FDE7362140F1D664E5A209494000000000000000007591BCAF3B332140B75FA854BA0A49400000000000000000CDA0BB0EF4302140BB2F61E6E90B49400000000000000000A718B2B8273021402E50BFF2250D494000000000000000000E6B89C1DE3021402B058055620E49400000000000000000FB77A35A1233214044E038E5920F494000000000000000000C98F80CAD362140990F1DEBAB1049400000000000000000B81DAE848B3B2140A3089E96A211494000000000000000008C8A7CE77D412140E42A67686D1249400000000000000000BA1D89A94948214051F18090041349400000000000000000682AFCCEAB4F2140F011E23B62134940000000000000000019C8E4835B572140F29357CE821349400000000000000000590827F00C5F2140C5447206651349400000000000000000020F7E2A7466214009DE070A0A134940000000000000000016D4312C486D2140E6D7C65A751249400000000000000000DFBF17A745732140407152B3AC11494000000000000000002B55CEA03178214034B34DCEB71049400000000000000000A010C9B8DB7B2140EA379D19A00F494000000000000000008FD98802207E21407169EE58700E4940000000000000000054590D62E87E21406979373B340D49400000000000000000DA81E05D2D7E21404E355FE7F70B49400000000000000000"
         );
 
-        downloadAndCheck(urls, 4182, 5, mustContain);
+        downloadAndCheck(urls, 3907, 5, mustContain);
     }
 
     @Test
     public void testFilteredWKBExportWithSpatialFilterUnclipped() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
 
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
@@ -115,14 +117,14 @@ public class JobApiExportIT extends JobApiIT {
             "01020000A0E610000004000000901FE0FF7D70214087A4164A260B4940000000000000000041237DFF8B4421402A7288B8390549400000000000000000407E80FFF70521400264E8D8410749400000000000000000F60E12FD3504214019A9F7544E0349400000000000000000"
         );
 
-        downloadAndCheck(urls, 2742, 5, mustContain);
+        downloadAndCheck(urls, 2467, 5, mustContain);
     }
 
     @Test
     public void testFilteredWKBExportWithPropFilter() throws Exception {
         String propertyFilter = "p.description=Point";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withPropertyFilter(propertyFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
 
@@ -134,18 +136,18 @@ public class JobApiExportIT extends JobApiIT {
             "01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000"
         );
 
-        downloadAndCheck(urls, 1055, 3, mustContain);
+        downloadAndCheck(urls, 890, 3, mustContain);
     }
 
     @Test
     public void testFilteredWKBExportWithPropAndSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
         String propertyFilter = "p.description=Point";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
@@ -158,7 +160,7 @@ public class JobApiExportIT extends JobApiIT {
             "01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000"
         );
 
-        downloadAndCheck(urls, 383, 1, mustContain);
+        downloadAndCheck(urls, 328, 1, mustContain);
     }
 
     /**
@@ -180,7 +182,7 @@ public class JobApiExportIT extends JobApiIT {
             "Polygon with hole"
         );
 
-        downloadAndCheck(urls, 4964, 11, mustContain);
+        downloadAndCheck(urls, 3973, 11, mustContain);
     }
 
     /**
@@ -205,7 +207,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 121217, 263, mustContain);
+        downloadAndCheck(urls, 96744, 263, mustContain);
     }
 
     /**
@@ -227,7 +229,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 4964, 11, mustContain);
+        downloadAndCheck(urls, 3973, 11, mustContain);
     }
 
     /**
@@ -247,16 +249,16 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 1 (Edit of Base);
-        downloadAndCheck(urls, 116712, 253, mustContain);
+        downloadAndCheck(urls, 93141, 253, mustContain);
     }
 
     @Test
     public void testFilteredGEOJSONCompositeL1ExportWithSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
 
         Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), finalized, failed);
@@ -267,18 +269,18 @@ public class JobApiExportIT extends JobApiIT {
             "foo_new" //Got overridden in composite space
         );
 
-        downloadAndCheck(urls, 13692, 30, mustContain);
+        downloadAndCheck(urls, 10916, 30, mustContain);
     }
 
     @Test
     public void testFilteredGEOJSONCompositeL1ExportWithPropAndSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
         String propertyFilter = "p.foo_new=test";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
@@ -286,21 +288,20 @@ public class JobApiExportIT extends JobApiIT {
         List<URL> urls= performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList(
-            getScopedSpaceId(testSpaceId2Ext, scope),
             "foo_new" //Got overridden in composite space
         );
 
-        downloadAndCheck(urls, 374, 1, mustContain);
+        downloadAndCheck(urls, 277, 1, mustContain);
     }
 
     @Test
     public void testFilteredGEOJSONCompositeL2WithPropAndSpatialFilter() throws Exception {
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter);
 
         /** Create job */
@@ -314,7 +315,7 @@ public class JobApiExportIT extends JobApiIT {
             "2LPoint"  //Got added in composite space L2
         );
 
-        downloadAndCheck(urls, 14020, 31, mustContain);
+        downloadAndCheck(urls, 11149, 31, mustContain);
     }
 
     @Test
@@ -334,7 +335,7 @@ public class JobApiExportIT extends JobApiIT {
             "2LPoint"  //Got added in composite space L2
         );
         // 252 + 11 + 1 = 264
-        downloadAndCheck(urls, 121545, 264, mustContain);
+        downloadAndCheck(urls, 96977, 264, mustContain);
     }
 
     @Test
@@ -353,7 +354,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 121217, 263, mustContain);
+        downloadAndCheck(urls, 96744, 263, mustContain);
     }
 
     /**
@@ -377,7 +378,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("360", "eyJ0eXBlIjogIkZl");
 
         /** Expect 10 features instead of 11 because feature without geometry is not included in result */
-        downloadAndCheckFC(urls, 5725, 10, mustContain, 1);
+        downloadAndCheckFC(urls, 5073, 10, mustContain, 1);
     }
 
     /**
@@ -401,7 +402,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("23600780", "23600794", "W9uIiwgImZlYXR1cmV");
 
         /** Expect 39 features because the geometry of some features is intersecting multiple tiles */
-        downloadAndCheckFC(urls, 25638, 39, mustContain, 17);
+        downloadAndCheckFC(urls, 23098, 39, mustContain, 17);
     }
 
     /**
@@ -419,18 +420,18 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2+":dummy");
 
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwg");
 
-        downloadAndCheckFC(urls, 4177, 5, mustContain, 1);
+        downloadAndCheckFC(urls, 3853, 5, mustContain, 1);
     }
 
     @Test
@@ -442,18 +443,18 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2+":dummy");
 
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
 
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "VzIjpbeyJpZC");
 
-        downloadAndCheckFC(urls, 2949, 5, mustContain, 1);
+        downloadAndCheckFC(urls, 2621, 5, mustContain, 1);
     }
 
     @Test
@@ -465,15 +466,15 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2+":dummy");
 
         String propertyFilter = "p.description=Point";
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withPropertyFilter(propertyFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
-        List<String> mustContain = Arrays.asList("360", "Onh5eiI6IHsidGFncyI6IF");
+        List<String> mustContain = Arrays.asList("360");
 
-        downloadAndCheckFC(urls, 1357, 3, mustContain, 1);
+        downloadAndCheckFC(urls, 1161, 3, mustContain, 1);
     }
 
     @Test
@@ -484,13 +485,13 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(false)
                 .withRadius(5500);
         String propertyFilter = "p.description=Point";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
@@ -499,7 +500,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("360", "aW9uIiwgImZlYXR");
 
-        downloadAndCheckFC(urls, 533, 1, mustContain, 1 );
+        downloadAndCheckFC(urls, 465, 1, mustContain, 1 );
     }
 
     /**
@@ -522,7 +523,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("280", "306", "IkZlYXR1cmU");
 
         // 252 + 10 (-feature w/o geometry) = 262mh o
-        downloadAndCheckFC(urls, 145485, 262, mustContain, 37);
+        downloadAndCheckFC(urls, 131057, 262, mustContain, 37);
     }
 
     @Test
@@ -540,7 +541,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("374", "352", "HVyZSIsICJnZW9", "374");
 
         // 252 + 10 (-feature w/o geometry) + 1 = 263
-        downloadAndCheckFC(urls, 145873, 263, mustContain, 37);
+        downloadAndCheckFC(urls, 131369, 263, mustContain, 37);
     }
 
     @Test
@@ -551,18 +552,18 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2Ext+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
-        Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
+        Filters filters = new Filters().withSpatialFilter(spatialFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext,scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "RyeSI6IHsidHlwZSI6I");
 
-        downloadAndCheckFC(urls, 16369, 30, mustContain, 1 );
+        downloadAndCheckFC(urls, 14617, 30, mustContain, 1 );
     }
 
     @Test
@@ -573,13 +574,13 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2Ext+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
         String propertyFilter = "p.foo_new=test";
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
@@ -588,7 +589,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("360", "ZXMiOiBbOC42MTk5NjE1");
 
-        downloadAndCheckFC(urls, 505, 1, mustContain, 1);
+        downloadAndCheckFC(urls, 433, 1, mustContain, 1);
     }
 
     @Test
@@ -599,12 +600,12 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(getScopedSpaceId(testSpaceId2ExtExt, scope)+":dummy");
 
-        Export.SpatialFilter spatialFilter = new Export.SpatialFilter()
+        SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(8.6709594, 50.102964)))
                 .withClipped(true)
                 .withRadius(550000);
 
-        Export.Filters filters = new Export.Filters()
+        Filters filters = new Filters()
                 .withSpatialFilter(spatialFilter);
 
         /** Create job */
@@ -616,7 +617,7 @@ public class JobApiExportIT extends JobApiIT {
             "2ludCIsICJjb29yZGluYXRlcyI6IFs4LjQ4M"
         );
 
-        downloadAndCheckFC(urls, 16757, 31, mustContain, 1);
+        downloadAndCheckFC(urls, 14929, 31, mustContain, 1);
     }
 
     /**
@@ -637,7 +638,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("Q3107495", "Q2907951", "foo_polygon", "IkZlYXR1cmV");
 
-        downloadAndCheckFC(urls, 161813, 263, mustContain, 263);
+        downloadAndCheckFC(urls, 147345, 263, mustContain, 263);
     }
 
     @Test
@@ -653,7 +654,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("deltaonly","movedFromEmpty","shouldBeEmpty","deletedInDelta");
 
-        downloadAndCheckFC(urls, 946, 2, mustContain, 4);
+        downloadAndCheckFC(urls, 802, 2, mustContain, 4);
     }
 
     @Test
@@ -668,12 +669,12 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
 
-        List<String> mustContain = Arrays.asList("23600771","23600774","23600775", "fX19XX0","fX1dfQ");
+        List<String> mustContain = Arrays.asList("23600771","23600774","23600775", "xsZWN0aW9u","xsZWN0aW");
 
-        downloadAndCheckFC(urls, 1306, 3, mustContain, 3);
+        downloadAndCheckFC(urls, 1098, 3, mustContain, 3);
     }
 
     @Test
@@ -687,7 +688,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000", "id002", "id003", "movedFromEmpty", "deltaonly", "'\"deleted'\": true");
 
-        downloadAndCheck(urls, 758, 3, mustContain);
+        downloadAndCheck(urls, 640, 3, mustContain);
     }
 
     @Test
@@ -702,12 +703,12 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile);
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3, scope), finalized, failed,  Export.CompositeMode.DEACTIVATED );
 
         List<String> mustContain = Arrays.asList("23600771,","23600774,", "baseonly","shouldBeEmpty");
 
-        downloadAndCheck(urls, 968, 3, mustContain);
+        downloadAndCheck(urls, 803, 3, mustContain);
     }
 
     @Test
@@ -722,12 +723,12 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile);
-        
+
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
 
         List<String> mustContain = Arrays.asList("23600771,,","23600774","23600775", "deltaonly","baseonly","movedFromEmpty");
 
-        downloadAndCheck(urls, 983, 3, mustContain);
+        downloadAndCheck(urls, 810, 3, mustContain);
     }
 
     @Test
@@ -745,7 +746,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000,","id001,","id003,", "baseonly","shouldBeEmpty","deletedInDelta");
 
-        downloadAndCheck(urls, 959, 3, mustContain);
+        downloadAndCheck(urls, 794, 3, mustContain);
     }
 
     @Test
@@ -763,7 +764,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000,","id002,","id003,,", "deltaonly","movedFromEmpty");
 
-        downloadAndCheck(urls, 655, 2, mustContain);
+        downloadAndCheck(urls, 537, 2, mustContain);
     }
 
     @Test
@@ -781,7 +782,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("baseonly,","deletedInDelta,","shouldBeEmpty,","id001","id003","id000", "D214074F04C68920", "B5138214074F04C6892");
 
-        downloadAndCheck(urls, 979, 3, mustContain);
+        downloadAndCheck(urls, 814, 3, mustContain);
     }
 
     @Test
@@ -799,7 +800,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("deletedInDelta,,","deltaonly,","movedFromEmpty,", "deltaonly","shouldBeEmpty,,");
 
-        downloadAndCheck(urls, 693, 2, mustContain);
+        downloadAndCheck(urls, 575, 2, mustContain);
     }
 
 

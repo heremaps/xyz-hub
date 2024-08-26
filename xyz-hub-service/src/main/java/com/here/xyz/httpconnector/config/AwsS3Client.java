@@ -20,7 +20,6 @@
 package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.HttpMethod;
-import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -31,18 +30,21 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.net.URL;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
  * A client for reading and writing from and to S3
  */
 public class AwsS3Client {
+    private static final Logger logger = LogManager.getLogger();
     protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
-    protected static AWSCredentialsProvider customCredentialsProvider;
 
     protected final AmazonS3 client;
 
@@ -62,7 +64,8 @@ public class AwsS3Client {
 
         if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
             synchronized (AwsS3Client.class) {
-                builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOB_BOT_SECRET_ARN));
+                builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOBS_REGION,
+                    CService.configuration.LOCALSTACK_ENDPOINT, CService.configuration.JOB_BOT_SECRET_ARN));
             }
         }
         client = builder.build();
@@ -85,7 +88,7 @@ public class AwsS3Client {
         return client.generatePresignedUrl(generatePresignedUrlRequest);
     }
 
-    void deleteS3Folder(String bucketName, String folderPath) {
+    public void deleteS3Folder(String bucketName, String folderPath) {
         for (S3ObjectSummary file : client.listObjects(bucketName, folderPath).getObjectSummaries()){
             client.deleteObject(bucketName, file.getKey());
         }
@@ -100,6 +103,8 @@ public class AwsS3Client {
     }
 
     public List<S3ObjectSummary> scanFolder(String bucketName, String folderPath) {
+        logger.info("Scanning folder for bucket {} and path {} ...", bucketName, folderPath);
+
         ListObjectsRequest listObjects = new ListObjectsRequest()
             .withPrefix(folderPath)
             .withBucketName(bucketName);

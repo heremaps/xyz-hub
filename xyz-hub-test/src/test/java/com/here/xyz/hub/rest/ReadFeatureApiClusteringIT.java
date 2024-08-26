@@ -19,11 +19,14 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -87,7 +90,7 @@ public class ReadFeatureApiClusteringIT extends TestSpaceWithFeature {
             body("features.properties.count.sum()", equalTo(30000));
   }
 
-  //@ Test  - disabled test because req will now return correct http 400, bad request, due to missing searchable properties. 
+  //@ Test  - disabled test because req will now return correct http 400, bad request, due to missing searchable properties.
   public void readByBoundingBoxWithQuadbinClusteringAndPropertySearch() {
     given().
             accept(APPLICATION_GEO_JSON).
@@ -162,6 +165,34 @@ public class ReadFeatureApiClusteringIT extends TestSpaceWithFeature {
             then().
             statusCode(OK.code()).
             body("features.size()", equalTo(30000));
+  }
+
+  @Test
+  public void readByTileWithVizSamplingLowAsMvt() {
+    byte[] mvt =
+    given().
+            accept(APPLICATION_VND_MAPBOX_VECTOR_TILE).
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get(getSpacesPath() + "/" + SPACE_ID + "/tile/web/5_17_10?skipCache=true&mode=viz&vizSampling=low").
+            then().
+            statusCode(OK.code()).extract().asByteArray();
+            
+   assertThat(mvt.length, is(1093529));
+  }
+
+  @Test
+  public void readByTileWithVizSamplingLowAsMvtFlat() {
+    byte[] mvt =
+    given().
+            accept("application/octet-stream").
+            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
+            when().
+            get(getSpacesPath() + "/" + SPACE_ID + "/tile/web/5_17_10.mvtf?skipCache=true&mode=viz&vizSampling=low").
+            then().
+            statusCode(OK.code()).extract().asByteArray();
+            
+   assertThat(mvt.length, is(1093540));
   }
 
   @Test

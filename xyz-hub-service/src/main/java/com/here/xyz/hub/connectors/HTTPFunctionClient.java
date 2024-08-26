@@ -22,7 +22,7 @@ package com.here.xyz.hub.connectors;
 import static com.google.common.net.HttpHeaders.ACCEPT_ENCODING;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -32,7 +32,8 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -58,7 +59,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
   private volatile String url;
   private int requestTimeout;
 
-  private static HttpClient httpClient = Service.vertx.createHttpClient(
+  private static HttpClient httpClient = Core.vertx.createHttpClient(
       new HttpClientOptions()
         .setMaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)
         .setHttp2MaxPoolSize(Service.configuration.MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS)

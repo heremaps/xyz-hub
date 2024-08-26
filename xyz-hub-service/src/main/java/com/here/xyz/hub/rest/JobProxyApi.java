@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,14 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.SerializationView;
 import com.here.xyz.httpconnector.rest.HApiParam;
-import com.here.xyz.httpconnector.util.jobs.Import;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
+import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -63,7 +66,7 @@ public class JobProxyApi extends Api{
             Job job = HApiParam.HQuery.getJobInput(context);
           Authorization.authorizeManageSpacesRights(context, spaceId)
                     .onSuccess(auth -> {
-                        Service.spaceConfigClient.get(Api.Context.getMarker(context), spaceId)
+                        Service.spaceConfigClient.get(LogUtil.getMarker(context), spaceId)
                                 .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Error fetching space!", t)))
                                 .compose(headSpace -> {
                                     if (headSpace == null)
@@ -71,8 +74,8 @@ public class JobProxyApi extends Api{
                                     if (!headSpace.isActive())
                                         return Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED,
                                             "The method is not allowed, because the resource \"" + spaceId + "\" is not active."));
-                                    if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
-                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
+                                    //if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
+                                    //    return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
 
                                     job.setTargetSpaceId(spaceId);
                                     return Future.succeededFuture(headSpace);
@@ -136,14 +139,17 @@ public class JobProxyApi extends Api{
     private void getJob(final RoutingContext context) {
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
+        boolean bExportObjects = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.EXPORT_OBJECTS, false);
+        String paramExportObjects = bExportObjects ? "?" + HApiParam.HQuery.EXPORT_OBJECTS + "=true" : "";
+
 
       Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
-                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId)
+                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId + paramExportObjects )
                             .timeout(JOB_API_TIMEOUT)
                             .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                             .send()
-                            .onSuccess(res -> jobAPIResultHandler(context,res,spaceId))
+                            .onSuccess(res -> { if( !bExportObjects ) jobAPIResultHandler(context,res,spaceId); else _jobAPIResultHandler(context,res,spaceId); }) 
                             .onFailure(f -> this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Job-Api not ready!")));
                 })
                 .onFailure(f -> this.sendErrorResponse(context, new HttpException(FORBIDDEN, "No access to this space!")));
@@ -153,9 +159,11 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         Job.Status status = HApiParam.HQuery.getJobStatus(context);
 
+        String exportObjects = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.EXPORT_OBJECTS, false) ? "&" + HApiParam.HQuery.EXPORT_OBJECTS + "=true" : "";
+
       Authorization.authorizeManageSpacesRights(context, spaceId)
                 .onSuccess(auth -> {
-                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs?targetSpaceId="+spaceId+(status != null ? "&status="+status : ""))
+                    Service.webClient.getAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs?targetSpaceId="+spaceId+(status != null ? "&status="+status : "") + exportObjects)
                             .timeout(JOB_API_TIMEOUT)
                             .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                             .send()
@@ -183,10 +191,18 @@ public class JobProxyApi extends Api{
                                         this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                                         return;
                                     }
-                                    if(!checkSpaceId(res,spaceId)) {
-                                        this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
-                                        return;
+
+                                    try{
+                                     if(!checkSpaceId(res,spaceId)) {
+                                         this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
+                                         return;
+                                     }
                                     }
+                                    catch( DecodeException e ){
+                                     this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "job[" + jobId + "] - " + e.getMessage()));
+                                     return;
+                                    }
+
                                     Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT + "/jobs/" + jobId
                                             + "?deleteData=" + deleteData + "&force=" + force)
                                             .timeout(JOB_API_TIMEOUT)
@@ -226,7 +242,7 @@ public class JobProxyApi extends Api{
                                 Job job = res.bodyAsJson(Job.class);
 
                                 //TODO - resolve composite Connectors
-                                Service.connectorConfigClient.get( Api.Context.getMarker(context), job.getTargetConnector())
+                                Service.connectorConfigClient.get( LogUtil.getMarker(context), job.getTargetConnector())
                                     .onFailure(t ->  this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject()))
                                     .onSuccess(connector -> {
 
@@ -266,6 +282,31 @@ public class JobProxyApi extends Api{
                 .onFailure(f -> this.sendErrorResponse(context, new HttpException(FORBIDDEN, "No access to this space!")));
     }
 
+
+    private void _jobAPIResultHandler(final RoutingContext context, HttpResponse<Buffer> res, String spaceId){
+// temp. workaround - only called when parm "exportObjects=true"
+        if (res.statusCode() < 500) {
+            try {
+                if(!checkSpaceId(res,spaceId)){
+                    this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
+                    return;
+                }
+            } catch (DecodeException e) {}
+
+//            try{
+//                this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()),
+//                        Json.decodeValue(DatabindCodec.mapper().writerWithView(Job.Public.class).writeValueAsString(res.bodyAsJson(Job.class))));
+//                return;
+//            } catch (Exception e){}
+            try{
+                this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
+                return;
+            } catch (Exception e){}
+        }
+
+        this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));
+    }
+
     private void jobAPIResultHandler(final RoutingContext context, HttpResponse<Buffer> res, String spaceId){
         if (res.statusCode() < 500) {
             try {
@@ -294,28 +335,34 @@ public class JobProxyApi extends Api{
             try{
               //Deserialize and serialize the response list again to filter out internal job properties
               List<Job> upstreamResponse = XyzSerializable.deserialize(res.body().getBytes(), new TypeReference<List<Job>>() {});
-              sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), Json.decodeValue(XyzSerializable.serialize(upstreamResponse, Job.Public.class)));
+              sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), Json.decodeValue(XyzSerializable.serialize(upstreamResponse, (Class<? extends SerializationView>) null)));
               return;
             }catch (Exception e){
-              logger.error(Api.Context.getMarker(context), "Error in Job-Proxy during response serialization.", e);
+              logger.error(LogUtil.getMarker(context), "Error in Job-Proxy during response serialization.", e);
             }
 
             try {
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
                 return;
             }catch (Exception e){
-              logger.error(Api.Context.getMarker(context), "Error in Job-Proxy during response serialization.", e);
+              logger.error(LogUtil.getMarker(context), "Error in Job-Proxy during response serialization.", e);
             }
         }
 
         this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));
     }
 
-    private Boolean checkSpaceId(HttpResponse<Buffer> res, String spaceId) throws DecodeException{
-        Job job = res.bodyAsJson(Job.class);
+    private Boolean checkSpaceId(HttpResponse<Buffer> res, String spaceId) throws DecodeException {
+        
+        Job job = null;
+        String errmsg = "";
+
+        try { job = res.bodyAsJson(Job.class); }
+        catch (Exception e)
+        { errmsg = e.getMessage(); }
 
         if (job == null || job.getTargetSpaceId() == null)
-            throw new DecodeException("");
+         throw new DecodeException( errmsg + (job != null ? "[ job.targetSpaceId == null ]" : "")  );
 
       return job.getTargetSpaceId().equalsIgnoreCase(spaceId);
     }

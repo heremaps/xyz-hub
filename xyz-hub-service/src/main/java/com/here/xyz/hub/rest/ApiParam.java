@@ -114,6 +114,8 @@ public class ApiParam {
     public static final String SUBSCRIPTION_ID = "subscriptionId";
     public static final String VERSION = "version";
     public static final String TAG_ID = "tagId";
+
+    public static final String INCLUDE_SYSTEM_TAGS = "includeSystemTags";
   }
 
   public static class Query {
@@ -176,8 +178,8 @@ public class ApiParam {
     static final String FORCE_2D = "force2D";
     static final String OPTIM_MODE = "mode";
     static final String OPTIM_VIZSAMPLING = "vizSampling";
-
     static final String VERSION = "version";
+    static final String VERSION_REF = "versionRef";
     static final String START_VERSION = "startVersion";
     static final String END_VERSION = "endVersion";
     static final String PAGE_TOKEN = "pageToken";

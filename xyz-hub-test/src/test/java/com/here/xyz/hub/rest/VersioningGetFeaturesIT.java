@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
@@ -70,29 +70,13 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=1&south=-1&east=-1&north=1&version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=1&south=-1&east=-1&north=1&version=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", nullValue())
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=51&south=49&east=49&north=51&version=0")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=1&south=-1&east=-1&north=1&version=1")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -100,10 +84,26 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=51&south=49&east=49&north=51&version=1")
         .then()
         .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=1&south=-1&east=-1&north=1&version=2")
+        .then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=51&south=49&east=49&north=51&version=2")
+        .then()
+        .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -111,29 +111,13 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", nullValue())
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12120?version=0")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=1")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -141,10 +125,26 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12120?version=1")
         .then()
         .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=2")
+        .then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12120?version=2")
+        .then()
+        .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -152,29 +152,13 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=0&lon=0&radius=10000&version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=0&lon=0&radius=10000&version=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", nullValue())
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=50&lon=50&radius=10000&version=0")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=0&lon=0&radius=10000&version=1")
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -182,10 +166,26 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=50&lon=50&radius=10000&version=1")
         .then()
         .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=0&lon=0&radius=10000&version=2")
+        .then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=50&lon=50&radius=10000&version=2")
+        .then()
+        .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -195,26 +195,26 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body("{\"type\":\"Point\",\"coordinates\":[1,1,0]}")
-        .post(getSpacesPath() + "/" + SPACE_ID + "/spatial?radius=1500000&version=0")
+        .post(getSpacesPath() + "/" + SPACE_ID + "/spatial?radius=1500000&version=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", nullValue())
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body("{\"type\":\"Point\",\"coordinates\":[49,49,0]}")
-        .post(getSpacesPath() + "/" + SPACE_ID + "/spatial?radius=1500000&version=1")
+        .post(getSpacesPath() + "/" + SPACE_ID + "/spatial?radius=1500000&version=2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -222,18 +222,18 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=0&p.key1=value1")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&p.key1=value1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", nullValue())
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=0&p.key2=value2")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&p.key2=value2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -241,13 +241,13 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&p.key1=value1&p.key2=value2")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=2&p.key1=value1&p.key2=value2")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
   }
 
   @Test
@@ -255,7 +255,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=0&limit=1")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=1&limit=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -266,7 +266,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=1&limit=1")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=2&limit=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -277,7 +277,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
 
   @Test
   public void testGetIteratePagingWithVersion() {
-    postFeatures(SPACE_ID, new FeatureCollection().withFeatures(new ArrayList<Feature>() {{
+    postFeatures(SPACE_ID, new FeatureCollection().withFeatures(new ArrayList<>() {{
       add(new Feature()
           .withId("IT1")
           .withGeometry(new Point().withCoordinates(new PointCoordinates(1,1)))
@@ -298,7 +298,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     String handle = given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=2&limit=3")
+        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=3&limit=3")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(3))
@@ -309,7 +309,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=2&handle=" + handle)
+        .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=3&handle=" + handle)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -323,26 +323,18 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=0&author=" + AUTHOR_1)
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&author=" + AUTHOR_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", nullValue())
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(0));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=2&author=" + AUTHOR_1)
-        .then()
-        .statusCode(OK.code())
-        .body("features.size()", equalTo(0));
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=0&author=" + AUTHOR_2)
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=4&author=" + AUTHOR_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -353,11 +345,19 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=2&author=" + AUTHOR_2)
         .then()
         .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=4&author=" + AUTHOR_2)
+        .then()
+        .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.population", equalTo(5000))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -377,6 +377,6 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.key1", equalTo("value1"))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.population", equalTo(5000))
-        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
+        .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,14 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.notNullValue;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
@@ -385,4 +386,24 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         then().
         statusCode(OK.code());
   }
+
+  @Test
+  public void updateFeatureById_putNonModified() {
+    storeNonModified();
+    storeNonModified();
+  }
+
+  private static void storeNonModified() {
+    given().
+        accept(APPLICATION_GEO_JSON).
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(content("/xyz/hub/updateFeatureNonModified.json")).
+        when().
+        put(getSpacesPath() + "/x-psql-test/features").
+        then().
+        statusCode(OK.code()).
+        body("features[0].properties.'@ns:com:here:xyz'.createdAt", notNullValue());
+  }
+
 }

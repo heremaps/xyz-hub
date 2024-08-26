@@ -51,7 +51,6 @@ import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
@@ -62,6 +61,7 @@ import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
@@ -260,7 +260,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<GeometryQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
+          .then(FeatureTaskHandler::resolveVersionRef)
           .then(this::resolveRefSpace)
           .then(this::resolveRefConnector)
           .then(Authorization::authorizeComposite)
@@ -388,7 +388,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<BBoxQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
+          .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -418,7 +418,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<TileQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
+          .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -452,9 +452,8 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
     public TaskPipeline<IdsQuery> createPipeline() {
       return TaskPipeline.create(this)
-          .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
+          .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -475,7 +474,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IterateQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
+          .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -496,7 +495,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<SearchQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
+          .then(FeatureTaskHandler::resolveVersionRef)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
@@ -519,7 +518,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<GetStatistics> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
@@ -565,7 +563,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::invoke);
     }
   }
@@ -609,7 +606,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::registerRequestMemory)
-          .then(FeatureTaskHandler::checkSpaceIsActive)
           .then(FeatureTaskHandler::throttle)
           .then(FeatureTaskHandler::injectSpaceParams)
           .then(FeatureTaskHandler::checkPreconditions)

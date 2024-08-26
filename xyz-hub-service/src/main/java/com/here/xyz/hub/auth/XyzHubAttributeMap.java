@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.auth;
 
+import com.here.xyz.models.hub.jwt.AttributeMap;
 import java.util.List;
 
 @SuppressWarnings("serial")

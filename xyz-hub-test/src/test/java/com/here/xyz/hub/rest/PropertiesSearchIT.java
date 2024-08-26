@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.awaitility.Awaitility.await;
@@ -328,7 +328,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
         when().
-        get(getSpacesPath() + "/illegal_argument/search?p.capacity=gt=50000").prettyPeek().
+        get(getSpacesPath() + "/illegal_argument/search?p.capacity=gt=50000").
         then().
         statusCode(400);
 
@@ -432,7 +432,7 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
               accept(APPLICATION_JSON).
               headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
               when().
-              get(getSpacesPath() + "/x-psql-test/statistics").prettyPeek().
+              get(getSpacesPath() + "/x-psql-test/statistics").
               then().extract().body().path("properties.searchable")
         ));
 
@@ -452,4 +452,34 @@ public class PropertiesSearchIT extends TestSpaceWithFeature {
         then().
         body("features.size()", equalTo(1));
   }
+
+/*
+ * Test is commented out because it takes too long to execute. s. testCreatedAtAndUpdatedAtWith10ThousandFeaturesPlus
+ */
+//@Test   // test for DS-380  - search on none indexed propery not allowed - uncommented due to runtime.
+public void test_DS380()  throws Exception {
+    add10ThousandFeatures2();
+
+    await()
+        .atMost(3, TimeUnit.MINUTES)
+        .pollInterval(Durations.TEN_SECONDS)
+        .until(() ->
+          "PARTIAL".equals(given().
+              accept(APPLICATION_JSON).
+              headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+              when().
+              get(getSpacesPath() + "/x-psql-test/statistics").prettyPeek().
+              then().extract().body().path("properties.searchable")
+        ));
+
+// test search not allowd for p.NonIndexed 
+    given().
+        accept(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        when().
+        get(getSpacesPath() + "/x-psql-test/search?p.NonIndexed>800?limit=1").
+        then().statusCode(400);
+
+  }
 }
+

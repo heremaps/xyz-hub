@@ -19,17 +19,18 @@
 package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
@@ -39,6 +40,8 @@ import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
+import com.here.xyz.jobs.datasets.filters.Filters;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -96,23 +99,6 @@ public class JobApiGeneralIT extends JobApiIT {
         /** Create job with same Id */
         postJob(job,getScopedSpaceId(testSpaceId1, scope))
                 .statusCode(CONFLICT.code());
-    }
-
-    @Test
-    public void createJobWithInvalidFilter() {
-        /** Create job */
-        Export job = new Export()
-                .withId(testJobId + CService.currentTimeMillis())
-                .withDescription("Job Description")
-                .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD))
-                .withCsvFormat(Job.CSVFormat.GEOJSON);
-
-        job.setFilters(new Export.Filters().withSpatialFilter(new Export.SpatialFilter().withGeometry(new Point().withCoordinates(new PointCoordinates(399,399)))));
-
-        postJob(job,getScopedSpaceId(testSpaceId1, scope))
-                .statusCode(BAD_REQUEST.code());
-
-        //Add check if no config exists
     }
 
     @Test

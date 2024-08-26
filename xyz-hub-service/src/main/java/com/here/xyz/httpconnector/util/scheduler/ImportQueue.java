@@ -23,7 +23,7 @@ import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.Core;
+import com.here.xyz.util.service.Core;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
 import java.sql.SQLException;
@@ -142,6 +142,9 @@ public class ImportQueue extends JobQueue {
                 }
                 catch (InterruptedException | CannotDecodeException ignored) {
                     //Nothing to do here.
+                }
+                catch (Exception e) {
+                    logger.error("Exception in queue:", e);
                 }
             });
         }catch (Exception e) {

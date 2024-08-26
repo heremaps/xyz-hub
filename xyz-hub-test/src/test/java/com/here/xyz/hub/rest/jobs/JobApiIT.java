@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,12 @@
 package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -38,14 +39,15 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
@@ -311,7 +313,8 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + spaceId + "/job/"+jobId);
+                .param("exportObjects", true)
+                .get("/spaces/" + spaceId + "/job/"+jobId );
 
         String body = response.getBody().asString();
         try {
@@ -420,6 +423,10 @@ public class JobApiIT extends TestSpaceWithFeature {
                 //valid JSON_WKB with id
                 input = "\"{'\"id'\": '\"foo'\", '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
                 break;
+            case 12 :
+                //valid JSON_WKB with id and bbox & BBOX on root
+                input = "\"{'\"id'\": '\"foo'\", '\"bbox'\": [-10.0, -10.0, 10.0, 10.0], '\"BBOX'\": [-10.0, -10.0, 10.0, 10.0], '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
+                break;
         }
         System.out.println("Start Upload");
 
@@ -470,8 +477,7 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus,
-        Export.CompositeMode compositeMode)
-        throws Exception {
+        Export.CompositeMode compositeMode) throws Exception {
         return performExport(job, spaceId, expectedStatus, failStatus, null, compositeMode);
     }
 
@@ -540,9 +546,14 @@ public class JobApiIT extends TestSpaceWithFeature {
 
     protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContain) throws IOException, InterruptedException {
         String result = "";
+        boolean isGeojson = false;
         long totalByteSize = 0;
 
         for (URL url : urls) {
+            if(url.toString().contains(".geojson")) {
+                isGeojson = true;
+            }
+
             System.out.println("Download: "+url);
             url = new URL(url.toString().replace("localstack","localhost"));
             BufferedInputStream bis = new BufferedInputStream(url.openStream());
@@ -563,13 +574,15 @@ public class JobApiIT extends TestSpaceWithFeature {
         if(expectedByteSize != null)
             assertEquals(expectedByteSize.intValue(), totalByteSize);
 
-        if(expectedFeatureCount != null)
-            assertEquals(expectedFeatureCount.intValue(), result.split("'\"id'\"", -1).length-1);
 
-        for (String word : csvMustContain) {
+        if(expectedFeatureCount != null)
+            assertEquals(expectedFeatureCount.intValue(), result.split(isGeojson ? "\"id\"" : "'\"id'\"", -1).length-1);
+
+         for (String word : csvMustContain) {
             if(result.indexOf(word) == -1)
                 fail("CSV is MISSING: "+word);
         }
+
 
         return result;
     }
@@ -596,7 +609,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         assertEquals(expectedFeatureCount, featureCount);
     }
 
-    protected Export buildTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format){
+    protected Export buildTestJob(String id, Filters filters, Export.ExportTarget target, Job.CSVFormat format){
         return new Export()
                 .withId(id + CService.currentTimeMillis())
                 .withFilters(filters)
@@ -604,7 +617,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .withCsvFormat(format);
     }
 
-    protected Export buildVMTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel,
+    protected Export buildVMTestJob(String id, Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel,
         int maxTilesPerFile) {
         Export export = buildTestJob(id, filters, target, format)
                 .withMaxTilesPerFile(maxTilesPerFile)

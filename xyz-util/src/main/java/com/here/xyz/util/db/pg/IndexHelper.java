@@ -58,4 +58,12 @@ public class IndexHelper {
           .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "")
           .withQueryFragment("queryComment", "");
   }
+
+  public static SQLQuery buildDropIndexQuery(String schema, String indexName) {
+    return new SQLQuery("DROP INDEX ${{queryComment}} IF EXISTS ${schema}.${indexName} CASCADE")
+            .withVariable("schema", schema)
+            .withVariable("indexName", indexName)
+            .withQueryFragment("queryComment", "");
+  }
+
 }

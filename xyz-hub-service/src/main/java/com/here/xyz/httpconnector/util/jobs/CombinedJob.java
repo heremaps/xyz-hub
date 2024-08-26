@@ -22,20 +22,21 @@ package com.here.xyz.httpconnector.util.jobs;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.jobs.datasets.Files;
-import com.here.xyz.httpconnector.util.jobs.datasets.Spaces;
-import com.here.xyz.httpconnector.util.web.HubWebClient;
-import com.here.xyz.hub.Core;
+import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.Api.ValidationException;
-import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.Files;
+import com.here.xyz.jobs.datasets.Spaces;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
@@ -95,7 +96,7 @@ public class CombinedJob extends Job<CombinedJob> {
     for (int i = 0; i < childSpaces.size(); i++) {
       final int childNo = i;
       DatasetDescription.Space childSpace = childSpaces.get(childNo);
-      childFutures.add(HubWebClient.getSpace(childSpace.getId())
+      childFutures.add(LegacyHubWebClient.getSpace(childSpace.getId())
           .compose(space -> {
             Export job = new Export()
                 .withId(getId() + "-" + childNo)
@@ -124,7 +125,11 @@ public class CombinedJob extends Job<CombinedJob> {
         .compose(job -> {
           List<Future<Job>> futures = new ArrayList<>();
           for (Job childJob : children)
+           if(childJob.getStatus() != finalized)
             futures.add(childJob.isValidForStart());
+           else 
+            futures.add( Future.succeededFuture(childJob) );
+            
           return Future.all(futures).map(cf -> this);
         });
   }
@@ -162,7 +167,9 @@ public class CombinedJob extends Job<CombinedJob> {
 
   private Future<Job> enqueue() {
     CService.exportQueue.addJob(this);
-    children.forEach(childJob -> CService.exportQueue.addJob(childJob));
+    children.stream()
+            .filter(childJob -> childJob.getStatus() != finalized )
+            .forEach(childJob -> CService.exportQueue.addJob(childJob));
     return Future.succeededFuture(this);
   }
 

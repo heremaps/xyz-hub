@@ -18,7 +18,7 @@
  */
 package com.here.xyz.httpconnector.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -29,7 +29,7 @@ import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
-import com.here.xyz.hub.rest.Api;
+import com.here.xyz.util.service.logging.LogUtil;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
@@ -89,7 +89,7 @@ public class JobStatusApi {
         httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
         JSONObject resp = new JSONObject();
 
-        JobHandler.loadJob(jobId, Api.Context.getMarker(context))
+        JobHandler.loadJob(jobId, LogUtil.getMarker(context))
                 .onFailure(e -> resp.put("STATUS", "does_not_exist"))
                 .onSuccess(job -> {
                     if(JobQueue.hasJob(job) != null) {
@@ -124,7 +124,7 @@ public class JobStatusApi {
 
         JSONObject resp = new JSONObject();
 
-        JobHandler.loadJob(jobId, Api.Context.getMarker(context))
+        JobHandler.loadJob(jobId, LogUtil.getMarker(context))
                 .onFailure(e -> {
                     resp.put("STATUS", "does_not_exist");
                 })

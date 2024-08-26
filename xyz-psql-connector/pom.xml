@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.8.9-SNAPSHOT</version>
+    <version>3.9.42-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -76,6 +76,9 @@
                 <goals>
                   <goal>jar</goal>
                 </goals>
+                <configuration>
+                  <skip>true</skip>
+                </configuration>
               </execution>
             </executions>
           </plugin>
@@ -100,7 +103,8 @@
             </transformer>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
           </transformers>
-          <finalName>xyz-psql-connector</finalName>
+          <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+          <finalName>${project.artifactId}-${project.version}</finalName>
           <filters>
             <filter>
               <artifact>*:*</artifact>
@@ -245,7 +249,7 @@
       <artifactId>aws-lambda-java-log4j2</artifactId>
     </dependency>
 
-    <!-- -->
+    <!-- AWS SDKs -->
     <dependency>
       <groupId>commons-dbutils</groupId>
       <artifactId>commons-dbutils</artifactId>
@@ -276,12 +280,6 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>com.google.crypto.tink</groupId>
-      <artifactId>tink</artifactId>
-      <version>1.5.0</version>
     </dependency>
 
     <dependency>

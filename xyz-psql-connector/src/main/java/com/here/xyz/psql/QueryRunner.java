@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -42,8 +41,6 @@ import org.apache.logging.log4j.Logger;
 public abstract class QueryRunner<E extends Object, R extends Object> implements ResultSetHandler<R> {
 
   private static final Logger logger = LogManager.getLogger();
-  protected static final String SCHEMA = "schema";
-  protected static final String TABLE = "table";
   private static final int MIN_REMAINING_TIME_FOR_RESULT_HANDLING = 2;
   private SQLQuery query;
   private boolean useReadReplica;
@@ -83,7 +80,8 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   protected R write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    return handleWrite(prepareQuery().write(dataSourceProvider));
+    SQLQuery query = prepareQuery();
+    return handleWrite(query.isBatch() ? query.writeBatch(dataSourceProvider) : new int[]{query.write(dataSourceProvider)});
   }
 
   public final R write() throws SQLException, ErrorResponseException {
@@ -104,7 +102,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   @Override
   public abstract R handle(ResultSet rs) throws SQLException;
 
-  protected R handleWrite(int rowCount) throws ErrorResponseException {
+  protected R handleWrite(int[] rowCounts) throws ErrorResponseException {
     return null;
   }
 
@@ -138,8 +136,8 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   private DatabaseSettings getDbSettings() {
-    if (getDataSourceProvider() instanceof PooledDataSources sourceProvider)
-      return sourceProvider.getDatabaseSettings();
+    if (getDataSourceProvider().getDatabaseSettings() != null)
+      return getDataSourceProvider().getDatabaseSettings();
     throw new IllegalStateException("The DataSourceProvider does not provide database settings.");
   }
 
