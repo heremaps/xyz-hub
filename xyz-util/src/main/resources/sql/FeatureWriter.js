@@ -21,6 +21,7 @@
  * The unified implementation of the database-based feature writer.
  */
 class FeatureWriter {
+  debugOutput = false;
   maxBigint = "9223372036854775807"; //NOTE: Must be a string because of JS precision
   XYZ_NS = "@ns:com:here:xyz";
 
@@ -85,7 +86,7 @@ class FeatureWriter {
     if (this.onVersionConflict && this.baseVersion == null)
       throw new IllegalArgumentException("The provided Feature does not have a baseVersion but a version conflict detection was requested!");
 
-    this.debugBox(JSON.stringify(this, null, 2));
+    //this.debugBox(JSON.stringify(this, null, 2));
   }
 
   /**
@@ -321,12 +322,13 @@ class FeatureWriter {
   deleteRow() {
     //TODO: do we need the payload of the feature as return?
     //base_version get provided from user (extend api endpoint if necessary)
-    //TODO: Deactivate notices depending on a DEBUG env variable
-    plv8.elog(NOTICE, "Delete feature with id ", this.inputFeature.id);
+    if(this.debugOutput)
+      plv8.elog(NOTICE, "Delete feature with id ", this.inputFeature.id);
 
     let deletedRows = this.onVersionConflict == null ? this._deleteRow() : this._deleteRow(this.baseVersion);
     if (deletedRows == 0) {
-      plv8.elog(NOTICE, "HandleConflict for id=", this.inputFeature.id);
+      if(this.debugOutput)
+        plv8.elog(NOTICE, "HandleConflict for id=", this.inputFeature.id);
       //handleDeleteVersionConflict
     }
   }
@@ -335,7 +337,8 @@ class FeatureWriter {
    * @throws VersionConflictError, MergeConflictError
    */
   handleVersionConflict() {
-    //plv8.elog(NOTICE, "Version conflict");
+    if(this.debugOutput)
+      plv8.elog(NOTICE, "Version conflict");
     return this.isDelete ? this.handleDeleteVersionConflict() : this.handleWriteVersionConflict();
   }
 
@@ -391,7 +394,8 @@ class FeatureWriter {
    * @throws MergeConflictError If the both write diffs are not recursively disjunct and onMergeConflict == ERROR
    */
   mergeChanges() {
-    plv8.elog(NOTICE, "MERGE changes", this.onVersionConflict, this.onMergeConflict); //TODO: Use debug logging
+    if(this.debugOutput)
+      plv8.elog(NOTICE, "MERGE changes", this.onVersionConflict, this.onMergeConflict); //TODO: Use debug logging
     let headFeature = this.loadFeature(this.inputFeature.id);
     let baseFeature = this.loadFeature(this.inputFeature.id, this.baseVersion);
     //TODO: Fix order of diff arguments
@@ -546,7 +550,8 @@ class FeatureWriter {
   }
 
   diff(minuend, subtrahend) {
-    plv8.elog(NOTICE, "diff ", JSON.stringify(minuend), " ", JSON.stringify(subtrahend)); //TODO: Use debug logging
+    if(this.debugOutput)
+      plv8.elog(NOTICE, "diff ", JSON.stringify(minuend), " ", JSON.stringify(subtrahend)); //TODO: Use debug logging
     let diff = {};
 
     if (minuend == null)
@@ -582,7 +587,8 @@ class FeatureWriter {
    * NOTE: target is mandatory to be a valid (existing) feature
    */
   patch(target, inputDiff) {
-    //plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff)); //TODO: Use debug logging
+    if(this.debugOutput)
+      plv8.elog(NOTICE, "patch ", JSON.stringify(target), " ", JSON.stringify(inputDiff)); //TODO: Use debug logging
     target = target || {};
     for (let key in inputDiff) {
       if (inputDiff.hasOwnProperty(key)) {
@@ -591,8 +597,8 @@ class FeatureWriter {
         else if (typeof inputDiff[key] == "object" && !Array.isArray(inputDiff[key]) && inputDiff[key] !== null) {
           if (!target[key])
             target[key] = {};
-          //TODO: Deactivate notices depending on a DEBUG env variable
-          //plv8.elog(NOTICE, "patch [", key, "]->", JSON.stringify(target[key]), "-", JSON.stringify(inputDiff[key]));
+          if(this.debugOutput)
+            plv8.elog(NOTICE, "patch [", key, "]->", JSON.stringify(target[key]), "-", JSON.stringify(inputDiff[key]));
           target[key] = this.patch(target[key], inputDiff[key]);
         }
         else
@@ -637,7 +643,8 @@ class FeatureWriter {
     let leftPadding = new Array(Math.floor((width - longestLine) / 2)).join(" ");
     lines = lines.map(line => "#" + leftPadding + line
         + new Array(width - leftPadding.length - line.length - 1).join(" ") + "#");
-    plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
+    if(this.debugOutput)
+      plv8.elog(NOTICE, "\n" + new Array(width + 1).join("#") + "\n" + lines.join("\n") + "\n" + new Array(width + 1).join("#"));
   }
 
   //Low level DB / table facing helper methods:
@@ -766,8 +773,11 @@ class FeatureWriter {
         this.baseVersion);
   }
 
-  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = FeatureWriter.getNextVersion()) {
+  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version) {
     let result = {type: "FeatureCollection", features : []};
+    if(version == undefined){
+      version = FeatureWriter.getNextVersion()
+    }
     for (let feature of inputFeatures) {
       let writer = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial);
       result.features.push(writer.writeFeature());
@@ -775,7 +785,7 @@ class FeatureWriter {
     return result;
   }
 
-  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = undefined) {
+  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version ) {
     return FeatureWriter.writeFeatures([inputFeature], author, onExists, onNotExists, onVersionConflict, onMergeConflict,
         isPartial, version);
   }

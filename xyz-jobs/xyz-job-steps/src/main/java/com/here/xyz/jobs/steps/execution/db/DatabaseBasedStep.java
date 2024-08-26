@@ -190,6 +190,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
                     true
                   )::JSON, 'Event');
             """) //TODO: Inject fields directly in memory rather than writing and deserializing new JSON object
+             //TODO: Find a solution to retrieve also a given HINT
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())  //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query

@@ -4275,11 +4275,11 @@ DECLARE
     author text := TG_ARGV[0];
     currentVersion bigint := TG_ARGV[1];
     isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := TG_ARGV[3];
-    onNotExists TEXT := TG_ARGV[4];
-    onVersionConflict TEXT := TG_ARGV[5];
-    onMergeConflict TEXT := TG_ARGV[6];
-    historyEnabled BOOLEAN := TG_ARGV[7];
+    onExists TEXT := LOWER(TG_ARGV[3]);
+    onNotExists TEXT := LOWER(TG_ARGV[4]);
+    onVersionConflict TEXT := LOWER(TG_ARGV[5]);
+    onMergeConflict TEXT := LOWER(TG_ARGV[6]);
+    historyEnabled TEXT := TG_ARGV[7];
     context TEXT := TG_ARGV[8];
     extendedTable TEXT := TG_ARGV[9];
 BEGIN
@@ -4295,12 +4295,12 @@ BEGIN
                    context,
                    extendedTable)::JSONB
         );
-        PERFORM write_feature(NEW.jsondata,
+        PERFORM write_feature(NEW.jsondata::TEXT,
                               author,
-                              onExists,
-                              onNotExists,
-                              onVersionConflict,
-                              onMergeConflict,
+                              (CASE WHEN (onVersionConflict = 'null') THEN null ELSE onExists END),
+                              (CASE WHEN (onNotExists = 'null') THEN null ELSE onNotExists END),
+                              (CASE WHEN (onVersionConflict = 'null') THEN null ELSE onVersionConflict END),
+                              (CASE WHEN (onMergeConflict = 'null') THEN null ELSE onMergeConflict END),
                               isPartial,
                               currentVersion);
         RETURN NULL;
@@ -4313,7 +4313,7 @@ $BODY$
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
-    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint, execution_count int)
+    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint, execution_count int, data jsonb)
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
@@ -4351,6 +4351,7 @@ BEGIN
             filesize = result.data->'filesize';
             state = result.state;
             execution_count = result.execution_count;
+            data = result.data;
             -- Result not null -> deliver work_item
             RETURN NEXT;
         ELSE
@@ -4390,6 +4391,7 @@ BEGIN
                     filesize = result.data->'filesize';
                     state = result.state;
                     execution_count = result.execution_count;
+                    data = result.data;
                     -- Result not null -> deliver work_item
                     RETURN NEXT;
                 ELSE
@@ -4542,7 +4544,6 @@ $BODY$
 DECLARE
     work_item record;
     sql_text text;
-    retry_count integer := 2;
 BEGIN
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
@@ -4557,10 +4558,6 @@ BEGIN
         ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
             EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
             RETURN;
-        ELSEIF work_item.execution_count >= retry_count THEN
-             RAISE EXCEPTION 'Error on importing file %. Maximum retries are reached %.', right(work_item.s3_path, 36), retry_count
-                 USING HINT = 'Details: ' || (work_item.data->'error'->>'sqlstate') ,
-                    ERRCODE = 'XYZ52';
         END IF;
     END IF;
 
@@ -4571,12 +4568,22 @@ BEGIN
         work_item_s3_region text := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::text;
         work_item_s3_filesize bigint := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
         work_item_s3_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
+        work_item_execution_count int := '$wrappedouter$||work_item.execution_count||$wrappedouter$'::int;
+        work_item_data jsonb := '$wrappedouter$||work_item.data||$wrappedouter$'::jsonb;
 		schem text := '$wrappedouter$||schem||$wrappedouter$'::text;
 		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
 		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
 		format text := '$wrappedouter$||format||$wrappedouter$'::text;
+		retry_count integer := 2;
     BEGIN
 			BEGIN
+			    IF work_item_execution_count >= retry_count THEN
+			        --TODO: find a solution to read a given hint in the failure_callback. Remove than the duplication.
+                    RAISE EXCEPTION 'Error on importing file ''%''. Maximum retries are reached %. Details: ''%''', right(work_item_s3_path, 36), retry_count, work_item_data->'error'->>'sqlstate'
+                    --USING HINT = 'Details: ' || 'details' ,
+                    USING ERRCODE = 'XYZ52';
+                END IF;
+
 	            IF work_item_s3_bucket != 'SUCCESS_MARKER' THEN
 					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item_s3_bucket ,work_item_s3_path, work_item_s3_region,
 														 format, work_item_s3_filesize);
