@@ -213,8 +213,8 @@ public class GraphTransformer {
 
     state.stateBuilder
         .comment(step.getDescription())
-        .timeoutSeconds(Math.max(step.getTimeoutSeconds(), MIN_STEP_TIMEOUT_SECONDS))
-        .heartbeatSeconds(STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS);
+        .timeoutSeconds(Math.max(step.getTimeoutSeconds(), MIN_STEP_TIMEOUT_SECONDS));
+
     setNext(previousState, state.stateName);
     return state;
   }
@@ -250,6 +250,8 @@ public class GraphTransformer {
     lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString(), payload.toMap()));
 
     state.stateBuilder.resource(taskResource);
+    if(executionMode == ASYNC)
+      state.stateBuilder.heartbeatSeconds(STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS);
   }
 
   private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
