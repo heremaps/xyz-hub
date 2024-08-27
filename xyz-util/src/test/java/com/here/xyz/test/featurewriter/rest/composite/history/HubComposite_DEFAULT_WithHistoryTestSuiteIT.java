@@ -17,23 +17,26 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.test.featurewriter.rest.composite.nohistory;
+package com.here.xyz.test.featurewriter.rest.composite.history;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.test.featurewriter.rest.RestTestSuite;
+import com.here.xyz.test.featurewriter.rest.composite.nohistory.HubComposite_DEFAULT_NoHistoryTestSuiteIT;
+import com.here.xyz.test.featurewriter.sql.composite.history.SQLComposite_DEFAULT_WithHistoryTestSuiteIT;
 import com.here.xyz.test.featurewriter.sql.composite.nohistory.SQLComposite_DEFAULT_NoHistoryTestSuiteIT;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-@RunWith(Parameterized.class)
-public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 
-  public HubComposite_DEFAULT_NoHistoryTestSuiteIT(TestArgs args) {
+@RunWith(Parameterized.class)
+public class HubComposite_DEFAULT_WithHistoryTestSuiteIT extends HubComposite_DEFAULT_NoHistoryTestSuiteIT {
+
+  public HubComposite_DEFAULT_WithHistoryTestSuiteIT(TestArgs args) {
     super(args);
   }
 
@@ -47,15 +50,20 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
         "2.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
         "2.2", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
         "4.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "5.4", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "5.1", //FIXME: Issue in Hub: No version conflict is thrown in that case
-        "5.5" //FIXME: Issue in Hub: No illegal argument error is thrown in that case
+        "5.1", //FIXME: No version conflict is thrown in that case
+        "6.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
+        "7.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
+        "7.2", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
+        "8.1", //FIXME: The feature was written incorrectly.  - FLICKERING
+        "9.1", //FIXME: unexpected MERGE_CONFLICT_ERROR
+        "9.2", //FIXME: A wrong table operation was performed. NONE vs INSERT
+        "9.3"  //FIXME: unexpected MERGE_CONFLICT_ERROR - FLICKERING
     );
 
     //TODO: Check missing version conflict errors
     //TODO: Maybe also use the SQL writer for the preparation of the Hub tests
 
-    return SQLComposite_DEFAULT_NoHistoryTestSuiteIT.testScenarios()
+    return SQLComposite_DEFAULT_WithHistoryTestSuiteIT.testScenarios()
         .stream().filter(args -> !ignoredTests.contains(args.testName())).toList();
   }
 

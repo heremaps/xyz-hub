@@ -87,7 +87,13 @@ public class RestSpaceWriter extends SpaceWriter {
     FeatureCollection featureCollection = new FeatureCollection().withFeatures(featureList);
 
     try {
-      webClient(author).postFeatures(spaceId(), featureCollection,
+      String spaceId = spaceId();
+      if(spaceContext != null && spaceContext == SpaceContext.SUPER){
+        spaceId = superSpaceId();
+        spaceContext = null;
+      }
+
+      webClient(author).postFeatures(spaceId, featureCollection,
           generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
     }
     catch (ErrorResponseException e) {
