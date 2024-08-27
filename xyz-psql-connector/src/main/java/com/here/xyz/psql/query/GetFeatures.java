@@ -39,7 +39,6 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -66,13 +65,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     boolean calculateTilesForIncremntal = ( event.getContext() == COMPOSITE_EXTENSION && isVersionRange(event) );
 
     SQLQuery query;
-    
+
     if (calculateTilesForIncremntal) {
       if( event instanceof SelectiveEvent selectiveEvent ) // in case of incremental && tilecalculation replace internal versionComparison
        versionCheckFragment.withQueryFragment("versionComparison", buildVersionComparisonTileCalculation(selectiveEvent))
                            .withQueryFragment("nextVersion", new SQLQuery(""))   // remove standard fragment s. buildVersionComparisonTileCalculation
                            .withQueryFragment("minVersion", new SQLQuery(""));   // remove standard fragment
- 
+
       query = new SQLQuery(
           """ 
            SELECT ${{selectClause}} FROM ${schema}.${table} 
@@ -154,7 +153,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   private SQLQuery buildVersionComparisonTileCalculation(SelectiveEvent event) {
     Ref ref = event.getRef();
 
-    if( ref == null || !ref.isRange() ) 
+    if( ref == null || !ref.isRange() )
      return new SQLQuery("");
 
     return new SQLQuery(  // e.g. all features that where visible either in version "fromVersion" or "toVersion" and have changed between fromVersion and toVersion
@@ -164,8 +163,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
                       )
                   AND id in ( select distinct id FROM ${schema}.${table} WHERE version > #{fromVersion} and version <= #{toVersion} )
                  """
-               ).withNamedParameter("fromVersion", ref.getFromVersion())
-                .withNamedParameter("toVersion", ref.getToVersion());
+               ).withNamedParameter("fromVersion", ref.getStartVersion())
+                .withNamedParameter("toVersion", ref.getEndVersion());
   }
 
   private SQLQuery buildVersionComparison(SelectiveEvent event) {
@@ -173,14 +172,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
-    
+
     if( ref.isRange() )
      return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
-                 .withNamedParameter("fromVersion", ref.getFromVersion())
-                 .withNamedParameter("toVersion", ref.getToVersion());
+                 .withNamedParameter("fromVersion", ref.getStartVersion())
+                 .withNamedParameter("toVersion", ref.getEndVersion());
 
     return new SQLQuery("AND version <= #{requestedVersion}")
-                .withNamedParameter("requestedVersion", ref.getVersion()); 
+                .withNamedParameter("requestedVersion", ref.getVersion());
   }
 
   private SQLQuery buildNextVersionFragment(SelectiveEvent event) {
@@ -191,13 +190,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   private SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
-   
-//todo: review semantic of "NextVersionFragment" in case of ref.isRange 
-    boolean opEqual = ref.isHead() || ( ref.isRange() && ref.getToVersion() == MAX_BIGINT );
-      
+
+//todo: review semantic of "NextVersionFragment" in case of ref.isRange
+    boolean opEqual = ref.isHead() || ( ref.isRange() && ref.getEndVersion() == MAX_BIGINT );
+
     return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
         .withQueryFragment("op", opEqual ? "=" : ">")
-        .withNamedParameter(versionParamName, opEqual ? MAX_BIGINT : ( ref.isRange() ? ref.getToVersion() : ref.getVersion() ));
+        .withNamedParameter(versionParamName, opEqual ? MAX_BIGINT : ( ref.isRange() ? ref.getEndVersion() : ref.getVersion() ));
   }
 
   private SQLQuery buildBaseVersionCheckFragment(String versionParamName) {
@@ -216,7 +215,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if( ref.isSingleVersion() && !ref.isHead() )
      version = ref.getVersion();
     else if( ref.isRange() )
-     version = ref.getToVersion(); // HEAD -> Long.MAX_VALUE;
+     version = ref.getEndVersion(); // HEAD -> Long.MAX_VALUE;
 
     String headTable = getDefaultTable((E) event) + XyzSpaceTableHelper.HEAD_TABLE_SUFFIX; // max(version) => headtable, no read from p0,...,pN necessary
 
@@ -226,7 +225,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
           .withNamedParameter("minVersion", event.getMinVersion())
           .withNamedParameter("version", version);
-  
+
     return version == Long.MAX_VALUE ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${headtable})")
         .withVariable("headtable", headTable)
         .withNamedParameter("version", version);

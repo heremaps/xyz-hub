@@ -28,68 +28,68 @@ public class Ref implements XyzSerializable {
   public static final String ALL_VERSIONS = "*";
   private String tag;
   private long version = -1;
-  private long fromVersion = -1;
+  private long startVersion = -1;
   private boolean head;
   private boolean allVersions;
 
   @JsonCreator
   public Ref(String ref) {
-
-   try { 
     if (ref == null || ref.isEmpty() || HEAD.equals(ref))
       head = true;
     else if (ALL_VERSIONS.equals(ref))
       allVersions = true;
-    else if ( ref.indexOf("..") > 0 ) {
-      String s[] = ref.split("\\.\\.");
-      fromVersion = Long.parseLong(s[0]);
-      setVersion(Long.parseLong(s[1]));
-      if( fromVersion >= getToVersion() )
-       throw new InvalidRef("Invalid ref: version range - fromVersion must be less then toVersion : \"" + ref + "\""); 
-    }
+    else if (ref.contains(".."))
+      try {
+        String[] rangeParts = ref.split("\\.\\.");
+        startVersion = validateVersion(Long.parseLong(rangeParts[0]));
+        version = validateVersion(Long.parseLong(rangeParts[1]));
+        if (getStartVersion() >= getEndVersion())
+          throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: "
+              + "\"" + ref + "\"");
+      }
+      catch (NumberFormatException e) {
+        throw new InvalidRef("Invalid ref: The provided version-range is invalid: \"" + ref + "\"");
+      }
     else
-      setVersion(Long.parseLong(ref));
-   }
-   catch (NumberFormatException e) {
-    if (!Tag.isValidId(ref))
-      throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version or range: \"" + ref + "\"");
+      try {
+        version = validateVersion(Long.parseLong(ref));
+      }
+      catch (NumberFormatException e) {
+        if (!Tag.isValidId(ref))
+          throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
 
-    tag = ref;
-   }
-
+        tag = ref;
+      }
   }
-   
 
   public Ref(long version) {
-    setVersion(version);
+    this.version = validateVersion(version);
   }
 
   /**
-   * Validates & sets the version internally(!).
-   * NOTE: This method should stay private to keep the immutability of this Ref model.
-   * @param version
+   * Validates a version number.
+   * @param version The version to validate
+   * @returns The validated version for further usage inside an expression
    */
-  private void setVersion(long version) {
+  private long validateVersion(long version) {
     if (version < 0)
       throw new InvalidRef("Invalid ref: The provided version number may not be lower than 0");
-
-    this.version = version;
+    return version;
   }
 
   @JsonValue
   @Override
   public String toString() {
     if (!isTag() && version < 0 && !head && !allVersions && !isRange())
-      throw new IllegalArgumentException("Not a valid ref");
+      throw new InvalidRef("Not a valid ref");
     if (isTag())
       return tag;
     if (head)
       return HEAD;
     if (allVersions)
       return ALL_VERSIONS;
-    if( isRange() )  
-      return String.format("%d..%d",fromVersion,version);
-
+    if (isRange())
+      return startVersion + ".." + version;
     return String.valueOf(version);
   }
 
@@ -116,7 +116,6 @@ public class Ref implements XyzSerializable {
   /**
    * The version being referenced by this ref object.
    * A valid version is an integer >= 0 where 0 is the very first version of an empty space just after having been created.
-   * TODO: Fix DB queries accordingly to take into account the empty space as first history state
    */
   public long getVersion() {
     if (!isSingleVersion())
@@ -126,11 +125,15 @@ public class Ref implements XyzSerializable {
     return version;
   }
 
-  public long getFromVersion() {
-    return fromVersion;
+  public long getStartVersion() {
+    if (!isRange())
+      throw new NumberFormatException("Ref is not depicting a version range.");
+    return startVersion;
   }
 
-  public long getToVersion() {
+  public long getEndVersion() {
+    if (!isRange())
+      throw new NumberFormatException("Ref is not depicting a version range.");
     return version;
   }
 
@@ -147,7 +150,7 @@ public class Ref implements XyzSerializable {
   }
 
   public boolean isRange() {
-    return fromVersion >= 0;
+    return startVersion >= 0;
   }
 
   public static class InvalidRef extends IllegalArgumentException {
