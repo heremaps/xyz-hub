@@ -27,6 +27,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
+import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
@@ -183,7 +184,7 @@ public class JDBCExporter extends JdbcBasedHandler {
       if( event.getParams() != null && event.getParams().get("versionsToKeep") != null )
        event.setVersionsToKeep((int) event.getParams().get("versionsToKeep") ); // -> forcing "...AND next_version = maxBigInt..." in query
 
-      event.setRef( job.getTargetVersion() == null ? new Ref("HEAD") : new Ref(job.getTargetVersion()) );
+      event.setRef( job.getTargetVersion() == null ? new Ref(HEAD) : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
           PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
@@ -271,8 +272,8 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
     public Future<ExportStatistic> executeExport(Export job, String s3Bucket, String s3Path, String s3Region) {
-      logger.info("job[{}] Execute Export-legacy csvFormat({}) ParamCompositeMode({}) PartitionKey({})", job.getId(), job.getCsvFormat(), job.readParamCompositeMode(), job.getPartitionKey() ); 
-      
+      logger.info("job[{}] Execute Export-legacy csvFormat({}) ParamCompositeMode({}) PartitionKey({})", job.getId(), job.getCsvFormat(), job.readParamCompositeMode(), job.getPartitionKey() );
+
       return getClient(job.getTargetConnector())
           .compose(client -> {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
@@ -331,7 +332,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                       Is used for incremental exports (tiles) - here we have to export modified tiles.
                       Those tiles we need to calculate separately
                        */
-                      boolean isIncrementalExport =   job.isIncrementalMode() 
+                      boolean isIncrementalExport =   job.isIncrementalMode()
                                                    || isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation) ;
 
                       final SQLQuery qkQuery = ( compositeCalculation || isIncrementalExport )
@@ -558,7 +559,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         if (targetVersion != null)
         { Ref ref = new Ref(targetVersion);
           if( ref.isRange() )
-           targetVersion = "" + ref.getToVersion();
+           targetVersion = "" + ref.getEndVersion();
         }
        /* incremental */
 
@@ -616,7 +617,7 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, 
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition,
         boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalExport
         )
         throws SQLException {
@@ -653,7 +654,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                     { extStashed = ext;
                       params.remove("extends"); // needs to be removed and restored later on s.'DS-587'
                                                     // except in case of L2 extends
-                    }  
+                    }
                 }
                 context = ContextAwareEvent.SpaceContext.DEFAULT;
             }
@@ -801,7 +802,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
   private static SQLQuery buildGeoFragment(SpatialFilter spatialFilter) {
     if (spatialFilter != null && spatialFilter.isClipped()) {
-     if( spatialFilter.getRadius() != 0 ) 
+     if( spatialFilter.getRadius() != 0 )
       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(st_force3d(ST_GeomFromText(#{wktGeometry}))::geography, #{radius})::geometry) as geo")
           .withNamedParameter("wktGeometry", WKTHelper.geometryToWKT2d(spatialFilter.getGeometry()))
           .withNamedParameter("radius", spatialFilter.getRadius());
