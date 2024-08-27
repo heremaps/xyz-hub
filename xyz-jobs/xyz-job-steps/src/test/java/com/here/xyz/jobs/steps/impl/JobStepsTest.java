@@ -105,7 +105,7 @@ public class JobStepsTest extends TestSteps {
 //    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
 
     sendLambdaStepRequest(step, START_EXECUTION);
-    sleep(2000);
+    sleep(4000);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
     assertEquals(2L, (Object) statsAfter.getCount().getValue());
