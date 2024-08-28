@@ -4279,8 +4279,8 @@ DECLARE
     onNotExists TEXT := UPPER(TG_ARGV[4]);
     onVersionConflict TEXT := UPPER(TG_ARGV[5]);
     onMergeConflict TEXT := UPPER(TG_ARGV[6]);
-    historyEnabled TEXT := TG_ARGV[7]; --FIXME: Why are parameters written as text?
-    context TEXT := TG_ARGV[8];
+    historyEnabled BOOLEAN := UPPER(TG_ARGV[7])::BOOLEAN;
+    context TEXT := UPPER(TG_ARGV[8]);
     extendedTable TEXT := TG_ARGV[9];
 BEGIN
     --TODO: Check how to fix "0 rows affected."
@@ -4288,17 +4288,17 @@ BEGIN
     IF NEW.operation IS NULL THEN
         --TODO: uses context with asyncify and remove this hack
         PERFORM context(
-            format('{"schema": "%1$s", "table": "%2$s", "historyEnabled": %3$s, "context": "%4$s", "extendedTable": "%5$s"}',
-                   TG_TABLE_SCHEMA,
-                   TG_TABLE_NAME,
-                   historyEnabled,
-                   context,
-                   extendedTable)::JSONB
+            jsonb_build_object('schema',TG_TABLE_SCHEMA,
+                               'table',TG_TABLE_NAME,
+                               'historyEnabled',historyEnabled,
+                               'context',(CASE WHEN (context = 'NULL') THEN null ELSE context END),
+                               'extendedTable',(CASE WHEN (extendedTable = 'null') THEN null ELSE extendedTable END)
+            )
         );
         --TODO: Improve performance by not receiving the jsondata as JSONB at all here
         PERFORM write_feature(NEW.jsondata::TEXT,
                               author,
-                              (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onExists END),
+                              (CASE WHEN (onExists = 'NULL') THEN NULL ELSE onExists END),
                               (CASE WHEN (onNotExists = 'NULL') THEN NULL ELSE onNotExists END),
                               (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onVersionConflict END),
                               (CASE WHEN (onMergeConflict = 'NULL') THEN NULL ELSE onMergeConflict END),

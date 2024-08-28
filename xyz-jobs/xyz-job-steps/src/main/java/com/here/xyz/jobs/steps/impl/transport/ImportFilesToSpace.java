@@ -144,6 +144,42 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return this;
   }
 
+  public void setOnExistsStrategy(String onExistsStrategy) {
+    this.onExistsStrategy = OnExists.valueOf(onExistsStrategy);
+  }
+
+  public ImportFilesToSpace withOnExistsStrategy(String onExistsStrategy) {
+    setOnExistsStrategy(onExistsStrategy);
+    return this;
+  }
+
+  public void setOnNotExistsStrategy(String onNotExistsStrategy) {
+    this.onNotExistsStrategy = OnNotExists.valueOf(onNotExistsStrategy);
+  }
+
+  public ImportFilesToSpace withOnNotExistsStrategy(String onNotExistsStrategy) {
+    setOnNotExistsStrategy(onNotExistsStrategy);
+    return this;
+  }
+
+  public void setOnMergeConflictStrategy(String onMergeConflictStrategy) {
+    this.onMergeConflictStrategy = OnMergeConflict.valueOf(onMergeConflictStrategy);
+  }
+
+  public ImportFilesToSpace withOnMergeConflictStrategy(String onMergeConflictStrategy) {
+    setOnMergeConflictStrategy(onMergeConflictStrategy);
+    return this;
+  }
+
+  public void setOnVersionConflictStrategy(String onVersionConflictStrategy) {
+    this.onVersionConflictStrategy = OnVersionConflict.valueOf(onVersionConflictStrategy);
+  }
+
+  public ImportFilesToSpace withOnVersionConflictStrategy(String onVersionConflictStrategy) {
+    setOnVersionConflictStrategy(onVersionConflictStrategy);
+    return this;
+  }
+
   public void setCalculatedThreadCount(int calculatedThreadCount) {
     this.calculatedThreadCount = calculatedThreadCount;
   }
