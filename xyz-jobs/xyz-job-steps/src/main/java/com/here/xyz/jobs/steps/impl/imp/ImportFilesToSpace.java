@@ -38,6 +38,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -327,7 +328,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     cleanUpDbRelatedResources(rootTableName, db);
 
     logAndSetPhase(Phase.RELEASE_READONLY);
-    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
+    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false, "contentUpdatedAt", Core.currentTimeMillis()));
 
     }catch (SQLException e){
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
