@@ -82,6 +82,44 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
+  @JsonView({Internal.class, Static.class})
+  private OnExists onExistsStrategy =  OnExists.REPLACE;
+
+  @JsonView({Internal.class, Static.class})
+  private OnNotExists onNotExistsStrategy =  OnNotExists.CREATE;
+
+  @JsonView({Internal.class, Static.class})
+  private OnVersionConflict onVersionConflictStrategy =  null;
+
+  @JsonView({Internal.class, Static.class})
+  private OnMergeConflict onMergeConflictStrategy =  null;
+
+  private enum OnExists {
+    DELETE,
+    REPLACE,
+    RETAIN,
+    ERROR
+  }
+
+  private enum OnNotExists {
+    CREATE,
+    RETAIN,
+    ERROR
+  }
+
+  private enum OnVersionConflict {
+    MERGE,
+    REPLACE,
+    RETAIN,
+    ERROR
+  }
+
+  private enum OnMergeConflict {
+    REPLACE,
+    RETAIN,
+    ERROR //Default
+  }
+
   public enum Format {
     CSV_GEOJSON,
     CSV_JSON_WKB,
@@ -346,11 +384,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   protected void onAsyncSuccess() throws WebClientException,
           SQLException, TooManyResourcesClaimed, IOException {
-    /** Finalize Import
-     * - cleanUp: remove trigger / delete temporary table
-     * - provide getStatistics
-     * - release readOnly lock
-     */
     try {
 
     logAndSetPhase(Phase.RETRIEVE_STATISTICS);
@@ -495,21 +528,24 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("""
         CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
           FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty(
-            '${{author}}',
+             ${{author}},
              ${{spaceVersion}},
              false, --isPartial
-             'REPLACE', --onExists
-             'CREATE', --onNotExists
-             NULL, --onVersionConflict
-             NULL, --onMergeConflict
+             ${{onExists}},
+             ${{onNotExists}},
+             ${{onVersionConflict}},
+             ${{onMergeConflict}},
              ${{historyEnabled}},
              ${{context}},
              ${{extendedTable}}
              )
         """)
-        //TODO: Use named params instead of fragments!
-        .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
-        .withQueryFragment("author", targetAuthor)
+        .withQueryFragment("spaceVersion", Long.toString(targetSpaceVersion))
+        .withQueryFragment("author", "'" + targetAuthor + "'" )
+        .withQueryFragment("onExists", onExistsStrategy == null ? "NULL" : "'" +onExistsStrategy.toString() + "'" )
+        .withQueryFragment("onNotExists", onNotExistsStrategy == null ? "NULL" : "'" + onNotExistsStrategy.toString() + "'" )
+        .withQueryFragment("onVersionConflict", onVersionConflictStrategy == null ? "NULL" : "'" + onVersionConflictStrategy.toString() + "'" )
+        .withQueryFragment("onMergeConflict", onMergeConflictStrategy == null ? "NULL" : "'" +onMergeConflictStrategy.toString() + "'" )
         .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
         .withQueryFragment("context", superTable != null ? "'DEFAULT'" : "NULL")
         .withQueryFragment("extendedTable", superTable != null ? "'" + superTable + "'" : "NULL")
