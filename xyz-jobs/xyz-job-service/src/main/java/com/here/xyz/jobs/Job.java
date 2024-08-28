@@ -217,8 +217,11 @@ public class Job implements XyzSerializable {
     getStatus().setState(PENDING);
     getSteps().stepStream().forEach(step -> step.getStatus().setState(PENDING));
 
+    logger.info("Starting job {} ...", getId());
+    long t1 = Core.currentTimeMillis();
     return store()
-        .compose(v -> startExecution(false));
+        .compose(v -> startExecution(false))
+        .onSuccess(v -> logger.info("Started job {}. Took {}ms.", getId(), Core.currentTimeMillis() - t1));
   }
 
   private Future<Void> startExecution(boolean resume) {
