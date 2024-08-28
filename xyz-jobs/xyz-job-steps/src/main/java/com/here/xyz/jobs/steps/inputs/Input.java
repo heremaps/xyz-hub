@@ -202,7 +202,7 @@ public abstract class Input <T extends Input> implements Typed {
     finally {
       tmpPool.shutdown();
     }
-    logger.info("Scanning inputs from bucket {} and prefix {} took {}ms.", bucketName, inputS3Prefix, Core.currentTimeMillis() - t1);
+    logger.info("Scanned {} inputs from bucket {} and prefix {}. Took {}ms.", inputs.size(), bucketName, inputS3Prefix, Core.currentTimeMillis() - t1);
     return inputs;
   }
 
