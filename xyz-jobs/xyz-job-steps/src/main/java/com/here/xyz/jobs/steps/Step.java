@@ -66,7 +66,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonView({Internal.class, Static.class})
   private long estimatedUploadBytes = -1;
-  private float estimationFactor = 1.0f;
+  @JsonView({Internal.class, Static.class})
+  private float estimationFactor = 1f;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
@@ -76,7 +77,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private List<Input> inputs;
   @JsonView({Internal.class, Static.class})
   private boolean pipeline;
-  @JsonIgnore
+  @JsonView({Internal.class, Static.class})
   private boolean useSystemInput;
 
   /**
@@ -377,25 +378,20 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   @JsonIgnore
   public long getUncompressedUploadBytesEstimation() {
-    long estimatedBytes = estimatedUploadBytes != -1 ? estimatedUploadBytes
-        : (estimatedUploadBytes = loadInputs()
+    return estimatedUploadBytes != -1 ? estimatedUploadBytes
+        : (estimatedUploadBytes = (long) Math.ceil(loadInputs()
             .stream()
             .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
-            .sum());
-
-    return (long) Math.ceil(estimationFactor * estimatedBytes);
+            .sum() * estimationFactor));
   }
 
-  public long getEstimatedUploadBytes() {
-    return estimatedUploadBytes;
+  @JsonIgnore
+  public void setUncompressedUploadBytesEstimation(long uncompressedUploadBytesEstimation) {
+    estimatedUploadBytes = uncompressedUploadBytesEstimation;
   }
 
-  public void setEstimatedUploadBytes(long estimatedUploadBytes) {
-    this.estimatedUploadBytes = estimatedUploadBytes;
-  }
-
-  public T withEstimatedUploadBytes(long estimatedUploadBytes) {
-    setEstimatedUploadBytes(estimatedUploadBytes);
+  public T withUncompressedUploadBytesEstimation(long uncompressedUploadBytesEstimation) {
+    setUncompressedUploadBytesEstimation(uncompressedUploadBytesEstimation);
     return (T) this;
   }
 

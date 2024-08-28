@@ -250,7 +250,7 @@ public class GraphTransformer {
     lambdaTaskParametersLookup.put(state.stateName, new LambdaTaskParameters(stepLambdaArn.toString(), payload.toMap()));
 
     state.stateBuilder.resource(taskResource);
-    if(executionMode == ASYNC)
+    if (executionMode == ASYNC)
       state.stateBuilder.heartbeatSeconds(STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS);
   }
 

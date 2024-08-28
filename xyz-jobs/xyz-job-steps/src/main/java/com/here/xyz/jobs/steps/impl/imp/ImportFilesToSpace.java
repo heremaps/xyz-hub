@@ -184,7 +184,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    if(!isUseSystemInput()) {
+    if (!isUseSystemInput()) {
       if (currentInputsCount(UploadUrl.class) <= 0)
         //Inputs are missing, the step is not ready to be executed
         return false;
@@ -330,7 +330,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     cleanUpDbRelatedResources(rootTableName, db);
 
     logAndSetPhase(Phase.RELEASE_READONLY);
-    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false, "contentUpdatedAt", Core.currentTimeMillis()));
+    hubWebClient().patchSpace(getSpaceId(), Map.of(
+        "readOnly", false,
+        "contentUpdatedAt", Core.currentTimeMillis()
+    ));
 
     }catch (SQLException e){
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
