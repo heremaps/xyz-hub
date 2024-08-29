@@ -4253,7 +4253,7 @@ AS $BODY$
             NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
 
             IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-                --GeoJson Feature Import
+                -- GeoJson Feature Import
                 NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
                 NEW.jsondata := NEW.jsondata - 'geometry';
             ELSE
