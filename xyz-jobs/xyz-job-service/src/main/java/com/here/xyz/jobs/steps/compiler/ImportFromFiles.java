@@ -55,7 +55,8 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   @Override
   public CompilationStepGraph compile(Job job) {
-    String spaceId = job.getTarget().getKey();
+    DatasetDescription.Space target = (DatasetDescription.Space) job.getTarget();
+    String spaceId = target.getId();
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
     List<Index> indices = Stream.of(Index.values()).filter(index -> index != VIZ).toList();
     //Split the work in two parallel tasks for now
@@ -73,27 +74,29 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     //To be able to use getExecutionMode() it is required to provide already the jobId because it gets used
     //for s3Path calculation. @TODO: check if withJobId() should be public
     ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace() //Perform import
-            .withSpaceId(spaceId)
-            .withFormat(importStepFormat)
-            .withJobId(job.getId());
+        .withSpaceId(spaceId)
+        .withFormat(importStepFormat)
+        .withJobId(job.getId())
+        .withUpdateStrategy(target.getUpdateStrategy());
 
-    if(importFilesToSpace.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC)){
+    if (importFilesToSpace.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC)) {
       //perform SYNC Import
       return (CompilationStepGraph) new CompilationStepGraph()
-              .addExecution(importFilesToSpace);
-    }else{
+          .addExecution(importFilesToSpace);
+    }
+    else {
       //perform ASYNC Import
       return (CompilationStepGraph) new CompilationStepGraph()
-              .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
-              .addExecution(importFilesToSpace)
-              //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
-              .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
-                      .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
-                      .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
-                      .withParallel(true))
-              .addExecution(new CreateIndex().withIndex(VIZ).withSpaceId(spaceId))
-              .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
-              .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
+          .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
+          .addExecution(importFilesToSpace)
+          //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
+          .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
+              .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
+              .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
+              .withParallel(true))
+          .addExecution(new CreateIndex().withIndex(VIZ).withSpaceId(spaceId))
+          .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
+          .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
     }
   }
 

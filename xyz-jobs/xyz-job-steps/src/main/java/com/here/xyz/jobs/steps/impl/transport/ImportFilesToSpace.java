@@ -27,6 +27,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.datasets.space.UpdateStrategy;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -83,42 +84,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private OnExists onExistsStrategy =  OnExists.REPLACE;
-
-  @JsonView({Internal.class, Static.class})
-  private OnNotExists onNotExistsStrategy =  OnNotExists.CREATE;
-
-  @JsonView({Internal.class, Static.class})
-  private OnVersionConflict onVersionConflictStrategy =  null;
-
-  @JsonView({Internal.class, Static.class})
-  private OnMergeConflict onMergeConflictStrategy =  null;
-
-  private enum OnExists {
-    DELETE,
-    REPLACE,
-    RETAIN,
-    ERROR
-  }
-
-  private enum OnNotExists {
-    CREATE,
-    RETAIN,
-    ERROR
-  }
-
-  private enum OnVersionConflict {
-    MERGE,
-    REPLACE,
-    RETAIN,
-    ERROR
-  }
-
-  private enum OnMergeConflict {
-    REPLACE,
-    RETAIN,
-    ERROR //Default
-  }
+  private UpdateStrategy updateStrategy;
 
   public enum Format {
     CSV_GEOJSON,
@@ -144,39 +110,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return this;
   }
 
-  public void setOnExistsStrategy(String onExistsStrategy) {
-    this.onExistsStrategy = OnExists.valueOf(onExistsStrategy);
+  public UpdateStrategy getUpdateStrategy() {
+    return updateStrategy;
   }
 
-  public ImportFilesToSpace withOnExistsStrategy(String onExistsStrategy) {
-    setOnExistsStrategy(onExistsStrategy);
-    return this;
+  public void setUpdateStrategy(UpdateStrategy updateStrategy) {
+    this.updateStrategy = updateStrategy;
   }
 
-  public void setOnNotExistsStrategy(String onNotExistsStrategy) {
-    this.onNotExistsStrategy = OnNotExists.valueOf(onNotExistsStrategy);
-  }
-
-  public ImportFilesToSpace withOnNotExistsStrategy(String onNotExistsStrategy) {
-    setOnNotExistsStrategy(onNotExistsStrategy);
-    return this;
-  }
-
-  public void setOnMergeConflictStrategy(String onMergeConflictStrategy) {
-    this.onMergeConflictStrategy = OnMergeConflict.valueOf(onMergeConflictStrategy);
-  }
-
-  public ImportFilesToSpace withOnMergeConflictStrategy(String onMergeConflictStrategy) {
-    setOnMergeConflictStrategy(onMergeConflictStrategy);
-    return this;
-  }
-
-  public void setOnVersionConflictStrategy(String onVersionConflictStrategy) {
-    this.onVersionConflictStrategy = OnVersionConflict.valueOf(onVersionConflictStrategy);
-  }
-
-  public ImportFilesToSpace withOnVersionConflictStrategy(String onVersionConflictStrategy) {
-    setOnVersionConflictStrategy(onVersionConflictStrategy);
+  public ImportFilesToSpace withUpdateStrategy(UpdateStrategy updateStrategy) {
+    setUpdateStrategy(updateStrategy);
     return this;
   }
 
@@ -576,12 +519,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{extendedTable}}
              )
         """)
+        //TODO: Use named params instead of fragments!
         .withQueryFragment("spaceVersion", Long.toString(targetSpaceVersion))
         .withQueryFragment("author", "'" + targetAuthor + "'" )
-        .withQueryFragment("onExists", onExistsStrategy == null ? "NULL" : "'" +onExistsStrategy.toString() + "'" )
-        .withQueryFragment("onNotExists", onNotExistsStrategy == null ? "NULL" : "'" + onNotExistsStrategy.toString() + "'" )
-        .withQueryFragment("onVersionConflict", onVersionConflictStrategy == null ? "NULL" : "'" + onVersionConflictStrategy.toString() + "'" )
-        .withQueryFragment("onMergeConflict", onMergeConflictStrategy == null ? "NULL" : "'" +onMergeConflictStrategy.toString() + "'" )
+        .withQueryFragment("onExists", updateStrategy.onExists() == null ? "NULL" : "'" + updateStrategy.onExists() + "'" )
+        .withQueryFragment("onNotExists", updateStrategy.onNotExists() == null ? "NULL" : "'" + updateStrategy.onNotExists() + "'" )
+        .withQueryFragment("onVersionConflict", updateStrategy.onVersionConflict() == null ? "NULL" : "'" + updateStrategy.onVersionConflict() + "'" )
+        .withQueryFragment("onMergeConflict", updateStrategy.onMergeConflict() == null ? "NULL" : "'" + updateStrategy.onMergeConflict() + "'" )
         .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
         .withQueryFragment("context", superTable != null ? "'DEFAULT'" : "NULL")
         .withQueryFragment("extendedTable", superTable != null ? "'" + superTable + "'" : "NULL")
