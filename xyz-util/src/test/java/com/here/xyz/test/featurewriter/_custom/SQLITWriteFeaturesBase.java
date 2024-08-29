@@ -43,7 +43,7 @@ import org.junit.Before;
 public class SQLITWriteFeaturesBase extends SQLSpaceWriter {
 
   public SQLITWriteFeaturesBase(boolean composite) {
-    super(false);
+    super(false, "SQLITWriteFeaturesBase");
   }
 
   /**

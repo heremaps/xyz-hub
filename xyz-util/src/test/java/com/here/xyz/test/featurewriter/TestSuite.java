@@ -53,6 +53,7 @@ import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.Operation;
 import com.here.xyz.test.featurewriter.SpaceWriter.SQLError;
+import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,9 +67,9 @@ import org.junit.After;
 import org.junit.Before;
 
 public abstract class TestSuite {
-
   public static final String TEST_FEATURE_ID = "id1";
   public static final Point TEST_FEATURE_GEOMETRY = new Point().withCoordinates(new PointCoordinates(8, 50));
+
   protected SpaceWriter spaceWriter;
 
   protected String testName;
@@ -192,7 +193,7 @@ public abstract class TestSuite {
   }
 
   private void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
-    spaceWriter.writeFeature(feature, author, null, null, null, null,
+    new SQLSpaceWriter(composite, getClass().getSimpleName()).writeFeature(feature, author, null, null, null, null,
         false, context, history);
     writtenSpaceVersions.get(context).increment();
   }

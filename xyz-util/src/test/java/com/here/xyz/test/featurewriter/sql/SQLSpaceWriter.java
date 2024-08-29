@@ -39,8 +39,8 @@ public class SQLSpaceWriter extends SpaceWriter {
 
   protected static String VERSION_SEQUENCE_SUFFIX = "_version_seq";
 
-  public SQLSpaceWriter(boolean composite) {
-    super(composite);
+  public SQLSpaceWriter(boolean composite, String testSuiteName) {
+    super(composite, testSuiteName);
   }
 
   @Override

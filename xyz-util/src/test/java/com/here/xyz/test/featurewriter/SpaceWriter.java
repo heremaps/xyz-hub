@@ -47,7 +47,7 @@ public abstract class SpaceWriter extends SQLITBase {
   public static String UPDATE_AUTHOR = "ANONYMOUS_UPDATE";
   public static String DEFAULT_FEATURE_ID = TEST_FEATURE_ID;
   //Used for Table or SpaceName
-  private String spaceId = this.getClass().getSimpleName();
+  private String spaceId;
   protected boolean composite;
 
   protected String superSpaceId() {
@@ -60,7 +60,8 @@ public abstract class SpaceWriter extends SQLITBase {
     return spaceId;
   }
 
-  protected SpaceWriter(boolean composite) {
+  protected SpaceWriter(boolean composite, String testSuiteName) {
+    spaceId = testSuiteName;
     this.composite = composite;
   }
 

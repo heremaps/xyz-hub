@@ -28,6 +28,6 @@ public abstract class SQLTestSuite extends TestSuite {
 
   public SQLTestSuite(TestArgs args) {
     super(args);
-    spaceWriter = new SQLSpaceWriter(composite);
+    spaceWriter = new SQLSpaceWriter(composite, getClass().getSimpleName());
   }
 }

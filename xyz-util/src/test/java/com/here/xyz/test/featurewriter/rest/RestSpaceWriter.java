@@ -43,8 +43,8 @@ import java.util.Map;
 public class RestSpaceWriter extends SpaceWriter {
   private boolean history;
 
-  public RestSpaceWriter(boolean composite, boolean history) {
-    super(composite);
+  public RestSpaceWriter(boolean composite, boolean history, String testSuiteName) {
+    super(composite, testSuiteName);
     this.history = history;
   }
 
