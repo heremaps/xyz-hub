@@ -4219,56 +4219,97 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_trigger_v2()
- RETURNS trigger
+CREATE OR REPLACE FUNCTION enrichNewFeature(IN jsondata jsonb, geo geometry(GeometryZ,4326))
+    RETURNS TABLE(new_jsondata jsonb, new_geo geometry(GeometryZ,4326), new_operation character, new_id text)
 AS $BODY$
-	DECLARE
-        author text := TG_ARGV[0];
-        curVersion bigint := TG_ARGV[1];
-
-		fid text := NEW.jsondata->>'id';
-		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
-		meta jsonb := format(
-			'{
+DECLARE
+    fid text := jsondata->>'id';
+    createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+    --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
+    meta jsonb := format(
+            '{
                  "createdAt": %s,
                  "updatedAt": %s
-			}', createdAt, createdAt
-        );
-    BEGIN
-            -- Inject id if not available
-            IF fid IS NULL THEN
-                fid = xyz_random_string(10);
-                NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
-            END IF;
+            }', createdAt, createdAt
+    );
+BEGIN
+    IF fid IS NULL THEN
+        fid = xyz_random_string(10);
+        jsondata := (jsondata || format('{"id": "%s"}', fid)::jsonb);
+    END IF;
 
-            -- Remove bbox on root
-            NEW.jsondata := NEW.jsondata - 'bbox';
+    -- Remove bbox on root
+    jsondata := jsondata - 'bbox';
 
-            -- Inject type
-            NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
+    -- Inject type
+    jsondata := jsonb_set(jsondata, '{type}', '"Feature"');
 
-            -- Inject meta
-            NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
+    -- Inject meta
+    jsondata := jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', meta);
 
-            IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-                --GeoJson Feature Import
-                NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
-                NEW.jsondata := NEW.jsondata - 'geometry';
-            ELSE
-                NEW.geo := ST_Force3D(NEW.geo);
-            END IF;
+    IF jsondata->'geometry' IS NOT NULL THEN
+        --GeoJson Feature Import
+        new_geo := ST_Force3D(ST_GeomFromGeoJSON(jsondata->'geometry'));
+        jsondata := jsondata - 'geometry';
+    ELSE
+        new_geo := ST_Force3D(geo);
+    END IF;
 
-            NEW.operation := 'I';
-            NEW.version := curVersion;
-            NEW.id := fid;
-            NEW.author := author;
-    RETURN NEW;
+    new_jsondata := jsondata;
+    new_operation := 'I';
+    new_id := fid;
+
+    RETURN NEXT;
+END
+$BODY$
+    LANGUAGE plpgsql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger_for_empty_layer()
+    RETURNS trigger
+AS $BODY$
+DECLARE
+    author text := TG_ARGV[0];
+    curVersion bigint := TG_ARGV[1];
+    feature jsonb;
+BEGIN
+    IF NEW.jsondata ->> 'type' = 'FeatureCollection' THEN
+        IF NEW.operation IS NOT NULL THEN
+            RETURN NEW;
+        ELSE
+            --TODO: Should we also allow "Features"
+            FOR feature IN SELECT * FROM jsonb_array_elements(NEW.jsondata->'features')
+                LOOP
+                    IF NEW.geo IS NOT NULL THEN
+                        RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
+                            USING ERRCODE = 'XYZ51';
+                    END IF;
+                    SELECT new_jsondata, new_geo, new_operation, new_id
+                        from enrichNewFeature(feature, null)
+                    INTO NEW.jsondata, NEW.geo, NEW.operation, NEW.id;
+
+                    EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+						values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
+                                   TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.id, curVersion, NEW.operation, author, NEW.jsondata, NEW.geo);
+                    NEW.geo = null;
+                END LOOP;
+            RETURN NULL;
+        END IF;
+    ELSE
+        SELECT new_jsondata, new_geo, new_operation, new_id
+            from enrichNewFeature(NEW.jsondata, NEW.geo)
+        INTO NEW.jsondata, NEW.geo, NEW.operation, NEW.id;
+
+        NEW.version := curVersion;
+        NEW.author := author;
+        RETURN NEW;
+    END IF;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+    LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty()
+CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer()
     RETURNS trigger
 AS $BODY$
 DECLARE
@@ -4284,7 +4325,6 @@ DECLARE
     extendedTable TEXT := TG_ARGV[9];
 BEGIN
     --TODO: Check how to fix "0 rows affected."
-    --Only Geojson input is currently supported.
     IF NEW.operation IS NULL THEN
         --TODO: uses context with asyncify and remove this hack
         PERFORM context(
@@ -4295,15 +4335,39 @@ BEGIN
                                'extendedTable',(CASE WHEN (extendedTable = 'null') THEN null ELSE extendedTable END)
             )
         );
-        --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-        PERFORM write_feature(NEW.jsondata::TEXT,
-                              author,
-                              (CASE WHEN (onExists = 'NULL') THEN NULL ELSE onExists END),
-                              (CASE WHEN (onNotExists = 'NULL') THEN NULL ELSE onNotExists END),
-                              (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onVersionConflict END),
-                              (CASE WHEN (onMergeConflict = 'NULL') THEN NULL ELSE onMergeConflict END),
-                              isPartial,
-                              currentVersion);
+
+        --TODO: Should we also allow "Features"
+        IF NEW.jsondata ->> 'type' = 'FeatureCollection' AND NEW.jsondata->'features' IS NOT NULL THEN
+            IF NEW.geo IS NOT NULL THEN
+                RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
+                    USING ERRCODE = 'XYZ51';
+            END IF;
+
+            PERFORM write_features((NEW.jsondata->'features')::TEXT,
+                                  author,
+                                  (CASE WHEN (onExists = 'NULL') THEN NULL ELSE onExists END),
+                                  (CASE WHEN (onNotExists = 'NULL') THEN NULL ELSE onNotExists END),
+                                  (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onVersionConflict END),
+                                  (CASE WHEN (onMergeConflict = 'NULL') THEN NULL ELSE onMergeConflict END),
+                                  isPartial,
+                                  currentVersion);
+        ELSE
+            --WKB support
+            IF NEW.geo IS NOT NULL THEN
+                NEW.jsondata := jsonb_set(NEW.jsondata, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
+            END IF;
+
+            --TODO: Improve performance by not receiving the jsondata as JSONB at all here
+            PERFORM write_feature(NEW.jsondata::TEXT,
+                                  author,
+                                  (CASE WHEN (onExists = 'NULL') THEN NULL ELSE onExists END),
+                                  (CASE WHEN (onNotExists = 'NULL') THEN NULL ELSE onNotExists END),
+                                  (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onVersionConflict END),
+                                  (CASE WHEN (onMergeConflict = 'NULL') THEN NULL ELSE onMergeConflict END),
+                                  isPartial,
+                                  currentVersion);
+        END IF;
+
         RETURN NULL;
     ELSE
         RETURN NEW;

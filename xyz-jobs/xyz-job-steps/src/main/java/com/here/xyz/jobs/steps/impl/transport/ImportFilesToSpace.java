@@ -86,6 +86,52 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private UpdateStrategy updateStrategy;
 
+  @JsonView({Internal.class, Static.class})
+  private OnExists onExistsStrategy =  OnExists.REPLACE;
+
+  @JsonView({Internal.class, Static.class})
+  private OnNotExists onNotExistsStrategy =  OnNotExists.CREATE;
+
+  @JsonView({Internal.class, Static.class})
+  private OnVersionConflict onVersionConflictStrategy =  null;
+
+  @JsonView({Internal.class, Static.class})
+  private OnMergeConflict onMergeConflictStrategy =  null;
+
+  @JsonView({Internal.class, Static.class})
+  private EntityPerLine entityPerLine =  null;
+
+  public enum EntityPerLine {
+    Feature,
+    FeatureCollection
+  }
+
+  private enum OnExists {
+    DELETE,
+    REPLACE,
+    RETAIN,
+    ERROR
+  }
+
+  private enum OnNotExists {
+    CREATE,
+    RETAIN,
+    ERROR
+  }
+
+  private enum OnVersionConflict {
+    MERGE,
+    REPLACE,
+    RETAIN,
+    ERROR
+  }
+
+  private enum OnMergeConflict {
+    REPLACE,
+    RETAIN,
+    ERROR //Default
+  }
+
   public enum Format {
     CSV_GEOJSON,
     CSV_JSON_WKB,
@@ -130,6 +176,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   public ImportFilesToSpace withCalculatedThreadCount(int calculatedThreadCount) {
       setCalculatedThreadCount(calculatedThreadCount);
       return this;
+  }
+
+  public void setEntityPerLine(String entityPerLine) {
+    this.entityPerLine = EntityPerLine.valueOf(entityPerLine);
+  }
+
+  public ImportFilesToSpace withEntityPerLine(String entityPerLine) {
+    setEntityPerLine(entityPerLine);
+    return this;
   }
 
   public Phase getPhase() {
@@ -201,6 +256,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
       targetTableFeatureCount = statistics.getCount().getValue();
 
+      if(entityPerLine.equals(EntityPerLine.FeatureCollection) && format.equals(Format.CSV_JSON_WKB))
+        throw new ValidationException("Combination of entityPerLine 'FeatureCollection' and type 'Csv' is not supported!");
+
       //TODO: remove after featureWriter is in use
 //      if (targetTableFeatureCount > 0 && getExecutionMode().equals(ExecutionMode.ASYNC))
 //        throw new ValidationException("Space is not empty - SYNC processing is only available for smaller spaces!");
@@ -214,7 +272,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       return false;
 
     //Quick-validate the first UploadUrl that is found in the inputs
-    ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format);
+    ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
 
     return true;
   }
@@ -494,7 +552,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
-            + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_v2('${{author}}', ${{spaceVersion}});")
+            + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_empty_layer('${{author}}', ${{spaceVersion}});")
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
             .withQueryFragment("author", targetAuthor)
             .withVariable("schema", getSchema(db()))
@@ -506,7 +564,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
         CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
-          FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty(
+          FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty_layer(
              ${{author}},
              ${{spaceVersion}},
              false, --isPartial
@@ -519,7 +577,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{extendedTable}}
              )
         """)
-        //TODO: Use named params instead of fragments!
         .withQueryFragment("spaceVersion", Long.toString(targetSpaceVersion))
         .withQueryFragment("author", "'" + targetAuthor + "'" )
         .withQueryFragment("onExists", updateStrategy.onExists() == null ? "NULL" : "'" + updateStrategy.onExists() + "'" )

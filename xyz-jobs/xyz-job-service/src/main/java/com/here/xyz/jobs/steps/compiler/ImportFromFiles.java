@@ -30,6 +30,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
+import com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
@@ -64,20 +65,26 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
     final FileFormat sourceFormat = ((Files) job.getSource()).getInputSettings().getFormat();
     Format importStepFormat;
-    if (sourceFormat instanceof GeoJson)
+    EntityPerLine entityPerLine;
+
+    if (sourceFormat instanceof GeoJson){
       importStepFormat = GEOJSON;
-    else if (sourceFormat instanceof Csv csvFormat)
+      entityPerLine = ((GeoJson) sourceFormat).getEntityPerLine();
+    }else if (sourceFormat instanceof Csv csvFormat) {
       importStepFormat = csvFormat.isGeometryAsExtraWkbColumn() ? CSV_JSON_WKB : CSV_GEOJSON;
+      entityPerLine = ((Csv) sourceFormat).getEntityPerLine();
+    }
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
     //To be able to use getExecutionMode() it is required to provide already the jobId because it gets used
     //for s3Path calculation. @TODO: check if withJobId() should be public
     ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace() //Perform import
-        .withSpaceId(spaceId)
-        .withFormat(importStepFormat)
-        .withJobId(job.getId())
-        .withUpdateStrategy(target.getUpdateStrategy());
+            .withSpaceId(spaceId)
+            .withFormat(importStepFormat)
+            .withEntityPerLine(entityPerLine.toString())
+            .withJobId(job.getId())
+            .withUpdateStrategy(target.getUpdateStrategy());;
 
     if (importFilesToSpace.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC)) {
       //perform SYNC Import

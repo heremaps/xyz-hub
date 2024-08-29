@@ -20,6 +20,8 @@
 package com.here.xyz.jobs.datasets.files;
 
 import static com.here.xyz.jobs.datasets.files.Csv.JsonColumnEncoding.BASE64;
+import static com.here.xyz.jobs.datasets.files.Csv.JsonColumnEncoding.TEXT;
+import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.FeatureCollection;
 
 /**
@@ -27,8 +29,8 @@ import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.FeatureC
  */
 @Deprecated
 public class Csv extends FileFormat {
-  private EntityPerLine entityPerLine = FeatureCollection;
-  private JsonColumnEncoding encoding = BASE64;
+  private EntityPerLine entityPerLine = Feature;
+  private JsonColumnEncoding encoding = TEXT;
   private boolean addPartitionKey;
   private boolean geometryAsExtraWkbColumn;
 
@@ -85,6 +87,7 @@ public class Csv extends FileFormat {
   }
 
   public enum JsonColumnEncoding {
-    BASE64
+    BASE64,
+    TEXT
   }
 }

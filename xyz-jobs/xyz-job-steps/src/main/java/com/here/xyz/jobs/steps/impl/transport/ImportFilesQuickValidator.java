@@ -21,12 +21,15 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import com.amazonaws.AmazonServiceException;
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,17 +46,17 @@ public class ImportFilesQuickValidator {
   private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
 
-  static void validate(UploadUrl uploadUrl, Format format) throws ValidationException {
-    validate(uploadUrl.getS3Bucket(), uploadUrl.getS3Key(), format, uploadUrl.isCompressed());
+  static void validate(UploadUrl uploadUrl, Format format, EntityPerLine entityPerLine) throws ValidationException {
+    validate(uploadUrl.getS3Bucket(), uploadUrl.getS3Key(), format, uploadUrl.isCompressed(), entityPerLine);
   }
 
-  static void validate(String s3Bucket, String s3Key, Format format, boolean isCompressed) throws ValidationException {
+  static void validate(String s3Bucket, String s3Key, Format format, boolean isCompressed, EntityPerLine entityPerLine) throws ValidationException {
     S3Client client = S3Client.getInstance(s3Bucket);
     try {
       if (isCompressed)
-        validateFirstCSVLine(client, s3Key, format, "", 0, true);
+        validateFirstCSVLine(client, s3Key, format, "", 0, true, entityPerLine);
       else
-        validateFirstCSVLine(client, s3Key, format, "", 0, false);
+        validateFirstCSVLine(client, s3Key, format, "", 0, false, entityPerLine);
     }
     catch (IOException e) {
       //@TODO: Check how we want to handle those errors (not related to the content)
@@ -62,7 +65,7 @@ public class ImportFilesQuickValidator {
     }
   }
 
-  private static void validateFirstCSVLine(S3Client client, String s3Key, Format format, String line, long fromKB, boolean isZipped)
+  private static void validateFirstCSVLine(S3Client client, String s3Key, Format format, String line, long fromKB, boolean isZipped, EntityPerLine entityPerLine)
           throws IOException, ValidationException {
     long toKB = fromKB + VALIDATE_LINE_KB_STEPS;
 
@@ -84,14 +87,14 @@ public class ImportFilesQuickValidator {
         line += c;
 
         if (c == '\n' || c == '\r') {
-          ImportFilesQuickValidator.validateCSVLine(line, format);
+          ImportFilesQuickValidator.validateCSVLine(line, format, entityPerLine);
           return;
         }
       }
     } catch (AmazonServiceException e) {
       if (e.getErrorCode().equalsIgnoreCase("InvalidRange")) {
         // Did not find a line break - maybe CSV with 1LOC - try to validate
-        ImportFilesQuickValidator.validateCSVLine(line, format);
+        ImportFilesQuickValidator.validateCSVLine(line, format, entityPerLine);
         return;
       }
       throw e;
@@ -106,14 +109,14 @@ public class ImportFilesQuickValidator {
 
     if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
       // Not found a line break till now - search further
-      validateFirstCSVLine(client, s3Key, format, line, toKB, isZipped);
+      validateFirstCSVLine(client, s3Key, format, line, toKB, isZipped, entityPerLine);
     } else {
       // Not able to find a newline - could be a one-liner
-      ImportFilesQuickValidator.validateCSVLine(line, format);
+      ImportFilesQuickValidator.validateCSVLine(line, format, entityPerLine);
     }
   }
 
-  private static void validateCSVLine(String csvLine, Format format) throws ValidationException {
+  private static void validateCSVLine(String csvLine, Format format, EntityPerLine entityPerLine) throws ValidationException {
 
     if (csvLine != null && csvLine.endsWith("\r\n"))
       csvLine = csvLine.substring(0, csvLine.length() - 3);
@@ -124,32 +127,35 @@ public class ImportFilesQuickValidator {
       throw new ValidationException("Empty Column detected!");
 
     switch (format) {
-      case CSV_GEOJSON -> validateCsvGeoJSON(csvLine);
+      case CSV_GEOJSON -> validateCsvGeoJSON(csvLine, entityPerLine);
       case CSV_JSON_WKB -> validateCsvJSON_WKB(csvLine);
-      case GEOJSON -> validateGeoJSON(csvLine);
+      case GEOJSON -> validateGeoJSON(csvLine, entityPerLine);
       default -> throw new ValidationException("Format is not supported! " + format);
     }
   }
 
-  private static void validateGeoJSON(String csvLine) throws ValidationException {
+  private static void validateGeoJSON(String geoJson, EntityPerLine entityPerLine) throws ValidationException {
     try {
       /** Try to serialize JSON */
-      XyzSerializable.deserialize(csvLine, Feature.class);
-    }
-    catch (Exception e) {
-      transformException(e);
-    }
-  }
-
-  private static void validateCsvGeoJSON(String csvLine) throws ValidationException {
-    try {
-      /** Try to serialize JSON */
-      String geoJson = csvLine.substring(1, csvLine.length()).replaceAll("'\"", "\"");
       XyzSerializable.deserialize(geoJson, Feature.class);
     }
     catch (Exception e) {
-      transformException(e);
+      if(entityPerLine.equals(EntityPerLine.FeatureCollection)){
+        try {
+          /** Check possibly received FeatureCollection */
+          XyzSerializable.deserialize(geoJson, FeatureCollection.class);
+        } catch (JsonProcessingException ex) {
+          transformException(e);
+        }
+      }else
+        transformException(e);
     }
+  }
+
+  private static void validateCsvGeoJSON(String csvLine, EntityPerLine entityPerLine) throws ValidationException {
+    /** Try to serialize JSON */
+    csvLine = csvLine.substring(1, csvLine.length()).replaceAll("'\"", "\"");
+    validateGeoJSON(csvLine, entityPerLine);
   }
 
   private static void validateCsvJSON_WKB(String csvLine) throws ValidationException {
