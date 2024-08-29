@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.service;
 
 import com.here.xyz.util.ARN;
-import java.util.Arrays;
 import java.util.List;
 
 public class Config extends com.here.xyz.jobs.steps.Config {
@@ -61,8 +60,6 @@ public class Config extends com.here.xyz.jobs.steps.Config {
   public String JOB_PLUGINS;
 
   public List<String> jobPlugins() {
-    if (JOB_PLUGINS == null)
-      return List.of();
-    return Arrays.asList(JOB_PLUGINS.split(","));
+    return fromCommaSeparatedList(JOB_PLUGINS);
   }
 }
