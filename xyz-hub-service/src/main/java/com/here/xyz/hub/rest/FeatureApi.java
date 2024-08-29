@@ -228,7 +228,9 @@ public class FeatureApi extends SpaceBasedApi {
     if (checkModificationOnSuper(context, spaceContext))
       return;
 
+    String author = BaseHttpServerVerticle.getAuthor(context);
     ModifyFeaturesEvent event = new ModifyFeaturesEvent()
+        .withAuthor(author)
         .withTransaction(transactional)
         .withContext(spaceContext)
         .withConflictDetectionEnabled(Query.getBoolean(context, Query.CONFLICT_DETECTION, false));
@@ -244,7 +246,7 @@ public class FeatureApi extends SpaceBasedApi {
       XyzNamespace.fixNormalizedTags(task.addTags);
       XyzNamespace.fixNormalizedTags(task.removeTags);
       task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
-      task.author = BaseHttpServerVerticle.getAuthor(context);
+      task.author = author;
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
       logger.warn(getMarker(context), e.getMessage(), e);

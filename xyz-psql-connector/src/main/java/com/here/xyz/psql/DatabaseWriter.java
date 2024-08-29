@@ -172,6 +172,7 @@ public class DatabaseWriter {
                 .withId(deletion.getKey())
                 .withProperties(new Properties().withXyzNamespace(new XyzNamespace()
                     .withDeleted(true)
+                    .withAuthor(event.getAuthor())
                     .withVersion(Long.parseLong(deletion.getValue())) //TODO: This is a workaround for legacy history
                     .withUpdatedAt(System.currentTimeMillis())));
             fillInsertQueryFromFeature(query, DELETE, deletedFeature, event, version);

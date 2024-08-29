@@ -106,10 +106,10 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withPropertiesQuery(propertiesQuery)
           .withLimit(getLimit(context))
           .withRef(getRef(context))
-          .withAuthor(author)
           .withForce2D(force2D)
           .withSelection(Query.getSelection(context))
-          .withContext(spaceContext);
+          .withContext(spaceContext)
+          .withAuthor(author);
 
       final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);

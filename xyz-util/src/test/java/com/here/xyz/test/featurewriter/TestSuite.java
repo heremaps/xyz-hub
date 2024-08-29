@@ -95,7 +95,7 @@ public abstract class TestSuite {
   protected SQLError thrownError;
   protected SpaceState afterState;
   protected TestAssertions assertions;
-  protected boolean ignoreAuthor = false;
+  protected boolean applyAuthorWorkaround = false;
 
   static {
     XyzSerializable.setAlwaysSerializePretty(true);
@@ -288,7 +288,7 @@ public abstract class TestSuite {
           .withCreatedAt(afterTableState.feature.getProperties().getXyzNamespace().getCreatedAt())
           .withUpdatedAt(afterTableState.feature.getProperties().getXyzNamespace().getUpdatedAt())
           .withAuthor(UPDATE_AUTHOR);
-      applyAuthorWorkaround(expectedFeature, afterTableState.feature);
+      applyAuthorWorkaround(expectedFeature);
       assertEquals("The feature was written incorrectly.", expectedFeature, afterTableState.feature);
 
       //Check if the feature's update timestamp has been written properly
@@ -315,11 +315,9 @@ public abstract class TestSuite {
     }
   }
 
-  private void applyAuthorWorkaround(Feature expectedFeature, Feature actualFeature) {
-    if (ignoreAuthor) {
-      expectedFeature.getProperties().getXyzNamespace().withAuthor(null);
-      actualFeature.getProperties().getXyzNamespace().withAuthor(null);
-    }
+  private void applyAuthorWorkaround(Feature expectedFeature) {
+    if (applyAuthorWorkaround)
+      expectedFeature.getProperties().getXyzNamespace().withAuthor("ANONYMOUS");
   }
 
   private long getWrittenSpaceVersion(SpaceContext context) {
