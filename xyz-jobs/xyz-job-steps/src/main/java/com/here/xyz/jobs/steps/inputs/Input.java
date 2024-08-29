@@ -32,6 +32,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.service.Core;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -147,8 +148,11 @@ public abstract class Input <T extends Input> implements Typed {
     if (metadata != null)
       return metadata;
 
+    logger.info("Loading metadata from S3 for job {} ...", jobId);
+    long t1 = Core.currentTimeMillis();
     metadata = XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(inputMetaS3Key(jobId)),
         InputsMetadata.class);
+    logger.info("Loaded metadata for job {}. Took {}ms ...", jobId, Core.currentTimeMillis() - t1);
     if (inputsCacheActive.contains(jobId))
       metadataCache.put(jobId, metadata);
 
@@ -157,6 +161,8 @@ public abstract class Input <T extends Input> implements Typed {
 
   static final void storeMetadata(String jobId, InputsMetadata metadata) {
     try {
+      if (inputsCacheActive.contains(jobId))
+        metadataCache.put(jobId, metadata);
       S3Client.getInstance().putObject(inputMetaS3Key(jobId), "application/json", metadata.serialize());
     }
     catch (IOException e) {
@@ -183,6 +189,7 @@ public abstract class Input <T extends Input> implements Typed {
 
   static final <T extends Input> List<T> loadInputsInParallel(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
     logger.info("Scanning inputs from bucket {} and prefix {} ...", bucketName, inputS3Prefix);
+    long t1 = Core.currentTimeMillis();
     ForkJoinPool tmpPool = new ForkJoinPool(10);
     List<T> inputs = null;
     try {
@@ -195,6 +202,7 @@ public abstract class Input <T extends Input> implements Typed {
     finally {
       tmpPool.shutdown();
     }
+    logger.info("Scanned {} inputs from bucket {} and prefix {}. Took {}ms.", inputs.size(), bucketName, inputS3Prefix, Core.currentTimeMillis() - t1);
     return inputs;
   }
 
