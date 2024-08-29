@@ -19,10 +19,15 @@
 
 package com.here.xyz.httpconnector.config.query;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
+
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
@@ -39,11 +44,13 @@ public class ExportSpaceByProperties extends SearchForFeatures<SearchForFeatures
 
   @Override
   public SQLQuery buildQuery(SearchForFeaturesEvent event) throws SQLException, ErrorResponseException {
+    if (event.getContext() == COMPOSITE_EXTENSION && isVersionRange(event))
+      return buildMainIncrementalQuery(event);
     return super.buildQuery(event);
   }
 
   @Override
-  protected SQLQuery buildSelectClause(SearchForFeaturesEvent event, int dataset) {
+  public SQLQuery buildSelectClause(SearchForFeaturesEvent event, int dataset) {
     return patchSelectClause(super.buildSelectClause(event, dataset), selectionOverride);
   }
 
@@ -55,12 +62,17 @@ public class ExportSpaceByProperties extends SearchForFeatures<SearchForFeatures
   }
 
   @Override
-  protected SQLQuery buildFilterWhereClause(SearchForFeaturesEvent event) {
+  public SQLQuery buildFilterWhereClause(SearchForFeaturesEvent event) {
     return patchWhereClause(super.buildFilterWhereClause(event), customWhereClause);
   }
 
   @Override
-  protected SQLQuery buildLimitFragment(SearchForFeaturesEvent event) {
+  public SQLQuery buildFiltersFragment(SearchForFeaturesEvent event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
+    return super.buildFiltersFragment(event, isExtension, filterWhereClause, dataset);
+  }
+
+  @Override
+  public SQLQuery buildLimitFragment(SearchForFeaturesEvent event) {
     return new SQLQuery("");
   }
 
@@ -80,5 +92,34 @@ public class ExportSpaceByProperties extends SearchForFeatures<SearchForFeatures
   public ExportSpace<SearchForFeaturesEvent> withCustomWhereClause(SQLQuery customWhereClause) {
     this.customWhereClause = customWhereClause;
     return this;
+  }
+
+  @Override
+  public String getSchema() {
+    return super.getSchema();
+  }
+
+  @Override
+  public String getDefaultTable(SearchForFeaturesEvent event) {
+    return super.getDefaultTable(event);
+  }
+
+  @Override
+  public String buildOuterOrderByFragment(ContextAwareEvent event) {
+    return super.buildOuterOrderByFragment(event);
+  }
+
+  @Override
+  public SQLQuery buildVersionComparison(SelectiveEvent event) {
+    if (event.getRef().isRange())
+      return buildVersionComparisonForRange(event);
+    return super.buildVersionComparison(event);
+  }
+
+  @Override
+  public SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+    if (ref.isRange())
+      return buildNextVersionFragmentForRange(ref, historyEnabled, versionParamName);
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
   }
 }

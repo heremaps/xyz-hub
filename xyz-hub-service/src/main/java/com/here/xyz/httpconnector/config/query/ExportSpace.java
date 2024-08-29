@@ -19,14 +19,24 @@
 
 package com.here.xyz.httpconnector.config.query;
 
+import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
+
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 
 //TODO: Remove that hack after refactoring is complete
 public interface ExportSpace<E extends SearchForFeaturesEvent> {
   SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException;
+
+  void setDataSourceProvider(DataSourceProvider dataSourceProvider);
 
   ExportSpace<E> withSelectionOverride(SQLQuery selectionOverride);
 
@@ -47,5 +57,78 @@ public interface ExportSpace<E extends SearchForFeaturesEvent> {
         .withQueryFragment("innerFilterWhereClause", filterWhereClause)
         .withQueryFragment("customWhereClause", customWhereClause);
     return customizedWhereClause;
+  }
+
+  default boolean isVersionRange(E event) {
+    return event.getRef().isRange();
+  }
+
+  default SQLQuery buildVersionComparisonTileCalculation(SelectiveEvent event) {
+    Ref ref = event.getRef();
+
+    if( ref == null || !ref.isRange() )
+      return new SQLQuery("");
+
+    return new SQLQuery(  // e.g. all features that where visible either in version "fromVersion" or "toVersion" and have changed between fromVersion and toVersion
+        """
+         AND (    ( version <= #{toVersion} and next_version > #{toVersion} )
+               OR ( version <= #{fromVersion} and next_version > #{fromVersion} )
+             )
+         AND id in ( select distinct id FROM ${schema}.${table} WHERE version > #{fromVersion} and version <= #{toVersion} )
+        """
+    ).withNamedParameter("fromVersion", ref.getStartVersion())
+        .withNamedParameter("toVersion", ref.getEndVersion());
+  }
+
+  SQLQuery buildSelectClause(E event, int dataset);
+  SQLQuery buildFiltersFragment(E event, boolean isExtension, SQLQuery filterWhereClause, int dataset);
+  SQLQuery buildFilterWhereClause(E event);
+  String getSchema();
+  String getDefaultTable(E event);
+  String buildOuterOrderByFragment(ContextAwareEvent event);
+  SQLQuery buildLimitFragment(E event);
+
+  default SQLQuery buildVersionComparisonForRange(SelectiveEvent event) {
+    Ref ref = event.getRef();
+    if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
+      return new SQLQuery("");
+
+    return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
+        .withNamedParameter("fromVersion", ref.getStartVersion())
+        .withNamedParameter("toVersion", ref.getEndVersion());
+  }
+
+  default SQLQuery buildNextVersionFragmentForRange(Ref ref, boolean historyEnabled, String versionParamName) {
+    if (!historyEnabled || ref.isAllVersions())
+      return new SQLQuery("");
+
+    boolean endVersionIsHead = ref.getEndVersion() == MAX_BIGINT;
+    //TODO: review semantic of "NextVersionFragment" in case of ref.isRange
+    return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
+        .withQueryFragment("op", endVersionIsHead ? "=" : ">")
+        .withNamedParameter(versionParamName, endVersionIsHead ? MAX_BIGINT : ref.getEndVersion());
+  }
+
+  default SQLQuery buildVersionCheckFragment(E event) {
+    return new SQLQuery("${{versionComparison}} ${{nextVersion}} ${{minVersion}}")
+        .withQueryFragment("versionComparison", buildVersionComparisonTileCalculation(event))
+        .withQueryFragment("nextVersion", new SQLQuery("")) // remove standard fragment s. buildVersionComparisonTileCalculation
+        .withQueryFragment("minVersion", new SQLQuery("")); // remove standard fragment
+  }
+
+  default SQLQuery buildMainIncrementalQuery(E event) {
+    return new SQLQuery(
+        """ 
+         SELECT ${{selectClause}} FROM ${schema}.${table} 
+         WHERE ${{filters}} ${{versionCheck}} ${{outerOrderBy}} ${{limit}}
+        """
+    )
+        .withQueryFragment("selectClause", buildSelectClause(event, 0))
+        .withQueryFragment("filters", buildFiltersFragment(event, false, buildFilterWhereClause(event), 0))
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event))
+        .withQueryFragment("versionCheck", buildVersionCheckFragment(event))
+        .withQueryFragment("outerOrderBy", buildOuterOrderByFragment(event))
+        .withQueryFragment("limit", buildLimitFragment(event));
   }
 }

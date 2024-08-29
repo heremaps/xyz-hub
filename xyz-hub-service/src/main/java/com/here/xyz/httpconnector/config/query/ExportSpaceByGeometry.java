@@ -19,8 +19,13 @@
 
 package com.here.xyz.httpconnector.config.query;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
+
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
@@ -36,11 +41,13 @@ public class ExportSpaceByGeometry extends GetFeaturesByGeometry implements Expo
 
   @Override
   public SQLQuery buildQuery(GetFeaturesByGeometryEvent event) throws SQLException, ErrorResponseException {
+    if (event.getContext() == COMPOSITE_EXTENSION && isVersionRange(event))
+      return buildMainIncrementalQuery(event);
     return super.buildQuery(event);
   }
 
   @Override
-  protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset) {
+  public SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset) {
     return patchSelectClause(super.buildSelectClause(event, dataset), selectionOverride);
   }
 
@@ -52,12 +59,17 @@ public class ExportSpaceByGeometry extends GetFeaturesByGeometry implements Expo
   }
 
   @Override
-  protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
+  public SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
     return patchWhereClause(super.buildFilterWhereClause(event), customWhereClause);
   }
 
   @Override
-  protected SQLQuery buildLimitFragment(GetFeaturesByGeometryEvent event) {
+  public SQLQuery buildFiltersFragment(GetFeaturesByGeometryEvent event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
+    return super.buildFiltersFragment(event, isExtension, filterWhereClause, dataset);
+  }
+
+  @Override
+  public SQLQuery buildLimitFragment(GetFeaturesByGeometryEvent event) {
     return new SQLQuery("");
   }
 
@@ -77,5 +89,34 @@ public class ExportSpaceByGeometry extends GetFeaturesByGeometry implements Expo
   public ExportSpace<GetFeaturesByGeometryEvent> withCustomWhereClause(SQLQuery customWhereClause) {
     this.customWhereClause = customWhereClause;
     return this;
+  }
+
+  @Override
+  public String getSchema() {
+    return super.getSchema();
+  }
+
+  @Override
+  public String getDefaultTable(GetFeaturesByGeometryEvent event) {
+    return super.getDefaultTable(event);
+  }
+
+  @Override
+  public String buildOuterOrderByFragment(ContextAwareEvent event) {
+    return super.buildOuterOrderByFragment(event);
+  }
+
+  @Override
+  public SQLQuery buildVersionComparison(SelectiveEvent event) {
+    if (event.getRef().isRange())
+      return buildVersionComparisonForRange(event);
+    return super.buildVersionComparison(event);
+  }
+
+  @Override
+  public SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+    if (ref.isRange())
+      return buildNextVersionFragmentForRange(ref, historyEnabled, versionParamName);
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
   }
 }
