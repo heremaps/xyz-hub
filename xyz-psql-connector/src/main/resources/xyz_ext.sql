@@ -136,7 +136,7 @@ $BODY$
         RETURN result;
     END;
 $BODY$
-LANGUAGE plpgsql immutable;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_dissolve_datatype(propkey text)
@@ -165,7 +165,7 @@ $BODY$
 		RETURN NULL;
 	END;
 $BODY$
-  LANGUAGE plpgsql immutable;
+  LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
@@ -194,7 +194,7 @@ $BODY$
 		RETURN propkey;
 	END;
 $BODY$
-  LANGUAGE plpgsql immutable;
+  LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -238,7 +238,7 @@ BEGIN
 	RETURN result;
 END;
 $BODY$
-LANGUAGE plpgsql immutable;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 create or replace function xyz_qk_envelope2lrc(geo geometry, lvl integer)
@@ -336,7 +336,7 @@ $BODY$
 		RETURN status;
 	END
 $BODY$
-  LANGUAGE plpgsql VOLATILE; --> stable
+  LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_create_idxs_over_dblink(
@@ -431,7 +431,7 @@ $BODY$
 		RETURN bboxx;
         END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE; --> stable
+  LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_list_all_available(
@@ -3008,7 +3008,7 @@ $BODY$
         RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reduce_precision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
     END
 $BODY$
-LANGUAGE plpgsql immutable;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 DO $$
