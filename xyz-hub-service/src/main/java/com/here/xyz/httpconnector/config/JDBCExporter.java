@@ -51,7 +51,6 @@ import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.JdbcClient;
 import com.here.xyz.util.db.SQLQuery;
@@ -199,7 +198,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
     try {
 
-      return ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+      return getQueryRunner(client, spatialFilter, event)
           //TODO: Why not selecting the feature id / geo here?
           //FIXME: Do not select operation / author as part of the "property-selection"-fragment
           .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
@@ -688,7 +687,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                  contentQueryByPropertyValue = null;
 
       try {
-        final ExportSpace queryRunner = (ExportSpace) getQueryRunner(client, spatialFilter, event);
+        final ExportSpace queryRunner = getQueryRunner(client, spatialFilter, event);
 
         if (customWhereCondition != null && (csvFormat != PARTITIONID_FC_B64 || partitionByFeatureId))
           queryRunner.withCustomWhereClause(customWhereCondition);
@@ -699,7 +698,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
           if (partitionByPropertyValue && isForCompositeContentDetection) {
             event.setContext(ctxStashed);
-            contentQueryByPropertyValue = ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+            contentQueryByPropertyValue = getQueryRunner(client, spatialFilter, event)
                 .withGeoOverride(buildGeoFragment(spatialFilter))
                 .buildQuery(event);
           }
@@ -814,9 +813,9 @@ public class JDBCExporter extends JdbcBasedHandler {
         return new SQLQuery("geo");
   }
 
-  private static SearchForFeatures getQueryRunner(JdbcClient client, SpatialFilter spatialFilter, GetFeaturesByGeometryEvent event)
+  private static ExportSpace getQueryRunner(JdbcClient client, SpatialFilter spatialFilter, GetFeaturesByGeometryEvent event)
       throws SQLException, ErrorResponseException {
-    SearchForFeatures queryRunner;
+    ExportSpace queryRunner;
     if (spatialFilter == null)
       queryRunner = new ExportSpaceByProperties(event);
     else
