@@ -4267,8 +4267,7 @@ AS $BODY$
 				NEW.jsondata := NEW.jsondata - 'geometry';
         	END IF;
 
-			-- NEW.geo := xyz_reduce_precision( ST_Force3D(NEW.geo) );
-			NEW.geo := ST_Force3D(NEW.geo);
+			NEW.geo := xyz_reduce_precision( ST_Force3D(NEW.geo) );
 
             NEW.operation := 'I';
             NEW.version := curVersion;
