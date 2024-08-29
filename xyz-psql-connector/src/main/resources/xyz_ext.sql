@@ -174,6 +174,8 @@ AS $BODY$
 			NEW.geo := ST_Force3D(NEW.geo);
         END IF;
 
+		NEW.geo := xyz_reduce_precision(NEW.geo);
+
         NEW.operation := 'I';
         NEW.version := curVersion;
         NEW.id := fid;
@@ -4271,6 +4273,8 @@ AS $BODY$
             ELSE
                 NEW.geo := ST_Force3D(NEW.geo);
             END IF;
+
+  		    NEW.geo := xyz_reduce_precision(NEW.geo);
 
             NEW.operation := 'I';
             NEW.version := curVersion;
