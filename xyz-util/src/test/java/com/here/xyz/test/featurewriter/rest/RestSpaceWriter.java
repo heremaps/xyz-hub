@@ -88,7 +88,7 @@ public class RestSpaceWriter extends SpaceWriter {
 
     try {
       String spaceId = spaceId();
-      if(spaceContext != null && spaceContext == SpaceContext.SUPER){
+      if (spaceContext == SpaceContext.SUPER) {
         spaceId = superSpaceId();
         spaceContext = null;
       }

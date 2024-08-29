@@ -4316,58 +4316,50 @@ DECLARE
     author text := TG_ARGV[0];
     currentVersion bigint := TG_ARGV[1];
     isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := UPPER(TG_ARGV[3]);
-    onNotExists TEXT := UPPER(TG_ARGV[4]);
-    onVersionConflict TEXT := UPPER(TG_ARGV[5]);
-    onMergeConflict TEXT := UPPER(TG_ARGV[6]);
-    historyEnabled BOOLEAN := UPPER(TG_ARGV[7])::BOOLEAN;
-    context TEXT := UPPER(TG_ARGV[8]);
+    onExists TEXT := TG_ARGV[3];
+    onNotExists TEXT := TG_ARGV[4];
+    onVersionConflict TEXT := TG_ARGV[5];
+    onMergeConflict TEXT := TG_ARGV[6];
+    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
+    context TEXT := TG_ARGV[8];
     extendedTable TEXT := TG_ARGV[9];
+    features TEXT;
 BEGIN
     --TODO: Check how to fix "0 rows affected."
     IF NEW.operation IS NULL THEN
         --TODO: uses context with asyncify and remove this hack
         PERFORM context(
-            jsonb_build_object('schema',TG_TABLE_SCHEMA,
-                               'table',TG_TABLE_NAME,
-                               'historyEnabled',historyEnabled,
-                               'context',(CASE WHEN (context = 'NULL') THEN null ELSE context END),
-                               'extendedTable',(CASE WHEN (extendedTable = 'null') THEN null ELSE extendedTable END)
+            jsonb_build_object('schema', TG_TABLE_SCHEMA,
+                               'table', TG_TABLE_NAME,
+                               'historyEnabled', historyEnabled,
+                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
+                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
             )
         );
 
-        --TODO: Should we also allow "Features"
         IF NEW.jsondata ->> 'type' = 'FeatureCollection' AND NEW.jsondata->'features' IS NOT NULL THEN
             IF NEW.geo IS NOT NULL THEN
                 RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
                     USING ERRCODE = 'XYZ51';
             END IF;
-
-            PERFORM write_features((NEW.jsondata->'features')::TEXT,
-                                  author,
-                                  (CASE WHEN (onExists = 'NULL') THEN NULL ELSE onExists END),
-                                  (CASE WHEN (onNotExists = 'NULL') THEN NULL ELSE onNotExists END),
-                                  (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onVersionConflict END),
-                                  (CASE WHEN (onMergeConflict = 'NULL') THEN NULL ELSE onMergeConflict END),
-                                  isPartial,
-                                  currentVersion);
+            features = (NEW.jsondata->'features')::TEXT;
         ELSE
             --WKB support
             IF NEW.geo IS NOT NULL THEN
                 NEW.jsondata := jsonb_set(NEW.jsondata, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
             END IF;
-
-            --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-            PERFORM write_feature(NEW.jsondata::TEXT,
-                                  author,
-                                  (CASE WHEN (onExists = 'NULL') THEN NULL ELSE onExists END),
-                                  (CASE WHEN (onNotExists = 'NULL') THEN NULL ELSE onNotExists END),
-                                  (CASE WHEN (onVersionConflict = 'NULL') THEN NULL ELSE onVersionConflict END),
-                                  (CASE WHEN (onMergeConflict = 'NULL') THEN NULL ELSE onMergeConflict END),
-                                  isPartial,
-                                  currentVersion);
+            features = '[' || NEW.jsondata::TEXT || ']';
         END IF;
 
+        --TODO: Improve performance by not receiving the jsondata as JSONB at all here
+        PERFORM write_features(features,
+                               author,
+                               CASE WHEN onExists = 'null' THEN NULL ELSE onExists END,
+                               CASE WHEN onNotExists = 'null' THEN NULL ELSE onNotExists END,
+                               CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END,
+                               CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END,
+                               isPartial,
+                               currentVersion);
         RETURN NULL;
     ELSE
         RETURN NEW;

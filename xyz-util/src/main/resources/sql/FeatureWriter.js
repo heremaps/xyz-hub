@@ -603,12 +603,9 @@ class FeatureWriter {
 
     feature.id = feature.id || Math.random().toString(36).slice(2, 10);
     feature.type = feature.type || "Feature";
+    delete feature.bbox;
     feature.properties = feature.properties || {};
-    feature.properties[this.XYZ_NS] = {
-      ...feature.properties[this.XYZ_NS],
-      version: this.version,
-      author: this.author
-    };
+    feature.properties[this.XYZ_NS] = feature.properties[this.XYZ_NS] || {};
   }
 
   enrichTimestamps(feature, isCreation = false) {

@@ -93,8 +93,7 @@ public class JobStepsTest extends TestSteps {
     assertEquals("idx_" + SPACE_ID + "_" + GEO.toString().toLowerCase(), indexes.get(0));
   }
 
-  //@Test
-  //TODO: check why test fails on github
+  @Test
   public void testImportFilesToSpaceStep() throws Exception {
     StatisticsResponse statsBefore = getStatistics(SPACE_ID);
     assertEquals(0L, (Object) statsBefore.getCount().getValue());
