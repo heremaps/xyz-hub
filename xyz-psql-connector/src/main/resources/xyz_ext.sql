@@ -2992,7 +2992,7 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_reducePrecision(geo GEOMETRY)
+CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY)
     RETURNS GEOMETRY AS
 $BODY$
    select ST_ReducePrecision(geo, 0.00000001) 
@@ -3005,7 +3005,7 @@ CREATE OR REPLACE FUNCTION xyz_geoFromWkb(geo GEOMETRY)
     RETURNS GEOMETRY AS
 $BODY$
     BEGIN
-        RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reducePrecision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
+        RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reduce_precision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
     END
 $BODY$
 LANGUAGE plpgsql immutable;
@@ -4212,12 +4212,12 @@ AS $BODY$
 		NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
 
 		IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-		--GeoJson Feature Import
+		-- GeoJson Feature Import
 			NEW.geo := ST_GeomFromGeoJSON(NEW.jsondata->'geometry');
 			NEW.jsondata := NEW.jsondata - 'geometry';
         END IF;
 
-		NEW.geo := xyz_reducePrecision( ST_Force3D(NEW.geo) );
+		NEW.geo := xyz_reduce_precision( ST_Force3D(NEW.geo) );
 
         NEW.operation := 'I';
         NEW.version := curVersion;
@@ -4262,12 +4262,13 @@ AS $BODY$
             NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
 
 			IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-			--GeoJson Feature Import
+			-- GeoJson Feature Import
 				NEW.geo := ST_GeomFromGeoJSON(NEW.jsondata->'geometry');
 				NEW.jsondata := NEW.jsondata - 'geometry';
         	END IF;
 
-			NEW.geo := xyz_reducePrecision( ST_Force3D(NEW.geo) );
+			-- NEW.geo := xyz_reduce_precision( ST_Force3D(NEW.geo) );
+			NEW.geo := ST_Force3D(NEW.geo);
 
             NEW.operation := 'I';
             NEW.version := curVersion;
