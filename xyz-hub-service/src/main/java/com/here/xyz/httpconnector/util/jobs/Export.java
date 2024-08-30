@@ -408,7 +408,6 @@ public class Export extends JDBCBasedJob<Export> {
                 else {
                     try {
                         geometry.validate();
-                        WKTHelper.geometryToWKB(geometry);
                     }
                     catch (Exception e){
                         throw new HttpException(BAD_REQUEST, "Cant parse filter geometry!");
