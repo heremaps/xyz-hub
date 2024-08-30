@@ -27,6 +27,14 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL)
     RETURNS JSONB AS
 $BODY$
+    if(on_exists != undefined && on_exists.toLowerCase().indexOf("null") != -1)
+       on_exists = null;
+    if(on_not_exists != undefined && on_not_exists.toLowerCase().indexOf("null") != -1)
+       on_not_exists = null;
+    if(on_version_conflict != undefined && on_version_conflict.toLowerCase().indexOf("null") != -1)
+       on_version_conflict = null;
+    if(on_merge_conflict != on_merge_conflict.toLowerCase().indexOf("null") != -1)
+       on_merge_conflict = null;
 
     //Import other functions
     let _queryContext;

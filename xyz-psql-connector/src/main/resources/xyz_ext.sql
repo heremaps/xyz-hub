@@ -4354,10 +4354,10 @@ BEGIN
         --TODO: Improve performance by not receiving the jsondata as JSONB at all here
         PERFORM write_features(features,
                                author,
-                               CASE WHEN onExists = 'null' THEN NULL ELSE onExists END,
-                               CASE WHEN onNotExists = 'null' THEN NULL ELSE onNotExists END,
-                               CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END,
-                               CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END,
+                               onExists,
+                               onNotExists,
+                               onVersionConflict,
+                               onMergeConflict,
                                isPartial,
                                currentVersion);
         RETURN NULL;
