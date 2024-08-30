@@ -1641,7 +1641,7 @@ BEGIN
   || ' SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', false)'
   || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', false)'
   || ',SET_CONFIG(''geqo'', ''false'', false)'
-  || ',SET_CONFIG(''work_mem'', ''1024 MB'', false)'
+  || ',SET_CONFIG(''work_mem'', ''256 MB'', false)'
   || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', false)'
   || ',SET_CONFIG(''constraint_exclusion'', ''partition'', false)' -- default partition
   || ',SET_CONFIG(''enable_seqscan'', ''off'', false)'
