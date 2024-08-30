@@ -21,11 +21,11 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import com.amazonaws.AmazonServiceException;
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -136,24 +136,16 @@ public class ImportFilesQuickValidator {
 
   private static void validateGeoJSON(String geoJson, EntityPerLine entityPerLine) throws ValidationException {
     try {
-      /** Try to serialize JSON */
-      XyzSerializable.deserialize(geoJson, Feature.class);
+      //Try to deserialize into the target model
+      XyzSerializable.deserialize(geoJson, (Class<? extends Typed>) (entityPerLine == EntityPerLine.Feature ? Feature.class : FeatureCollection.class));
     }
     catch (Exception e) {
-      if(entityPerLine.equals(EntityPerLine.FeatureCollection)){
-        try {
-          /** Check possibly received FeatureCollection */
-          XyzSerializable.deserialize(geoJson, FeatureCollection.class);
-        } catch (JsonProcessingException ex) {
-          transformException(e);
-        }
-      }else
-        transformException(e);
+      transformException(e);
     }
   }
 
   private static void validateCsvGeoJSON(String csvLine, EntityPerLine entityPerLine) throws ValidationException {
-    /** Try to serialize JSON */
+    //Try to deserialize JSON
     csvLine = csvLine.substring(1, csvLine.length()).replaceAll("'\"", "\"");
     validateGeoJSON(csvLine, entityPerLine);
   }

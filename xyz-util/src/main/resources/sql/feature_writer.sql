@@ -27,13 +27,15 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL)
     RETURNS JSONB AS
 $BODY$
-    if(on_exists != null && on_exists.toLowerCase().indexOf("null") != -1)
+
+    //TODO: Check why / from where "NULL" strings are passed into here and remove that bloody workaround once the actual issue has been solved properly
+    if(on_exists != null && on_exists.toLowerCase() == "null")
        on_exists = null;
-    if(on_not_exists != null && on_not_exists.toLowerCase().indexOf("null") != -1)
+    if(on_not_exists != null && on_not_exists.toLowerCase() == "null")
        on_not_exists = null;
-    if(on_version_conflict != null && on_version_conflict.toLowerCase().indexOf("null") != -1)
+    if(on_version_conflict != null && on_version_conflict.toLowerCase() == "null")
        on_version_conflict = null;
-    if(on_merge_conflict != null && on_merge_conflict.toLowerCase().indexOf("null") != -1)
+    if(on_merge_conflict != null && on_merge_conflict.toLowerCase() == "null")
        on_merge_conflict = null;
 
     //Import other functions

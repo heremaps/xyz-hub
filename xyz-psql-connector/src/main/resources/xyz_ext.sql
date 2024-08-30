@@ -4282,7 +4282,7 @@ BEGIN
                 LOOP
                     IF NEW.geo IS NOT NULL THEN
                         RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
-                            USING ERRCODE = 'XYZ51';
+                            USING ERRCODE = 'XYZ40';
                     END IF;
                     SELECT new_jsondata, new_geo, new_operation, new_id
                         from enrichNewFeature(feature, null)
@@ -4340,7 +4340,7 @@ BEGIN
         IF NEW.jsondata ->> 'type' = 'FeatureCollection' AND NEW.jsondata->'features' IS NOT NULL THEN
             IF NEW.geo IS NOT NULL THEN
                 RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
-                    USING ERRCODE = 'XYZ51';
+                    USING ERRCODE = 'XYZ40';
             END IF;
             features = (NEW.jsondata->'features')::TEXT;
         ELSE
@@ -4539,7 +4539,7 @@ BEGIN
     ELSE
         RAISE EXCEPTION 'Format ''%'' not supported! ',format
             USING HINT = 'geojson | csv_geojson | csv_json_wkb are available',
-                ERRCODE = 'XYZ51';
+                ERRCODE = 'XYZ40';
     END IF;
 
     RETURN NEXT;
@@ -4638,7 +4638,7 @@ BEGIN
 			        --TODO: find a solution to read a given hint in the failure_callback. Remove than the duplication.
                     RAISE EXCEPTION 'Error on importing file ''%''. Maximum retries are reached %. Details: ''%''', right(work_item_s3_path, 36), retry_count, work_item_data->'error'->>'sqlstate'
                     --USING HINT = 'Details: ' || 'details' ,
-                    USING ERRCODE = 'XYZ52';
+                    USING ERRCODE = 'XYZ50';
                 END IF;
 
 	            IF work_item_s3_bucket != 'SUCCESS_MARKER' THEN

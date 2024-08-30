@@ -109,7 +109,7 @@ public class JobPlayground {
   private static Space sampleSpace;
   private static Space targetSpace;
   private static boolean simulateExecution = true;
-  private static boolean executeWholeJob = false;
+  private static boolean executeWholeJob = true;
   private static ImportFilesToSpace.Format importFormat = ImportFilesToSpace.Format.GEOJSON;
   private static int uploadFileCount = 2;
   private static String jobServiceBaseUrl = "http://localhost:7070";
@@ -170,7 +170,6 @@ public class JobPlayground {
     JobConfigClient.getInstance().init();
 
     if(playgroundUsecase.equals(Usecase.IMPORT)) {
-      addTestFeaturesToSpace(sampleSpace.getId(), 10);
       mockJob = new Job().create()
               .withDescription("Sample import job")
               .withOwner("me")
@@ -214,7 +213,6 @@ public class JobPlayground {
       init();
 
     startRealJob(realJobSourceSpaceId, realJobTargetSpaceId);
-//    startLambdaExecutions();
 
 //    init();
 //
@@ -227,17 +225,17 @@ public class JobPlayground {
   private static void startLambdaExecutions() throws IOException {
     if(playgroundUsecase.equals(Usecase.IMPORT)) {
       uploadFiles();
-//
-//      runDropIndexStep(sampleSpace.getId());
+
+      runDropIndexStep(sampleSpace.getId());
 
       runImportFilesToSpaceStep(sampleSpace.getId(), importFormat);
 
-//      for (Index index : Index.values())
-//        runCreateIndexStep(sampleSpace.getId(), index);
-//
-//      runAnalyzeSpaceTableStep(sampleSpace.getId());
-//
-//      runMarkForMaintenanceStep(sampleSpace.getId());
+      for (Index index : Index.values())
+        runCreateIndexStep(sampleSpace.getId(), index);
+
+      runAnalyzeSpaceTableStep(sampleSpace.getId());
+
+      runMarkForMaintenanceStep(sampleSpace.getId());
     }else if(playgroundUsecase.equals(Usecase.COPY)) {
       runCopySpaceStep(sampleSpace.getId(), targetSpace.getId());
     }

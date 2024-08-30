@@ -21,16 +21,19 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.EXECUTE_IMPORT;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.datasets.space.UpdateStrategy;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy.OnNotExists;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy.OnExists;
-
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -46,19 +49,16 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import io.vertx.core.json.JsonObject;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
@@ -72,11 +72,13 @@ import org.locationtech.jts.io.ParseException;
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
+  private static final long MAX_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
+  private static final long MAX_BYTES_FOR_SYNC_IMPORT = 1; //100 * 1024 * 1024;
   public static final int MAX_DB_THREAD_CNT = 15;
 
   private static final String JOB_DATA_PREFIX = "job_data_";
 
-  private Format format = Format.GEOJSON;
+  private Format format = GEOJSON;
 
   private Phase phase;
 
@@ -96,12 +98,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private UpdateStrategy updateStrategy =
-          new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE , null, null);
+  private UpdateStrategy updateStrategy;
 
   @JsonView({Internal.class, Static.class})
-  private EntityPerLine entityPerLine =  null;
+  private EntityPerLine entityPerLine;
 
+  //TODO: De-duplicate once CSV was removed (see GeoJson format class)
   public enum EntityPerLine {
     Feature,
     FeatureCollection
@@ -153,11 +155,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       return this;
   }
 
-  public void setEntityPerLine(String entityPerLine) {
-    this.entityPerLine = EntityPerLine.valueOf(entityPerLine);
+  public EntityPerLine getEntityPerLine() {
+    return entityPerLine;
   }
 
-  public ImportFilesToSpace withEntityPerLine(String entityPerLine) {
+  public void setEntityPerLine(EntityPerLine entityPerLine) {
+    this.entityPerLine = entityPerLine;
+  }
+
+  public ImportFilesToSpace withEntityPerLine(EntityPerLine entityPerLine) {
     setEntityPerLine(entityPerLine);
     return this;
   }
@@ -173,7 +179,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
               ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
-      /** Calculate estimation for ACUs for all parallel running threads */
+
+      //Calculate estimation for ACUs for all parallel running threads
       overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededAcus(calculatedThreadCount);
       return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
@@ -219,9 +226,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public boolean validate() throws ValidationException {
     super.validate();
-
-    long max_byte_for_non_empty = 10 * 1024 * 1024 * 1024l;
-
     try {
       logAndSetPhase(Phase.VALIDATE);
       //Check if the space is actually existing
@@ -230,11 +234,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
       targetTableFeatureCount = statistics.getCount().getValue();
 
-      if(entityPerLine.equals(EntityPerLine.FeatureCollection) && format.equals(Format.CSV_JSON_WKB))
+      if (entityPerLine.equals(FeatureCollection) && format.equals(Format.CSV_JSON_WKB))
         throw new ValidationException("Combination of entityPerLine 'FeatureCollection' and type 'Csv' is not supported!");
 
-      if (targetTableFeatureCount > 0 && getUncompressedUploadBytesEstimation() > max_byte_for_non_empty)
-        throw new ValidationException("Provided files have reached the uncompressed limit of " + max_byte_for_non_empty + " bytes. Import in non empty space is not possible.");
+      if (targetTableFeatureCount > 0 && getUncompressedUploadBytesEstimation() > MAX_BYTES_FOR_NON_EMPTY_IMPORT)
+        throw new ValidationException("An import into a non empty space is not possible. The uncompressed size of the provided files exceeds the limit of " + MAX_BYTES_FOR_NON_EMPTY_IMPORT + " bytes.");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -255,14 +259,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         //SYNC mode is only supported for new standard Format.
         //TODO: add support for FeatureCollection
         //TODO: check slow import times in syncmode
-        if(!format.equals(Format.GEOJSON))
-          return ExecutionMode.ASYNC;
-        else if(format.equals(Format.GEOJSON) && entityPerLine != null && entityPerLine.equals(EntityPerLine.FeatureCollection))
-          return ExecutionMode.ASYNC;
+        if (format != GEOJSON || format == GEOJSON && entityPerLine == FeatureCollection)
+          return ASYNC;
 
-        //> 100 MB => ASYNC
-        long max_sync_bytes = 100 * 1024 * 1024;
-        return getUncompressedUploadBytesEstimation() > max_sync_bytes ? ExecutionMode.ASYNC : ExecutionMode.SYNC;
+        return getUncompressedUploadBytesEstimation() > MAX_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
     }
 
   @Override
@@ -271,11 +271,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
-      if(getExecutionMode().equals(ExecutionMode.SYNC)) {
-          //@TODO: For future add threading (if validation step is in place)
-          //TODO: Implement synchronous feature writing using new FeatureWriter
+      if(getExecutionMode().equals(SYNC))
           syncExecution();
-      } else {
+      else {
         log("Importing input files for job " + getJobId() + " into space " + getSpaceId() + " ...");
 
           //TODO: Move resume logic into #resume()
@@ -283,10 +281,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               logAndSetPhase(Phase.SET_READONLY);
               hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-              logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
+              logAndSetPhase(RETRIEVE_NEW_VERSION);
               long newVersion = increaseVersionSequence();
 
-              logAndSetPhase(Phase.CREATE_TRIGGER);
+              logAndSetPhase(Phase.CREATE_TRIGGER);     //FIXME: Use owner of the job
               runWriteQuerySync(buildCreateImportTrigger(space.getOwner(), newVersion), db(), 0);
           }
 
@@ -296,32 +294,34 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                   ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
           double neededAcusForOneThread = calculateNeededAcus(1);
 
-          logAndSetPhase(Phase.EXECUTE_IMPORT);
+          logAndSetPhase(EXECUTE_IMPORT);
 
           for (int i = 1; i <= calculatedThreadCount; i++) {
-              logAndSetPhase(Phase.EXECUTE_IMPORT, "Start Import Thread number " + i);
+              logAndSetPhase(EXECUTE_IMPORT, "Start Import Thread number " + i);
               runReadQueryAsync(buildImportQueryBlock(), db(), neededAcusForOneThread, false);
           }
       }
   }
 
   private void syncExecution() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
-    logAndSetPhase(Phase.RETRIEVE_NEW_VERSION);
-    long targetVersion = increaseVersionSequence();
+    //TODO: Support resume
+    logAndSetPhase(RETRIEVE_NEW_VERSION);
+    long newVersion = increaseVersionSequence();
 
     for (Input input : loadInputs()) {
       logger.info("[{}] Sync write from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
-      syncWriteFileToSpace(input.getS3Key(), input.isCompressed(), targetVersion);
+      syncWriteFileToSpace(input, newVersion);
     }
   }
 
-  protected void syncWriteFileToSpace(String s3Path, boolean isGzipped, long targetVersion) throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
+  protected void syncWriteFileToSpace(Input input, long newVersion) throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
     final S3Client s3Client = S3Client.getInstance();
 
-    InputStream decompressedStream = isGzipped ? new GZIPInputStream(s3Client.streamObjectContent(s3Path))
-            : s3Client.streamObjectContent(s3Path);
+    InputStream inputStream = s3Client.streamObjectContent(input.getS3Key());
+    if (input.isCompressed())
+      inputStream = new GZIPInputStream(inputStream);
 
-    try (BufferedReader reader = new BufferedReader(new InputStreamReader(decompressedStream, StandardCharsets.UTF_8))) {
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
       StringBuilder fileContent = new StringBuilder();
       fileContent.append("[");
       String line;
@@ -334,9 +334,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       }
       fileContent.append("]");
 
-      runBatchWriteQuerySync(SQLQuery.batchOf(buildFeatureWriterQuery(fileContent.toString(), targetVersion)), db(), 0);
-    }finally {
-      decompressedStream.close();
+      //FIXME: Use correct ACU load
+      runWriteQuerySync(buildFeatureWriterQuery(fileContent.toString(), newVersion), db(), 0);
     }
   }
 
@@ -382,6 +381,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     private void createAndFillTemporaryTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
         boolean tmpTableNotExistsAndHasNoData = true;
     try {
+      //TODO: Use resume flag instead of checking the table
       //Check if the temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
       tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db())), db(), 0,
               rs -> {
@@ -560,10 +560,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("schema", getSchema(db()));
   }
 
-  private SQLQuery buildCreateImportTrigger(String targetAuthor, long targetSpaceVersion) throws WebClientException {
-    if(targetTableFeatureCount == 0)
-      return buildCreateImportTriggerForEmptyLayer(targetAuthor, targetSpaceVersion);
-    return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, targetSpaceVersion);
+  private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
+    if (targetTableFeatureCount == 0)
+      return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
+    return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
   }
 
   private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
@@ -575,7 +575,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", getRootTableName(space()));
   }
 
-  private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
+  private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
@@ -593,15 +593,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{extendedTable}}
              )
         """)
-        .withQueryFragment("spaceVersion", Long.toString(targetSpaceVersion))
-        .withQueryFragment("author", "'" + targetAuthor + "'" )
+        .withQueryFragment("spaceVersion", Long.toString(newVersion))
+        .withQueryFragment("author", "'" + author + "'" )
         .withQueryFragment("onExists", updateStrategy.onExists() == null ? "NULL" : "'" + updateStrategy.onExists() + "'" )
         .withQueryFragment("onNotExists", updateStrategy.onNotExists() == null ? "NULL" : "'" + updateStrategy.onNotExists() + "'" )
         .withQueryFragment("onVersionConflict", updateStrategy.onVersionConflict() == null ? "NULL" : "'" + updateStrategy.onVersionConflict() + "'" )
         .withQueryFragment("onMergeConflict", updateStrategy.onMergeConflict() == null ? "NULL" : "'" + updateStrategy.onMergeConflict() + "'" )
         .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
-        .withQueryFragment("context", superTable != null ? "'DEFAULT'" : "NULL")
-        .withQueryFragment("extendedTable", superTable != null ? "'" + superTable + "'" : "NULL")
+        .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
+        .withQueryFragment("extendedTable", superTable == null ? "NULL" : "'" + superTable + "'")
         .withVariable("schema", getSchema(db()))
         .withVariable("table", getRootTableName(space()));
   }
@@ -710,9 +710,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", TransportTools.getTemporaryTableName(this));
   }
 
-  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion)
-          throws WebClientException {
-
+  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
     final Map<String, Object> queryContext = new HashMap<>(Map.of(
@@ -725,17 +723,26 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (superTable != null)
       queryContext.put("extendedTable", superTable);
 
-    SQLQuery writeFeaturesQuery = new SQLQuery("SELECT write_features(#{featureList}::TEXT, #{author}::TEXT, #{onExists}::TEXT,"
-            + "#{onNotExists}::TEXT, #{onVersionConflict}::TEXT, #{onMergeConflict}::TEXT, #{isPartial}::BOOLEAN, #{version}::BIGINT);")
-            .withNamedParameter("featureList", featureList)
-            .withNamedParameter("author", space.getOwner())
-            .withNamedParameter("onExists", updateStrategy == null || updateStrategy.onExists() == null ? null : updateStrategy.onExists().toString())
-            .withNamedParameter("onNotExists",updateStrategy == null || updateStrategy.onNotExists() == null? null : updateStrategy.onNotExists().toString())
-            .withNamedParameter("onVersionConflict", updateStrategy == null || updateStrategy.onVersionConflict() == null ? null : updateStrategy.onVersionConflict().toString())
-            .withNamedParameter("onMergeConflict", updateStrategy == null || updateStrategy.onMergeConflict() == null ? null :  updateStrategy.onMergeConflict().toString())
-            .withNamedParameter("isPartial", false)
-            .withNamedParameter("version", targetVersion)
-            .withContext(queryContext);
+    SQLQuery writeFeaturesQuery = new SQLQuery("""
+        SELECT write_features(
+          #{featureList},
+          #{author},
+          #{onExists},
+          #{onNotExists},
+          #{onVersionConflict},
+          #{onMergeConflict},
+          #{isPartial},
+          #{version}
+        );""")
+        .withNamedParameter("featureList", featureList)
+        .withNamedParameter("author", space.getOwner())
+        .withNamedParameter("onExists", updateStrategy.onExists() == null ? null : updateStrategy.onExists().toString())
+        .withNamedParameter("onNotExists", updateStrategy.onNotExists() == null? null : updateStrategy.onNotExists().toString())
+        .withNamedParameter("onVersionConflict", updateStrategy.onVersionConflict() == null ? null : updateStrategy.onVersionConflict().toString())
+        .withNamedParameter("onMergeConflict", updateStrategy.onMergeConflict() == null ? null :  updateStrategy.onMergeConflict().toString())
+        .withNamedParameter("isPartial", false)
+        .withNamedParameter("version", targetVersion)
+        .withContext(queryContext);
 
     return writeFeaturesQuery;
   }

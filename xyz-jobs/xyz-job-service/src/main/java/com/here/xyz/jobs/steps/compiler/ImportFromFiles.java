@@ -30,7 +30,6 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
-import com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
@@ -41,6 +40,7 @@ import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import java.util.List;
@@ -65,26 +65,21 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
     final FileFormat sourceFormat = ((Files) job.getSource()).getInputSettings().getFormat();
     Format importStepFormat;
-    EntityPerLine entityPerLine;
-
-    if (sourceFormat instanceof GeoJson){
+    if (sourceFormat instanceof GeoJson)
       importStepFormat = GEOJSON;
-      entityPerLine = ((GeoJson) sourceFormat).getEntityPerLine();
-    }else if (sourceFormat instanceof Csv csvFormat) {
+    else if (sourceFormat instanceof Csv csvFormat)
       importStepFormat = csvFormat.isGeometryAsExtraWkbColumn() ? CSV_JSON_WKB : CSV_GEOJSON;
-      entityPerLine = ((Csv) sourceFormat).getEntityPerLine();
-    }
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
     //To be able to use getExecutionMode() it is required to provide already the jobId because it gets used
     //for s3Path calculation. @TODO: check if withJobId() should be public
     ImportFilesToSpace importFilesToSpace = new ImportFilesToSpace() //Perform import
-            .withSpaceId(spaceId)
-            .withFormat(importStepFormat)
-            .withEntityPerLine(entityPerLine.toString())
-            .withJobId(job.getId())
-            .withUpdateStrategy(target.getUpdateStrategy());;
+        .withSpaceId(spaceId)
+        .withFormat(importStepFormat)
+        .withEntityPerLine(getEntityPerLine(sourceFormat))
+        .withJobId(job.getId())
+        .withUpdateStrategy(target.getUpdateStrategy());;
 
     if (importFilesToSpace.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC)) {
       //perform SYNC Import
@@ -105,6 +100,11 @@ public class ImportFromFiles implements JobCompilationInterceptor {
           .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
           .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
     }
+  }
+
+  private EntityPerLine getEntityPerLine(FileFormat format) {
+    return EntityPerLine.valueOf((format instanceof GeoJson geoJson
+        ? geoJson.getEntityPerLine() : ((Csv) format).getEntityPerLine()).toString());
   }
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<Index> indices) {

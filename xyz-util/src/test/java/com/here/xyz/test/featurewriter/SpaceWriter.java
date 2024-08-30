@@ -180,9 +180,7 @@ public abstract class SpaceWriter extends SQLITBase {
     FEATURE_NOT_EXISTS("XYZ44"),
     MERGE_CONFLICT_ERROR("XYZ48"),
     VERSION_CONFLICT_ERROR("XYZ49"),
-    XYZ_EXCEPTION("XYZ50"),
-    IMPORT_FORMAT_NOT_SUPPORTED("XYZ51"),
-    IMPORT_FAILED_NON_RETRYABLE("XYZ52");
+    XYZ_EXCEPTION("XYZ50");
 
 
     public final String errorCode;
