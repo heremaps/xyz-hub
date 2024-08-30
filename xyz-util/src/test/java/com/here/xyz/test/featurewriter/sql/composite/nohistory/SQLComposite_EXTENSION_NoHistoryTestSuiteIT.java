@@ -22,19 +22,19 @@ package com.here.xyz.test.featurewriter.sql.composite.nohistory;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
 import com.here.xyz.test.featurewriter.sql.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class SQLComposite_EXTENSION_NoHistoryTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
 
-  public SQLComposite_EXTENSION_NoHistoryTestSuiteIT(TestArgs args) {
-    super(args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()));
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
   }
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @Override
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists());
   }
 }

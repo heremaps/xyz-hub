@@ -19,30 +19,19 @@
 
 package com.here.xyz.test.featurewriter.rest.composite.nohistory;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.test.featurewriter.rest.RestTestSuite;
 import com.here.xyz.test.featurewriter.sql.composite.nohistory.SQLComposite_DEFAULT_NoHistoryTestSuiteIT;
-import java.util.Collection;
-import java.util.List;
 import java.util.Set;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
 
-  public HubComposite_DEFAULT_NoHistoryTestSuiteIT(TestArgs args) {
-    super(args);
-  }
-
-  @Parameters(name = "{0}")
-  public static Collection<Object[]> parameterSets() throws JsonProcessingException {
-    return testScenarios().stream().map(args -> new Object[]{args}).toList();
-  }
-
-  public static List<TestArgs> testScenarios() throws JsonProcessingException {
+  public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
         "2.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
         "2.2", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
@@ -56,11 +45,17 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
     //TODO: Maybe also use the SQL writer for the preparation of the Hub tests
 
     return SQLComposite_DEFAULT_NoHistoryTestSuiteIT.testScenarios()
-        .stream().filter(args -> !ignoredTests.contains(args.testName())).toList();
+        .filter(args -> !ignoredTests.contains(args.testName()));
   }
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
+  }
+
+  @Override
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args.withComposite(true).withContext(DEFAULT);
   }
 }

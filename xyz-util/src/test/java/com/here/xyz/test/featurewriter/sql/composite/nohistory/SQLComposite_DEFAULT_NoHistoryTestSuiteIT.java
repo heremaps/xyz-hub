@@ -36,28 +36,14 @@ import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.sql.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
-import java.util.Collection;
-import java.util.List;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class SQLComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNoHistoryTestSuiteIT {
 
-  public SQLComposite_DEFAULT_NoHistoryTestSuiteIT(TestArgs args) {
-    super(args.withContext(DEFAULT));
-  }
-
-  @Parameters(name = "{0}")
-  public static Collection<Object[]> parameterSets() {
-    return testScenarios().stream().map(args -> new Object[]{args}).toList();
-  }
-
-  public static List<TestArgs> testScenarios() {
-    return List.of(
-
+  public static Stream<TestArgs> testScenarios() {
+    return Stream.of(
         new TestArgs("1.1", true, false, UserIntent.WRITE, OnNotExists.CREATE, null, null, null,
             new TestAssertions(INSERT, I)),
 
@@ -112,8 +98,14 @@ public class SQLComposite_DEFAULT_NoHistoryTestSuiteIT extends SQLNonCompositeNo
     );
   }
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @Override
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args.withComposite(true).withContext(DEFAULT);
+  }
+
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
   }
 }

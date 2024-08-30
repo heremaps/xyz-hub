@@ -34,27 +34,14 @@ import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.sql.SQLTestSuite;
-import java.util.Collection;
-import java.util.List;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLTestSuite {
 
-  public SQLNonCompositeNoHistoryTestSuiteIT(TestArgs args) {
-    super(args);
-  }
-
-  @Parameters(name = "{0}")
-  public static Collection<Object[]> parameterSets() throws JsonProcessingException {
-    return testScenarios().stream().map(args -> new Object[]{args}).toList();
-  }
-
-  public static List<TestArgs> testScenarios() throws JsonProcessingException {
-    return List.of(
+  public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
+    return Stream.of(
         /** Feature not exists */
         new TestArgs("1", false, false, false, true,  null, null, UserIntent.WRITE, OnNotExists.CREATE, null, null, null, null,
             /* Expected content of newly created Feature */
@@ -122,8 +109,9 @@ public class SQLNonCompositeNoHistoryTestSuiteIT extends SQLTestSuite {
     );
   }
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
   }
 }

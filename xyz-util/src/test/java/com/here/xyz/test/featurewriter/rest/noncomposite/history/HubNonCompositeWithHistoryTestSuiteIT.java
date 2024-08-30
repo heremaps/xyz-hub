@@ -22,26 +22,14 @@ package com.here.xyz.test.featurewriter.rest.noncomposite.history;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.test.featurewriter.rest.RestTestSuite;
 import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
-import java.util.Collection;
 import java.util.Set;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class HubNonCompositeWithHistoryTestSuiteIT extends RestTestSuite {
 
-  public HubNonCompositeWithHistoryTestSuiteIT(TestArgs args) {
-    super(args);
-  }
-
-  @Parameters(name = "{0}")
-  public static Collection<Object[]> parameterSets() throws JsonProcessingException {
-    return testScenarios().stream().map(args -> new Object[]{args}).toList();
-  }
-
-  public static Collection<TestArgs> testScenarios() throws JsonProcessingException {
+  public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
         "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
         "18", //FIXME: Issue in Hub: Concurrently written attribute is sometimes not merged into the result correctly (flickering) [will be fixed by new FeatureWriter impl]
@@ -51,14 +39,20 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends RestTestSuite {
     );
 
     return SQLNonCompositeWithHistoryTestSuiteIT.testScenarios()
-        .stream().filter(args -> !ignoredTests.contains(args.testName())).toList();
+        .filter(args -> !ignoredTests.contains(args.testName()));
   }
 
   //TODO: Check missing version conflict errors
   //TODO: Check creation timestamp issues (actually in case of history the test should not treat a table.INSERT as creation, but a feature.I should be instead => probably FeatureWriter has to be fixed as well)
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
+  }
+
+  @Override
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args.withHistory(true);
   }
 }

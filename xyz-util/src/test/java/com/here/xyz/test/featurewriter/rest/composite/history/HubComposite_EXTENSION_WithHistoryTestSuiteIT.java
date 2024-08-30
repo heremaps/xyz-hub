@@ -19,22 +19,39 @@
 
 package com.here.xyz.test.featurewriter.rest.composite.history;
 
-import com.here.xyz.test.featurewriter.rest.composite.nohistory.HubComposite_EXTENSION_NoHistoryTestSuiteIT;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 
-@RunWith(Parameterized.class)
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.test.featurewriter.rest.composite.nohistory.HubComposite_EXTENSION_NoHistoryTestSuiteIT;
+import com.here.xyz.test.featurewriter.sql.composite.history.SQLComposite_EXTENSION_WithHistoryTestSuiteIT;
+import java.util.Set;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
 public class HubComposite_EXTENSION_WithHistoryTestSuiteIT extends HubComposite_EXTENSION_NoHistoryTestSuiteIT {
 
-  public HubComposite_EXTENSION_WithHistoryTestSuiteIT(TestArgs args) {
-    super(args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()));
+  public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
+    Set<String> ignoredTests = Set.of(
+        "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
+        "18", //FIXME: Issue in Hub: Concurrently written attribute is sometimes not merged into the result correctly (flickering) [will be fixed by new FeatureWriter impl]
+        "19", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "20", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "21" //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+    );
+
+    return SQLComposite_EXTENSION_WithHistoryTestSuiteIT.testScenarios()
+        .filter(args -> !ignoredTests.contains(args.testName()));
   }
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
+  }
+
+  @Override
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args.withComposite(true).withContext(EXTENSION).withFeatureExistsInExtension(args.featureExists()).withHistory(true);
   }
 }

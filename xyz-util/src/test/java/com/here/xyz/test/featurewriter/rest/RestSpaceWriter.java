@@ -59,7 +59,7 @@ public class RestSpaceWriter extends SpaceWriter {
         .withTitle(spaceId() + " Titel")
         .withVersionsToKeep(this.history ? 100 : 1);
 
-    if (this.composite) {
+    if (composite) {
       Space superSpace = new Space()
           .withId(superSpaceId())
           .withTitle(superSpaceId() + " Titel");
@@ -75,7 +75,7 @@ public class RestSpaceWriter extends SpaceWriter {
   @Override
   public void cleanSpaceResources() throws Exception {
     webClient(DEFAULT_AUTHOR).deleteSpace(spaceId());
-    if (this.composite)
+    if (composite)
       webClient(DEFAULT_AUTHOR).deleteSpace(superSpaceId());
   }
 

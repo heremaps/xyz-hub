@@ -22,39 +22,28 @@ package com.here.xyz.test.featurewriter.rest.noncomposite.nohistory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.test.featurewriter.rest.RestTestSuite;
 import com.here.xyz.test.featurewriter.sql.noncomposite.nohistory.SQLNonCompositeNoHistoryTestSuiteIT;
-import java.util.List;
 import java.util.Set;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class HubNonCompositeNoHistoryTestSuiteIT extends RestTestSuite {
 
-  public HubNonCompositeNoHistoryTestSuiteIT(TestArgs args) {
-    super(args);
-  }
-
-  @Parameters(name = "{0}")
-  public static List<Object[]> parameterSets() throws JsonProcessingException {
-    return testScenarios().stream().map(args -> new Object[]{args}).toList();
-  }
-
-  public static List<TestArgs> testScenarios() throws JsonProcessingException {
+  public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
       "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
       "15" //FIXME: Issue in Hub: No illegal argument error is thrown in that case [will be fixed by new FeatureWriter impl]
     );
 
     return SQLNonCompositeNoHistoryTestSuiteIT.testScenarios()
-        .stream().filter(args -> !ignoredTests.contains(args.testName())).toList();
+        .filter(args -> !ignoredTests.contains(args.testName()));
   }
 
   //TODO: Check missing version conflict errors
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
   }
 }

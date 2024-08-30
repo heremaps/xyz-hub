@@ -22,7 +22,7 @@ package com.here.xyz.test.featurewriter._custom;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class SQLITWriteFeaturesWithoutHistoryDefaults extends SQLITWriteFeaturesBase {
 

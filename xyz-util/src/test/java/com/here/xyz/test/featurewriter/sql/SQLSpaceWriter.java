@@ -47,7 +47,7 @@ public class SQLSpaceWriter extends SpaceWriter {
   public void createSpaceResources() throws Exception {
     try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
       List<SQLQuery> queries = new ArrayList<>();
-      if (this.composite)
+      if (composite)
         queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), superSpaceId()));
       queries.addAll(buildCreateSpaceTableQueries(dsp.getDatabaseSettings().getSchema(), spaceId()));
       SQLQuery.batchOf(queries).writeBatch(dsp);
@@ -59,7 +59,7 @@ public class SQLSpaceWriter extends SpaceWriter {
     try (DataSourceProvider dsp = SQLITBase.getDataSourceProvider()) {
       buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), spaceId()).write(dsp);
 
-      if (this.composite)
+      if (composite)
         buildDropSpaceQuery(dsp.getDatabaseSettings().getSchema(), superSpaceId()).write(dsp);
     }
   }

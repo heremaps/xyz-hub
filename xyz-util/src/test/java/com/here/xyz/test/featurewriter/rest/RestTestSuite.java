@@ -19,13 +19,17 @@
 
 package com.here.xyz.test.featurewriter.rest;
 
+import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.test.featurewriter.TestSuite;
 
 public abstract class RestTestSuite extends TestSuite {
 
-  public RestTestSuite(TestArgs args) {
-    super(args);
-    spaceWriter = new RestSpaceWriter(composite, history, getClass().getSimpleName());
+  @Override
+  protected SpaceWriter spaceWriter() {
+    return new RestSpaceWriter(composite, history, getClass().getSimpleName());
+  }
+
+  public RestTestSuite() {
     /*
     TODO: Hub currently only supports to define the author through JWT or request header.
      Improve featurewriter tests to set author through JWT as the rest of the tests are doing it, then remove this workaround.

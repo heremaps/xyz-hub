@@ -31,33 +31,19 @@ import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.MERGE_CONFLIC
 import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.VERSION_CONFLICT_ERROR;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnMergeConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
-import java.util.Collection;
-import java.util.List;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class SQLComposite_DEFAULT_WithHistoryTestSuiteIT extends SQLNonCompositeWithHistoryTestSuiteIT {
 
-  public SQLComposite_DEFAULT_WithHistoryTestSuiteIT(TestArgs args) {
-    super(args.withContext(DEFAULT));
-  }
-
-  @Parameters(name = "{0}")
-  public static Collection<Object[]> parameterSets() throws JsonProcessingException {
-    return testScenarios().stream().map(args -> new Object[]{args}).toList();
-  }
-
-  public static List<TestArgs> testScenarios() {
-    return List.of(
+  public static Stream<TestArgs> testScenarios() {
+    return Stream.of(
 
         new TestArgs("1.1", true, true, UserIntent.WRITE, OnNotExists.CREATE, null, null, null,
             new TestAssertions(INSERT, I)),
@@ -143,8 +129,14 @@ public class SQLComposite_DEFAULT_WithHistoryTestSuiteIT extends SQLNonComposite
     );
   }
 
-  @Test
-  public void start() throws Exception {
-    runTest();
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
+  }
+
+  @Override
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args.withComposite(true).withContext(DEFAULT);
   }
 }

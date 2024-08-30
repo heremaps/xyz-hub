@@ -61,7 +61,7 @@ public abstract class SpaceWriter extends SQLITBase {
   }
 
   protected SpaceWriter(boolean composite, String testSuiteName) {
-    spaceId = testSuiteName;
+    spaceId = testSuiteName != null ? testSuiteName : getClass().getSimpleName();
     this.composite = composite;
   }
 

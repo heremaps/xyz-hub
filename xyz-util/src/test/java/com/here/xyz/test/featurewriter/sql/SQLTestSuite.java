@@ -19,15 +19,13 @@
 
 package com.here.xyz.test.featurewriter.sql;
 
+import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.test.featurewriter.TestSuite;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
 public abstract class SQLTestSuite extends TestSuite {
 
-  public SQLTestSuite(TestArgs args) {
-    super(args);
-    spaceWriter = new SQLSpaceWriter(composite, getClass().getSimpleName());
+  @Override
+  protected SpaceWriter spaceWriter() {
+    return new SQLSpaceWriter(composite, getClass().getSimpleName());
   }
 }

@@ -63,14 +63,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import org.hamcrest.Matcher;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 
 public abstract class TestSuite {
   public static final String TEST_FEATURE_ID = "id1";
   public static final Point TEST_FEATURE_GEOMETRY = new Point().withCoordinates(new PointCoordinates(8, 50));
-
-  protected SpaceWriter spaceWriter;
+  private static final TestArgs EMPTY_ARGS = new TestArgs("EMPTY_ARGS", false, false, false, false, false, false, UserIntent.WRITE, null, null, null, null, null, null);
 
   protected String testName;
   protected boolean composite;
@@ -102,7 +101,13 @@ public abstract class TestSuite {
     XyzSerializable.setAlwaysSerializePretty(true);
   }
 
-  public TestSuite(TestArgs args) {
+  protected abstract SpaceWriter spaceWriter();
+
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args;
+  }
+
+  private void init(TestArgs args) {
     testName = args.testName;
     composite = args.composite;
     history = args.history;
@@ -182,20 +187,26 @@ public abstract class TestSuite {
     return feature;
   }
 
-  @Before
+  @BeforeEach
   public void prepare() throws Exception {
-    spaceWriter.createSpaceResources();
+    init(modifyArgs(EMPTY_ARGS));
+    spaceWriter().createSpaceResources();
   }
 
-  @After
+  @AfterEach
   public void clean() throws Exception {
-    spaceWriter.cleanSpaceResources();
+    spaceWriter().cleanSpaceResources();
   }
 
   private void writeFeatureForPreparation(Feature feature, String author, SpaceContext context) throws Exception {
     new SQLSpaceWriter(composite, getClass().getSimpleName()).writeFeature(feature, author, null, null, null, null,
         false, context, history);
     writtenSpaceVersions.get(context).increment();
+  }
+
+  public void runTest(TestArgs args) throws Exception {
+    init(modifyArgs(args));
+    runTest();
   }
 
   public void runTest() throws Exception {
@@ -247,7 +258,7 @@ public abstract class TestSuite {
     //------------ Perform the actual test call ------------
     try {
       //TODO: Also support "partial" to be influenced through test args
-      spaceWriter.writeFeature(modifiedFeature(baseVersion), UPDATE_AUTHOR, onExists, onNotExists,
+      spaceWriter().writeFeature(modifiedFeature(baseVersion), UPDATE_AUTHOR, onExists, onNotExists,
           onVersionConflict, onMergeConflict,false, spaceContext, history);
     }
     catch (SQLException e) {
@@ -272,7 +283,7 @@ public abstract class TestSuite {
     SpaceTableState beforeTableState = beforeState.tableStateForContext(spaceContext);
     SpaceTableState afterTableState = afterState.tableStateForContext(spaceContext);
     TableOperation performedTableOperation = inferTableOperation(beforeTableState, afterTableState);
-    assertEquals("A wrong table operation was performed.",assertions.performedTableOperation, performedTableOperation);
+    assertEquals("A wrong table operation was performed.", assertions.performedTableOperation, performedTableOperation);
 
     //Check whether the feature was written properly
     //TODO: Expect version increase on table.DELETE?
@@ -343,10 +354,10 @@ public abstract class TestSuite {
   }
 
   private SpaceTableState gatherSpaceTableState(SpaceContext context) throws Exception {
-    Feature feature = spaceWriter.getFeature(context);
-    Operation lastUsedFeatureOperation = spaceWriter.getLastUsedFeatureOperation(context);
+    Feature feature = spaceWriter().getFeature(context);
+    Operation lastUsedFeatureOperation = spaceWriter().getLastUsedFeatureOperation(context);
     return history
-        ? new SpaceTableState(feature, lastUsedFeatureOperation, spaceWriter.getRowCount(context))
+        ? new SpaceTableState(feature, lastUsedFeatureOperation, spaceWriter().getRowCount(context))
         : new SpaceTableState(feature, lastUsedFeatureOperation);
   }
 
@@ -444,6 +455,12 @@ public abstract class TestSuite {
     }
 
     public TestArgs withFeatureExistsInExtension(boolean featureExistsInExtension) {
+      return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
+          featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
+          assertions);
+    }
+
+    public TestArgs withHistory(boolean history) {
       return new TestArgs(testName, composite, history, featureExists, baseVersionMatch, conflictingAttributes, featureExistsInSuper,
           featureExistsInExtension, userIntent, onNotExists, onExists, onVersionConflict, onMergeConflict, spaceContext,
           assertions);

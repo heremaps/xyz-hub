@@ -31,13 +31,13 @@ import com.here.xyz.util.db.pg.Script;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class SQLScriptsIT extends SQLITBase {
 
-  @AfterClass
+  @AfterAll
   public static void cleanupAllVersions() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       Script functions = new Script("/functions0/functions.sql", dsp, "1.0.0");
@@ -49,7 +49,7 @@ public class SQLScriptsIT extends SQLITBase {
     }
   }
 
-  @Before
+  @BeforeEach
   public void initTest() throws Exception {
     cleanupAllVersions();
   }

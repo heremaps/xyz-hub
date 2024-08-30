@@ -36,20 +36,20 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.util.ArrayList;
 import java.util.HashMap;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 
 //TODO: Remove if custom tests are getting removed.
 public class SQLITWriteFeaturesBase extends SQLSpaceWriter {
 
   public SQLITWriteFeaturesBase(boolean composite) {
-    super(false, "SQLITWriteFeaturesBase");
+    super(false, null);
   }
 
   /**
    * TODO: Remove if custom tests are getting removed
    */
-  @Before
+  @BeforeEach
   public void prepare() throws Exception {
     createSpaceResources();
   }
@@ -57,7 +57,7 @@ public class SQLITWriteFeaturesBase extends SQLSpaceWriter {
   /**
    * TODO: Remove if custom tests are getting removed
    */
-  @After
+  @AfterEach
   public void clean() throws Exception {
     cleanSpaceResources();
   }
