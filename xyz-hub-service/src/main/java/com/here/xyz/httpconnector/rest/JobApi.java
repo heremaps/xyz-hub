@@ -23,6 +23,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
@@ -33,18 +34,28 @@ import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.rest.HApiParam.Path;
 import com.here.xyz.httpconnector.task.JobHandler;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.ExportObject;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.RuntimeStatus;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;
+
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.EncodeException;
+import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
+
+import java.io.ByteArrayOutputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class JobApi extends Api {
 
@@ -94,22 +105,75 @@ public class JobApi extends Api {
     }
   }
 
+  private void _sendResponse(RoutingContext context, HttpResponseStatus status, Object o) {
+// temp. workaround - only called when parm "exportObjects=true"
+        HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
+
+        byte[] response;
+        try 
+        { 
+          if(o instanceof Export ex) 
+          { Map<String,ExportObject> exo  = ex.getExportObjects(),
+                                     supexo = ex.getSuperExportObjects();
+           
+            String serExo = (exo == null || exo.isEmpty() ? null : XyzSerializable.serialize(exo) ),
+                   serSupexo = (supexo == null || supexo.isEmpty() ? null : XyzSerializable.serialize(supexo) );
+
+            if( serExo == null && serSupexo == null )
+            { sendResponse(context, status, o);
+              return;
+            } 
+            
+            String injExportJstr = String.format(",%s%s%s", serExo != null ? "\"exportObjects\":" + serExo : "" 
+                                                                 , serExo != null && serSupexo != null ? "," : ""
+                                                                 , serSupexo != null ? "\"superExportObjects\":" + serSupexo : ""  );
+
+            String sJob = Json.encode(o);
+
+            int lastCurlyBracket = sJob.lastIndexOf("}");
+            
+            sJob = sJob.substring(0, lastCurlyBracket) + injExportJstr + "}";
+
+            response = sJob.getBytes();
+          }
+          else if( o instanceof List listEx )
+          { //TODO: in case List<Exports> needs to be supported 
+            response = Json.encode(o).getBytes();
+          }
+          else 
+          { 
+            sendResponse(context, status, o);
+            return;
+          }
+          
+        }
+        catch (EncodeException e) {
+            sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
+            return;
+        }
+
+        sendResponseBytes(context, httpResponse, response);
+    }
+
+
   private void getJob(final RoutingContext context) {
     String jobId = context.pathParam(Path.JOB_ID);
+    boolean exportObjects = HQuery.getBoolean(context, HQuery.EXPORT_OBJECTS , false);
 
     JobHandler.loadJob(jobId, LogUtil.getMarker(context))
             .onFailure(e -> this.sendError(e, context))
-            .onSuccess(job -> this.sendResponse(context, OK, job));
+            .onSuccess(job -> { if( exportObjects ) this._sendResponse(context, OK, job); else  this.sendResponse(context, OK, job); });
   }
 
   private void getJobs(final RoutingContext context) {
     String jobType = HQuery.getJobType(context);
     Job.Status jobStatus = HQuery.getJobStatus(context);
     String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
+    boolean exportObjects = HQuery.getBoolean(context, HQuery.EXPORT_OBJECTS , false);
 
     JobHandler.loadJobs(LogUtil.getMarker(context), jobType, jobStatus, targetSpaceId)
             .onFailure(e -> this.sendError(e, context))
-            .onSuccess(jobs -> this.sendResponse(context, OK, jobs));
+            .onSuccess(jobs -> { if( exportObjects ) this._sendResponse(context, OK, jobs); else  this.sendResponse(context, OK, jobs); } );
   }
 
   private void deleteJob(final RoutingContext context) {
@@ -189,7 +253,7 @@ public class JobApi extends Api {
   }
 
   protected void getJobStatus(RoutingContext context) {
-    JobHandler.loadJob(context.pathParam(Path.JOB_ID), LogUtil.getMarker(context))
+    JobHandler.loadJob(context.pathParam(Path.JOB_ID), LogUtil.getMarker(context) )
         .onFailure(e -> this.sendError(e, context))
         .onSuccess(job -> this.sendResponse(context, OK, job.getRuntimeStatus()));
   }

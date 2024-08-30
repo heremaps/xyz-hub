@@ -53,6 +53,7 @@ import com.amazonaws.services.emrserverless.model.JobRunState;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.collect.ImmutableList;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -114,10 +115,10 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonIgnore
     private AtomicBoolean executing = new AtomicBoolean();
 
-    @JsonView({Public.class})
+    @JsonIgnore
     private Map<String,ExportObject> exportObjects;
 
-    @JsonView({Public.class})
+    @JsonIgnore
     private Map<String,ExportObject> superExportObjects;
 
     @JsonView({Public.class})
@@ -407,7 +408,6 @@ public class Export extends JDBCBasedJob<Export> {
                 else {
                     try {
                         geometry.validate();
-                        WKTHelper.geometryToWKB(geometry);
                     }
                     catch (Exception e){
                         throw new HttpException(BAD_REQUEST, "Cant parse filter geometry!");
@@ -526,7 +526,7 @@ public class Export extends JDBCBasedJob<Export> {
         }
     }
 
-    @JsonView({Public.class})
+    @JsonIgnore
     public Map<String,ExportObject> getSuperExportObjects() {
         if (CService.jobS3Client == null) //If being used as a model on the client side
             return this.superExportObjects == null ? Collections.emptyMap() : this.superExportObjects;
@@ -539,6 +539,7 @@ public class Export extends JDBCBasedJob<Export> {
         return superExportObjects == null ? Collections.emptyMap() : superExportObjects;
     }
 
+    @JsonProperty
     public void setSuperExportObjects(Map<String, ExportObject> superExportObjects) {
         this.superExportObjects = superExportObjects;
     }
@@ -555,7 +556,7 @@ public class Export extends JDBCBasedJob<Export> {
         return exportObjectList;
     }
 
-    @JsonView({Public.class})
+    @JsonIgnore
     public Map<String,ExportObject> getExportObjects() {
         if (CService.jobS3Client == null) //If being used as a model on the client side
             return exportObjects == null ? Collections.emptyMap() : exportObjects;
@@ -578,7 +579,8 @@ public class Export extends JDBCBasedJob<Export> {
 
         return exportObjects == null ? Collections.emptyMap() : exportObjects;
     }
-
+    
+    @JsonProperty
     public void setExportObjects(Map<String, ExportObject> exportObjects) {
         this.exportObjects = exportObjects;
     }

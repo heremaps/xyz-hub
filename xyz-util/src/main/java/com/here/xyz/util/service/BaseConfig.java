@@ -20,6 +20,8 @@
 package com.here.xyz.util.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.util.Arrays;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BaseConfig {
@@ -106,4 +108,16 @@ public class BaseConfig {
    * Additional application name variable.
    */
   public String APP_NAME;
+
+  /**
+   * Helper method to split a string that is a comma separated list into a list of strings including
+   * proper trimming of the elements in the list.
+   * @param value The comma separated list as string
+   * @return The actual list of strings
+   */
+  protected static final List<String> fromCommaSeparatedList(String value) {
+    if (value == null)
+      return List.of();
+    return Arrays.asList(value.split(",")).stream().map(part -> part.trim()).toList();
+  }
 }

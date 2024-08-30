@@ -54,6 +54,8 @@ public class S3Client {
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
 
+  //TODO: Switch to AWS SDK2
+
   protected final AmazonS3 client;
 
   protected S3Client(String bucketName) {
@@ -67,9 +69,15 @@ public class S3Client {
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
           .withPathStyleAccessEnabled(true);
     }
-    else {
+    else if (Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
       final String region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
       builder.setRegion(region);
+    }
+    else {
+      String bucketRegion = getInstance().client.getBucketLocation(bucketName);
+      if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
+        throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
+      builder.setRegion(bucketRegion);
     }
 
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
@@ -184,5 +192,17 @@ public class S3Client {
     for (S3ObjectSummary file : scanFolder(folderPath))
       //TODO: Delete multiple objects (batches of 1000) with one request instead
       client.deleteObject(bucketName, file.getKey());
+  }
+
+  public static String getBucketFromS3Uri(String s3Uri) {
+    if (!s3Uri.startsWith("s3://"))
+      return null;
+    return s3Uri.substring(5, s3Uri.substring(5).indexOf("/") + 5);
+  }
+
+  public static String getKeyFromS3Uri(String s3Uri) {
+    if (!s3Uri.startsWith("s3://"))
+      return null;
+    return s3Uri.substring(s3Uri.substring(5).indexOf("/") + 5 + 1);
   }
 }

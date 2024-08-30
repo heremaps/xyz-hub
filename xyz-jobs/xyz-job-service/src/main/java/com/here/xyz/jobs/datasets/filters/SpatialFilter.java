@@ -42,7 +42,8 @@ public class SpatialFilter {
   }
 
   public void setGeometry(Geometry geometry) throws InvalidGeometryException {
-    geometry.validate();
+// uncommeted validation s.  https://here-technologies.atlassian.net/browse/DS-657
+//    geometry.validate();
     this.geometry = geometry;
   }
 

@@ -266,7 +266,7 @@ public class Api {
         sendResponseBytes(context, httpResponse, response);
     }
 
-    private void sendResponseBytes(RoutingContext context, HttpServerResponse httpResponse, byte[] response) {
+    protected void sendResponseBytes(RoutingContext context, HttpServerResponse httpResponse, byte[] response) {
         if (response.length == 0)
             httpResponse.setStatusCode(NO_CONTENT.code()).end();
         else if (response.length > getMaxResponseLength(context))

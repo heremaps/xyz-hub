@@ -22,7 +22,7 @@ package com.here.xyz.jobs.steps.inputs;
 import java.util.List;
 
 public class InputsFromS3 extends Input<InputsFromS3> {
-  private String bucketArn;
+  private String bucket;
   private String prefix;
 
   public String getPrefix() {
@@ -40,23 +40,23 @@ public class InputsFromS3 extends Input<InputsFromS3> {
     return this;
   }
 
-  public String getBucketArn() {
-    return bucketArn;
+  public String getBucket() {
+    return bucket;
   }
 
-  public void setBucketArn(String bucketArn) {
-    this.bucketArn = bucketArn;
+  public void setBucket(String bucket) {
+    this.bucket = bucket;
   }
 
-  public InputsFromS3 withBucketArn(String bucketArn) {
-    setBucketArn(bucketArn);
+  public InputsFromS3 withBucket(String bucket) {
+    setBucket(bucket);
     return this;
   }
 
   public void dereference(String forJob) {
     //First load the inputs from the (foreign) bucket
-    List<Input> inputs = loadInputsInParallel(getBucketArn(), getPrefix());
-    inputs.forEach(input -> input.setS3Bucket(getBucketArn()));
+    List<Input> inputs = loadInputsInParallel(getBucket(), getPrefix());
+    inputs.forEach(input -> input.setS3Bucket(getBucket()));
     //Store the metadata for the job that accesses the bucket
     storeMetadata(forJob, inputs, null);
   }

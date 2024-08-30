@@ -73,7 +73,7 @@ public class RunEmrJob extends Step<RunEmrJob> {
 
   @Override
   public boolean validate() throws ValidationException {
-    return isInputsExpected() && currentInputsCount(Input.class) > 0;
+    return !isInputsExpected() || currentInputsCount(Input.class) > 0;
   }
 
   public String getApplicationId() {
