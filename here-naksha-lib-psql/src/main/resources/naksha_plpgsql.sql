@@ -903,7 +903,7 @@ BEGIN
   END IF;
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     -- Feature inserted or updated, ensure that there is no pending version in the deletion table.
-    sql = format('DELETE FROM %I WHERE jsondata->>''id'' = $1;', format('%s_del', collection_id));
+    sql = format('DELETE FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$1::text COLLATE "C";', format('%s_del', collection_id));
     --RAISE NOTICE '% USING $1=%', sql, NEW.jsondata->>'id';
     EXECUTE sql USING NEW.jsondata->>'id';
     --RAISE NOTICE 'INSERT %', NEW.jsondata;
@@ -3006,7 +3006,7 @@ BEGIN
     IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
         -- purge feature from deletion table and write history.
         stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);'
-                    || 'DELETE FROM %I WHERE jsondata->>''id'' = $4;',
+                    || 'DELETE FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$4::text COLLATE "C";',
                         format('%s_hst', tg_table_name),
                         format('%s_del', tg_table_name)
         );
