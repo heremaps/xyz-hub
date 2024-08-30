@@ -323,8 +323,6 @@ final class PostgresStorage extends ClosableRootResource {
       sql.addLiteral(context.getStreamId());
       sql.add(");\n");
     }
-    sql.add("SET SESSION work_mem TO '256 MB';\n");
-    sql.add("SET SESSION enable_seqscan TO OFF;\n");
     // TODO : can be changed to debug later, when timeout issues have settled (and logs are too noisy)
     log.info("Init session using stmtTimeout={}ms, lockTimeout={}ms", stmtTimeout, lockTimeout);
     sql.add("SET SESSION statement_timeout TO ").add(stmtTimeout).add(";\n");

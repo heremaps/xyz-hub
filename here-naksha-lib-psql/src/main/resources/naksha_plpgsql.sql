@@ -1335,23 +1335,23 @@ BEGIN
   --RAISE NOTICE 'Start write_features';
   txn = naksha_txn();
   -- id
-  select_head_stmt = format('SELECT jsondata, geo FROM %I WHERE jsondata->>''id''=$1;', table_name);
+  select_head_stmt = format('SELECT jsondata, geo FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$1::text COLLATE "C";', table_name);
   -- feature, geo
   insert_stmt = format('INSERT INTO %I (jsondata, geo) VALUES ($1, ST_Force3D($2)) RETURNING jsondata;', table_name);
   -- feature, geo, id
-  update_stmt = format('UPDATE %I SET jsondata=$1, geo=ST_Force3D($2) WHERE jsondata->>''id''=$3 RETURNING jsondata;', table_name);
+  update_stmt = format('UPDATE %I SET jsondata=$1, geo=ST_Force3D($2) WHERE (jsondata->>''id''::text) COLLATE "C"=$3::text COLLATE "C" RETURNING jsondata;', table_name);
   -- feature, geo, id, uuid
-  update_atomic_stmt = format('UPDATE %I SET jsondata=$1, geo=ST_Force3D($2) WHERE jsondata->>''id''=$3 AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid''=$4 RETURNING jsondata;', table_name);
+  update_atomic_stmt = format('UPDATE %I SET jsondata=$1, geo=ST_Force3D($2) WHERE (jsondata->>''id''::text) COLLATE "C"=$3::text COLLATE "C" AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid''=$4 RETURNING jsondata;', table_name);
   -- id
-  delete_stmt = format('DELETE FROM %I WHERE jsondata->>''id''=$1 RETURNING jsondata, geo;', table_name);
+  delete_stmt = format('DELETE FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$1::text COLLATE "C" RETURNING jsondata, geo;', table_name);
   -- id, uuid
-  delete_atomic_stmt = format('DELETE FROM %I WHERE jsondata->>''id''=$1 AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid''=$2 RETURNING jsondata, geo;', table_name);
+  delete_atomic_stmt = format('DELETE FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$1::text COLLATE "C" AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid''=$2 RETURNING jsondata, geo;', table_name);
   -- id
-  purge_stmt = format('DELETE FROM %I WHERE jsondata->>''id''=$1 RETURNING jsondata, geo;', collection_id||'_del');
+  purge_stmt = format('DELETE FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$1::text COLLATE "C" RETURNING jsondata, geo;', collection_id||'_del');
   -- id, uuid
-  purge_atomic_stmt = format('DELETE FROM %I WHERE jsondata->>''id''=$1 AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid''=$2 RETURNING jsondata, geo;', collection_id||'_del');
+  purge_atomic_stmt = format('DELETE FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$1::text COLLATE "C" AND jsondata->''properties''->''@ns:com:here:xyz''->>''uuid''=$2 RETURNING jsondata, geo;', collection_id||'_del');
   -- id
-  select_del_stmt = format('SELECT jsondata, geo FROM %I WHERE jsondata->>''id''=$1;', collection_id||'_del');
+  select_del_stmt = format('SELECT jsondata, geo FROM %I WHERE (jsondata->>''id''::text) COLLATE "C"=$1::text COLLATE "C";', collection_id||'_del');
   i = 1;
   WHILE i <= arr_size
   LOOP
