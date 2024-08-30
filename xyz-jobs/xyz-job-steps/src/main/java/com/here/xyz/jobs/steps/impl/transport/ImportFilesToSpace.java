@@ -725,14 +725,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (superTable != null)
       queryContext.put("extendedTable", superTable);
 
-    SQLQuery writeFeaturesQuery = new SQLQuery("SELECT write_features(#{featureList}::TEXT, #{author}::TEXT, #{onExists},"
-            + "#{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}::BOOLEAN, #{version}::BIGINT);")
+    SQLQuery writeFeaturesQuery = new SQLQuery("SELECT write_features(#{featureList}::TEXT, #{author}::TEXT, #{onExists}::TEXT,"
+            + "#{onNotExists}::TEXT, #{onVersionConflict}::TEXT, #{onMergeConflict}::TEXT, #{isPartial}::BOOLEAN, #{version}::BIGINT);")
             .withNamedParameter("featureList", featureList)
             .withNamedParameter("author", space.getOwner())
-            .withNamedParameter("onExists", updateStrategy == null ? null : "'" + updateStrategy.onExists() + "'")
-            .withNamedParameter("onNotExists",updateStrategy == null ? null : "'" + updateStrategy.onNotExists()+ "'")
-            .withNamedParameter("onVersionConflict", updateStrategy == null ? null : "'" + updateStrategy.onVersionConflict()+ "'")
-            .withNamedParameter("onMergeConflict", updateStrategy == null ? null : "'" + updateStrategy.onMergeConflict()+ "'")
+            .withNamedParameter("onExists", updateStrategy == null || updateStrategy.onExists() == null ? null : updateStrategy.onExists().toString())
+            .withNamedParameter("onNotExists",updateStrategy == null || updateStrategy.onNotExists() == null? null : updateStrategy.onNotExists().toString())
+            .withNamedParameter("onVersionConflict", updateStrategy == null || updateStrategy.onVersionConflict() == null ? null : updateStrategy.onVersionConflict().toString())
+            .withNamedParameter("onMergeConflict", updateStrategy == null || updateStrategy.onMergeConflict() == null ? null :  updateStrategy.onMergeConflict().toString())
             .withNamedParameter("isPartial", false)
             .withNamedParameter("version", targetVersion)
             .withContext(queryContext);
