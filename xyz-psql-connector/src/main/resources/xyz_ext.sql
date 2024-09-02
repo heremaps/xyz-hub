@@ -3286,6 +3286,7 @@ LANGUAGE plpgsql VOLATILE;
 CREATE OR REPLACE FUNCTION _create_asyncify_query_block(query TEXT, password TEXT, procedureCall BOOLEAN) RETURNS TEXT AS
 $BODY$
 BEGIN
+    --TODO: Forward context & search_path
     IF procedureCall THEN
         RETURN $outer$
             DO

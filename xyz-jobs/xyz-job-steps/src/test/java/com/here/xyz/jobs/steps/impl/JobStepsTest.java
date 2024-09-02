@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
@@ -99,7 +100,9 @@ public class JobStepsTest extends TestSteps {
     assertEquals(0L, (Object) statsBefore.getCount().getValue());
 
     uploadInputFile(JOB_ID);
-    LambdaBasedStep step = new ImportFilesToSpace().withSpaceId(SPACE_ID);
+    LambdaBasedStep step = new ImportFilesToSpace()
+        .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
+        .withSpaceId(SPACE_ID);
 
 //    simulateLambdaStepRequest(step, START_EXECUTION);
 //    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);

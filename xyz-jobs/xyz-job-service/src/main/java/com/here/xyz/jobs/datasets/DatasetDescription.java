@@ -33,8 +33,6 @@ import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.space.UpdateStrategy;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy.OnExists;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy.OnNotExists;
 import com.here.xyz.jobs.datasets.streams.Notifications;
 import com.here.xyz.models.hub.Ref;
 
@@ -80,8 +78,7 @@ public abstract class DatasetDescription implements Typed {
   public static class Space<T extends Space> extends Identifiable<T> implements FilteringSource<T>, VersionedSource<T> {
     private Filters filters;
     private Ref versionRef;
-    private UpdateStrategy updateStrategy = new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE, null,
-        null);
+    private UpdateStrategy updateStrategy = UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 
     @Override
     public Filters getFilters() {

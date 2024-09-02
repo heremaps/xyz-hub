@@ -21,6 +21,8 @@ package com.here.xyz.jobs.datasets.space;
 
 public record UpdateStrategy(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
     OnMergeConflict onMergeConflict) {
+  public static final UpdateStrategy DEFAULT_UPDATE_STRATEGY = new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE,null,
+      null);
 
   public enum OnExists {
     DELETE,
