@@ -113,9 +113,20 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 194
+ select 195
 $BODY$
   LANGUAGE sql IMMUTABLE;
+
+------------------------------------------------
+------------------------------------------------
+
+CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY)
+    RETURNS GEOMETRY AS
+$BODY$
+   select ST_ReducePrecision(geo, 0.00000001) 
+$BODY$
+LANGUAGE sql VOLATILE;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger()
@@ -162,6 +173,8 @@ AS $BODY$
         ELSE
 			NEW.geo := ST_Force3D(NEW.geo);
         END IF;
+
+		NEW.geo := xyz_reduce_precision(NEW.geo);
 
         NEW.operation := 'I';
         NEW.version := curVersion;
@@ -2897,7 +2910,8 @@ $BODY$
         -- Now actually insert the new version of the feature (NOTE: The order is important here to not violate the (id, next_version) uniqueness constraint)
         EXECUTE
             format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
-                   schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
+                   schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo) );
+				                                                         
 
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
@@ -3052,7 +3066,7 @@ CREATE OR REPLACE FUNCTION xyz_geoFromWkb(geo GEOMETRY)
     RETURNS GEOMETRY AS
 $BODY$
     BEGIN
-        RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END;
+        RETURN CASE WHEN geo::geometry IS NULL THEN NULL ELSE xyz_reduce_precision( ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) ) END;
     END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -4253,12 +4267,14 @@ AS $BODY$
             NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
 
             IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-                --GeoJson Feature Import
+                -- GeoJson Feature Import
                 NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
                 NEW.jsondata := NEW.jsondata - 'geometry';
             ELSE
                 NEW.geo := ST_Force3D(NEW.geo);
             END IF;
+
+  		    NEW.geo := xyz_reduce_precision(NEW.geo);
 
             NEW.operation := 'I';
             NEW.version := curVersion;
