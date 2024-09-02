@@ -88,7 +88,7 @@ public class SQLScriptsIT extends SQLITBase {
   }
 
   private static void testSampleFunctionCallNegative(DataSourceProvider dsp) {
-    assertThrows("Expect function not to be found, because its schema is not in the search path of the connection.",
+    assertThrows("Expect function not to be found, because its schema is not in the search path of the connection",
         SQLException.class, () -> new SQLQuery("SELECT myTestFunction(#{param})")
             .withNamedParameter("param", "TestUser")
             .run(dsp));

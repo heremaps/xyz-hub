@@ -22,6 +22,7 @@ package com.here.xyz.test;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import java.util.List;
 
 public class SQLITBase {
 
@@ -35,7 +36,8 @@ public class SQLITBase {
       .withDb(PG_DB)
       .withUser(PG_USER)
       .withPassword(PG_PW)
-      .withDbMaxPoolSize(2);
+      .withDbMaxPoolSize(2)
+      .withSearchPath(List.of("common", "feature_writer"));
 
   protected static DataSourceProvider getDataSourceProvider() {
     return new PooledDataSources(DB_SETTINGS);

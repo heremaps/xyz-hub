@@ -134,8 +134,7 @@ public class Script {
     SQLQuery setCurrentSearchPath = buildSetCurrentSearchPathQuery(targetSchema);
 
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
-        .withQueryFragment("scriptContent", loadScriptContent())
-        .withLoggingEnabled(false);
+        .withQueryFragment("scriptContent", loadScriptContent());
 
     //Load JS-scripts to be injected
     for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
@@ -147,7 +146,9 @@ public class Script {
 
     SQLQuery.batchOf(buildCreateSchemaQuery(targetSchema), setCurrentSearchPath, buildHashFunctionQuery(), buildVersionFunctionQuery())
         .writeBatch(dataSourceProvider);
-    scriptContent.write(dataSourceProvider);
+    SQLQuery.join(List.of(setCurrentSearchPath, scriptContent), ";")
+        .withLoggingEnabled(false)
+        .write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
   }
 
