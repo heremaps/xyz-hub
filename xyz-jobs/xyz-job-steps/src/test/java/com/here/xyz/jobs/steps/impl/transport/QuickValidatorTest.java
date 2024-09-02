@@ -19,7 +19,10 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.jobs.steps.TestSteps.S3ContentType.APPLICATION_JSON;
+import static com.here.xyz.jobs.steps.TestSteps.S3ContentType.TEXT_CSV;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
@@ -33,14 +36,16 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class QuickValidatorTest extends TestSteps {
 
   private static String TEST_PREFIX = "validation-test/";
 
-  @Before
+  @BeforeEach
   public void cleanUp() {
     cleanS3Files(TEST_PREFIX);
   }
@@ -53,22 +58,22 @@ public class QuickValidatorTest extends TestSteps {
   private void uploadAndValidateValidFiles(boolean gzip) throws IOException, ValidationException {
     /** With no new line at end */
     uploadFileToS3(generateTestS3Key("test_valid_1_jsonwkb.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"properties'\": {'\"test'\": 1}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes(),
         gzip
     );
     uploadFileToS3(generateTestS3Key("test_valid_1_geojson.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":[8,50]},'\"properties'\":{'\"test'\":1}}\"".getBytes(),
         gzip
     );
     uploadFileToS3(generateTestS3Key("test_valid_1_geojson.geojson"),
-        S3ContentType.APPLICATION_JSON,
+        APPLICATION_JSON,
         "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}".getBytes(),
         gzip
     );
     uploadFileToS3(generateTestS3Key("test_valid_1_geojsonfc.geojson"),
-        S3ContentType.APPLICATION_JSON,
+        APPLICATION_JSON,
         ("{\"type\":\"FeatureCollection\", \"features\" :[" +
             "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}," +
             "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[9,51]},\"properties\":{\"test\":2}}" +
@@ -78,23 +83,23 @@ public class QuickValidatorTest extends TestSteps {
 
     /** With new line at end */
     uploadFileToS3(generateTestS3Key("test_valid_2_jsonwkb.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"properties'\": {'\"test'\": 1}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000\n".getBytes(),
         gzip
     );
     uploadFileToS3(generateTestS3Key("test_valid_2_geojson.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":[8,50]},'\"properties'\":{'\"test'\":1}}\"\n".getBytes(),
         gzip
     );
     uploadFileToS3(generateTestS3Key("test_valid_2_geojson.geojson"),
-        S3ContentType.APPLICATION_JSON,
+        APPLICATION_JSON,
         "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}\n".getBytes(),
         gzip
     );
 
     uploadFileToS3(generateTestS3Key("test_valid_2_geojsonfc.geojson"),
-        S3ContentType.APPLICATION_JSON,
+        APPLICATION_JSON,
         ("{\"type\":\"FeatureCollection\", \"features\" :[" +
             "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}," +
             "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[9,51]},\"properties\":{\"test\":2}}" +
@@ -126,66 +131,77 @@ public class QuickValidatorTest extends TestSteps {
     uploadAndValidateValidFiles(true);
   }
 
-  @Test
-  public void testInvalidJson() throws IOException {
-    uploadAndValidateFilesWithInvalidJson(false);
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testInvalidJsonWkb(boolean gzip) throws IOException {
+    testInvalidJson(
+        "\"{'\"properties'\": {invalid}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000",
+        TEXT_CSV,
+        CSV_JSON_WKB,
+        Feature,
+        gzip
+    );
   }
 
-  private void uploadAndValidateFilesWithInvalidJson(boolean gzip) throws IOException {
-    /** Invalid JSON */
-    uploadFileToS3(generateTestS3Key("test_invalid_1_jsonwkb.csv"),
-        S3ContentType.TEXT_CSV,
-        "\"{'\"properties'\": {invalid}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000".getBytes(),
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testInvalidJsonCsv(boolean gzip) throws IOException {
+    testInvalidJson(
+        "\"{'\"type'\":'\"Feature'\" invalid }}\"",
+        TEXT_CSV,
+        CSV_GEOJSON,
+        Feature,
         gzip
     );
+  }
 
-    uploadFileToS3(generateTestS3Key("test_invalid_1_geojson.csv"),
-        S3ContentType.TEXT_CSV,
-        "\"{'\"type'\":'\"Feature'\" invalid }}\"".getBytes(),
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testInvalidGeoJsonFeature(boolean gzip) throws IOException {
+    testInvalidJson(
+        "{\"type\":\"Featureinvaid\",\"geometry\":{\"type\":\"Pointinvalid\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}",
+        APPLICATION_JSON,
+        GEOJSON,
+        Feature,
         gzip
     );
+  }
 
-    uploadFileToS3(generateTestS3Key("test_invalid_1_geojson.geojson"),
-        S3ContentType.APPLICATION_JSON,
-        "{\"type\":\"Featureinvaid\",\"geometry\":{\"type\":\"Pointinvalid\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}".getBytes(),
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testInvalidGeoJsonFeatureCollection(boolean gzip) throws IOException {
+    testInvalidJson(
+        "{\"type\":\"FeatureCollection\", \"features\":[invalid]}",
+        APPLICATION_JSON,
+        GEOJSON,
+        FeatureCollection,
         gzip
     );
+  }
 
-    uploadFileToS3(generateTestS3Key("test_invalid_1_geojsonfc.geojson"),
-        S3ContentType.APPLICATION_JSON,
-        "{\"type\":\"FeatureCollection\"}".getBytes(),
+  //FIXME: Is that really invalid? How should the FeatureWriter react? simply treat as empty FC?
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testInvalidGeoJsonFeatureCollectionWithoutFeatures(boolean gzip) throws IOException {
+    testInvalidJson(
+        "{\"type\":\"FeatureCollection\"}",
+        APPLICATION_JSON,
+        GEOJSON,
+        FeatureCollection,
         gzip
     );
+  }
 
-    uploadFileToS3(generateTestS3Key("test_invalid_2_geojsonfc.geojson"),
-        S3ContentType.APPLICATION_JSON,
-        "{\"type\":\"FeatureCollection\", \"features\":[invalid]}".getBytes(),
+  private void testInvalidJson(String fileContent, S3ContentType contentType, Format format, EntityPerLine entityPerLine, boolean gzip)
+      throws IOException {
+    uploadFileToS3(generateTestS3Key("someFile"),
+        contentType,
+        fileContent.getBytes(),
         gzip
     );
 
     try {
-      validate(generateTestS3Key("test_invalid_1_jsonwkb.csv"), CSV_JSON_WKB, gzip, Feature);
-      fail("Exception expected");
-    }
-    catch (ValidationException e) {
-      checkValidationException(e, "Bad JSON encoding! ");
-    }
-    try {
-      validate(generateTestS3Key("test_invalid_1_geojson.csv"), CSV_GEOJSON, gzip, Feature);
-      fail("Exception expected");
-    }
-    catch (ValidationException e) {
-      checkValidationException(e, "Bad JSON encoding! ");
-    }
-    try {
-      validate(generateTestS3Key("test_invalid_1_geojson.geojson"), GEOJSON, gzip, EntityPerLine.FeatureCollection);
-      fail("Exception expected");
-    }
-    catch (ValidationException e) {
-      checkValidationException(e, "Bad JSON encoding! ");
-    }
-    try {
-      validate(generateTestS3Key("test_invalid_2_geojsonfc.geojson"), GEOJSON, gzip, EntityPerLine.FeatureCollection);
+      validate(generateTestS3Key("someFile"), format, gzip, entityPerLine);
       fail("Exception expected");
     }
     catch (ValidationException e) {
@@ -199,11 +215,6 @@ public class QuickValidatorTest extends TestSteps {
   }
 
   @Test
-  public void testInvalidJsonGZipped() throws IOException {
-    uploadAndValidateFilesWithInvalidJson(true);
-  }
-
-  @Test
   public void testInvalidWKB() throws IOException {
     uploadAndValidateFilesWithInvalidWKB(false);
   }
@@ -211,12 +222,12 @@ public class QuickValidatorTest extends TestSteps {
   private void uploadAndValidateFilesWithInvalidWKB(boolean gzip) throws IOException {
     /** Invalid WKB */
     uploadFileToS3(generateTestS3Key("test_invalid_1_jsonwkb.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"properties'\": {'\"test'\": 1}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A40000000000000000".getBytes(),
         gzip);
 
     uploadFileToS3(generateTestS3Key("test_invalid_2_jsonwkb.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"properties'\": {'\"test'\": 1}}\",invalid".getBytes(),
         gzip);
     try {
@@ -249,13 +260,13 @@ public class QuickValidatorTest extends TestSteps {
   private void uploadAndValidateFilesWithEmptyColumn(boolean gzip) throws IOException {
     /** Invalid WKB */
     uploadFileToS3(generateTestS3Key("test_invalid_3_jsonwkb.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"properties'\": {'\"test'\": 1}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000,".getBytes(),
         gzip
     );
 
     uploadFileToS3(generateTestS3Key("test_invalid_3_geojson.csv"),
-        S3ContentType.TEXT_CSV,
+        TEXT_CSV,
         "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":[8,50]},'\"properties'\":{'\"test'\":1}}\",".getBytes(),
         gzip
     );

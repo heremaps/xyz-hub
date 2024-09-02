@@ -41,21 +41,21 @@ import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class JobStepsTest extends TestSteps {
   private static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final String SPACE_ID = "test-space-" + randomAlpha(5);
   private static final String JOB_ID = "test-job-" + randomAlpha(5);
 
-  @Before
+  @BeforeEach
   public void setup() {
     cleanup();
     createSpace(SPACE_ID);
   }
-  @After
+  @AfterEach
   public void cleanup() {
     deleteSpace(SPACE_ID);
     cleanS3Files(JOB_ID);
