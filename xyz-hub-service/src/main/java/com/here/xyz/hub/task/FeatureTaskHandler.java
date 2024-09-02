@@ -1559,8 +1559,8 @@ public class FeatureTaskHandler {
     }
 
     if (task.getEvent() instanceof GetFeaturesByGeometryEvent ev && ev.getGeometry() != null ) {
-    // DS-641 - /spatial - restrict post/ref geom to max. 1200 coords  
-      final int MAX_NR_COORDINATES = 1200; 
+    // DS-641 - /spatial - restrict post/ref geom to max. 12000 coords  
+      final int MAX_NR_COORDINATES = 12000; 
       int nrCoordinates = ev.getGeometry().getJTSGeometry().getNumPoints();
       if( MAX_NR_COORDINATES < nrCoordinates )
       {
