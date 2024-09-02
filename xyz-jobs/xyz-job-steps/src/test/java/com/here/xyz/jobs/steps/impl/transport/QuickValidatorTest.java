@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.C
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.here.xyz.jobs.steps.Config;
@@ -194,7 +195,7 @@ public class QuickValidatorTest extends TestSteps {
 
   private static void checkValidationException(ValidationException e, String message) {
     assertEquals(ValidationException.class, e.getClass());
-    assertEquals(message, e.getMessage());
+    assertTrue(e.getMessage().startsWith(message));
   }
 
   @Test

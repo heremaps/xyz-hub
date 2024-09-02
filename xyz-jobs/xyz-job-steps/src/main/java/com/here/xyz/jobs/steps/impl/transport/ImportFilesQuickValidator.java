@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import com.amazonaws.AmazonServiceException;
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -77,7 +78,7 @@ public class ImportFilesQuickValidator {
         s3is = client.streamObjectContent(s3Key, 0, toKB);
         reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(s3is)));
       } else {
-        s3is = client.streamObjectContent(s3Key);
+        s3is = client.streamObjectContent(s3Key); //TODO: Why to load the whole file here?
         reader = new BufferedReader(new InputStreamReader(s3is, StandardCharsets.UTF_8));
       }
 
@@ -170,7 +171,7 @@ public class ImportFilesQuickValidator {
     Throwable cause = e.getCause();
     if (e instanceof ParseException || e instanceof IllegalArgumentException)
       throw new ValidationException("Bad WKB encoding! " + (cause != null ? cause.toString() : ""));
-    else if (e instanceof JSONException || e instanceof JsonParseException || e instanceof InvalidTypeIdException)
+    else if (e instanceof JSONException || e instanceof JsonParseException || e instanceof InvalidTypeIdException || e instanceof JsonMappingException)
       throw new ValidationException("Bad JSON encoding! " + (cause != null ? cause.toString() : ""));
     else
       throw new ValidationException("Not able to validate! " + (cause != null ? cause.toString() : ""));
