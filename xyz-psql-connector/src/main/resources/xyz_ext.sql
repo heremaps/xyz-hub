@@ -3285,13 +3285,15 @@ LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION _create_asyncify_query_block(query TEXT, password TEXT, procedureCall BOOLEAN) RETURNS TEXT AS
 $BODY$
+DECLARE
+    queryContext JSONB := context();
 BEGIN
-    --TODO: Forward context & search_path
     IF procedureCall THEN
         RETURN $outer$
             DO
             $block$
             BEGIN
+                PERFORM context('$outer$ || queryContext::TEXT ||  $outer$'::JSONB);
                 PERFORM set_config('xyz.password', '$outer$ || password || $outer$', false);
                 $outer$ || query || $outer$
                 COMMIT;
@@ -3302,6 +3304,7 @@ BEGIN
         $outer$;
     ELSE
         RETURN $block$
+            SELECT context('$block$ || queryContext::TEXT ||  $block$'::JSONB);
             SELECT set_config('xyz.password', '$block$ || password || $block$', false);
             START TRANSACTION;
             $block$ || query || $block$;
