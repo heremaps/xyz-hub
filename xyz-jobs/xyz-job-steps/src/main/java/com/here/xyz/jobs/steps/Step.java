@@ -79,6 +79,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private boolean pipeline;
   @JsonView({Internal.class, Static.class})
   private boolean useSystemInput;
+  @JsonView({Internal.class, Static.class})
+  private Set<String> inputStepIds;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -183,31 +185,35 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected List<Output> loadPreviousOutputs(boolean userOutput, Class<? extends Output> type) {
-    return loadOutputs(true, userOutput);
+    return loadOutputs(previousOutputS3Prefixes(userOutput, false));
   }
 
   public List<Output> loadOutputs(boolean userOutput) {
-    return loadOutputs(false, userOutput);
+    return loadOutputs(Set.of(outputS3Prefix(userOutput, false)));
   }
 
-  private List<Output> loadOutputs(boolean previousStep, boolean userOutput) {
-    Set<String> s3Prefixes = previousStep ? previousOutputS3Prefixes(userOutput, false)
-        : Set.of(outputS3Prefix(userOutput, false));
+  private List<Output> loadStepOutputs(Set<String> stepIds, boolean userOutput) {
+    Set<String> s3Prefixes = stepIds.stream()
+            .map(stepId -> Output.stepOutputS3Prefix(jobId, stepId, userOutput, false))
+            .collect(Collectors.toSet());
+    return loadOutputs(s3Prefixes);
+  }
 
+  private List<Output> loadOutputs(Set<String> s3Prefixes) {
     return s3Prefixes
-        .stream()
-        //TODO: Scan the different folders in parallel
-        .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
             .stream()
-            .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
-                ? ModelBasedOutput.load(s3ObjectSummary.getKey())
-                : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
-        .collect(Collectors.toList());
+            //TODO: Scan the different folders in parallel
+            .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
+                    .stream()
+                    .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
+                            ? ModelBasedOutput.load(s3ObjectSummary.getKey())
+                            : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
+            .collect(Collectors.toList());
   }
 
   protected List<S3DataFile> loadStepInputs() {
     return useSystemInput
-        ? loadPreviousOutputs(false).stream().map(output -> (S3DataFile) output).toList()
+        ? loadStepOutputs(getInputStepIds(), false).stream().map(output -> (S3DataFile) output).toList()
         : loadInputs().stream().map(output -> (S3DataFile) output).toList();
   }
 
@@ -431,6 +437,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public T withUseSystemInput(boolean useSystemInput) {
     setUseSystemInput(useSystemInput);
+    return (T) this;
+  }
+
+  public Set<String> getInputStepIds() {
+    return inputStepIds;
+  }
+
+  public void setInputStepIds(Set<String> inputStepIds) {
+    this.inputStepIds = inputStepIds;
+  }
+
+  public T withInputStepIds(Set<String> inputStepIds) {
+    setInputStepIds(inputStepIds);
     return (T) this;
   }
 }
