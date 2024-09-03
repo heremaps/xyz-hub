@@ -19,7 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
@@ -61,7 +60,6 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 import org.locationtech.jts.io.ParseException;
 
 
@@ -76,7 +74,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final long MAX_BYTES_FOR_SYNC_IMPORT = 1; //100 * 1024 * 1024;
   public static final int MAX_DB_THREAD_CNT = 15;
 
-  private static final String JOB_DATA_PREFIX = "job_data_";
+  private static final String TRIGGER_TABLE_SUFFIX = "_trigger_tbl";
 
   private Format format = GEOJSON;
 
@@ -560,8 +558,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("schema", getSchema(db()));
   }
 
+  private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {
+    String tableFields =
+            "jsondata TEXT, "
+                    + "geo geometry(GeometryZ, 4326), "
+                    + "i BIGSERIAL";
+    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})")
+            .withQueryFragment("tableFields", tableFields)
+            .withVariable("schema", getSchema(db()))
+            .withVariable("table", getRootTableName(getSpaceId()) /**+ TRIGGER_TABLE_SUFFIX*/);
+  }
+
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
-    if (targetTableFeatureCount == 0)
+    if (targetTableFeatureCount <= 0)
       return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
     return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
   }
@@ -604,30 +613,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("extendedTable", superTable == null ? "NULL" : "'" + superTable + "'")
         .withVariable("schema", getSchema(db()))
         .withVariable("table", getRootTableName(space()));
-  }
-
-  private SQLQuery buildContextQuery() throws WebClientException {
-    String table = getRootTableName(space());
-
-    JSONObject context = new JSONObject()
-            .put("schema", getSchema(db()))
-            .put("table", table)
-            .put("historyEnabled", space().getVersionsToKeep() > 0);
-
-    if (space().getExtension() != null) {
-      context.put("extendedTable", getRootTableName(superSpace()));
-      context.put("context", DEFAULT);
-    }
-
-    return new SQLQuery("""
-              DO
-              $context$
-              BEGIN
-                PERFORM context(#{context}::JSONB);
-              END
-              $context$;
-            """)
-            .withNamedParameter("context", context.toString());
   }
 
   private SQLQuery buildDropImportTrigger() throws WebClientException {
@@ -688,7 +673,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withNamedParameter("temporary_tbl",  schema+".\""+(TransportTools.getTemporaryTableName(this))+"\"")
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
-        .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"));
+        .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"))
+        .withContext(getQueryContext());
   }
 
   private SQLQuery buildImportQueryBlock() throws WebClientException {
@@ -698,9 +684,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
      * principal as with xzy.password) has not worked. If we find a solution with asyncify we can use the block
      * query - if not, we can simply use buildImportQuery()
     */
-    return new SQLQuery("${{contextQuery}} ${{importQuery}}")
+    return new SQLQuery("${{importQuery}}")
             .withAsyncProcedure(true)
-            .withQueryFragment("contextQuery", buildContextQuery()) //TODO: Set the query context at the import query object
             .withQueryFragment("importQuery", buildImportQuery());
   }
 
@@ -710,7 +695,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", TransportTools.getTemporaryTableName(this));
   }
 
-  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
+  private Map<String, Object> getQueryContext() throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
     final Map<String, Object> queryContext = new HashMap<>(Map.of(
@@ -722,7 +707,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     if (superTable != null)
       queryContext.put("extendedTable", superTable);
+    return queryContext;
+  }
 
+  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
     SQLQuery writeFeaturesQuery = new SQLQuery("""
         SELECT write_features(
           #{featureList},
@@ -742,7 +730,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withNamedParameter("onMergeConflict", updateStrategy.onMergeConflict() == null ? null :  updateStrategy.onMergeConflict().toString())
         .withNamedParameter("isPartial", false)
         .withNamedParameter("version", targetVersion)
-        .withContext(queryContext);
+        .withContext(getQueryContext());
 
     return writeFeaturesQuery;
   }
