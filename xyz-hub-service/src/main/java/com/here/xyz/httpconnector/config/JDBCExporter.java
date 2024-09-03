@@ -648,6 +648,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                     if (superSpace != null)
                         event.setSpace(superSpace);
 
+                    params.remove("extends");
                 }
                 context = ContextAwareEvent.SpaceContext.DEFAULT;
             }
