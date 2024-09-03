@@ -214,9 +214,15 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 for (String featureId : originalDeletes) {
                   if (existingIdsInBase.contains(featureId)) {
-                    Feature toDelete = new Feature()
+                      long now = System.currentTimeMillis();
+                      Feature toDelete = new Feature()
                         .withId(featureId)
-                        .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true)));
+                        .withProperties(new Properties().withXyzNamespace(new XyzNamespace()
+                            .withDeleted(true)
+                            .withAuthor(event.getAuthor())
+                            .withCreatedAt(now)
+                            .withUpdatedAt(now)
+                        ));
 
                     try {
                       toDelete.getProperties().getXyzNamespace().setVersion(Long.parseLong(deletes.get(featureId)));
@@ -259,7 +265,16 @@ public abstract class DatabaseHandler extends StorageConnector {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
             List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readTableFromEvent(event),
                 upsertIds)));
-            upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
+            upserts.forEach(f -> {
+                if (existingIds.contains(f.getId())) {
+                    f.getProperties().getXyzNamespace().withCreatedAt(0);
+                    updates.add(f);
+                }
+                else {
+                    f.getProperties().getXyzNamespace().withCreatedAt(f.getProperties().getXyzNamespace().getUpdatedAt());
+                    inserts.add(f);
+                }
+            });
           }
 
           version = run(new GetNextVersion<>(event));

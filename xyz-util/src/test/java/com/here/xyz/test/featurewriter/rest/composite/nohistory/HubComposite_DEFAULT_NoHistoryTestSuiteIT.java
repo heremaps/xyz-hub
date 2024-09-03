@@ -33,10 +33,6 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-        "2.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "2.2", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "4.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "5.4", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
         "5.1", //FIXME: Issue in Hub: No version conflict is thrown in that case
         "5.5" //FIXME: Issue in Hub: No illegal argument error is thrown in that case [will be fixed by new FeatureWriter impl]
     );

@@ -33,13 +33,7 @@ public class HubComposite_DEFAULT_WithHistoryTestSuiteIT extends HubComposite_DE
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-        "2.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "2.2", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "4.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
         "5.1", //FIXME: No version conflict is thrown in that case
-        "6.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "7.1", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
-        "7.2", //FIXME: The feature's update timestamp has to be higher than the timestamp when the test started.
         "8.1", //FIXME: The feature was written incorrectly.  - FLICKERING
         "9.1", //FIXME: unexpected MERGE_CONFLICT_ERROR
         "9.2", //FIXME: A wrong table operation was performed. NONE vs INSERT
