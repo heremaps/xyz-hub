@@ -3270,8 +3270,8 @@ BEGIN
     ELSE
 --         PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
 --         RAISE NOTICE '~~~~~~~~~~~ Connection name %', connectionName;
-        PERFORM dblink_connect(connectionName, 'host=localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password
-                || ' application_name = ''' || current_setting('application_name') ||'''');
+        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password
+                || ' application_name = ''' || current_setting('application_name') || '''');
 --         PERFORM pg_sleep(1);
         IF strpos(query, '/*labels(') != 1 THEN
             --Attach the same labels to the recursive async call
@@ -3285,8 +3285,6 @@ LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION _create_asyncify_query_block(query TEXT, password TEXT, procedureCall BOOLEAN) RETURNS TEXT AS
 $BODY$
-DECLARE
-    queryContext JSONB := context();
 BEGIN
     IF procedureCall THEN
         RETURN $outer$
@@ -3294,7 +3292,7 @@ BEGIN
             $block$
             BEGIN
                 SET search_path = $outer$ || current_setting('search_path') || $outer$;
-                PERFORM context('$outer$ || queryContext::TEXT ||  $outer$'::JSONB);
+                PERFORM context('$outer$ || context()::TEXT ||  $outer$'::JSONB);
                 PERFORM set_config('xyz.password', '$outer$ || password || $outer$', false);
                 $outer$ || query || $outer$
                 COMMIT;
@@ -3306,7 +3304,7 @@ BEGIN
     ELSE
         RETURN $block$
             SET search_path = $block$ || current_setting('search_path') || $block$;
-            SELECT context('$block$ || queryContext::TEXT ||  $block$'::JSONB);
+            SELECT context('$block$ || context()::TEXT ||  $block$'::JSONB);
             SELECT set_config('xyz.password', '$block$ || password || $block$', false);
             START TRANSACTION;
             $block$ || query || $block$;
