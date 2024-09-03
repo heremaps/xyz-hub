@@ -179,39 +179,16 @@ public class QuickValidatorTest extends TestSteps {
     );
   }
 
-  //FIXME: Is that really invalid? How should the FeatureWriter react? simply treat as empty FC?
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testInvalidGeoJsonFeatureCollectionWithoutFeatures(boolean gzip) throws IOException {
-    testInvalidJson(
+  public void testValidGeoJsonFeatureCollectionWithoutFeatures(boolean gzip) throws IOException, ValidationException {
+    testValidJson(
         "{\"type\":\"FeatureCollection\"}",
         APPLICATION_JSON,
         GEOJSON,
         FeatureCollection,
         gzip
     );
-  }
-
-  private void testInvalidJson(String fileContent, S3ContentType contentType, Format format, EntityPerLine entityPerLine, boolean gzip)
-      throws IOException {
-    uploadFileToS3(generateTestS3Key("someFile"),
-        contentType,
-        fileContent.getBytes(),
-        gzip
-    );
-
-    try {
-      validate(generateTestS3Key("someFile"), format, gzip, entityPerLine);
-      fail("Exception expected");
-    }
-    catch (ValidationException e) {
-      checkValidationException(e, "Bad JSON encoding! ");
-    }
-  }
-
-  private static void checkValidationException(ValidationException e, String message) {
-    assertEquals(ValidationException.class, e.getClass());
-    assertTrue(e.getMessage().startsWith(message));
   }
 
   @Test
@@ -291,5 +268,31 @@ public class QuickValidatorTest extends TestSteps {
   @Test
   public void testValidateFilesWithEmptyColumnGzipped() throws IOException {
     uploadAndValidateFilesWithEmptyColumn(true);
+  }
+
+  private void testInvalidJson(String fileContent, S3ContentType contentType, Format format, EntityPerLine entityPerLine, boolean gzip)
+      throws IOException {
+    try {
+      testValidJson(fileContent, contentType, format, entityPerLine, gzip);
+      fail("Exception expected");
+    }
+    catch (ValidationException e) {
+      checkValidationException(e, "Bad JSON encoding! ");
+    }
+  }
+
+  private void testValidJson(String fileContent, S3ContentType contentType, Format format, EntityPerLine entityPerLine, boolean gzip)
+      throws IOException, ValidationException {
+    uploadFileToS3(generateTestS3Key("someFile"),
+        contentType,
+        fileContent.getBytes(),
+        gzip
+    );
+    validate(generateTestS3Key("someFile"), format, gzip, entityPerLine);
+  }
+
+  private static void checkValidationException(ValidationException e, String message) {
+    assertEquals(ValidationException.class, e.getClass());
+    assertTrue(e.getMessage().startsWith(message));
   }
 }
