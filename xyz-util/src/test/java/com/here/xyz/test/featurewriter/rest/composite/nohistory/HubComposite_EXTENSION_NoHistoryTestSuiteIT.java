@@ -33,7 +33,7 @@ public class HubComposite_EXTENSION_NoHistoryTestSuiteIT extends HubNonComposite
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-        "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
+        "12", //FIXME: Issue in Hub: No version conflict is thrown in that case, because Hub does not distinguish an existence conflict and a version conflict in its error message [will be fixed by new FeatureWriter impl]
         "15" //FIXME: Issue in Hub: No illegal argument error is thrown in that case [will be fixed by new FeatureWriter impl]
     );
 

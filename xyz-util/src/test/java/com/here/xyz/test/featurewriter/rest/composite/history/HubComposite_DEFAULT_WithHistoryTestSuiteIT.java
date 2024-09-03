@@ -33,15 +33,12 @@ public class HubComposite_DEFAULT_WithHistoryTestSuiteIT extends HubComposite_DE
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-        "5.1", //FIXME: No version conflict is thrown in that case
-        "8.1", //FIXME: The feature was written incorrectly.  - FLICKERING
-        "9.1", //FIXME: unexpected MERGE_CONFLICT_ERROR
-        "9.2", //FIXME: A wrong table operation was performed. NONE vs INSERT
-        "9.3"  //FIXME: unexpected MERGE_CONFLICT_ERROR - FLICKERING
+        "5.1", //FIXME: No version conflict is thrown in that case, because Hub does not distinguish an existence conflict and a version conflict in its error message [will be fixed by new FeatureWriter impl]
+        "8.1", //FIXME: The feature was written incorrectly. [flickering: sometimes the other concurrent field is not correctly merged in, will be fixed by new FeatureWriter impl]
+        "9.1", //FIXME: unexpected MERGE_CONFLICT_ERROR [flickering: works sometimes in hub, will be reliably fixed by new FeatureWriter impl]
+        "9.2", //FIXME: A wrong table operation was performed. NONE vs INSERT [flickering: sometimes wrong table operation is done, sometimes wrong error is thrown, will be reliably fixed by new FeatureWriter impl]
+        "9.3"  //FIXME: unexpected MERGE_CONFLICT_ERROR [flickering: sometimes the feature is simply written (most likely a bug) and sometimes an unexpetced MERGE_CONFLICT_ERROR is thrown, will be reliably fixed by new FeatureWriter impl]
     );
-
-    //TODO: Check missing version conflict errors
-    //TODO: Maybe also use the SQL writer for the preparation of the Hub tests
 
     return SQLComposite_DEFAULT_WithHistoryTestSuiteIT.testScenarios()
         .filter(args -> !ignoredTests.contains(args.testName()));

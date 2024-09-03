@@ -31,19 +31,16 @@ public class HubNonCompositeWithHistoryTestSuiteIT extends RestTestSuite {
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-        "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
+        "12", //FIXME: Issue in Hub: No version conflict is thrown in that case, because Hub does not distinguish an existence conflict and a version conflict in its error message [will be fixed by new FeatureWriter impl]
         "18", //FIXME: Issue in Hub: Concurrently written attribute is sometimes not merged into the result correctly (flickering) [will be fixed by new FeatureWriter impl]
-        "19", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
-        "20", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
-        "21" //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts
+        "19", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts [flickering: works sometimes in hub, will be reliably fixed by new FeatureWriter impl]
+        "20", //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts [flickering: sometimes wrong table operation is done, sometimes wrong error is thrown, will be reliably fixed by new FeatureWriter impl]
+        "21" //FIXME: Issue in Hub: MergeConflictResolution is not supported / The service does not distinguish between version- & merge-conflicts [flickering: sometimes the feature is simply written (most likely a bug) and sometimes an unexpetced MERGE_CONFLICT_ERROR is thrown, will be reliably fixed by new FeatureWriter impl]
     );
 
     return SQLNonCompositeWithHistoryTestSuiteIT.testScenarios()
         .filter(args -> !ignoredTests.contains(args.testName()));
   }
-
-  //TODO: Check missing version conflict errors
-  //TODO: Check creation timestamp issues (actually in case of history the test should not treat a table.INSERT as creation, but a feature.I should be instead => probably FeatureWriter has to be fixed as well)
 
   @ParameterizedTest
   @MethodSource("testScenarios")

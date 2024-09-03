@@ -31,15 +31,13 @@ public class HubNonCompositeNoHistoryTestSuiteIT extends RestTestSuite {
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-      "12", //FIXME: Issue in Hub: No version conflict is thrown in that case
+      "12", //FIXME: Issue in Hub: No version conflict is thrown in that case, because Hub does not distinguish an existence conflict and a version conflict in its error message [will be fixed by new FeatureWriter impl]
       "15" //FIXME: Issue in Hub: No illegal argument error is thrown in that case [will be fixed by new FeatureWriter impl]
     );
 
     return SQLNonCompositeNoHistoryTestSuiteIT.testScenarios()
         .filter(args -> !ignoredTests.contains(args.testName()));
   }
-
-  //TODO: Check missing version conflict errors
 
   @ParameterizedTest
   @MethodSource("testScenarios")

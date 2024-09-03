@@ -33,12 +33,9 @@ public class HubComposite_DEFAULT_NoHistoryTestSuiteIT extends RestTestSuite {
 
   public static Stream<TestArgs> testScenarios() throws JsonProcessingException {
     Set<String> ignoredTests = Set.of(
-        "5.1", //FIXME: Issue in Hub: No version conflict is thrown in that case
+        "5.1", //FIXME: Issue in Hub: No version conflict is thrown in that case, because Hub does not distinguish an existence conflict and a version conflict in its error message [will be fixed by new FeatureWriter impl]
         "5.5" //FIXME: Issue in Hub: No illegal argument error is thrown in that case [will be fixed by new FeatureWriter impl]
     );
-
-    //TODO: Check missing version conflict errors
-    //TODO: Maybe also use the SQL writer for the preparation of the Hub tests
 
     return SQLComposite_DEFAULT_NoHistoryTestSuiteIT.testScenarios()
         .filter(args -> !ignoredTests.contains(args.testName()));
