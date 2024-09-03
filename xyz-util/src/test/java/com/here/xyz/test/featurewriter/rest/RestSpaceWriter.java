@@ -57,12 +57,13 @@ public class RestSpaceWriter extends SpaceWriter {
     Space space = new Space()
         .withId(spaceId())
         .withTitle(spaceId() + " Titel")
-        .withVersionsToKeep(this.history ? 100 : 1);
+        .withVersionsToKeep(history ? 100 : 1);
 
     if (composite) {
       Space superSpace = new Space()
           .withId(superSpaceId())
-          .withTitle(superSpaceId() + " Titel");
+          .withTitle(superSpaceId() + " Titel")
+          .withVersionsToKeep(history ? 100 : 1);
       webClient(DEFAULT_AUTHOR).createSpace(superSpace);
 
       space.setExtension(new Space.Extension()

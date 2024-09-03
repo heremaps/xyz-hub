@@ -19,10 +19,21 @@
 
 package com.here.xyz.test.featurewriter.rest.composite.history;
 
-import com.here.xyz.test.featurewriter.rest.composite.nohistory.HubComposite_SUPER_NoHistoryTestSuiteIT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 
-public class HubComposite_SUPER_WithHistoryTestSuiteIT extends HubComposite_SUPER_NoHistoryTestSuiteIT {
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-  //TODO: Align Hub and featureWriter
-  //It's not permitted to perform modifications through context SUPER.
+public class HubComposite_SUPER_WithHistoryTestSuiteIT extends HubComposite_EXTENSION_WithHistoryTestSuiteIT {
+
+  @ParameterizedTest
+  @MethodSource("testScenarios")
+  void start(TestArgs args) throws Exception {
+    runTest(args);
+  }
+
+  @Override
+  protected TestArgs modifyArgs(TestArgs args) {
+    return args.withComposite(true).withContext(SUPER).withFeatureExistsInSuper(args.featureExists()).withHistory(true);
+  }
 }
