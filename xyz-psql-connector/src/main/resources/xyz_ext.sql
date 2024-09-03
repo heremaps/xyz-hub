@@ -3262,6 +3262,7 @@ CREATE OR REPLACE FUNCTION _asyncify(query TEXT, deferAfterCommit BOOLEAN, proce
 $BODY$
 DECLARE
     password TEXT := current_setting('xyz.password');
+    search_path TEXT := current_setting('search_path');
     connectionName TEXT := xyz_random_string(10);
 BEGIN
     IF deferAfterCommit THEN
@@ -3270,8 +3271,8 @@ BEGIN
     ELSE
 --         PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
 --         RAISE NOTICE '~~~~~~~~~~~ Connection name %', connectionName;
-        PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password
-                || ' application_name = ''' || current_setting('application_name') ||'''');
+        PERFORM dblink_connect(connectionName, 'host=localhost dbname=' || current_database() || ' user=' || CURRENT_USER || ' password=' || password
+                || ' application_name=''' || current_setting('application_name') ||''''  || ' options=-csearch_path='|| search_path);
 --         PERFORM pg_sleep(1);
         IF strpos(query, '/*labels(') != 1 THEN
             --Attach the same labels to the recursive async call
