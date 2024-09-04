@@ -121,6 +121,7 @@ public abstract class Input <T extends Input> implements Typed {
     try {
       InputsMetadata metadata = loadMetadata(jobId);
       Stream<T> inputs = metadata.inputs.entrySet().stream()
+          .filter(input -> input.getValue().byteSize > 0)
           .map(metaEntry -> {
             final String metaKey = metaEntry.getKey();
             String s3Bucket = getBucketFromS3Uri(metaKey);
@@ -223,7 +224,7 @@ public abstract class Input <T extends Input> implements Typed {
         .parallelStream()
         .map(s3ObjectSummary -> createInput(defaultBucket().equals(bucketName) ? null : bucketName, s3ObjectSummary.getKey(),
             s3ObjectSummary.getSize(), inputIsCompressed(s3ObjectSummary)))
-        .filter(input -> inputType.isAssignableFrom(input.getClass()));
+        .filter(input -> input.getByteSize() > 0 && inputType.isAssignableFrom(input.getClass()));
 
     if (maxReturnSize > 0)
       inputsStream = inputsStream.unordered().limit(maxReturnSize);
