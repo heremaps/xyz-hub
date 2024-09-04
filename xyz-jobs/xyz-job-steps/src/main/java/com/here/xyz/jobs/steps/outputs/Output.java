@@ -33,12 +33,21 @@ import java.util.Map;
     @JsonSubTypes.Type(value = ModelBasedOutput.class, name = "ModelBasedOutput")
 })
 public abstract class Output<T extends Output> implements Typed {
+  public static final String MODEL_BASED_PREFIX = "/modelBased";
   @JsonAnySetter
   private Map<String, String> metadata;
   @JsonIgnore
   private String s3Key;
 
   public abstract void store(String s3Key) throws IOException;
+
+  public static String stepOutputS3Prefix(String jobId, String stepId, boolean userOutput, boolean onlyModelBased) {
+    return stepOutputS3Prefix(jobId + "/" + stepId, userOutput, onlyModelBased);
+  }
+
+  public static String stepOutputS3Prefix(String stepS3Prefix, boolean userOutput, boolean onlyModelBased) {
+    return stepS3Prefix + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
+  }
 
   @JsonAnyGetter
   public Map<String, String> getMetadata() {

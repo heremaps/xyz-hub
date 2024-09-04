@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
@@ -45,10 +44,12 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -1533,9 +1534,8 @@ public class FeatureTaskHandler {
       return;
     }
 
-    if (task.getEvent() instanceof GetFeaturesByBBoxEvent) {
-      GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) task.getEvent();
-      String clusteringType = event.getClusteringType();
+    if (task.getEvent() instanceof GetFeaturesByBBoxEvent ev) {
+      String clusteringType = ev.getClusteringType();
       if (clusteringType != null && !Arrays.asList("hexbin", "quadbin").contains(clusteringType)) {
         callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
             + "valid. Supported values are hexbin or quadbin."));
@@ -1549,13 +1549,23 @@ public class FeatureTaskHandler {
       }
     }
 
-    if (task.getEvent() instanceof GetFeaturesByTileEvent) {
-      GetFeaturesByTileEvent event = (GetFeaturesByTileEvent) task.getEvent();
-      String clusteringType = event.getClusteringType();
+    if (task.getEvent() instanceof GetFeaturesByTileEvent ev) {
+      String clusteringType = ev.getClusteringType();
       if (clusteringType != null && !Arrays.asList("hexbin", "quadbin").contains(clusteringType)) {
         callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
             + "valid. Supported values are hexbin or quadbin."));
         return;
+      }
+    }
+
+    if (task.getEvent() instanceof GetFeaturesByGeometryEvent ev && ev.getGeometry() != null ) {
+    // DS-641 - /spatial - restrict post/ref geom to max. 12000 coords  
+      final int MAX_NR_COORDINATES = 12000; 
+      int nrCoordinates = ev.getGeometry().getJTSGeometry().getNumPoints();
+      if( MAX_NR_COORDINATES < nrCoordinates )
+      {
+       callback.exception( new HttpException(BAD_REQUEST, String.format("Invalid arguments! Geometry exceeds %d coordinates < %d coordinates", MAX_NR_COORDINATES, nrCoordinates) ) );
+       return;
       }
     }
 

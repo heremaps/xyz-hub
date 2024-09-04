@@ -20,10 +20,11 @@
 package com.here.xyz.jobs.steps.outputs;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.util.S3Client;
 import java.net.URL;
 
-public class DownloadUrl extends Output<DownloadUrl> {
+public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
   @JsonView(Public.class)
   private long byteSize;
 
@@ -40,8 +41,25 @@ public class DownloadUrl extends Output<DownloadUrl> {
     return S3Client.getInstance().generateDownloadURL(getS3Key());
   }
 
+  @Override
+  public boolean isCompressed() {
+    return false;
+  }
+
   public long getByteSize() {
     return byteSize;
+  }
+
+  @Override
+  public String getS3Bucket() {
+    return null;
+  }
+
+  @Override
+  public long getEstimatedUncompressedByteSize() {
+    if (isCompressed())
+      throw new RuntimeException("Not Implemented: Compression for outputs is currently not supported.");
+    return getByteSize();
   }
 
   public void setByteSize(long byteSize) {

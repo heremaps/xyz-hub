@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps;
 
+import static com.here.xyz.jobs.steps.outputs.Output.MODEL_BASED_PREFIX;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
 
@@ -33,6 +34,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.execution.RunEmrJob;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -53,7 +55,8 @@ import java.util.stream.Collectors;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = LambdaBasedStep.class)
+    @JsonSubTypes.Type(value = LambdaBasedStep.class),
+    @JsonSubTypes.Type(value = RunEmrJob.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
@@ -63,16 +66,21 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonView({Internal.class, Static.class})
   private long estimatedUploadBytes = -1;
+  @JsonView({Internal.class, Static.class})
+  private float estimationFactor = 1f;
   @JsonView({Public.class, Static.class})
   private String id = "s_" + randomAlpha(6);
   private String jobId;
   private Set<String> previousStepIds = Set.of();
   private RuntimeInfo status = new RuntimeInfo();
-  private final String MODEL_BASED_PREFIX = "/modelBased";
   @JsonIgnore
   private List<Input> inputs;
   @JsonView({Internal.class, Static.class})
   private boolean pipeline;
+  @JsonView({Internal.class, Static.class})
+  private boolean useSystemInput;
+  @JsonView({Internal.class, Static.class})
+  private Set<String> inputStepIds;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -147,7 +155,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected final String outputS3Prefix(String stepS3Prefix, boolean userOutput, boolean onlyModelBased) {
-    return stepS3Prefix + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
+    return Output.stepOutputS3Prefix(stepS3Prefix, userOutput, onlyModelBased);
   }
 
   protected final Set<String> previousOutputS3Prefixes(boolean userOutput, boolean onlyModelBased) {
@@ -173,26 +181,40 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected List<Output> loadPreviousOutputs(boolean userOutput) {
-    return loadOutputs(true, userOutput);
+    return loadPreviousOutputs(userOutput, Output.class);
+  }
+
+  protected List<Output> loadPreviousOutputs(boolean userOutput, Class<? extends Output> type) {
+    return loadOutputs(previousOutputS3Prefixes(userOutput, false));
   }
 
   public List<Output> loadOutputs(boolean userOutput) {
-    return loadOutputs(false, userOutput);
+    return loadOutputs(Set.of(outputS3Prefix(userOutput, false)));
   }
 
-  private List<Output> loadOutputs(boolean previousStep, boolean userOutput) {
-    Set<String> s3Prefixes = previousStep ? previousOutputS3Prefixes(userOutput, false)
-        : Set.of(outputS3Prefix(userOutput, false));
+  private List<Output> loadStepOutputs(Set<String> stepIds, boolean userOutput) {
+    Set<String> s3Prefixes = stepIds.stream()
+            .map(stepId -> Output.stepOutputS3Prefix(jobId, stepId, userOutput, false))
+            .collect(Collectors.toSet());
+    return loadOutputs(s3Prefixes);
+  }
 
+  private List<Output> loadOutputs(Set<String> s3Prefixes) {
     return s3Prefixes
-        .stream()
-        //TODO: Scan the different folders in parallel
-        .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
             .stream()
-            .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
-                ? ModelBasedOutput.load(s3ObjectSummary.getKey())
-                : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
-        .collect(Collectors.toList());
+            //TODO: Scan the different folders in parallel
+            .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
+                    .stream()
+                    .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
+                            ? ModelBasedOutput.load(s3ObjectSummary.getKey())
+                            : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
+            .collect(Collectors.toList());
+  }
+
+  protected List<S3DataFile> loadStepInputs() {
+    return useSystemInput
+        ? loadStepOutputs(getInputStepIds(), false).stream().map(output -> (S3DataFile) output).toList()
+        : loadInputs().stream().map(output -> (S3DataFile) output).toList();
   }
 
   /**
@@ -363,10 +385,33 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonIgnore
   public long getUncompressedUploadBytesEstimation() {
     return estimatedUploadBytes != -1 ? estimatedUploadBytes
-        : (estimatedUploadBytes = loadInputs()
+        : (estimatedUploadBytes = (long) Math.ceil(loadInputs()
             .stream()
             .mapToLong(input -> input instanceof UploadUrl uploadUrl ? uploadUrl.getEstimatedUncompressedByteSize() : 0)
-            .sum());
+            .sum() * estimationFactor));
+  }
+
+  @JsonIgnore
+  public void setUncompressedUploadBytesEstimation(long uncompressedUploadBytesEstimation) {
+    estimatedUploadBytes = uncompressedUploadBytesEstimation;
+  }
+
+  public T withUncompressedUploadBytesEstimation(long uncompressedUploadBytesEstimation) {
+    setUncompressedUploadBytesEstimation(uncompressedUploadBytesEstimation);
+    return (T) this;
+  }
+
+  public float getEstimationFactor() {
+    return estimationFactor;
+  }
+
+  public void setEstimationFactor(float estimationFactor) {
+    this.estimationFactor = estimationFactor;
+  }
+
+  public T withEstimationFactor(float estimationFactor) {
+    setEstimationFactor(estimationFactor);
+    return (T) this;
   }
 
   public boolean isPipeline() {
@@ -379,6 +424,32 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public T withPipeline(boolean pipeline) {
     setPipeline(pipeline);
+    return (T) this;
+  }
+
+  public boolean isUseSystemInput() {
+    return useSystemInput;
+  }
+
+  public void setUseSystemInput(boolean useSystemInput) {
+    this.useSystemInput = useSystemInput;
+  }
+
+  public T withUseSystemInput(boolean useSystemInput) {
+    setUseSystemInput(useSystemInput);
+    return (T) this;
+  }
+
+  public Set<String> getInputStepIds() {
+    return inputStepIds;
+  }
+
+  public void setInputStepIds(Set<String> inputStepIds) {
+    this.inputStepIds = inputStepIds;
+  }
+
+  public T withInputStepIds(Set<String> inputStepIds) {
+    setInputStepIds(inputStepIds);
     return (T) this;
   }
 }

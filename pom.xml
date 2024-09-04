@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.9.42-SNAPSHOT</version>
+  <version>3.9.48-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -93,7 +93,7 @@
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
     <aws-sdk2-version>2.25.8</aws-sdk2-version>
-    <vertx-version>4.4.4</vertx-version>
+    <vertx-version>4.4.9</vertx-version>
     <geo-tools-version>30.1</geo-tools-version>
     <jts-version>1.19.0</jts-version>
     <jackson-version>2.15.2</jackson-version>
@@ -685,7 +685,7 @@
       <dependency>
         <groupId>dnsjava</groupId>
         <artifactId>dnsjava</artifactId>
-        <version>3.5.3</version>
+        <version>3.6.1</version>
       </dependency>
 
     </dependencies>

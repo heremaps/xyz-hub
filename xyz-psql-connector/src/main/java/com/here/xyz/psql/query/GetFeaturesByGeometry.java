@@ -38,8 +38,8 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
 
     SQLQuery geoFilter = event.getH3Index() != null
             ? new SQLQuery("(h3ToGeoBoundaryDeg(('x' || #{h3Index})::bit(60)::bigint))").withNamedParameter("h3Index", event.getH3Index())
-            : new SQLQuery("ST_GeomFromText(#{wkbGeometry}" + (radius != 0 ? "" : ", 4326") + ")")
-            .withNamedParameter("wkbGeometry", WKTHelper.geometryToWKB(event.getGeometry()));
+            : new SQLQuery("st_force3d(ST_GeomFromText(#{wktGeometry}" + (radius != 0 ? "" : ", 4326") + "))")
+            .withNamedParameter("wktGeometry", WKTHelper.geometryToWKT2d(event.getGeometry()));
 
     if (radius != 0)
       //Wrap the geoFilter with ST_Buffer to enlarge the input geometry

@@ -36,7 +36,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPInputStream;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -48,40 +47,29 @@ public class ImportFilesQuickValidator {
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
 
   static void validate(UploadUrl uploadUrl, Format format, EntityPerLine entityPerLine) throws ValidationException {
+    //TODO: Respect entityPerLine in validation
     validate(uploadUrl.getS3Bucket(), uploadUrl.getS3Key(), format, uploadUrl.isCompressed(), entityPerLine);
   }
 
   static void validate(String s3Bucket, String s3Key, Format format, boolean isCompressed, EntityPerLine entityPerLine) throws ValidationException {
-    S3Client client = S3Client.getInstance(s3Bucket);
     try {
-      if (isCompressed)
-        validateFirstCSVLine(client, s3Key, format, "", 0, true, entityPerLine);
-      else
-        validateFirstCSVLine(client, s3Key, format, "", 0, false, entityPerLine);
+      validateFirstCSVLine(s3Bucket, s3Key, format, "", 0, isCompressed, entityPerLine);
     }
     catch (IOException e) {
-      //@TODO: Check how we want to handle those errors (not related to the content)
-      /** Unexpected validation error! */
-      throw new RuntimeException("Cant validate");
+      throw new ValidationException("Input could not be read.", e);
     }
   }
 
-  private static void validateFirstCSVLine(S3Client client, String s3Key, Format format, String line, long fromKB, boolean isZipped, EntityPerLine entityPerLine)
-          throws IOException, ValidationException {
+  private static void validateFirstCSVLine(String s3Bucket, String s3Key, Format format, String line, long fromKB, boolean isCompressed)
+      throws IOException, ValidationException {
+    S3Client client = S3Client.getInstance(s3Bucket);
     long toKB = fromKB + VALIDATE_LINE_KB_STEPS;
 
-    InputStream s3is = null;
-    BufferedReader reader = null;
+    InputStream input = isCompressed
+        ? new GZIPInputStream(client.streamObjectContent(s3Key, 0, toKB))
+        : client.streamObjectContent(s3Key); //TODO: Why to download the full object in case of being non-compressed?
 
-    try {
-      if (isZipped) {
-        s3is = client.streamObjectContent(s3Key, 0, toKB);
-        reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(s3is)));
-      } else {
-        s3is = client.streamObjectContent(s3Key); //TODO: Why to load the whole file here?
-        reader = new BufferedReader(new InputStreamReader(s3is, StandardCharsets.UTF_8));
-      }
-
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
       int val;
       while ((val = reader.read()) != -1) {
         char c = (char) val;
@@ -92,33 +80,27 @@ public class ImportFilesQuickValidator {
           return;
         }
       }
-    } catch (AmazonServiceException e) {
+    }
+    catch (AmazonServiceException e) {
       if (e.getErrorCode().equalsIgnoreCase("InvalidRange")) {
-        // Did not find a line break - maybe CSV with 1LOC - try to validate
+        //Did not find a line break - maybe CSV with 1LOC - try to validate
         ImportFilesQuickValidator.validateCSVLine(line, format, entityPerLine);
         return;
       }
       throw e;
-    } finally {
-      if (s3is != null) {
-        s3is.close();
-      }
-      if (reader != null) {
-        reader.close();
-      }
     }
 
     if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
-      // Not found a line break till now - search further
-      validateFirstCSVLine(client, s3Key, format, line, toKB, isZipped, entityPerLine);
-    } else {
-      // Not able to find a newline - could be a one-liner
-      ImportFilesQuickValidator.validateCSVLine(line, format, entityPerLine);
+      //Not found a line break till now - search further
+      validateFirstCSVLine(s3Bucket, s3Key, format, line, toKB, isCompressed, entityPerLine);
+    }
+    else {
+      //Not able to find a newline - could be a one-liner
+      validateCSVLine(line, format, entityPerLine);
     }
   }
 
   private static void validateCSVLine(String csvLine, Format format, EntityPerLine entityPerLine) throws ValidationException {
-
     if (csvLine != null && csvLine.endsWith("\r\n"))
       csvLine = csvLine.substring(0, csvLine.length() - 3);
     else if (csvLine != null && (csvLine.endsWith("\n") || csvLine.endsWith("\r")))
@@ -157,9 +139,9 @@ public class ImportFilesQuickValidator {
       String wkb = csvLine.substring(csvLine.lastIndexOf(",") + 1);
 
       byte[] aux = WKBReader.hexToBytes(wkb);
-      /** Try to read WKB */
+      //Try to read WKB
       new WKBReader().read(aux);
-      /** Try to serialize JSON */
+      //Try to serialize JSON
       new JSONObject(json);
     }
     catch (Exception e) {

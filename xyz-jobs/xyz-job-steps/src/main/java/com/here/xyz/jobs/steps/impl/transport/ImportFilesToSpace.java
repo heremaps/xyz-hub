@@ -35,6 +35,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.datasets.space.UpdateStrategy;
+import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -49,6 +50,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.Core;
 import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -244,12 +246,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    if (currentInputsCount(UploadUrl.class) <= 0)
-      //Inputs are missing, the step is not ready to be executed
-      return false;
+    if (!isUseSystemInput()) {
+      if (currentInputsCount(UploadUrl.class) <= 0)
+        //Inputs are missing, the step is not ready to be executed
+        return false;
 
-    //Quick-validate the first UploadUrl that is found in the inputs
-    ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
+      //Quick-validate the first UploadUrl that is found in the inputs
+      ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
+    }
 
     return true;
   }
@@ -408,7 +412,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
 
       logAndSetPhase(Phase.FILL_TMP_TABLE);
-      fillTemporaryTableWithInputs(db, loadInputs(), bucketRegion());
+      fillTemporaryTableWithInputs(db, loadStepInputs(), bucketRegion());
     }
   }
 
@@ -454,7 +458,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     cleanUpDbRelatedResources();
 
     logAndSetPhase(Phase.RELEASE_READONLY);
-    hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", false));
+    hubWebClient().patchSpace(getSpaceId(), Map.of(
+        "readOnly", false,
+        "contentUpdatedAt", Core.currentTimeMillis()
+    ));
 
     }catch (SQLException e){
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
@@ -511,9 +518,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("primaryKey", TransportTools.getTemporaryTableName(this) + "_primKey");
   }
 
-  private void fillTemporaryTableWithInputs(Database db, List<Input> inputs, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
+  private void fillTemporaryTableWithInputs(Database db, List<S3DataFile> inputs, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
     List<SQLQuery> queryList = new ArrayList<>();
-    for (Input input : inputs) {
+    for (S3DataFile input : inputs) {
       if (input instanceof UploadUrl uploadUrl) {
         JsonObject data = new JsonObject()
                 .put("compressed", uploadUrl.isCompressed())

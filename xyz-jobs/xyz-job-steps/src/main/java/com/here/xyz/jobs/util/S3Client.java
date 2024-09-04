@@ -193,4 +193,16 @@ public class S3Client {
       //TODO: Delete multiple objects (batches of 1000) with one request instead
       client.deleteObject(bucketName, file.getKey());
   }
+
+  public static String getBucketFromS3Uri(String s3Uri) {
+    if (!s3Uri.startsWith("s3://"))
+      return null;
+    return s3Uri.substring(5, s3Uri.substring(5).indexOf("/") + 5);
+  }
+
+  public static String getKeyFromS3Uri(String s3Uri) {
+    if (!s3Uri.startsWith("s3://"))
+      return null;
+    return s3Uri.substring(s3Uri.substring(5).indexOf("/") + 5 + 1);
+  }
 }
