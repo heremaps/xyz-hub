@@ -19,25 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import com.amazonaws.services.lambda.runtime.Context;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.TestSteps;
-import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace;
-import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.util.service.aws.SimulatedContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
@@ -45,6 +26,24 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
 import static java.lang.Thread.sleep;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+
+import com.amazonaws.services.lambda.runtime.Context;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.steps.TestSteps;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.service.aws.SimulatedContext;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 public class JobStepsTest extends TestSteps {
   private static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";

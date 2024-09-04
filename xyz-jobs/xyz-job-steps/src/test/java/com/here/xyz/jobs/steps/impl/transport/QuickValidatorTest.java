@@ -17,13 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl.imp;
+package com.here.xyz.jobs.steps.impl.transport;
 
 import static org.junit.Assert.assertEquals;
 
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.TestSteps;
-import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
 import org.junit.Before;
