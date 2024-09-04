@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.outputs;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.util.S3Client;
 import java.net.URL;
@@ -52,7 +53,8 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
 
   @Override
   public String getS3Bucket() {
-    return null;
+    //Current outputs are written to default bucket only
+    return Config.instance.JOBS_S3_BUCKET;
   }
 
   @Override
