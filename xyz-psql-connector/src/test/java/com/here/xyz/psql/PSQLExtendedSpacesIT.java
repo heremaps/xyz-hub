@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@
  */
 package com.here.xyz.psql;
 
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -37,9 +40,9 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.json.JSONObject;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -173,27 +176,27 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
     protected static void checkIDXTable(int szenario, boolean baselayerSwitch) throws Exception{
         String q = "SELECT * FROM "+ ModifySpace.IDX_STATUS_TABLE_FQN +" WHERE spaceid IN ('"+ BASE1 +"','"+BASE2+"','"+DELTA1+"','"+DELTA2+"');";
-        JSONObject base1_ref = null;
-        JSONObject base2_ref = new JSONObject("{\"searchableProperties\": {\"search_test_base2\": true}}");;
-        JSONObject delta1_ref = null;
-        JSONObject delta2_ref = null;
+        ObjectNode base1_ref = null;
+        ObjectNode base2_ref = (ObjectNode)DEFAULT_MAPPER.get().readTree("{\"searchableProperties\": {\"search_test_base2\": true}}");
+        ObjectNode delta1_ref = null;
+        ObjectNode delta2_ref = null;
 
         switch (szenario){
             //Baseline (base1,base2,delta1,delta2 newly created)
             case 1:
-                base1_ref = new JSONObject("{\"sortableProperties\": [[\"sort_test\"]], \"searchableProperties\": {\"search_test\": true}}");
+                base1_ref = (ObjectNode) DEFAULT_MAPPER.get().readTree("{\"sortableProperties\": [[\"sort_test\"]], \"searchableProperties\": {\"search_test\": true}}");
                 delta1_ref = base1_ref;
                 delta2_ref = base1_ref;
                 break;
             //Searchable and SortableProperties got updated in Base1
             case 2:
-                base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
+                base1_ref = (ObjectNode) DEFAULT_MAPPER.get().readTree("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
                 delta1_ref = base1_ref;
                 delta2_ref = base1_ref;
                 break;
             //Switch Base Layer from delta_2 from base1 to bas2
             case 3:
-                base1_ref = new JSONObject("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
+                base1_ref = (ObjectNode) DEFAULT_MAPPER.get().readTree("{\"searchableProperties\": {\"search_test\": false,\"search_test2\": true}}");
                 delta2_ref = base1_ref;
                 delta1_ref = base2_ref;
         }
@@ -206,32 +209,32 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
             while (resultSet.next()) {
                 i++;
                 String spaceId = resultSet.getString("spaceid");
-                JSONObject idx_manual = new JSONObject(resultSet.getString("idx_manual"));
+                ObjectNode idx_manual = (ObjectNode) DEFAULT_MAPPER.get().readTree(resultSet.getString("idx_manual"));
                 String autoIndexing = resultSet.getString("auto_indexing");
                 boolean idx_creation_finished = resultSet.getBoolean("idx_creation_finished");
 
                 switch (spaceId){
                     case BASE1:
-                        assertTrue(base1_ref.similar(idx_manual));
+                        assertTrue(compareFields(base1_ref, idx_manual));
                         assertNull(autoIndexing);
                         break;
                     case BASE2:
-                        assertTrue(base2_ref.similar(idx_manual));
+                        assertTrue(compareFields(base2_ref, idx_manual));
                         assertNull(autoIndexing);
                         break;
                     case DELTA1:
                         if(!baselayerSwitch) {
                             /** Inject mocked Auto-Index*/
-                            delta1_ref.put("searchableProperties", ((JSONObject) delta1_ref.get("searchableProperties")).put("foo", true));
+                            delta1_ref.put("searchableProperties", ((ObjectNode)delta1_ref.get("searchableProperties")).put("foo", true));
                         }
-                        assertTrue(delta1_ref.similar(idx_manual));
+                        assertTrue(compareFields( delta1_ref, idx_manual));
                         assertEquals("f",autoIndexing);
                         break;
                     case DELTA2:
                         /** Inject mocked Auto-Index*/
-                        delta2_ref.put("searchableProperties", ((JSONObject) delta2_ref.get("searchableProperties")).put("foo", true));
+                        delta2_ref.put("searchableProperties", ((ObjectNode) delta2_ref.get("searchableProperties")).put("foo", true));
 
-                        assertTrue(delta2_ref.similar(idx_manual));
+                        assertTrue(compareFields(delta2_ref, idx_manual));
                         assertEquals("f",autoIndexing);
                 }
                 assertFalse(idx_creation_finished);
@@ -239,6 +242,20 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
             /** Are all entries are present? */
             assertEquals(4, i);
         }
+    }
+
+    private static boolean compareFields(ObjectNode obj1, ObjectNode obj2) {
+        Iterator<String> fieldNames = obj1.fieldNames();
+        while (fieldNames.hasNext()) {
+            String fieldName = fieldNames.next();
+            JsonNode value1 = obj1.get(fieldName);
+            JsonNode value2 = obj2.get(fieldName);
+
+            if (!value1.equals(value2)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     protected static void mockAutoIndexing() throws Exception{
