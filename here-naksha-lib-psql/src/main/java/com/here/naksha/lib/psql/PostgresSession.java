@@ -202,7 +202,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
 
   void close(boolean autoCloseCursors) {
     // TODO: Apply autoCloseCursors
-    psqlConnection.close();
+    close();
   }
 
   private static void assure3d(@NotNull Coordinate @NotNull [] coords) {

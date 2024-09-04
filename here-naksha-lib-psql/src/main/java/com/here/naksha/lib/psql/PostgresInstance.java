@@ -215,4 +215,13 @@ public class PostgresInstance extends ClosableRootResource {
     setMaxBandwidthInGbit(maxBandwidthInGbit);
     return this;
   }
+
+  @Override
+  public void logStats(Logger log) {
+    super.logStats(log);
+    log.info(
+        "[Instance connectionPool stats => instance,count] - InstanceConnectionPoolCount {} {}",
+        this,
+        connectionPool.size());
+  }
 }

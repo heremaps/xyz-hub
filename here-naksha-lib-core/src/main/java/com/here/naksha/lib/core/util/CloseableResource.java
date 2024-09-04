@@ -18,9 +18,13 @@
  */
 package com.here.naksha.lib.core.util;
 
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
+
 import com.here.naksha.lib.core.NakshaVersion;
 import java.lang.ref.WeakReference;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -126,11 +130,47 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  private static void logStorageConnectionsStats() {
+    while (true) {
+      try {
+        // root resource logs
+        for (CloseableResource parent : rootResources.values()) {
+          parent.logStats(log);
+        }
+
+        // auto-close resource logs
+        Map<String, Long> autoCloseCount = autoCloseResources.values().stream()
+            .collect(groupingBy(child -> child.getClass().getSimpleName(), counting()));
+        autoCloseCount.forEach((key, value) -> log.info(
+            "[Auto-close resource stats => resourceName,count] - LeakDetectorResourceCount {} {}",
+            key,
+            value));
+
+        // connection pool logs
+      } catch (Exception e) {
+        log.error("Unexpected exception while logging leaks", e);
+      } finally {
+        try {
+          //noinspection BusyWait
+          Thread.sleep(60 * 1000); // every minute
+        } catch (InterruptedException ignore) {
+        }
+      }
+    }
+  }
+
   static {
     final Thread autoCloserAndLeadDetector =
         new Thread(CloseableResource::leakDetectorAndAutoCloser, "AutoCloserAndLeakDetectorThread");
     autoCloserAndLeadDetector.setDaemon(true);
     autoCloserAndLeadDetector.start();
+
+    // thread pool logger
+    final Thread threadPoolLoggerTask =
+        new Thread(CloseableResource::logStorageConnectionsStats, "StorageConnectionStatsThread");
+    threadPoolLoggerTask.setDaemon(true);
+    threadPoolLoggerTask.start();
   }
 
   /**
@@ -225,8 +265,8 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
 
   /**
    * Changes the auto-closable state of the resource. If a resource is auto-closable the method {@link #mayAutoClose(long)} is called
-   * regularly and if it returns {@code true}, the method {@link #tryAutoClose(long)} is invoked, which should try to close the resource.
-   * If the closing was successful, it will be removed the auto-close list and will be destructed.
+   * regularly and if it returns {@code true}, the method {@link #tryAutoClose(long)} is invoked, which should try to close the resource. If
+   * the closing was successful, it will be removed the auto-close list and will be destructed.
    *
    * @param autoClose {@code true} if the resource may automatically being closed; {@code false} otherwise.
    */
@@ -285,6 +325,13 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
       mutex.unlock();
     }
   }
+
+  /**
+   * Logs statistics of the resource.
+   *
+   * @param log
+   */
+  public void logStats(Logger log) {}
 
   /**
    * This method is invoked regularly to try to auto-close a resource.

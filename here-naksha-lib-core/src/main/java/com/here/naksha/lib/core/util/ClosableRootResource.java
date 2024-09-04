@@ -18,9 +18,14 @@
  */
 package com.here.naksha.lib.core.util;
 
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
+
+import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 public abstract class ClosableRootResource extends CloseableResource<ClosableRootResource> {
 
@@ -39,5 +44,16 @@ public abstract class ClosableRootResource extends CloseableResource<ClosableRoo
    */
   protected @Nullable ClosableRootResource parent() {
     return null;
+  }
+
+  @Override
+  public void logStats(Logger log) {
+    Map<String, Long> childrenCount = this.children.values().stream()
+        .collect(groupingBy(child -> child.getClass().getSimpleName(), counting()));
+    childrenCount.forEach((key, value) -> log.info(
+        "[Root parent child stats => rootName,childName,count] - RootResourceChildTypeCount {} {} {}",
+        this.getClass().getSimpleName(),
+        key,
+        value));
   }
 }
