@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,12 +35,12 @@ import com.here.xyz.httpconnector.CService;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 public class AwsCWClient {
     private static final Logger logger = LogManager.getLogger();
@@ -94,15 +94,15 @@ public class AwsCWClient {
         this.client = builder.build();
     }
 
-    public JSONObject getAvg5MinRDSMetrics(String dBClusterIdentifier) {
+    public Map<String,Double> getAvg5MinRDSMetrics(String dBClusterIdentifier) {
         return getRDSMetrics(dBClusterIdentifier , 5 , 5 * 60 , "Average", Role.READER);
     }
 
-    public JSONObject getAvg5MinRDSMetrics(String dBClusterIdentifier, Role role) {
+    public Map<String,Double> getAvg5MinRDSMetrics(String dBClusterIdentifier, Role role) {
         return getRDSMetrics(dBClusterIdentifier , 5 , 5 * 60 , "Average", role);
     }
 
-    private JSONObject getRDSMetrics(String dBClusterIdentifier, int timeRangeInMin, int periodInSec, String statistic, Role role) {
+    private Map<String,Double> getRDSMetrics(String dBClusterIdentifier, int timeRangeInMin, int periodInSec, String statistic, Role role) {
         List<Dimension> dimensions = new ArrayList<>();
         dimensions.add(new Dimension().withName(DB_CLUSTER_IDENTIFIER).withValue(dBClusterIdentifier));
         dimensions.add(new Dimension().withName("Role").withValue(role.toString()));
@@ -127,11 +127,11 @@ public class AwsCWClient {
             logger.warn("Cant get AWS Metrics!",e);
         }
         /** In ErrorCase deliver empty result */
-        return new JSONObject();
+        return new HashMap<>();
     }
 
-    private JSONObject metricDataResultToJson(List<MetricDataResult> metricDataResult){
-        JSONObject rdsStatistic = new JSONObject();
+    private Map<String,Double> metricDataResultToJson(List<MetricDataResult> metricDataResult){
+        Map<String,Double> rdsStatistic = new HashMap<>();
 
         for (MetricDataResult res : metricDataResult) {
             res.getValues().forEach(

@@ -19,6 +19,9 @@
 
 package com.here.xyz.httpconnector.util.jobs.validate;
 
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
+
+import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -27,8 +30,6 @@ import java.io.UnsupportedEncodingException;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
 
@@ -79,11 +80,11 @@ public class Validator {
                 /** Try to read WKB */
                 new WKBReader().read(aux);
                 /** Try to serialize JSON */
-                new JSONObject(json);
+                DEFAULT_MAPPER.get().readTree(json);
             } catch (ParseException e) {
                 logger.info("Bad WKB Encoding: ",e);
                 throw new UnsupportedEncodingException();
-            } catch (JSONException e) {
+            } catch (JacksonException e) {
                 logger.info("Bad JSON Encoding: ",e);
                 throw new UnsupportedEncodingException();
             } catch (Exception e) {

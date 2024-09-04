@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySpaceEvent.Operation.UPDATE;
@@ -29,7 +30,9 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQ
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -45,7 +48,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.json.JSONObject;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
@@ -113,17 +115,23 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     private static final String INTERMEDIATE_TABLE = "intermediateTable";
     private static final String EXTENDED_TABLE = "extendedTable";
 
-    @Deprecated
-    private JSONObject buildExtendedTablesJSON(ModifySpaceEvent event) {
-        if (!isExtendedSpace(event))
-            return new JSONObject().put("extends", (Object) null);
 
-        Map<String, String> extendedTables = new HashMap<>() {{
-           put(EXTENDED_TABLE, getExtendedTable(event));
-           if (is2LevelExtendedSpace(event))
-               put(INTERMEDIATE_TABLE, getIntermediateTable(event));
-        }};
-        return new JSONObject().put("extends", extendedTables);
+    @Deprecated
+    private ObjectNode buildExtendedTablesJSON(ModifySpaceEvent event) {
+        if (!isExtendedSpace(event)) {
+            ObjectNode jsonObject = DEFAULT_MAPPER.get().createObjectNode();
+            jsonObject.put("extends", (JsonNode) null);
+            return jsonObject;
+        }
+
+        ObjectNode extendedTables = DEFAULT_MAPPER.get().createObjectNode();
+        extendedTables.put(EXTENDED_TABLE, getExtendedTable(event));
+        if (is2LevelExtendedSpace(event))
+            extendedTables.put(INTERMEDIATE_TABLE, getIntermediateTable(event));
+
+        ObjectNode jsonObject = DEFAULT_MAPPER.get().createObjectNode();
+        jsonObject.put("extends", extendedTables);
+        return jsonObject;
     }
 
     public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) throws SQLException {
