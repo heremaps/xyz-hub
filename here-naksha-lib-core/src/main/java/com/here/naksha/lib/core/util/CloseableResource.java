@@ -166,11 +166,11 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
     autoCloserAndLeadDetector.setDaemon(true);
     autoCloserAndLeadDetector.start();
 
-    // thread pool logger
-    final Thread threadPoolLoggerTask =
+    // connection pool logger
+    final Thread connectionPoolLoggerTask =
         new Thread(CloseableResource::logStorageConnectionsStats, "StorageConnectionStatsThread");
-    threadPoolLoggerTask.setDaemon(true);
-    threadPoolLoggerTask.start();
+    connectionPoolLoggerTask.setDaemon(true);
+    connectionPoolLoggerTask.start();
   }
 
   /**
