@@ -25,6 +25,8 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.EXECUTE_IMPORT;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
@@ -71,7 +73,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
   private static final long MAX_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
-  private static final long MAX_BYTES_FOR_SYNC_IMPORT = 1; //100 * 1024 * 1024;
+  private static final long MAX_BYTES_FOR_SYNC_IMPORT = 100 * 1024 * 1024;
   public static final int MAX_DB_THREAD_CNT = 15;
 
   private static final String TRIGGER_TABLE_SUFFIX = "_trigger_tbl";
@@ -283,6 +285,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               long newVersion = increaseVersionSequence();
 
               logAndSetPhase(Phase.CREATE_TRIGGER);     //FIXME: Use owner of the job
+              //Create Temp-ImportTable to avoid serialization of JSON and fix missing row count
+              runWriteQuerySync(buildTemporaryTriggerTableForImportQuery(), db(), 0);
               runWriteQuerySync(buildCreateImportTrigger(space.getOwner(), newVersion), db(), 0);
           }
 
@@ -332,8 +336,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       }
       fileContent.append("]");
 
-      //FIXME: Use correct ACU load
-      runWriteQuerySync(buildFeatureWriterQuery(fileContent.toString(), newVersion), db(), 0);
+      //FIXME: Use correct ACU load + remove batchOf
+      runBatchWriteQuerySync(SQLQuery.batchOf(buildFeatureWriterQuery(fileContent.toString(), newVersion)), db(), 0);
     }
   }
 
@@ -444,10 +448,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                     : new FeatureStatistics());
 
     log("Statistics: bytes="+statistics.getByteSize()+" rows="+ statistics.getFeatureCount());
-    registerOutputs(List.of(statistics), true);
-
     logAndSetPhase(Phase.WRITE_STATISTICS);
-    registerOutputs(new ArrayList<>(){{ add(statistics);}}, true);
+    registerOutputs(List.of(statistics), true);
 
     cleanUpDbRelatedResources();
 
@@ -465,11 +467,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private void cleanUpDbRelatedResources() throws TooManyResourcesClaimed, SQLException, WebClientException {
-      logAndSetPhase(Phase.DROP_TRIGGER);
-      runWriteQuerySync(buildDropImportTrigger(), db(), 0);
-
       logAndSetPhase(Phase.DROP_TMP_TABLE);
       runWriteQuerySync(buildDropTemporaryTableForImportQuery(), db(), 0);
+      runWriteQuerySync(buildDropTemporaryTriggerTableForImportQuery(), db(), 0);
   }
 
   @Override
@@ -558,6 +558,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("schema", getSchema(db()));
   }
 
+  private SQLQuery buildDropTemporaryTriggerTableForImportQuery() throws WebClientException {
+    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
+            .withVariable("table", getRootTableName(getSpaceId()) + TRIGGER_TABLE_SUFFIX)
+            .withVariable("schema", getSchema(db()));
+  }
+
   private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {
     String tableFields =
             "jsondata TEXT, "
@@ -566,7 +572,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", getSchema(db()))
-            .withVariable("table", getRootTableName(getSpaceId()) /**+ TRIGGER_TABLE_SUFFIX*/);
+            .withVariable("table", getRootTableName(getSpaceId()) + TRIGGER_TABLE_SUFFIX);
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
@@ -576,20 +582,32 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
+    String triggerFunction = "xyz_import_trigger_for_empty_layer";
+    triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
+
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
-            + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_empty_layer('${{author}}', ${{spaceVersion}});")
+            + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}('${{author}}', ${{spaceVersion}});")
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
             .withQueryFragment("author", targetAuthor)
+            .withVariable("triggerFunction", triggerFunction)
             .withVariable("schema", getSchema(db()))
-            .withVariable("table", getRootTableName(space()));
+            .withVariable("table", getRootTableName(space()) + TRIGGER_TABLE_SUFFIX);
   }
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
+    String triggerFunction = "xyz_import_trigger_for_non_empty_layer";
+    if(format.equals(GEOJSON) || format.equals(CSV_GEOJSON)) {
+      triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "_geojson";
+    }else if(format.equals(CSV_JSON_WKB)){
+      triggerFunction += "_wkb";
+    }
+
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
+
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
         CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
-          FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger_for_non_empty_layer(
+          FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}(
              ${{author}},
              ${{spaceVersion}},
              false, --isPartial
@@ -612,13 +630,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
         .withQueryFragment("extendedTable", superTable == null ? "NULL" : "'" + superTable + "'")
         .withVariable("schema", getSchema(db()))
-        .withVariable("table", getRootTableName(space()));
-  }
-
-  private SQLQuery buildDropImportTrigger() throws WebClientException {
-    return new SQLQuery("DROP TRIGGER IF EXISTS insertTrigger ON ${schema}.${table};")
-            .withVariable("table", getRootTableName(space()))
-            .withVariable("schema", getSchema(db()));
+        .withVariable("triggerFunction", triggerFunction)
+        .withVariable("table", getRootTableName(space()) + TRIGGER_TABLE_SUFFIX);
   }
 
   //TODO: Move to XyzSpaceTableHelper or so (it's the nth time we have that implemented somewhere)
@@ -663,13 +676,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildImportQuery() throws WebClientException {
+
     String schema = getSchema(db());
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
     return new SQLQuery("CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
         .withAsyncProcedure(true)
         .withNamedParameter("schema", schema)
-        .withNamedParameter("target_tbl", schema+".\""+getRootTableName(space())+"\"")
+        .withNamedParameter("target_tbl", schema+".\""+getRootTableName(space()) + TRIGGER_TABLE_SUFFIX +"\"")
         .withNamedParameter("temporary_tbl",  schema+".\""+(TransportTools.getTemporaryTableName(this))+"\"")
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
@@ -701,6 +715,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     final Map<String, Object> queryContext = new HashMap<>(Map.of(
             "schema",  getSchema(db()),
             "table", getRootTableName(space()),
+//            "table", getRootTableName(space()) + TRIGGER_TABLE_SUFFIX,
             "context", superTable != null ? "'DEFAULT'" : "NULL",
             "historyEnabled", (space().getVersionsToKeep() > 1)
     ));
@@ -712,7 +727,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
     SQLQuery writeFeaturesQuery = new SQLQuery("""
-        SELECT write_features(
+        SELECT _write_features(
           #{featureList},
           #{author},
           #{onExists},
@@ -720,7 +735,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           #{onVersionConflict},
           #{onMergeConflict},
           #{isPartial},
-          #{version}
+          #{version},
+          #{returnResult}
         );""")
         .withNamedParameter("featureList", featureList)
         .withNamedParameter("author", space.getOwner())
@@ -730,6 +746,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withNamedParameter("onMergeConflict", updateStrategy.onMergeConflict() == null ? null :  updateStrategy.onMergeConflict().toString())
         .withNamedParameter("isPartial", false)
         .withNamedParameter("version", targetVersion)
+        .withNamedParameter("returnResult", false)
         .withContext(getQueryContext());
 
     return writeFeaturesQuery;
