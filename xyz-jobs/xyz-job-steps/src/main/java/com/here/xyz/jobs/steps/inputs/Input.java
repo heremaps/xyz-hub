@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.inputs;
 import static com.here.xyz.jobs.util.S3Client.getBucketFromS3Uri;
 import static com.here.xyz.jobs.util.S3Client.getKeyFromS3Uri;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -197,7 +198,10 @@ public abstract class Input <T extends Input> implements Typed {
     }
     catch (InterruptedException ignore) {}
     catch (ExecutionException e) {
-      throw new RuntimeException(e);
+      if(e.getCause() instanceof AmazonServiceException ase)
+        throw new IllegalArgumentException("Unable to access the bucket resources. Reason: " + ase.getErrorMessage());
+      else
+        throw new RuntimeException(e);
     }
     finally {
       tmpPool.shutdown();
