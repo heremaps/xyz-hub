@@ -4346,6 +4346,7 @@ $BODY$
     LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+--TODO: Remove code-duplication of the following trigger functions!!
 CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer_geojson()
     RETURNS trigger
 AS $BODY$
@@ -4373,7 +4374,7 @@ BEGIN
     );
 
     --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-    PERFORM _write_feature(NEW.jsondata,
+    PERFORM write_feature(NEW.jsondata,
                            author,
                            onExists,
                            onNotExists,
@@ -4418,7 +4419,7 @@ BEGIN
     );
 
     --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-    PERFORM _write_features((NEW.jsondata::JSONB->'features')::TEXT,
+    PERFORM write_features((NEW.jsondata::JSONB->'features')::TEXT,
                            author,
                            onExists,
                            onNotExists,
@@ -4469,7 +4470,7 @@ BEGIN
     END IF;
 
     --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-    PERFORM _write_feature(NEW.jsondata::TEXT,
+    PERFORM write_feature(NEW.jsondata::TEXT,
                            author,
                            onExists,
                            onNotExists,

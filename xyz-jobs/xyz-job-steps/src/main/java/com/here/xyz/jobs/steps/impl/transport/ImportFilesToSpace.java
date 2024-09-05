@@ -289,8 +289,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               long newVersion = increaseVersionSequence();
 
               logAndSetPhase(Phase.CREATE_TRIGGER);     //FIXME: Use owner of the job
-              //Create Temp-ImportTable to avoid serialization of JSON and fix missing row count
-              runWriteQuerySync(buildTemporaryTriggerTableForImportQuery(), db(), 0);
+              //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
+              runWriteQuerySync(buildTemporaryTriggerTableForImportQuery(), db(), 0); //TODO: Aggregate the count of the values in the count column to also support a valid count when importing FeatureCollections
               runWriteQuerySync(buildCreateImportTrigger(space.getOwner(), newVersion), db(), 0);
           }
 
@@ -734,7 +734,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
     SQLQuery writeFeaturesQuery = new SQLQuery("""
-        SELECT _write_features(
+        SELECT write_features(
           #{featureList},
           #{author},
           #{onExists},
