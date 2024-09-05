@@ -17,14 +17,14 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl.imp;
+package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 
 import com.amazonaws.AmazonServiceException;
 import com.fasterxml.jackson.core.JacksonException;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.impl.imp.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
