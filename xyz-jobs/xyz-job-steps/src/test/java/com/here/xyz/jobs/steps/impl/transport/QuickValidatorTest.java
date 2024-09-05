@@ -224,7 +224,7 @@ public class QuickValidatorTest extends TestSteps {
     }
   }
 
-    @Test
+  @Test
   public void testInvalidWKBGzipped() throws IOException {
     uploadAndValidateFilesWithInvalidWKB(true);
   }
@@ -238,10 +238,9 @@ public class QuickValidatorTest extends TestSteps {
     /** Invalid WKB */
     uploadFileToS3(generateTestS3Key("test_invalid_3_jsonwkb.csv"),
         TEXT_CSV,
-                S3ContentType.TEXT_CSV,
-                "\"{'\"properties'\": {'\"test'\": 1}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000,".getBytes(),
-                gzip
-        );
+        "\"{'\"properties'\": {'\"test'\": 1}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000,".getBytes(),
+        gzip
+    );
 
     uploadFileToS3(generateTestS3Key("test_invalid_3_geojson.csv"),
         TEXT_CSV,
@@ -266,43 +265,10 @@ public class QuickValidatorTest extends TestSteps {
     }
   }
 
-    @Test
-    public void testQuickValidation() throws ValidationException, IOException {
-      uploadAndValidateValidFiles(false);
-    }
-
-    @Test
-    public void testQuickValidationGZipped() throws ValidationException, IOException {
-        uploadAndValidateValidFiles(true);
-    }
-
-    @Test
-    public void testInvalidJson() throws IOException {
-        uploadAndValidateFilesWithInvalidJson(false);
-    }
-
-    @Test
-    public void testInvalidJsonGZipped() throws IOException {
-        uploadAndValidateFilesWithInvalidJson(true);
-    }
-
-    @Test
-    public void testInvalidWKB() throws IOException {
-        uploadAndValidateFilesWithInvalidWKB(false);
-    }
-    @Test
-    public void testInvalidWKBGzipped() throws IOException{
-        uploadAndValidateFilesWithInvalidWKB(true);
-    }
-
-    @Test
-    public void testValidateFilesWithEmptyColumn() throws IOException{
-        uploadAndValidateFilesWithEmptyColumn(false);
-    }
-    @Test
-    public void testValidateFilesWithEmptyColumnGzipped() throws IOException{
-        uploadAndValidateFilesWithEmptyColumn(true);
-    }
+  @Test
+  public void testValidateFilesWithEmptyColumnGzipped() throws IOException {
+    uploadAndValidateFilesWithEmptyColumn(true);
+  }
 
   private void testInvalidJson(String fileContent, S3ContentType contentType, Format format, EntityPerLine entityPerLine, boolean gzip)
       throws IOException {

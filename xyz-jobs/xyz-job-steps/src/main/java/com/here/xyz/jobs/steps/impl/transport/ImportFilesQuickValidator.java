@@ -60,7 +60,7 @@ public class ImportFilesQuickValidator {
     }
   }
 
-  private static void validateFirstCSVLine(String s3Bucket, String s3Key, Format format, String line, long fromKB, boolean isCompressed)
+  private static void validateFirstCSVLine(String s3Bucket, String s3Key, Format format, String line, long fromKB, boolean isCompressed, EntityPerLine entityPerLine)
       throws IOException, ValidationException {
     S3Client client = S3Client.getInstance(s3Bucket);
     long toKB = fromKB + VALIDATE_LINE_KB_STEPS;
