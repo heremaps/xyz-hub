@@ -57,7 +57,7 @@ public abstract class XyzWebClient {
       HttpRequest request = requestBuilder.build();
       HttpResponse<byte[]> response = client().send(request, BodyHandlers.ofByteArray());
       if (response.statusCode() >= 400)
-        throw new ErrorResponseException("Received error response with status code: " + response.statusCode(), response);
+        throw new ErrorResponseException(response);
       return response;
     }
     catch (IOException e) {
@@ -82,8 +82,8 @@ public abstract class XyzWebClient {
 
   public static class ErrorResponseException extends WebClientException {
     private HttpResponse<byte[]> errorResponse;
-    public ErrorResponseException(String message, HttpResponse<byte[]> errorResponse) {
-      super(message);
+    public ErrorResponseException(HttpResponse<byte[]> errorResponse) {
+      super("Received error response with status code " + errorResponse.statusCode() + " response body:\n" + new String(errorResponse.body()));
       this.errorResponse = errorResponse;
     }
 
