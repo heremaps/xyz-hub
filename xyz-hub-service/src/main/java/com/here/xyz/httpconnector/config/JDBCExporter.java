@@ -636,6 +636,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         if (params != null && params.get("versionsToKeep") != null)
             event.setVersionsToKeep((int)params.get("versionsToKeep"));
 
+        Map<String,Object> extStashed = null;
         if (params != null && params.get(Export.PARAM_CONTEXT) != null) {
             ContextAwareEvent.SpaceContext context = ContextAwareEvent.SpaceContext.of(params.get(Export.PARAM_CONTEXT).toString());
 
@@ -648,6 +649,11 @@ public class JDBCExporter extends JdbcBasedHandler {
                     if (superSpace != null)
                         event.setSpace(superSpace);
 
+                    if( !ext.containsKey("extends") )
+                    { extStashed = ext;
+                      params.remove("extends"); // needs to be removed and restored later on s.'DS-587'
+                                                    // except in case of L2 extends
+                    }  
                 }
                 context = ContextAwareEvent.SpaceContext.DEFAULT;
             }
@@ -700,6 +706,9 @@ public class JDBCExporter extends JdbcBasedHandler {
         catch (Exception e) {
           throw new SQLException(e);
         }
+
+        if( extStashed != null ) // restore saved extends -> 'DS-587'
+         params.put("extends", extStashed );
 
         char cFlag = isForCompositeContentDetection ? 'C' : 'P'; // fix/prevent name clash for namedparameter during export
 
