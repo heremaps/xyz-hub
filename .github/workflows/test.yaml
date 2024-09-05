@@ -26,7 +26,5 @@ jobs:
           AWS_ACCESS_KEY_ID: localstack
           AWS_SECRET_ACCESS_KEY: localstack
           AWS_DEFAULT_REGION: us-east-1
-      - name: Run tests
-        run: mvn verify -DskipTests=false
-      - name: Print localstack logs
-        run: docker logs localstack-main
+      - name: Run tests and print localstack logs
+        run: mvn verify -DskipTests=false ; docker logs localstack-main
