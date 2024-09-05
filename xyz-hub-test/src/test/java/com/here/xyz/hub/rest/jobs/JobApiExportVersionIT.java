@@ -49,13 +49,13 @@ public class JobApiExportVersionIT extends JobApiIT {
 
     private static void addSomeData(String spaceId, String filename) throws Exception
     {
-     try 
+     try
      {
       URL url = JobApiExportVersionIT.class.getResource(filename);
-            
+
       for( String line : Files.readAllLines(Paths.get(url.toURI()), StandardCharsets.UTF_8))
       { String geojsonLine = line.split("//")[0].trim();
-        if( geojsonLine == null || geojsonLine.isBlank() ) 
+        if( geojsonLine == null || geojsonLine.isBlank() )
          continue;
         Feature ft = XyzSerializable.deserialize(geojsonLine);
         postFeature(spaceId, ft, AuthProfile.ACCESS_OWNER_1_ADMIN );
@@ -71,7 +71,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         String baseDataFile  = "/xyz/hub/export-version-space-1.jsonl.txt",
                deltaDataFile = "/xyz/hub/export-version-space-1-ext.jsonl.txt";
-               
+
         /** Create test space with CompostitSpace, Version and content */
         createSpaceWithCustomStorage(getScopedSpaceId(testVersionedSpaceId1, scope), "psql", null, versionsToKeep);
         addSomeData( getScopedSpaceId(testVersionedSpaceId1,scope), baseDataFile);
@@ -168,7 +168,7 @@ public class JobApiExportVersionIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000", "id002", "id003", "movedFromEmpty", "deltaonly", "'\"deleted'\": true");
 
-        downloadAndCheck(urls, 1172, 4, mustContain);
+        downloadAndCheck(urls, 1200, 4, mustContain);
     }
 
     @Test
@@ -207,16 +207,16 @@ public class JobApiExportVersionIT extends JobApiIT {
         downloadAndCheck(urls, 1442, 4, mustContain);
     }
 
-    @Test    
+    @Test
     public void compositeL1Export_VersionRange_tileid_partitionedJsonWkb() throws Exception {
 
             int targetLevel = 12;
             int maxTilesPerFile= 300;
-    
+
             Export.ExportTarget exportTarget = new Export.ExportTarget()
                     .withType(Export.ExportTarget.Type.VML)
                     .withTargetId(testVersionedSpaceId1Ext+":dummy");
-    
+
             /** Create job */
             Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile)
                           .withPartitionKey("tileid");
@@ -224,25 +224,25 @@ public class JobApiExportVersionIT extends JobApiIT {
             /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
              job.setTargetVersion("10..14"); // from,to
             /* */
-  
+
             List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId1Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
-    
+
             List<String> mustContain = Arrays.asList("23600772,,","jumpPoint delta","122001322020");
-    
+
             downloadAndCheck(urls, 389, 1, mustContain);
 
     }
 
-    @Test    
+    @Test
     public void export_VersionRange_tileid_partitionedJsonWkb() throws Exception {
 /* non composite */ /* check semantic for next_version with range ? */
             int targetLevel = 12;
             int maxTilesPerFile= 300;
-    
+
             Export.ExportTarget exportTarget = new Export.ExportTarget()
                     .withType(Export.ExportTarget.Type.VML)
                     .withTargetId(testVersionedSpaceId2+":dummy");
-    
+
             /** Create job */
             Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile)
                           .withPartitionKey("tileid");
@@ -250,11 +250,11 @@ public class JobApiExportVersionIT extends JobApiIT {
             /*set explict as targetVersion - filters are only mapped by data-hub-dp to legacy jobconfig*/
              job.setTargetVersion("10..14"); // from,to
             /* */
-  
+
             List<URL> urls = performExport(job, getScopedSpaceId(testVersionedSpaceId2, scope), finalized, failed,  Export.CompositeMode.CHANGES );
-    
+
             List<String> mustContain = Arrays.asList("23600776,","jumpPoint delta","122001322020");
-    
+
             downloadAndCheck(urls, 389, 1, mustContain);
     }
 

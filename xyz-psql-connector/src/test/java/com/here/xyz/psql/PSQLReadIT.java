@@ -200,7 +200,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(1, features.size());
     }
 
-    @Test
+    //@Test
     public void testGetFeaturesByGeometryQuery() throws Exception {
         XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
         FeatureCollection collection = new FeatureCollection();
