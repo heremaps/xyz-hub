@@ -688,7 +688,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("id000", "id002", "id003", "movedFromEmpty", "deltaonly", "'\"deleted'\": true");
 
-        downloadAndCheck(urls, 640, 3, mustContain);
+        downloadAndCheck(urls, 700, 3, mustContain);
     }
 
     @Test
