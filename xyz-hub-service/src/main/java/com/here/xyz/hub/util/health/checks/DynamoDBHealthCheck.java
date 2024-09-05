@@ -18,22 +18,49 @@
  */
 package com.here.xyz.hub.util.health.checks;
 
+import static com.here.xyz.hub.util.health.schema.Status.Result.CRITICAL;
+import static com.here.xyz.hub.util.health.schema.Status.Result.OK;
+
+import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
+import com.here.xyz.hub.util.health.schema.Response;
 import com.here.xyz.hub.util.health.schema.Status;
+import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import java.net.URI;
+import java.net.URISyntaxException;
 
 public class DynamoDBHealthCheck extends DBHealthCheck {
-	
-	public String tableName;
 
-	public DynamoDBHealthCheck(URI connectionString, String tableName) {
-		super(connectionString);
-		this.tableName = tableName;
+	private final DynamoClient dynamoClient;
+
+	public DynamoDBHealthCheck(ARN tableArn) {
+		super(toURI(tableArn));
+		setName("DynamoDB");
+		dynamoClient = new DynamoClient(tableArn.toString(), null);
 	}
+
+	private static URI toURI(ARN arn) {
+    try {
+      return new URI(arn.toString());
+    }
+    catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
 	@Override
 	public Status execute() {
-		// TODO Auto-generated method stub
-		return null;
+		Status s = new Status();
+		Response r = new Response();
+		try {
+			dynamoClient.executeStatementSync(
+					new ExecuteStatementRequest().withStatement("SELECT id FROM \"" + dynamoClient.tableName + "\" WHERE \"id\" = 'healthCheckTestCall'"));
+			setResponse(null);
+			return s.withResult(OK);
+		}
+		catch (Exception e) {
+			setResponse(r.withMessage("Error when trying to connect to Dynamo: " + e.getMessage()));
+			return s.withResult(CRITICAL);
+		}
 	}
-	
 }
