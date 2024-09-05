@@ -28,6 +28,7 @@ import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.health.Config;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.checks.ClusterHealthCheck;
+import com.here.xyz.hub.util.health.checks.DynamoDBHealthCheck;
 import com.here.xyz.hub.util.health.checks.ExecutableCheck;
 import com.here.xyz.hub.util.health.checks.JDBCHealthCheck;
 import com.here.xyz.hub.util.health.checks.MemoryHealthCheck;
@@ -35,6 +36,7 @@ import com.here.xyz.hub.util.health.checks.RedisHealthCheck;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthAggregator;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
@@ -68,10 +70,11 @@ public class HealthApi extends Api {
       .add(new ClusterHealthCheck());
 
   static {
-    if (Service.configuration.ENABLE_CONNECTOR_HEALTH_CHECKS){
+    if (Service.configuration.ENABLE_CONNECTOR_HEALTH_CHECKS)
       healthCheck.add(rfcHcAggregator);
-    }
-    if (Service.configuration.STORAGE_DB_URL != null) {
+
+    String testDynamoTableArn = com.here.xyz.hub.Config.instance.SPACES_DYNAMODB_TABLE_ARN;
+    if (testDynamoTableArn == null) {
       healthCheck.add(
           (ExecutableCheck) new JDBCHealthCheck(getStorageDbUri(), Service.configuration.STORAGE_DB_USER,
               Service.configuration.STORAGE_DB_PASSWORD)
@@ -79,6 +82,8 @@ public class HealthApi extends Api {
               .withEssential(true)
       );
     }
+    else
+      healthCheck.add((ExecutableCheck) new DynamoDBHealthCheck(new ARN(testDynamoTableArn)).withEssential(true));
   }
 
   public HealthApi(Vertx vertx, Router router) {

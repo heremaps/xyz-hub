@@ -37,6 +37,11 @@ import java.util.Map;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Config extends BaseConfig {
+  public static Config instance;
+
+  {
+    instance = this;
+  }
 
   /**
    * The global maximum number of http client connections.

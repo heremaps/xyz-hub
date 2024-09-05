@@ -141,19 +141,23 @@ public class DynamoClient {
   public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
     return DynamoClient.dynamoWorkers.executeBlocking(future -> {
       try {
-        ExecuteStatementResult result = client.executeStatement(request);
-        List<Map<String, AttributeValue>> items = result.getItems();
-
-        while (result.getNextToken() != null) {
-          result = client.executeStatement(request.withNextToken(result.getNextToken()));
-          items.addAll(result.getItems());
-        }
-
-        future.complete(items);
-      } catch (Exception e) {
+        future.complete(executeStatementSync(request));
+      }
+      catch (Exception e) {
         future.fail(e);
       }
     });
+  }
+
+  public List<Map<String, AttributeValue>> executeStatementSync(ExecuteStatementRequest request) {
+    ExecuteStatementResult result = client.executeStatement(request);
+    List<Map<String, AttributeValue>> items = result.getItems();
+
+    while (result.getNextToken() != null) {
+      result = client.executeStatement(request.withNextToken(result.getNextToken()));
+      items.addAll(result.getItems());
+    }
+    return items;
   }
 
   @FunctionalInterface
