@@ -404,26 +404,24 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private void fillTemporaryTableWithInputs(Database db, List<S3DataFile> inputs, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
     List<SQLQuery> queryList = new ArrayList<>();
     for (S3DataFile input : inputs) {
-      if (input instanceof UploadUrl uploadUrl) {
-        JsonObject data = new JsonObject()
-                .put("compressed", uploadUrl.isCompressed())
-                .put("filesize", uploadUrl.getByteSize());
+      JsonObject data = new JsonObject()
+              .put("compressed", input.isCompressed())
+              .put("filesize", input.getByteSize());
 
-        queryList.add(
-                new SQLQuery("""                
-                            INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
-                                VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
-                                ON CONFLICT (s3_path) DO NOTHING;
-                        """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-                        .withVariable("schema", getSchema(db))
-                        .withVariable("table", getTemporaryTableName())
-                        .withNamedParameter("s3Key", input.getS3Key())
-                        .withNamedParameter("bucketName", input.getS3Bucket())
-                        .withNamedParameter("bucketRegion", bucketRegion)
-                        .withNamedParameter("state", "SUBMITTED")
-                        .withNamedParameter("data", data.toString())
-        );
-      }
+      queryList.add(
+              new SQLQuery("""                
+                          INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
+                              VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
+                              ON CONFLICT (s3_path) DO NOTHING;
+                      """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
+                      .withVariable("schema", getSchema(db))
+                      .withVariable("table", getTemporaryTableName())
+                      .withNamedParameter("s3Key", input.getS3Key())
+                      .withNamedParameter("bucketName", input.getS3Bucket())
+                      .withNamedParameter("bucketRegion", bucketRegion)
+                      .withNamedParameter("state", "SUBMITTED")
+                      .withNamedParameter("data", data.toString())
+      );
     }
     //Add final entry
     queryList.add(
