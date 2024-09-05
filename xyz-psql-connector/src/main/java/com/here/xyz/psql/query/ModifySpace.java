@@ -30,7 +30,6 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQ
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
@@ -119,9 +118,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
     @Deprecated
     private ObjectNode buildExtendedTablesJSON(ModifySpaceEvent event) {
         if (!isExtendedSpace(event)) {
-            ObjectNode jsonObject = DEFAULT_MAPPER.get().createObjectNode();
-            jsonObject.put("extends", (JsonNode) null);
-            return jsonObject;
+            return DEFAULT_MAPPER.get().createObjectNode();
         }
 
         ObjectNode extendedTables = DEFAULT_MAPPER.get().createObjectNode();
