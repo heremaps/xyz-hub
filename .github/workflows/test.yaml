@@ -28,3 +28,5 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
       - name: Run tests
         run: mvn verify -DskipTests=false
+      - name: Print localstack logs
+        run: docker logs localstack-main
