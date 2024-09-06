@@ -22,8 +22,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 
 import com.amazonaws.AmazonServiceException;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
+import com.fasterxml.jackson.core.JacksonException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
