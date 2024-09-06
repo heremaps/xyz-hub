@@ -64,6 +64,7 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class PSQLReadIT extends PSQLAbstractIT {
@@ -200,7 +201,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(1, features.size());
     }
 
-    //@Test
+    @Ignore("That test is currently failing because the local postgres is behaving differently than expected when it comes to spatial filtering at the edges.")
+    @Test
     public void testGetFeaturesByGeometryQuery() throws Exception {
         XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
         FeatureCollection collection = new FeatureCollection();

@@ -17,8 +17,6 @@ ENV HTTP_CONNECTOR_ENDPOINT http://xyz-http-connector:9090/psql
 ENV HUB_ENDPOINT http://xyz-hub:8080/hub
 
 COPY xyz-hub-service/target/xyz-hub-service.jar .
-RUN mkdir sql
-RUN touch sql/test.sql
 ADD Dockerfile /
 
 EXPOSE 8080 9090
