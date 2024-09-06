@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ import com.here.xyz.psql.query.GetStatistics;
 import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
-import com.here.xyz.psql.query.IterateFeaturesSorted;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.ModifySubscription;
@@ -202,9 +201,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      if (IterateFeaturesSorted.isOrderByEvent(event))
-        return run(new IterateFeaturesSorted(event));
-
       return run(new IterateFeatures(event));
     }
     catch (SQLException e) {

@@ -19,9 +19,10 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
+
 import com.amazonaws.AmazonServiceException;
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -37,8 +38,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.zip.GZIPInputStream;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
 
@@ -142,7 +141,7 @@ public class ImportFilesQuickValidator {
       //Try to read WKB
       new WKBReader().read(aux);
       //Try to serialize JSON
-      new JSONObject(json);
+      DEFAULT_MAPPER.get().readTree(json);
     }
     catch (Exception e) {
       transformException(e);
@@ -153,7 +152,7 @@ public class ImportFilesQuickValidator {
     Throwable cause = e.getCause();
     if (e instanceof ParseException || e instanceof IllegalArgumentException)
       throw new ValidationException("Bad WKB encoding! " + (cause != null ? cause.toString() : ""));
-    else if (e instanceof JSONException || e instanceof JsonParseException || e instanceof InvalidTypeIdException || e instanceof JsonMappingException)
+    else if (e instanceof JacksonException)
       throw new ValidationException("Bad JSON encoding! " + (cause != null ? cause.toString() : ""));
     else
       throw new ValidationException("Not able to validate! " + (cause != null ? cause.toString() : ""));

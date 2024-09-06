@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.httpconnector.config.AwsCWClient;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import java.text.DecimalFormat;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
-
-import java.text.DecimalFormat;
-import java.util.List;
 
 public class RDSStatus {
     private static final Logger logger = LogManager.getLogger();
@@ -69,11 +69,11 @@ public class RDSStatus {
         this.runningQueries = runningQueryStatistics.getRunningQueries();
     }
 
-    public void addCloudWatchDBWriterMetrics(JSONObject currentWriterMetrics) {
+    public void addCloudWatchDBWriterMetrics(Map<String,Double> currentWriterMetrics) {
         this.cloudWatchDBClusterMetrics.setCloudWatchDBWriterMetrics(currentWriterMetrics);
     }
 
-    public void addCloudWatchDBReaderMetrics(JSONObject currentReaderMetrics) {
+    public void addCloudWatchDBReaderMetrics(Map<String,Double> currentReaderMetrics) {
         this.cloudWatchDBClusterMetrics.setCloudWatchDBReaderMetrics(currentReaderMetrics);
     }
 
@@ -131,7 +131,7 @@ public class RDSStatus {
         private double acuUtilization;
         private double capacity;
 
-        public CloudWatchDBMetric(JSONObject currentMetrics){
+        public CloudWatchDBMetric(Map<String,Double> currentMetrics){
             if(currentMetrics.isEmpty())
                 return;
             try {
@@ -170,15 +170,15 @@ public class RDSStatus {
         private CloudWatchDBMetric reader;
 
         public CloudWatchDBClusterMetrics(){
-            this.writer = new CloudWatchDBMetric(new JSONObject());
-            this.reader = new CloudWatchDBMetric(new JSONObject());
+            this.writer = new CloudWatchDBMetric(new HashMap<>());
+            this.reader = new CloudWatchDBMetric(new HashMap());
         }
 
-        public void setCloudWatchDBWriterMetrics(JSONObject currentWriterMetrics){
+        public void setCloudWatchDBWriterMetrics(Map<String,Double> currentWriterMetrics){
             this.writer = new CloudWatchDBMetric(currentWriterMetrics);
         }
 
-        public void setCloudWatchDBReaderMetrics(JSONObject currentReaderMetrics){
+        public void setCloudWatchDBReaderMetrics(Map<String,Double> currentReaderMetrics){
             this.reader = new CloudWatchDBMetric(currentReaderMetrics);
         }
 
