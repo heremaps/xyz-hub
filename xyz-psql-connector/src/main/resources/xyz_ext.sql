@@ -4237,14 +4237,14 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION enrichNewFeature(IN jsondata jsonb, geo geometry(GeometryZ,4326))
-    RETURNS TABLE(new_jsondata jsonb, new_geo geometry(GeometryZ,4326), new_operation character, new_id text)
+CREATE OR REPLACE FUNCTION enrichNewFeature(IN jsondata JSONB, geo geometry(GeometryZ,4326))
+    RETURNS TABLE(new_jsondata JSONB, new_geo geometry(GeometryZ,4326), new_operation character, new_id TEXT)
 AS $BODY$
 DECLARE
-    fid text := jsondata->>'id';
-    createdAt bigint := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+    fid TEXT := jsondata->>'id';
+    createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
     --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
-    meta jsonb := format(
+    meta JSONB := format(
             '{
                  "createdAt": %s,
                  "updatedAt": %s
@@ -4253,7 +4253,7 @@ DECLARE
 BEGIN
     IF fid IS NULL THEN
         fid = xyz_random_string(10);
-        jsondata := (jsondata || format('{"id": "%s"}', fid)::jsonb);
+        jsondata := (jsondata || format('{"id": "%s"}', fid)::JSONB);
     END IF;
 
     -- Remove bbox on root
@@ -4288,14 +4288,14 @@ CREATE OR REPLACE FUNCTION xyz_import_trigger_for_empty_layer()
     RETURNS trigger
 AS $BODY$
 DECLARE
-    author text := TG_ARGV[0];
-    curVersion bigint := TG_ARGV[1];
+    author TEXT := TG_ARGV[0];
+    curVersion BIGINT := TG_ARGV[1];
     --Remove suffix "_trigger_table"
-    target_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
-    feature record;
+    target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    feature RECORD;
 BEGIN
         SELECT new_jsondata, new_geo, new_operation, new_id
-            from enrichNewFeature(NEW.jsondata::jsonb, NEW.geo)
+            from enrichNewFeature(NEW.jsondata::JSONB, NEW.geo)
         INTO feature;
 
         EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
@@ -4315,12 +4315,12 @@ CREATE OR REPLACE FUNCTION xyz_import_trigger_for_empty_layer_geojsonfc()
     RETURNS trigger
 AS $BODY$
 DECLARE
-    author text := TG_ARGV[0];
-    curVersion bigint := TG_ARGV[1];
+    author TEXT := TG_ARGV[0];
+    curVersion BIGINT := TG_ARGV[1];
     --Remove suffix "_trigger_table"
-    target_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
-    elem jsonb;
-    feature record;
+    target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    elem JSONB;
+    feature RECORD;
 BEGIN
 
     --TODO: Should we also allow "Features"
@@ -4355,20 +4355,20 @@ CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer()
     RETURNS trigger
 AS $BODY$
 DECLARE
-    author text := TG_ARGV[0];
-    currentVersion bigint := TG_ARGV[1];
-    isPartial boolean := TG_ARGV[2];
-    onExists text := TG_ARGV[3];
-    onNotExists text := TG_ARGV[4];
-    onVersionConflict text := TG_ARGV[5];
-    onMergeConflict text := TG_ARGV[6];
-    historyEnabled boolean := TG_ARGV[7]::boolean;
-    context text := TG_ARGV[8];
-    extendedTable text := TG_ARGV[9];
-    format text := TG_ARGV[10];
-    entityPerLine text := TG_ARGV[11];
+    author TEXT := TG_ARGV[0];
+    currentVersion BIGINT := TG_ARGV[1];
+    isPartial BOOLEAN := TG_ARGV[2];
+    onExists TEXT := TG_ARGV[3];
+    onNotExists TEXT := TG_ARGV[4];
+    onVersionConflict TEXT := TG_ARGV[5];
+    onMergeConflict TEXT := TG_ARGV[6];
+    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
+    context TEXT := TG_ARGV[8];
+    extendedTable TEXT := TG_ARGV[9];
+    format TEXT := TG_ARGV[10];
+    entityPerLine TEXT := TG_ARGV[11];
     --Remove suffix "_trigger_table"
-    target_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
 BEGIN
     --TODO: check how to use asyncify instead
     PERFORM context(
@@ -4433,17 +4433,17 @@ $BODY$
     LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
-    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint, execution_count int, data jsonb)
+CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl REGCLASS)
+    RETURNS TABLE(s3_bucket TEXT, s3_path TEXT, s3_region TEXT, state TEXT, filesize BIGINT, execution_count INT, data JSONB)
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
-    work_items_left integer := 1;
-    success_marker text := 'SUCCESS_MARKER';
-    target_state text := 'RUNNING';
-    work_item record;
-    updated_rows INTEGER;
-    result record;
+    work_items_left INT := 1;
+    success_marker TEXT := 'SUCCESS_MARKER';
+    target_state TEXT := 'RUNNING';
+    work_item RECORD;
+    updated_rows INT;
+    result RECORD;
 BEGIN
     work_item := null;
 
@@ -4526,14 +4526,14 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_perform(schem text, temporary_tbl regclass ,target_tbl regclass,
-                                              s3_bucket text, s3_path text, s3_region text, format text, filesize bigint)
+CREATE OR REPLACE FUNCTION xyz_import_perform(schem TEXT, temporary_tbl REGCLASS ,target_tbl REGCLASS,
+                                              s3_bucket TEXT, s3_path TEXT, s3_region TEXT, format TEXT, filesize BIGINT)
     RETURNS void
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
-    import_statistics record;
-    config record;
+    import_statistics RECORD;
+    config RECORD;
 BEGIN
     select * from xyz_import_get_import_config(format) into config;
 
@@ -4585,8 +4585,8 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_get_import_config(format text)
-    RETURNS TABLE(target_clomuns text, import_config text)
+CREATE OR REPLACE FUNCTION xyz_import_get_import_config(format TEXT)
+    RETURNS TABLE(target_clomuns TEXT, import_config TEXT)
     LANGUAGE 'plpgsql'
 AS $BODY$
 BEGIN
@@ -4611,20 +4611,20 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_report_success(temporary_tbl regclass, success_callback text)
+CREATE OR REPLACE FUNCTION xyz_import_report_success(temporary_tbl REGCLASS, success_callback TEXT)
     RETURNS void
     LANGUAGE 'plpgsql'
     VOLATILE PARALLEL SAFE
 AS $BODY$
 DECLARE
-    sql_text text;
+    sql_text TEXT;
 BEGIN
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
-		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
-	    import_results record;
-	    retry_count integer := 2;
+		temporary_tbl REGCLASS := '$wrappedouter$||temporary_tbl||$wrappedouter$'::REGCLASS;
+	    import_results RECORD;
+	    retry_count INT := 2;
 	BEGIN
 	    EXECUTE format('SELECT '
 	                       || '   COUNT(*) FILTER (WHERE state = %1$L) AS finished_count,'
@@ -4657,14 +4657,14 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE PROCEDURE xyz_import_start(schem text, temporary_tbl regclass, target_tbl regclass, format text,
-                                         success_callback text, failure_callback text)
+CREATE OR REPLACE PROCEDURE xyz_import_start(schem TEXT, temporary_tbl REGCLASS, target_tbl REGCLASS, format TEXT,
+                                         success_callback TEXT, failure_callback TEXT)
     LANGUAGE 'plpgsql'
 AS
 $BODY$
 DECLARE
-    work_item record;
-    sql_text text;
+    work_item RECORD;
+    sql_text TEXT;
 BEGIN
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
@@ -4685,17 +4685,17 @@ BEGIN
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
-        work_item_s3_bucket text := '$wrappedouter$||work_item.s3_bucket||$wrappedouter$'::text;
-        work_item_s3_region text := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::text;
-        work_item_s3_filesize bigint := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
-        work_item_s3_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
-        work_item_execution_count int := '$wrappedouter$||work_item.execution_count||$wrappedouter$'::int;
-        work_item_data jsonb := '$wrappedouter$||work_item.data||$wrappedouter$'::jsonb;
-		schem text := '$wrappedouter$||schem||$wrappedouter$'::text;
-		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
-		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
-		format text := '$wrappedouter$||format||$wrappedouter$'::text;
-		retry_count integer := 2;
+        work_item_s3_bucket TEXT := '$wrappedouter$||work_item.s3_bucket||$wrappedouter$'::TEXT;
+        work_item_s3_region TEXT := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::TEXT;
+        work_item_s3_filesize BIGINT := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
+        work_item_s3_path TEXT := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::TEXT;
+        work_item_execution_count INT := '$wrappedouter$||work_item.execution_count||$wrappedouter$'::INT;
+        work_item_data JSONB := '$wrappedouter$||work_item.data||$wrappedouter$'::JSONB;
+		schem TEXT := '$wrappedouter$||schem||$wrappedouter$'::TEXT;
+		temporary_tbl REGCLASS := '$wrappedouter$||temporary_tbl||$wrappedouter$'::REGCLASS;
+		target_tbl REGCLASS := '$wrappedouter$||target_tbl||$wrappedouter$'::REGCLASS;
+		format TEXT := '$wrappedouter$||format||$wrappedouter$'::TEXT;
+		retry_count INT := 2;
     BEGIN
 			BEGIN
 			    IF work_item_execution_count >= retry_count THEN
@@ -4720,8 +4720,8 @@ BEGIN
 			END;
 	 		PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
 					schem, temporary_tbl, target_tbl, format,
-					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
-					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), false, true );
+					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::TEXT,
+					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::TEXT), false, true );
     END;
 	$wrappedinner$ $wrappedouter$;
     EXECUTE sql_text;
