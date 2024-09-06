@@ -47,9 +47,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class JobStepsTest extends TestSteps {
-  private static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
-  private static final String SPACE_ID = "test-space-" + randomAlpha(5);
-  private static final String JOB_ID = "test-job-" + randomAlpha(5);
+  protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
+  protected static final String SPACE_ID = "test-space-" + randomAlpha(5);
+  protected static final String JOB_ID = "test-job-" + randomAlpha(5);
 
   @BeforeEach
   public void setup() {
@@ -94,27 +94,7 @@ public class JobStepsTest extends TestSteps {
     assertEquals("idx_" + SPACE_ID + "_" + GEO.toString().toLowerCase(), indexes.get(0));
   }
 
-  @Test
-  public void testImportFilesToSpaceStep() throws Exception {
-    StatisticsResponse statsBefore = getStatistics(SPACE_ID);
-    assertEquals(0L, (Object) statsBefore.getCount().getValue());
-
-    uploadInputFile(JOB_ID);
-    LambdaBasedStep step = new ImportFilesToSpace()
-        .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
-        .withSpaceId(SPACE_ID);
-
-//    simulateLambdaStepRequest(step, START_EXECUTION);
-//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
-
-    sendLambdaStepRequest(step, START_EXECUTION);
-    sleep(2000);
-
-    StatisticsResponse statsAfter = getStatistics(SPACE_ID);
-    assertEquals(2L, (Object) statsAfter.getCount().getValue());
-  }
-
-  private void simulateLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType) throws IOException {
+  protected void simulateLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType) throws IOException {
     OutputStream os = new ByteArrayOutputStream();
     Context ctx = new SimulatedContext("localLambda", null);
 
@@ -127,7 +107,7 @@ public class JobStepsTest extends TestSteps {
     new LambdaBasedStep.LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
   }
 
-  private void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType) {
+  protected void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType) {
     Map<String, Object> stepMap = step.toMap();
     stepMap.put("taskToken.$", "test123");
     stepMap.put("jobId", JOB_ID);
@@ -137,7 +117,7 @@ public class JobStepsTest extends TestSteps {
     invokeLambda(LAMBDA_ARN, request.toByteArray());
   }
 
-  private void uploadInputFile(String jobId) throws IOException {
+  protected void uploadInputFile(String jobId) throws IOException {
     String data = "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}";
     uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, data.getBytes(), false);
     String data2 = "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":2}}";
