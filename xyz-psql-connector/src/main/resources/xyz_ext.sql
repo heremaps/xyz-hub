@@ -4242,7 +4242,7 @@ CREATE OR REPLACE FUNCTION enrichNewFeature(IN jsondata jsonb, geo geometry(Geom
 AS $BODY$
 DECLARE
     fid text := jsondata->>'id';
-    createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+    createdAt bigint := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
     --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
     meta jsonb := format(
             '{
@@ -4290,7 +4290,8 @@ AS $BODY$
 DECLARE
     author text := TG_ARGV[0];
     curVersion bigint := TG_ARGV[1];
-    tmp_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    --Remove suffix "_trigger_table"
+    target_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
     feature record;
 BEGIN
         SELECT new_jsondata, new_geo, new_operation, new_id
@@ -4299,10 +4300,11 @@ BEGIN
 
         EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
 						values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
-                       TG_TABLE_SCHEMA, tmp_table, feature.new_id, curVersion, feature.new_operation,
+                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
                        author, feature.new_jsondata, feature.new_geo);
         NEW.geo = NULL;
         NEW.jsondata = NULL;
+        NEW.i = 1;
         RETURN NEW;
 END;
 $BODY$
@@ -4315,7 +4317,8 @@ AS $BODY$
 DECLARE
     author text := TG_ARGV[0];
     curVersion bigint := TG_ARGV[1];
-    tmp_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    --Remove suffix "_trigger_table"
+    target_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
     elem jsonb;
     feature record;
 BEGIN
@@ -4323,23 +4326,24 @@ BEGIN
     --TODO: Should we also allow "Features"
     --TODO: Fix statistics
     FOR elem IN SELECT * FROM jsonb_array_elements(((NEW.jsondata)::JSONB)->'features')
-        LOOP
-            IF NEW.geo IS NOT NULL THEN
-                RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
-                    USING ERRCODE = 'XYZ40';
-            END IF;
-            SELECT new_jsondata, new_geo, new_operation, new_id
-            from enrichNewFeature(elem, null)
-            INTO feature;
+    LOOP
+        IF NEW.geo IS NOT NULL THEN
+            RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
+                USING ERRCODE = 'XYZ40';
+        END IF;
 
-            EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
-                    values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
-                           TG_TABLE_SCHEMA, tmp_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
-        END LOOP;
+        SELECT new_jsondata, new_geo, new_operation, new_id
+            from enrichNewFeature(elem, null)
+        INTO feature;
+
+        EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+                values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
+                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
+    END LOOP;
 
     NEW.geo = NULL;
     NEW.jsondata = NULL;
-
+    NEW.i = jsonb_array_length(((NEW.jsondata)::JSONB)->'features');
     RETURN NEW;
 END;
 $BODY$
@@ -4347,142 +4351,82 @@ $BODY$
 ------------------------------------------------
 ------------------------------------------------
 --TODO: Remove code-duplication of the following trigger functions!!
-CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer_geojson()
+CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer()
     RETURNS trigger
 AS $BODY$
 DECLARE
     author text := TG_ARGV[0];
     currentVersion bigint := TG_ARGV[1];
-    isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := TG_ARGV[3];
-    onNotExists TEXT := TG_ARGV[4];
-    onVersionConflict TEXT := TG_ARGV[5];
-    onMergeConflict TEXT := TG_ARGV[6];
-    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
-    context TEXT := TG_ARGV[8];
-    extendedTable TEXT := TG_ARGV[9];
-    features TEXT;
+    isPartial boolean := TG_ARGV[2];
+    onExists text := TG_ARGV[3];
+    onNotExists text := TG_ARGV[4];
+    onVersionConflict text := TG_ARGV[5];
+    onMergeConflict text := TG_ARGV[6];
+    historyEnabled boolean := TG_ARGV[7]::boolean;
+    context text := TG_ARGV[8];
+    extendedTable text := TG_ARGV[9];
+    format text := TG_ARGV[10];
+    entityPerLine text := TG_ARGV[11];
+    --Remove suffix "_trigger_table"
+    target_table text :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
 BEGIN
-    --TODO: uses context with asyncify and remove this hack
+    --TODO: check how to use asyncify instead
     PERFORM context(
             jsonb_build_object('schema', TG_TABLE_SCHEMA,
-                               'table', substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12),
+                               'table', target_table,
                                'historyEnabled', historyEnabled,
                                'context', CASE WHEN context = 'null' THEN null ELSE context END,
                                'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
             )
     );
 
-    --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-    PERFORM write_feature(NEW.jsondata,
-                           author,
-                           onExists,
-                           onNotExists,
-                           onVersionConflict,
-                           onMergeConflict,
-                           isPartial,
-                           currentVersion,
-                           false
-    );
-    NEW.geo = NULL;
-    NEW.jsondata = NULL;
-
-    RETURN NEW;
-END;
-$BODY$
-    LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer_geojsonfc()
-    RETURNS trigger
-AS $BODY$
-DECLARE
-    author text := TG_ARGV[0];
-    currentVersion bigint := TG_ARGV[1];
-    isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := TG_ARGV[3];
-    onNotExists TEXT := TG_ARGV[4];
-    onVersionConflict TEXT := TG_ARGV[5];
-    onMergeConflict TEXT := TG_ARGV[6];
-    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
-    context TEXT := TG_ARGV[8];
-    extendedTable TEXT := TG_ARGV[9];
-BEGIN
-    --TODO: uses context with asyncify and remove this hack
-    PERFORM context(
-            jsonb_build_object('schema', TG_TABLE_SCHEMA,
-                               'table', substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12),
-                               'historyEnabled', historyEnabled,
-                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
-                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
-            )
-    );
-
-    --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-    PERFORM write_features((NEW.jsondata::JSONB->'features')::TEXT,
-                           author,
-                           onExists,
-                           onNotExists,
-                           onVersionConflict,
-                           onMergeConflict,
-                           isPartial,
-                           currentVersion,
-                           false
-            );
-    NEW.geo = NULL;
-    NEW.jsondata = NULL;
-
-    RETURN NEW;
-END;
-$BODY$
-    LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer_wkb()
-    RETURNS trigger
-AS $BODY$
-DECLARE
-    author text := TG_ARGV[0];
-    currentVersion bigint := TG_ARGV[1];
-    isPartial BOOLEAN := TG_ARGV[2];
-    onExists TEXT := TG_ARGV[3];
-    onNotExists TEXT := TG_ARGV[4];
-    onVersionConflict TEXT := TG_ARGV[5];
-    onMergeConflict TEXT := TG_ARGV[6];
-    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
-    context TEXT := TG_ARGV[8];
-    extendedTable TEXT := TG_ARGV[9];
-    features TEXT;
-BEGIN
-    --TODO: uses context with asyncify and remove this hack
-    PERFORM context(
-            jsonb_build_object('schema', TG_TABLE_SCHEMA,
-                               'table', substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12),
-                               'historyEnabled', historyEnabled,
-                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
-                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
-            )
-    );
-
-    --WKB support
-    IF NEW.geo IS NOT NULL THEN
+    IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
+        --TODO: Extend feature_writer with possibility to provide geometry
         NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
+        NEW.i = 1;
+        PERFORM write_feature(NEW.jsondata::TEXT,
+                      author,
+                      onExists,
+                      onNotExists,
+                      onVersionConflict,
+                      onMergeConflict,
+                      isPartial,
+                      currentVersion,
+                      false
+        );
     END IF;
 
-    --TODO: Improve performance by not receiving the jsondata as JSONB at all here
-    PERFORM write_feature(NEW.jsondata::TEXT,
-                           author,
-                           onExists,
-                           onNotExists,
-                           onVersionConflict,
-                           onMergeConflict,
-                           isPartial,
-                           currentVersion,
-                           false
-            );
+    IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
+        IF entityPerLine = 'Feature' THEN
+            PERFORM write_feature( NEW.jsondata,
+                                   author,
+                                   onExists,
+                                   onNotExists,
+                                   onVersionConflict,
+                                   onMergeConflict,
+                                   isPartial,
+                                   currentVersion,
+                                   false
+                    );
+            NEW.i = 1;
+        ELSE
+            --TODO: Extend feature_writer with possibility to provide featureCollection
+            PERFORM write_features((NEW.jsondata::JSONB->'features')::TEXT,
+                                   author,
+                                   onExists,
+                                   onNotExists,
+                                   onVersionConflict,
+                                   onMergeConflict,
+                                   isPartial,
+                                   currentVersion,
+                                   false
+                    );
+            NEW.i = jsonb_array_length(((NEW.jsondata)::JSONB)->'features');
+        END IF;
+    END IF;
+
     NEW.geo = NULL;
     NEW.jsondata = NULL;
-
     RETURN NEW;
 END;
 $BODY$

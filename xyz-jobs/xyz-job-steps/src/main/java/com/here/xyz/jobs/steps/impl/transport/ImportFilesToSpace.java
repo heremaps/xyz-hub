@@ -25,8 +25,6 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.EXECUTE_IMPORT;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
@@ -99,6 +97,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
+  //@TODO: for RETAIN Strategies we need to fix statistics. Currently each featureWriter call gets counted as write.
   @JsonView({Internal.class, Static.class})
   private UpdateStrategy updateStrategy;
 
@@ -575,7 +574,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     String tableFields =
             "jsondata TEXT, "
                     + "geo geometry(GeometryZ, 4326), "
-                    + "i BIGSERIAL";
+                    + "i BIGINT";
     return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", getSchema(db()))
@@ -603,12 +602,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
     String triggerFunction = "xyz_import_trigger_for_non_empty_layer";
-    if(format.equals(GEOJSON) || format.equals(CSV_GEOJSON)) {
-      triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "_geojson";
-    }else if(format.equals(CSV_JSON_WKB)){
-      triggerFunction += "_wkb";
-    }
-
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
@@ -624,7 +617,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{onMergeConflict}},
              ${{historyEnabled}},
              ${{context}},
-             ${{extendedTable}}
+             ${{extendedTable}},
+             '${{format}}',
+             '${{entityPerLine}}'
              )
         """)
         .withQueryFragment("spaceVersion", Long.toString(newVersion))
@@ -636,6 +631,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("historyEnabled", "" + (space().getVersionsToKeep() > 1))
         .withQueryFragment("context", superTable == null ? "NULL" : "'DEFAULT'")
         .withQueryFragment("extendedTable", superTable == null ? "NULL" : "'" + superTable + "'")
+        .withQueryFragment("format", format.toString())
+        .withQueryFragment("entityPerLine", entityPerLine.toString())
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("table", getRootTableName(space()) + TRIGGER_TABLE_SUFFIX);
