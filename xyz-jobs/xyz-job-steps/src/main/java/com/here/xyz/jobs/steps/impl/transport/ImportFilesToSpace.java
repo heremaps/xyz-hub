@@ -571,8 +571,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {
     String tableFields =
             "jsondata TEXT, "
-                    + "geo geometry(GeometryZ, 4326), "
-                    + "i INT, pid INT ";
+            + "geo geometry(GeometryZ, 4326), "
+            + "count INT, pid INT, updated BOOLEAN DEFAULT false";
 
     return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} , CONSTRAINT \"test123\" PRIMARY KEY (pid))")
             .withQueryFragment("tableFields", tableFields)
@@ -656,7 +656,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("""
             SELECT sum((data->'filesize')::bigint) as imported_bytes,
                 count(1) as imported_files,
-                (SELECT sum(i) FROM ${schema}.${triggerTable} ) as imported_rows
+                (SELECT sum(count) FROM ${schema}.${triggerTable} ) as imported_rows
                     FROM ${schema}.${tmpTable}
                 WHERE POSITION('SUCCESS_MARKER' in state) = 0;
           """)

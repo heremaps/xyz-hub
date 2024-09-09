@@ -4293,27 +4293,35 @@ DECLARE
     --Remove suffix "_trigger_table"
     target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
     feature RECORD;
+    updated_rows INT;
 BEGIN
-        IF NEW.pid IS NOT NULL THEN
-            RETURN NEW;
-        ELSE
-            SELECT new_jsondata, new_geo, new_operation, new_id
-                from enrichNewFeature(NEW.jsondata::JSONB, NEW.geo)
-            INTO feature;
+        SELECT new_jsondata, new_geo, new_operation, new_id
+            from enrichNewFeature(NEW.jsondata::JSONB, NEW.geo)
+        INTO feature;
 
-            EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
-                            values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L);',
-                           TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
-                           author, feature.new_jsondata, feature.new_geo);
-        END IF;
+        EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+                        values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L);',
+                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
+                       author, feature.new_jsondata, feature.new_geo);
 
         EXECUTE format(
-                'INSERT INTO "%1$s"."%2$s" as tbl (i, pid)
-                    VALUES(1::INT, pg_backend_pid())
-                 ON CONFLICT(pid) DO UPDATE SET i = tbl.i + 1;',
+                'UPDATE "%1$s"."%2$s" as tbl SET ' ||
+                'count = tbl.count + 1 ' ||
+                'WHERE pid = pg_backend_pid();',
                 TG_TABLE_SCHEMA,
                 TG_TABLE_NAME
                 );
+        GET DIAGNOSTICS  updated_rows = ROW_COUNT;
+
+        IF updated_rows != 1 THEN
+            NEW.pid = NULL;
+            NEW.jsondata = NULL;
+            NEW.geo = NULL;
+            NEW.count = 1;
+            NEW.pid= pg_backend_pid();
+            RETURN NEW;
+        END IF;
+
         RETURN NULL;
 END;
 $BODY$
@@ -4330,37 +4338,45 @@ DECLARE
     target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
     elem JSONB;
     feature RECORD;
+    updated_rows INT;
 BEGIN
 
-    IF NEW.pid IS NOT NULL THEN
-        RETURN NEW;
-    ELSE
-        --TODO: Should we also allow "Features"
-        FOR elem IN SELECT * FROM jsonb_array_elements(((NEW.jsondata)::JSONB)->'features')
-        LOOP
-            IF NEW.geo IS NOT NULL THEN
-                RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
-                    USING ERRCODE = 'XYZ40';
-            END IF;
+    --TODO: Should we also allow "Features"
+    FOR elem IN SELECT * FROM jsonb_array_elements(((NEW.jsondata)::JSONB)->'features')
+    LOOP
+        IF NEW.geo IS NOT NULL THEN
+            RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
+                USING ERRCODE = 'XYZ40';
+        END IF;
 
-            SELECT new_jsondata, new_geo, new_operation, new_id
-                from enrichNewFeature(elem, null)
-            INTO feature;
+        SELECT new_jsondata, new_geo, new_operation, new_id
+            from enrichNewFeature(elem, null)
+        INTO feature;
 
-            EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
-                    values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
-                           TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
-        END LOOP;
-    END IF;
+        EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+                values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
+                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
+    END LOOP;
 
     EXECUTE format(
-            'INSERT INTO "%1$s"."%2$s" as tbl (i, pid)
-                VALUES(%3$L::INT, pg_backend_pid())
-             ON CONFLICT(pid) DO UPDATE SET i = tbl.i + %3$L;',
+            'UPDATE "%1$s"."%2$s" as tbl SET ' ||
+            'count = tbl.count + %3$L ' ||
+            'WHERE pid = pg_backend_pid();',
             TG_TABLE_SCHEMA,
             TG_TABLE_NAME,
             jsonb_array_length((NEW.jsondata)::JSONB->'features')
             );
+    GET DIAGNOSTICS  updated_rows = ROW_COUNT;
+
+    IF updated_rows != 1 THEN
+        NEW.pid = NULL;
+        NEW.jsondata = NULL;
+        NEW.geo = NULL;
+        NEW.count = jsonb_array_length((NEW.jsondata)::JSONB->'features');
+        NEW.pid= pg_backend_pid();
+        RETURN NEW;
+    END IF;
+
     RETURN NULL;
 END;
 $BODY$
@@ -4387,6 +4403,7 @@ DECLARE
     --Remove suffix "_trigger_table"
     target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
     featureCount INT := 0;
+    updated_rows INT;
 BEGIN
     IF NEW.pid IS NOT NULL THEN
         RETURN NEW;
@@ -4445,13 +4462,24 @@ BEGIN
     END IF;
 
     EXECUTE format(
-            'INSERT INTO "%1$s"."%2$s" as tbl (i, pid)
-                VALUES(%3$L::INT, pg_backend_pid())
-             ON CONFLICT(pid) DO UPDATE SET i = tbl.i + %3$L;',
+            'UPDATE "%1$s"."%2$s" as tbl SET ' ||
+            'count = tbl.count + %3$L ' ||
+            'WHERE pid = pg_backend_pid();',
             TG_TABLE_SCHEMA,
             TG_TABLE_NAME,
             featureCount
-    );
+            );
+    GET DIAGNOSTICS  updated_rows = ROW_COUNT;
+
+    IF updated_rows != 1 THEN
+        NEW.pid = NULL;
+        NEW.jsondata = NULL;
+        NEW.geo = NULL;
+        NEW.count = featureCount;
+        NEW.pid= pg_backend_pid();
+        RETURN NEW;
+    END IF;
+
     RETURN NULL;
 END;
 $BODY$
@@ -4488,7 +4516,7 @@ BEGIN
                         work_item.s3_path,
                         work_item.state) INTO result;
 
-        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+        GET DIAGNOSTICS  updated_rows = ROW_COUNT;
 
         IF updated_rows = 1 THEN
             s3_bucket = result.s3_bucket;
