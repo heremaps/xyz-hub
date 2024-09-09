@@ -268,7 +268,7 @@ public class JobAdminApi extends Api {
           .compose(job -> {
             State newStepState = switch (emrJobStatus) {
               case "RUNNING" -> RUNNING;
-              case "SUCCEEDED" -> SUCCEEDED;
+              case "SUCCESS" -> SUCCEEDED;
               case "CANCELLED" -> CANCELLED;
               case "FAILED" -> FAILED;
               default -> null;
