@@ -61,7 +61,7 @@ $BODY$
 
     let result = FeatureWriter.writeFeatures(JSON.parse(input_features), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version == null ? undefined : version);
 
-    return return_result ? result : null;
+    return return_result ? result : {"count": result.features.length};
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 /**

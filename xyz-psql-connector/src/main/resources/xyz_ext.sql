@@ -4294,18 +4294,27 @@ DECLARE
     target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
     feature RECORD;
 BEGIN
-        SELECT new_jsondata, new_geo, new_operation, new_id
-            from enrichNewFeature(NEW.jsondata::JSONB, NEW.geo)
-        INTO feature;
+        IF NEW.pid IS NOT NULL THEN
+            RETURN NEW;
+        ELSE
+            SELECT new_jsondata, new_geo, new_operation, new_id
+                from enrichNewFeature(NEW.jsondata::JSONB, NEW.geo)
+            INTO feature;
 
-        EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
-						values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
-                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
-                       author, feature.new_jsondata, feature.new_geo);
-        NEW.geo = NULL;
-        NEW.jsondata = NULL;
-        NEW.i = 1;
-        RETURN NEW;
+            EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+                            values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L);',
+                           TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
+                           author, feature.new_jsondata, feature.new_geo);
+        END IF;
+
+        EXECUTE format(
+                'INSERT INTO "%1$s"."%2$s" as tbl (i, pid)
+                    VALUES(1::INT, pg_backend_pid())
+                 ON CONFLICT(pid) DO UPDATE SET i = tbl.i + 1;',
+                TG_TABLE_SCHEMA,
+                TG_TABLE_NAME
+                );
+        RETURN NULL;
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
@@ -4323,28 +4332,36 @@ DECLARE
     feature RECORD;
 BEGIN
 
-    --TODO: Should we also allow "Features"
-    --TODO: Fix statistics
-    FOR elem IN SELECT * FROM jsonb_array_elements(((NEW.jsondata)::JSONB)->'features')
-    LOOP
-        IF NEW.geo IS NOT NULL THEN
-            RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
-                USING ERRCODE = 'XYZ40';
-        END IF;
+    IF NEW.pid IS NOT NULL THEN
+        RETURN NEW;
+    ELSE
+        --TODO: Should we also allow "Features"
+        FOR elem IN SELECT * FROM jsonb_array_elements(((NEW.jsondata)::JSONB)->'features')
+        LOOP
+            IF NEW.geo IS NOT NULL THEN
+                RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
+                    USING ERRCODE = 'XYZ40';
+            END IF;
 
-        SELECT new_jsondata, new_geo, new_operation, new_id
-            from enrichNewFeature(elem, null)
-        INTO feature;
+            SELECT new_jsondata, new_geo, new_operation, new_id
+                from enrichNewFeature(elem, null)
+            INTO feature;
 
-        EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
-                values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
-                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
-    END LOOP;
+            EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+                    values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
+                           TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
+        END LOOP;
+    END IF;
 
-    NEW.geo = NULL;
-    NEW.jsondata = NULL;
-    NEW.i = jsonb_array_length(((NEW.jsondata)::JSONB)->'features');
-    RETURN NEW;
+    EXECUTE format(
+            'INSERT INTO "%1$s"."%2$s" as tbl (i, pid)
+                VALUES(%3$L::INT, pg_backend_pid())
+             ON CONFLICT(pid) DO UPDATE SET i = tbl.i + %3$L;',
+            TG_TABLE_SCHEMA,
+            TG_TABLE_NAME,
+            jsonb_array_length((NEW.jsondata)::JSONB->'features')
+            );
+    RETURN NULL;
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
@@ -4369,65 +4386,73 @@ DECLARE
     entityPerLine TEXT := TG_ARGV[11];
     --Remove suffix "_trigger_table"
     target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    featureCount INT := 0;
 BEGIN
-    --TODO: check how to use asyncify instead
-    PERFORM context(
-            jsonb_build_object('schema', TG_TABLE_SCHEMA,
-                               'table', target_table,
-                               'historyEnabled', historyEnabled,
-                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
-                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
-            )
-    );
-
-    IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
-        --TODO: Extend feature_writer with possibility to provide geometry
-        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
-        NEW.i = 1;
-        PERFORM write_feature(NEW.jsondata::TEXT,
-                      author,
-                      onExists,
-                      onNotExists,
-                      onVersionConflict,
-                      onMergeConflict,
-                      isPartial,
-                      currentVersion,
-                      false
+    IF NEW.pid IS NOT NULL THEN
+        RETURN NEW;
+    ELSE
+        --TODO: check how to use asyncify instead
+        PERFORM context(
+                jsonb_build_object('schema', TG_TABLE_SCHEMA,
+                                   'table', target_table,
+                                   'historyEnabled', historyEnabled,
+                                   'context', CASE WHEN context = 'null' THEN null ELSE context END,
+                                   'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
+                )
         );
-    END IF;
 
-    IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
-        IF entityPerLine = 'Feature' THEN
-            PERFORM write_feature( NEW.jsondata,
-                                   author,
-                                   onExists,
-                                   onNotExists,
-                                   onVersionConflict,
-                                   onMergeConflict,
-                                   isPartial,
-                                   currentVersion,
-                                   false
-                    );
-            NEW.i = 1;
-        ELSE
-            --TODO: Extend feature_writer with possibility to provide featureCollection
-            PERFORM write_features((NEW.jsondata::JSONB->'features')::TEXT,
-                                   author,
-                                   onExists,
-                                   onNotExists,
-                                   onVersionConflict,
-                                   onMergeConflict,
-                                   isPartial,
-                                   currentVersion,
-                                   false
-                    );
-            NEW.i = jsonb_array_length(((NEW.jsondata)::JSONB)->'features');
+        IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
+            --TODO: Extend feature_writer with possibility to provide geometry
+            NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
+            SELECT write_feature(NEW.jsondata::TEXT,
+                          author,
+                          onExists,
+                          onNotExists,
+                          onVersionConflict,
+                          onMergeConflict,
+                          isPartial,
+                          currentVersion,
+                          false
+            )->'count' INTO featureCount;
+        END IF;
+
+        IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
+            IF entityPerLine = 'Feature' THEN
+                SELECT write_feature( NEW.jsondata,
+                                       author,
+                                       onExists,
+                                       onNotExists,
+                                       onVersionConflict,
+                                       onMergeConflict,
+                                       isPartial,
+                                       currentVersion,
+                                       false
+                        )->'count' INTO featureCount;
+            ELSE
+                --TODO: Extend feature_writer with possibility to provide featureCollection
+                SELECT write_features((NEW.jsondata::JSONB->'features')::TEXT,
+                                       author,
+                                       onExists,
+                                       onNotExists,
+                                       onVersionConflict,
+                                       onMergeConflict,
+                                       isPartial,
+                                       currentVersion,
+                                       false
+                        )->'count' INTO featureCount;
+            END IF;
         END IF;
     END IF;
 
-    NEW.geo = NULL;
-    NEW.jsondata = NULL;
-    RETURN NEW;
+    EXECUTE format(
+            'INSERT INTO "%1$s"."%2$s" as tbl (i, pid)
+                VALUES(%3$L::INT, pg_backend_pid())
+             ON CONFLICT(pid) DO UPDATE SET i = tbl.i + %3$L;',
+            TG_TABLE_SCHEMA,
+            TG_TABLE_NAME,
+            featureCount
+    );
+    RETURN NULL;
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;

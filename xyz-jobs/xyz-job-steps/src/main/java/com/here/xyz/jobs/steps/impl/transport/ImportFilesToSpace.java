@@ -76,8 +76,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final long MAX_BYTES_FOR_SYNC_IMPORT = 100 * 1024 * 1024;
   public static final int MAX_DB_THREAD_CNT = 15;
 
-  private static final String TRIGGER_TABLE_SUFFIX = "_trigger_tbl";
-
   private Format format = GEOJSON;
 
   private Phase phase;
@@ -289,11 +287,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
               logAndSetPhase(Phase.CREATE_TRIGGER);     //FIXME: Use owner of the job
               //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
-              runWriteQuerySync(buildTemporaryTriggerTableForImportQuery(), db(), 0); //TODO: Aggregate the count of the values in the count column to also support a valid count when importing FeatureCollections
-              runWriteQuerySync(buildCreateImportTrigger(space.getOwner(), newVersion), db(), 0);
+              runWriteQuerySync(buildTemporaryTriggerTableForImportQuery(), db(), 0);
+              runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space.getOwner(), newVersion), db(), 0);
           }
 
-          createAndFillTemporaryTable();
+          createAndFillTemporaryJobTable();
 
           calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
                   ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
@@ -383,7 +381,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return db;
   }
 
-    private void createAndFillTemporaryTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
         boolean tmpTableNotExistsAndHasNoData = true;
     try {
       //TODO: Use resume flag instead of checking the table
@@ -512,9 +510,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
                            );
                     """)
-            .withVariable("table", TransportTools.getTemporaryTableName(this))
+            .withVariable("table", TransportTools.getTemporaryJobTableName(this))
             .withVariable("schema", schema)
-            .withVariable("primaryKey", TransportTools.getTemporaryTableName(this) + "_primKey");
+            .withVariable("primaryKey", TransportTools.getTemporaryJobTableName(this) + "_primKey");
   }
 
   private void fillTemporaryTableWithInputs(Database db, List<S3DataFile> inputs, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
@@ -532,7 +530,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                         .withVariable("schema", getSchema(db))
-                        .withVariable("table", TransportTools.getTemporaryTableName(this))
+                        .withVariable("table", TransportTools.getTemporaryJobTableName(this))
                         .withNamedParameter("s3Key", input.getS3Key())
                         .withNamedParameter("bucketName", input.getS3Bucket())
                         .withNamedParameter("bucketRegion", bucketRegion)
@@ -549,7 +547,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                     .withVariable("schema", getSchema(db))
-                    .withVariable("table", TransportTools.getTemporaryTableName(this))
+                    .withVariable("table", TransportTools.getTemporaryJobTableName(this))
                     .withNamedParameter("s3Key", "SUCCESS_MARKER")
                     .withNamedParameter("bucketName", "SUCCESS_MARKER")
                     .withNamedParameter("state", "SUCCESS_MARKER")
@@ -560,13 +558,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildDropTemporaryTableForImportQuery() throws WebClientException {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", TransportTools.getTemporaryTableName(this))
+            .withVariable("table", TransportTools.getTemporaryJobTableName(this))
             .withVariable("schema", getSchema(db()));
   }
 
   private SQLQuery buildDropTemporaryTriggerTableForImportQuery() throws WebClientException {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", getRootTableName(getSpaceId()) + TRIGGER_TABLE_SUFFIX)
+            .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())))
             .withVariable("schema", getSchema(db()));
   }
 
@@ -574,17 +572,26 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     String tableFields =
             "jsondata TEXT, "
                     + "geo geometry(GeometryZ, 4326), "
-                    + "i BIGINT";
-    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}})")
+                    + "i INT, pid INT ";
+
+    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} , CONSTRAINT \"test123\" PRIMARY KEY (pid))")
             .withQueryFragment("tableFields", tableFields)
+            .withVariable("primaryKey", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId()))+ "_primKey")
             .withVariable("schema", getSchema(db()))
-            .withVariable("table", getRootTableName(getSpaceId()) + TRIGGER_TABLE_SUFFIX);
+            .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
     if (targetTableFeatureCount <= 0)
       return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
     return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
+  }
+
+  private SQLQuery buildTemporaryTriggerTableBlock(String targetAuthor, long newVersion) throws WebClientException {
+    return SQLQuery.batchOf(
+            buildTemporaryTriggerTableForImportQuery(),
+            buildCreateImportTrigger(targetAuthor, newVersion)
+    );
   }
 
   private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
@@ -597,7 +604,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withQueryFragment("author", targetAuthor)
             .withVariable("triggerFunction", triggerFunction)
             .withVariable("schema", getSchema(db()))
-            .withVariable("table", getRootTableName(space()) + TRIGGER_TABLE_SUFFIX);
+            .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
   }
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
@@ -635,7 +642,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("entityPerLine", entityPerLine.toString())
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)
-        .withVariable("table", getRootTableName(space()) + TRIGGER_TABLE_SUFFIX);
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
   }
 
   //TODO: Move to XyzSpaceTableHelper or so (it's the nth time we have that implemented somewhere)
@@ -648,13 +655,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
     return new SQLQuery("""
             SELECT sum((data->'filesize')::bigint) as imported_bytes,
-            	count(1) as imported_files,
-            	sum(SUBSTRING((data->'import_statistics'->>'table_import_from_s3'),0,POSITION('rows' in data->'import_statistics'->>'table_import_from_s3'))::bigint) as imported_rows
-            	FROM ${schema}.${table}
-            WHERE POSITION('SUCCESS_MARKER' in state) = 0;
+                count(1) as imported_files,
+                (SELECT sum(i) FROM ${schema}.${triggerTable} ) as imported_rows
+                    FROM ${schema}.${tmpTable}
+                WHERE POSITION('SUCCESS_MARKER' in state) = 0;
           """)
             .withVariable("schema", getSchema(db()))
-            .withVariable("table", TransportTools.getTemporaryTableName(this));
+            .withVariable("tmpTable", TransportTools.getTemporaryJobTableName(this))
+            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
   }
 
   private SQLQuery buildProgressQuery(String schema) {
@@ -676,7 +684,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               )A          
           """)
             .withVariable("schema", schema)
-            .withVariable("table", TransportTools.getTemporaryTableName(this));
+            .withVariable("table", TransportTools.getTemporaryJobTableName(this));
   }
 
   private SQLQuery buildImportQuery() throws WebClientException {
@@ -687,8 +695,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
         .withAsyncProcedure(true)
         .withNamedParameter("schema", schema)
-        .withNamedParameter("target_tbl", schema+".\""+getRootTableName(space()) + TRIGGER_TABLE_SUFFIX +"\"")
-        .withNamedParameter("temporary_tbl",  schema+".\""+(TransportTools.getTemporaryTableName(this))+"\"")
+        .withNamedParameter("target_tbl", schema+".\""+TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId()))+"\"")
+        .withNamedParameter("temporary_tbl",  schema+".\""+(TransportTools.getTemporaryJobTableName(this))+"\"")
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
         .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"))
@@ -710,7 +718,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private SQLQuery buildTableCheckQuery(String schema) {
     return new SQLQuery("SELECT count(1) FROM ${schema}.${table};")
             .withVariable("schema", schema)
-            .withVariable("table", TransportTools.getTemporaryTableName(this));
+            .withVariable("table", TransportTools.getTemporaryJobTableName(this));
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {
@@ -719,7 +727,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     final Map<String, Object> queryContext = new HashMap<>(Map.of(
             "schema",  getSchema(db()),
             "table", getRootTableName(space()),
-//            "table", getRootTableName(space()) + TRIGGER_TABLE_SUFFIX,
             "context", superTable != null ? "'DEFAULT'" : "NULL",
             "historyEnabled", (space().getVersionsToKeep() > 1)
     ));
@@ -767,7 +774,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
             """)
             .withVariable("schema", schema)
-            .withVariable("table", TransportTools.getTemporaryTableName(this));
+            .withVariable("table", TransportTools.getTemporaryJobTableName(this));
   }
 
   private double calculateNeededAcus(int threadCount){

@@ -165,9 +165,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                                 CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
                            );
                     """)
-            .withVariable("table", TransportTools.getTemporaryTableName(this))
+            .withVariable("table", TransportTools.getTemporaryJobTableName(this))
             .withVariable("schema", schema)
-            .withVariable("primaryKey", TransportTools.getTemporaryTableName(this) + "_primKey");
+            .withVariable("primaryKey", TransportTools.getTemporaryJobTableName(this) + "_primKey");
   }
 
   private SQLQuery generateFilteredExportQuery(

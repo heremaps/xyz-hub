@@ -24,8 +24,13 @@ import com.here.xyz.jobs.steps.Step;
 public class TransportTools {
 
   private static final String JOB_DATA_PREFIX = "job_data_";
+  private static final String TRIGGER_TABLE_SUFFIX = "_trigger_tbl";
 
-  protected static String getTemporaryTableName(Step step) {
+  protected static String getTemporaryJobTableName(Step step) {
     return JOB_DATA_PREFIX + step.getId();
+  }
+
+  protected static String getTemporaryTriggerTableName(String rootTableName) {
+    return rootTableName + TRIGGER_TABLE_SUFFIX;
   }
 }
