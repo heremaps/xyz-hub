@@ -275,7 +275,28 @@ public class Job implements XyzSerializable {
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
 
-    if (!step.getStatus().getState().isFinal() && existingStep.getStatus().getState().isFinal())
+    return updateStep(step, existingStep.getStatus().getState());
+  }
+
+  public Future<Void> updateStepStatus(String stepId, RuntimeInfo status) {
+    final Step step = getStepById(stepId);
+    if (step == null)
+      throw new IllegalArgumentException("The provided step with ID " + stepId + " was not found.");
+
+    State existingStepState = step.getStatus().getState();
+
+    step.getStatus()
+            .withState(status.getState())
+            .withErrorCode(status.getErrorCode())
+            .withErrorCause(status.getErrorCause())
+            .withErrorMessage(status.getErrorMessage());
+
+    return updateStep(step, existingStepState);
+  }
+
+  private Future<Void> updateStep(Step<?> step, State previousStepState) {
+
+    if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
       return Future.succeededFuture();
 

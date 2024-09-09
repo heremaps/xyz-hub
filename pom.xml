@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.9.50-SNAPSHOT</version>
+  <version>3.9.52-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -520,7 +520,7 @@
       <dependency>
         <groupId>com.google.crypto.tink</groupId>
         <artifactId>tink</artifactId>
-        <version>1.7.0</version>
+        <version>1.5.0</version>
       </dependency>
 
       <!-- Cache -->

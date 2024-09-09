@@ -205,6 +205,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
             //TODO: Scan the different folders in parallel
             .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
                     .stream()
+                    .filter(s3ObjectSummary -> s3ObjectSummary.getSize() > 0)
                     .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
                             ? ModelBasedOutput.load(s3ObjectSummary.getKey())
                             : new DownloadUrl().withS3Key(s3ObjectSummary.getKey()).withByteSize(s3ObjectSummary.getSize())))
