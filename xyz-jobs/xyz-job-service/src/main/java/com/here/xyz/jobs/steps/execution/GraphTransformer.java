@@ -50,6 +50,7 @@ import software.amazon.awssdk.services.stepfunctions.builder.states.TaskState;
 public class GraphTransformer {
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
   private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
+  private static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 36 * 3600; //36h
   private static final int MIN_STEP_TIMEOUT_SECONDS = 5 * 60;
   private static final int STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS = 3 * 60; //3min
@@ -256,6 +257,7 @@ public class GraphTransformer {
 
   private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
     taskParametersLookup.put(state.stateName, Map.of(
+        "Name", EMR_JOB_NAME_PREFIX + emrStep.getGlobalStepId(),
         "ApplicationId", emrStep.getApplicationId(),
         "ExecutionRoleArn", emrStep.getExecutionRoleArn(),
         "JobDriver", Map.of(
