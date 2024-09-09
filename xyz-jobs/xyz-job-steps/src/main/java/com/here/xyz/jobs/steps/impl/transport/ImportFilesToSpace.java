@@ -310,14 +310,16 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //TODO: Support resume
     logAndSetPhase(RETRIEVE_NEW_VERSION);
     long newVersion = increaseVersionSequence();
+    long featureCount = 0;
 
     for (Input input : loadInputs()) {
       logger.info("[{}] Sync write from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
-      syncWriteFileToSpace(input, newVersion);
+      featureCount += syncWriteFileToSpace(input, newVersion)[0];
     }
+    registerOutputs(List.of(new FeatureStatistics().withFeatureCount(featureCount).withByteSize(getUncompressedUploadBytesEstimation())), true);
   }
 
-  protected void syncWriteFileToSpace(Input input, long newVersion) throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
+  protected int[] syncWriteFileToSpace(Input input, long newVersion) throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
     final S3Client s3Client = S3Client.getInstance();
 
     InputStream inputStream = s3Client.streamObjectContent(input.getS3Key());
@@ -338,7 +340,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       fileContent.append("]");
 
       //FIXME: Use correct ACU load + remove batchOf
-      runBatchWriteQuerySync(SQLQuery.batchOf(buildFeatureWriterQuery(fileContent.toString(), newVersion)), db(), 0);
+      return runBatchWriteQuerySync(SQLQuery.batchOf(buildFeatureWriterQuery(fileContent.toString(), newVersion)), db(), 0);
     }
   }
 
