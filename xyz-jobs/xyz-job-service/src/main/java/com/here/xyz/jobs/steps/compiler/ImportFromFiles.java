@@ -50,7 +50,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ImportFromFiles implements JobCompilationInterceptor {
-
   public static Set<Class<? extends DatasetDescription.Space>> allowedTargetTypes = new HashSet<>(Set.of(DatasetDescription.Space.class));
 
   @Override
@@ -79,13 +78,14 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withJobId(job.getId())
         .withUpdateStrategy(target.getUpdateStrategy());
 
-    if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC))
-      //perform SYNC Import
-      return (CompilationStepGraph) new CompilationStepGraph()
-          .addExecution(importFilesStep);
-    else
-      //perform ASYNC Import
+    if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.ASYNC)
+      || !importFilesStep.keepIndices())
+      //perform full Import with all 11 Steps (IDX deletion/creation..)
       return compileImportSteps(importFilesStep);
+
+    //perform only Import Step
+    return (CompilationStepGraph) new CompilationStepGraph()
+            .addExecution(importFilesStep);
   }
 
   public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {

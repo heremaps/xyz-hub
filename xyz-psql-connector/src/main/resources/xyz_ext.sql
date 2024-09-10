@@ -4290,8 +4290,7 @@ AS $BODY$
 DECLARE
     author TEXT := TG_ARGV[0];
     curVersion BIGINT := TG_ARGV[1];
-    --Remove suffix "_trigger_table"
-    target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    target_table TEXT := TG_ARGV[2];
     feature RECORD;
     updated_rows INT;
 BEGIN
@@ -4334,8 +4333,7 @@ AS $BODY$
 DECLARE
     author TEXT := TG_ARGV[0];
     curVersion BIGINT := TG_ARGV[1];
-    --Remove suffix "_trigger_table"
-    target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    target_table TEXT := TG_ARGV[2];
     elem JSONB;
     feature RECORD;
     updated_rows INT;
@@ -4400,64 +4398,59 @@ DECLARE
     extendedTable TEXT := TG_ARGV[9];
     format TEXT := TG_ARGV[10];
     entityPerLine TEXT := TG_ARGV[11];
-    --Remove suffix "_trigger_table"
-    target_table TEXT :=  substring(TG_TABLE_NAME, 1, length(TG_TABLE_NAME) - 12);
+    target_table TEXT := TG_ARGV[12];
     featureCount INT := 0;
     updated_rows INT;
 BEGIN
-    IF NEW.pid IS NOT NULL THEN
-        RETURN NEW;
-    ELSE
-        --TODO: check how to use asyncify instead
-        PERFORM context(
-                jsonb_build_object('schema', TG_TABLE_SCHEMA,
-                                   'table', target_table,
-                                   'historyEnabled', historyEnabled,
-                                   'context', CASE WHEN context = 'null' THEN null ELSE context END,
-                                   'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
-                )
-        );
+    --TODO: check how to use asyncify instead
+    PERFORM context(
+            jsonb_build_object('schema', TG_TABLE_SCHEMA,
+                               'table', target_table,
+                               'historyEnabled', historyEnabled,
+                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
+                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
+            )
+    );
 
-        IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
-            --TODO: Extend feature_writer with possibility to provide geometry
-            NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
-            SELECT write_feature(NEW.jsondata::TEXT,
-                          author,
-                          onExists,
-                          onNotExists,
-                          onVersionConflict,
-                          onMergeConflict,
-                          isPartial,
-                          currentVersion,
-                          false
-            )->'count' INTO featureCount;
-        END IF;
+    IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
+        --TODO: Extend feature_writer with possibility to provide geometry
+        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
+        SELECT write_feature(NEW.jsondata::TEXT,
+                      author,
+                      onExists,
+                      onNotExists,
+                      onVersionConflict,
+                      onMergeConflict,
+                      isPartial,
+                      currentVersion,
+                      false
+        )->'count' INTO featureCount;
+    END IF;
 
-        IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
-            IF entityPerLine = 'Feature' THEN
-                SELECT write_feature( NEW.jsondata,
-                                       author,
-                                       onExists,
-                                       onNotExists,
-                                       onVersionConflict,
-                                       onMergeConflict,
-                                       isPartial,
-                                       currentVersion,
-                                       false
-                        )->'count' INTO featureCount;
-            ELSE
-                --TODO: Extend feature_writer with possibility to provide featureCollection
-                SELECT write_features((NEW.jsondata::JSONB->'features')::TEXT,
-                                       author,
-                                       onExists,
-                                       onNotExists,
-                                       onVersionConflict,
-                                       onMergeConflict,
-                                       isPartial,
-                                       currentVersion,
-                                       false
-                        )->'count' INTO featureCount;
-            END IF;
+    IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
+        IF entityPerLine = 'Feature' THEN
+            SELECT write_feature( NEW.jsondata,
+                                   author,
+                                   onExists,
+                                   onNotExists,
+                                   onVersionConflict,
+                                   onMergeConflict,
+                                   isPartial,
+                                   currentVersion,
+                                   false
+                    )->'count' INTO featureCount;
+        ELSE
+            --TODO: Extend feature_writer with possibility to provide featureCollection
+            SELECT write_features((NEW.jsondata::JSONB->'features')::TEXT,
+                                   author,
+                                   onExists,
+                                   onNotExists,
+                                   onVersionConflict,
+                                   onMergeConflict,
+                                   isPartial,
+                                   currentVersion,
+                                   false
+                    )->'count' INTO featureCount;
         END IF;
     END IF;
 

@@ -30,7 +30,7 @@ public class TransportTools {
     return JOB_DATA_PREFIX + step.getId();
   }
 
-  protected static String getTemporaryTriggerTableName(String rootTableName) {
-    return rootTableName + TRIGGER_TABLE_SUFFIX;
+  protected static String getTemporaryTriggerTableName(Step step) {
+    return getTemporaryJobTableName(step)+TRIGGER_TABLE_SUFFIX;
   }
 }

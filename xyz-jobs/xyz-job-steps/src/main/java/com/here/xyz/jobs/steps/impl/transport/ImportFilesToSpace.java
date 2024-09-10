@@ -72,8 +72,10 @@ import org.locationtech.jts.io.ParseException;
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
 
-  private static final long MAX_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
-  private static final long MAX_BYTES_FOR_SYNC_IMPORT = 100 * 1024 * 1024;
+  private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
+  private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 1;//100 * 1024 * 1024;
+  private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1 * 1024 * 1024 * 1024;
+  private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 10_000_000;
   public static final int MAX_DB_THREAD_CNT = 15;
 
   private Format format = GEOJSON;
@@ -168,7 +170,25 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   public Phase getPhase() {
-    return phase;
+    return this.phase;
+  }
+
+  public long getTargetTableFeatureCount(){
+    if(this.targetTableFeatureCount == -1 && getSpaceId() != null){
+        StatisticsResponse statistics = null;
+        try {
+          statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
+          this.targetTableFeatureCount = statistics.getCount().getValue();
+        } catch (WebClientException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    return this.targetTableFeatureCount;
+  }
+
+  public boolean keepIndices(){
+    return getUncompressedUploadBytesEstimation() <= MAX_INPUT_BYTES_FOR_KEEP_INDICES
+            && getTargetTableFeatureCount() >= MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES;
   }
 
   @Override
@@ -230,14 +250,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //Check if the space is actually existing
       space();
 
-      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      targetTableFeatureCount = statistics.getCount().getValue();
-
       if (entityPerLine.equals(FeatureCollection) && format.equals(Format.CSV_JSON_WKB))
         throw new ValidationException("Combination of entityPerLine 'FeatureCollection' and type 'Csv' is not supported!");
 
-      if (targetTableFeatureCount > 0 && getUncompressedUploadBytesEstimation() > MAX_BYTES_FOR_NON_EMPTY_IMPORT)
-        throw new ValidationException("An import into a non empty space is not possible. The uncompressed size of the provided files exceeds the limit of " + MAX_BYTES_FOR_NON_EMPTY_IMPORT + " bytes.");
+      if (getTargetTableFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT)
+        throw new ValidationException("An import into a non empty space is not possible. The uncompressed size of the provided files exceeds the limit of " + MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT + " bytes.");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -257,13 +274,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     @Override
     public ExecutionMode getExecutionMode() {
-        //SYNC mode is only supported for new standard Format.
-        //TODO: add support for FeatureCollection
         //TODO: check slow import times in syncmode
         if (format != GEOJSON || format == GEOJSON && entityPerLine == FeatureCollection)
           return ASYNC;
 
-        return getUncompressedUploadBytesEstimation() > MAX_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+        return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
     }
 
   @Override
@@ -566,7 +581,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildDropTemporaryTriggerTableForImportQuery() throws WebClientException {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())))
+            .withVariable("table", TransportTools.getTemporaryTriggerTableName(this))
             .withVariable("schema", getSchema(db()));
   }
 
@@ -576,15 +591,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             + "geo geometry(GeometryZ, 4326), "
             + "count INT, pid INT, updated BOOLEAN DEFAULT false";
 
-    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} , CONSTRAINT \"test123\" PRIMARY KEY (pid))")
+    return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
             .withQueryFragment("tableFields", tableFields)
-            .withVariable("primaryKey", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId()))+ "_primKey")
             .withVariable("schema", getSchema(db()))
-            .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
+            .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
-    if (targetTableFeatureCount <= 0)
+    if (getTargetTableFeatureCount() <= 0)
       return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
     return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
   }
@@ -601,12 +615,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
-            + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}('${{author}}', ${{spaceVersion}});")
+            + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
             .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
             .withQueryFragment("author", targetAuthor)
+            .withQueryFragment("targetTable", getRootTableName(space))
             .withVariable("triggerFunction", triggerFunction)
             .withVariable("schema", getSchema(db()))
-            .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
+            .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
   }
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
@@ -628,7 +643,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
              ${{context}},
              ${{extendedTable}},
              '${{format}}',
-             '${{entityPerLine}}'
+             '${{entityPerLine}}',
+             '${{targetTable}}'
              )
         """)
         .withQueryFragment("spaceVersion", Long.toString(newVersion))
@@ -642,9 +658,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("extendedTable", superTable == null ? "NULL" : "'" + superTable + "'")
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
+        .withQueryFragment("targetTable", getRootTableName(space))
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
   }
 
   //TODO: Move to XyzSpaceTableHelper or so (it's the nth time we have that implemented somewhere)
@@ -664,7 +681,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           """)
             .withVariable("schema", getSchema(db()))
             .withVariable("tmpTable", TransportTools.getTemporaryJobTableName(this))
-            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId())));
+            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(this));
   }
 
   private SQLQuery buildProgressQuery(String schema) {
@@ -697,7 +714,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
         .withAsyncProcedure(true)
         .withNamedParameter("schema", schema)
-        .withNamedParameter("target_tbl", schema+".\""+TransportTools.getTemporaryTriggerTableName(getRootTableName(getSpaceId()))+"\"")
+        .withNamedParameter("target_tbl", schema+".\""+TransportTools.getTemporaryTriggerTableName(this)+"\"")
         .withNamedParameter("temporary_tbl",  schema+".\""+(TransportTools.getTemporaryJobTableName(this))+"\"")
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
