@@ -81,8 +81,10 @@ public class SQLQuery {
   private PreparedStatement preparedStatement;
   private String queryId;
   private Map<String, String> labels = new HashMap<>();
+  private Map<String, Object> context;
   private List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
+  private boolean loggingEnabled = true;
   private List<SQLQuery> queryBatch;
 
   private SQLQuery() {} //Only added as workaround for an issue with Jackson's Include.NON_DEFAULT setting
@@ -300,6 +302,7 @@ public class SQLQuery {
 
   private synchronized SQLQuery substitute(boolean usePlaceholders) {
     initQueryId();
+    injectContext();
     replaceVars();
     replaceFragments();
     replaceNamedParameters(usePlaceholders && !isAsync());
@@ -706,6 +709,40 @@ public class SQLQuery {
     return this;
   }
 
+  public Map<String, Object> getContext() {
+    return context;
+  }
+
+  public void setContext(Map<String, Object> context) {
+    this.context = new HashMap<>(context);
+  }
+
+  public SQLQuery withContext(Map<String, Object> context) {
+    setContext(context);
+    return this;
+  }
+
+  public Object context(String key) {
+    if (context == null)
+      return null;
+    return context.get(key);
+  }
+
+  public SQLQuery context(String key, Object value) {
+    if (context == null)
+      setContext(Map.of(key, value));
+    else
+      context.put(key, value);
+    return this;
+  }
+
+  private void injectContext() {
+    if (context != null) {
+      statement = "SELECT context(#{context}::JSONB); " + statement;
+      setNamedParameter("context", XyzSerializable.serialize(context));
+    }
+  }
+
   public boolean isLabelsEnabled() {
     return labelsEnabled;
   }
@@ -716,6 +753,23 @@ public class SQLQuery {
 
   public SQLQuery withLabelsEnabled(boolean labelsEnabled) {
     setLabelsEnabled(labelsEnabled);
+    return this;
+  }
+
+  public boolean isLoggingEnabled() {
+    return loggingEnabled;
+  }
+
+  /**
+   * Can be used to explicitly turn the logging off for this specific query.
+   * @param loggingEnabled
+   */
+  public void setLoggingEnabled(boolean loggingEnabled) {
+    this.loggingEnabled = loggingEnabled;
+  }
+
+  public SQLQuery withLoggingEnabled(boolean loggingEnabled) {
+    setLoggingEnabled(loggingEnabled);
     return this;
   }
 
@@ -886,17 +940,19 @@ public class SQLQuery {
 
   private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,
       ExecutionContext executionContext) throws SQLException {
-    logger.info("Executing SQLQuery {}", this);
+    if (loggingEnabled)
+      logger.info("Executing SQLQuery {}", this);
     substitute();
 
     final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
     executionContext.attemptExecution();
     try {
-      logger.info("Sending query to database {} {}, substituted query-text: {}",
-          executionContext.useReplica ? "reader" : "writer",
-          dataSourceProvider.getDatabaseSettings() != null
-              ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
-          replaceUnnamedParametersForLogging());
+      if (loggingEnabled)
+        logger.info("Sending query to database {} {}, substituted query-text: {}",
+            executionContext.useReplica ? "reader" : "writer",
+            dataSourceProvider.getDatabaseSettings() != null
+                ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
+            replaceUnnamedParametersForLogging());
 
       if (isAsync())
         operation = ExecutionOperation.QUERY;

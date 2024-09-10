@@ -49,7 +49,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JDBCMaintainer extends JdbcBasedHandler {
     private static final Logger logger = LogManager.getLogger();
-    private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink","aws_s3", "aws_lambda"};
+    private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink","aws_s3", "aws_lambda", "plv8"};
     private static final String localExtScript = "/xyz_ext.sql";
     private static final String localH3Script = "/h3Core.sql";
     public static final String SPACE_NOT_FOUND_OR_INVALID = "SNFOI";

@@ -70,6 +70,10 @@ public class Script {
     return scriptResourceLocation.substring(scriptResourceLocation.lastIndexOf("/") + 1);
   }
 
+  private String getScriptResourceFolder() {
+    return scriptResourceLocation.substring(0, scriptResourceLocation.lastIndexOf("/"));
+  }
+
   public String getCompatibleSchema() {
     return getCompatibleSchema(scriptVersion);
   }
@@ -132,9 +136,19 @@ public class Script {
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
         .withQueryFragment("scriptContent", loadScriptContent());
 
+    //Load JS-scripts to be injected
+    for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
+      String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
+      scriptContent
+          .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
+          .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
+    }
+
     SQLQuery.batchOf(buildCreateSchemaQuery(targetSchema), setCurrentSearchPath, buildHashFunctionQuery(), buildVersionFunctionQuery())
         .writeBatch(dataSourceProvider);
-    scriptContent.write(dataSourceProvider);
+    SQLQuery.join(List.of(setCurrentSearchPath, scriptContent), ";")
+        .withLoggingEnabled(false)
+        .write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
   }
 
@@ -216,17 +230,30 @@ public class Script {
     }
   }
 
-  private static List<String> scanResourceFolder(String resourceFolder) throws IOException {
-    List<String> files = new ArrayList<>();
+  private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
+    return switch (fileSuffix) {
+      case ".sql" -> List.of("/sql/common.sql", "/sql/feature_writer.sql");
+      case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js");
+      default -> List.of();
+    };
+  }
+
+  private static List<String> scanResourceFolder(String resourceFolder, String fileSuffix) throws IOException {
+    //TODO: Remove this workaround once the actual implementation of this method supports scanning folders inside a JAR
+    if ("/sql".equals(resourceFolder))
+      return scanResourceFolderWA(resourceFolder, fileSuffix);
+
     final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
     if (folderResource == null)
       throw new FileNotFoundException("Resource folder " + resourceFolder + " was not found and can not be scanned for scripts.");
     BufferedReader reader = new BufferedReader(new InputStreamReader(folderResource));
+
+    List<String> files = new ArrayList<>();
     String file;
     while ((file = reader.readLine()) != null)
       files.add(file);
     return files.stream()
-        .filter(fileName -> fileName.endsWith(".sql"))
+        .filter(fileName -> fileName.endsWith(fileSuffix))
         .map(fileName -> resourceFolder + File.separator + fileName)
         .toList();
   }
@@ -246,9 +273,15 @@ public class Script {
    */
   public static List<Script> loadScripts(String scriptsResourcePath, DataSourceProvider dataSourceProvider, String scriptsVersion)
       throws IOException, URISyntaxException {
-    return scanResourceFolder(scriptsResourcePath).stream()
+    return scanResourceFolder(scriptsResourcePath, ".sql").stream()
         .map(scriptLocation -> new Script(scriptLocation, dataSourceProvider, scriptsVersion))
         .collect(Collectors.toUnmodifiableList());
+  }
+
+  private static List<Script> loadJsScripts(String scriptsResourcePath) throws IOException {
+    return scanResourceFolder(scriptsResourcePath, ".js").stream()
+        .map(scriptLocation -> new Script(scriptLocation, null, "0.0.0"))
+        .toList();
   }
 
   private String extractVersion(String targetSchema) {

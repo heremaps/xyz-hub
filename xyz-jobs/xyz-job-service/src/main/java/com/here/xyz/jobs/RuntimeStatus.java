@@ -19,10 +19,16 @@
 
 package com.here.xyz.jobs;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
+
+import com.fasterxml.jackson.annotation.JsonView;
+
 public class RuntimeStatus extends RuntimeInfo<RuntimeStatus> {
   private Action desiredAction;
   private int overallStepCount;
   private int succeededSteps;
+  @JsonView({Public.class, Static.class})
+  private long estimatedStartTime = -1;
 
   /**
    * The desired action can be set by the user to define the intent of executing some action on the status of
@@ -67,6 +73,21 @@ public class RuntimeStatus extends RuntimeInfo<RuntimeStatus> {
 
   public RuntimeStatus withSucceededSteps(int succeededSteps) {
     setSucceededSteps(succeededSteps);
+    return this;
+  }
+
+  public long getEstimatedStartTime() {
+    if (getState() != PENDING)
+      return -1;
+    return estimatedStartTime;
+  }
+
+  public void setEstimatedStartTime(long estimatedStartTime) {
+    this.estimatedStartTime = estimatedStartTime;
+  }
+
+  public RuntimeStatus withEstimatedStartTime(long estimatedStartTime) {
+    setEstimatedStartTime(estimatedStartTime);
     return this;
   }
 

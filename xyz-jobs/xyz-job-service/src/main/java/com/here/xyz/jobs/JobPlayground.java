@@ -31,6 +31,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
@@ -44,9 +45,16 @@ import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
+import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
@@ -99,11 +107,20 @@ public class JobPlayground {
   private static HubWebClient hubWebClient;
   private static LambdaClient lambdaClient;
   private static Space sampleSpace;
+  private static Space targetSpace;
   private static boolean simulateExecution = true;
   private static boolean executeWholeJob = true;
-  private static ImportFilesToSpace.Format format = ImportFilesToSpace.Format.GEOJSON;
+  private static ImportFilesToSpace.Format importFormat = ImportFilesToSpace.Format.GEOJSON;
   private static int uploadFileCount = 2;
   private static String jobServiceBaseUrl = "http://localhost:7070";
+
+  private static Usecase playgroundUsecase = Usecase.IMPORT;
+
+  private enum Usecase {
+    IMPORT,
+    EXPORT,
+    COPY;
+  }
 
   static {
     XyzSerializable.registerSubtypes(StepGraph.class);
@@ -147,63 +164,87 @@ public class JobPlayground {
     }
   }
 
-  private static void init() {
-    try {
-      sampleSpace = createSampleSpace("TEST");
-    }
-    catch (WebClientException e) {
-      throw new RuntimeException(e);
-    }
+  private static void init() throws WebClientException, JsonProcessingException {
+    sampleSpace = createPlaygroundSpace("TEST");
+
     JobConfigClient.getInstance().init();
 
-    mockJob = new Job().create()
-        .withDescription("Sample import job")
-        .withOwner("me")
-        .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
-        .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
+    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+      mockJob = new Job().create()
+              .withDescription("Sample import job")
+              .withOwner("me")
+              .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
+              .withTarget(new DatasetDescription.Space<>().withId(sampleSpace.getId()));
+    }else if(playgroundUsecase.equals(Usecase.COPY)) {
+      addTestFeaturesToSpace(sampleSpace.getId(), 10);
+
+      targetSpace = createPlaygroundSpace("TEST-TARGET");
+      mockJob = new Job().create()
+              .withDescription("Sample copy job")
+              .withOwner("me")
+              .withSource(new DatasetDescription.Space<>().withId(sampleSpace.getId()))
+              .withTarget(new DatasetDescription.Space<>().withId(targetSpace.getId()));
+
+    }else if(playgroundUsecase.equals(Usecase.EXPORT)) {
+      mockJob = new Job().create()
+              .withDescription("Sample export job")
+              .withOwner("me")
+              .withSource(new DatasetDescription.Space<>().withId(sampleSpace.getId()))
+              .withTarget(new Files<>().withOutputSettings(new FileOutputSettings().withFormat(new GeoJson())));
+    }
   }
 
   private static Job mockJob;
 
-  public static void main(String[] args) throws IOException, InterruptedException {
-    String realJobSpaceId = "TEST";
+  public static void main(String[] args) throws IOException, InterruptedException, WebClientException {
+
+    String realJobSourceSpaceId = "TEST";
+    //For Copy needed
+    String realJobTargetSpaceId = "TEST-TARGET";
 
     if (args.length > 0) {
-      realJobSpaceId = args[0];
+      realJobSourceSpaceId = args[0];
       if (args.length > 1)
         jobServiceBaseUrl = args[1];
+      if (args.length > 2)
+      realJobTargetSpaceId = args[2];
     }
     else
       init();
 
-    startRealJob(realJobSpaceId);
+    startRealJob(realJobSourceSpaceId, realJobTargetSpaceId);
 
-    //init();
-    //if (executeWholeJob)
-    //  startMockJob();
-    //else
-    //  startLambdaExecutions();
+//    init();
+//
+//    if (executeWholeJob)
+//      startMockJob();
+//    else
+//      startLambdaExecutions();
   }
 
-  private static void startLambdaExecutions() throws IOException, InterruptedException {
-    uploadFiles();
+  private static void startLambdaExecutions() throws IOException {
+    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+      uploadFiles();
 
-    runDropIndexStep(sampleSpace.getId());
+      runDropIndexStep(sampleSpace.getId());
 
-    runImportFilesToSpaceStep(sampleSpace.getId(), format);
+      runImportFilesToSpaceStep(sampleSpace.getId(), importFormat);
 
-    for (Index index : Index.values())
-      runCreateIndexStep(sampleSpace.getId(), index);
+      for (Index index : Index.values())
+        runCreateIndexStep(sampleSpace.getId(), index);
 
-    runAnalyzeSpaceTableStep(sampleSpace.getId());
+      runAnalyzeSpaceTableStep(sampleSpace.getId());
 
-    runMarkForMaintenanceStep(sampleSpace.getId());
+      runMarkForMaintenanceStep(sampleSpace.getId());
+    }else if(playgroundUsecase.equals(Usecase.COPY)) {
+      runCopySpaceStep(sampleSpace.getId(), targetSpace.getId());
+    }
   }
 
   private static void uploadFiles() throws IOException {
     //Generate N Files with M features
     for (int i = 0; i < uploadFileCount; i++)
-      uploadInputFile(generateContent(format, 10));
+      uploadInputFile(generateContent(importFormat, 10));
   }
 
   private static void uploadFilesToRealJob(String jobId) throws IOException, InterruptedException {
@@ -211,7 +252,7 @@ public class JobPlayground {
     for (int i = 0; i < uploadFileCount; i++) {
       HttpResponse<byte[]> inputResponse = post("/jobs/" + jobId + "/inputs", Map.of("type", "UploadUrl"));
       String uploadUrl = (String) XyzSerializable.deserialize(inputResponse.body(), Map.class).get("url");
-      uploadInputFile(generateContent(format, 10), new URL(uploadUrl));
+      uploadInputFile(generateContent(importFormat, 10), new URL(uploadUrl));
     }
 
   }
@@ -277,7 +318,7 @@ public class JobPlayground {
     Random rd = new Random();
     String lineSeparator = "\n";
 
-    if(format.equals(ImportFilesToSpace.Format.CSV_JSONWKB))
+    if(format.equals(ImportFilesToSpace.Format.CSV_JSON_WKB))
       return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
     else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
       return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
@@ -306,12 +347,22 @@ public class JobPlayground {
         .onFailure(t -> logger.error("Error submitting job:", t));
   }
 
-  private static void startRealJob(String spaceId) throws IOException, InterruptedException {
-    Job job = new Job().create()
-        .withDescription("Sample import job")
-        .withOwner("me")
-        .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
-        .withTarget(new DatasetDescription.Space<>().withId(spaceId));
+  private static void startRealJob(String sourceSpaceId, String targetSpaceId) throws IOException, InterruptedException {
+    Job job = null;
+
+    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+      job = new Job().create()
+              .withDescription("Sample import job")
+              .withOwner("me")
+              .withSource(new Files<>().withInputSettings(new FileInputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))))
+              .withTarget(new DatasetDescription.Space<>().withId(sourceSpaceId));
+    }else if(playgroundUsecase.equals(Usecase.COPY)) {
+      job = new Job().create()
+              .withDescription("Sample copy job")
+              .withOwner("me")
+              .withSource(new DatasetDescription.Space<>().withId(sourceSpaceId))
+              .withTarget(new DatasetDescription.Space<>().withId(targetSpaceId));
+    }
 
     System.out.println("Creating job ...");
     HttpResponse<byte[]> jobResponse = post("/jobs", job);
@@ -322,11 +373,12 @@ public class JobPlayground {
     Job createdJob = XyzSerializable.deserialize(jobResponse.body(), Job.class);
     String jobId = createdJob.getId();
 
-    //Uploading files
-    uploadFilesToRealJob(jobId);
-
-    //Start the job execution
-    patch("/jobs/" + jobId + "/status", Map.of("desiredAction", "START"));
+    if(playgroundUsecase.equals(Usecase.IMPORT)) {
+      //Uploading files
+      uploadFilesToRealJob(jobId);
+      //Start the job execution
+      patch("/jobs/" + jobId + "/status", Map.of("desiredAction", "START"));
+    }
 
     pollRealJobStatus(jobId);
   }
@@ -362,7 +414,7 @@ public class JobPlayground {
     return response;
   }
 
-  private static Space createSampleSpace(String spaceId) throws WebClientException {
+  private static Space createPlaygroundSpace(String spaceId) throws WebClientException {
     final String title = "Playground";
     try {
       return hubWebClient.createSpace(spaceId, title);
@@ -378,6 +430,14 @@ public class JobPlayground {
         throw e;
       }
     }
+  }
+
+  protected static void addTestFeaturesToSpace(String spaceId, int count) throws WebClientException, JsonProcessingException {
+    FeatureCollection fc = new FeatureCollection();
+    for (int i = 0; i < count; i++)
+      fc.getFeatures().add(new Feature().withProperties(new Properties().with("test", i))
+              .withGeometry(new Point().withCoordinates(new PointCoordinates(i, i % 90))));
+    hubWebClient.putFeaturesWithoutResponse(spaceId, fc);
   }
 
   private static void uploadInputFile(byte[] data) throws IOException {
@@ -424,6 +484,10 @@ public class JobPlayground {
 
   public static void runMarkForMaintenanceStep(String spaceId) throws IOException {
     runStep(new MarkForMaintenance().withSpaceId(spaceId));
+  }
+
+  public static void runCopySpaceStep(String sourceSpaceId, String targetSpaceId) throws IOException {
+    runStep(new CopySpace().withSpaceId(sourceSpaceId).withTargetSpaceId(targetSpaceId).withSourceVersionRef(new Ref("HEAD")));
   }
 
   private static void runStep(LambdaBasedStep step) throws IOException {

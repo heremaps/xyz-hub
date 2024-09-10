@@ -22,8 +22,6 @@
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-
-
 --
 ------ SAMPLE QUERIES ----
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
@@ -113,7 +111,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 195
+ select 196
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -123,7 +121,7 @@ $BODY$
 CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY)
     RETURNS GEOMETRY AS
 $BODY$
-   select ST_ReducePrecision(geo, 0.00000001) 
+   select ST_ReducePrecision(geo, 0.00000001)
 $BODY$
 LANGUAGE sql VOLATILE;
 
@@ -2911,7 +2909,7 @@ $BODY$
         EXECUTE
             format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
                    schema, tableName, id, version, operation, author, jsondata, xyz_geoFromWkb(geo) );
-				                                                         
+
 
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
@@ -3287,7 +3285,7 @@ BEGIN
 --         PERFORM CASE WHEN ARRAY['conn'] <@ dblink_get_connections() THEN dblink_disconnect('conn') END;
 --         RAISE NOTICE '~~~~~~~~~~~ Connection name %', connectionName;
         PERFORM dblink_connect(connectionName, 'host = localhost dbname = ' || current_database() || ' user = ' || CURRENT_USER || ' password = ' || password
-                || ' application_name = ''' || current_setting('application_name') ||'''');
+                || ' application_name = ''' || current_setting('application_name') || '''');
 --         PERFORM pg_sleep(1);
         IF strpos(query, '/*labels(') != 1 THEN
             --Attach the same labels to the recursive async call
@@ -3307,6 +3305,8 @@ BEGIN
             DO
             $block$
             BEGIN
+                SET search_path = $outer$ || current_setting('search_path') || $outer$;
+                PERFORM context('$outer$ || context()::TEXT ||  $outer$'::JSONB);
                 PERFORM set_config('xyz.password', '$outer$ || password || $outer$', false);
                 $outer$ || query || $outer$
                 COMMIT;
@@ -3317,6 +3317,8 @@ BEGIN
         $outer$;
     ELSE
         RETURN $block$
+            SET search_path = $block$ || current_setting('search_path') || $block$;
+            SELECT context('$block$ || context()::TEXT ||  $block$'::JSONB);
             SELECT set_config('xyz.password', '$block$ || password || $block$', false);
             START TRANSACTION;
             $block$ || query || $block$;
@@ -4235,69 +4237,259 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_trigger_v2()
- RETURNS trigger
+CREATE OR REPLACE FUNCTION enrichNewFeature(IN jsondata JSONB, geo geometry(GeometryZ,4326))
+    RETURNS TABLE(new_jsondata JSONB, new_geo geometry(GeometryZ,4326), new_operation character, new_id TEXT)
 AS $BODY$
-	DECLARE
-        author text := TG_ARGV[0];
-        curVersion bigint := TG_ARGV[1];
-
-		fid text := NEW.jsondata->>'id';
-		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
-		meta jsonb := format(
-			'{
+DECLARE
+    fid TEXT := jsondata->>'id';
+    createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+    --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
+    meta JSONB := format(
+            '{
                  "createdAt": %s,
                  "updatedAt": %s
-			}', createdAt, createdAt
-        );
-    BEGIN
-            -- Inject id if not available
-            IF fid IS NULL THEN
-                fid = xyz_random_string(10);
-                NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
-            END IF;
+            }', createdAt, createdAt
+    );
+BEGIN
+    IF fid IS NULL THEN
+        fid = xyz_random_string(10);
+        jsondata := (jsondata || format('{"id": "%s"}', fid)::JSONB);
+    END IF;
 
-            -- Remove bbox on root
-            NEW.jsondata := NEW.jsondata - 'bbox';
+    -- Remove bbox on root
+    jsondata := jsondata - 'bbox';
 
-            -- Inject type
-            NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
+    -- Inject type
+    jsondata := jsonb_set(jsondata, '{type}', '"Feature"');
 
-            -- Inject meta
-            NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
+    -- Inject meta
+    jsondata := jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', meta);
 
-            IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
-                -- GeoJson Feature Import
-                NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
-                NEW.jsondata := NEW.jsondata - 'geometry';
-            ELSE
-                NEW.geo := ST_Force3D(NEW.geo);
-            END IF;
+    IF jsondata->'geometry' IS NOT NULL THEN
+        -- GeoJson Feature Import
+        new_geo := ST_Force3D(ST_GeomFromGeoJSON(jsondata->'geometry'));
+        jsondata := jsondata - 'geometry';
+    ELSE
+        new_geo := ST_Force3D(geo);
+    END IF;
 
-  		    NEW.geo := xyz_reduce_precision(NEW.geo);
+    new_geo := xyz_reduce_precision(new_geo);
+    new_jsondata := jsondata;
+    new_operation := 'I';
+    new_id := fid;
 
-            NEW.operation := 'I';
-            NEW.version := curVersion;
-            NEW.id := fid;
-            NEW.author := author;
-    RETURN NEW;
+    RETURN NEXT;
+END
+$BODY$
+    LANGUAGE plpgsql IMMUTABLE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger_for_empty_layer()
+    RETURNS trigger
+AS $BODY$
+DECLARE
+    author TEXT := TG_ARGV[0];
+    curVersion BIGINT := TG_ARGV[1];
+    target_table TEXT := TG_ARGV[2];
+    feature RECORD;
+    updated_rows INT;
+BEGIN
+        SELECT new_jsondata, new_geo, new_operation, new_id
+            from enrichNewFeature(NEW.jsondata::JSONB, NEW.geo)
+        INTO feature;
+
+        EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+                        values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L);',
+                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
+                       author, feature.new_jsondata, feature.new_geo);
+
+        EXECUTE format(
+                'UPDATE "%1$s"."%2$s" as tbl SET ' ||
+                'count = tbl.count + 1 ' ||
+                'WHERE pid = pg_backend_pid();',
+                TG_TABLE_SCHEMA,
+                TG_TABLE_NAME
+                );
+        GET DIAGNOSTICS  updated_rows = ROW_COUNT;
+
+        IF updated_rows != 1 THEN
+            NEW.pid = NULL;
+            NEW.jsondata = NULL;
+            NEW.geo = NULL;
+            NEW.count = 1;
+            NEW.pid= pg_backend_pid();
+            RETURN NEW;
+        END IF;
+
+        RETURN NULL;
 END;
 $BODY$
-LANGUAGE plpgsql VOLATILE;
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger_for_empty_layer_geojsonfc()
+    RETURNS trigger
+AS $BODY$
+DECLARE
+    author TEXT := TG_ARGV[0];
+    curVersion BIGINT := TG_ARGV[1];
+    target_table TEXT := TG_ARGV[2];
+    elem JSONB;
+    feature RECORD;
+    updated_rows INT;
+BEGIN
 
+    --TODO: Should we also allow "Features"
+    FOR elem IN SELECT * FROM jsonb_array_elements(((NEW.jsondata)::JSONB)->'features')
+    LOOP
+        IF NEW.geo IS NOT NULL THEN
+            RAISE EXCEPTION 'Combination of FeatureCollection and WKB is not allowed!'
+                USING ERRCODE = 'XYZ40';
+        END IF;
+
+        SELECT new_jsondata, new_geo, new_operation, new_id
+            from enrichNewFeature(elem, null)
+        INTO feature;
+
+        EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
+                values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
+                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
+    END LOOP;
+
+    EXECUTE format(
+            'UPDATE "%1$s"."%2$s" as tbl SET ' ||
+            'count = tbl.count + %3$L ' ||
+            'WHERE pid = pg_backend_pid();',
+            TG_TABLE_SCHEMA,
+            TG_TABLE_NAME,
+            jsonb_array_length((NEW.jsondata)::JSONB->'features')
+            );
+    GET DIAGNOSTICS  updated_rows = ROW_COUNT;
+
+    IF updated_rows != 1 THEN
+        NEW.pid = NULL;
+        NEW.jsondata = NULL;
+        NEW.geo = NULL;
+        NEW.count = jsonb_array_length((NEW.jsondata)::JSONB->'features');
+        NEW.pid= pg_backend_pid();
+        RETURN NEW;
+    END IF;
+
+    RETURN NULL;
+END;
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl regclass)
-    RETURNS TABLE(s3_bucket text, s3_path text, s3_region text, state text, filesize bigint, execution_count int)
+--TODO: Remove code-duplication of the following trigger functions!!
+CREATE OR REPLACE FUNCTION xyz_import_trigger_for_non_empty_layer()
+    RETURNS trigger
+AS $BODY$
+DECLARE
+    author TEXT := TG_ARGV[0];
+    currentVersion BIGINT := TG_ARGV[1];
+    isPartial BOOLEAN := TG_ARGV[2];
+    onExists TEXT := TG_ARGV[3];
+    onNotExists TEXT := TG_ARGV[4];
+    onVersionConflict TEXT := TG_ARGV[5];
+    onMergeConflict TEXT := TG_ARGV[6];
+    historyEnabled BOOLEAN := TG_ARGV[7]::BOOLEAN;
+    context TEXT := TG_ARGV[8];
+    extendedTable TEXT := TG_ARGV[9];
+    format TEXT := TG_ARGV[10];
+    entityPerLine TEXT := TG_ARGV[11];
+    target_table TEXT := TG_ARGV[12];
+    featureCount INT := 0;
+    updated_rows INT;
+BEGIN
+    --TODO: check how to use asyncify instead
+    PERFORM context(
+            jsonb_build_object('schema', TG_TABLE_SCHEMA,
+                               'table', target_table,
+                               'historyEnabled', historyEnabled,
+                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
+                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
+            )
+    );
+
+    IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
+        --TODO: Extend feature_writer with possibility to provide geometry
+        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
+        SELECT write_feature(NEW.jsondata::TEXT,
+                      author,
+                      onExists,
+                      onNotExists,
+                      onVersionConflict,
+                      onMergeConflict,
+                      isPartial,
+                      currentVersion,
+                      false
+        )->'count' INTO featureCount;
+    END IF;
+
+    IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
+        IF entityPerLine = 'Feature' THEN
+            SELECT write_feature( NEW.jsondata,
+                                   author,
+                                   onExists,
+                                   onNotExists,
+                                   onVersionConflict,
+                                   onMergeConflict,
+                                   isPartial,
+                                   currentVersion,
+                                   false
+                    )->'count' INTO featureCount;
+        ELSE
+            --TODO: Extend feature_writer with possibility to provide featureCollection
+            SELECT write_features((NEW.jsondata::JSONB->'features')::TEXT,
+                                   author,
+                                   onExists,
+                                   onNotExists,
+                                   onVersionConflict,
+                                   onMergeConflict,
+                                   isPartial,
+                                   currentVersion,
+                                   false
+                    )->'count' INTO featureCount;
+        END IF;
+    END IF;
+
+    EXECUTE format(
+            'UPDATE "%1$s"."%2$s" as tbl SET ' ||
+            'count = tbl.count + %3$L ' ||
+            'WHERE pid = pg_backend_pid();',
+            TG_TABLE_SCHEMA,
+            TG_TABLE_NAME,
+            featureCount
+            );
+    GET DIAGNOSTICS  updated_rows = ROW_COUNT;
+
+    IF updated_rows != 1 THEN
+        NEW.pid = NULL;
+        NEW.jsondata = NULL;
+        NEW.geo = NULL;
+        NEW.count = featureCount;
+        NEW.pid= pg_backend_pid();
+        RETURN NEW;
+    END IF;
+
+    RETURN NULL;
+END;
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_get_work_item(temporary_tbl REGCLASS)
+    RETURNS TABLE(s3_bucket TEXT, s3_path TEXT, s3_region TEXT, state TEXT, filesize BIGINT, execution_count INT, data JSONB)
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
-    work_items_left integer := 1;
-    success_marker text := 'SUCCESS_MARKER';
-    target_state text := 'RUNNING';
-    work_item record;
-    updated_rows INTEGER;
-    result record;
+    work_items_left INT := 1;
+    success_marker TEXT := 'SUCCESS_MARKER';
+    target_state TEXT := 'RUNNING';
+    work_item RECORD;
+    updated_rows INT;
+    result RECORD;
 BEGIN
     work_item := null;
 
@@ -4317,7 +4509,7 @@ BEGIN
                         work_item.s3_path,
                         work_item.state) INTO result;
 
-        GET DIAGNOSTICS updated_rows = ROW_COUNT;
+        GET DIAGNOSTICS  updated_rows = ROW_COUNT;
 
         IF updated_rows = 1 THEN
             s3_bucket = result.s3_bucket;
@@ -4326,6 +4518,7 @@ BEGIN
             filesize = result.data->'filesize';
             state = result.state;
             execution_count = result.execution_count;
+            data = result.data;
             -- Result not null -> deliver work_item
             RETURN NEXT;
         ELSE
@@ -4365,6 +4558,7 @@ BEGIN
                     filesize = result.data->'filesize';
                     state = result.state;
                     execution_count = result.execution_count;
+                    data = result.data;
                     -- Result not null -> deliver work_item
                     RETURN NEXT;
                 ELSE
@@ -4378,14 +4572,14 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_perform(schem text, temporary_tbl regclass ,target_tbl regclass,
-                                              s3_bucket text, s3_path text, s3_region text, format text, filesize bigint)
+CREATE OR REPLACE FUNCTION xyz_import_perform(schem TEXT, temporary_tbl REGCLASS ,target_tbl REGCLASS,
+                                              s3_bucket TEXT, s3_path TEXT, s3_region TEXT, format TEXT, filesize BIGINT)
     RETURNS void
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
-    import_statistics record;
-    config record;
+    import_statistics RECORD;
+    config RECORD;
 BEGIN
     select * from xyz_import_get_import_config(format) into config;
 
@@ -4437,15 +4631,15 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_get_import_config(format text)
-    RETURNS TABLE(target_clomuns text, import_config text)
+CREATE OR REPLACE FUNCTION xyz_import_get_import_config(format TEXT)
+    RETURNS TABLE(target_clomuns TEXT, import_config TEXT)
     LANGUAGE 'plpgsql'
 AS $BODY$
 BEGIN
     import_config := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
     format := lower(format);
 
-    IF format = 'csv_jsonwkb' THEN
+    IF format = 'csv_json_wkb' OR format = 'csv_jsonwkb' THEN
         target_clomuns := 'jsondata,geo';
     ELSEIF format = 'csv_geojson' THEN
         target_clomuns := 'jsondata';
@@ -4454,8 +4648,8 @@ BEGIN
         import_config := format('(FORMAT CSV, ENCODING ''UTF8'', DELIMITER %1$L , QUOTE  %2$L)', CHR(2), CHR(1));
     ELSE
         RAISE EXCEPTION 'Format ''%'' not supported! ',format
-            USING HINT = 'geojson | csv_geojson | csv_jsonwkb are available',
-                ERRCODE = 'XYZ51';
+            USING HINT = 'geojson | csv_geojson | csv_json_wkb are available',
+                ERRCODE = 'XYZ40';
     END IF;
 
     RETURN NEXT;
@@ -4463,20 +4657,20 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_import_report_success(temporary_tbl regclass, success_callback text)
+CREATE OR REPLACE FUNCTION xyz_import_report_success(temporary_tbl REGCLASS, success_callback TEXT)
     RETURNS void
     LANGUAGE 'plpgsql'
     VOLATILE PARALLEL SAFE
 AS $BODY$
 DECLARE
-    sql_text text;
+    sql_text TEXT;
 BEGIN
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
-		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
-	    import_results record;
-	    retry_count integer := 2;
+		temporary_tbl REGCLASS := '$wrappedouter$||temporary_tbl||$wrappedouter$'::REGCLASS;
+	    import_results RECORD;
+	    retry_count INT := 2;
 	BEGIN
 	    EXECUTE format('SELECT '
 	                       || '   COUNT(*) FILTER (WHERE state = %1$L) AS finished_count,'
@@ -4509,15 +4703,14 @@ END;
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE PROCEDURE xyz_import_start(schem text, temporary_tbl regclass, target_tbl regclass, format text,
-                                         success_callback text, failure_callback text)
+CREATE OR REPLACE PROCEDURE xyz_import_start(schem TEXT, temporary_tbl REGCLASS, target_tbl REGCLASS, format TEXT,
+                                         success_callback TEXT, failure_callback TEXT)
     LANGUAGE 'plpgsql'
 AS
 $BODY$
 DECLARE
-    work_item record;
-    sql_text text;
-    retry_count integer := 2;
+    work_item RECORD;
+    sql_text TEXT;
 BEGIN
     SELECT * from xyz_import_get_work_item(temporary_tbl) into work_item;
     COMMIT;
@@ -4532,26 +4725,32 @@ BEGIN
         ELSEIF work_item.state = 'SUCCESS_MARKER_RUNNING' THEN
             EXECUTE format('SELECT xyz_import_report_success(%1$L,%2$L);', temporary_tbl, success_callback);
             RETURN;
-        ELSEIF work_item.execution_count >= retry_count THEN
-             RAISE EXCEPTION 'Error on importing file %. Maximum retries are reached %.', right(work_item.s3_path, 36), retry_count
-                 USING HINT = 'Details: ' || (work_item.data->'error'->>'sqlstate') ,
-                    ERRCODE = 'XYZ52';
         END IF;
     END IF;
 
     sql_text = $wrappedouter$ DO
     $wrappedinner$
     DECLARE
-        work_item_s3_bucket text := '$wrappedouter$||work_item.s3_bucket||$wrappedouter$'::text;
-        work_item_s3_region text := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::text;
-        work_item_s3_filesize bigint := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
-        work_item_s3_path text := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::text;
-		schem text := '$wrappedouter$||schem||$wrappedouter$'::text;
-		temporary_tbl regclass := '$wrappedouter$||temporary_tbl||$wrappedouter$'::regclass;
-		target_tbl regclass := '$wrappedouter$||target_tbl||$wrappedouter$'::regclass;
-		format text := '$wrappedouter$||format||$wrappedouter$'::text;
+        work_item_s3_bucket TEXT := '$wrappedouter$||work_item.s3_bucket||$wrappedouter$'::TEXT;
+        work_item_s3_region TEXT := '$wrappedouter$||work_item.s3_region||$wrappedouter$'::TEXT;
+        work_item_s3_filesize BIGINT := '$wrappedouter$||1||$wrappedouter$'::BIGINT;
+        work_item_s3_path TEXT := '$wrappedouter$||work_item.s3_path||$wrappedouter$'::TEXT;
+        work_item_execution_count INT := '$wrappedouter$||work_item.execution_count||$wrappedouter$'::INT;
+        work_item_data JSONB := '$wrappedouter$||work_item.data||$wrappedouter$'::JSONB;
+		schem TEXT := '$wrappedouter$||schem||$wrappedouter$'::TEXT;
+		temporary_tbl REGCLASS := '$wrappedouter$||temporary_tbl||$wrappedouter$'::REGCLASS;
+		target_tbl REGCLASS := '$wrappedouter$||target_tbl||$wrappedouter$'::REGCLASS;
+		format TEXT := '$wrappedouter$||format||$wrappedouter$'::TEXT;
+		retry_count INT := 2;
     BEGIN
 			BEGIN
+			    IF work_item_execution_count >= retry_count THEN
+			        --TODO: find a solution to read a given hint in the failure_callback. Remove than the duplication.
+                    RAISE EXCEPTION 'Error on importing file ''%''. Maximum retries are reached %. Details: ''%''', right(work_item_s3_path, 36), retry_count, work_item_data->'error'->>'sqlstate'
+                    --USING HINT = 'Details: ' || 'details' ,
+                    USING ERRCODE = 'XYZ50';
+                END IF;
+
 	            IF work_item_s3_bucket != 'SUCCESS_MARKER' THEN
 					PERFORM xyz_import_perform(schem, temporary_tbl, target_tbl, work_item_s3_bucket ,work_item_s3_path, work_item_s3_region,
 														 format, work_item_s3_filesize);
@@ -4567,8 +4766,8 @@ BEGIN
 			END;
 	 		PERFORM asyncify(format('CALL xyz_import_start(%1$L,  %2$L,  %3$L, %4$L, %5$L, %6$L);',
 					schem, temporary_tbl, target_tbl, format,
-					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::text,
-					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::text), false, true );
+					'$wrappedouter$||REPLACE(success_callback, '''', '''''')||$wrappedouter$'::TEXT,
+					'$wrappedouter$||REPLACE(failure_callback, '''', '''''')||$wrappedouter$'::TEXT), false, true );
     END;
 	$wrappedinner$ $wrappedouter$;
     EXECUTE sql_text;

@@ -30,6 +30,20 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
 
   private SpaceContext context = SpaceContext.DEFAULT;
   private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
+  private String author;
+
+  public String getAuthor() {
+    return author;
+  }
+
+  public void setAuthor(String author) {
+    this.author = author;
+  }
+
+  public T withAuthor(String author) {
+    setAuthor(author);
+    return (T) this;
+  }
 
   public enum SpaceContext {
     EXTENSION,

@@ -30,11 +30,20 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
+import java.util.Map;
 
 public abstract class XyzWebClient {
   protected final String baseUrl;
+  private final Map<String, String> extraHeaders;
 
-  public XyzWebClient(String baseUrl) {this.baseUrl = baseUrl;}
+  protected XyzWebClient(String baseUrl) {
+    this(baseUrl, null);
+  }
+
+  protected XyzWebClient(String baseUrl, Map<String, String> extraHeaders) {
+    this.baseUrl = baseUrl;
+    this.extraHeaders = extraHeaders;
+  }
 
   protected final URI uri(String path) {
     return URI.create(baseUrl + path);
@@ -54,6 +63,9 @@ public abstract class XyzWebClient {
 
   protected HttpResponse<byte[]> request(HttpRequest.Builder requestBuilder) throws WebClientException {
     try {
+      if (extraHeaders != null)
+        extraHeaders.entrySet().forEach(entry -> requestBuilder.header(entry.getKey(), entry.getValue()));
+
       HttpRequest request = requestBuilder.build();
       HttpResponse<byte[]> response = client().send(request, BodyHandlers.ofByteArray());
       if (response.statusCode() >= 400)

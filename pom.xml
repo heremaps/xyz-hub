@@ -596,10 +596,34 @@
 
       <!-- Testing -->
       <dependency>
-        <artifactId>junit</artifactId>
-        <groupId>junit</groupId>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.11.0</version>
         <scope>test</scope>
-        <version>4.13.2</version>
+      </dependency>
+      <dependency>
+        <artifactId>junit-jupiter-api</artifactId>
+        <groupId>org.junit.jupiter</groupId>
+        <version>5.11.0</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-params</artifactId>
+        <version>5.11.0</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.vintage</groupId>
+        <artifactId>junit-vintage-engine</artifactId>
+        <version>5.11.0</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <artifactId>hamcrest</artifactId>
+        <groupId>org.hamcrest</groupId>
+        <scope>test</scope>
+        <version>2.2</version>
       </dependency>
       <dependency>
         <groupId>io.rest-assured</groupId>

@@ -42,6 +42,11 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-util</artifactId>
     </dependency>
+    <!-- TODO: Get rid of the following dependency again -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-psql-connector</artifactId>
+    </dependency>
 
     <!-- AWS SDK -->
     <dependency>
@@ -130,10 +135,30 @@
       <artifactId>aws-lambda-java-log4j2</artifactId>
     </dependency>
 
-    <!-- Test -->
+    <!-- Testing -->
     <dependency>
-      <artifactId>junit</artifactId>
-      <groupId>junit</groupId>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>junit-jupiter-api</artifactId>
+      <groupId>org.junit.jupiter</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.vintage</groupId>
+      <artifactId>junit-vintage-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>hamcrest</artifactId>
+      <groupId>org.hamcrest</groupId>
       <scope>test</scope>
     </dependency>
   </dependencies>

@@ -22,7 +22,7 @@ package com.here.xyz.util.db;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class SQLQueryUnitTests {
 
@@ -73,5 +73,14 @@ public class SQLQueryUnitTests {
         .withQueryFragment("fragmentA", new SQLQuery("#{myParam}").withNamedParameter("myParam", "Hello"))
         .withQueryFragment("fragmentB", new SQLQuery("#{myParam}").withNamedParameter("myParam", "World"));
     assertThrows(RuntimeException.class, () -> q.substitute());
+  }
+
+  @Test
+  public void testExtraFragmentProvided() {
+    SQLQuery q = new SQLQuery("${{fragmentA}}")
+        .withLabelsEnabled(false)
+        .withQueryFragment("fragmentA", "Hello")
+        .withQueryFragment("fragmentB", "World");
+    assertEquals("Hello", q.substitute().text());
   }
 }

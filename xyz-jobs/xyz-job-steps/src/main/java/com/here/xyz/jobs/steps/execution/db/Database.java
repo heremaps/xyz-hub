@@ -61,6 +61,7 @@ import org.xbill.DNS.Record;
 import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
+  private static final List<String> DEFAULT_SEARCH_PATH = List.of("common", "feature_writer"); //TODO: Replace with generated ones by Script tool, once scripts are installed by Step Lambda
   private static final Logger logger = LogManager.getLogger();
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
@@ -113,7 +114,8 @@ public class Database extends ExecutionResource {
   DatabaseSettings getDatabaseSettings() {
     if (dbSettings == null)
       dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
-          .withApplicationName("JobFramework");
+          .withApplicationName("JobFramework")
+          .withSearchPath(DEFAULT_SEARCH_PATH);
     return dbSettings;
   }
 

@@ -26,22 +26,29 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateIndex.class),
     @JsonSubTypes.Type(value = ImportFilesToSpace.class),
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
-    @JsonSubTypes.Type(value = MarkForMaintenance.class)
+    @JsonSubTypes.Type(value = MarkForMaintenance.class),
+    @JsonSubTypes.Type(value = CopySpace.class)
 })
 public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseBasedStep<T> {
+  private static final Logger logger = LogManager.getLogger();
+
   @JsonView({Internal.class, Static.class})
   private String spaceId;
 
@@ -67,6 +74,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
         ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId());
   }
 
+  protected final boolean isEnableHashedSpaceIdActivated(Space space) throws WebClientException {
+    return ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId();
+  }
+
   protected void validateSpaceExists() throws ValidationException {
     try {
       //Check if the space is actually existing
@@ -87,6 +98,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return hubWebClient().loadSpaceStatistics(spaceId, context);
   }
 
+  protected Tag loadTag(String spaceId, String tagId) throws WebClientException {
+    return hubWebClient().loadTag(spaceId, tagId);
+  }
+
   protected HubWebClient hubWebClient() {
     return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
   }
@@ -94,7 +109,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   @Override
   public boolean validate() throws ValidationException {
     validateSpaceExists();
-    //Return true as no user inputs are needed
+    //Return true as no user inputs are necessary
     return true;
   }
 }

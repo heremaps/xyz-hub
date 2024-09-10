@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 public class SubscriptionApi extends SpaceBasedApi {
-
   private static final Logger logger = LogManager.getLogger();
   private static final String JOB_TARGET_PREFIX = "job:";
 
@@ -54,34 +53,6 @@ public class SubscriptionApi extends SpaceBasedApi {
     rb.getRoute("deleteSubscription").setDoValidation(false).addHandler(this::deleteSubscription);
   }
 
-  private Subscription getSubscriptionInput(final RoutingContext context) throws HttpException {
-    try {
-      JsonObject input = context.body().asJsonObject();
-      if (input == null) {
-        throw new HttpException(BAD_REQUEST, "Invalid JSON string");
-      }
-
-      return DatabindCodec.mapper().convertValue(input, Subscription.class);
-    } catch (Exception e) {
-      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
-    }
-  }
-
-  private void getSubscription(final RoutingContext context) {
-    try {
-      final String spaceId = getSpaceId(context);
-      final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
-
-      getAndValidateSpace(getMarker(context), spaceId)
-          .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
-          .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
-          .onSuccess(subscription -> sendResponse(context, OK, subscription))
-          .onFailure(t -> sendErrorResponse(context, t));
-    } catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
   private void getSubscriptions(final RoutingContext context) {
     try {
       final String spaceId = getSpaceId(context);
@@ -91,7 +62,8 @@ public class SubscriptionApi extends SpaceBasedApi {
           .compose(v -> SubscriptionHandler.getSubscriptions(context, spaceId))
           .onSuccess(subscription -> sendResponse(context, OK, subscription))
           .onFailure(t -> sendErrorResponse(context, t));
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       sendErrorResponse(context, e);
     }
   }
@@ -112,7 +84,24 @@ public class SubscriptionApi extends SpaceBasedApi {
           .compose(v -> SubscriptionHandler.createSubscription(context, subscription))
           .onSuccess(s -> sendResponse(context, CREATED, s))
           .onFailure(t -> sendErrorResponse(context, t));
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
+  }
+
+  private void getSubscription(final RoutingContext context) {
+    try {
+      final String spaceId = getSpaceId(context);
+      final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
+
+      getAndValidateSpace(getMarker(context), spaceId)
+          .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
+          .onSuccess(subscription -> sendResponse(context, OK, subscription))
+          .onFailure(t -> sendErrorResponse(context, t));
+    }
+    catch (Exception e) {
       sendErrorResponse(context, e);
     }
   }
@@ -132,7 +121,8 @@ public class SubscriptionApi extends SpaceBasedApi {
           .compose(v -> SubscriptionHandler.createOrReplaceSubscription(context, subscription))
           .onSuccess(s -> sendResponse(context, OK, s))
           .onFailure(t -> sendErrorResponse(context, t));
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       sendErrorResponse(context, e);
     }
   }
@@ -148,8 +138,22 @@ public class SubscriptionApi extends SpaceBasedApi {
           .compose(subscription -> SubscriptionHandler.deleteSubscription(context, subscription))
           .onSuccess(s -> sendResponse(context, OK, s))
           .onFailure(t -> sendErrorResponse(context, t));
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       sendErrorResponse(context, e);
+    }
+  }
+
+  private Subscription getSubscriptionInput(final RoutingContext context) throws HttpException {
+    try {
+      JsonObject input = context.body().asJsonObject();
+      if (input == null)
+        throw new HttpException(BAD_REQUEST, "Invalid JSON string");
+
+      return DatabindCodec.mapper().convertValue(input, Subscription.class);
+    }
+    catch (Exception e) {
+      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
     }
   }
 
@@ -168,29 +172,28 @@ public class SubscriptionApi extends SpaceBasedApi {
   }
 
   private Future<Void> validateSubscriptionDestination(Subscription subscription) {
-    if(subscription.getDestination().startsWith(JOB_TARGET_PREFIX)) {
+    if (subscription.getDestination().startsWith(JOB_TARGET_PREFIX)) {
       String jobId = subscription.getDestination().substring(JOB_TARGET_PREFIX.length());
 
-      if(Service.configuration.JOB_API_ENDPOINT == null || Service.configuration.JOB_API_ENDPOINT.isEmpty()) {
+      if (Service.configuration.JOB_API_ENDPOINT == null || Service.configuration.JOB_API_ENDPOINT.isEmpty())
         return Future.failedFuture(new HttpException(NOT_IMPLEMENTED, "The subscription with Job destination is not supported."));
-      }
 
       return Service.webClient.getAbs(Service.configuration.JOB_API_ENDPOINT + "/jobs/" + jobId + "/status")
-              .send()
-              .compose(response -> {
-                if(response.statusCode() == 200) {
-                  JsonObject responseJson = response.bodyAsJsonObject();
-                  if(responseJson != null && "RUNNING".equals(responseJson.getString("state"))) {
-                    return Future.succeededFuture();
-                  } else {
-                    return Future.failedFuture(new IllegalStateException("The destination job " + jobId + " is not in RUNNING state"));
-                  }
-                } else if (response.statusCode() == 404){
-                  return Future.failedFuture(new HttpException(NOT_FOUND, "The destination job " + jobId + " does not exist"));
-                } else {
-                  return Future.failedFuture(new ValidationException("Failed to validate job " + jobId + " in Job API"));
-                }
-              });
+          .send()
+          .compose(response -> {
+            if (response.statusCode() == 200) {
+              JsonObject responseJson = response.bodyAsJsonObject();
+              if (responseJson != null && "RUNNING".equals(responseJson.getString("state")))
+                return Future.succeededFuture();
+              else
+                return Future.failedFuture(new IllegalStateException("The destination job " + jobId + " is not in RUNNING state"));
+
+            }
+            else if (response.statusCode() == 404)
+              return Future.failedFuture(new HttpException(NOT_FOUND, "The destination job " + jobId + " does not exist"));
+            else
+              return Future.failedFuture(new ValidationException("Failed to validate job " + jobId + " in Job API"));
+          });
     }
     return Future.succeededFuture();
   }

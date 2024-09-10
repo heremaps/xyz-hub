@@ -38,6 +38,7 @@ public class JobCompiler {
 
   static {
     registerCompilationInterceptor(ImportFromFiles.class);
+    //registerCompilationInterceptor(CopySpaceToSpace.class);
   }
 
   public Future<StepGraph> compile(Job job) {

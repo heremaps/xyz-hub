@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Extensible;
 import com.here.xyz.Typed;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -161,5 +162,15 @@ public class Feature extends Extensible<Feature> implements Typed {
       throw new InvalidGeometryException("GeometryCollection is not supported.");
 
     geometry.validate();
+  }
+
+  @Override
+  public String toString() {
+    return serialize();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    return XyzSerializable.equals(this, obj);
   }
 }

@@ -19,7 +19,9 @@
 
 package com.here.xyz.util.web;
 
+import static com.google.common.net.HttpHeaders.ACCEPT;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.google.common.net.MediaType.GEO_JSON;
 import static com.google.common.net.MediaType.JSON_UTF_8;
 import static com.here.xyz.XyzSerializable.deserialize;
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -28,10 +30,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.time.Duration;
@@ -40,11 +44,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
-  private static Map<String, HubWebClient> instances = new ConcurrentHashMap<>();
+  private static Map<InstanceKey, HubWebClient> instances = new ConcurrentHashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(3, TimeUnit.MINUTES)
@@ -52,6 +57,10 @@ public class HubWebClient extends XyzWebClient {
 
   protected HubWebClient(String baseUrl) {
     super(baseUrl);
+  }
+
+  protected HubWebClient(String baseUrl, Map<String, String> extraHeaders) {
+    super(baseUrl, extraHeaders);
   }
 
   @Override
@@ -68,9 +77,14 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public static HubWebClient getInstance(String baseUrl) {
-    if (!instances.containsKey(baseUrl))
-      instances.put(baseUrl, new HubWebClient(baseUrl));
-    return instances.get(baseUrl);
+    return getInstance(baseUrl, null);
+  }
+
+  public static HubWebClient getInstance(String baseUrl, Map<String, String> extraHeaders) {
+    InstanceKey key = new InstanceKey(baseUrl, extraHeaders);
+    if (!instances.containsKey(key))
+      instances.put(key, new HubWebClient(baseUrl, extraHeaders));
+    return instances.get(key);
   }
 
   public Space loadSpace(String spaceId) throws WebClientException {
@@ -84,14 +98,10 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public Space createSpace(String spaceId, String title) throws WebClientException {
-    return createSpace(spaceId, title, null);
+    return createSpace(new Space().withId(spaceId).withTitle(title));
   }
 
-  public Space createSpace(String spaceId, String title, Map<String, Object> spaceConfig) throws WebClientException {
-    spaceConfig = new HashMap<>(spaceConfig == null ? Map.of() : spaceConfig);
-    spaceConfig.put("id", spaceId);
-    spaceConfig.put("title", title);
-
+  public Space createSpace(Space spaceConfig) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
               .uri(uri("/spaces"))
@@ -108,6 +118,32 @@ public class HubWebClient extends XyzWebClient {
         .uri(uri("/spaces/" + spaceId))
         .header(CONTENT_TYPE, JSON_UTF_8.toString())
         .method("PATCH", BodyPublishers.ofByteArray(XyzSerializable.serialize(spaceUpdates).getBytes())));
+  }
+
+  public void putFeaturesWithoutResponse(String spaceId, FeatureCollection fc) throws WebClientException {
+    request(HttpRequest.newBuilder()
+        .uri(uri("/spaces/" + spaceId + "/features"))
+        .header(CONTENT_TYPE, GEO_JSON.toString())
+        .header(ACCEPT, "application/x-empty")
+        .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
+  }
+
+  public XyzResponse postFeatures(String spaceId, FeatureCollection fc, Map<String, String> queryParams) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/features?" + serializeQueryParams(queryParams)))
+              .header(CONTENT_TYPE, GEO_JSON.toString())
+              .method("POST", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes()))).body());
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  private String serializeQueryParams(Map<String, String> queryParams) {
+    return queryParams == null ? "" : queryParams.entrySet().stream()
+        .map(param -> param.getKey() + "=" + param.getValue())
+        .collect(Collectors.joining("&"));
   }
 
   public void deleteSpace(String spaceId) throws WebClientException {
@@ -185,4 +221,6 @@ public class HubWebClient extends XyzWebClient {
       throw new WebClientException("Error deserializing response", e);
     }
   }
+
+  protected record InstanceKey(String baseUrl, Map<String, String> extraHeaders) {}
 }

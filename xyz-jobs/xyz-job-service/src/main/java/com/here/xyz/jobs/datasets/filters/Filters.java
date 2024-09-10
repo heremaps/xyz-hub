@@ -33,6 +33,7 @@ import com.here.xyz.util.Hasher;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Filters {
 
+  //@TODO: Copy Filters to old impl V1 + Rewrite V2 that propertyFilter uses modelBase approach
   @JsonView({Public.class})
   private String propertyFilter;
 

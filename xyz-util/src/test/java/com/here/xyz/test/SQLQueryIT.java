@@ -26,7 +26,7 @@ import static org.junit.Assert.assertTrue;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class SQLQueryIT extends SQLITBase {
 

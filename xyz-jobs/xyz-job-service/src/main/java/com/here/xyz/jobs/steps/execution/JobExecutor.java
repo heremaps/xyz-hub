@@ -37,6 +37,7 @@ import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -134,6 +135,42 @@ public abstract class JobExecutor implements Initializable {
       logger.error("Error checking PENDING jobs", e);
       running = false;
     }
+  }
+
+  private static long calculateEstimatedExecutionTime(Job job) {
+    return job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000;
+  }
+
+  //TODO: integrate updatePendingTimeEstimations again.
+  //    return updatePendingTimeEstimations(pendingJobs.stream().filter(job -> job.getStatus().getState() == PENDING)
+  //            .collect(Collectors.toUnmodifiableList()));
+  private Future<Void> updatePendingTimeEstimations(List<Job> pendingJobs) {
+    return JobConfigClient.getInstance().loadJobs(RUNNING)
+        .compose(runningJobs -> {
+          if (runningJobs.isEmpty()) {
+            //No jobs are running, but we have PENDING jobs, are the jobs trying to use too many resources of the system overall?
+            logger.warn("Following jobs are PENDING, but there are no running jobs, does the system provide enough resources to "
+                + "start these jobs at all? : {}", pendingJobs.stream().map(Job::getId).collect(Collectors.joining(", ")));
+            //Set the estimated PENDING time to "unknown"
+            pendingJobs.forEach(pendingJob -> pendingJob.getStatus().setEstimatedStartTime(-1));
+            return Future.succeededFuture();
+          }
+
+          List<Job> activeJobs = new ArrayList<>(runningJobs);
+
+          //NOTE: The following is an algorithm that only provides a very rough estimation of the start time
+          for (Job pendingJob : pendingJobs) {
+            Job earliestCompletingJob = activeJobs.stream().min(Comparator.comparingLong(job -> job.getStatus().getEstimatedEndTime())).get();
+            long estimatedStartTime = earliestCompletingJob.getStatus().getEstimatedEndTime();
+            pendingJob.getStatus()
+                .withEstimatedStartTime(estimatedStartTime)
+                .withInitialEndTimeEstimation(estimatedStartTime + calculateEstimatedExecutionTime(pendingJob));
+            //Replace the (already "consumed") active job by the consuming pending job for the calculation in the next loop iteration
+            activeJobs.remove(earliestCompletingJob);
+            activeJobs.add(pendingJob);
+          }
+          return Future.succeededFuture();
+        });
   }
 
   /**

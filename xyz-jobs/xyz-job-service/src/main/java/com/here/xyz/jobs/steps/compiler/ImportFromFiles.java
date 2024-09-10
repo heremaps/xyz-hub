@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.compiler;
 
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSONWKB;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
@@ -34,11 +34,13 @@ import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.AnalyzeSpaceTable;
 import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import java.util.HashSet;
@@ -48,7 +50,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ImportFromFiles implements JobCompilationInterceptor {
-
   public static Set<Class<? extends DatasetDescription.Space>> allowedTargetTypes = new HashSet<>(Set.of(DatasetDescription.Space.class));
 
   @Override
@@ -58,20 +59,33 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   @Override
   public CompilationStepGraph compile(Job job) {
-    String spaceId = job.getTarget().getKey();
+    DatasetDescription.Space target = (DatasetDescription.Space) job.getTarget();
+    String spaceId = target.getId();
 
     final FileFormat sourceFormat = ((Files) job.getSource()).getInputSettings().getFormat();
     Format importStepFormat;
     if (sourceFormat instanceof GeoJson)
       importStepFormat = GEOJSON;
     else if (sourceFormat instanceof Csv csvFormat)
-      importStepFormat = csvFormat.isGeometryAsExtraWkbColumn() ? CSV_JSONWKB : CSV_GEOJSON;
+      importStepFormat = csvFormat.isGeometryAsExtraWkbColumn() ? CSV_JSON_WKB : CSV_GEOJSON;
     else
       throw new CompilationError("Unsupported import file format: " + sourceFormat.getClass().getSimpleName());
 
-    return compileImportSteps(new ImportFilesToSpace()
+    ImportFilesToSpace importFilesStep = new ImportFilesToSpace() //Perform import
         .withSpaceId(spaceId)
-        .withFormat(importStepFormat));
+        .withFormat(importStepFormat)
+        .withEntityPerLine(getEntityPerLine(sourceFormat))
+        .withJobId(job.getId())
+        .withUpdateStrategy(target.getUpdateStrategy());
+
+    if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.ASYNC)
+      || !importFilesStep.keepIndices())
+      //perform full Import with all 11 Steps (IDX deletion/creation..)
+      return compileImportSteps(importFilesStep);
+
+    //perform only Import Step
+    return (CompilationStepGraph) new CompilationStepGraph()
+            .addExecution(importFilesStep);
   }
 
   public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {
@@ -93,6 +107,11 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .addExecution(new CreateIndex().withIndex(VIZ).withSpaceId(spaceId))
         .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
         .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
+  }
+
+  private EntityPerLine getEntityPerLine(FileFormat format) {
+    return EntityPerLine.valueOf((format instanceof GeoJson geoJson
+        ? geoJson.getEntityPerLine() : ((Csv) format).getEntityPerLine()).toString());
   }
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<Index> indices) {

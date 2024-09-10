@@ -55,6 +55,7 @@ public interface XyzSerializable {
     private static final Collection<Class<?>> REGISTERED_SUBTYPES = new ConcurrentLinkedQueue<>();
     private static final Map<Class<?>, Class<?>> ALL_MIX_INS = new ConcurrentHashMap<>();
     private static final Collection<ObjectMapper> ALL_MAPPERS = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
+    private static boolean alwaysSerializePretty = false;
 
     private static ObjectMapper registerNewMapper(ObjectMapper om) {
       ALL_MAPPERS.add(om);
@@ -93,6 +94,15 @@ public interface XyzSerializable {
 
       return DEFAULT_MAPPER.get();
     }
+  }
+
+  /**
+   * Can be used in tests to enable pretty serialization by default.
+   * @param alwaysSerializePretty Whether to serialize pretty regardless of the pretty parameter of the {@link #serialize(boolean)}
+   *  methods.
+   */
+  static void setAlwaysSerializePretty(boolean alwaysSerializePretty) {
+    Mappers.alwaysSerializePretty = alwaysSerializePretty;
   }
 
   /**
@@ -147,7 +157,7 @@ public interface XyzSerializable {
   private static String serialize(Object object, Class<? extends SerializationView> view, boolean pretty) {
     ObjectMapper mapper = getMapperForView(view);
     try {
-      return pretty ? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object) : mapper.writeValueAsString(object);
+      return pretty || Mappers.alwaysSerializePretty ? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object) : mapper.writeValueAsString(object);
     }
     catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to encode as JSON: " + e.getMessage(), e);

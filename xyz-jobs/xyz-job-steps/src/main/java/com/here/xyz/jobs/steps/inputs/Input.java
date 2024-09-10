@@ -61,7 +61,7 @@ public abstract class Input <T extends Input> implements Typed {
   @JsonIgnore
   private String s3Key;
   private static Map<String, InputsMetadata> metadataCache = new WeakHashMap<>();
-  private static Map<String, List<Input>> inputsCache = new WeakHashMap<>();
+  private static Map<String, List<Input>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
   private static Set<String> inputsCacheActive = new HashSet<>();
 
   public static String inputS3Prefix(String jobId) {

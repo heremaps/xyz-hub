@@ -52,7 +52,7 @@ public class XyzSpaceTableHelper {
     OPERATION,
     SERIAL,
     VIZ,
-    AUTHOR;
+    AUTHOR
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {

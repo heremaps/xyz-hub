@@ -204,7 +204,7 @@ public class JobApi extends Api {
 
       String spaceId = ApiParam.getPathParam(context, SPACE_ID);
 
-      if (job.getSource() instanceof DatasetDescription.Space space)
+      if (spaceId != null && job.getSource() instanceof DatasetDescription.Space space)
         space.setId(spaceId);
 
       return job;
