@@ -45,6 +45,7 @@ import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.Random;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
@@ -69,7 +70,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -204,7 +204,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         Stream.of(inserts, upserts)
             .flatMap(Collection::stream)
             .filter(feature -> feature.getId() == null)
-            .forEach(feature -> feature.setId(RandomStringUtils.randomAlphanumeric(16)));
+            .forEach(feature -> feature.setId(Random.randomAlphaNumeric(16)));
 
         //Call finalize feature
         Stream.of(inserts, updates, upserts)
