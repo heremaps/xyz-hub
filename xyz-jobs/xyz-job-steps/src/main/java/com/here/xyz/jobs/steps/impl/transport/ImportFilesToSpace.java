@@ -75,7 +75,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
   private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 100 * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1 * 1024 * 1024 * 1024;
-  private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 10_000_000;
+  private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 1;
   public static final int MAX_DB_THREAD_CNT = 15;
 
   private Format format = GEOJSON;
@@ -97,7 +97,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
-  //@TODO: for RETAIN Strategies we need to fix statistics. Currently each featureWriter call gets counted as write.
   @JsonView({Internal.class, Static.class})
   private UpdateStrategy updateStrategy;
 
@@ -187,8 +186,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   public boolean keepIndices(){
-    return getUncompressedUploadBytesEstimation() <= MAX_INPUT_BYTES_FOR_KEEP_INDICES
-            && getTargetTableFeatureCount() >= MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES;
+    /**
+     * The targetSpace needs to have more than MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES features
+     * Reason: for tables with not that much records in its always faster to remove and recreate indices
+     * +
+     * Incoming bytes have to be smaller as MAX_INPUT_BYTES_FOR_KEEP_INDICES
+     * Reason: if we write not that much, it`s also with indices fast enough
+    */
+    if(getTargetTableFeatureCount() >= MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES
+      && getUncompressedUploadBytesEstimation() <= MAX_INPUT_BYTES_FOR_KEEP_INDICES)
+      return true;
+    return false;
   }
 
   @Override
@@ -274,10 +282,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     @Override
     public ExecutionMode getExecutionMode() {
-        //TODO: check slow import times in syncmode
-        if (format != GEOJSON || format == GEOJSON && entityPerLine == FeatureCollection)
-          return ASYNC;
-
         return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
     }
 
@@ -398,27 +402,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return db;
   }
 
-    private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
-        boolean tmpTableNotExistsAndHasNoData = true;
-    try {
-      //TODO: Use resume flag instead of checking the table
-      //Check if the temporary table exists and has data - if yes we assume a retry and skip the creation + filling.
-      tmpTableNotExistsAndHasNoData = runReadQuerySync(buildTableCheckQuery(getSchema(db())), db(), 0,
-              rs -> {
-                rs.next();
-                if(rs.getLong("count") == 0 )
-                  return true;
-                return false;
-              });
-
-    }catch (SQLException e){
-      //We expect that
-      if (e.getSQLState() != null && !e.getSQLState().equals("42P01"))
-        throw e;
-      //TODO: Should we really ignore all other SQLExceptions?
-    }
-
-    if(!tmpTableNotExistsAndHasNoData) {
+  private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
+    if(isResume()) {
       logAndSetPhase(Phase.RESET_SUCCESS_MARKER);
       runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db)), db, 0);
     }else {
@@ -732,12 +717,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("${{importQuery}}")
             .withAsyncProcedure(true)
             .withQueryFragment("importQuery", buildImportQuery());
-  }
-
-  private SQLQuery buildTableCheckQuery(String schema) {
-    return new SQLQuery("SELECT count(1) FROM ${schema}.${table};")
-            .withVariable("schema", schema)
-            .withVariable("table", TransportTools.getTemporaryJobTableName(this));
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {

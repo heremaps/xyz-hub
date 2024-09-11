@@ -78,14 +78,17 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withJobId(job.getId())
         .withUpdateStrategy(target.getUpdateStrategy());
 
-    if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.ASYNC)
-      || !importFilesStep.keepIndices())
-      //perform full Import with all 11 Steps (IDX deletion/creation..)
-      return compileImportSteps(importFilesStep);
-
-    //perform only Import Step
-    return (CompilationStepGraph) new CompilationStepGraph()
+    if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
+    /**
+     * Perform only Import Step.
+     * In Sync-mode we are writing from Lambda to RDS in a SYNC way.
+     * If indexes should get kept we are still writing ASYC but its faster to keep remove the indices.
+     */
+      return (CompilationStepGraph) new CompilationStepGraph()
             .addExecution(importFilesStep);
+
+    //perform full Import with all 11 Steps (IDX deletion/creation..)
+    return compileImportSteps(importFilesStep);
   }
 
   public static CompilationStepGraph compileImportSteps(ImportFilesToSpace importFilesStep) {

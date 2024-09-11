@@ -269,7 +269,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   @JsonIgnore
-  private boolean isResume() {
+  protected boolean isResume() {
     return retryCount > 0;
   }
 
