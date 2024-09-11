@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.BaseEncoding;
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -32,6 +34,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -157,8 +160,7 @@ public class ECPSTool {
      */
     public String decrypt(String data) throws GeneralSecurityException {
       byte[] encrypted = Base64.getDecoder().decode(data);
-      Cipher cipher = Cipher.getInstance(ALGORITHM);
-      cipher.init(Cipher.DECRYPT_MODE, key, getParams(encrypted));
+      final Cipher cipher = getCipher(Cipher.DECRYPT_MODE, encrypted);
       return new String(cipher.doFinal(encrypted, IV_SIZE, encrypted.length - IV_SIZE));
     }
 
@@ -172,8 +174,7 @@ public class ECPSTool {
       byte[] encrypted = new byte[IV_SIZE + plain.length + TAG_SIZE];
       byte[] iv = getIv();
       System.arraycopy(iv, 0, encrypted, 0, IV_SIZE);
-      Cipher cipher = Cipher.getInstance(ALGORITHM);
-      cipher.init(Cipher.ENCRYPT_MODE, key, getParams(iv));
+      Cipher cipher = getCipher(Cipher.ENCRYPT_MODE, iv);
       cipher.doFinal(plain, 0, plain.length, encrypted, IV_SIZE);
       return new String(Base64.getEncoder().encode(encrypted));
     }
@@ -186,6 +187,13 @@ public class ECPSTool {
 
     private AlgorithmParameterSpec getParams(byte[] encryptedBuffer) {
       return new GCMParameterSpec(8 * TAG_SIZE, encryptedBuffer, 0, IV_SIZE);
+    }
+
+    private Cipher getCipher(int mode, byte[] buffer)
+        throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
+      Cipher cipher = Cipher.getInstance(ALGORITHM);
+      cipher.init(mode, key, getParams(buffer));
+      return cipher;
     }
   }
 }
