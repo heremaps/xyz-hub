@@ -145,10 +145,6 @@
       <artifactId>guava</artifactId>
       <groupId>com.google.guava</groupId>
     </dependency>
-    <dependency>
-      <groupId>com.google.crypto.tink</groupId>
-      <artifactId>tink</artifactId>
-    </dependency>
 
     <!-- Cache -->
     <dependency>
