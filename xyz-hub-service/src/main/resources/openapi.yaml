@@ -1986,7 +1986,7 @@ components:
       schema:
         type: string
     VersionRef:
-      name: version
+      name: versionRef
       in: query
       description: >-
         The query parameter used to specify the version reference pointing to a tag or a version.
