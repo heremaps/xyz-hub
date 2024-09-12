@@ -129,11 +129,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildSelectClause(E event, int dataset) {
-    return new SQLQuery("id, ${{selection}}, ${{geo}}, ${{dataset}}")
+    return new SQLQuery("id, ${{selection}}, ${{geo}}, ${{dataset}} ${{version}}")
         .withQueryFragment("selection", buildSelectionFragment(event))
         .withQueryFragment("geo", buildGeoFragment(event))
         .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
-            .withQueryFragment("datasetNo", "" + dataset));
+            .withQueryFragment("datasetNo", "" + dataset))
+        .withQueryFragment("version", buildSelectClauseVersionFragment(event));
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
@@ -352,6 +353,16 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "END "
         + "FROM prj_build(#{selection}, " + jsonDataWithVersion + ")) AS jsondata")
         .withNamedParameter("selection", selection.toArray(new String[0]));
+  }
+
+  protected String buildSelectClauseVersionFragment(ContextAwareEvent event) {
+    if (!(event instanceof SelectiveEvent selectiveEvent))
+      return "";
+
+    if (!selectiveEvent.getRef().isAllVersions())
+      return "";
+
+    return ", version";
   }
 
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {

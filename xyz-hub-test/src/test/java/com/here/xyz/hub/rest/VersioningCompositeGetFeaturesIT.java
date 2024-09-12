@@ -19,6 +19,10 @@
 
 package com.here.xyz.hub.rest;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
@@ -111,5 +115,20 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
     getFeature(DELTA, "f1", 5, "EXTENSION", 200);
     getFeature(DELTA, "f1", 5, "DEFAULT", 200);
     getFeature(DELTA, "f1", 5, 200);
+  }
+
+  @Test
+  public void testGetFeatureVersionStar() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/" + DELTA + "/features/f1?version=*")
+        .then()
+        .statusCode(OK.code())
+        .body("features[0].id", equalTo("f1"))
+        .body("features[1].id", equalTo("f1"))
+
+        .body("features[0].properties.@ns:com:here:xyz.version", equalTo(1))
+        .body("features[1].properties.@ns:com:here:xyz.version", equalTo(2));
   }
 }
