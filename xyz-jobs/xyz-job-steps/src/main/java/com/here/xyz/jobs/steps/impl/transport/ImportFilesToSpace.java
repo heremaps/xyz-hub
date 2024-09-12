@@ -306,7 +306,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
               logAndSetPhase(Phase.CREATE_TRIGGER);     //FIXME: Use owner of the job
               //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
-              runWriteQuerySync(buildTemporaryTriggerTableForImportQuery(), db(), 0);
               runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space.getOwner(), newVersion), db(), 0);
           }
 
@@ -582,6 +581,13 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
   }
 
+  private SQLQuery buildTemporaryTriggerTableIndex() throws WebClientException {
+       return new SQLQuery("CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree (pid);")
+                    .withVariable("indexName","idx_"+TransportTools.getTemporaryTriggerTableName(this)+"_pid")
+                    .withVariable("schema", getSchema(db()))
+                    .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
+  }
+
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
     if (getTargetTableFeatureCount() <= 0)
       return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
@@ -591,6 +597,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private SQLQuery buildTemporaryTriggerTableBlock(String targetAuthor, long newVersion) throws WebClientException {
     return SQLQuery.batchOf(
             buildTemporaryTriggerTableForImportQuery(),
+            buildTemporaryTriggerTableIndex(),
             buildCreateImportTrigger(targetAuthor, newVersion)
     );
   }
