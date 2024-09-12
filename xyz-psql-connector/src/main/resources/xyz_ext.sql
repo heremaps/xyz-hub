@@ -4303,25 +4303,10 @@ BEGIN
                        TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
                        author, feature.new_jsondata, feature.new_geo);
 
-        EXECUTE format(
-                'UPDATE "%1$s"."%2$s" as tbl SET ' ||
-                'count = tbl.count + 1 ' ||
-                'WHERE pid = pg_backend_pid();',
-                TG_TABLE_SCHEMA,
-                TG_TABLE_NAME
-                );
-        GET DIAGNOSTICS  updated_rows = ROW_COUNT;
-
-        IF updated_rows != 1 THEN
-            NEW.pid = NULL;
-            NEW.jsondata = NULL;
-            NEW.geo = NULL;
-            NEW.count = 1;
-            NEW.pid= pg_backend_pid();
-            RETURN NEW;
-        END IF;
-
-        RETURN NULL;
+        NEW.jsondata = NULL;
+        NEW.geo = NULL;
+        NEW.count = 1;
+        RETURN NEW;
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
@@ -4356,26 +4341,10 @@ BEGIN
                        TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
     END LOOP;
 
-    EXECUTE format(
-            'UPDATE "%1$s"."%2$s" as tbl SET ' ||
-            'count = tbl.count + %3$L ' ||
-            'WHERE pid = pg_backend_pid();',
-            TG_TABLE_SCHEMA,
-            TG_TABLE_NAME,
-            jsonb_array_length((NEW.jsondata)::JSONB->'features')
-            );
-    GET DIAGNOSTICS  updated_rows = ROW_COUNT;
-
-    IF updated_rows != 1 THEN
-        NEW.pid = NULL;
-        NEW.jsondata = NULL;
-        NEW.geo = NULL;
-        NEW.count = jsonb_array_length((NEW.jsondata)::JSONB->'features');
-        NEW.pid= pg_backend_pid();
-        RETURN NEW;
-    END IF;
-
-    RETURN NULL;
+    NEW.jsondata = NULL;
+    NEW.geo = NULL;
+    NEW.count = jsonb_array_length((NEW.jsondata)::JSONB->'features');
+    RETURN NEW;
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
@@ -4454,26 +4423,11 @@ BEGIN
         END IF;
     END IF;
 
-    EXECUTE format(
-            'UPDATE "%1$s"."%2$s" as tbl SET ' ||
-            'count = tbl.count + %3$L ' ||
-            'WHERE pid = pg_backend_pid();',
-            TG_TABLE_SCHEMA,
-            TG_TABLE_NAME,
-            featureCount
-            );
-    GET DIAGNOSTICS  updated_rows = ROW_COUNT;
+    NEW.jsondata = NULL;
+    NEW.geo = NULL;
+    NEW.count = featureCount;
 
-    IF updated_rows != 1 THEN
-        NEW.pid = NULL;
-        NEW.jsondata = NULL;
-        NEW.geo = NULL;
-        NEW.count = featureCount;
-        NEW.pid= pg_backend_pid();
-        RETURN NEW;
-    END IF;
-
-    RETURN NULL;
+    RETURN NEW;
 END;
 $BODY$
     LANGUAGE plpgsql VOLATILE;
