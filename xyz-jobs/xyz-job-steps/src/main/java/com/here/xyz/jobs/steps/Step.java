@@ -52,6 +52,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
@@ -61,6 +63,7 @@ import java.util.stream.Collectors;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
 public abstract class Step<T extends Step> implements Typed, StepExecution {
+  private static final Logger logger = LogManager.getLogger();
 
   //TODO: Apply views properly to all properties
 
@@ -224,6 +227,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return
    */
   protected List<Input> loadInputs() {
+    logger.info("[step:{}] Loading job inputs ...", getGlobalStepId());
     if (inputs == null)
       inputs = Input.loadInputs(getJobId());
     return inputs;

@@ -28,8 +28,12 @@ import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPe
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.CREATE_TMP_TABLE;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.EXECUTE_IMPORT;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.FILL_TMP_TABLE;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RESET_SUCCESS_MARKER;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -73,12 +77,11 @@ import org.locationtech.jts.io.ParseException;
  */
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final Logger logger = LogManager.getLogger();
-
   private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
   private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 100 * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1 * 1024 * 1024 * 1024;
   private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 5_000_000;
-  public static final int MAX_DB_THREAD_CNT = 15;
+  private static final int MAX_DB_THREAD_COUNT = 15;
 
   private Format format = GEOJSON;
 
@@ -105,22 +108,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private EntityPerLine entityPerLine;
 
-  //TODO: De-duplicate once CSV was removed (see GeoJson format class)
-  public enum EntityPerLine {
-    Feature,
-    FeatureCollection
-  }
-
-  public enum Format {
-    CSV_GEOJSON,
-    CSV_JSON_WKB,
-    GEOJSON;
-  }
-
-  public enum Phase {
-    VALIDATE, CALCULATE_ACUS, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, RESET_SUCCESS_MARKER,
-    FILL_TMP_TABLE, EXECUTE_IMPORT, RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
-  }
+  @JsonIgnore
+  private Space space;
+  @JsonIgnore
+  private Space superSpace;
 
   public Format getFormat() {
     return format;
@@ -171,34 +162,33 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   public Phase getPhase() {
-    return this.phase;
+    return phase;
   }
 
-  public long getTargetTableFeatureCount(){
-    if(this.targetTableFeatureCount == -1 && getSpaceId() != null){
-        StatisticsResponse statistics = null;
+  private long loadTargetSpaceFeatureCount() {
+    if (targetTableFeatureCount == -1 && getSpaceId() != null) {
+        StatisticsResponse statistics;
         try {
           statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-          this.targetTableFeatureCount = statistics.getCount().getValue();
-        } catch (WebClientException e) {
+          targetTableFeatureCount = statistics.getCount().getValue();
+        }
+        catch (WebClientException e) {
             throw new RuntimeException(e);
         }
     }
-    return this.targetTableFeatureCount;
+    return targetTableFeatureCount;
   }
 
-  public boolean keepIndices(){
-    /**
+  public boolean keepIndices() {
+    /*
      * The targetSpace needs to have more than MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES features
-     * Reason: for tables with not that much records in its always faster to remove and recreate indices
+     * Reason: For tables with not that many records in its always faster to remove and recreate indices
      * +
      * Incoming bytes have to be smaller as MAX_INPUT_BYTES_FOR_KEEP_INDICES
-     * Reason: if we write not that much, it`s also with indices fast enough
+     * Reason: if we write not that much, it's also with indices fast enough
     */
-    if(getTargetTableFeatureCount() >= MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES
-      && getUncompressedUploadBytesEstimation() <= MAX_INPUT_BYTES_FOR_KEEP_INDICES)
-      return true;
-    return false;
+    return loadTargetSpaceFeatureCount() >= MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES
+        && getUncompressedUploadBytesEstimation() <= MAX_INPUT_BYTES_FOR_KEEP_INDICES;
   }
 
   @Override
@@ -207,7 +197,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       fileCount = fileCount != -1 ? fileCount : currentInputsCount(UploadUrl.class);
 
       calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
-              ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
+              ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount,
+                  MAX_DB_THREAD_COUNT);
 
       //Calculate estimation for ACUs for all parallel running threads
       overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededAcus(calculatedThreadCount);
@@ -260,11 +251,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //Check if the space is actually existing
       space();
 
-      if (entityPerLine.equals(FeatureCollection) && format.equals(Format.CSV_JSON_WKB))
+      if (entityPerLine == FeatureCollection && format == CSV_JSON_WKB)
         throw new ValidationException("Combination of entityPerLine 'FeatureCollection' and type 'Csv' is not supported!");
 
-      if (getTargetTableFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT)
-        throw new ValidationException("An import into a non empty space is not possible. The uncompressed size of the provided files exceeds the limit of " + MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT + " bytes.");
+      if (loadTargetSpaceFeatureCount() > 0 && getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT)
+        throw new ValidationException("An import into a non empty space is not possible. "
+            + "The uncompressed size of the provided files exceeds the limit of " + MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT + " bytes.");
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -282,13 +274,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return true;
   }
 
-    @Override
-    public ExecutionMode getExecutionMode() {
-        //CSV is not supported in SYNC mode
-        if(format.equals(CSV_JSON_WKB) || format.equals(CSV_GEOJSON))
-          return ASYNC;
-        return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
-    }
+  //TODO: Cache the execution-mode once it was calculated
+  @Override
+  public ExecutionMode getExecutionMode() {
+      //CSV is not supported in SYNC mode
+      if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
+        return ASYNC;
+      return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+  }
 
   @Override
   public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
@@ -296,7 +289,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
-      if(getExecutionMode().equals(SYNC))
+      if(getExecutionMode() == SYNC)
           syncExecution();
       else {
         log("Importing input files for job " + getJobId() + " into space " + getSpaceId() + " ...");
@@ -317,7 +310,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           createAndFillTemporaryJobTable();
 
           calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
-                  ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount, MAX_DB_THREAD_CNT);
+                  ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount,
+                      MAX_DB_THREAD_COUNT);
           double neededAcusForOneThread = calculateNeededAcus(1);
 
           logAndSetPhase(EXECUTE_IMPORT);
@@ -337,12 +331,22 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     for (Input input : loadInputs()) {
       logger.info("[{}] Sync write from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
-      featureCount += syncWriteFileToSpace(input, newVersion)[0];
+      featureCount += syncWriteFileToSpace(input, newVersion);
     }
     registerOutputs(List.of(new FeatureStatistics().withFeatureCount(featureCount).withByteSize(getUncompressedUploadBytesEstimation())), true);
   }
 
-  protected int[] syncWriteFileToSpace(Input input, long newVersion) throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
+  /**
+   * Writes one input file into the target space.
+   * @param input The input file
+   * @param newVersion The new space version being created by this import
+   * @return The number of features that have been written
+   * @throws IOException
+   * @throws WebClientException
+   * @throws SQLException
+   * @throws TooManyResourcesClaimed
+   */
+  private int syncWriteFileToSpace(Input input, long newVersion) throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
     final S3Client s3Client = S3Client.getInstance();
 
     InputStream inputStream = s3Client.streamObjectContent(input.getS3Key());
@@ -363,7 +367,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       fileContent.append("]");
 
       //FIXME: Use correct ACU load + remove batchOf
-      return runBatchWriteQuerySync(SQLQuery.batchOf(buildFeatureWriterQuery(fileContent.toString(), newVersion)), db(), 0);
+      return runBatchWriteQuerySync(SQLQuery.batchOf(buildFeatureWriterQuery(fileContent.toString(), newVersion)), db(), 0)[0];
     }
   }
 
@@ -374,8 +378,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     });
   }
 
-  @JsonIgnore
-  private Space space;
   private Space space() throws WebClientException {
     if (space == null) {
       log("Loading space config for space " + getSpaceId());
@@ -384,8 +386,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return space;
   }
 
-  @JsonIgnore
-  private Space superSpace;
   private Space superSpace() throws WebClientException {
     if (superSpace == null) {
       log("Loading space config for super-space " + getSpaceId());
@@ -407,14 +407,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    if(isResume()) {
-      logAndSetPhase(Phase.RESET_SUCCESS_MARKER);
+    if (isResume()) {
+      logAndSetPhase(RESET_SUCCESS_MARKER);
       runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db)), db, 0);
-    }else {
-      logAndSetPhase(Phase.CREATE_TMP_TABLE);
+    }
+    else {
+      logAndSetPhase(CREATE_TMP_TABLE);
       runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
 
-      logAndSetPhase(Phase.FILL_TMP_TABLE);
+      logAndSetPhase(FILL_TMP_TABLE);
       fillTemporaryTableWithInputs(db, loadStepInputs(), bucketRegion());
     }
   }
@@ -468,6 +469,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     }catch (SQLException e){
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
+      //TODO: Find out the cases in which that could happen and prevent it from happening
       if(e.getSQLState() != null && e.getSQLState().equals("42P01")) {
         log("_job_data table got already deleted!");
         return;
@@ -516,9 +518,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
                            );
                     """)
-            .withVariable("table", TransportTools.getTemporaryJobTableName(this))
+            .withVariable("table", getTemporaryJobTableName(this))
             .withVariable("schema", schema)
-            .withVariable("primaryKey", TransportTools.getTemporaryJobTableName(this) + "_primKey");
+            .withVariable("primaryKey", getTemporaryJobTableName(this) + "_primKey");
   }
 
   private void fillTemporaryTableWithInputs(Database db, List<S3DataFile> inputs, String bucketRegion) throws SQLException, TooManyResourcesClaimed {
@@ -536,7 +538,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                         .withVariable("schema", getSchema(db))
-                        .withVariable("table", TransportTools.getTemporaryJobTableName(this))
+                        .withVariable("table", getTemporaryJobTableName(this))
                         .withNamedParameter("s3Key", input.getS3Key())
                         .withNamedParameter("bucketName", input.getS3Bucket())
                         .withNamedParameter("bucketRegion", bucketRegion)
@@ -553,7 +555,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                                 ON CONFLICT (s3_path) DO NOTHING;
                         """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                     .withVariable("schema", getSchema(db))
-                    .withVariable("table", TransportTools.getTemporaryJobTableName(this))
+                    .withVariable("table", getTemporaryJobTableName(this))
                     .withNamedParameter("s3Key", "SUCCESS_MARKER")
                     .withNamedParameter("bucketName", "SUCCESS_MARKER")
                     .withNamedParameter("state", "SUCCESS_MARKER")
@@ -564,7 +566,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildDropTemporaryTableForImportQuery() throws WebClientException {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", TransportTools.getTemporaryJobTableName(this))
+            .withVariable("table", getTemporaryJobTableName(this))
             .withVariable("schema", getSchema(db()));
   }
 
@@ -586,7 +588,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
-    if (getTargetTableFeatureCount() <= 0)
+    if (loadTargetSpaceFeatureCount() <= 0)
       return buildCreateImportTriggerForEmptyLayer(targetAuthor, newVersion);
     return buildCreateImportTriggerForNonEmptyLayer(targetAuthor, newVersion);
   }
@@ -668,7 +670,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 WHERE POSITION('SUCCESS_MARKER' in state) = 0;
           """)
             .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", TransportTools.getTemporaryJobTableName(this))
+            .withVariable("tmpTable", getTemporaryJobTableName(this))
             .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(this));
   }
 
@@ -691,7 +693,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               )A          
           """)
             .withVariable("schema", schema)
-            .withVariable("table", TransportTools.getTemporaryJobTableName(this));
+            .withVariable("table", getTemporaryJobTableName(this));
   }
 
   private SQLQuery buildImportQuery() throws WebClientException {
@@ -703,7 +705,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withAsyncProcedure(true)
         .withNamedParameter("schema", schema)
         .withNamedParameter("target_tbl", schema+".\""+TransportTools.getTemporaryTriggerTableName(this)+"\"")
-        .withNamedParameter("temporary_tbl",  schema+".\""+(TransportTools.getTemporaryJobTableName(this))+"\"")
+        .withNamedParameter("temporary_tbl",  schema+".\""+(getTemporaryJobTableName(this))+"\"")
         .withNamedParameter("format", format.toString())
         .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'","''"))
         .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'","''"))
@@ -775,7 +777,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
             """)
             .withVariable("schema", schema)
-            .withVariable("table", TransportTools.getTemporaryJobTableName(this));
+            .withVariable("table", getTemporaryJobTableName(this));
   }
 
   private double calculateNeededAcus(int threadCount){
@@ -802,5 +804,22 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (newPhase != null)
       phase = newPhase;
     logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
+  }
+
+  //TODO: De-duplicate once CSV was removed (see GeoJson format class)
+  public enum EntityPerLine {
+    Feature,
+    FeatureCollection
+  }
+
+  public enum Format {
+    CSV_GEOJSON,
+    CSV_JSON_WKB,
+    GEOJSON;
+  }
+
+  public enum Phase {
+    VALIDATE, CALCULATE_ACUS, SET_READONLY, RETRIEVE_NEW_VERSION, CREATE_TRIGGER, CREATE_TMP_TABLE, RESET_SUCCESS_MARKER,
+    FILL_TMP_TABLE, EXECUTE_IMPORT, RETRIEVE_STATISTICS, WRITE_STATISTICS, DROP_TRIGGER, DROP_TMP_TABLE, RELEASE_READONLY;
   }
 }
