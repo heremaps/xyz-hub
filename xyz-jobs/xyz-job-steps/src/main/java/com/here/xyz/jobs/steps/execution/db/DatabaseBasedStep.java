@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution.db;
 
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.FAILURE_CALLBACK;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
@@ -266,7 +267,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   @Override
   public ExecutionMode getExecutionMode() {
-    return ExecutionMode.ASYNC;
+    return ASYNC;
   }
 
   protected final DataSourceProvider requestResource(Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed {
