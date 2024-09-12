@@ -25,6 +25,8 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.EXECUTE_IMPORT;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
@@ -282,6 +284,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     @Override
     public ExecutionMode getExecutionMode() {
+        //CSV is not supported in SYNC mode
+        if(format.equals(CSV_JSON_WKB) || format.equals(CSV_GEOJSON))
+          return ASYNC;
         return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
     }
 
