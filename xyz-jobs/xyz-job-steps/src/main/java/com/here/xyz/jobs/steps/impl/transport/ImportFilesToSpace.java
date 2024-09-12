@@ -573,19 +573,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     String tableFields =
             "jsondata TEXT, "
             + "geo geometry(GeometryZ, 4326), "
-            + "count INT, pid INT, updated BOOLEAN DEFAULT false";
-
+            + "count INT ";
     return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
             .withQueryFragment("tableFields", tableFields)
             .withVariable("schema", getSchema(db()))
             .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
-  }
-
-  private SQLQuery buildTemporaryTriggerTableIndex() throws WebClientException {
-       return new SQLQuery("CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree (pid);")
-                    .withVariable("indexName","idx_"+TransportTools.getTemporaryTriggerTableName(this)+"_pid")
-                    .withVariable("schema", getSchema(db()))
-                    .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
@@ -597,7 +589,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private SQLQuery buildTemporaryTriggerTableBlock(String targetAuthor, long newVersion) throws WebClientException {
     return SQLQuery.batchOf(
             buildTemporaryTriggerTableForImportQuery(),
-            buildTemporaryTriggerTableIndex(),
             buildCreateImportTrigger(targetAuthor, newVersion)
     );
   }
