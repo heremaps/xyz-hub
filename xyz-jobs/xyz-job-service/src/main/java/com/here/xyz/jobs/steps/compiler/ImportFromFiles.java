@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
+import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
@@ -76,7 +77,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withFormat(importStepFormat)
         .withEntityPerLine(getEntityPerLine(sourceFormat))
         .withJobId(job.getId())
-        .withUpdateStrategy(target.getUpdateStrategy());
+        .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY);
 
     if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
     /**
