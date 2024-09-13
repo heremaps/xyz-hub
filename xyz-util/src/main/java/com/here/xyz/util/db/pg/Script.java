@@ -109,7 +109,7 @@ public class Script {
 
   public void install() {
     try {
-      if (!installed && (!anyVersionExists() || !scriptVersionExists() && !getHash().equals(loadLatestHash()))) {
+      if (!installed && (scriptVersion != null && !anyVersionExists() || (scriptVersion == null || !scriptVersionExists()) && !getHash().equals(loadLatestHash()))) {
         logger.info("Installing script {} on DB {} ...", getScriptName(), getDbId());
         if (scriptVersion != null)
           install(getTargetSchema(scriptVersion));
@@ -166,8 +166,13 @@ public class Script {
   }
 
   private String loadLatestHash() throws SQLException {
-    return new SQLQuery("SELECT ${schema}.script_hash()").withVariable("schema", getTargetSchema(null))
-        .run(dataSourceProvider, rs -> rs.next() ? rs.getString(1) : null);
+    try {
+      return new SQLQuery("SELECT ${schema}.script_hash()").withVariable("schema", getTargetSchema(null))
+          .run(dataSourceProvider, rs -> rs.next() ? rs.getString(1) : null);
+    }
+    catch (SQLException e) {
+      return null;
+    }
   }
 
   public String loadLatestVersion() throws SQLException {
