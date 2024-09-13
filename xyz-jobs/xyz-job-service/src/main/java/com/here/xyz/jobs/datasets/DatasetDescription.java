@@ -32,7 +32,6 @@ import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy;
 import com.here.xyz.jobs.datasets.streams.Notifications;
 import com.here.xyz.models.hub.Ref;
 
@@ -75,10 +74,10 @@ public abstract class DatasetDescription implements Typed {
     }
   }
 
+  @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Space<T extends Space> extends Identifiable<T> implements FilteringSource<T>, VersionedSource<T> {
     private Filters filters;
     private Ref versionRef;
-    private UpdateStrategy updateStrategy = UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 
     @Override
     public Filters getFilters() {
@@ -109,19 +108,6 @@ public abstract class DatasetDescription implements Typed {
     @Override
     public T withVersionRef(Ref versionRef) {
       setVersionRef(versionRef);
-      return (T) this;
-    }
-
-    public UpdateStrategy getUpdateStrategy() {
-      return updateStrategy;
-    }
-
-    public void setUpdateStrategy(UpdateStrategy updateStrategy) {
-      this.updateStrategy = updateStrategy;
-    }
-
-    public T withUpdateStrategy(UpdateStrategy updateStrategy) {
-      setUpdateStrategy(updateStrategy);
       return (T) this;
     }
   }
