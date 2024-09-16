@@ -111,20 +111,23 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 197
+ select 198
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
 ------------------------------------------------
 ------------------------------------------------
-
 CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY)
     RETURNS GEOMETRY AS
 $BODY$
-   select ST_ReducePrecision(geo, 0.00000001)
+BEGIN
+    RETURN ST_ReducePrecision(geo, 0.00000001);
+    EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'Invalid geometry detected: %',ST_AsGeoJson(geo);
+        RETURN geo;
+END
 $BODY$
-LANGUAGE sql VOLATILE;
-
+    LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger()
@@ -4301,7 +4304,7 @@ BEGIN
         EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
                         values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L);',
                        TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation,
-                       author, feature.new_jsondata, feature.new_geo);
+                       author, feature.new_jsondata, xyz_reduce_precision(feature.new_geo));
 
         NEW.jsondata = NULL;
         NEW.geo = NULL;
@@ -4338,7 +4341,7 @@ BEGIN
 
         EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
                 values(%3$L, %4$L, %5$L, %6$L, %7$L, %8$L )',
-                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, feature.new_geo);
+                       TG_TABLE_SCHEMA, target_table, feature.new_id, curVersion, feature.new_operation, author, feature.new_jsondata, xyz_reduce_precision(feature.new_geo));
     END LOOP;
 
     NEW.jsondata = NULL;
@@ -4383,7 +4386,7 @@ BEGIN
 
     IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
         --TODO: Extend feature_writer with possibility to provide geometry
-        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB);
+        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB));
         SELECT write_feature(NEW.jsondata::TEXT,
                       author,
                       onExists,
