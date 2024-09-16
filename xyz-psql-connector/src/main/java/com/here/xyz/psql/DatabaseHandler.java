@@ -131,7 +131,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     private synchronized static List<String> checkScripts(DatabaseSettings dbSettings) {
         String softwareVersion = ConnectorRuntime.getInstance().getSoftwareVersion();
         if (!sqlScripts.containsKey(dbSettings.getId())) {
-          logger.info("Checking / installing scripts for connector {} ...", dbSettings.getId());
+          logger.info("Checking scripts for connector {} ...", dbSettings.getId());
           try (DataSourceProvider dataSourceProvider = new StaticDataSources(dbSettings)) {
             List<Script> scripts = Script.loadScripts("/sql", dataSourceProvider, softwareVersion);
             sqlScripts.put(dbSettings.getId(), scripts);
