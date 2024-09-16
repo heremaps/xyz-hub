@@ -240,8 +240,12 @@ class FeatureWriter {
    * @throws FeatureExistsError
    */
   writeRowWithoutHistory() {
-    if (this.isPartial)
-      this.inputFeature = this.patch(this.loadFeature(this.inputFeature.id), this.inputFeature);
+    if (this.isPartial) {
+      let headFeature = this.loadFeature(this.inputFeature.id);
+      if (headFeature == null)
+        this._throwFeatureNotExistsError()
+      this.inputFeature = this.patch(headFeature, this.inputFeature);
+    }
 
     if (this.onExists == "DELETE")
       //TODO: Ensure deletion is done with conflict detection (depending on this.onVersionConflict)

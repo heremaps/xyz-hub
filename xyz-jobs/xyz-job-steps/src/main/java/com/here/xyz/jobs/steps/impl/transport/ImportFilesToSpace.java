@@ -45,7 +45,7 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy;
+import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;

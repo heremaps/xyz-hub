@@ -29,6 +29,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
+import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;

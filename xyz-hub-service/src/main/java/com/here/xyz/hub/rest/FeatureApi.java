@@ -30,6 +30,12 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
@@ -39,10 +45,12 @@ import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Future;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
@@ -76,7 +84,7 @@ public class FeatureApi extends SpaceBasedApi {
    * client did not explicitly request an empty response.
    */
   private ApiResponseType getEmptyResponseTypeOr(final RoutingContext context, ApiResponseType defaultResponseType) {
-    if ("application/x-empty".equalsIgnoreCase(context.request().headers().get(HttpHeaders.ACCEPT))) {
+    if ("application/x-empty".equalsIgnoreCase(context.request().headers().get(ACCEPT))) {
       return ApiResponseType.EMPTY;
     }
     return defaultResponseType;
@@ -198,6 +206,62 @@ public class FeatureApi extends SpaceBasedApi {
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     }
+  }
+
+  private Future<FeatureCollection> writeFeatures(byte[] featureData, boolean partialUpdates, UpdateStrategy updateStrategy,
+      SpaceContext spaceContext, String author) {
+    WriteFeaturesEvent event = new WriteFeaturesEvent()
+        .withFeatureData(featureData)
+        .withUpdateStrategy(updateStrategy)
+        .withPartialUpdates(partialUpdates)
+        .withContext(spaceContext)
+        .withAuthor(author);
+
+    return Future.succeededFuture();
+  }
+
+  private UpdateStrategy toUpdateStrategy(IfExists ifExists, IfNotExists ifNotExists, ConflictResolution conflictResolution) {
+    return new UpdateStrategy(
+        toOnExists(ifExists),
+        toOnNotExists(ifNotExists),
+        toOnVersionConflict(ifExists, conflictResolution),
+        toOnMergeConflict(conflictResolution)
+    );
+  }
+
+  private OnVersionConflict toOnVersionConflict(IfExists ifExists, ConflictResolution conflictResolution) {
+    return switch (ifExists) {
+      case RETAIN -> OnVersionConflict.RETAIN;
+      case ERROR -> OnVersionConflict.ERROR;
+      case DELETE -> OnVersionConflict.DELETE;
+      case REPLACE, PATCH -> OnVersionConflict.REPLACE;
+      case MERGE -> OnVersionConflict.MERGE;
+    };
+  }
+
+  private OnMergeConflict toOnMergeConflict(ConflictResolution conflictResolution) {
+    return switch (conflictResolution) {
+      case ERROR -> OnMergeConflict.ERROR;
+      case RETAIN -> OnMergeConflict.RETAIN;
+      case REPLACE -> OnMergeConflict.REPLACE;
+    };
+  }
+
+  private OnExists toOnExists(IfExists ifExists) {
+    return switch (ifExists) {
+      case RETAIN -> OnExists.RETAIN;
+      case ERROR -> OnExists.ERROR;
+      case DELETE -> OnExists.DELETE;
+      case REPLACE, MERGE, PATCH -> OnExists.REPLACE;
+    };
+  }
+
+  private OnNotExists toOnNotExists(IfNotExists ifNotExists) {
+    return switch (ifNotExists) {
+      case RETAIN -> OnNotExists.RETAIN;
+      case ERROR -> OnNotExists.ERROR;
+      case CREATE -> OnNotExists.CREATE;
+    };
   }
 
   /**
