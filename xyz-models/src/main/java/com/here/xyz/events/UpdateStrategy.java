@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.datasets.space;
+package com.here.xyz.events;
 
 public record UpdateStrategy(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
     OnMergeConflict onMergeConflict) {
