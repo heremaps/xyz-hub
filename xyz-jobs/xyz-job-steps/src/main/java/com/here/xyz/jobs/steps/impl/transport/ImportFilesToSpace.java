@@ -379,6 +379,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       fileContent.append("[");
       String line;
       while ((line = reader.readLine()) != null) {
+        line = line.replace("\\","\\\\");
         fileContent.append(line).append(",");
       }
       //cut comma if file was empty
