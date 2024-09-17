@@ -20,10 +20,12 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
@@ -104,10 +106,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private UpdateStrategy updateStrategy;
+  private UpdateStrategy updateStrategy = DEFAULT_UPDATE_STRATEGY;
 
   @JsonView({Internal.class, Static.class})
-  private EntityPerLine entityPerLine;
+  private EntityPerLine entityPerLine = Feature;
 
   @JsonIgnore
   private Space space;
