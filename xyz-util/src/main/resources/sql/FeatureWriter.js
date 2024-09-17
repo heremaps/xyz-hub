@@ -670,14 +670,14 @@ class FeatureWriter {
                       (id, version, operation, author, jsondata, geo)
                   VALUES ($1, $2, $3, $4,
                           CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
-                              $5::JSONB - 'geometry')
+                              $5::JSONB - 'geometry'
                           ELSE 
                               jsonb_set($5::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
                                         (SELECT jsondata->'properties'->'${this.XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this._targetTable()}" WHERE id = $1 AND next_version = $2::BIGINT))
                           END,
                           CASE
                               WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL
-                              ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry'))) END)`,
+                              ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry')), false) END)`,
         this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
   }
 
@@ -716,11 +716,11 @@ class FeatureWriter {
                               author = EXCLUDED.author,
                               jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
                                      tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
-                              geo = xyz_reduce_precision(EXCLUDED.geo)` : this.onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
+                              geo = xyz_reduce_precision(EXCLUDED.geo, false)` : this.onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this._targetTable()}" AS tbl
                         (id, version, operation, author, jsondata, geo)
-                        VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)))) ${onConflict}
+                        VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)) ${onConflict}
                         RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation`;
 
     //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
@@ -743,7 +743,7 @@ class FeatureWriter {
                              author    = $3,
                              jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
                                                    tbl.jsondata -> 'properties' -> '${this.XYZ_NS}' -> 'createdAt'),
-                             geo       = xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)))
+                             geo       = xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)), false)
                          WHERE id = $6
                            AND version = $7
                          RETURNING (jsondata -> 'properties' -> '${this.XYZ_NS}' -> 'createdAt') as created_at, operation`,
