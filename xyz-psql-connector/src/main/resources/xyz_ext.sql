@@ -117,7 +117,9 @@ $BODY$
 
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boolean)
+DROP FUNCTION IF EXISTS xyz_reduce_precision(geo GEOMETRY);
+
+CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boolean = TRUE)
     RETURNS GEOMETRY AS
 $BODY$
 BEGIN
@@ -127,16 +129,6 @@ BEGIN
             RAISE WARNING 'Invalid geometry detected: %',ST_AsGeoJson(geo);
         END IF;
         RETURN geo;
-END
-$BODY$
-    LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY)
-    RETURNS GEOMETRY AS
-$BODY$
-BEGIN
-    RETURN xyz_reduce_precision(geo, true);
 END
 $BODY$
     LANGUAGE plpgsql VOLATILE;
