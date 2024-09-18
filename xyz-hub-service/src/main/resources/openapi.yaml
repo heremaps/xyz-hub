@@ -2519,7 +2519,7 @@ components:
           description: FeatureCollection of deleted features.
           items:
             $ref: '#/components/schemas/FeatureCollection'
-        createdAt:
+        updatedAt:
           description: >-
             The UNIX Epoch time of when this object has been created (in
             milliseconds since 01.01.1970).

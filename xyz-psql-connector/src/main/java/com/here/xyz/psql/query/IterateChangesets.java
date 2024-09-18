@@ -171,7 +171,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     }
 
     cc.setVersion(numFeatures > 0 ? start : -1l);
-    cc.setCreatedAt(createdAt);
+    cc.setUpdatedAt(createdAt);
     cc.setAuthor(author);
     cc.setInserted(new FeatureCollection().withFeatures(inserts));
     cc.setUpdated(new FeatureCollection().withFeatures(updates));
@@ -193,6 +193,8 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     Integer lastVersion = null;
     Integer startVersion = null;
     boolean wroteStart = false;
+    String author = null;
+    long updatedAt = 0;
 
     List<Feature> inserts = new ArrayList<>();
     List<Feature> updates = new ArrayList<>();
@@ -212,11 +214,19 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
         startVersion = version;
         wroteStart = true;
       }
+      
+      if (author == null) {
+          author = rs.getString("author");
+        }
+
 
       if(lastVersion !=  null && version > lastVersion) {
         Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
             .withVersion(lastVersion).withUpdated(new FeatureCollection().withFeatures(updates))
             .withDeleted(new FeatureCollection().withFeatures(deletes));
+       
+        cs.setUpdatedAt(updatedAt);
+        cs.setAuthor(author);
         versions.put(lastVersion, cs);
         inserts = new ArrayList<>();
         updates = new ArrayList<>();
@@ -225,6 +235,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
       try {
         feature =  new ObjectMapper().readValue(rs.getString("feature"), Feature.class);
+        updatedAt = feature.getProperties().getXyzNamespace().getUpdatedAt();
       }catch (JsonProcessingException e){
         throw new SQLException("Cant read json from database!");
       }
@@ -251,6 +262,9 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
       Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
               .withUpdated(new FeatureCollection().withFeatures(updates))
               .withDeleted(new FeatureCollection().withFeatures(deletes));
+     
+      cs.setUpdatedAt(updatedAt);
+      cs.setAuthor(author);
       versions.put(lastVersion, cs);
       ccol.setStartVersion(startVersion);
       ccol.setEndVersion(lastVersion);
