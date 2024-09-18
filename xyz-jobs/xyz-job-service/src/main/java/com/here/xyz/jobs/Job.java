@@ -295,7 +295,6 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> updateStep(Step<?> step, State previousStepState) {
-
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
       return Future.succeededFuture();
@@ -315,7 +314,7 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
-    if (step.getStatus().getState() == FAILED) {
+    if (previousStepState != FAILED && step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
           .withErrorMessage(step.getStatus().getErrorMessage())

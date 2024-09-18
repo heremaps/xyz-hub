@@ -27,41 +27,45 @@ CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_e
     on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL, return_result BOOLEAN = true)
     RETURNS JSONB AS
 $BODY$
+    try {
+      //TODO: Check why / from where "NULL" strings are passed into here and remove that bloody workaround once the actual issue has been solved properly
+      if (on_exists != null && on_exists.toLowerCase() == "null")
+        on_exists = null;
+      if (on_not_exists != null && on_not_exists.toLowerCase() == "null")
+        on_not_exists = null;
+      if (on_version_conflict != null && on_version_conflict.toLowerCase() == "null")
+        on_version_conflict = null;
+      if (on_merge_conflict != null && on_merge_conflict.toLowerCase() == "null")
+        on_merge_conflict = null;
 
-    //TODO: Check why / from where "NULL" strings are passed into here and remove that bloody workaround once the actual issue has been solved properly
-    if(on_exists != null && on_exists.toLowerCase() == "null")
-       on_exists = null;
-    if(on_not_exists != null && on_not_exists.toLowerCase() == "null")
-       on_not_exists = null;
-    if(on_version_conflict != null && on_version_conflict.toLowerCase() == "null")
-       on_version_conflict = null;
-    if(on_merge_conflict != null && on_merge_conflict.toLowerCase() == "null")
-       on_merge_conflict = null;
+      //Import other functions
+      let _queryContext;
+      const _context = plv8.context = () => {
+        let rows = plv8.execute("SELECT context()");
+        return rows[0].context;
+      };
+      const queryContext = key => {
+        if (_queryContext == null)
+          _queryContext = _context();
+        return _queryContext;
+      };
 
-    //Import other functions
-    let _queryContext;
-    const _context = plv8.context = () => {
-      let rows = plv8.execute("SELECT context()");
-      return rows[0].context;
-    };
-    const queryContext = key => {
-      if (_queryContext == null)
-        _queryContext = _context();
-      return _queryContext;
-    };
+      //Init block of internal feature_writer functionality
+      ${{Exception.js}}
+      ${{FeatureWriter.js}}
+      //Init completed
 
-    //Init block of internal feature_writer functionality
-    ${{Exception.js}}
-    ${{FeatureWriter.js}}
-    //Init completed
+      //Actual executions
+      if (input_features == null)
+        throw new Error("Parameter input_features must not be null.");
 
-    //Actual executions
-    if (input_features == null)
-      throw new Error("Parameter input_features must not be null.");
+      let result = FeatureWriter.writeFeatures(JSON.parse(input_features), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version == null ? undefined : version);
 
-    let result = FeatureWriter.writeFeatures(JSON.parse(input_features), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version == null ? undefined : version);
-
-    return return_result ? result : {"count": result.features.length};
+      return return_result ? result : {"count": result.features.length};
+    }
+    catch (error) {
+      throw new Error("Unexpected error in feature_writer: " + error.message);
+    }
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
 /**

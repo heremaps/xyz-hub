@@ -19,7 +19,6 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
@@ -76,15 +75,10 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withSpaceId(spaceId)
         .withFormat(importStepFormat)
         .withEntityPerLine(getEntityPerLine(sourceFormat))
-        .withJobId(job.getId())
-        .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY);
+        .withJobId(job.getId());
 
     if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
-    /**
-     * Perform only Import Step.
-     * In Sync-mode we are writing from Lambda to RDS in a SYNC way.
-     * If indexes should get kept we are still writing ASYC but its faster to keep remove the indices.
-     */
+      //Perform only the import Step
       return (CompilationStepGraph) new CompilationStepGraph()
             .addExecution(importFilesStep);
 
