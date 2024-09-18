@@ -276,7 +276,8 @@ public abstract class Input <T extends Input> implements Typed {
   }
 
   private static boolean inputIsCompressed(S3ObjectSummary objectSummary) {
-    //TODO: Check compression in another way (e.g. file suffix?)
+    if (objectSummary.getKey().endsWith(".gz"))
+      return true;
     ObjectMetadata metadata = S3Client.getInstance(objectSummary.getBucketName()).loadMetadata(objectSummary.getKey());
     return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
   }

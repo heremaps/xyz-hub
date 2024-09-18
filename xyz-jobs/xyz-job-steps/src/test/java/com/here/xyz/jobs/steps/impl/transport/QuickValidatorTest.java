@@ -34,6 +34,7 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.TestSteps;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
 import org.junit.jupiter.api.BeforeEach;
@@ -123,7 +124,10 @@ public class QuickValidatorTest extends TestSteps {
   }
 
   private void validate(String s3Key, Format format, boolean isCompressed, EntityPerLine entityPerLine) throws ValidationException {
-    ImportFilesQuickValidator.validate(Config.instance.JOBS_S3_BUCKET, s3Key, format, isCompressed, entityPerLine);
+    ImportFilesQuickValidator.validate(new UploadUrl()
+        .withS3Bucket(Config.instance.JOBS_S3_BUCKET)
+        .withS3Key(s3Key)
+        .withCompressed(isCompressed), format, entityPerLine);
   }
 
   @Test
