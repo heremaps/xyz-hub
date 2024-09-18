@@ -241,7 +241,7 @@ public class DatabaseWriter {
         long version, boolean uniqueConstraintExists) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
-        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, uniqueConstraintExists);
+        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, uniqueConstraintExists).withLabel("streamId", getStreamId());
 
         List<String> idList = transactional ? new ArrayList<>() : null;
 
