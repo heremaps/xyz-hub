@@ -256,7 +256,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
           }
         });
 
-    //If the heartbeat is called, but the query is not running anymore, it might be a failure => throw UnknownStateException
+    //If the heartbeat is called, but no query is running anymore, it might be a failure, but it could also be a success => throw UnknownStateException
     if (!someQueryIsRunning)
       throw new UnknownStateException("No query is running anymore for step " + getGlobalStepId() + ". "
           + "Either the step is completed or failed.");

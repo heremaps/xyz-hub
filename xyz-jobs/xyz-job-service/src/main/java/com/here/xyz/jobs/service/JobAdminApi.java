@@ -135,15 +135,13 @@ public class JobAdminApi extends Api {
     JsonObject event = context.body().asJsonObject();
 
     if (event.containsKey("detail")) {
-
       String eventSource = event.getString("source");
-      if("aws.states".equals(eventSource)) {
+      if ("aws.states".equals(eventSource))
         processSfnStateChangeEvent(event);
-      } else if("aws.emr-serverless".equals(eventSource)) {
+      else if ("aws.emr-serverless".equals(eventSource))
         processEmrJobStateChangeEvent(event);
-      } else {
+      else
         logger.error("Unsupported event received: {}", event);
-      }
     }
     else
       logger.error("The event does not include a detail field: {}", event);
@@ -203,14 +201,14 @@ public class JobAdminApi extends Api {
                 JobExecutor.getInstance().deleteExecution(job.getExecutionId());
               else if (newJobState == FAILED) {
                 if ("TIMED_OUT".equals(sfnStatus)) {
-                  final String existingErrCause = job.getStatus().getErrorCause();
+                  String existingErrCause = job.getStatus().getErrorCause();
                   job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
+                  //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
+                  //TODO: Set the one timed out step to FAILED
+                  future = future.compose(v -> cancelSteps(job, RUNNING));
                 }
-                future = Future.all(job.getSteps().stepStream().filter(step -> step.getStatus().getState() == PENDING).map(pendingStep -> {
-                  pendingStep.getStatus().setState(CANCELLING);
-                  pendingStep.getStatus().setState(CANCELLED);
-                  return job.storeUpdatedStep(pendingStep);
-                }).toList()).recover(t -> Future.succeededFuture()).mapEmpty();
+                //Set all PENDING steps to CANCELLED
+                future = future.compose(v -> cancelSteps(job, PENDING));
               }
 
               State oldState = job.getStatus().getState();
@@ -218,10 +216,19 @@ public class JobAdminApi extends Api {
                 job.getStatus().setState(newJobState);
 
               return future.compose(v -> job.storeStatus(oldState));
-            } else
+            }
+            else
               return Future.succeededFuture();
           })
           .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", jobId, t));
+  }
+
+  private static Future<Void> cancelSteps(Job job, State currentState) {
+    return Future.all(job.getSteps().stepStream().filter(step -> step.getStatus().getState() == currentState).map(step -> {
+      step.getStatus().setState(CANCELLING);
+      step.getStatus().setState(CANCELLED);
+      return job.storeUpdatedStep(step);
+    }).toList()).recover(t -> Future.succeededFuture()).mapEmpty();
   }
 
   /**
