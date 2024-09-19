@@ -111,7 +111,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 199
+ select 200
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -123,13 +123,16 @@ CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boo
     RETURNS GEOMETRY AS
 $BODY$
 BEGIN
-    RETURN ST_ReducePrecision(geo, 0.00000001);
-    EXCEPTION WHEN OTHERS THEN
-        IF enable_logging THEN
-            RAISE WARNING 'Invalid geometry detected: %',ST_AsGeoJson(geo);
-        END IF;
-        RETURN geo;
-END
+    RETURN geo;
+-- Temporary deactivated, till we found a proper solution.
+--
+--     RETURN ST_ReducePrecision(geo, 0.00000001);
+--     EXCEPTION WHEN OTHERS THEN
+--         IF enable_logging THEN
+--             RAISE WARNING 'Invalid geometry detected: %',ST_AsGeoJson(geo);
+--         END IF;
+--         RETURN geo;
+-- END
 $BODY$
     LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
