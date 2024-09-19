@@ -63,7 +63,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
             add("id5");
             add("id6");
             add("id7");
-            add("01010000A0E61000000B462575422C5CC03140C3177D5249400000000000000000");
+            add("01010000A0E6100000B0CD1A681EE23C403411B4C4CEE939400000000000000000");
         }};
 
     private static List<String> l1ChangesContentTILEID_FC_B64 = new ArrayList<>(){
@@ -85,8 +85,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
             add("idX");
             add("id3");
             add("id7");
-            add("01010000A0E61000000B462575422C54C03140C3177DD246400000000000000000");
-            add("01010000A0E6100000E4F17A5137D34440D6C58E42E97B43400000000000000000");
+            add("01010000A0E61000007DF82175422C54C0D056CC177DD246400000000000000000");
+            add("01010000A0E610000038D07F5137D34440F0968E42E97B43400000000000000000");
         }};
 
     private static List<String> l1ChangesContentPARTITIONED_JSON_WKB = new ArrayList<>(){
