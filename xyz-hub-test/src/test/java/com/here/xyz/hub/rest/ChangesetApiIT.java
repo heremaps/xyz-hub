@@ -43,6 +43,7 @@ import org.junit.Test;
 public class ChangesetApiIT extends TestSpaceWithFeature {
 
   private static String cleanUpSpaceId = "space1";
+  protected static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
 
   @BeforeClass
   public static void setupClass() {
@@ -457,6 +458,8 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("inserted.features.size()", equalTo(2))
             .body("updated.features.size()", equalTo(0))
             .body("deleted.features.size()", equalTo(0))
+            .body("author", equalTo(AUTHOR_1))
+            .body("createdAt", notNullValue())
             .body("nextPageToken", nullValue());
 
     given()
@@ -492,6 +495,8 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.1.inserted.features.size()", equalTo(2))
             .body("versions.1.updated.features.size()", equalTo(0))
             .body("versions.1.deleted.features.size()", equalTo(0))
+            .body("versions.1.author", equalTo(AUTHOR_1))
+            .body("versions.1.createdAt", notNullValue())
 
             .body("versions.2.inserted.features.size()", equalTo(1))
             .body("versions.2.updated.features.size()", equalTo(1))
