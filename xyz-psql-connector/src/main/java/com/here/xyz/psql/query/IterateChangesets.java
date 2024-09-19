@@ -171,7 +171,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     }
 
     cc.setVersion(numFeatures > 0 ? start : -1l);
-    cc.setUpdatedAt(createdAt);
+    cc.setCreatedAt(createdAt);
     cc.setAuthor(author);
     cc.setInserted(new FeatureCollection().withFeatures(inserts));
     cc.setUpdated(new FeatureCollection().withFeatures(updates));
@@ -194,7 +194,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     Integer startVersion = null;
     boolean wroteStart = false;
     String author = null;
-    long updatedAt = 0;
+    long createdAt = 0;
 
     List<Feature> inserts = new ArrayList<>();
     List<Feature> updates = new ArrayList<>();
@@ -225,7 +225,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
             .withVersion(lastVersion).withUpdated(new FeatureCollection().withFeatures(updates))
             .withDeleted(new FeatureCollection().withFeatures(deletes));
        
-        cs.setUpdatedAt(updatedAt);
+        cs.setCreatedAt(createdAt);
         cs.setAuthor(author);
         versions.put(lastVersion, cs);
         inserts = new ArrayList<>();
@@ -235,7 +235,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
       try {
         feature =  new ObjectMapper().readValue(rs.getString("feature"), Feature.class);
-        updatedAt = feature.getProperties().getXyzNamespace().getUpdatedAt();
+        createdAt = feature.getProperties().getXyzNamespace().getUpdatedAt();
       }catch (JsonProcessingException e){
         throw new SQLException("Cant read json from database!");
       }
@@ -263,7 +263,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
               .withUpdated(new FeatureCollection().withFeatures(updates))
               .withDeleted(new FeatureCollection().withFeatures(deletes));
      
-      cs.setUpdatedAt(updatedAt);
+      cs.setCreatedAt(createdAt);
       cs.setAuthor(author);
       versions.put(lastVersion, cs);
       ccol.setStartVersion(startVersion);
