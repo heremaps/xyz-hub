@@ -104,12 +104,12 @@ public class JobApi extends Api {
   protected void postJobInput(final RoutingContext context) throws HttpException {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     Input input = getJobInputFromBody(context);
-    if (input instanceof UploadUrl) {
+    if (input instanceof UploadUrl uploadUrl) {
       loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
               : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
-          .map(job -> job.createUploadUrl())
+          .map(job -> job.createUploadUrl(uploadUrl.isCompressed()))
           .onSuccess(res -> sendResponse(context, CREATED.code(), res))
           .onFailure(err -> sendErrorResponse(context, err));
     }
