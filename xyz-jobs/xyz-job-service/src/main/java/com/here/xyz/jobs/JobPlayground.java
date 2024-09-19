@@ -447,7 +447,7 @@ public class JobPlayground {
   private static void uploadInputFile(byte[] data, boolean compressed) throws IOException {
     //TODO: Compression
 
-    URL uploadUrl = mockJob.createUploadUrl().getUrl();
+    URL uploadUrl = mockJob.createUploadUrl(compressed).getUrl();
 
     uploadInputFile(data, uploadUrl);
   }
