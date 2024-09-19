@@ -34,7 +34,6 @@ public class Changeset extends XyzResponse<Changeset> {
     long version = -1;
     String author;
     long createdAt;
-    long updatedAt;
     private FeatureCollection inserted;
     private FeatureCollection updated;
     private FeatureCollection deleted;
@@ -91,20 +90,6 @@ public class Changeset extends XyzResponse<Changeset> {
         setInserted(inserted);
         return this;
     }
-    
-    public long getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(long updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public Changeset withUpdatedAt(long updatedAt) {
-        setUpdatedAt(updatedAt);
-        return this;
-    }
-
 
     public FeatureCollection getUpdated() {
         return updated;
