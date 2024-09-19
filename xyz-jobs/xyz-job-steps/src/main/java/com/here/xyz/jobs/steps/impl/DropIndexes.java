@@ -77,12 +77,16 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
   @Override
   public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    logger.info("Loading space config for space " + getSpaceId());
+    logger.info("[{}] Loading space config for space {} ...", getGlobalStepId(), getSpaceId());
     Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space " + getSpaceId());
+
+    logger.info("[{}] Getting storage database for space {} ...", getGlobalStepId(), getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
-    logger.info("Gathering indices of space " + getSpaceId());
-    List<String> indexes = runReadQuerySync(buildLoadSpaceTableIndicesQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(),
+
+    logger.info("[{}] Gathering indices of space {} ...", getGlobalStepId(), getSpaceId());
+    String schema = getSchema(db);
+    String rootTable = getRootTableName(space);
+    List<String> indexNames = runReadQuerySync(buildLoadSpaceTableIndicesQuery(schema, rootTable), db, calculateNeededAcus(),
             rs -> {
               List<String> result = new ArrayList<>();
               while(rs.next())
@@ -90,16 +94,28 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
               return result;
             });
 
-    if (indexes.isEmpty()) {
+    if (indexNames.isEmpty()) {
       reportAsyncSuccess();
-      logger.info("No indices to found. None will be dropped for space " + getSpaceId());
+      logger.info("[{}] No indices to found. None were dropped for space {}.", getGlobalStepId(), getSpaceId());
     }
     else {
-      logger.info("Dropping the following indices for space " + getSpaceId() + ": " + indexes);
-      List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(getSchema(db), indexes);
+      List dropQueries = new ArrayList();
+      //Ensure to drop constraints
+      dropQueries.add(buildDropConstraintQuery(schema, rootTable, rootTable + "_primKey"));
+      dropQueries.add(buildDropConstraintQuery(schema, rootTable, rootTable + "_unique"));
+
+      logger.info("[{}] Dropping the following indices for space {}: {} ...", getGlobalStepId(), getSpaceId(), indexNames);
+      dropQueries.addAll(buildSpaceTableDropIndexQueries(schema, indexNames));
       SQLQuery dropIndexesQuery = SQLQuery.join(dropQueries, ";");
       runWriteQueryAsync(dropIndexesQuery, db, calculateNeededAcus());
     }
+  }
+
+  private static SQLQuery buildDropConstraintQuery(String schema, String rootTable, String constraintName) {
+    return new SQLQuery("ALTER TABLE ${schema}.${rootTable} DROP CONSTRAINT ${constraintName}")
+        .withVariable("schema", schema)
+        .withVariable("rootTable", rootTable)
+        .withVariable("constraintName", constraintName);
   }
 
   @Override
