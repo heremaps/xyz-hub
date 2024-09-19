@@ -132,7 +132,7 @@ BEGIN
 --             RAISE WARNING 'Invalid geometry detected: %',ST_AsGeoJson(geo);
 --         END IF;
 --         RETURN geo;
--- END
+END
 $BODY$
     LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
