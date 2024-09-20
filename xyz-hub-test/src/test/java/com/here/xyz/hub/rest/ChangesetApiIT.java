@@ -44,6 +44,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
 
   private static String cleanUpSpaceId = "space1";
   protected static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
+  protected static final String AUTHOR_2 = "XYZ-01234567-89ab-cdef-0123-456789aUSER2";
 
   @BeforeClass
   public static void setupClass() {
@@ -140,6 +141,13 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
                     new Feature().withId("F").withProperties(new Properties().with("name", "F2"))
             )
     );
+    
+  //Version 11
+    FeatureCollection changeset11 = new FeatureCollection().withFeatures(
+            Arrays.asList(
+                    new Feature().withId("F").withProperties(new Properties().with("name", "F3"))
+            )
+    );
 
     given()
             .contentType(APPLICATION_JSON)
@@ -224,6 +232,14 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .post("/spaces/" + cleanUpSpaceId + "/features")
             .then()
             .statusCode(OK.code());
+ 
+    given()
+    		.contentType(APPLICATION_JSON)
+    		.headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_ALL))
+    		.body(changeset11.toString())
+    		.post("/spaces/" + cleanUpSpaceId + "/features")
+    		.then()
+    		.statusCode(OK.code());
   }
 
   private void addChangesetsMultipleTimes(int times) {
@@ -311,7 +327,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   public void deleteChangesetsLargerThanHeadValue() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<12")
+        .delete("/spaces/" + cleanUpSpaceId + "/changesets?version<13")
         .then()
         .statusCode(BAD_REQUEST.code());
 
@@ -490,7 +506,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .then()
             .statusCode(OK.code())
             .body("startVersion", equalTo(1))
-            .body("endVersion", equalTo(11))
+            .body("endVersion", equalTo(12))
 
             .body("versions.1.inserted.features.size()", equalTo(2))
             .body("versions.1.updated.features.size()", equalTo(0))
@@ -538,6 +554,12 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.11.updated.features.size()", equalTo(1))
             .body("versions.11.deleted.features.size()", equalTo(0))
 
+            .body("versions.12.inserted.features.size()", equalTo(0))
+            .body("versions.12.updated.features.size()", equalTo(1))
+            .body("versions.12.deleted.features.size()", equalTo(0))
+            .body("versions.12.author", equalTo(AUTHOR_2))
+            .body("versions.12.createdAt", notNullValue())
+            
             .body("nextPageToken", nullValue());
   }
 }

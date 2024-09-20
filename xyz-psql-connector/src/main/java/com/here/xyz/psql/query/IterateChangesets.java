@@ -215,10 +215,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
         wroteStart = true;
       }
       
-      if (author == null) {
-          author = rs.getString("author");
-        }
-
+       author = rs.getString("author");
 
       if(lastVersion !=  null && version > lastVersion) {
         Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
