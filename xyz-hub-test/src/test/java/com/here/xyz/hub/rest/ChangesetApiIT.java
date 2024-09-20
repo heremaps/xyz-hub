@@ -141,13 +141,6 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
                     new Feature().withId("F").withProperties(new Properties().with("name", "F2"))
             )
     );
-    
-  //Version 11
-    FeatureCollection changeset11 = new FeatureCollection().withFeatures(
-            Arrays.asList(
-                    new Feature().withId("F").withProperties(new Properties().with("name", "F3"))
-            )
-    );
 
     given()
             .contentType(APPLICATION_JSON)
@@ -227,19 +220,11 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
 
     given()
             .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_ALL))
             .body(changeset10.toString())
             .post("/spaces/" + cleanUpSpaceId + "/features")
             .then()
             .statusCode(OK.code());
- 
-    given()
-    		.contentType(APPLICATION_JSON)
-    		.headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_ALL))
-    		.body(changeset11.toString())
-    		.post("/spaces/" + cleanUpSpaceId + "/features")
-    		.then()
-    		.statusCode(OK.code());
   }
 
   private void addChangesetsMultipleTimes(int times) {
@@ -506,7 +491,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .then()
             .statusCode(OK.code())
             .body("startVersion", equalTo(1))
-            .body("endVersion", equalTo(12))
+            .body("endVersion", equalTo(11))
 
             .body("versions.1.inserted.features.size()", equalTo(2))
             .body("versions.1.updated.features.size()", equalTo(0))
@@ -553,12 +538,8 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.11.inserted.features.size()", equalTo(0))
             .body("versions.11.updated.features.size()", equalTo(1))
             .body("versions.11.deleted.features.size()", equalTo(0))
-
-            .body("versions.12.inserted.features.size()", equalTo(0))
-            .body("versions.12.updated.features.size()", equalTo(1))
-            .body("versions.12.deleted.features.size()", equalTo(0))
-            .body("versions.12.author", equalTo(AUTHOR_2))
-            .body("versions.12.createdAt", notNullValue())
+            .body("versions.11.author", equalTo(AUTHOR_2))
+            .body("versions.11.createdAt", notNullValue())
             
             .body("nextPageToken", nullValue());
   }
