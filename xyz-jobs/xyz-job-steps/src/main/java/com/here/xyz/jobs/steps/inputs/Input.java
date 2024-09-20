@@ -276,7 +276,16 @@ public abstract class Input <T extends Input> implements Typed {
   }
 
   private static boolean inputIsCompressed(S3ObjectSummary objectSummary) {
-    //TODO: Check compression in another way (e.g. file suffix?)
+    if (objectSummary.getKey().endsWith(".gz"))
+      return true;
+    if (!objectSummary.getBucketName().equals(defaultBucket()))
+      return false;
+    /*
+    NOTE:
+    For files that have been uploaded to the default bucket by the user without the compressed flag,
+    the metadata still has to be loaded for now.
+     */
+    //
     ObjectMetadata metadata = S3Client.getInstance(objectSummary.getBucketName()).loadMetadata(objectSummary.getKey());
     return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
   }

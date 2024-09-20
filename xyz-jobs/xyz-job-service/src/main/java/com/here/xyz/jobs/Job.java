@@ -448,8 +448,10 @@ public class Job implements XyzSerializable {
     return step.getAggregatedNeededResources();
   }
 
-  public UploadUrl createUploadUrl() {
-    return new UploadUrl().withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID());
+  public UploadUrl createUploadUrl(boolean compressed) {
+    return new UploadUrl()
+        .withCompressed(compressed)
+        .withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID() + (compressed ? ".gz" : ""));
   }
 
   public Future<Void> consumeInput(ModelBasedInput input) {

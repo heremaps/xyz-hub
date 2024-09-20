@@ -65,8 +65,8 @@ public class JobApiExportIT extends JobApiIT {
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList(
-            "01020000A0E61000000300000042C17BFDFF662140E08442041C14494000000000000000006BDE27FD732F21406C5CFFAECF0A49400000000000000000A9B7ABFCD7162140A96A82A8FB0E49400000000000000000",
-            "01030000A0E6100000010000000500000083E4F8FC8B172140876D8B321B18494000000000000000004DF564FED1A32140876D8B321B18494000000000000000004DF564FED1A3214074F04C6892024940000000000000000083E4F8FC8B17214074F04C6892024940000000000000000083E4F8FC8B172140876D8B321B1849400000000000000000",
+            "01020000A0E61000000300000041C17BFDFF662140E08442041C14494000000000000000006BDE27FD732F21406C5CFFAECF0A49400000000000000000A9B7ABFCD7162140A96A82A8FB0E49400000000000000000",
+            "01030000A0E6100000010000000500000083E4F8FC8B17214074F04C689202494000000000000000004DF564FED1A3214074F04C689202494000000000000000004DF564FED1A32140876D8B321B184940000000000000000083E4F8FC8B172140876D8B321B184940000000000000000083E4F8FC8B17214074F04C68920249400000000000000000",
             "foo_polygon"
         );
 
@@ -114,7 +114,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList(
             "foo_polygon",
-            "01020000A0E610000004000000901FE0FF7D70214087A4164A260B4940000000000000000041237DFF8B4421402A7288B8390549400000000000000000407E80FFF70521400264E8D8410749400000000000000000F60E12FD350421401AA9F7544E0349400000000000000000"
+            "01020000A0E610000004000000901FE0FF7D70214087A4164A260B4940000000000000000041237DFF8B4421402A7288B8390549400000000000000000407E80FFF70521400264E8D8410749400000000000000000F60E12FD3504214019A9F7544E0349400000000000000000"
         );
 
         downloadAndCheck(urls, 2467, 5, mustContain);
@@ -133,7 +133,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList(
             "onPropertyLevel",
-            "01010000A0E6100000ABBEA9FEF7322140C9563C9A8F1049400000000000000000"
+            "01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000"
         );
 
         downloadAndCheck(urls, 890, 3, mustContain);
@@ -157,7 +157,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList(
             "Point",
-            "01010000A0E610000038E38FFD875721402A55A2EC2D0D49400000000000000000"
+            "01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000"
         );
 
         downloadAndCheck(urls, 328, 1, mustContain);
@@ -182,7 +182,7 @@ public class JobApiExportIT extends JobApiIT {
             "Polygon with hole"
         );
 
-        downloadAndCheck(urls, 3971, 11, mustContain);
+        downloadAndCheck(urls, 3973, 11, mustContain);
     }
 
     /**
@@ -207,7 +207,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 96743, 263, mustContain);
+        downloadAndCheck(urls, 96744, 263, mustContain);
     }
 
     /**
@@ -229,7 +229,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 3971, 11, mustContain);
+        downloadAndCheck(urls, 3973, 11, mustContain);
     }
 
     /**
@@ -269,7 +269,7 @@ public class JobApiExportIT extends JobApiIT {
             "foo_new" //Got overridden in composite space
         );
 
-        downloadAndCheck(urls, 10917, 30, mustContain);
+        downloadAndCheck(urls, 10916, 30, mustContain);
     }
 
     @Test
@@ -315,7 +315,7 @@ public class JobApiExportIT extends JobApiIT {
             "2LPoint"  //Got added in composite space L2
         );
 
-        downloadAndCheck(urls, 11150, 31, mustContain);
+        downloadAndCheck(urls, 11149, 31, mustContain);
     }
 
     @Test
@@ -335,7 +335,7 @@ public class JobApiExportIT extends JobApiIT {
             "2LPoint"  //Got added in composite space L2
         );
         // 252 + 11 + 1 = 264
-        downloadAndCheck(urls, 96976, 264, mustContain);
+        downloadAndCheck(urls, 96977, 264, mustContain);
     }
 
     @Test
@@ -354,7 +354,7 @@ public class JobApiExportIT extends JobApiIT {
         );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 96743, 263, mustContain);
+        downloadAndCheck(urls, 96744, 263, mustContain);
     }
 
     /**
@@ -378,7 +378,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("360", "eyJ0eXBlIjogIkZl");
 
         /** Expect 10 features instead of 11 because feature without geometry is not included in result */
-        downloadAndCheckFC(urls, 5069, 10, mustContain, 1);
+        downloadAndCheckFC(urls, 5073, 10, mustContain, 1);
     }
 
     /**
@@ -402,7 +402,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("23600780", "23600794", "W9uIiwgImZlYXR1cmV");
 
         /** Expect 39 features because the geometry of some features is intersecting multiple tiles */
-        downloadAndCheckFC(urls, 23046, 39, mustContain, 17);
+        downloadAndCheckFC(urls, 23098, 39, mustContain, 17);
     }
 
     /**
@@ -541,7 +541,7 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("374", "352", "HVyZSIsICJnZW9", "374");
 
         // 252 + 10 (-feature w/o geometry) + 1 = 263
-        downloadAndCheckFC(urls, 131365, 263, mustContain, 37);
+        downloadAndCheckFC(urls, 131369, 263, mustContain, 37);
     }
 
     @Test
@@ -563,7 +563,7 @@ public class JobApiExportIT extends JobApiIT {
 
         List<String> mustContain = Arrays.asList("360", "RyeSI6IHsidHlwZSI6I");
 
-        downloadAndCheckFC(urls, 14621, 30, mustContain, 1 );
+        downloadAndCheckFC(urls, 14617, 30, mustContain, 1 );
     }
 
     @Test
@@ -613,8 +613,8 @@ public class JobApiExportIT extends JobApiIT {
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList(
-            "360",
-            "2ludCIsICJjb29yZGluYXRlcyI6IFs4LjQ4M"
+                "360",
+                "2ludCIsICJjb29yZGluYXRlcyI6IFs4LjQ4M"
         );
 
         downloadAndCheckFC(urls, 14929, 31, mustContain, 1);
@@ -816,7 +816,7 @@ public class JobApiExportIT extends JobApiIT {
         System.out.println(urls.size());
     }
 
-//    @Test
+    //    @Test
     public void testParallelFullVMLExport() throws Exception {
         /** Create job */
         String spaceId = "test-space";

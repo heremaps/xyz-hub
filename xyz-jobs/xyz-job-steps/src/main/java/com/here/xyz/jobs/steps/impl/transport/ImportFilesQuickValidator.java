@@ -25,9 +25,9 @@ import com.amazonaws.AmazonServiceException;
 import com.fasterxml.jackson.core.JacksonException;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
-import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -41,31 +41,27 @@ import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKBReader;
 
 public class ImportFilesQuickValidator {
-  private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
+  private static final int VALIDATE_LINE_PAGE_SIZE_BYTES = 512 * 1024;
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
 
-  static void validate(UploadUrl uploadUrl, Format format, EntityPerLine entityPerLine) throws ValidationException {
-    //TODO: Respect entityPerLine in validation
-    validate(uploadUrl.getS3Bucket(), uploadUrl.getS3Key(), format, uploadUrl.isCompressed(), entityPerLine);
-  }
-
-  static void validate(String s3Bucket, String s3Key, Format format, boolean isCompressed, EntityPerLine entityPerLine) throws ValidationException {
+  static void validate(S3DataFile s3File, Format format, EntityPerLine entityPerLine) throws ValidationException {
     try {
-      validateFirstCSVLine(s3Bucket, s3Key, format, "", 0, isCompressed, entityPerLine);
+      validateFirstCSVLine(s3File, format, "", 0, entityPerLine);
     }
     catch (IOException e) {
       throw new ValidationException("Input could not be read.", e);
     }
   }
 
-  private static void validateFirstCSVLine(String s3Bucket, String s3Key, Format format, String line, long fromKB, boolean isCompressed, EntityPerLine entityPerLine)
+  private static void validateFirstCSVLine(S3DataFile s3File, Format format, String line, long fromKB, EntityPerLine entityPerLine)
       throws IOException, ValidationException {
-    S3Client client = S3Client.getInstance(s3Bucket);
-    long toKB = fromKB + VALIDATE_LINE_KB_STEPS;
+    S3Client client = S3Client.getInstance(s3File.getS3Bucket());
+    long toKB = fromKB + VALIDATE_LINE_PAGE_SIZE_BYTES;
 
-    InputStream input = isCompressed
-        ? new GZIPInputStream(client.streamObjectContent(s3Key, 0, toKB))
-        : client.streamObjectContent(s3Key); //TODO: Why to download the full object in case of being non-compressed?
+    InputStream input = client.streamObjectContent(s3File.getS3Key(), 0, toKB);
+
+    if (s3File.isCompressed())
+      input = new GZIPInputStream(input);
 
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
       int val;
@@ -90,7 +86,7 @@ public class ImportFilesQuickValidator {
 
     if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
       //Not found a line break till now - search further
-      validateFirstCSVLine(s3Bucket, s3Key, format, line, toKB, isCompressed, entityPerLine);
+      validateFirstCSVLine(s3File, format, line, toKB, entityPerLine);
     }
     else {
       //Not able to find a newline - could be a one-liner

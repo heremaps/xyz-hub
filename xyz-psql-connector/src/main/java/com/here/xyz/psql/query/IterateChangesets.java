@@ -85,8 +85,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   }
 
   public SQLQuery buildIterateChangesets(IterateChangesetsEvent event){
-
-    String geo = "replace(ST_AsGeojson(geo, " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')::jsonb";
+    String geo = "REGEXP_REPLACE(ST_AsGeojson(geo, " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), '(?i)nan', '0', 'g')::jsonb";
 
     SQLQuery query = new SQLQuery(
         "SELECT " +
