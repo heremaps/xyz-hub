@@ -199,7 +199,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .statusCode(OK.code());
     given()
             .contentType(APPLICATION_JSON)
-            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2_ALL))
             .body(changeset7.toString())
             .post("/spaces/" + cleanUpSpaceId + "/features")
             .then()
@@ -522,10 +522,14 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.7.inserted.features.size()", equalTo(0))
             .body("versions.7.updated.features.size()", equalTo(1))
             .body("versions.7.deleted.features.size()", equalTo(0))
+            .body("versions.7.author", equalTo(AUTHOR_2))
+            .body("versions.7.createdAt", notNullValue())
 
             .body("versions.8.inserted.features.size()", equalTo(0))
             .body("versions.8.updated.features.size()", equalTo(1))
             .body("versions.8.deleted.features.size()", equalTo(0))
+            .body("versions.8.author", equalTo(AUTHOR_1))
+            .body("versions.8.createdAt", notNullValue())
 
             .body("versions.9.inserted.features.size()", equalTo(1))
             .body("versions.9.updated.features.size()", equalTo(0))
