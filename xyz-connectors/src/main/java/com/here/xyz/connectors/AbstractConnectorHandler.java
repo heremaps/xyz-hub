@@ -35,8 +35,8 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.decryptors.EventDecryptor;
 import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
-import com.here.xyz.connectors.runtime.LambdaConnectorRuntime;
+import com.here.xyz.util.runtime.FunctionRuntime;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.HealthCheckEvent;
@@ -213,7 +213,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
         String connectorId = null;
         this.streamId = streamId != null ? streamId : event.getStreamId();
-        new LambdaConnectorRuntime(context, this.streamId);
+        new LambdaFunctionRuntime(context, this.streamId);
 
         if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
           connectorId = (String) event.getConnectorParams().get("connectorId");
@@ -308,7 +308,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
             .toByteArray();
       }
 
-      final boolean runningLocally = ConnectorRuntime.getInstance().isRunningLocally();
+      final boolean runningLocally = FunctionRuntime.getInstance().isRunningLocally();
       if (dataOut instanceof BinaryResponse) {
         //NOTE: BinaryResponses contain an ETag automatically, nothing to calculate here
         String etag = ((BinaryResponse) dataOut).getEtag();
@@ -370,7 +370,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * the connection to the database open.
    */
   protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
-    if (event.getWarmupCount() > 0 && !ConnectorRuntime.getInstance().isRunningLocally()) {
+    if (event.getWarmupCount() > 0 && !FunctionRuntime.getInstance().isRunningLocally()) {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
       byte[] newEvent = event.toByteArray();
@@ -380,7 +380,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         if (lambdaClient == null)
           lambdaClient = AWSLambdaClientBuilder.defaultClient();
         threads.add(new Thread(() -> lambdaClient.invoke(new InvokeRequest()
-                .withFunctionName(((LambdaConnectorRuntime) ConnectorRuntime.getInstance()).getInvokedFunctionArn())
+                .withFunctionName(((LambdaFunctionRuntime) FunctionRuntime.getInstance()).getInvokedFunctionArn())
                 .withPayload(ByteBuffer.wrap(newEvent)))));
       }
       threads.forEach(t -> t.start());

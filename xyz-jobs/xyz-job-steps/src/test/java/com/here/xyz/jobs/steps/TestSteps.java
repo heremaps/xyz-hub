@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
@@ -111,6 +112,15 @@ public class TestSteps {
   protected static StatisticsResponse getStatistics(String spaceId) {
     try {
       return hubWebClient.loadSpaceStatistics(spaceId, ContextAwareEvent.SpaceContext.EXTENSION);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+    return null;
+  }
+
+  protected static FeatureCollection getAllFeaturesFromSmallSpace(String spaceId) {
+    try {
+      return hubWebClient.getAllFeaturesFromSmallSpace(spaceId, ContextAwareEvent.SpaceContext.EXTENSION);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
