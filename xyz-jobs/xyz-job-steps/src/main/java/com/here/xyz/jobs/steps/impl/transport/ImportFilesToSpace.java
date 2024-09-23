@@ -589,7 +589,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
         .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
         .withQueryFragment("author", targetAuthor)
-        .withQueryFragment("targetTable", getRootTableName(space))
+        .withQueryFragment("targetTable", getRootTableName(space()))
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("schema", getSchema(db()))
         .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
@@ -631,7 +631,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("extendedTable", superTable == null ? "NULL" : "'" + superTable + "'")
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
-        .withQueryFragment("targetTable", getRootTableName(space))
+        .withQueryFragment("targetTable", getRootTableName(space()))
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
