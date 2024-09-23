@@ -525,7 +525,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.8.inserted.features.size()", equalTo(0))
             .body("versions.8.updated.features.size()", equalTo(1))
             .body("versions.8.deleted.features.size()", equalTo(0))
-            
+
             .body("versions.9.inserted.features.size()", equalTo(1))
             .body("versions.9.updated.features.size()", equalTo(0))
             .body("versions.9.deleted.features.size()", equalTo(0))
@@ -537,7 +537,7 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.11.inserted.features.size()", equalTo(0))
             .body("versions.11.updated.features.size()", equalTo(1))
             .body("versions.11.deleted.features.size()", equalTo(0))
-            
+
             .body("nextPageToken", nullValue());
   }
 }
