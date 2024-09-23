@@ -23,8 +23,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
@@ -38,7 +36,6 @@ import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RE
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.datasets.space.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
@@ -52,7 +49,6 @@ import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.jobs.util.S3Client;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -110,13 +106,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @JsonView({Internal.class, Static.class})
   private EntityPerLine entityPerLine = Feature;
-
-  @JsonIgnore
-  private Space space;
-  @JsonIgnore
-  private Space superSpace;
-  @JsonIgnore
-  private Database db;
 
   public Format getFormat() {
     return format;
@@ -290,14 +279,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
   }
 
-  private Space space() throws WebClientException {
-    if (space == null) {
-      log("Loading space config for space " + getSpaceId());
-      space = loadSpace(getSpaceId());
-    }
-    return space;
-  }
-
   public Phase getPhase() {
     return phase;
   }
@@ -400,24 +381,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       rs.next();
       return rs.getLong(1);
     });
-  }
-
-  private Space superSpace() throws WebClientException {
-    if (superSpace == null) {
-      log("Loading space config for super-space " + getSpaceId());
-      if (space().getExtension() == null)
-        throw new IllegalStateException("The space does not extend some other space. Could not load the super space.");
-      superSpace = loadSpace(space().getExtension().getSpaceId());
-    }
-    return superSpace;
-  }
-
-  private Database db() throws WebClientException {
-    if (db == null) {
-      log("Loading storage database for space " + getSpaceId());
-      db = loadDatabase(space().getStorage().getId(), WRITER);
-    }
-    return db;
   }
 
   private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
@@ -619,7 +582,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
-    String triggerFunction = "xyz_import_trigger_for_empty_layer";
+    String triggerFunction = "import_from_s3_trigger_for_empty_layer";
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
@@ -633,7 +596,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
-    String triggerFunction = "xyz_import_trigger_for_non_empty_layer";
+    String triggerFunction = "import_from_s3_trigger_for_non_empty_layer";
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
@@ -722,7 +685,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
     return new SQLQuery(
-        "CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
+        "CALL import_from_s3_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
         .withAsyncProcedure(true)
         .withNamedParameter("schema", schema)
         .withNamedParameter("target_tbl", schema + ".\"" + TransportTools.getTemporaryTriggerTableName(this) + "\"")
