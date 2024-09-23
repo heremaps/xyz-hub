@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.responses.StatisticsResponse;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -29,8 +30,9 @@ import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STR
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static java.lang.Thread.sleep;
 
-public class ImportStepsTest extends JobStepsTest {
-
+public class ImportStepTest extends JobStepTest {
+  private static final int FILE_COUNT = 2;
+  private static final int FEATURE_COUNT = 10;
 
   /**
     Test Format`s
@@ -97,7 +99,7 @@ public class ImportStepsTest extends JobStepsTest {
     StatisticsResponse statsBefore = getStatistics(SPACE_ID);
     Assertions.assertEquals(0L, (Object) statsBefore.getCount().getValue());
 
-    uploadInputFile(JOB_ID);
+    uploadFiles(JOB_ID, FILE_COUNT, FEATURE_COUNT, Format.GEOJSON);
     LambdaBasedStep step = new ImportFilesToSpace()
             .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
             .withSpaceId(SPACE_ID);
@@ -106,7 +108,6 @@ public class ImportStepsTest extends JobStepsTest {
     sleep(2000);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
-    Assertions.assertEquals(2L, (Object) statsAfter.getCount().getValue());
+    Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());
   }
-
 }

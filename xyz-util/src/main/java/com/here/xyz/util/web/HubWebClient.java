@@ -162,6 +162,16 @@ public class HubWebClient extends XyzWebClient {
     }
   }
 
+  public FeatureCollection getAllFeaturesFromSmallSpace(String spaceId, SpaceContext context) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/search" + (context == null ? "" : "?context=" + context)))).body(), FeatureCollection.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
   public StatisticsResponse loadSpaceStatistics(String spaceId) throws WebClientException {
     return loadSpaceStatistics(spaceId, null);
   }
