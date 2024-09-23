@@ -20,25 +20,20 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.events.ContextAwareEvent;
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
-import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.sql.SQLException;
 import java.util.List;
+import java.util.UUID;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 /**
@@ -48,24 +43,33 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private static final Logger logger = LogManager.getLogger();
 
+  @JsonView({Internal.class, Static.class})
+  private int calculatedThreadCount = -1;
+
+  @JsonView({Internal.class, Static.class})
+  private double overallNeededAcus = -1;
+
+  @JsonView({Internal.class, Static.class})
+  private EntityPerLine entityPerLine = EntityPerLine.Feature;
+
   private Format format = Format.GEOJSON;
   private Phase phase;
 
-  //Geometry-Filters
-  private Geometry geometry;
-  private int radius = -1;
-  private boolean clipOnFilterGeometry;
-
-  //Content-Filters
-  private String propertyFilter;
-  private ContextAwareEvent.SpaceContext context;
-  private String targetVersion;
-
-  //Partitioning
-  private String partitionKey;
-  //Required if partitionKey=tileId
-  private Integer targetLevel;
-  private boolean clipOnPartitions;
+//  //Geometry-Filters
+//  private Geometry geometry;
+//  private int radius = -1;
+//  private boolean clipOnFilterGeometry;
+//
+//  //Content-Filters
+//  private String propertyFilter;
+//  private SpaceContext context;
+//  private String targetVersion;
+//
+//  //Partitioning
+//  private String partitionKey;
+//  //Required if partitionKey=tileId
+//  private Integer targetLevel;
+//  private boolean clipOnPartitions;
 
   public enum Format {
     CSV_JSON_WKB,
@@ -86,6 +90,19 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return this;
   }
 
+  public EntityPerLine getEntityPerLine() {
+    return entityPerLine;
+  }
+
+  public void setEntityPerLine(EntityPerLine entityPerLine) {
+    this.entityPerLine = entityPerLine;
+  }
+
+  public ExportSpaceToFiles withEntityPerLine(EntityPerLine entityPerLine) {
+    setEntityPerLine(entityPerLine);
+    return this;
+  }
+
   public Phase getPhase() {
     return phase;
   }
@@ -95,12 +112,18 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public List<Load> getNeededResources() {
-    return List.of();
+    try {
+      overallNeededAcus = 10;
+      return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
+              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+    }catch (Exception e){
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
   public int getTimeoutSeconds() {
-    return 0;
+    return 24 * 3600;
   }
 
   @Override
@@ -111,6 +134,11 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public String getDescription() {
     return "Export data from space " + getSpaceId();
+  }
+
+  @Override
+  public ExecutionMode getExecutionMode() {
+    return ExecutionMode.ASYNC;
   }
 
   @Override
@@ -138,11 +166,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-    logger.info("EXECUTE");
-    logger.info( "Loading space config for space "+getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space  "+getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
+      System.out.println("EXECUTE");
+      runReadQueryAsync(buildExportQuery(0), db(), 0);
+      System.out.println("DONE");
   }
 
   @Override
@@ -150,7 +176,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   }
 
-  private SQLQuery buildTemporaryTableForImportQuery(String schema) {
+  private SQLQuery buildTemporaryTableForExportQuery(String schema) {
     return new SQLQuery("""
                     CREATE TABLE IF NOT EXISTS ${schema}.${table}
                            (
@@ -170,41 +196,38 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
             .withVariable("primaryKey", TransportTools.getTemporaryJobTableName(this) + "_primKey");
   }
 
-  private SQLQuery generateFilteredExportQuery(
-              SQLQuery customWhereCondition,
-              boolean isForCompositeContentDetection,
-              String partitionKey,
-              Boolean omitOnNull )
-          throws SQLException {
-
-      return null;
+  private SQLQuery generateFilteredExportQuery(int threadNumber) throws WebClientException {
+    calculatedThreadCount = 1;
+    return new SQLQuery("${{exportQuery}} ${{threadCondition}}")
+            .withQueryFragment("exportQuery" ,"Select * from ${schema}.${table}")
+            .withQueryFragment("threadCondition"," WHERE i % " + calculatedThreadCount + " = " + threadNumber)
+            .withVariable("table", getRootTableName(space))
+            .withVariable("schema", getSchema(db()));
   }
 
-  public SQLQuery buildS3ExportQuery(String s3Bucket, String s3Path, String s3FilePrefix, String s3Region) {
-    s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export";
+  public SQLQuery buildExportQuery(int threadNumber) throws WebClientException {
+    SQLQuery exportSelectString = generateFilteredExportQuery(threadNumber);
 
-    SQLQuery exportSelectString = new SQLQuery("");
-    String exportOptions = "";
+    String s3Path = outputS3Prefix(true,false) + "/" +UUID.randomUUID();
+    s3Path += format.equals(Format.GEOJSON) ? ".geojson" : ".csv";
 
-    if(format.equals(Format.GEOJSON)){
-      exportOptions = " 'FORMAT TEXT, ENCODING ''UTF8'' '";
-      s3Path += ".geojson";
-    }else {
-      exportOptions = "'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' '";
-      s3Path += ".csv";
-    }
+    return new SQLQuery(
+            """
+            PERFORM export_to_s3_perform(
+                #{content_query}, #{s3_bucket}, #{s3_path}, #{s3_region}, 
+                #{format}, #{filesize})
+             """)
+            .withNamedParameter("content_query", exportSelectString.substitute().text())
+            .withNamedParameter("s3_bucket", bucketName())
+            .withNamedParameter("s3_path", s3Path)
+            .withNamedParameter("s3_region", bucketRegion())
+            .withNamedParameter("format", format.name())
+            .withNamedParameter("filesize", 0);
+  }
 
-    SQLQuery q = new SQLQuery("SELECT * from aws_s3.query_export_to_s3("+
-            " ${{exportSelectString}},"+
-            " aws_commons.create_s3_uri(#{s3Bucket}, #{s3Path}, #{s3Region}),"+
-            " options := "+exportOptions+");"
-    );
-
-    q.setQueryFragment("exportSelectString", exportSelectString);
-    q.setNamedParameter("s3Bucket",s3Bucket);
-    q.setNamedParameter("s3Path",s3Path);
-    q.setNamedParameter("s3Region",s3Region);
-
-    return q;
+  //TODO: De-duplicate once CSV was removed (see GeoJson format class)
+  public enum EntityPerLine {
+    Feature,
+    FeatureCollection
   }
 }
