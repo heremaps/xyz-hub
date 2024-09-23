@@ -370,7 +370,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
    */
   private int syncWriteFileToSpace(Input input, long newVersion)
       throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
-    final S3Client s3Client = S3Client.getInstance();
+    final S3Client s3Client = S3Client.getInstance(input.getS3Bucket());
 
     InputStream inputStream = s3Client.streamObjectContent(input.getS3Key());
     if (input.isCompressed())
