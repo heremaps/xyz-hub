@@ -19,14 +19,19 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
+import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
@@ -40,6 +45,7 @@ import org.apache.logging.log4j.Logger;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateIndex.class),
+    @JsonSubTypes.Type(value = ExportSpaceToFiles.class),
     @JsonSubTypes.Type(value = ImportFilesToSpace.class),
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
@@ -51,6 +57,15 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   @JsonView({Internal.class, Static.class})
   private String spaceId;
+
+  @JsonIgnore
+  private Database db;
+
+  @JsonIgnore
+  private Space space;
+
+  @JsonIgnore
+  protected Space superSpace;
 
   public String getSpaceId() {
     return spaceId;
@@ -65,8 +80,9 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return (T) this;
   }
 
-  protected final String getRootTableName(String spaceId) throws WebClientException {
-    return getRootTableName(loadSpace(spaceId));
+  @Override
+  public void init() throws WebClientException {
+    checkScripts(db());
   }
 
   protected final String getRootTableName(Space space) throws WebClientException {
@@ -104,6 +120,32 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   protected HubWebClient hubWebClient() {
     return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
+  }
+
+  protected Database db() throws WebClientException {
+    if (db == null) {
+      logger.info("[{}] Loading database for space {}.", getGlobalStepId(), getSpaceId());
+      db = loadDatabase(space().getStorage().getId(), WRITER);
+    }
+    return db;
+  }
+
+  protected Space space() throws WebClientException {
+    if (space == null) {
+      logger.info("[{}] Loading space config for space {}.", getGlobalStepId(), getSpaceId());
+      space = loadSpace(getSpaceId());
+    }
+    return space;
+  }
+
+  protected Space superSpace() throws WebClientException {
+    if (superSpace == null) {
+      logger.info("[{}] Loading space config for super-space {}.", getGlobalStepId(), getSpaceId());
+      if (space().getExtension() == null)
+        throw new IllegalStateException("The space does not extend some other space. Could not load the super space.");
+      superSpace = loadSpace(space().getExtension().getSpaceId());
+    }
+    return superSpace;
   }
 
   @Override

@@ -19,34 +19,27 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
-import static java.lang.Thread.sleep;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.TestSteps;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
-public class JobStepsTest extends TestSteps {
+public class JobStepTest extends TestSteps {
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   protected static final String SPACE_ID = "test-space-" + randomAlpha(5);
   protected static final String JOB_ID = "test-job-" + randomAlpha(5);
@@ -60,38 +53,6 @@ public class JobStepsTest extends TestSteps {
   public void cleanup() {
     deleteSpace(SPACE_ID);
     cleanS3Files(JOB_ID);
-  }
-
-  @Test
-  public void testDropIndexesStep() throws Exception {
-    assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
-
-    LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
-//    simulateLambdaStepRequest(step, START_EXECUTION);
-//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
-
-    sendLambdaStepRequest(step, START_EXECUTION);
-    sleep(2000);
-
-    assertEquals(0, listExistingIndexes(SPACE_ID).size());
-  }
-
-  @Test
-  public void testCreateIndex() throws Exception {
-    deleteAllExistingIndexes(SPACE_ID);
-    assertEquals(0, listExistingIndexes(SPACE_ID).size());
-
-    LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(GEO);
-
-//    simulateLambdaStepRequest(step, START_EXECUTION);
-//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
-
-    sendLambdaStepRequest(step, START_EXECUTION);
-    sleep(2000);
-
-    List<String> indexes = listExistingIndexes(SPACE_ID);
-    assertEquals(1, indexes.size());
-    assertEquals("idx_" + SPACE_ID + "_" + GEO.toString().toLowerCase(), indexes.get(0));
   }
 
   protected void simulateLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType) throws IOException {
@@ -117,11 +78,36 @@ public class JobStepsTest extends TestSteps {
     invokeLambda(LAMBDA_ARN, request.toByteArray());
   }
 
-  protected void uploadInputFile(String jobId) throws IOException {
-    String data = "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":1}}";
-    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, data.getBytes(), false);
-    String data2 = "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[8,50]},\"properties\":{\"test\":2}}";
-    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, data2.getBytes(), false);
+  //TODO: find a central place to avoid double implementation from JobPlayground
+  protected void uploadFiles(String jobId, int uploadFileCount, int featureCountPerFile, Format format)
+          throws IOException {
+    //Generate N Files with M features
+    for (int i = 0; i < uploadFileCount; i++)
+      uploadInputFile(jobId, generateContent(format, featureCountPerFile));
   }
 
+  private void uploadInputFile(String jobId , byte[] bytes) throws IOException {
+    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, bytes, false);
+  }
+
+  private byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt) {
+    String output = "";
+
+    for (int i = 1; i <= featureCnt; i++) {
+      output += generateContentLine(format, i);
+    }
+    return output.getBytes();
+  }
+
+  private String generateContentLine(ImportFilesToSpace.Format format, int i){
+    Random rd = new Random();
+    String lineSeparator = "\n";
+
+    if(format.equals(Format.CSV_JSON_WKB))
+      return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
+    else if(format.equals(Format.CSV_GEOJSON))
+      return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
+    else
+      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"te\\\"st\":"+i+"}}"+lineSeparator;
+  }
 }

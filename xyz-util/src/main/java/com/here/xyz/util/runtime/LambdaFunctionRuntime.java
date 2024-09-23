@@ -17,24 +17,24 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.connectors.runtime;
+package com.here.xyz.util.runtime;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import java.util.List;
 
-public class LambdaConnectorRuntime extends ConnectorRuntime {
+public class LambdaFunctionRuntime extends FunctionRuntime {
 
   private Context context;
   private String streamId;
 
-  public LambdaConnectorRuntime(Context context, String streamId) {
+  public LambdaFunctionRuntime(Context context, String streamId) {
     if (context == null)
       throw new NullPointerException("Context is missing for LambdaConnectorRuntime.");
     this.context = context;
     this.streamId = streamId == null ? "no-stream-id" : streamId;
-    ConnectorRuntime.setInstance(this);
+    FunctionRuntime.setInstance(this);
   }
 
   @Override

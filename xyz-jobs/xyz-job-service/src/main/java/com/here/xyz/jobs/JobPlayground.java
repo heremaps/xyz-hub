@@ -35,6 +35,7 @@ import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.datasets.space.UpdateStrategy;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
@@ -46,6 +47,7 @@ import com.here.xyz.jobs.steps.impl.CreateIndex;
 import com.here.xyz.jobs.steps.impl.DropIndexes;
 import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
+import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -58,6 +60,7 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
@@ -109,12 +112,12 @@ public class JobPlayground {
   private static Space sampleSpace;
   private static Space targetSpace;
   private static boolean simulateExecution = true;
-  private static boolean executeWholeJob = true;
+  private static boolean executeWholeJob = false;
   private static ImportFilesToSpace.Format importFormat = ImportFilesToSpace.Format.GEOJSON;
   private static int uploadFileCount = 2;
   private static String jobServiceBaseUrl = "http://localhost:7070";
 
-  private static Usecase playgroundUsecase = Usecase.IMPORT;
+  private static Usecase playgroundUsecase = Usecase.EXPORT;
 
   private enum Usecase {
     IMPORT,
@@ -189,7 +192,7 @@ public class JobPlayground {
       mockJob = new Job().create()
               .withDescription("Sample export job")
               .withOwner("me")
-              .withSource(new DatasetDescription.Space<>().withId(sampleSpace.getId()))
+              .withSource(new DatasetDescription.Space<>().withId("REPLACE_WITH_EXISITNG"))
               .withTarget(new Files<>().withOutputSettings(new FileOutputSettings().withFormat(new GeoJson())));
     }
   }
@@ -212,14 +215,14 @@ public class JobPlayground {
     else
       init();
 
-    startRealJob(realJobSourceSpaceId, realJobTargetSpaceId);
+//    startRealJob(realJobSourceSpaceId, realJobTargetSpaceId);
 
-//    init();
-//
-//    if (executeWholeJob)
-//      startMockJob();
-//    else
-//      startLambdaExecutions();
+    init();
+
+    if (executeWholeJob)
+      startMockJob();
+    else
+      startLambdaExecutions();
   }
 
   private static void startLambdaExecutions() throws IOException {
@@ -238,6 +241,8 @@ public class JobPlayground {
       runMarkForMaintenanceStep(sampleSpace.getId());
     }else if(playgroundUsecase.equals(Usecase.COPY)) {
       runCopySpaceStep(sampleSpace.getId(), targetSpace.getId());
+    }else if(playgroundUsecase.equals(Usecase.EXPORT)) {
+      runExportSpaceToFilesStep(sampleSpace.getId());
     }
   }
 
@@ -323,7 +328,7 @@ public class JobPlayground {
     else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
       return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
     else
-      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}"+lineSeparator;
+      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"te\\\"st\":"+i+"}}"+lineSeparator;
   }
 
   private static void startMockJob() {
@@ -471,7 +476,7 @@ public class JobPlayground {
   }
 
   public static void runImportFilesToSpaceStep(String spaceId, ImportFilesToSpace.Format format) throws IOException {
-    runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format));
+    runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format).withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY));
   }
 
   public static void runCreateIndexStep(String spaceId, Index index) throws IOException {
@@ -488,6 +493,10 @@ public class JobPlayground {
 
   public static void runCopySpaceStep(String sourceSpaceId, String targetSpaceId) throws IOException {
     runStep(new CopySpace().withSpaceId(sourceSpaceId).withTargetSpaceId(targetSpaceId).withSourceVersionRef(new Ref("HEAD")));
+  }
+
+  public static void runExportSpaceToFilesStep(String sourceSpaceId) throws IOException {
+    runStep(new ExportSpaceToFiles().withSpaceId(sourceSpaceId));
   }
 
   private static void runStep(LambdaBasedStep step) throws IOException {
@@ -507,6 +516,7 @@ public class JobPlayground {
   private static void simulateLambdaStepRequest(LambdaBasedStep step, RequestType requestType) throws IOException {
     OutputStream os = new ByteArrayOutputStream();
     Context ctx = new SimulatedContext("localLambda", null);
+    new LambdaFunctionRuntime(ctx, step.getGlobalStepId());
 
     final LambdaStepRequest request = prepareStepRequestPayload(step, requestType);
     new LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);

@@ -30,7 +30,7 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -74,12 +74,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class DatabaseHandler extends StorageConnector {
-
+    /**TODO:
+     * shift xyz_ext.sql and h3Core.sql to own folder and avoid double installation.
+     * Currently we are using common.sql in hub-service AND job-service. So we need the installation on both ends.
+     */
+    private static final String SCRIPT_RESOURCE_PATH = "/sql";
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
     private static final Logger logger = LogManager.getLogger();
     private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
-    public static final int SCRIPT_VERSIONS_TO_KEEP = 5;
-    private static Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -112,43 +114,17 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //Decrypt the ECPS into an instance of DatabaseSettings
         dbSettings = new DatabaseSettings(connectorId,
-            ECPSTool.decryptToMap(ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
-            .withApplicationName(ConnectorRuntime.getInstance().getApplicationName());
+            ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()), SCRIPT_RESOURCE_PATH)
+            .withApplicationName(FunctionRuntime.getInstance().getApplicationName());
 
-        dbSettings.withSearchPath(checkScripts(dbSettings));
+        //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
+        dbSettings.checkScripts();
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;
         dbMaintainer = new DatabaseMaintainer(dataSourceProvider, dbSettings, connectorParams,
-            ConnectorRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
+            FunctionRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
         DataSourceProvider.setDefaultProvider(dataSourceProvider);
-    }
-
-    /**
-     * Checks whether the latest version of all SQL scripts is installed on the DB and returns all script schemas for the use in the
-     * search path.
-     * @return The script schema names (including the newest script version for each script) to be used in the search path
-     */
-    private synchronized static List<String> checkScripts(DatabaseSettings dbSettings) {
-        String softwareVersion = ConnectorRuntime.getInstance().getSoftwareVersion();
-        if (!sqlScripts.containsKey(dbSettings.getId())) {
-          logger.info("Checking scripts for connector {} ...", dbSettings.getId());
-          try (DataSourceProvider dataSourceProvider = new StaticDataSources(dbSettings)) {
-            List<Script> scripts = Script.loadScripts("/sql", dataSourceProvider, softwareVersion);
-            sqlScripts.put(dbSettings.getId(), scripts);
-            scripts.forEach(script -> {
-                script.install();
-                script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
-            });
-          }
-          catch (IOException | URISyntaxException e) {
-            throw new RuntimeException("Error reading script resources.", e);
-          }
-          catch (Exception e) {
-            logger.error("Error checking / installing scripts.", e);
-          }
-        }
-        return sqlScripts.get(dbSettings.getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList();
     }
 
     protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {
@@ -178,7 +154,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 ((SQLException)e).getSQLState().equalsIgnoreCase("08006")
         )
         ) {
-            int remainingSeconds = ConnectorRuntime.getInstance().getRemainingTime() / 1000;
+            int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
 
             if(!isRemainingTimeSufficient(remainingSeconds)){
                 return false;
@@ -489,19 +465,19 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     static int calculateTimeout() throws SQLException{
-        int remainingSeconds = ConnectorRuntime.getInstance().getRemainingTime() / 1000;
+        int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
 
         if (!isRemainingTimeSufficient(remainingSeconds))
             throw new SQLException("No time left to execute query.","54000");
 
         int timeout = remainingSeconds - 2;
-        logger.debug("{} New timeout for query set to '{}'", ConnectorRuntime.getInstance().getStreamId(), timeout);
+        logger.debug("{} New timeout for query set to '{}'", FunctionRuntime.getInstance().getStreamId(), timeout);
         return timeout;
     }
 
     private static boolean isRemainingTimeSufficient(int remainingSeconds) {
         if (remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
-            logger.warn("{} Not enough time left to execute query: {}s", ConnectorRuntime.getInstance().getStreamId(), remainingSeconds);
+            logger.warn("{} Not enough time left to execute query: {}s", FunctionRuntime.getInstance().getStreamId(), remainingSeconds);
             return false;
         }
         return true;

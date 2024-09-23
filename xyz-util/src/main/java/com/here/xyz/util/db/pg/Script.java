@@ -237,7 +237,7 @@ public class Script {
 
   private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
     return switch (fileSuffix) {
-      case ".sql" -> List.of("/sql/common.sql", "/sql/feature_writer.sql");
+      case ".sql" -> List.of("/sql/common.sql", "/sql/feature_writer.sql", "/sql/transport.sql", "/sql/s3_import.sql", "/sql/s3_export.sql");
       case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js");
       default -> List.of();
     };
