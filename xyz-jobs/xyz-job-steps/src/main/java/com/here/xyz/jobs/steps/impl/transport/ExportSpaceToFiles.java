@@ -43,6 +43,11 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private static final Logger logger = LogManager.getLogger();
 
+  //Defines how many features a source layer need to have to start parallelization.
+  private final int PARALLELIZTATION_MIN_THRESHOLD = 10;
+  //Defines how many export threads are getting used
+  private final int PARALLELIZTATION_THREAD_COUNT = 8;
+
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount = -1;
 
@@ -53,6 +58,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private EntityPerLine entityPerLine = EntityPerLine.Feature;
 
   private Format format = Format.GEOJSON;
+
   private Phase phase;
 
 //  //Geometry-Filters
@@ -147,8 +153,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     try {
       logger.info("VALIDATE");
       loadSpace(getSpaceId());
-      statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
-      long featureCount = statistics.getCount().getValue();
 
       /**
        * @TODO:
@@ -166,9 +170,13 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-      System.out.println("EXECUTE");
-      runReadQueryAsync(buildExportQuery(0), db(), 0);
-      System.out.println("DONE");
+    statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
+    calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
+
+    for (int i = 0; i < calculatedThreadCount; i++) {
+      logger.info("Start export thread number: {}", i);
+      runReadQueryAsync(buildExportQuery(i), db(), 0);
+    }
   }
 
   @Override
@@ -197,11 +205,10 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   private SQLQuery generateFilteredExportQuery(int threadNumber) throws WebClientException {
-    calculatedThreadCount = 1;
     return new SQLQuery("${{exportQuery}} ${{threadCondition}}")
             .withQueryFragment("exportQuery" ,"Select * from ${schema}.${table}")
             .withQueryFragment("threadCondition"," WHERE i % " + calculatedThreadCount + " = " + threadNumber)
-            .withVariable("table", getRootTableName(space))
+            .withVariable("table", getRootTableName(space()))
             .withVariable("schema", getSchema(db()));
   }
 
