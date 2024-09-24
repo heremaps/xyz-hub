@@ -259,8 +259,9 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
     if(wroteStart){
       Changeset cs = new Changeset().withInserted(new FeatureCollection().withFeatures(inserts))
               .withUpdated(new FeatureCollection().withFeatures(updates))
-              .withDeleted(new FeatureCollection().withFeatures(deletes));
-     
+              .withDeleted(new FeatureCollection().withFeatures(deletes))
+      		  	.withVersion(lastVersion);
+
       cs.setCreatedAt(createdAt);
       cs.setAuthor(author);
       versions.put(lastVersion, cs);
