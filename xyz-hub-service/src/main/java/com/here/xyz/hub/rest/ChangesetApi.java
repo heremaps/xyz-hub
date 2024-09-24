@@ -126,15 +126,15 @@ public class ChangesetApi extends SpaceBasedApi {
   private void validateGetChangesetsQueryParams(Long startVersion, Long endVersion, boolean useChangesetCollection)
           throws HttpException {
     if(useChangesetCollection){
-      if(startVersion == null || endVersion == null)
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameters startVersion and endVersion are required.");
-      if(startVersion < 0 || endVersion < 0)
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid version specified.");
-      if(startVersion > endVersion)
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter startVersion needs to be smaller as endVersion.");
+      if(startVersion != null && endVersion != null){
+	      if(startVersion < 0 || endVersion < 0)
+	        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid version specified.");
+	      if(startVersion > endVersion)
+	        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter startVersion needs to be smaller as endVersion.");
+      }
     }else{
       if(startVersion == null)
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameters version is required.");
+        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter version is required.");
     }
   }
 
