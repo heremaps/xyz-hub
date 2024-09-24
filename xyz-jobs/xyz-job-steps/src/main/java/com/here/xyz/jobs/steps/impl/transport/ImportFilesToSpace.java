@@ -353,7 +353,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     long newVersion = increaseVersionSequence();
     long featureCount = 0;
 
-    for (Input input : loadInputs()) {
+    for (S3DataFile input : loadStepInputs()) {
       logger.info("[{}] Sync write from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
       featureCount += syncWriteFileToSpace(input, newVersion);
     }
@@ -368,7 +368,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
    * @param newVersion The new space version being created by this import
    * @return The number of features that have been written
    */
-  private int syncWriteFileToSpace(Input input, long newVersion)
+  private int syncWriteFileToSpace(S3DataFile input, long newVersion)
       throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
     final S3Client s3Client = S3Client.getInstance(input.getS3Bucket());
 
