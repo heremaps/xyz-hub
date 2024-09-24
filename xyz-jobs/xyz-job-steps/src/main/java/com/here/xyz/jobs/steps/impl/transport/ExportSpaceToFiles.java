@@ -199,12 +199,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     FileStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
             0, rs -> rs.next()
                     ? new FileStatistics()
-                        .withBytesUploaded(rs.getLong("bytes_uploaded"))
-                        .withRowsUploaded(rs.getLong("rows_uploaded"))
-                        .withFilesUploaded(rs.getInt("files_uploaded"))
+                        .withBytesExported(rs.getLong("bytes_uploaded"))
+                        .withRowsExported(rs.getLong("rows_uploaded"))
+                        .withFilesCreated(rs.getInt("files_uploaded"))
                     : new FileStatistics());
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getBytesUploaded() + " files=" + statistics.getFilesUploaded());
+    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getBytesExported() + " files=" + statistics.getFilesCreated());
     registerOutputs(List.of(statistics), true);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
