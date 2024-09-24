@@ -91,9 +91,9 @@ public class ExportStepTest extends JobStepTest {
             if(output instanceof DownloadUrl) {
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
             }else if(output instanceof FileStatistics statistics) {
-                Assertions.assertEquals(getExpectedFeatureCount(), statistics.getRowsUploaded());
+                Assertions.assertEquals(getExpectedFeatureCount(), statistics.getRowsExported());
                 Assertions.assertEquals(getExpectedFeatureCount() > ExportSpaceToFiles.PARALLELIZTATION_MIN_THRESHOLD ?
-                        ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getFilesUploaded());
+                        ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getFilesCreated());
             }
         }
 
