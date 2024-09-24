@@ -25,10 +25,11 @@ CREATE OR REPLACE FUNCTION export_to_s3_perform(content_query TEXT, s3_bucket TE
     LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
-export_statistics RECORD;
+    export_statistics RECORD;
     config RECORD;
 BEGIN
-select * from s3_plugin_config(format) into config;
+
+SELECT * FROM s3_plugin_config(format) INTO config;
 
 EXECUTE format(
         'SELECT aws_s3.query_export_to_s3( '
@@ -41,8 +42,7 @@ EXECUTE format(
         s3_bucket,
         s3_path,
         s3_region,
-        config.plugin_options
-        --REGEXP_REPLACE(config.import_config, '[\(\)]', '', 'g')
+        REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
         )INTO export_statistics;
 END;
 $BODY$;

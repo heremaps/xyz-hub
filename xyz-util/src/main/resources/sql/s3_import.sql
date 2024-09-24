@@ -18,6 +18,34 @@
  */
 
 /**
+ * Install required extensions
+ */
+DO $$
+BEGIN
+	CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
+	CREATE EXTENSION IF NOT EXISTS postgis_topology;
+	CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
+	CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;
+    BEGIN
+	        CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE;
+            EXCEPTION WHEN OTHERS THEN
+	            RAISE NOTICE 'Not able to install plpython3u extension';
+    END;
+    CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
+    BEGIN
+	        CREATE EXTENSION IF NOT EXISTS aws_lambda CASCADE;
+            EXCEPTION WHEN OTHERS THEN
+	            RAISE NOTICE 'Not able to install aws_lambda extension';
+    END;
+
+    /**
+     *TODO: Find a solution to remove the search_path
+     */
+    SET search_path=s3_import,transport,public;
+END;
+$$;
+
+/**
  * Enriches Feature - uses in plain trigger function
  */
 CREATE OR REPLACE FUNCTION import_from_s3_enrich_feature(IN jsondata JSONB, geo geometry(GeometryZ,4326))
@@ -334,7 +362,7 @@ BEGIN
             'SELECT/*lables({"type": "ImortFilesToSpace","bytes":%1$L})*/ aws_s3.table_import_from_s3( '
                 ||' ''%2$s.%3$s'', '
                 ||'	%4$L, '
-                ||'	( %5$L ), '
+                ||'	%5$L, '
                 ||' aws_commons.create_s3_uri(%6$L,%7$L,%8$L)) ',
             filesize,
             schem,
@@ -374,34 +402,6 @@ BEGIN
                        'FAILED',
 					   SQLSTATE,
                        s3_path);
-END;
-$BODY$;
-
-/**
- * Get Config
- */
-CREATE OR REPLACE FUNCTION import_from_s3_get_import_config(format TEXT)
-    RETURNS TABLE(target_clomuns TEXT, import_config TEXT)
-    LANGUAGE 'plpgsql'
-AS $BODY$
-BEGIN
-    import_config := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
-    format := lower(format);
-
-    IF format = 'csv_json_wkb' OR format = 'csv_jsonwkb' THEN
-        target_clomuns := 'jsondata,geo';
-    ELSEIF format = 'csv_geojson' THEN
-        target_clomuns := 'jsondata';
-    ELSEIF format = 'geojson' THEN
-        target_clomuns := 'jsondata';
-        import_config := format('(FORMAT CSV, ENCODING ''UTF8'', DELIMITER %1$L , QUOTE  %2$L)', CHR(2), CHR(1));
-    ELSE
-        RAISE EXCEPTION 'Format ''%'' not supported! ',format
-            USING HINT = 'geojson | csv_geojson | csv_json_wkb are available',
-                ERRCODE = 'XYZ40';
-    END IF;
-
-    RETURN NEXT;
 END;
 $BODY$;
 

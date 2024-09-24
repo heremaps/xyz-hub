@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.util.db.SQLQuery;
 
 public class TransportTools {
 
@@ -32,5 +33,11 @@ public class TransportTools {
 
   protected static String getTemporaryTriggerTableName(Step step) {
     return getTemporaryJobTableName(step)+TRIGGER_TABLE_SUFFIX;
+  }
+
+  protected static SQLQuery buildDropTemporaryTableQuery(String schema, String tableName) {
+    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
+            .withVariable("table", tableName)
+            .withVariable("schema", schema);
   }
 }

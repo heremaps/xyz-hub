@@ -22,7 +22,7 @@ CREATE OR REPLACE FUNCTION s3_plugin_config(format TEXT)
     LANGUAGE 'plpgsql'
 AS $BODY$
 BEGIN
-    plugin_options := 'FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE ''''''''';
+    plugin_options := '(FORMAT CSV, ENCODING ''UTF8'', DELIMITER '','', QUOTE  ''"'',  ESCAPE '''''''')';
     format := lower(format);
 
     IF format = 'csv_json_wkb' OR format = 'csv_jsonwkb' THEN
@@ -31,7 +31,7 @@ BEGIN
         plugin_columns := 'jsondata';
     ELSEIF format = 'geojson' THEN
         plugin_columns := 'jsondata';
-        plugin_options := format('FORMAT CSV, ENCODING ''UTF8'', DELIMITER %1$L , QUOTE  %2$L', CHR(2), CHR(1));
+        plugin_options := format('(FORMAT CSV, ENCODING ''UTF8'', DELIMITER %1$L , QUOTE  %2$L)', CHR(2), CHR(1));
     ELSE
         RAISE EXCEPTION 'Format ''%'' not supported! ',format
             USING HINT = 'geojson | csv_geojson | csv_json_wkb are available',

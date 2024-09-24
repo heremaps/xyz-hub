@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 /**
@@ -173,6 +175,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
+    runWriteQuerySync(buildTemporaryTableForExportQuery(getSchema(db())), db(), 0);
+
     for (int i = 0; i < calculatedThreadCount; i++) {
       logger.info("Start export thread number: {}", i);
       runReadQueryAsync(buildExportQuery(i), db(), 0);
@@ -181,19 +185,29 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void resume() throws Exception {
+    //TODO
+  }
 
+  @Override
+  protected void onAsyncSuccess() throws Exception {
+    //TODO
+    super.onAsyncSuccess();
+
+    logger.info("Clean Temp Table!");
+    runWriteQuerySync(buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
+  }
+
+  @Override
+  protected boolean onAsyncFailure() {
+    //TODO
+    return super.onAsyncFailure();
   }
 
   private SQLQuery buildTemporaryTableForExportQuery(String schema) {
     return new SQLQuery("""
                     CREATE TABLE IF NOT EXISTS ${schema}.${table}
                            (
-                                s3_bucket text NOT NULL,
                                 s3_path text NOT NULL,
-                                s3_region text NOT NULL,
-                                content_query text, --tileId/s3_path
-                                state text NOT NULL, --jobtype
-                                execution_count int DEFAULT 0, --amount of retries
                                 data jsonb COMPRESSION lz4, --statistic data //getRowsUploaded	getFilesUploaded getBytesUploaded
                                 i SERIAL,
                                 CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)

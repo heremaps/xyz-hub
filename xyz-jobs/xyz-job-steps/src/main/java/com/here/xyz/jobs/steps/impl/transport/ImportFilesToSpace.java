@@ -34,6 +34,8 @@ import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.FI
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RESET_SUCCESS_MARKER;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryTriggerTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
@@ -63,6 +65,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -220,9 +223,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public ExecutionMode getExecutionMode() {
     //CSV is not supported in SYNC mode
-    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
+    //if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
       return ASYNC;
-    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+//    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
   }
 
   @Override
@@ -459,8 +462,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private void cleanUpDbRelatedResources() throws TooManyResourcesClaimed, SQLException, WebClientException {
     logAndSetPhase(Phase.DROP_TMP_TABLE);
-    runWriteQuerySync(buildDropTemporaryTableForImportQuery(), db(), 0);
-    runWriteQuerySync(buildDropTemporaryTriggerTableForImportQuery(), db(), 0);
+    runBatchWriteQuerySync(SQLQuery.batchOf(
+            buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)),
+            buildDropTemporaryTableQuery(getSchema(db()), getTemporaryTriggerTableName(this))
+    ), db(), 0);
   }
 
   @Override
@@ -586,7 +591,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
-        + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
+        + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
         .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
         .withQueryFragment("author", targetAuthor)
         .withQueryFragment("targetTable", getRootTableName(space()))
