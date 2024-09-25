@@ -30,6 +30,7 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -46,7 +47,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private static final Logger logger = LogManager.getLogger();
 
   //Defines how many features a source layer need to have to start parallelization.
-  private final int PARALLELIZTATION_MIN_THRESHOLD = 10;
+  private final int PARALLELIZTATION_MIN_THRESHOLD = 10; //TODO: put back to 500k
   //Defines how many export threads are getting used
   private final int PARALLELIZTATION_THREAD_COUNT = 8;
 
@@ -56,28 +57,30 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @JsonView({Internal.class, Static.class})
   private double overallNeededAcus = -1;
 
-  @JsonView({Internal.class, Static.class})
-  private EntityPerLine entityPerLine = EntityPerLine.Feature;
-
   private Format format = Format.GEOJSON;
 
-  private Phase phase;
 
-//  //Geometry-Filters
-//  private Geometry geometry;
-//  private int radius = -1;
-//  private boolean clipOnFilterGeometry;
-//
-//  //Content-Filters
-//  private String propertyFilter;
-//  private SpaceContext context;
-//  private String targetVersion;
-//
-//  //Partitioning
-//  private String partitionKey;
-//  //Required if partitionKey=tileId
-//  private Integer targetLevel;
-//  private boolean clipOnPartitions;
+  /**
+   * TODO:
+   *   Geometry-Filters
+   *    private Geometry geometry;
+   *    private int radius = -1;
+   *    private boolean clipOnFilterGeometry;
+   *
+   *   Content-Filters
+   *    private String propertyFilter;
+   *    private SpaceContext context;
+   *    private String targetVersion;
+   *
+   *   Version Filter:
+   *    private VersionRef versionRef;
+   *
+   *   Partitioning - part of EMR?
+   *    private String partitionKey;
+   *    --Required if partitionKey=tileId
+   *      private Integer targetLevel;
+   *      private boolean clipOnPartitions;
+   */
 
   public enum Format {
     CSV_JSON_WKB,
@@ -87,32 +90,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   public enum Phase {
     VALIDATE
-  }
-
-  public void setFormat(Format format) {
-    this.format = format;
-  }
-
-  public ExportSpaceToFiles withFormat(Format format) {
-    setFormat(format);
-    return this;
-  }
-
-  public EntityPerLine getEntityPerLine() {
-    return entityPerLine;
-  }
-
-  public void setEntityPerLine(EntityPerLine entityPerLine) {
-    this.entityPerLine = entityPerLine;
-  }
-
-  public ExportSpaceToFiles withEntityPerLine(EntityPerLine entityPerLine) {
-    setEntityPerLine(entityPerLine);
-    return this;
-  }
-
-  public Phase getPhase() {
-    return phase;
   }
 
   @JsonView({Internal.class, Static.class})
@@ -172,11 +149,13 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
+        
     statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
+    List<String> s3FileNames = generateS3PathList(calculatedThreadCount);
     runWriteQuerySync(buildTemporaryTableForExportQuery(getSchema(db())), db(), 0);
-
+    
     for (int i = 0; i < calculatedThreadCount; i++) {
       logger.info("Start export thread number: {}", i);
       runReadQueryAsync(buildExportQuery(i), db(), 0);
@@ -201,6 +180,16 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   protected boolean onAsyncFailure() {
     //TODO
     return super.onAsyncFailure();
+  }
+  
+  private List<String> generateS3PathList(int cnt){
+    List<String> list = new ArrayList<>();
+    
+    for (int i = 0; i < cnt; i++) {
+        list.add(outputS3Prefix(true,false) + "/" +UUID.randomUUID());
+    }
+    
+    return list;
   }
 
   private SQLQuery buildTemporaryTableForExportQuery(String schema) {
@@ -244,11 +233,5 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
             .withNamedParameter("s3_region", bucketRegion())
             .withNamedParameter("format", format.name())
             .withNamedParameter("filesize", 0);
-  }
-
-  //TODO: De-duplicate once CSV was removed (see GeoJson format class)
-  public enum EntityPerLine {
-    Feature,
-    FeatureCollection
   }
 }

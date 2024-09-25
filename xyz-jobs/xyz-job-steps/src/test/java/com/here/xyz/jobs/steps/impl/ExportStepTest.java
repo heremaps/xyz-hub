@@ -72,7 +72,6 @@ public class ExportStepTest extends JobStepTest {
 
         LambdaBasedStep step = new ExportSpaceToFiles()
                 .withSpaceId(SPACE_ID)
-                .withFormat(ExportSpaceToFiles.Format.GEOJSON)
                 .withJobId(JOB_ID);
 
         sendLambdaStepRequest(step, START_EXECUTION);

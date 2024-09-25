@@ -223,9 +223,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public ExecutionMode getExecutionMode() {
     //CSV is not supported in SYNC mode
-    //if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
+    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
       return ASYNC;
-//    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
   }
 
   @Override

@@ -22,19 +22,12 @@ package com.here.xyz.jobs.steps.compiler;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
-import com.here.xyz.jobs.datasets.files.Csv;
-import com.here.xyz.jobs.datasets.files.FileFormat;
-import com.here.xyz.jobs.datasets.files.GeoJson;
+
 import com.here.xyz.jobs.steps.CompilationStepGraph;
-import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.EntityPerLine;
-import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.Format;
 
 import java.util.HashSet;
 import java.util.Set;
-
-import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.Format.GEOJSON;
 
 public class ExportToFiles implements JobCompilationInterceptor {
   public static Set<Class<? extends DatasetDescription.Space>> allowedSourceTypes = new HashSet<>(Set.of(DatasetDescription.Space.class));
@@ -49,18 +42,8 @@ public class ExportToFiles implements JobCompilationInterceptor {
     DatasetDescription.Space source = (DatasetDescription.Space) job.getSource();
     String spaceId = source.getId();
 
-    final FileFormat targetFormat = ((Files) job.getTarget()).getOutputSettings().getFormat();
-
-    Format outputStepFormat;
-    if (targetFormat instanceof GeoJson)
-      outputStepFormat = GEOJSON;
-    else
-      throw new CompilationError("Unsupported export file format: " + targetFormat.getClass().getSimpleName());
-
     ExportSpaceToFiles exportToFilesStep = new ExportSpaceToFiles() //Perform import
         .withSpaceId(spaceId)
-        .withFormat(outputStepFormat)
-        .withEntityPerLine(getEntityPerLine(targetFormat))
         .withJobId(job.getId());
 
     return compileImportSteps(exportToFilesStep);
@@ -69,10 +52,5 @@ public class ExportToFiles implements JobCompilationInterceptor {
   public static CompilationStepGraph compileImportSteps(ExportSpaceToFiles exportToFilesStep) {
     return (CompilationStepGraph) new CompilationStepGraph()
         .addExecution(exportToFilesStep);
-  }
-
-  private ExportSpaceToFiles.EntityPerLine getEntityPerLine(FileFormat format) {
-    return EntityPerLine.valueOf((format instanceof GeoJson geoJson
-            ? geoJson.getEntityPerLine() : ((Csv) format).getEntityPerLine()).toString());
   }
 }
