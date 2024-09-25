@@ -48,7 +48,7 @@ public class TransportTools {
     logger.info("[{}@{}] ON '{}' {}", getGlobalStepId, phase, spaceId, messages.length > 0 ? messages : "");
   }
 
-  protected static void errorLog(String phase, String spaceId, String getGlobalStepId, String message, Exception e) {
+  protected static void errorLog(String phase, String spaceId, String getGlobalStepId, Exception e,  String... message) {
     logger.error("[{}@{}] ON '{}' {}", getGlobalStepId, phase, spaceId, message, e);
   }
 

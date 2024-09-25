@@ -67,8 +67,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.io.ParseException;
 
 
@@ -78,7 +76,6 @@ import org.locationtech.jts.io.ParseException;
  */
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
-  private static final Logger logger = LogManager.getLogger();
   private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
   private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 100 * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1 * 1024 * 1024 * 1024;
@@ -403,7 +400,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     }
     catch (Exception e) {
       //TODO: What to do? Only log? Report Status is not that important. Further Ignore "table does not exists error" - report 0 in this case.
-      logger.error(e);
+      errorLog(STEP_ON_STATE_CHECK, e);
     }
   }
 
@@ -432,7 +429,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
       //TODO: Find out the cases in which that could happen and prevent it from happening
       if (e.getSQLState() != null && e.getSQLState().equals("42P01")) {
-        errorLog(STEP_ON_ASYNC_SUCCESS, "_job_data table got already deleted!", e);
+        errorLog(STEP_ON_ASYNC_SUCCESS, e, "_job_data table got already deleted!");
         return;
       }
       throw e;
@@ -759,8 +756,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     TransportTools.infoLog(phase.name(), getSpaceId(), getGlobalStepId(), messages);
   }
 
-  private void errorLog(Phase phase, String message, Exception e){
-    TransportTools.errorLog(phase.name(), getSpaceId(), getGlobalStepId(), message, e);
+  private void errorLog(Phase phase, Exception e, String... messages){
+    TransportTools.errorLog(phase.name(), getSpaceId(), getGlobalStepId(), e, messages);
   }
 
   //TODO: De-duplicate once CSV was removed (see GeoJson format class)

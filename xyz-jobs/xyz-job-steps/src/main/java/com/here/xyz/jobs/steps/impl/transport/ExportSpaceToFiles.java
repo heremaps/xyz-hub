@@ -35,8 +35,10 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 /**
@@ -44,9 +46,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * This step produces exactly one output of type {@link FeatureStatistics}.
  */
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
-  private static final Logger logger = LogManager.getLogger();
-
-  //Defines how many features a source layer need to have to start parallelization.
+    //Defines how many features a source layer need to have to start parallelization.
   private final int PARALLELIZTATION_MIN_THRESHOLD = 10; //TODO: put back to 500k
   //Defines how many export threads are getting used
   private final int PARALLELIZTATION_THREAD_COUNT = 8;
@@ -130,7 +130,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   public boolean validate() throws ValidationException {
     super.validate();
     try {
-      logger.info("VALIDATE");
+
       loadSpace(getSpaceId());
 
       /**
@@ -157,7 +157,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     runWriteQuerySync(buildTemporaryTableForExportQuery(getSchema(db())), db(), 0);
     
     for (int i = 0; i < calculatedThreadCount; i++) {
-      logger.info("Start export thread number: {}", i);
+      infoLog(STEP_EXECUTE, "Start export thread number: " + i );
       runReadQueryAsync(buildExportQuery(i), db(), 0);
     }
   }
@@ -172,7 +172,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     //TODO
     super.onAsyncSuccess();
 
-    logger.info("Clean Temp Table!");
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Cleanup temporary table");
     runWriteQuerySync(buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
   }
 
@@ -233,5 +233,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
             .withNamedParameter("s3_region", bucketRegion())
             .withNamedParameter("format", format.name())
             .withNamedParameter("filesize", 0);
+  }
+
+  private void infoLog(TransportTools.Phase phase, String... messages){
+    TransportTools.infoLog(phase.name(), getSpaceId(), getGlobalStepId(), messages);
   }
 }
