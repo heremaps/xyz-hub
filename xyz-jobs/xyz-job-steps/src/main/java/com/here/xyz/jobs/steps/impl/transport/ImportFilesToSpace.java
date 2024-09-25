@@ -25,17 +25,18 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.AS
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.CREATE_TMP_TABLE;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.EXECUTE_IMPORT;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.FILL_TMP_TABLE;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RESET_SUCCESS_MARKER;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryTriggerTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
@@ -65,7 +66,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -214,7 +214,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
       estimatedSeconds = ResourceAndTimeCalculator.getInstance()
           .calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
-      logger.info("[{}] Import estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
+      infoLog(JOB_EXECUTOR, "Calculated estimatedSeconds: "+estimatedSeconds );
     }
     return estimatedSeconds;
   }
@@ -223,9 +223,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public ExecutionMode getExecutionMode() {
     //CSV is not supported in SYNC mode
-    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
+    //if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
       return ASYNC;
-    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+//    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
   }
 
   @Override
@@ -249,7 +249,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   public boolean validate() throws ValidationException {
     super.validate();
     try {
-      logAndSetPhase(Phase.VALIDATE);
+      infoLog(JOB_VALIDATE);
       //Check if the space is actually existing
       space();
 
@@ -276,20 +276,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return true;
   }
 
-  private void logAndSetPhase(Phase newPhase, String... messages) {
-    if (newPhase != null)
-      phase = newPhase;
-    logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
-  }
-
-  public Phase getPhase() {
-    return phase;
-  }
-
-  private void log(String... messages) {
-    logAndSetPhase(null, messages);
-  }
-
   @Override
   public void execute()
       throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
@@ -300,17 +286,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (getExecutionMode() == SYNC)
       syncExecution();
     else {
-      log("Importing input files for job " + getJobId() + " into space " + getSpaceId() + " ...");
-
       //TODO: Move resume logic into #resume()
       if (!isResume) {
-        logAndSetPhase(Phase.SET_READONLY);
+        infoLog(STEP_EXECUTE, "Set ReadOnly");
         hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-        logAndSetPhase(RETRIEVE_NEW_VERSION);
+        infoLog(STEP_EXECUTE, "Retrieve new version");
         long newVersion = increaseVersionSequence();
 
-        logAndSetPhase(Phase.CREATE_TRIGGER);     //FIXME: Use owner of the job
+        infoLog(STEP_EXECUTE, "Create TriggerTable and Trigger");
         //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
         runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space.getOwner(), newVersion), db(), 0);
       }
@@ -322,10 +306,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               MAX_DB_THREAD_COUNT);
       double neededAcusForOneThread = calculateNeededAcus(1);
 
-      logAndSetPhase(EXECUTE_IMPORT);
-
       for (int i = 1; i <= calculatedThreadCount; i++) {
-        logAndSetPhase(EXECUTE_IMPORT, "Start Import Thread number " + i);
+        infoLog(STEP_EXECUTE, "Start Import Thread number " + i);
         runReadQueryAsync(buildImportQueryBlock(), db(), neededAcusForOneThread, false);
       }
     }
@@ -333,12 +315,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private void syncExecution() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     //TODO: Support resume
-    logAndSetPhase(RETRIEVE_NEW_VERSION);
+    infoLog(STEP_EXECUTE, "Retrieve new version");
     long newVersion = increaseVersionSequence();
     long featureCount = 0;
 
     for (S3DataFile input : loadStepInputs()) {
-      logger.info("[{}] Sync write from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
+      infoLog(STEP_EXECUTE, "Sync write of file:"+ input.getS3Key());
       featureCount += syncWriteFileToSpace(input, newVersion);
     }
     registerOutputs(List.of(new FeatureStatistics().withFeatureCount(featureCount).withByteSize(getUncompressedUploadBytesEstimation())),
@@ -388,14 +370,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
-      logAndSetPhase(RESET_SUCCESS_MARKER);
+      infoLog(STEP_EXECUTE, "Reset SuccessMarker");
       runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db)), db, 0);
     }
     else {
-      logAndSetPhase(CREATE_TMP_TABLE);
+      infoLog(STEP_EXECUTE, "Create temporary job table");
       runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
 
-      logAndSetPhase(FILL_TMP_TABLE);
+      infoLog(STEP_EXECUTE, "Fill temporary job table");
       fillTemporaryTableWithInputs(db, loadStepInputs(), bucketRegion());
     }
   }
@@ -414,8 +396,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
             getStatus().setEstimatedProgress(progress);
 
-            log("Progress[" + progress + "] => "
-                + " processedBytes:" + processedBytes + " ,finishedCnt:" + finishedCnt + " ,failedCnt:" + failedCnt);
+            infoLog(STEP_ON_STATE_CHECK,"Progress[" + progress + "] => " + " processedBytes:"
+                    + processedBytes + " ,finishedCnt:" + finishedCnt + " ,failedCnt:" + failedCnt);
             return progress;
           });
     }
@@ -429,20 +411,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   protected void onAsyncSuccess() throws WebClientException,
       SQLException, TooManyResourcesClaimed, IOException {
     try {
-
-      logAndSetPhase(Phase.RETRIEVE_STATISTICS);
       FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
           0, rs -> rs.next()
               ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
               : new FeatureStatistics());
 
-      log("Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
-      logAndSetPhase(Phase.WRITE_STATISTICS);
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
       registerOutputs(List.of(statistics), true);
 
       cleanUpDbRelatedResources();
 
-      logAndSetPhase(Phase.RELEASE_READONLY);
+      infoLog(STEP_ON_ASYNC_SUCCESS, "Release READONLY");
       hubWebClient().patchSpace(getSpaceId(), Map.of(
           "readOnly", false,
           "contentUpdatedAt", Core.currentTimeMillis()
@@ -453,7 +432,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
       //TODO: Find out the cases in which that could happen and prevent it from happening
       if (e.getSQLState() != null && e.getSQLState().equals("42P01")) {
-        log("_job_data table got already deleted!");
+        errorLog(STEP_ON_ASYNC_SUCCESS, "_job_data table got already deleted!", e);
         return;
       }
       throw e;
@@ -461,7 +440,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private void cleanUpDbRelatedResources() throws TooManyResourcesClaimed, SQLException, WebClientException {
-    logAndSetPhase(Phase.DROP_TMP_TABLE);
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Clean up database resources");
     runBatchWriteQuerySync(SQLQuery.batchOf(
             buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)),
             buildDropTemporaryTableQuery(getSchema(db()), getTemporaryTriggerTableName(this))
@@ -548,18 +527,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
             .withNamedParameter("data", "{}"));
     runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
-  }
-
-  private SQLQuery buildDropTemporaryTableForImportQuery() throws WebClientException {
-    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-        .withVariable("table", getTemporaryJobTableName(this))
-        .withVariable("schema", getSchema(db()));
-  }
-
-  private SQLQuery buildDropTemporaryTriggerTableForImportQuery() throws WebClientException {
-    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this))
-        .withVariable("schema", getSchema(db()));
   }
 
   private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {
@@ -783,9 +750,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
         getUncompressedUploadBytesEstimation(), fileCount, threadCount);
 
-    logAndSetPhase(Phase.CALCULATE_ACUS,
-        "expectedMemoryConsumption: " + getUncompressedUploadBytesEstimation() + " => neededACUs:" + neededACUs);
+    infoLog(JOB_EXECUTOR, "Calcualted ACUS: expectedMemoryConsumption: "
+            + getUncompressedUploadBytesEstimation() + " => neededACUs:" + neededACUs);
     return neededACUs;
+  }
+
+  private void infoLog(Phase phase, String... messages){
+    TransportTools.infoLog(phase.name(), getSpaceId(), getGlobalStepId(), messages);
+  }
+
+  private void errorLog(Phase phase, String message, Exception e){
+    TransportTools.errorLog(phase.name(), getSpaceId(), getGlobalStepId(), message, e);
   }
 
   //TODO: De-duplicate once CSV was removed (see GeoJson format class)
@@ -798,22 +773,5 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     CSV_GEOJSON,
     CSV_JSON_WKB,
     GEOJSON;
-  }
-
-  public enum Phase {
-    VALIDATE,
-    CALCULATE_ACUS,
-    SET_READONLY,
-    RETRIEVE_NEW_VERSION,
-    CREATE_TRIGGER,
-    CREATE_TMP_TABLE,
-    RESET_SUCCESS_MARKER,
-    FILL_TMP_TABLE,
-    EXECUTE_IMPORT,
-    RETRIEVE_STATISTICS,
-    WRITE_STATISTICS,
-    DROP_TRIGGER,
-    DROP_TMP_TABLE,
-    RELEASE_READONLY;
   }
 }
