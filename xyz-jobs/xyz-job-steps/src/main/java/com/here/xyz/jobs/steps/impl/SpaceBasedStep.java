@@ -59,10 +59,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   private String spaceId;
 
   @JsonIgnore
-  protected Database db;
+  private Database db;
 
   @JsonIgnore
-  protected Space space;
+  private Space space;
 
   @JsonIgnore
   protected Space superSpace;
