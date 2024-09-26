@@ -41,7 +41,8 @@ public record UpdateStrategy(OnExists onExists, OnNotExists onNotExists, OnVersi
     MERGE,
     REPLACE,
     RETAIN,
-    ERROR
+    ERROR,
+    DELETE
   }
 
   public enum OnMergeConflict {

@@ -23,6 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
+import static com.here.xyz.hub.task.FeatureHandler.checkReadOnly;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
@@ -35,9 +36,12 @@ import com.here.xyz.events.UpdateStrategy.OnExists;
 import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.WriteFeaturesEvent;
+import com.here.xyz.hub.XYZHubRESTVerticle;
+import com.here.xyz.hub.auth.FeatureAuthorization;
+import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.hub.task.FeatureHandler;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
@@ -49,6 +53,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpHeaders;
@@ -208,16 +213,56 @@ public class FeatureApi extends SpaceBasedApi {
     }
   }
 
-  private Future<FeatureCollection> writeFeatures(byte[] featureData, boolean partialUpdates, UpdateStrategy updateStrategy,
-      SpaceContext spaceContext, String author) {
-    WriteFeaturesEvent event = new WriteFeaturesEvent()
-        .withFeatureData(featureData)
-        .withUpdateStrategy(updateStrategy)
-        .withPartialUpdates(partialUpdates)
-        .withContext(spaceContext)
-        .withAuthor(author);
+  private Future<FeatureCollection> writeFeatures(RoutingContext context, byte[] featureData, boolean partialUpdates,
+      UpdateStrategy updateStrategy, SpaceContext spaceContext, String author) {
+    return Space.resolveSpace(getMarker(context), getSpaceId(context))
+        .compose(space -> {
+          boolean isDelete = updateStrategy.onExists() == OnExists.DELETE || updateStrategy.onVersionConflict() == OnVersionConflict.DELETE;
+          boolean isWrite = updateStrategy.onExists() == OnExists.REPLACE || updateStrategy.onVersionConflict() == OnVersionConflict.REPLACE
+              || updateStrategy.onVersionConflict() == OnVersionConflict.MERGE;
 
-    return Future.succeededFuture();
+          try {
+            //Authorize the request and check some preconditions
+            if (isDelete)
+              FeatureAuthorization.authorizeWrite(context, space, true);
+            if (isWrite)
+              FeatureAuthorization.authorizeWrite(context, space, false);
+            //TODO: authorizeComposite?
+            checkReadOnly(space);
+
+            XYZHubRESTVerticle.addStreamInfo(context, "SID", space.getStorage().getId());
+
+            return space.resolveConnector(getMarker(context))
+                .compose(connector -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
+                //Perform the actual feature writing
+                .compose(v -> FeatureHandler.writeFeatures(space, featureData, partialUpdates, updateStrategy, spaceContext, author));
+          }
+          catch (TooManyRequestsException e) {
+            XYZHubRESTVerticle.addStreamInfo(context, "THR", e.reason); //Set the throttling reason at the stream-info header
+            return Future.failedFuture(e);
+          }
+          catch (Exception e) {
+            return Future.failedFuture(e);
+          }
+        });
+  }
+
+  static Future<Void> enforceUsageQuotas(RoutingContext context, Space space, SpaceContext spaceContext, boolean isDeleteOnly) {
+    final long maxFeaturesPerSpace = BaseHttpServerVerticle.getJWT(context).limits != null ? BaseHttpServerVerticle.getJWT(context).limits.maxFeaturesPerSpace : -1;
+    if (maxFeaturesPerSpace <= 0)
+      return Future.succeededFuture();
+
+    return FeatureHandler.getCountForSpace(getMarker(context), space, spaceContext, BaseHttpServerVerticle.getAuthor(context))
+        .compose(count -> {
+          try {
+            //Check the quota
+            FeatureHandler.checkFeaturesPerSpaceQuota(space.getId(), maxFeaturesPerSpace, count, isDeleteOnly);
+            return Future.succeededFuture();
+          }
+          catch (HttpException e) {
+            return Future.failedFuture(e);
+          }
+        });
   }
 
   private UpdateStrategy toUpdateStrategy(IfExists ifExists, IfNotExists ifNotExists, ConflictResolution conflictResolution) {
