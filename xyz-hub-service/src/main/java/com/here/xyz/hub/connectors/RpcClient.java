@@ -629,12 +629,10 @@ public class RpcClient {
   public static class RpcContext {
     private int requestSize = -1;
     private int responseSize = -1;
+    private String requesterId;
     private volatile boolean cancelled = false;
 
     private final Connector connector;
-
-    private String requesterId;
-
     private FunctionCall functionCall;
 
     public RpcContext(Connector connector) {
@@ -672,16 +670,16 @@ public class RpcClient {
       return this;
     }
 
+    public Connector getConnector() {
+      return connector;
+    }
+
     public String getRequesterId() {
       return requesterId;
     }
 
     public void setRequesterId(String requesterId) {
       this.requesterId = requesterId;
-    }
-
-    public Connector getConnector() {
-      return connector;
     }
   }
 

@@ -54,7 +54,7 @@ public abstract class Authorization {
         .onSuccess(v -> callback.call(task))
         .onFailure(e -> {
           if (!(e instanceof HttpException))
-            logger.error(task.getMarker(), "Module authorization failed at " + task.context.request().method() + " " + task.context.request().path(), e);
+            logger.error(task.getMarker(), "Authorization failed at " + task.context.request().method() + " " + task.context.request().path(), e);
           callback.exception(unauthorized);
         });
   }

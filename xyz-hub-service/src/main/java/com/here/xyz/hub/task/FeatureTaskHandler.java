@@ -863,28 +863,27 @@ public class FeatureTaskHandler {
               return switchToSuperSpace(task, space);
             }
 
+            //Inject the minVersion from the space config
+            if (task.getEvent() instanceof SelectiveEvent) {
+              ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+            }
+
+            //Inject the versionsToKeep from the space config
+            if (task.getEvent() instanceof ContextAwareEvent) {
+              ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+            }
+
             task.space = space;
 
             //Inject the extension-map
             return space.resolveCompositeParams(task.getMarker())
                 .compose(resolvedExtensions -> {
                   Map<String, Object> storageParams = new HashMap<>();
-                  if (space.getStorage().getParams() != null) {
+                  if (space.getStorage().getParams() != null)
                     storageParams.putAll(space.getStorage().getParams());
-                  }
                   storageParams.putAll(resolvedExtensions);
 
                   task.getEvent().setParams(storageParams);
-
-                  //Inject the minVersion from the space config
-                  if (task.getEvent() instanceof SelectiveEvent) {
-                    ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
-                  }
-
-                  //Inject the versionsToKeep from the space config
-                  if (task.getEvent() instanceof ContextAwareEvent) {
-                    ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
-                  }
 
                   return Future.succeededFuture(space);
                 });
