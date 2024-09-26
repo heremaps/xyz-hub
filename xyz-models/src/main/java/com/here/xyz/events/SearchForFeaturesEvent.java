@@ -25,7 +25,6 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "SearchForFeaturesEvent")
 public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends SelectiveEvent<T> {
-
   private static final long DEFAULT_LIMIT = 1_000L;
   private static final long MAX_LIMIT = 100_000L;
 
@@ -40,10 +39,6 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
     this.limit = Math.max(1L, Math.min(limit, MAX_LIMIT));
   }
 
-  public void setFreeLimit(long limit) {
-    this.limit = limit;
-  }
-
   @SuppressWarnings("unused")
   public T withLimit(long limit) {
     setLimit(limit);
@@ -51,22 +46,7 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
     return (T) this;
   }
 
-  private TagsQuery tags;
   private PropertiesQuery propertiesQuery;
-
-  public TagsQuery getTags() {
-    return this.tags;
-  }
-
-  public void setTags(TagsQuery tags) {
-    this.tags = tags;
-  }
-
-  @SuppressWarnings("unused")
-  public T withTags(TagsQuery tags) {
-    setTags(tags);
-    return (T)this;
-  }
 
   @SuppressWarnings("unused")
   public PropertiesQuery getPropertiesQuery() {

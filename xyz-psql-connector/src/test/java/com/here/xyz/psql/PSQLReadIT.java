@@ -18,6 +18,7 @@
  */
 package com.here.xyz.psql;
 
+import static com.here.xyz.events.PropertyQuery.QueryOperation.CONTAINS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -34,7 +35,6 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
@@ -56,6 +56,7 @@ import com.here.xyz.responses.XyzResponse;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +78,14 @@ public class PSQLReadIT extends PSQLAbstractIT {
     @After
     public void shutdown() throws Exception {
         invokeDeleteTestSpace(null);
+    }
+
+    private PropertiesQuery createTagsQuery(String... tags) {
+        PropertiesQuery pq = new PropertiesQuery();
+        PropertyQueryList pql = new PropertyQueryList();
+        pq.add(pql);
+        pql.add(new PropertyQuery().withKey("properties.@ns:com:here:xyz.tags").withOperation(CONTAINS).withValues(Arrays.asList(tags)));
+        return pq;
     }
 
     /**
@@ -109,12 +118,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(3, features.size());
 
         // =========== QUERY BBOX - +TAGS ==========
-        getFeaturesByBBoxEvent
-                = new GetFeaturesByTileEvent()
-                .withConnectorParams(defaultTestConnectorParams)
-                .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
-                .withBbox(new BBox(-170, -170, 170, 170));
+        getFeaturesByBBoxEvent = new GetFeaturesByTileEvent()
+            .withConnectorParams(defaultTestConnectorParams)
+            .withSpace("foo")
+            .withPropertiesQuery(createTagsQuery("yellow"))
+            .withBbox(new BBox(-170, -170, 170, 170));
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
@@ -125,13 +133,12 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(1, features.size());
 
         // =========== QUERY WITH SELECTION BBOX - +TAGS ==========
-        getFeaturesByBBoxEvent
-                = new GetFeaturesByTileEvent()
-                .withConnectorParams(defaultTestConnectorParams)
-                .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
-                .withSelection(new ArrayList<String>(){{ add("id");add("type");add("geometry");add("properties.name");}})
-                .withBbox(new BBox(-170, -170, 170, 170));
+        getFeaturesByBBoxEvent = new GetFeaturesByTileEvent()
+            .withConnectorParams(defaultTestConnectorParams)
+            .withSpace("foo")
+            .withPropertiesQuery(createTagsQuery("yellow"))
+            .withSelection(new ArrayList<String>(){{ add("id");add("type");add("geometry");add("properties.name");}})
+            .withBbox(new BBox(-170, -170, 170, 170));
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
@@ -148,13 +155,12 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertNotNull(features.get(0).getGeometry());
 
         // =========== QUERY WITH SELECTION BBOX - +TAGS ==========
-        getFeaturesByBBoxEvent
-                = new GetFeaturesByTileEvent()
-                .withConnectorParams(defaultTestConnectorParams)
-                .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
-                .withSelection(new ArrayList<String>(){{ add("properties.@ns:com:here:xyz.tags");}})
-                .withBbox(new BBox(-170, -170, 170, 170));
+        getFeaturesByBBoxEvent = new GetFeaturesByTileEvent()
+            .withConnectorParams(defaultTestConnectorParams)
+            .withSpace("foo")
+            .withPropertiesQuery(createTagsQuery("yellow"))
+            .withSelection(new ArrayList<String>(){{ add("properties.@ns:com:here:xyz.tags");}})
+            .withBbox(new BBox(-170, -170, 170, 170));
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
@@ -167,13 +173,12 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(1, features.get(0).getProperties().getXyzNamespace().getTags().size());
 
         // =========== QUERY WITH SELECTION BBOX - +TAGS ==========
-        getFeaturesByBBoxEvent
-                = new GetFeaturesByTileEvent()
-                .withConnectorParams(defaultTestConnectorParams)
-                .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
-                .withSelection(new ArrayList<String>(){{ add("properties");}})
-                .withBbox(new BBox(-170, -170, 170, 170));
+        getFeaturesByBBoxEvent = new GetFeaturesByTileEvent()
+            .withConnectorParams(defaultTestConnectorParams)
+            .withSpace("foo")
+            .withPropertiesQuery(createTagsQuery("yellow"))
+            .withSelection(new ArrayList<String>(){{ add("properties");}})
+            .withBbox(new BBox(-170, -170, 170, 170));
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
@@ -185,12 +190,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(2, new ObjectMapper().convertValue(features.get(0).getProperties(), Map.class).size());
 
         // =========== QUERY BBOX - +SMALL; +TAGS ==========
-        getFeaturesByBBoxEvent
-                = new GetFeaturesByTileEvent()
-                .withConnectorParams(defaultTestConnectorParams)
-                .withSpace("foo")
-                .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
-                .withBbox(new BBox(10, -5, 20, 5));
+        getFeaturesByBBoxEvent = new GetFeaturesByTileEvent()
+            .withConnectorParams(defaultTestConnectorParams)
+            .withSpace("foo")
+            .withPropertiesQuery(createTagsQuery("yellow"))
+            .withBbox(new BBox(10, -5, 20, 5));
 
         queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);

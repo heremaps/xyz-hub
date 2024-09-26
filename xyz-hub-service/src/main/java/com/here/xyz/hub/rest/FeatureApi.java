@@ -30,7 +30,6 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
@@ -180,7 +179,6 @@ public class FeatureApi extends SpaceBasedApi {
   private void deleteFeatures(final RoutingContext context) {
     try {
       final Set<String> featureIds = new HashSet<>(Query.queryParam(Query.FEATURE_ID, context));
-      final TagsQuery tags = Query.getTags(context);
       final String accept = context.request().getHeader(ACCEPT);
       final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
               ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
