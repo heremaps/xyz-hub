@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.hub.rest.ApiParam.Query.F_PREFIX;
 
 import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.ContextAwareEvent;
@@ -27,7 +28,6 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import io.vertx.ext.web.RoutingContext;
@@ -46,6 +46,12 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 public class ApiParam {
+  private static final Map<String, String> SEARCH_KEY_REPLACEMENTS = Map.of(
+      "f.id", "id",
+      "f.createdAt", "properties.@ns:com:here:xyz.createdAt",
+      "f.updatedAt", "properties.@ns:com:here:xyz.updatedAt",
+      "f.tags", "properties.@ns:com:here:xyz.tags"
+  );
 
   private static Object getConvertedValue(String rawValue) {
     // Boolean
@@ -82,19 +88,13 @@ public class ApiParam {
   }
 
   public static String getConvertedKey(String rawKey) {
-    if (rawKey.startsWith("p.")) {
+    if (rawKey.startsWith("p."))
       return rawKey.replaceFirst("p.", "properties.");
-    }
-    Map<String, String> keyReplacements = new HashMap<String, String>() {{
-      put("f.id", "id");
-      put("f.createdAt", "properties.@ns:com:here:xyz.createdAt");
-      put("f.updatedAt", "properties.@ns:com:here:xyz.updatedAt");
-    }};
 
-    String replacement = keyReplacements.get(rawKey);
+    String replacement = SEARCH_KEY_REPLACEMENTS.get(rawKey);
 
-    /** Allow root property search f.foo */
-    if(replacement == null && rawKey.startsWith("f."))
+    //Allow root property search by using f.<key>
+    if (replacement == null && rawKey.startsWith(F_PREFIX))
       return rawKey.substring(2);
 
     return replacement;
@@ -302,13 +302,6 @@ public class ApiParam {
       return alt;
     }
 
-    /**
-     * Returns the parsed tags parameter
-     */
-    static TagsQuery getTags(RoutingContext context) {
-      return TagsQuery.fromQueryParameter(queryParam(Query.TAGS, context));
-    }
-
     public static List<String> getSelection(RoutingContext context) {
       if (Query.getString(context, Query.SELECTION, null) == null) {
         return null;
@@ -334,7 +327,7 @@ public class ApiParam {
 
       List<String> sort = new ArrayList<>();
       for (String s : Query.queryParam(Query.SORT, context))
-        if (s.startsWith("p.") || s.startsWith("f."))
+        if (s.startsWith("p.") || s.startsWith(F_PREFIX))
          sort.add( s.replaceFirst("^p\\.", "properties.") );
 
       return sort;
@@ -428,13 +421,13 @@ public class ApiParam {
     }
 
     public static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
-      if (query == null || query.length() == 0) {
+      if (query == null || query.length() == 0)
         return null;
-      }
 
       PropertyQueryList pql = new PropertyQueryList();
       Stream.of(query.split("&"))
-          .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
+          .map(queryParam -> queryParam.startsWith("tags=") ? transformLegacyTags(queryParam) : queryParam)
+          .filter(queryParam -> queryParam.startsWith("p.") || queryParam.startsWith(F_PREFIX) || spaceProperties)
           .forEach(keyValuePair -> {
             PropertyQuery propertyQuery = new PropertyQuery();
 
@@ -490,10 +483,19 @@ public class ApiParam {
       PropertiesQuery pq = new PropertiesQuery();
       pq.add(pql);
 
-      if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0) {
+      if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0)
         return null;
-      }
+
       return pq;
+    }
+
+    private static String transformLegacyTags(String legacyTagsQuery) {
+      String[] tagQueryParts = legacyTagsQuery.split("=");
+      if (tagQueryParts.length != 2)
+        return legacyTagsQuery;
+      String tags = tagQueryParts[1];
+
+      return F_PREFIX + "tags" + "=cs=" + tags;
     }
 
     static Map<String, Object> getAdditionalParams(RoutingContext context, String type) throws Exception{
