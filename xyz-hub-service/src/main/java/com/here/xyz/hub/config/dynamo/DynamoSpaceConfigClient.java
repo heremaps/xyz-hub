@@ -390,7 +390,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       if (propsQuery != null) {
         valueMap.put(":typeValue", "SPACE");
         valueMap.put(":contentUpdatedAtValue", propsQuery.get(0).get(0).getValues().get(0));
-        String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
+        String operator = QueryOperation.getOutputRepresentation(propsQuery.get(0).get(0).getOperation());
 
         spaces.getIndex("type-contentUpdatedAt-index")
             .query(new QuerySpec()
@@ -580,7 +580,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       Map<String, Object> valueMap = new HashMap<>();
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", propsQuery.get(0).get(0).getValues().get(0));
-      String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
+      String operator = QueryOperation.getOutputRepresentation(propsQuery.get(0).get(0).getOperation());
       var contentUpdatedAtSpaceIds = new HashSet<String>();
       spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
               .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " +  operator + " :contentUpdatedAtValue")

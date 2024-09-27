@@ -91,7 +91,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
       propsQuery.forEach(conjunctions -> {
         conjunctions.forEach(conj -> {
             conj.getValues().forEach(v -> {
-              String operator = QueryOperation.getOperation(conj.getOperation());
+              String operator = QueryOperation.getOutputRepresentation(conj.getOperation());
               contentUpdatedAtList.add(operator);
               contentUpdatedAtList.add(v.toString());
             });

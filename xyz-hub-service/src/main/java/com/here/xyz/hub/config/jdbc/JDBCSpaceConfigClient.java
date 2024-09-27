@@ -128,7 +128,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
         List<String> contentUpdatedAtConjunctions = new ArrayList<>();
         conjunctions.forEach(conj -> {
             conj.getValues().forEach(v -> {
-              contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ QueryOperation.getOperation(conj.getOperation()) + "'" +v + "' )");
+              contentUpdatedAtConjunctions.add("(cast(config->>'contentUpdatedAt' AS TEXT) "+ QueryOperation.getOutputRepresentation(conj.getOperation()) + "'" +v + "' )");
             });
         });
         whereConjunctions.add(String.join(" OR ", contentUpdatedAtConjunctions));

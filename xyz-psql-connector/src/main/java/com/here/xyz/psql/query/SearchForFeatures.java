@@ -195,7 +195,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           else {
             predicateQuery = new SQLQuery("${{keyPath}} ${{operation}} ${{value}}")
                 .withQueryFragment("keyPath", keyPath)
-                .withQueryFragment("operation", QueryOperation.getOperation(op))
+                .withQueryFragment("operation", QueryOperation.getOutputRepresentation(op))
                 .withQueryFragment("value", value == null ? "" : value);
             namedParams.put(paramName, v);
           }
