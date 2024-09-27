@@ -24,6 +24,7 @@ import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -179,6 +180,17 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     //TODO
     super.onAsyncSuccess();
 
+    FileStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
+            0, rs -> rs.next()
+                    ? new FileStatistics()
+                        .withBytesUploaded(rs.getLong("bytes_uploaded"))
+                        .withRowsUploaded(rs.getLong("rows_uploaded"))
+                        .withFilesUploaded(rs.getInt("files_uploaded"))
+                    : new FileStatistics());
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getBytesUploaded() + " files=" + statistics.getFilesUploaded());
+    registerOutputs(List.of(statistics), true);
+
     infoLog(STEP_ON_ASYNC_SUCCESS, "Cleanup temporary table");
     runWriteQuerySync(buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
   }
@@ -236,6 +248,19 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                     .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
                     .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
                     .withNamedParameter("content_query", exportSelectString.substitute().text());
+  }
+
+  private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
+    return new SQLQuery("""
+          SELECT sum((data->'export_statistics'->'rows_uploaded')::bigint) as rows_uploaded,
+                 sum((data->'export_statistics'->'files_uploaded')::bigint) as files_uploaded,
+                 sum((data->'export_statistics'->'bytes_uploaded')::bigint) as bytes_uploaded
+                  FROM ${schema}.${tmpTable}
+              WHERE POSITION('SUCCESS_MARKER' in state) = 0;
+        """)
+            .withVariable("schema", getSchema(db()))
+            .withVariable("tmpTable", getTemporaryJobTableName(this))
+            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(this));
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {

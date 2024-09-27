@@ -28,7 +28,8 @@ import java.io.IOException;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics")
+    @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics"),
+    @JsonSubTypes.Type(value = FileStatistics.class, name = "FileStatistics")
 })
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
   @Override
