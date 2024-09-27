@@ -302,7 +302,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       for (int i = 1; i <= calculatedThreadCount; i++) {
         infoLog(STEP_EXECUTE, "Start Import Thread number " + i);
-        runReadQueryAsync(buildImportQueryBlock(), db(), neededAcusForOneThread, false);
+        runReadQueryAsync(buildImportQuery(), db(), neededAcusForOneThread, false);
       }
     }
   }
@@ -587,36 +587,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildImportQuery() throws WebClientException {
 
-    String schema = getSchema(db());
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
-    return new SQLQuery(
-        "CALL import_from_s3_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
-        .withAsyncProcedure(true)
-        .withNamedParameter("schema", schema)
-        .withNamedParameter("target_tbl", schema + ".\"" + TransportTools.getTemporaryTriggerTableName(this) + "\"")
-        .withNamedParameter("temporary_tbl", schema + ".\"" + (getTemporaryJobTableName(this)) + "\"")
-        .withNamedParameter("format", format.toString())
-        .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
-        .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
-        .withContext(getQueryContext());
-  }
 
-  private SQLQuery buildImportQueryBlock() throws WebClientException {
-    /**
-     * TODO:
-     * The idea was to uses context with asyncify. The integration in "_create_asyncify_query_block" (same
-     * principal as with xzy.password) has not worked. If we find a solution with asyncify we can use the block
-     * query - if not, we can simply use buildImportQuery()
-     */
-    return new SQLQuery("${{importQuery}}")
-        .withAsyncProcedure(true)
-        .withQueryFragment("importQuery", buildImportQuery());
+    return new SQLQuery(
+            "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}');")
+            .withContext(getQueryContext())
+            .withAsyncProcedure(true)
+            .withNamedParameter("format", format.toString())
+            .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
+            .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"));
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-    return createQueryContext(getGlobalStepId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
+    return createQueryContext(getId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
   }
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {

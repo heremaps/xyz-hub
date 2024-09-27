@@ -79,7 +79,7 @@ $BODY$;
 
 
 /**
- * Get work_item for import. Used for synchronizing import threads.
+ * Get work_item. Used for synchronizing threads.
  */
 CREATE OR REPLACE FUNCTION get_work_item(temporary_tbl REGCLASS)
     RETURNS JSONB
@@ -169,15 +169,15 @@ DECLARE
     ctx JSONB;
 BEGIN
     SELECT context() into ctx;
-
-    IF content_query IS NULL THEN
+    IF content_query IS NULL OR content_query = '' THEN
         PERFORM import_from_s3_perform(ctx->>'schema',
                     get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
-                    get_table_reference(ctx->>'schema', ctx->>'table'),
+                    get_table_reference(ctx->>'schema', ctx->>'stepId', 'TRIGGER_TABLE'),
                     work_item ->> 's3_bucket',
                     work_item ->> 's3_path',
                     work_item ->> 's3_region',
-                    format, (work_item -> 'filesize')::BIGINT);
+                    format,
+                    (work_item -> 'filesize')::BIGINT);
     ELSE
         PERFORM export_to_s3_perform(content_query, (work_item ->> 's3_bucket'), (work_item ->> 's3_path'), (work_item ->> 's3_region'));
     END IF;
@@ -185,9 +185,60 @@ END;
 $BODY$;
 
 /**
+ * Report Success
+ */
+CREATE OR REPLACE FUNCTION report_success(success_callback TEXT)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    VOLATILE PARALLEL SAFE
+AS $BODY$
+DECLARE
+    ctx JSONB;
+    sql_text TEXT;
+BEGIN
+    SELECT context() into ctx;
+
+    sql_text = $wrappedouter$ DO
+    $wrappedinner$
+    DECLARE
+        ctx JSONB := '$wrappedouter$||(ctx::TEXT)||$wrappedouter$'::JSONB;
+	    job_results RECORD;
+	    retry_count INT := 2;
+	BEGIN
+	    EXECUTE format('SELECT '
+	                       || '   COUNT(*) FILTER (WHERE state = %1$L) AS finished_count,'
+	                       || '   COUNT(*) FILTER (WHERE state = %2$L and execution_count=%3$L) AS failed_count,'
+	                       || '   COUNT(*) AS total_count '
+	                       || 'FROM %4$s WHERE NOT starts_with(state,''SUCCESS_MARKER'');',
+	                   'FINISHED',
+	                   'FAILED',
+	                   retry_count,
+                       get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE')
+	            ) INTO job_results;
+
+	    IF  (job_results.finished_count + job_results.failed_count) = job_results.total_count THEN
+	        -- Will only be executed from last worker
+	        IF job_results.total_count = job_results.failed_count  THEN
+	            -- All Job-Threads are failed
+	        ELSEIF job_results.failed_count > 0 AND (job_results.total_count > job_results.failed_count) THEN
+	            -- Job-Threads partially failed
+	        ELSE
+	            -- All done invoke lambda
+	            $wrappedouter$ || success_callback || $wrappedouter$
+	        END IF;
+	    ELSE
+	        -- Job-Threads still in progress!
+	    END IF;
+	END;
+	$wrappedinner$ $wrappedouter$;
+    EXECUTE sql_text;
+END;
+$BODY$;
+
+/**
  *..
  */
-CREATE OR REPLACE PROCEDURE transport.execute_transfer(format TEXT, success_callback TEXT, failure_callback TEXT, content_query TEXT)
+CREATE OR REPLACE PROCEDURE execute_transfer(format TEXT, success_callback TEXT, failure_callback TEXT, content_query TEXT = NULL)
     LANGUAGE 'plpgsql'
 AS
 $BODY$
@@ -204,10 +255,10 @@ BEGIN
     IF work_item -> 'state' IS NULL THEN
         RETURN;
     ELSE
-        IF work_item ->> 'state' = 'LAST_ONES_RUNNING' THEN
-            RETURN;
-        ELSEIF work_item ->> 'state' = 'RETRY' THEN
+        PERFORM context(ctx);
+        IF work_item ->> 'state' = 'RETRY' OR work_item ->> 'state' = 'LAST_ONES_RUNNING' THEN
             -- Received a RETRY
+            PERFORM pg_sleep(10);
             PERFORM asyncify(format('CALL execute_transfer(%1$L, %2$L, %3$L, %4$L );',
                                     format,
                                     success_callback,
@@ -216,7 +267,7 @@ BEGIN
                     ), false, true );
             RETURN;
         ELSEIF work_item ->> 'state' = 'SUCCESS_MARKER_RUNNING' THEN
-            EXECUTE format('SELECT import_from_s3_report_success(%1$L,%2$L);', get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'), success_callback);
+            EXECUTE format('SELECT report_success(%1$L);', success_callback);
             RETURN;
         END IF;
     END IF;
@@ -227,14 +278,14 @@ BEGIN
 		ctx JSONB := '$wrappedouter$||(ctx::TEXT)||$wrappedouter$'::JSONB;
         work_item JSONB := '$wrappedouter$||(work_item::TEXT)||$wrappedouter$'::JSONB;
         format TEXT := '$wrappedouter$||format||$wrappedouter$'::TEXT;
-        content_query TEXT := '$wrappedouter$||content_query||$wrappedouter$'::TEXT;
+        content_query TEXT := '$wrappedouter$||(coalesce(content_query,''))||$wrappedouter$'::TEXT;
 		retry_count INT := 2;
     BEGIN
 			BEGIN
 				PERFORM context(ctx);
 			    IF (work_item -> 'execution_count')::INT >= retry_count THEN
 			        --TODO: find a solution to read a given hint in the failure_callback. Remove than the duplication.
-                    RAISE EXCEPTION 'Error on importing file ''%''. Maximum retries are reached %. Details: ''%''',
+                    RAISE EXCEPTION 'Error on processing file ''%''. Maximum retries are reached %. Details: ''%''',
 			                right(work_item ->>'s3_path', 36), retry_count, (work_item -> 'data' -> 'error' ->> 'sqlstate')
                     --USING HINT = 'Details: ' || 'details' ,
                     USING ERRCODE = 'XYZ50';

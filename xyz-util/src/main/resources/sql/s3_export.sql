@@ -34,7 +34,7 @@ BEGIN
     SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
 
     EXECUTE format(
-            'SELECT aws_s3.query_export_to_s3( '
+            'SELECT * from aws_s3.query_export_to_s3( '
                 ||' ''%1$s'', '
                 ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
                 ||' NULL,'
@@ -50,12 +50,12 @@ BEGIN
     -- Mark item as successfully imported. Store import_statistics.
     EXECUTE format('UPDATE %1$s '
                        ||'set state = %2$L, '
-                       ||'execution_count = execution_count + 1 '
-                       --  ||'data = data || %3$L '
-                       ||'WHERE s3_path = %3$L ',
+                       ||'execution_count = execution_count + 1, '
+                       ||'data = data || %3$L '
+                       ||'WHERE s3_path = %4$L ',
                    get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
                    'FINISHED',
-        --json_build_object('export_statistics', export_statistics),
+                    json_build_object('export_statistics', export_statistics),
                    s3_path);
 END;
 $BODY$;
