@@ -39,6 +39,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
@@ -83,17 +84,24 @@ public class ExportStepTest extends JobStepTest {
         List outputs = step.loadOutputs(true);
         Assert.assertNotEquals(0, outputs.size());
 
-        int lineCount = 0;
+        List<Feature>  exportedFeatures = new ArrayList<>();
+
         for (Object output : outputs) {
-            lineCount += checkFile((DownloadUrl) output, allExistingFeatures);
+            exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
         }
-        Assertions.assertEquals(FILE_COUNT * FEATURE_COUNT, lineCount);
+
+        Assertions.assertEquals(FILE_COUNT * FEATURE_COUNT, allExistingFeatures.getFeatures().size());
+
+        List<String> existingFeaturesIdList = allExistingFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+        List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
+
+        Assertions.assertTrue(exportedFeaturesFeaturesIdList.containsAll(existingFeaturesIdList));
     }
 
-    private int checkFile(DownloadUrl output, FeatureCollection allExistingFeatures) throws IOException {
+    private List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {
         logger.info("Check file: {}",output.getS3Key());
+        List<Feature> features = new ArrayList<>();
 
-        int lineCount = 0;
         InputStream dataStream = S3Client.getInstance().streamObjectContent(output.getS3Key());
 
         if (output.isCompressed())
@@ -103,14 +111,9 @@ public class ExportStepTest extends JobStepTest {
             String line;
 
             while ((line = reader.readLine()) != null) {
-                //@TODO: maybe check also feature properties + @ns
-                Feature f = XyzSerializable.deserialize(line, Feature.class);
-
-                //Check if featureIds are in the exported files
-                Assertions.assertTrue(allExistingFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList()).contains(f.getId()));
-                lineCount++;
+                features.add(XyzSerializable.deserialize(line, Feature.class));
             }
         }
-        return lineCount;
+        return features;
     }
 }

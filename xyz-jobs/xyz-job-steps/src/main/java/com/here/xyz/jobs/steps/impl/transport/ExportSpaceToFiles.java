@@ -20,23 +20,30 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildInitialInsertsForTemporaryJobTable;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnes;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableForImportQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -47,7 +54,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  */
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     //Defines how many features a source layer need to have to start parallelization.
-  private final int PARALLELIZTATION_MIN_THRESHOLD = 10; //TODO: put back to 500k
+  private final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
   //Defines how many export threads are getting used
   private final int PARALLELIZTATION_THREAD_COUNT = 8;
 
@@ -153,12 +160,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
-    List<String> s3FileNames = generateS3PathList(calculatedThreadCount);
-    runWriteQuerySync(buildTemporaryTableForExportQuery(getSchema(db())), db(), 0);
-    
+    List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
+    createAndFillTemporaryJobTable(s3FileNames);
+
     for (int i = 0; i < calculatedThreadCount; i++) {
       infoLog(STEP_EXECUTE, "Start export thread number: " + i );
-      runReadQueryAsync(buildExportQuery(i), db(), 0);
+      runReadQueryAsync(buildExportQuery(i), db(), 0,false);
     }
   }
 
@@ -182,29 +189,29 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return super.onAsyncFailure();
   }
   
-  private List<String> generateS3PathList(int cnt){
-    List<String> list = new ArrayList<>();
+  private List<S3DataFile> generateS3FileNames(int cnt){
+    List<S3DataFile> urlList = new ArrayList<>();
     
-    for (int i = 0; i < cnt; i++) {
-        list.add(outputS3Prefix(true,false) + "/" +UUID.randomUUID());
+    for (int i = 1; i <= calculatedThreadCount; i++) {
+      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(true,false) + "/" + i + "/" + UUID.randomUUID()));
     }
-    
-    return list;
+
+    return urlList;
   }
 
-  private SQLQuery buildTemporaryTableForExportQuery(String schema) {
-    return new SQLQuery("""
-                    CREATE TABLE IF NOT EXISTS ${schema}.${table}
-                           (
-                                s3_path text NOT NULL,
-                                data jsonb COMPRESSION lz4, --statistic data //getRowsUploaded	getFilesUploaded getBytesUploaded
-                                i SERIAL,
-                                CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
-                           );
-                    """)
-            .withVariable("table", TransportTools.getTemporaryJobTableName(this))
-            .withVariable("schema", schema)
-            .withVariable("primaryKey", TransportTools.getTemporaryJobTableName(this) + "_primKey");
+  private void createAndFillTemporaryJobTable(List<S3DataFile> s3FileNames) throws SQLException, TooManyResourcesClaimed, WebClientException {
+    if (isResume()) {
+      infoLog(STEP_EXECUTE, "Reset SuccessMarker");
+      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnes(getSchema(db()) ,this), db(), 0);
+    }
+    else {
+      infoLog(STEP_EXECUTE, "Create temporary job table");
+      runWriteQuerySync(buildTemporaryJobTableForImportQuery(getSchema(db()), this), db(), 0);
+
+      infoLog(STEP_EXECUTE, "Fill temporary job table");
+      runBatchWriteQuerySync(SQLQuery.batchOf(buildInitialInsertsForTemporaryJobTable(getSchema(db()),
+              s3FileNames, bucketRegion(),this)), db(), 0 );
+    }
   }
 
   private SQLQuery generateFilteredExportQuery(int threadNumber) throws WebClientException {
@@ -218,21 +225,22 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   public SQLQuery buildExportQuery(int threadNumber) throws WebClientException {
     SQLQuery exportSelectString = generateFilteredExportQuery(threadNumber);
 
-    String s3Path = outputS3Prefix(true,false) + "/" +UUID.randomUUID();
-    s3Path += format.equals(Format.GEOJSON) ? ".geojson" : ".csv";
+    SQLQuery successQuery = buildSuccessCallbackQuery();
+    SQLQuery failureQuery = buildFailureCallbackQuery();
 
     return new SQLQuery(
-            """
-            PERFORM export_to_s3_perform(
-                #{content_query}, #{s3_bucket}, #{s3_path}, #{s3_region}, 
-                #{format}, #{filesize})
-             """)
-            .withNamedParameter("content_query", exportSelectString.substitute().text())
-            .withNamedParameter("s3_bucket", bucketName())
-            .withNamedParameter("s3_path", s3Path)
-            .withNamedParameter("s3_region", bucketRegion())
-            .withNamedParameter("format", format.name())
-            .withNamedParameter("filesize", 0);
+                    "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}', #{content_query} );")
+                    .withContext(getQueryContext())
+                    .withAsyncProcedure(true)
+                    .withNamedParameter("format", format.toString())
+                    .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
+                    .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
+                    .withNamedParameter("content_query", exportSelectString.substitute().text());
+  }
+
+  private Map<String, Object> getQueryContext() throws WebClientException {
+    String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
+    return createQueryContext(getId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
   }
 
   private void infoLog(TransportTools.Phase phase, String... messages){

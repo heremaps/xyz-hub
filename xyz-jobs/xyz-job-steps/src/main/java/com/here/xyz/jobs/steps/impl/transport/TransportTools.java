@@ -19,10 +19,19 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.inputs.UploadUrl;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.util.db.SQLQuery;
+import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class TransportTools {
   private static final Logger logger = LogManager.getLogger();
@@ -35,7 +44,7 @@ public class TransportTools {
   }
 
   protected static String getTemporaryTriggerTableName(Step step) {
-    return getTemporaryJobTableName(step)+TRIGGER_TABLE_SUFFIX;
+    return getTemporaryJobTableName(step) + TRIGGER_TABLE_SUFFIX;
   }
 
   protected static SQLQuery buildDropTemporaryTableQuery(String schema, String tableName) {
@@ -50,6 +59,98 @@ public class TransportTools {
 
   protected static void errorLog(String phase, String spaceId, String getGlobalStepId, Exception e,  String... message) {
     logger.error("[{}@{}] ON '{}' {}", getGlobalStepId, phase, spaceId, message, e);
+  }
+
+  protected static SQLQuery buildTemporaryJobTableForImportQuery(String schema, Step step) {
+    return new SQLQuery("""
+        CREATE TABLE IF NOT EXISTS ${schema}.${table}
+               (
+                    s3_bucket text NOT NULL,
+                    s3_path text NOT NULL,
+                    s3_region text NOT NULL,
+                    state text NOT NULL, --jobtype
+                    execution_count int DEFAULT 0, --amount of retries
+                    data jsonb COMPRESSION lz4, --statistic data
+                    i SERIAL,
+                    CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
+               );
+        """)
+            .withVariable("table", getTemporaryJobTableName(step))
+            .withVariable("schema", schema)
+            .withVariable("primaryKey", getTemporaryJobTableName(step) + "_primKey");
+  }
+
+  protected static List<SQLQuery> buildInitialInsertsForTemporaryJobTable(String schema, List<S3DataFile> inputs,
+                                                                          String bucketRegion, Step step) {
+    List<SQLQuery> queryList = new ArrayList<>();
+    for (S3DataFile input : inputs) {
+      if (input instanceof UploadUrl || input instanceof DownloadUrl) {
+        JsonObject data = new JsonObject()
+                .put("compressed", input.isCompressed())
+                .put("filesize", input.getByteSize());
+
+        queryList.add(
+                new SQLQuery("""                
+                    INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
+                        VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
+                        ON CONFLICT (s3_path) DO NOTHING;
+                """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
+                        .withVariable("schema", schema)
+                        .withVariable("table", getTemporaryJobTableName(step))
+                        .withNamedParameter("s3Key", input.getS3Key())
+                        .withNamedParameter("bucketName", input.getS3Bucket())
+                        .withNamedParameter("bucketRegion", bucketRegion)
+                        .withNamedParameter("state", "SUBMITTED")
+                        .withNamedParameter("data", data.toString())
+        );
+      }
+    }
+    //Add final entry
+    queryList.add(
+            new SQLQuery("""                
+                INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
+                    VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
+                    ON CONFLICT (s3_path) DO NOTHING;
+            """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
+                    .withVariable("schema", schema)
+                    .withVariable("table", getTemporaryJobTableName(step))
+                    .withNamedParameter("s3Key", "SUCCESS_MARKER")
+                    .withNamedParameter("bucketName", "SUCCESS_MARKER")
+                    .withNamedParameter("state", "SUCCESS_MARKER")
+                    .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
+                    .withNamedParameter("data", "{}"));
+    return queryList;
+  }
+
+  protected static SQLQuery buildResetSuccessMarkerAndRunningOnes(String schema, Step step) {
+    return new SQLQuery("""
+        UPDATE ${schema}.${table}
+          SET state =
+            CASE
+              WHEN state = 'SUCCESS_MARKER_RUNNING' THEN 'SUCCESS_MARKER'
+              WHEN state = 'RUNNING' THEN 'SUBMITTED'
+            END
+          WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step));
+  }
+
+  protected static Map<String, Object> createQueryContext(String stepId, String schema, String table,
+                                                          boolean historyEnabled, String superTable){
+
+    final Map<String, Object> queryContext = new HashMap<>(Map.of(
+            "stepId", stepId,
+            "schema", schema,
+            "table", table,
+            "context", superTable != null ? "'DEFAULT'" : "NULL",
+            "historyEnabled", historyEnabled
+    ));
+
+    if (superTable != null)
+      queryContext.put("extendedTable", superTable);
+
+    return queryContext;
   }
 
   protected enum Phase {

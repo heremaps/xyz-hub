@@ -30,6 +30,10 @@ import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.G
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryTriggerTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableForImportQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildInitialInsertsForTemporaryJobTable;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnes;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
@@ -41,8 +45,6 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.datasets.space.UpdateStrategy;
-import com.here.xyz.jobs.steps.S3DataFile;
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -56,14 +58,11 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
-import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
@@ -83,8 +82,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final int MAX_DB_THREAD_COUNT = 15;
 
   private Format format = GEOJSON;
-
-  private Phase phase;
 
   @JsonView({Internal.class, Static.class})
   private double overallNeededAcus = -1;
@@ -293,7 +290,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
         infoLog(STEP_EXECUTE, "Create TriggerTable and Trigger");
         //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
-        runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space.getOwner(), newVersion), db(), 0);
+        runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space().getOwner(), newVersion), db(), 0);
       }
 
       createAndFillTemporaryJobTable();
@@ -368,14 +365,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
       infoLog(STEP_EXECUTE, "Reset SuccessMarker");
-      runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db)), db, 0);
+      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnes(getSchema(db()) ,this), db(), 0);
     }
     else {
       infoLog(STEP_EXECUTE, "Create temporary job table");
-      runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
+      runWriteQuerySync(buildTemporaryJobTableForImportQuery(getSchema(db()), this), db(), 0);
 
       infoLog(STEP_EXECUTE, "Fill temporary job table");
-      fillTemporaryTableWithInputs(db, loadStepInputs(), bucketRegion());
+      runBatchWriteQuerySync(SQLQuery.batchOf(buildInitialInsertsForTemporaryJobTable(getSchema(db()),
+              loadStepInputs(), bucketRegion(),this)), db(), 0 );
     }
   }
 
@@ -463,67 +461,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public void resume() throws Exception {
     _execute(true);
-  }
-
-  private SQLQuery buildTemporaryTableForImportQuery(String schema) {
-    return new SQLQuery("""
-        CREATE TABLE IF NOT EXISTS ${schema}.${table}
-               (
-                    s3_bucket text NOT NULL,
-                    s3_path text NOT NULL,
-                    s3_region text NOT NULL,
-                    state text NOT NULL, --jobtype
-                    execution_count int DEFAULT 0, --amount of retries
-                    data jsonb COMPRESSION lz4, --statistic data
-                    i SERIAL,
-                    CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
-               );
-        """)
-        .withVariable("table", getTemporaryJobTableName(this))
-        .withVariable("schema", schema)
-        .withVariable("primaryKey", getTemporaryJobTableName(this) + "_primKey");
-  }
-
-  private void fillTemporaryTableWithInputs(Database db, List<S3DataFile> inputs, String bucketRegion)
-      throws SQLException, TooManyResourcesClaimed {
-    List<SQLQuery> queryList = new ArrayList<>();
-    for (S3DataFile input : inputs) {
-      if (input instanceof UploadUrl uploadUrl) {
-        JsonObject data = new JsonObject()
-            .put("compressed", uploadUrl.isCompressed())
-            .put("filesize", uploadUrl.getByteSize());
-
-        queryList.add(
-            new SQLQuery("""                
-                    INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
-                        VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
-                        ON CONFLICT (s3_path) DO NOTHING;
-                """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-                .withVariable("schema", getSchema(db))
-                .withVariable("table", getTemporaryJobTableName(this))
-                .withNamedParameter("s3Key", input.getS3Key())
-                .withNamedParameter("bucketName", input.getS3Bucket())
-                .withNamedParameter("bucketRegion", bucketRegion)
-                .withNamedParameter("state", "SUBMITTED")
-                .withNamedParameter("data", data.toString())
-        );
-      }
-    }
-    //Add final entry
-    queryList.add(
-        new SQLQuery("""                
-                INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
-                    VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
-                    ON CONFLICT (s3_path) DO NOTHING;
-            """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-            .withVariable("schema", getSchema(db))
-            .withVariable("table", getTemporaryJobTableName(this))
-            .withNamedParameter("s3Key", "SUCCESS_MARKER")
-            .withNamedParameter("bucketName", "SUCCESS_MARKER")
-            .withNamedParameter("state", "SUCCESS_MARKER")
-            .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
-            .withNamedParameter("data", "{}"));
-    runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
   }
 
   private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {
@@ -679,17 +616,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private Map<String, Object> getQueryContext() throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-
-    final Map<String, Object> queryContext = new HashMap<>(Map.of(
-        "schema", getSchema(db()),
-        "table", getRootTableName(space()),
-        "context", superTable != null ? "'DEFAULT'" : "NULL",
-        "historyEnabled", (space().getVersionsToKeep() > 1)
-    ));
-
-    if (superTable != null)
-      queryContext.put("extendedTable", superTable);
-    return queryContext;
+    return createQueryContext(getGlobalStepId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
   }
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
@@ -706,7 +633,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           #{returnResult}
         );""")
         .withNamedParameter("featureList", featureList)
-        .withNamedParameter("author", space.getOwner())
+        .withNamedParameter("author", space().getOwner())
         .withNamedParameter("onExists", updateStrategy.onExists() == null ? null : updateStrategy.onExists().toString())
         .withNamedParameter("onNotExists", updateStrategy.onNotExists() == null ? null : updateStrategy.onNotExists().toString())
         .withNamedParameter("onVersionConflict",
@@ -721,19 +648,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return writeFeaturesQuery;
   }
 
-  private SQLQuery resetSuccessMarkerAndRunningOnes(String schema) {
-    return new SQLQuery("""
-        UPDATE ${schema}.${table}
-          SET state =
-            CASE
-              WHEN state = 'SUCCESS_MARKER_RUNNING' THEN 'SUCCESS_MARKER'
-              WHEN state = 'RUNNING' THEN 'SUBMITTED'
-            END
-          WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
-        """)
-        .withVariable("schema", schema)
-        .withVariable("table", getTemporaryJobTableName(this));
-  }
+
 
   private double calculateNeededAcus(int threadCount) {
     double neededACUs;
