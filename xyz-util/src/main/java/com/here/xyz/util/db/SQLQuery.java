@@ -738,7 +738,7 @@ public class SQLQuery {
 
   private void injectContext() {
     if (context != null) {
-      statement = "SELECT context(#{context}::JSONB); " + statement;
+      statement = (asyncProcedure ? "PERFORM " : "SELECT") +" context(#{context}::JSONB); " + statement;
       setNamedParameter("context", XyzSerializable.serialize(context));
     }
   }
