@@ -25,7 +25,7 @@ import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
@@ -82,7 +82,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
-    if (event.getWarmupCount() == 0 && ConnectorRuntime.getInstance().isRunningLocally()) {
+    if (event.getWarmupCount() == 0 && FunctionRuntime.getInstance().isRunningLocally()) {
       //FIXME: Do not trigger maintenance on warmup calls, but on simple health-check (non-warmup) calls instead!
       //Run DB-Maintenance - warmUp request is used
       if (event.getMinResponseTime() != 0) {

@@ -30,7 +30,7 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -112,15 +112,15 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //Decrypt the ECPS into an instance of DatabaseSettings
         dbSettings = new DatabaseSettings(connectorId,
-            ECPSTool.decryptToMap(ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
-            .withApplicationName(ConnectorRuntime.getInstance().getApplicationName());
+            ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
+            .withApplicationName(FunctionRuntime.getInstance().getApplicationName());
 
         dbSettings.withSearchPath(checkScripts(dbSettings));
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;
         dbMaintainer = new DatabaseMaintainer(dataSourceProvider, dbSettings, connectorParams,
-            ConnectorRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
+            FunctionRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
         DataSourceProvider.setDefaultProvider(dataSourceProvider);
     }
 
@@ -130,7 +130,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return The script schema names (including the newest script version for each script) to be used in the search path
      */
     private synchronized static List<String> checkScripts(DatabaseSettings dbSettings) {
-        String softwareVersion = ConnectorRuntime.getInstance().getSoftwareVersion();
+        String softwareVersion = FunctionRuntime.getInstance().getSoftwareVersion();
         if (!sqlScripts.containsKey(dbSettings.getId())) {
           logger.info("Checking scripts for connector {} ...", dbSettings.getId());
           try (DataSourceProvider dataSourceProvider = new StaticDataSources(dbSettings)) {
@@ -178,7 +178,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 ((SQLException)e).getSQLState().equalsIgnoreCase("08006")
         )
         ) {
-            int remainingSeconds = ConnectorRuntime.getInstance().getRemainingTime() / 1000;
+            int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
 
             if(!isRemainingTimeSufficient(remainingSeconds)){
                 return false;
@@ -489,19 +489,19 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     static int calculateTimeout() throws SQLException{
-        int remainingSeconds = ConnectorRuntime.getInstance().getRemainingTime() / 1000;
+        int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
 
         if (!isRemainingTimeSufficient(remainingSeconds))
             throw new SQLException("No time left to execute query.","54000");
 
         int timeout = remainingSeconds - 2;
-        logger.debug("{} New timeout for query set to '{}'", ConnectorRuntime.getInstance().getStreamId(), timeout);
+        logger.debug("{} New timeout for query set to '{}'", FunctionRuntime.getInstance().getStreamId(), timeout);
         return timeout;
     }
 
     private static boolean isRemainingTimeSufficient(int remainingSeconds) {
         if (remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
-            logger.warn("{} Not enough time left to execute query: {}s", ConnectorRuntime.getInstance().getStreamId(), remainingSeconds);
+            logger.warn("{} Not enough time left to execute query: {}s", FunctionRuntime.getInstance().getStreamId(), remainingSeconds);
             return false;
         }
         return true;

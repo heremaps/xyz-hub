@@ -17,11 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.connectors.runtime;
+package com.here.xyz.util.runtime;
 
-public abstract class ConnectorRuntime {
-  private static ConnectorRuntime instance;
-  private static final ThreadLocal<ConnectorRuntime> threadLocalInstanceHolder = new ThreadLocal<>();
+public abstract class FunctionRuntime {
+  private static FunctionRuntime instance;
+  private static final ThreadLocal<FunctionRuntime> threadLocalInstanceHolder = new ThreadLocal<>();
 
   public abstract int getRemainingTime();
   public abstract String getApplicationName();
@@ -48,18 +48,18 @@ public abstract class ConnectorRuntime {
 
   public abstract String getStreamId();
 
-  public static ConnectorRuntime getInstance() {
+  public static FunctionRuntime getInstance() {
     if (instance != null)
       return instance;
     //NOTE: Running locally there can be multiple instances of a connector running at the same time. See #setInstance(ConnectorRuntime)
     return threadLocalInstanceHolder.get();
   }
 
-  static void setInstance(ConnectorRuntime instance) {
+  static void setInstance(FunctionRuntime instance) {
     //NOTE: Running locally there can be multiple instances of a connector running at the same time.
     if (instance.isRunningLocally())
-      ConnectorRuntime.threadLocalInstanceHolder.set(instance);
+      FunctionRuntime.threadLocalInstanceHolder.set(instance);
     else
-      ConnectorRuntime.instance = instance;
+      FunctionRuntime.instance = instance;
   }
 }

@@ -31,7 +31,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable.Static;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -388,7 +388,7 @@ public class DatabaseWriter {
     }
 
     private static String getStreamId() {
-        return ConnectorRuntime.getInstance().getStreamId();
+        return FunctionRuntime.getInstance().getStreamId();
     }
 
     private static void executeBatchesAndCheckOnFailures(List<String> idList, PreparedStatement batchStmt,

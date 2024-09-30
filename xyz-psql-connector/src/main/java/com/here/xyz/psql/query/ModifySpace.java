@@ -34,7 +34,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.models.hub.Space;
@@ -157,7 +157,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
 
         SuccessResponse response = super.write(dataSourceProvider);
         if (operation != Operation.DELETE)
-            getDbMaintainer().maintainSpace(ConnectorRuntime.getInstance().getStreamId(), getSchema(), spaceId);
+            getDbMaintainer().maintainSpace(FunctionRuntime.getInstance().getStreamId(), getSchema(), spaceId);
         return response;
     }
 
