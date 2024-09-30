@@ -55,9 +55,9 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  */
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     //Defines how many features a source layer need to have to start parallelization.
-  private final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
+  public static final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
   //Defines how many export threads are getting used
-  private final int PARALLELIZTATION_THREAD_COUNT = 8;
+  public static final int PARALLELIZTATION_THREAD_COUNT = 8;
 
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount = -1;

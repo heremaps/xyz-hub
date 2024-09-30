@@ -24,6 +24,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -87,10 +88,16 @@ public class ExportStepTest extends JobStepTest {
         List<Feature>  exportedFeatures = new ArrayList<>();
 
         for (Object output : outputs) {
-            exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
+            if(output instanceof DownloadUrl) {
+                exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
+            }else if(output instanceof FileStatistics statistics) {
+                Assertions.assertEquals(getExpectedFeatureCount(), statistics.getRowsUploaded());
+                Assertions.assertEquals(getExpectedFeatureCount() > ExportSpaceToFiles.PARALLELIZTATION_MIN_THRESHOLD ?
+                        ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getFilesUploaded());
+            }
         }
 
-        Assertions.assertEquals(FILE_COUNT * FEATURE_COUNT, allExistingFeatures.getFeatures().size());
+        Assertions.assertEquals(getExpectedFeatureCount(), allExistingFeatures.getFeatures().size());
 
         List<String> existingFeaturesIdList = allExistingFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
         List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
@@ -115,5 +122,9 @@ public class ExportStepTest extends JobStepTest {
             }
         }
         return features;
+    }
+
+    private int getExpectedFeatureCount(){
+        return FILE_COUNT * FEATURE_COUNT;
     }
 }
