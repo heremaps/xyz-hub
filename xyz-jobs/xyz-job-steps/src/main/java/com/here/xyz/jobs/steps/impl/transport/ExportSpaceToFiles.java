@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;
@@ -39,14 +40,19 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildInitialInsertsForTemporaryJobTable;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnes;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableForImportQuery;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 /**
@@ -64,6 +70,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @JsonView({Internal.class, Static.class})
   private double overallNeededAcus = -1;
+
+  @JsonView({Internal.class, Static.class})
+  private int estimatedSeconds = -1;
 
   private Format format = Format.GEOJSON;
 
@@ -96,17 +105,19 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     GEOJSON;
   }
 
-  public enum Phase {
-    VALIDATE
-  }
-
   @JsonView({Internal.class, Static.class})
   private StatisticsResponse statistics = null;
 
   @Override
   public List<Load> getNeededResources() {
     try {
-      overallNeededAcus = 10;
+      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), EXTENSION);
+      overallNeededAcus = overallNeededAcus != -1 ?
+              overallNeededAcus : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
+
+      infoLog(JOB_EXECUTOR, this,"Calculated ACUS: byteSize of layer: "
+              + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
+
       return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }catch (Exception e){
@@ -121,7 +132,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public int getEstimatedExecutionSeconds() {
-    return 0;
+    if (estimatedSeconds == -1 && getSpaceId() != null) {
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance()
+              .calculateExportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
+      infoLog(JOB_EXECUTOR, this,"Calculated estimatedSeconds: "+estimatedSeconds );
+    }
+    return estimatedSeconds;
   }
 
   @Override
@@ -158,14 +174,14 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public void execute() throws Exception {
         
-    statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
+    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), EXTENSION);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
     List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
     createAndFillTemporaryJobTable(s3FileNames);
 
     for (int i = 0; i < calculatedThreadCount; i++) {
-      infoLog(STEP_EXECUTE, "Start export thread number: " + i );
+      infoLog(STEP_EXECUTE, this,"Start export thread number: " + i );
       runReadQueryAsync(buildExportQuery(i), db(), 0,false);
     }
   }
@@ -188,10 +204,10 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                         .withFilesUploaded(rs.getInt("files_uploaded"))
                     : new FileStatistics());
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Job Statistics: bytes=" + statistics.getBytesUploaded() + " files=" + statistics.getFilesUploaded());
+    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getBytesUploaded() + " files=" + statistics.getFilesUploaded());
     registerOutputs(List.of(statistics), true);
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, "Cleanup temporary table");
+    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
     runWriteQuerySync(buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
   }
 
@@ -199,6 +215,31 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   protected boolean onAsyncFailure() {
     //TODO
     return super.onAsyncFailure();
+  }
+
+  @Override
+  protected void onStateCheck() {
+    try {
+      runReadQuerySync(buildProgressQuery(getSchema(db()), this), db(), 0,
+              rs -> {
+                rs.next();
+
+                float progress = rs.getFloat("progress");
+                long processedBytes = rs.getLong("processed_bytes");
+                int finishedCnt = rs.getInt("finished_cnt");
+                int failedCnt = rs.getInt("failed_cnt");
+
+                getStatus().setEstimatedProgress(progress);
+
+                infoLog(STEP_ON_STATE_CHECK,this,"Progress[" + progress + "] => " + " processedBytes:"
+                        + processedBytes + " ,finishedCnt:" + finishedCnt + " ,failedCnt:" + failedCnt);
+                return progress;
+              });
+    }
+    catch (Exception e) {
+      //TODO: What to do? Only log? Report Status is not that important. Further Ignore "table does not exists error" - report 0 in this case.
+      errorLog(STEP_ON_STATE_CHECK, this, e);
+    }
   }
   
   private List<S3DataFile> generateS3FileNames(int cnt){
@@ -213,14 +254,14 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   private void createAndFillTemporaryJobTable(List<S3DataFile> s3FileNames) throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
-      infoLog(STEP_EXECUTE, "Reset SuccessMarker");
+      infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
       runWriteQuerySync(buildResetSuccessMarkerAndRunningOnes(getSchema(db()) ,this), db(), 0);
     }
     else {
-      infoLog(STEP_EXECUTE, "Create temporary job table");
+      infoLog(STEP_EXECUTE, this,"Create temporary job table");
       runWriteQuerySync(buildTemporaryJobTableForImportQuery(getSchema(db()), this), db(), 0);
 
-      infoLog(STEP_EXECUTE, "Fill temporary job table");
+      infoLog(STEP_EXECUTE, this,"Fill temporary job table");
       runBatchWriteQuerySync(SQLQuery.batchOf(buildInitialInsertsForTemporaryJobTable(getSchema(db()),
               s3FileNames, bucketRegion(),this)), db(), 0 );
     }
@@ -266,9 +307,5 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private Map<String, Object> getQueryContext() throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
     return createQueryContext(getId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
-  }
-
-  private void infoLog(TransportTools.Phase phase, String... messages){
-    TransportTools.infoLog(phase.name(), getSpaceId(), getGlobalStepId(), messages);
   }
 }

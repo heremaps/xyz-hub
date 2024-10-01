@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.util.db.SQLQuery;
@@ -39,6 +40,12 @@ public class TransportTools {
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final String TRIGGER_TABLE_SUFFIX = "_trigger_tbl";
 
+  protected static String getSpaceId(Step step) {
+    if(step instanceof SpaceBasedStep<?> spaceStep)
+      return spaceStep.getSpaceId();
+    return null;
+  }
+
   protected static String getTemporaryJobTableName(Step step) {
     return JOB_DATA_PREFIX + step.getId();
   }
@@ -51,14 +58,6 @@ public class TransportTools {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
             .withVariable("table", tableName)
             .withVariable("schema", schema);
-  }
-
-  protected static void infoLog(String phase, String spaceId, String getGlobalStepId, String... messages) {
-    logger.info("[{}@{}] ON '{}' {}", getGlobalStepId, phase, spaceId, messages.length > 0 ? messages : "");
-  }
-
-  protected static void errorLog(String phase, String spaceId, String getGlobalStepId, Exception e,  String... message) {
-    logger.error("[{}@{}] ON '{}' {}", getGlobalStepId, phase, spaceId, message, e);
   }
 
   protected static SQLQuery buildTemporaryJobTableForImportQuery(String schema, Step step) {
@@ -136,6 +135,28 @@ public class TransportTools {
             .withVariable("table", getTemporaryJobTableName(step));
   }
 
+  protected static SQLQuery buildProgressQuery(String schema, Step step) {
+    return new SQLQuery("""
+          SELECT 
+          	COALESCE(processed_bytes/overall_bytes, 0) as progress,
+          	COALESCE(processed_bytes,0) as processed_bytes,
+            	COALESCE(finished_cnt,0) as finished_cnt,
+            	COALESCE(failed_cnt,0) as failed_cnt
+            FROM(
+            	SELECT
+                  (SELECT sum((data->'filesize')::bigint ) FROM ${schema}.${table}) as overall_bytes,
+                  sum((data->'filesize')::bigint ) as processed_bytes,
+                  sum((state = 'FINISHED')::int) as finished_cnt,
+                  sum((state = 'FAILED')::int) as failed_cnt
+                FROM ${schema}.${table}
+              	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
+            	   AND state IN ('FINISHED','FAILED')
+            )A          
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step));
+  }
+
   protected static Map<String, Object> createQueryContext(String stepId, String schema, String table,
                                                           boolean historyEnabled, String superTable){
 
@@ -151,6 +172,14 @@ public class TransportTools {
       queryContext.put("extendedTable", superTable);
 
     return queryContext;
+  }
+
+  protected static void infoLog(Phase phase, Step step, String... messages) {
+    logger.info("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step), messages.length > 0 ? messages : "");
+  }
+
+  protected static void errorLog(Phase phase, Step step, Exception e,  String... message) {
+    logger.error("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step), message, e);
   }
 
   protected enum Phase {

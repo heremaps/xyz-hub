@@ -52,21 +52,43 @@ public class ResourceAndTimeCalculator implements Initializable {
         }
     }
 
+    //Export Related...
+    public double calculateNeededExportAcus(long uncompressedUploadBytesEstimation) {
+        //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
+        final double maxAcus = 70;
+        //exports are not that heavy than imports
+        final double exportQuotient = 2;
+
+        //Calculate the needed ACUs
+        double neededAcus = calculateNeededAcusFromByteSize(uncompressedUploadBytesEstimation) / exportQuotient;
+        return Math.min(neededAcus, maxAcus);
+    }
+
+    protected double exportTimeFactor(String spaceId, double seconds){
+        return seconds;
+    }
+
+    public int calculateExportTimeInSeconds(String spaceId, long byteSize){
+        int warmUpTime = 10;
+        int bytesPerSecond = 57 * 1024 * 1024;
+
+        return (int)(warmUpTime + exportTimeFactor(spaceId,  ((double) byteSize / bytesPerSecond)));
+    }
+
     //Import Related...
     protected double importTimeFactor(String spaceId, double bytesPerBillion){
         return 0.44 * bytesPerBillion;
     }
 
     public int calculateImportTimeInSeconds(String spaceId, long byteSize, LambdaBasedStep.ExecutionMode executionMode){
-        if(executionMode.equals(LambdaBasedStep.ExecutionMode.ASYNC)) {
-            int warmUpTime = 10;
-            double bytesPerBillion = byteSize / 1_000_000_000d;
-            return (int) (warmUpTime + importTimeFactor(spaceId, bytesPerBillion) * 60);
-        }else{
-            int expectedHubThroughPutBytesPerSec = 800_000;
-            int overhead = 2;
-            return (int) (byteSize / expectedHubThroughPutBytesPerSec * overhead);
+        int warmUpTime = 10;
+        double bytesPerBillion = byteSize / 1_000_000_000d;
+        int totalTime = (int)(warmUpTime + importTimeFactor(spaceId, bytesPerBillion) * 60);
+
+        if(executionMode.equals(LambdaBasedStep.ExecutionMode.SYNC)) {
+            totalTime *= 2;
         }
+        return totalTime;
     }
 
     public int calculateImportTimeoutSeconds(String spaceId, long byteSize, LambdaBasedStep.ExecutionMode executionMode) {
@@ -87,7 +109,7 @@ public class ResourceAndTimeCalculator implements Initializable {
 
         //Calculate the needed ACUs
         double neededAcus = threadCount * calculateNeededAcusFromByteSize(bytesPerThreads);
-        return neededAcus > maxAcus ? maxAcus : neededAcus;
+        return Math.min(neededAcus, maxAcus);
     }
 
     public int calculateNeededImportDBThreadCount(long uncompressedUploadBytesEstimation, int fileCount, int maxDbThreadCount) {
@@ -103,7 +125,7 @@ public class ResourceAndTimeCalculator implements Initializable {
             calculatedThreadCount = threadCnt == 0 ? 1 : threadCnt;
         }
 
-        return calculatedThreadCount > fileCount ? fileCount : calculatedThreadCount;
+        return Math.min(calculatedThreadCount, fileCount);
     }
 
     //Copy Related...
@@ -118,7 +140,7 @@ public class ResourceAndTimeCalculator implements Initializable {
         double requiredRAM = byteSize / GB_TO_BYTES;
         double neededAcus = requiredRAM / ACU_RAM;
 
-        return neededAcus > maxAcus ? maxAcus : neededAcus;
+        return Math.min(neededAcus, maxAcus);
     }
 
     //Index Related...
@@ -172,7 +194,7 @@ public class ResourceAndTimeCalculator implements Initializable {
             return max;
         else{
             double interpolated = (real / globalMax) * max;
-            return interpolated < min ? min : interpolated;
+            return Math.max(interpolated, min);
         }
     }
 }
