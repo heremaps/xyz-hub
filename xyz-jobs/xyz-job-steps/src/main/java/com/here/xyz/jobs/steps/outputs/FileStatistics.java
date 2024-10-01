@@ -20,46 +20,46 @@
 package com.here.xyz.jobs.steps.outputs;
 
 public class FileStatistics extends ModelBasedOutput {
-    private long rowsUploaded;
-    private long bytesUploaded;
-    private int filesUploaded;
+    private long rowsExported;
+    private long bytesExported;
+    private int filesCreated;
 
-    public long getRowsUploaded() {
-        return rowsUploaded;
+    public long getRowsExported() {
+        return rowsExported;
     }
 
-    public void setRowsUploaded(long rowsUploaded) {
-        this.rowsUploaded = rowsUploaded;
+    public void setRowsExported(long rowsExported) {
+        this.rowsExported = rowsExported;
     }
 
-    public FileStatistics withRowsUploaded(long rowsUploaded) {
-        setRowsUploaded(rowsUploaded);
+    public FileStatistics withRowsExported(long rowsExported) {
+        setRowsExported(rowsExported);
         return this;
     }
 
-    public long getBytesUploaded() {
-        return bytesUploaded;
+    public long getBytesExported() {
+        return bytesExported;
     }
 
-    public void setBytesUploaded(long bytesUploaded) {
-        this.bytesUploaded = bytesUploaded;
+    public void setBytesExported(long bytesExported) {
+        this.bytesExported = bytesExported;
     }
 
-    public FileStatistics withBytesUploaded(long bytesUploaded) {
-        setBytesUploaded(bytesUploaded);
+    public FileStatistics withBytesExported(long bytesExported) {
+        setBytesExported(bytesExported);
         return this;
     }
 
-    public int getFilesUploaded() {
-        return filesUploaded;
+    public int getFilesCreated() {
+        return filesCreated;
     }
 
-    public void setFilesUploaded(int filesUploaded) {
-        this.filesUploaded = filesUploaded;
+    public void setFilesCreated(int filesCreated) {
+        this.filesCreated = filesCreated;
     }
 
-    public FileStatistics withFilesUploaded(int filesUploaded) {
-        setFilesUploaded(filesUploaded);
+    public FileStatistics withFilesCreated(int filesCreated) {
+        setFilesCreated(filesCreated);
         return this;
     }
 }
