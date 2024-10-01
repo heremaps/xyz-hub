@@ -74,7 +74,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class DatabaseHandler extends StorageConnector {
-
+    /**TODO:
+     * shift xyz_ext.sql and h3Core.sql to own folder and avoid double installation.
+     * Currently we are using common.sql in hub-service AND job-service. So we need the installation on both ends.
+     */
+    private static final String SCRIPT_RESOURCE_PATH = "/sql";
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
     private static final Logger logger = LogManager.getLogger();
     private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
@@ -110,11 +114,11 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //Decrypt the ECPS into an instance of DatabaseSettings
         dbSettings = new DatabaseSettings(connectorId,
-            ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
+            ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()), SCRIPT_RESOURCE_PATH)
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName());
 
         //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
-        dbSettings.checkScripts(null);
+        dbSettings.checkScripts();
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;

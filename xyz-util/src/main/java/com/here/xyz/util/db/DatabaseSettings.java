@@ -38,8 +38,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class DatabaseSettings extends Payload {
     private static final Logger logger = LogManager.getLogger();
-    public static final int SCRIPT_VERSIONS_TO_KEEP = 5;
-    private static Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
+    private static final int SCRIPT_VERSIONS_TO_KEEP = 5;
+    private Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
+    private String scriptResourcePath = null;
 
     /**
      * A constant that is normally used as environment variable name for the host.
@@ -125,13 +126,22 @@ public class DatabaseSettings extends Payload {
 
     private DatabaseSettings() {}
 
+    //Load only defaults
     public DatabaseSettings(String id) {
         this.id = id;
     }
 
+    //No scriptResourcePath is set -> checkScripts gets skipped
     public DatabaseSettings(String id, Map<String, Object> databaseSettings) {
         this(id);
         setValuesFromMap(databaseSettings);
+    }
+
+    //ScriptResourcePath is set -> checkScripts will install related scripts
+    public DatabaseSettings(String id, Map<String, Object> databaseSettings, String scriptResourcePath) {
+        this(id);
+        setValuesFromMap(databaseSettings);
+        this.scriptResourcePath = scriptResourcePath;
     }
 
     public String getId() {
@@ -462,7 +472,7 @@ public class DatabaseSettings extends Payload {
      * Checks whether the latest version of all SQL scripts is installed on the DB and set all script schemas for
      * the use in the search path.
      */
-    public synchronized void checkScripts(String scriptResourcePath) {
+    public synchronized void checkScripts() {
         if(scriptResourcePath == null)
             return;
 
