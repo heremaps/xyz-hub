@@ -25,17 +25,20 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.XyzSerializable.Internal;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.util.Hasher;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Filters {
-
-  //@TODO: Copy Filters to old impl V1 + Rewrite V2 that propertyFilter uses modelBase approach
   @JsonView({Public.class})
-  private String propertyFilter;
+  private PropertiesQuery propertyFilter;
+  //TODO: Remove after V1 got shutdown
+  @JsonView({Internal.class, Static.class})
+  private String propertyFilterAsString;
 
   @JsonView({Public.class})
   private SpatialFilter spatialFilter;
@@ -43,17 +46,27 @@ public class Filters {
   @JsonView({Public.class, Static.class})
   private SpaceContext context = DEFAULT;
 
-  public String getPropertyFilter() {
+  public PropertiesQuery getPropertyFilter() {
     return propertyFilter;
   }
 
-  public void setPropertyFilter(String propertyFilter) {
-    this.propertyFilter = propertyFilter;
+  public void setPropertyFilter(Object propertyFilter) {
+    if (propertyFilter instanceof PropertiesQuery propFilter)
+      this.propertyFilter = propFilter;
+    else if (propertyFilter instanceof String propFilter) {
+      this.propertyFilter = PropertiesQuery.fromString(propFilter);
+      this.propertyFilterAsString = propFilter;
+    }
   }
 
   public Filters withPropertyFilter(String propertyFilter) {
     setPropertyFilter(propertyFilter);
     return this;
+  }
+
+  //TODO: Remove after V1 got shutdown
+  public String getPropertyFilterAsString() {
+    return propertyFilterAsString;
   }
 
   public SpatialFilter getSpatialFilter() {
@@ -83,12 +96,11 @@ public class Filters {
   }
 
   @JsonIgnore
-  public String getHash()
-  {
-   String input = "#" + (propertyFilter != null ? propertyFilter : "" ) 
-                + "#" + (spatialFilter != null ? serialize(spatialFilter) : "")
-                + "#";
+  public String getHash() {
+    String input = "#" + (getPropertyFilterAsString() != null ? getPropertyFilterAsString() : "")
+        + "#" + (spatialFilter != null ? serialize(spatialFilter) : "")
+        + "#";
 
-   return Hasher.getHash(input); 
+    return Hasher.getHash(input);
   }
 }

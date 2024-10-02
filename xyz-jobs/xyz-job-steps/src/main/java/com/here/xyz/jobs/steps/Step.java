@@ -34,7 +34,7 @@ import com.here.xyz.Typed;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.jobs.steps.execution.RunEmrJob;
+import com.here.xyz.jobs.steps.execution.RunEmrStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -58,7 +58,7 @@ import org.apache.logging.log4j.Logger;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = LambdaBasedStep.class),
-    @JsonSubTypes.Type(value = RunEmrJob.class)
+    @JsonSubTypes.Type(value = RunEmrStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
@@ -82,6 +82,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private boolean pipeline;
   @JsonView({Internal.class, Static.class})
   private boolean useSystemInput;
+  @JsonView({Internal.class, Static.class})
+  private boolean useSystemOutput;
   @JsonView({Internal.class, Static.class})
   private Set<String> inputStepIds;
 
@@ -442,6 +444,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public T withUseSystemInput(boolean useSystemInput) {
     setUseSystemInput(useSystemInput);
+    return (T) this;
+  }
+
+  public boolean isUseSystemOutput() {
+    return useSystemOutput;
+  }
+
+  public void setUseSystemOutput(boolean useSystemOutput) {
+    this.useSystemOutput = useSystemOutput;
+  }
+
+  public T withUseSystemOutput(boolean useSystemOutput) {
+    setUseSystemOutput(useSystemOutput);
     return (T) this;
   }
 

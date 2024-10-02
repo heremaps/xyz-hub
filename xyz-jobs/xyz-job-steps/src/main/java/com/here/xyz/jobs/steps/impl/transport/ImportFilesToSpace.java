@@ -32,11 +32,11 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VA
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildInitialInsertsForTemporaryJobTable;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnes;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableForImportQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
@@ -368,14 +368,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
-      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnes(getSchema(db()) ,this), db(), 0);
+      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnesStatement(getSchema(db()) ,this), db(), 0);
     }
     else {
       infoLog(STEP_EXECUTE, this,"Create temporary job table");
-      runWriteQuerySync(buildTemporaryJobTableForImportQuery(getSchema(db()), this), db(), 0);
+      runWriteQuerySync(buildTemporaryJobTableCreateStatement(getSchema(db()), this), db(), 0);
 
       infoLog(STEP_EXECUTE, this,"Fill temporary job table");
-      runBatchWriteQuerySync(SQLQuery.batchOf(buildInitialInsertsForTemporaryJobTable(getSchema(db()),
+      runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
               loadStepInputs(), bucketRegion(),this)), db(), 0 );
     }
   }
@@ -440,8 +440,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private void cleanUpDbRelatedResources() throws TooManyResourcesClaimed, SQLException, WebClientException {
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Clean up database resources");
     runBatchWriteQuerySync(SQLQuery.batchOf(
-            buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)),
-            buildDropTemporaryTableQuery(getSchema(db()), getTemporaryTriggerTableName(this))
+            buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())),
+            buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryTriggerTableName(getId()))
     ), db(), 0);
   }
 
@@ -474,7 +474,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
         .withQueryFragment("tableFields", tableFields)
         .withVariable("schema", getSchema(db()))
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
@@ -501,7 +501,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("targetTable", getRootTableName(space()))
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("schema", getSchema(db()))
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
@@ -543,7 +543,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("targetTable", getRootTableName(space()))
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   //TODO: Move to XyzSpaceTableHelper or so (it's the nth time we have that implemented somewhere)
@@ -562,8 +562,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               WHERE POSITION('SUCCESS_MARKER' in state) = 0;
         """)
         .withVariable("schema", getSchema(db()))
-        .withVariable("tmpTable", getTemporaryJobTableName(this))
-        .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("tmpTable", getTemporaryJobTableName(getId()))
+        .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   private SQLQuery buildImportQuery() throws WebClientException {

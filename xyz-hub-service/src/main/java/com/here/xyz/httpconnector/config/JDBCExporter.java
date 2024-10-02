@@ -38,14 +38,12 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.query.ExportSpace;
 import com.here.xyz.httpconnector.config.query.ExportSpaceByGeometry;
 import com.here.xyz.httpconnector.config.query.ExportSpaceByProperties;
-import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
@@ -163,12 +161,12 @@ public class JDBCExporter extends JdbcBasedHandler {
 ////// get filters from source space
     if( job.getSource() != null && job.getSource() instanceof Space )
     { Filters f = ((Space) job.getSource()).getFilters();
-      propertyFilter = ( f == null ? null : f.getPropertyFilter() );
+      propertyFilter = ( f == null ? null : f.getPropertyFilterAsString() );
       spatialFilter = ( f == null ? null : f.getSpatialFilter() );
     }
 ////// if filters not provided by source space the get filter from job (legacy behaviour)
     if( propertyFilter == null )
-     propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
+     propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilterAsString());
 
     if( spatialFilter == null )
      spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
@@ -186,7 +184,7 @@ public class JDBCExporter extends JdbcBasedHandler {
       event.setRef( job.getTargetVersion() == null ? new Ref(HEAD) : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
-          PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
+          PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
           event.setPropertiesQuery(propertyQueryLists);
       }
 
@@ -277,7 +275,7 @@ public class JDBCExporter extends JdbcBasedHandler {
           .compose(client -> {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
             try {
-              String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
+              String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilterAsString());
               SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery;
 
@@ -490,7 +488,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                                               String s3Bucket, String s3Path, String s3FilePrefix, String s3Region,
                                               boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
 
-        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilterAsString());
         SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export";
@@ -522,7 +520,7 @@ public class JDBCExporter extends JdbcBasedHandler {
     private SQLQuery buildPartIdVMLExportQuery(JdbcClient client, Export j, String schema, String s3Bucket, String s3Path, String s3FilePrefix,
         String s3Region, boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
         //Generic partition
-        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilterAsString());
         SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
@@ -548,7 +546,7 @@ public class JDBCExporter extends JdbcBasedHandler {
     private SQLQuery buildVMLExportQuery(JdbcClient client, Export j, String schema, String s3Bucket, String s3Path, String s3Region, String parentQk,
         SQLQuery qkTileQry) throws SQLException {
         //Tiled export
-        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilterAsString());
         SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
@@ -664,7 +662,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             event.setRef(new Ref(targetVersion));
 
         if (propertyFilter != null) {
-            PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
+            PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
             event.setPropertiesQuery(propertyQueryLists);
         }
 
@@ -747,7 +745,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
            if( partitionByPropertyValue )
            {
-              String converted = ApiParam.getConvertedKey(partitionKey);
+              String converted = PropertiesQuery.getConvertedKey(partitionKey);
               partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
               //TODO: Simplify / structure the following query blob
               partQry =

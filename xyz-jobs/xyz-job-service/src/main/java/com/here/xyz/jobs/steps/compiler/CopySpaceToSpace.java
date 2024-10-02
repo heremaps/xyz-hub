@@ -49,7 +49,8 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
 
     if(filters != null) {
       //filters.context is not supported
-      copySpaceStep.setPropertyFilter(filters.getPropertyFilter());
+      //TODO: work with propertiesQueryObject
+      //copySpaceStep.setPropertyFilter(filters.getPropertyFilter());
 
       SpatialFilter spatialFilter = filters.getSpatialFilter();
       if (spatialFilter != null) {

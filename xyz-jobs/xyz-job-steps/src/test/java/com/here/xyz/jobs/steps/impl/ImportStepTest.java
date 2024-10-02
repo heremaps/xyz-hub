@@ -27,8 +27,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static java.lang.Thread.sleep;
 
 public class ImportStepTest extends JobStepTest {
   private static final int FILE_COUNT = 2;
@@ -104,8 +102,7 @@ public class ImportStepTest extends JobStepTest {
             .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
             .withSpaceId(SPACE_ID);
 
-    sendLambdaStepRequest(step, START_EXECUTION);
-    sleep(2000);
+    sendLambdaStepRequestBlock(step);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
     Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());

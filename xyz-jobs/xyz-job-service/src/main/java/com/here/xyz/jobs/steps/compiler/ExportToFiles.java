@@ -23,6 +23,7 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 
+import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 
@@ -34,7 +35,9 @@ public class ExportToFiles implements JobCompilationInterceptor {
 
   @Override
   public boolean chooseMe(Job job) {
-    return job.getTarget() instanceof Files && allowedSourceTypes.contains(job.getSource().getClass());
+    return job.getTarget() instanceof Files
+            && allowedSourceTypes.contains(job.getSource().getClass())
+            && ((Files<?>) job.getTarget()).getOutputSettings().getFormat() instanceof GeoJson;
   }
 
   @Override

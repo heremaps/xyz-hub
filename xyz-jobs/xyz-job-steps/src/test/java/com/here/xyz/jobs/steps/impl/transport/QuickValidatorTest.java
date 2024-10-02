@@ -19,8 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.jobs.steps.TestSteps.S3ContentType.APPLICATION_JSON;
-import static com.here.xyz.jobs.steps.TestSteps.S3ContentType.TEXT_CSV;
+import static com.here.xyz.jobs.util.test.TestSteps.S3ContentType.APPLICATION_JSON;
+import static com.here.xyz.jobs.util.test.TestSteps.S3ContentType.TEXT_CSV;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
@@ -31,7 +31,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.TestSteps;
+import com.here.xyz.jobs.util.test.TestSteps;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
