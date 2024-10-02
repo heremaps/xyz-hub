@@ -36,6 +36,7 @@ import com.here.xyz.events.UpdateStrategy.OnExists;
 import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.models.Space;
@@ -66,6 +67,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class FeatureApi extends SpaceBasedApi {
 
@@ -214,13 +216,21 @@ public class FeatureApi extends SpaceBasedApi {
     }
   }
 
-  private Future<FeatureCollection> writeFeatures(RoutingContext context, byte[] featureData, boolean partialUpdates,
-      UpdateStrategy updateStrategy, SpaceContext spaceContext, String author) {
+  private Future<FeatureCollection> writeFeatures(RoutingContext context, FeatureModificationList modificationList, boolean partialUpdates,
+      SpaceContext spaceContext, String author) {
+    return writeFeatures(context, modificationList.getModifications().stream()
+        .map(modification -> new Modification()
+            .withFeatureData(modification.getFeatureData())
+            .withUpdateStrategy(toUpdateStrategy(modification.getOnFeatureExists(), modification.getOnFeatureNotExists(), modification.getOnMergeConflict()))
+            .withPartialUpdates(partialUpdates)).collect(Collectors.toSet()), spaceContext, author);
+  }
+
+  private Future<FeatureCollection> writeFeatures(RoutingContext context, Set<Modification> modifications, SpaceContext spaceContext,
+      String author) {
     return Space.resolveSpace(getMarker(context), getSpaceId(context))
         .compose(space -> {
-          boolean isDelete = updateStrategy.onExists() == OnExists.DELETE || updateStrategy.onVersionConflict() == OnVersionConflict.DELETE;
-          boolean isWrite = updateStrategy.onExists() == OnExists.REPLACE || updateStrategy.onVersionConflict() == OnVersionConflict.REPLACE
-              || updateStrategy.onVersionConflict() == OnVersionConflict.MERGE;
+          boolean isDelete = hasDeletion(modifications);
+          boolean isWrite = hasWrite(modifications);
 
           try {
             //Authorize the request and check some preconditions
@@ -236,7 +246,7 @@ public class FeatureApi extends SpaceBasedApi {
             return space.resolveConnector(getMarker(context))
                 .compose(connector -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
                 //Perform the actual feature writing
-                .compose(v -> FeatureHandler.writeFeatures(space, featureData, partialUpdates, updateStrategy, spaceContext, author));
+                .compose(v -> FeatureHandler.writeFeatures(space, modifications, spaceContext, author));
           }
           catch (TooManyRequestsException e) {
             XYZHubRESTVerticle.addStreamInfo(context, "THR", e.reason); //Set the throttling reason at the stream-info header
@@ -246,6 +256,23 @@ public class FeatureApi extends SpaceBasedApi {
             return Future.failedFuture(e);
           }
         });
+  }
+
+  private boolean hasDeletion(Set<Modification> modifications) {
+    for (Modification modification : modifications)
+      if (modification.getUpdateStrategy().onExists() == OnExists.DELETE
+          || modification.getUpdateStrategy().onVersionConflict() == OnVersionConflict.DELETE)
+        return true;
+    return false;
+  }
+
+  private boolean hasWrite(Set<Modification> modifications) {
+    for (Modification modification : modifications)
+      if (modification.getUpdateStrategy().onExists() == OnExists.REPLACE
+          || modification.getUpdateStrategy().onVersionConflict() == OnVersionConflict.REPLACE
+          || modification.getUpdateStrategy().onVersionConflict() == OnVersionConflict.MERGE)
+        return true;
+    return false;
   }
 
   static Future<Void> enforceUsageQuotas(RoutingContext context, Space space, SpaceContext spaceContext, boolean isDeleteOnly) {
@@ -266,6 +293,14 @@ public class FeatureApi extends SpaceBasedApi {
         });
   }
 
+  /**
+   * Performs the mapping from the (legacy) API-level update strategy to the {@link UpdateStrategy}
+   * to be used for the {@link com.here.xyz.events.WriteFeaturesEvent}.
+   * @param ifExists
+   * @param ifNotExists
+   * @param conflictResolution
+   * @return
+   */
   private UpdateStrategy toUpdateStrategy(IfExists ifExists, IfNotExists ifNotExists, ConflictResolution conflictResolution) {
     return new UpdateStrategy(
         toOnExists(ifExists),

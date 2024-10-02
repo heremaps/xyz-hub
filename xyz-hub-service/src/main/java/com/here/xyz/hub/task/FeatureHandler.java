@@ -30,8 +30,8 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.events.WriteFeaturesEvent;
+import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -45,6 +45,7 @@ import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 import net.jodah.expiringmap.ExpirationPolicy;
@@ -66,8 +67,8 @@ public class FeatureHandler {
   private static final ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
   private static final LongAdder globalInflightRequestMemory = new LongAdder();
 
-  public static Future<FeatureCollection> writeFeatures(Space space, byte[] featureData, boolean partialUpdates,
-      UpdateStrategy updateStrategy, SpaceContext spaceContext, String author) {
+  public static Future<FeatureCollection> writeFeatures(Space space, Set<Modification> modifications, SpaceContext spaceContext,
+      String author) {
     try {
       throttle(space);
     }
@@ -76,9 +77,7 @@ public class FeatureHandler {
     }
 
     WriteFeaturesEvent event = new WriteFeaturesEvent()
-        .withFeatureData(featureData)
-        .withUpdateStrategy(updateStrategy)
-        .withPartialUpdates(partialUpdates)
+        .withModifications(modifications)
         .withContext(spaceContext)
         .withAuthor(author);
 
