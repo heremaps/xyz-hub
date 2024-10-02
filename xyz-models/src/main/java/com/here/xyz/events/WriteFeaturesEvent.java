@@ -19,47 +19,67 @@
 
 package com.here.xyz.events;
 
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import java.util.Set;
+
 public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
-  private UpdateStrategy updateStrategy;
-  private byte[] featureData;
-  private boolean partialUpdates;
+  private Set<Modification> modifications;
 
-  public UpdateStrategy getUpdateStrategy() {
-    return updateStrategy;
+  public Set<Modification> getModifications() {
+    return modifications;
   }
 
-  public void setUpdateStrategy(UpdateStrategy updateStrategy) {
-    this.updateStrategy = updateStrategy;
+  public void setModifications(Set<Modification> modifications) {
+    this.modifications = modifications;
   }
 
-  public WriteFeaturesEvent withUpdateStrategy(UpdateStrategy updateStrategy) {
-    setUpdateStrategy(updateStrategy);
+  public WriteFeaturesEvent withModifications(Set<Modification> modifications) {
+    setModifications(modifications);
     return this;
   }
 
-  public byte[] getFeatureData() {
-    return featureData;
-  }
+  public static class Modification {
+    private UpdateStrategy updateStrategy;
+    private FeatureCollection featureData;
+    private boolean partialUpdates;
 
-  public void setFeatureData(byte[] featureData) {
-    this.featureData = featureData;
-  }
+    public UpdateStrategy getUpdateStrategy() {
+      return updateStrategy;
+    }
 
-  public WriteFeaturesEvent withFeatureData(byte[] featureData) {
-    setFeatureData(featureData);
-    return this;
-  }
+    public void setUpdateStrategy(UpdateStrategy updateStrategy) {
+      this.updateStrategy = updateStrategy;
+    }
 
-  public boolean isPartialUpdates() {
-    return partialUpdates;
-  }
+    public Modification withUpdateStrategy(UpdateStrategy updateStrategy) {
+      setUpdateStrategy(updateStrategy);
+      return this;
+    }
 
-  public void setPartialUpdates(boolean partialUpdates) {
-    this.partialUpdates = partialUpdates;
-  }
+    public FeatureCollection getFeatureData() {
+      return featureData;
+    }
 
-  public WriteFeaturesEvent withPartialUpdates(boolean partialUpdates) {
-    setPartialUpdates(partialUpdates);
-    return this;
+    public void setFeatureData(FeatureCollection featureData) {
+      this.featureData = featureData;
+    }
+
+    public Modification withFeatureData(FeatureCollection featureData) {
+      setFeatureData(featureData);
+      return this;
+    }
+
+    public boolean isPartialUpdates() {
+      return partialUpdates;
+    }
+
+    public void setPartialUpdates(boolean partialUpdates) {
+      this.partialUpdates = partialUpdates;
+    }
+
+    public Modification withPartialUpdates(boolean partialUpdates) {
+      setPartialUpdates(partialUpdates);
+      return this;
+    }
   }
 }
