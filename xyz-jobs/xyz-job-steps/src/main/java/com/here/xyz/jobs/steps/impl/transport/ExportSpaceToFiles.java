@@ -19,7 +19,25 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -29,31 +47,18 @@ import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
+import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
+import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildInitialInsertsForTemporaryJobTable;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnes;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableForImportQuery;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space.
@@ -74,23 +79,29 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
+  @JsonView({Internal.class, Static.class})
+  private boolean addStatisticsToUserOutput = true;
+
   private Format format = Format.GEOJSON;
 
+  private SpatialFilter spatialFilter;
+  private String propertyFilter;
+  private SpaceContext context;
+
+  private Ref versionRef;
 
   /**
    * TODO:
-   *   Geometry-Filters
-   *    private Geometry geometry;
-   *    private int radius = -1;
-   *    private boolean clipOnFilterGeometry;
+   *   Spatial-Filters
+   *    DONE
    *
    *   Content-Filters
-   *    private String propertyFilter;
-   *    private SpaceContext context;
-   *    private String targetVersion;
+   *    DONE private String propertyFilter;
+   *    DONE private SpaceContext context;
+   *   ? private String targetVersion;
    *
    *   Version Filter:
-   *    private VersionRef versionRef;
+   *    DONE private VersionRef versionRef;
    *
    *   Partitioning - part of EMR?
    *    private String partitionKey;
@@ -103,6 +114,71 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     CSV_JSON_WKB,
     CSV_PARTITIONED_JSON_WKB,
     GEOJSON;
+  }
+
+  public SpatialFilter getSpatialFilter() {
+    return spatialFilter;
+  }
+
+  public void setSpatialFilter(SpatialFilter spatialFilter) {
+    this.spatialFilter = spatialFilter;
+  }
+
+  public ExportSpaceToFiles withSpatialFilter(SpatialFilter spatialFilter) {
+    setSpatialFilter(spatialFilter);
+    return this;
+  }
+
+  public String getPropertyFilter() {
+    return propertyFilter;
+  }
+
+  public void setPropertyFilter(String propertyFilter) {
+    this.propertyFilter = propertyFilter;
+  }
+
+  public ExportSpaceToFiles withPropertyFilter(String propertyFilter){
+    setPropertyFilter(propertyFilter);
+    return this;
+  }
+
+  public SpaceContext getContext() {
+    return context;
+  }
+
+  public void setContext(SpaceContext context) {
+    this.context = context;
+  }
+
+  public ExportSpaceToFiles withContext(SpaceContext context) {
+    setContext(context);
+    return this;
+  }
+
+  public Ref getVersionRef() {
+    return versionRef;
+  }
+
+  public void setVersionRef(Ref versionRef) {
+    this.versionRef = versionRef;
+  }
+
+  public ExportSpaceToFiles withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
+    return this;
+  }
+
+  public boolean isAddStatisticsToUserOutput() {
+    return addStatisticsToUserOutput;
+  }
+
+  public void setAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
+    this.addStatisticsToUserOutput = addStatisticsToUserOutput;
+  }
+
+  public ExportSpaceToFiles withAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
+    setAddStatisticsToUserOutput(addStatisticsToUserOutput);
+    return this;
   }
 
   @JsonView({Internal.class, Static.class})
@@ -173,7 +249,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-        
     statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), EXTENSION);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
@@ -204,11 +279,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                         .withFilesCreated(rs.getInt("files_uploaded"))
                     : new FileStatistics());
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getBytesExported() + " files=" + statistics.getFilesCreated());
-    registerOutputs(List.of(statistics), true);
+    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getExportedBytes() + " files=" + statistics.getExportedFiles());
+    if(addStatisticsToUserOutput)
+      registerOutputs(List.of(statistics), true);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
-    runWriteQuerySync(buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
+    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
   }
 
   @Override
@@ -241,12 +317,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       errorLog(STEP_ON_STATE_CHECK, this, e);
     }
   }
-  
+
   private List<S3DataFile> generateS3FileNames(int cnt){
     List<S3DataFile> urlList = new ArrayList<>();
-    
+
     for (int i = 1; i <= calculatedThreadCount; i++) {
-      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(true,false) + "/" + i + "/" + UUID.randomUUID()));
+      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(!isUseSystemOutput(),false) + "/" + i + "/" + UUID.randomUUID()));
     }
 
     return urlList;
@@ -255,28 +331,46 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private void createAndFillTemporaryJobTable(List<S3DataFile> s3FileNames) throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
-      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnes(getSchema(db()) ,this), db(), 0);
+      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnesStatement(getSchema(db()) ,this), db(), 0);
     }
     else {
       infoLog(STEP_EXECUTE, this,"Create temporary job table");
-      runWriteQuerySync(buildTemporaryJobTableForImportQuery(getSchema(db()), this), db(), 0);
+      runWriteQuerySync(buildTemporaryJobTableCreateStatement(getSchema(db()), this), db(), 0);
 
       infoLog(STEP_EXECUTE, this,"Fill temporary job table");
-      runBatchWriteQuerySync(SQLQuery.batchOf(buildInitialInsertsForTemporaryJobTable(getSchema(db()),
+      runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
               s3FileNames, bucketRegion(),this)), db(), 0 );
     }
   }
 
-  private SQLQuery generateFilteredExportQuery(int threadNumber) throws WebClientException {
+  private String generateFilteredExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
+          QueryBuildingException {
+
+    GetFeaturesByGeometryBuilder qb = new GetFeaturesByGeometryBuilder()
+            .withDataSourceProvider(requestResource(db(), 0));
+
+    GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
+            getSpaceId(),
+            context == null ? EXTENSION : context,
+            space().getVersionsToKeep(),
+            versionRef,
+            spatialFilter != null ? spatialFilter.getGeometry() : null,
+            spatialFilter != null ? spatialFilter.getRadius() : 0,
+            spatialFilter != null && spatialFilter.isClip(),
+            null
+    );
+
     return new SQLQuery("${{exportQuery}} ${{threadCondition}}")
+            //.withQueryFragment("exportQuery"  , qb.buildQuery(input))
             .withQueryFragment("exportQuery" ,"Select * from ${schema}.${table}")
             .withQueryFragment("threadCondition"," WHERE i % " + calculatedThreadCount + " = " + threadNumber)
             .withVariable("table", getRootTableName(space()))
-            .withVariable("schema", getSchema(db()));
+            .withVariable("schema", getSchema(db())).substitute().text();
   }
 
-  public SQLQuery buildExportQuery(int threadNumber) throws WebClientException {
-    SQLQuery exportSelectString = generateFilteredExportQuery(threadNumber);
+  public SQLQuery buildExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
+          QueryBuildingException {
+    String exportSelectString = generateFilteredExportQuery(threadNumber);
 
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
@@ -288,7 +382,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                     .withNamedParameter("format", format.toString())
                     .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
                     .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
-                    .withNamedParameter("content_query", exportSelectString.substitute().text());
+                    .withNamedParameter("content_query", exportSelectString);
   }
 
   private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
@@ -300,8 +394,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
               WHERE POSITION('SUCCESS_MARKER' in state) = 0;
         """)
             .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(this))
-            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(this));
+            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
+            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {
