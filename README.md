@@ -19,8 +19,6 @@ Some of the features of XYZ Hub are:
 * Build a real-time geodata pipeline with processors
 * Attach listeners to react on events
 
-You can find more information in the [XYZ Documentation](https://www.here.xyz/api) and in the [OpenAPI specification](https://xyz.api.here.com/hub/static/redoc/index.html).
-
 XYZ Hub uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospatial data exchange format. Tiled data can also be provided as [MVT](https://github.com/mapbox/vector-tile-spec/blob/master/2.1/README.md).
 
 # Prerequisites
