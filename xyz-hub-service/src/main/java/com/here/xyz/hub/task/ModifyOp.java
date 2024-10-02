@@ -19,16 +19,18 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.ModifyOp.IfExists.DELETE;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.MERGE;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.PATCH;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.REPLACE;
-import static com.here.xyz.hub.task.ModifyOp.IfExists.RETAIN;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.DELETE;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.MERGE;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.REPLACE;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.RETAIN;
 
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
-import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
+import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
+import com.here.xyz.models.hub.FeatureModificationList.IfExists;
+import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.JsonObject;
 import java.util.Arrays;
@@ -158,43 +160,6 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
         }
         //TODO: Check if this is included in the failed array
         entry.exception = e;
-      }
-    }
-  }
-
-  public enum IfExists {
-    RETAIN,
-    ERROR,
-    DELETE,
-    REPLACE,
-    PATCH,
-    MERGE;
-
-    public static IfExists of(String value) {
-      if (value == null) {
-        return null;
-      }
-      try {
-        return valueOf(value.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return null;
-      }
-    }
-  }
-
-  public enum IfNotExists {
-    RETAIN,
-    ERROR,
-    CREATE;
-
-    public static IfNotExists of(String value) {
-      if (value == null) {
-        return null;
-      }
-      try {
-        return valueOf(value.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return null;
       }
     }
   }

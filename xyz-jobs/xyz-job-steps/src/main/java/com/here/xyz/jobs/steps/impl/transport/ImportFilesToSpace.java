@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
