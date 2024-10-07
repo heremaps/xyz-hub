@@ -44,11 +44,11 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_E
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildDropTemporaryTableQuery;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildInitialInsertsForTemporaryJobTable;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnes;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableForImportQuery;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
@@ -74,8 +74,10 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
-  private Format format = Format.GEOJSON;
+  @JsonView({Internal.class, Static.class})
+  private boolean writeSystemOutputs = false;
 
+  private Format format = Format.GEOJSON;
 
   /**
    * TODO:
@@ -103,6 +105,19 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     CSV_JSON_WKB,
     CSV_PARTITIONED_JSON_WKB,
     GEOJSON;
+  }
+
+  public boolean isWriteSystemOutputs() {
+    return writeSystemOutputs;
+  }
+
+  public void setWriteSystemOutputs(boolean writeSystemOutputs) {
+    this.writeSystemOutputs = writeSystemOutputs;
+  }
+
+  public ExportSpaceToFiles withWriteSystemOutputs(boolean writeSystemOutputs) {
+    setWriteSystemOutputs(writeSystemOutputs);
+    return this;
   }
 
   @JsonView({Internal.class, Static.class})
@@ -208,7 +223,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     registerOutputs(List.of(statistics), true);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
-    runWriteQuerySync(buildDropTemporaryTableQuery(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
+    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
   }
 
   @Override
@@ -255,14 +270,14 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private void createAndFillTemporaryJobTable(List<S3DataFile> s3FileNames) throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
-      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnes(getSchema(db()) ,this), db(), 0);
+      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnesStatement(getSchema(db()) ,this), db(), 0);
     }
     else {
       infoLog(STEP_EXECUTE, this,"Create temporary job table");
-      runWriteQuerySync(buildTemporaryJobTableForImportQuery(getSchema(db()), this), db(), 0);
+      runWriteQuerySync(buildTemporaryJobTableCreateStatement(getSchema(db()), this), db(), 0);
 
       infoLog(STEP_EXECUTE, this,"Fill temporary job table");
-      runBatchWriteQuerySync(SQLQuery.batchOf(buildInitialInsertsForTemporaryJobTable(getSchema(db()),
+      runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
               s3FileNames, bucketRegion(),this)), db(), 0 );
     }
   }

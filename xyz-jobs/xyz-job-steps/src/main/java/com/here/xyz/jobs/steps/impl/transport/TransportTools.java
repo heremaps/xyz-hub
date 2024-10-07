@@ -54,13 +54,13 @@ public class TransportTools {
     return getTemporaryJobTableName(step) + TRIGGER_TABLE_SUFFIX;
   }
 
-  protected static SQLQuery buildDropTemporaryTableQuery(String schema, String tableName) {
+  protected static SQLQuery buildTemporaryJobTableDropStatement(String schema, String tableName) {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
             .withVariable("table", tableName)
             .withVariable("schema", schema);
   }
 
-  protected static SQLQuery buildTemporaryJobTableForImportQuery(String schema, Step step) {
+  protected static SQLQuery buildTemporaryJobTableCreateStatement(String schema, Step step) {
     return new SQLQuery("""
         CREATE TABLE IF NOT EXISTS ${schema}.${table}
                (
@@ -79,10 +79,10 @@ public class TransportTools {
             .withVariable("primaryKey", getTemporaryJobTableName(step) + "_primKey");
   }
 
-  protected static List<SQLQuery> buildInitialInsertsForTemporaryJobTable(String schema, List<S3DataFile> inputs,
-                                                                          String bucketRegion, Step step) {
+  protected static List<SQLQuery> buildTemporaryJobTableInsertStatements(String schema, List<S3DataFile> fileList,
+                                                                         String bucketRegion, Step step) {
     List<SQLQuery> queryList = new ArrayList<>();
-    for (S3DataFile input : inputs) {
+    for (S3DataFile input : fileList) {
       if (input instanceof UploadUrl || input instanceof DownloadUrl) {
         JsonObject data = new JsonObject()
                 .put("compressed", input.isCompressed())
@@ -121,7 +121,7 @@ public class TransportTools {
     return queryList;
   }
 
-  protected static SQLQuery buildResetSuccessMarkerAndRunningOnes(String schema, Step step) {
+  protected static SQLQuery buildResetSuccessMarkerAndRunningOnesStatement(String schema, Step step) {
     return new SQLQuery("""
         UPDATE ${schema}.${table}
           SET state =

@@ -41,7 +41,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
 public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
   private static final Logger logger = LogManager.getLogger();
@@ -239,7 +239,7 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
       throw new ValidationException("SparkParams are mandatory!");
     if(jarUrl == null)
       throw new ValidationException("JarKey is mandatory!");
-    if(scriptParams.size() >= 2)
+    if(scriptParams.size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
     return true;
   }
@@ -293,7 +293,7 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
 
   @Override
   public ExecutionMode getExecutionMode() {
-    return ASYNC;
+    return SYNC;
   }
 
 }
