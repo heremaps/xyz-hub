@@ -135,7 +135,7 @@ public class ResourceAndTimeCalculator implements Initializable {
 
         double importTimeInMin =  switch (index){
             case GEO -> geoIndexFactor(spaceId, bytesPerBillion);
-            case VERSION ->  0.014 * bytesPerBillion;
+            case VERSION_ID ->  0.014 * bytesPerBillion;
             case VIZ ->  0.025 * bytesPerBillion;
             case OPERATION ->  0.012 * bytesPerBillion;
             case NEXT_VERSION ->  0.013 * bytesPerBillion;
@@ -154,7 +154,7 @@ public class ResourceAndTimeCalculator implements Initializable {
         return switch (index){
             case GEO -> interpolate(globalMax,30, byteSize, minACUs);
             case VIZ ->  interpolate(globalMax,10, byteSize, minACUs);
-            case VERSION ->  interpolate(globalMax,  10, byteSize, minACUs);
+            case VERSION_ID ->  interpolate(globalMax,  10, byteSize, minACUs);
             case OPERATION ->  interpolate(globalMax,10, byteSize, minACUs);
             case NEXT_VERSION ->  interpolate(globalMax, 10, byteSize, minACUs);
             case AUTHOR ->  interpolate(globalMax,10, byteSize, minACUs);
