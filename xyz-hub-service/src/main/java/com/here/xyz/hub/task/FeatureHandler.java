@@ -22,8 +22,11 @@ package com.here.xyz.hub.task;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.here.xyz.events.ContextAwareEvent;
@@ -36,8 +39,12 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.connectors.models.Space.ConnectorType;
+import com.here.xyz.hub.connectors.models.Space.ResolvableListenerConnectorRef;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Space.Extension;
+import com.here.xyz.models.hub.Space.ListenerConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.HttpException;
@@ -45,7 +52,12 @@ import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 import net.jodah.expiringmap.ExpirationPolicy;
@@ -85,27 +97,13 @@ public class FeatureHandler {
     injectSpaceParams(event, space);
 
 
-
-    //.then(FeatureTaskHandler::resolveSpace) [DONE]
-    //TODO: resolve space [DONE]
-    //TODO: resolve connector, add SID to stream Info [DONE]
-    //TODO: Resolve listeners & processors
-    //TODO: resolveExtendedSpaces
-    //.then(FeatureTaskHandler::injectSpaceParams) [DONE]
-    //.then(FeatureTaskHandler::checkPreconditions) [DONE]
-
-    //TODO: authorize & enforceUsageQuotas
-    //.then(Authorization::authorizeComposite) -> ~ Not sure if needed (does nothing currently) [DONE - delegate]
-    //.then(FeatureAuthorization::authorize) [DONE]
-    //.then(FeatureTaskHandler::enforceUsageQuotas) [DONE]
-    //TODO: throttle [DONE]
-    //.then(FeatureTaskHandler::throttle) [DONE]
+    //TODO: Resolve listeners & processors [DONE]
+    //TODO: resolveExtendedSpaces [DONE]
 
     //TODO: Invoke storage connector (and others)
     //.then(FeatureTaskHandler::invoke)
 
-
-    //TODO: In FeatureWriter (also return unmodified features?)
+    //TODO: (For later) In FeatureWriter (also return unmodified features?)
     //.then(FeatureTaskHandler::extractUnmodifiedFeatures)
 
 
@@ -202,5 +200,110 @@ public class FeatureHandler {
       throw new HttpException(METHOD_NOT_ALLOWED,
           "The method is not allowed, because the resource \"" + space.getId() + "\" is marked as read-only. "
               + "Update the resource definition to enable editing of features.");
+  }
+
+  public static Future<Void> resolveExtendedSpaces(Marker marker, Space compositeSpace) {
+    return resolveExtendedSpace(marker, compositeSpace, compositeSpace.getExtension());
+  }
+
+  private static Future<Void> resolveExtendedSpace(Marker marker, Space compositeSpace, Extension extendedConfig) {
+    if (extendedConfig == null)
+      return Future.succeededFuture();
+    return Space.resolveSpace(marker, extendedConfig.getSpaceId())
+        .compose(extendedSpace -> {
+          if (extendedSpace == null)
+            return Future.failedFuture(new HttpException(NOT_FOUND, "Extended resource with ID " + extendedConfig.getSpaceId() + " was not found."));
+
+          //Check for cyclical extensions
+          if (inExtensionPath(compositeSpace, extendedSpace)) {
+            logger.error(marker, "Cyclical extension on composite space {}. Causing extended space: {}.",
+                compositeSpace.getId(), extendedSpace.getId());
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Cyclical reference when resolving extensions"));
+          }
+
+          extendedConfig.resolvedSpace = extendedSpace;
+          return resolveExtendedSpace(marker, compositeSpace, extendedSpace.getExtension());
+        });
+  }
+
+  /**
+   * Returns true if the extended space is the provided composite space itself
+   * or if it is already part of the "extension-path" of the provided composite space.
+   * @param mainCompositeSpace The composite space within which to check whether the extendedSpace is part of its extension-path
+   * @param extendedSpace The extended space for which to check whether it is already part of the extension-path of the extendedSpace
+   * @return Whether the extendedSpace is contained within the extension-path of mainCompositeSpace already
+   */
+  private static boolean inExtensionPath(Space mainCompositeSpace, Space extendedSpace) {
+    return mainCompositeSpace.getId().equals(extendedSpace.getId())
+        || mainCompositeSpace.getExtension() != null && mainCompositeSpace.getExtension().getSpaceId().equals(extendedSpace.getId())
+        || inExtensionPath((Space) mainCompositeSpace.getExtension().resolvedSpace, extendedSpace);
+  }
+
+  public static Future<Void> resolveListenersAndProcessors(Marker marker, Space space) {
+    Promise<Void> p = Promise.promise();
+    try {
+      //Also resolve all listeners & processors
+      CompletableFuture.allOf(
+          resolveConnectors(marker, space, ConnectorType.LISTENER),
+          resolveConnectors(marker, space, ConnectorType.PROCESSOR)
+      ).thenRun(() -> {
+        //All listener & processor refs have been resolved now
+        p.complete();
+      });
+    }
+    catch (Exception e) {
+      logger.error(marker, "The listeners for this space cannot be initialized", e);
+      p.fail(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
+    }
+    return p.future();
+  }
+
+  static CompletableFuture<Void> resolveConnectors(Marker marker, final Space space, final ConnectorType connectorType) {
+    if (space == null || connectorType == null) {
+      return CompletableFuture.completedFuture(null);
+    }
+
+    final Map<String, List<ListenerConnectorRef>> connectorRefs = space.getConnectorRefsMap(connectorType);
+
+    if (connectorRefs == null || connectorRefs.isEmpty()) {
+      return CompletableFuture.completedFuture(null);
+    }
+
+    CompletableFuture<Void> future = new CompletableFuture<>();
+    List<CompletableFuture<Void>> futures = new ArrayList<>();
+    for (Map.Entry<String, List<ListenerConnectorRef>> entry : connectorRefs.entrySet()) {
+      if (entry.getValue() != null && !entry.getValue().isEmpty()) {
+        ListIterator<ListenerConnectorRef> i = entry.getValue().listIterator();
+        while (i.hasNext()) {
+          ListenerConnectorRef cR = i.next();
+          CompletableFuture<Void> f = new CompletableFuture<>();
+          Space.resolveConnector(marker, entry.getKey(), arListener -> {
+            final Connector c = arListener.result();
+            ResolvableListenerConnectorRef rCR = new ResolvableListenerConnectorRef();
+            rCR.setId(entry.getKey());
+            rCR.setParams(cR.getParams());
+            rCR.setOrder(cR.getOrder());
+            rCR.setEventTypes(cR.getEventTypes());
+            rCR.resolvedConnector = c;
+            //If no event types have been defined in the connectorRef we use the defaultEventTypes from the resolved connector config
+            if ((rCR.getEventTypes() == null || rCR.getEventTypes().isEmpty()) && c.defaultEventTypes != null && !c.defaultEventTypes
+                .isEmpty()) {
+              rCR.setEventTypes(new ArrayList<>(c.defaultEventTypes));
+            }
+            // replace ListenerConnectorRef with ResolvableListenerConnectorRef
+            i.set(rCR);
+            f.complete(null);
+          });
+          futures.add(f);
+        }
+      }
+    }
+
+    //When all listeners have been resolved we can complete the returned future.
+    CompletableFuture
+        .allOf(futures.toArray(new CompletableFuture[0]))
+        .thenRun(() -> future.complete(null));
+
+    return future;
   }
 }

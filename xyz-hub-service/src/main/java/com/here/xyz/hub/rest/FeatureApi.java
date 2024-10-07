@@ -24,6 +24,8 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static com.here.xyz.hub.task.FeatureHandler.checkReadOnly;
+import static com.here.xyz.hub.task.FeatureHandler.resolveExtendedSpaces;
+import static com.here.xyz.hub.task.FeatureHandler.resolveListenersAndProcessors;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
@@ -225,6 +227,15 @@ public class FeatureApi extends SpaceBasedApi {
             .withPartialUpdates(partialUpdates)).collect(Collectors.toSet()), spaceContext, author);
   }
 
+  /**
+   * Performs all the API-level checks (e.g., authorization, parameter validation, ...) before actually calling the {@link FeatureHandler}
+   * to execute the modification of the features.
+   * @param context
+   * @param modifications
+   * @param spaceContext
+   * @param author
+   * @return
+   */
   private Future<FeatureCollection> writeFeatures(RoutingContext context, Set<Modification> modifications, SpaceContext spaceContext,
       String author) {
     return Space.resolveSpace(getMarker(context), getSpaceId(context))
@@ -243,10 +254,17 @@ public class FeatureApi extends SpaceBasedApi {
 
             XYZHubRESTVerticle.addStreamInfo(context, "SID", space.getStorage().getId());
 
-            return space.resolveConnector(getMarker(context))
-                .compose(connector -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
+            return space.resolveStorage(getMarker(context))
+                .compose(connector -> resolveListenersAndProcessors(getMarker(context), space))
+                .compose(v -> resolveExtendedSpaces(getMarker(context), space))
+                .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
                 //Perform the actual feature writing
-                .compose(v -> FeatureHandler.writeFeatures(space, modifications, spaceContext, author));
+                .compose(v -> FeatureHandler.writeFeatures(space, modifications, spaceContext, author))
+                .recover(t -> {
+                  if (t instanceof TooManyRequestsException throttleException)
+                    XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
+                  return Future.failedFuture(t);
+                });
           }
           catch (TooManyRequestsException e) {
             XYZHubRESTVerticle.addStreamInfo(context, "THR", e.reason); //Set the throttling reason at the stream-info header

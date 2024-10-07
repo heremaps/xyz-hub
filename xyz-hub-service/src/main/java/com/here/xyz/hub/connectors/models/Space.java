@@ -103,7 +103,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     return resolvedStorageConnector;
   }
 
-  public Future<Connector> resolveConnector(Marker marker) {
+  public Future<Connector> resolveStorage(Marker marker) {
     return resolveConnector(marker, getStorage().getId())
         .compose(connector -> Future.succeededFuture(resolvedStorageConnector = connector));
   }
