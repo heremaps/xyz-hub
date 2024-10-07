@@ -75,7 +75,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private boolean writeSystemOutputs = false;
+  private boolean addStatisticsToUserOutput = true;
 
   private Format format = Format.GEOJSON;
 
@@ -107,16 +107,16 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     GEOJSON;
   }
 
-  public boolean isWriteSystemOutputs() {
-    return writeSystemOutputs;
+  public boolean isAddStatisticsToUserOutput() {
+    return addStatisticsToUserOutput;
   }
 
-  public void setWriteSystemOutputs(boolean writeSystemOutputs) {
-    this.writeSystemOutputs = writeSystemOutputs;
+  public void setAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
+    this.addStatisticsToUserOutput = addStatisticsToUserOutput;
   }
 
-  public ExportSpaceToFiles withWriteSystemOutputs(boolean writeSystemOutputs) {
-    setWriteSystemOutputs(writeSystemOutputs);
+  public ExportSpaceToFiles withAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
+    setAddStatisticsToUserOutput(addStatisticsToUserOutput);
     return this;
   }
 
@@ -220,7 +220,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                     : new FileStatistics());
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getBytesExported() + " files=" + statistics.getFilesCreated());
-    registerOutputs(List.of(statistics), true);
+    if(addStatisticsToUserOutput)
+      registerOutputs(List.of(statistics), true);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
@@ -261,7 +262,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     List<S3DataFile> urlList = new ArrayList<>();
     
     for (int i = 1; i <= calculatedThreadCount; i++) {
-      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(true,false) + "/" + i + "/" + UUID.randomUUID()));
+      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(!isUseSystemOutput(),false) + "/" + i + "/" + UUID.randomUUID()));
     }
 
     return urlList;

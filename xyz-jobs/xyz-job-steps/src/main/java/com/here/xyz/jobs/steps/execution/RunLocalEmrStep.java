@@ -53,6 +53,46 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
 
   private List<String> sparkParams;
 
+  public List<String> getScriptParams() {
+    return scriptParams;
+  }
+
+  public void setScriptParams(List<String> scriptParams) {
+    this.scriptParams = scriptParams;
+  }
+
+  public RunLocalEmrStep withScriptParams(List<String> scriptParams) {
+    setScriptParams(scriptParams);
+    return this;
+  }
+
+  public List<String> getSparkParams() {
+    return sparkParams;
+  }
+
+  public void setSparkParams(List<String> sparkParams) {
+    this.sparkParams = sparkParams;
+  }
+
+  public RunLocalEmrStep withSparkParams(List<String> sparkParams) {
+    setSparkParams(sparkParams);
+    return this;
+  }
+
+  public String getJarUrl() {
+    return jarUrl;
+  }
+
+  public void setJarUrl(String jarUrl) {
+    this.jarUrl = jarUrl;
+  }
+
+  public RunLocalEmrStep withJarUrl(String jarUrl) {
+    setJarUrl(jarUrl);
+    return this;
+  }
+
+
   @Override
   public List<Load> getNeededResources() {
     return List.of();
@@ -70,7 +110,7 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
 
   @Override
   public String getDescription() {
-    return "Runs a local EMR job.";
+    return "Runs an EMR job locally.";
   }
 
   @Override
@@ -115,9 +155,9 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
     int exitCode = process.waitFor();
 
     if(exitCode != 0)
-      throw new RuntimeException("RunEmrJob#execute() has failed.");
+      throw new RuntimeException("Local EMR execution has failed. Please check logs.");
 
-    //Upload EMR files, wich are stored locally, to s3 as user outputs.
+    //Upload EMR files, which are stored locally, to s3 as user outputs.
     uploadEmrOutputsToS3(new File(localTmpTargetFolder));
   }
 
@@ -143,8 +183,7 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
     }catch (FileAlreadyExistsException e){
       logger.info("File: '{}' already exists locally - skip download.",s3Path);
     }catch (IOException e){
-      logger.error("Cat copy File: '{}'!", s3Path, e);
-      new RuntimeException("Cat copy File: '"+s3Path+"'!", e);
+      throw new RuntimeException("Can't copy File: '"+s3Path+"'!", e);
     }
     return getLocalTmpPath(s3Path);
   }
@@ -222,13 +261,13 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
   @Override
   public void resume() throws Exception {
     //NOTE: As this step is just a "configuration holder", this method should never actually be called
-    throw new RuntimeException("RunEmrJob#execute() was called.");
+    throw new RuntimeException("RunLocalEmrStep#resume() was called.");
   }
 
   @Override
   public void cancel() throws Exception {
     //NOTE: As this step is just a "configuration holder", this method should never actually be called
-    throw new RuntimeException("RunEmrJob#execute() was called.");
+    throw new RuntimeException("RunLocalEmrStep#cancel() was called.");
   }
 
   @Override
@@ -242,45 +281,6 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
     if(scriptParams.size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
     return true;
-  }
-
-  public List<String> getScriptParams() {
-    return scriptParams;
-  }
-
-  public void setScriptParams(List<String> scriptParams) {
-    this.scriptParams = scriptParams;
-  }
-
-  public RunLocalEmrStep withScriptParams(List<String> scriptParams) {
-    setScriptParams(scriptParams);
-    return this;
-  }
-
-  public List<String> getSparkParams() {
-    return sparkParams;
-  }
-
-  public void setSparkParams(List<String> sparkParams) {
-    this.sparkParams = sparkParams;
-  }
-
-  public RunLocalEmrStep withSparkParams(List<String> sparkParams) {
-    setSparkParams(sparkParams);
-    return this;
-  }
-
-  public String getJarUrl() {
-    return jarUrl;
-  }
-
-  public void setJarUrl(String jarUrl) {
-    this.jarUrl = jarUrl;
-  }
-
-  public RunLocalEmrStep withJarUrl(String jarUrl) {
-    setJarUrl(jarUrl);
-    return this;
   }
 
   @Override
