@@ -459,8 +459,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/tile/here/5148795631.geojson").
         then().
         statusCode(OK.code()).
-            // Fix if we enable back precision method which removes duplicate points
-        body("features.size()", equalTo(1));
+        body("features.size()", equalTo(0));
   }
 
 

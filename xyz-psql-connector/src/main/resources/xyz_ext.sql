@@ -111,7 +111,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 200
+ select 201
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -123,18 +123,22 @@ CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boo
     RETURNS GEOMETRY AS
 $BODY$
 BEGIN
-    RETURN geo;
--- Temporary deactivated, till we found a proper solution.
---
---     RETURN ST_ReducePrecision(geo, 0.00000001);
---     EXCEPTION WHEN OTHERS THEN
---         IF enable_logging THEN
---             RAISE WARNING 'Invalid geometry detected: %',ST_AsGeoJson(geo);
---         END IF;
---         RETURN geo;
+
+  if not st_isvalid(geo) then
+   return geo;
+  end if;
+
+  return ST_SnapToGrid(geo, 0.00000001); -- ST_ReducePrecision(geo, 0.00000001);
+
+  EXCEPTION WHEN OTHERS THEN
+    IF enable_logging THEN
+        RAISE WARNING 'xyz_reduce_precision: Invalid geometry detected: %',ST_AsGeoJson(geo);
+    END IF;
+  return geo;
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql immutable;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger()
