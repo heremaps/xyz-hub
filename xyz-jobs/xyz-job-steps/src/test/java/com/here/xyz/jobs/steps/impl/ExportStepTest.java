@@ -19,23 +19,20 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
+import static java.lang.Thread.sleep;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.StatisticsResponse;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.Assert;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,10 +41,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
-
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static java.lang.Thread.sleep;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class ExportStepTest extends JobStepTest {
     private static final Logger logger = LogManager.getLogger();
@@ -91,9 +90,9 @@ public class ExportStepTest extends JobStepTest {
             if(output instanceof DownloadUrl) {
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
             }else if(output instanceof FileStatistics statistics) {
-                Assertions.assertEquals(getExpectedFeatureCount(), statistics.getRowsExported());
+                Assertions.assertEquals(getExpectedFeatureCount(), statistics.getExportedFeatures());
                 Assertions.assertEquals(getExpectedFeatureCount() > ExportSpaceToFiles.PARALLELIZTATION_MIN_THRESHOLD ?
-                        ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getFilesCreated());
+                        ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getExportedFiles());
             }
         }
 

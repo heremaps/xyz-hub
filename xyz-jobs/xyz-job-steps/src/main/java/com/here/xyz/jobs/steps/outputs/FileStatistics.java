@@ -20,46 +20,46 @@
 package com.here.xyz.jobs.steps.outputs;
 
 public class FileStatistics extends ModelBasedOutput {
-    private long rowsExported;
-    private long bytesExported;
-    private int filesCreated;
+    private long exportedFeatures;
+    private long exportedBytes;
+    private int exportedFiles;
 
-    public long getRowsExported() {
-        return rowsExported;
+    public long getExportedFeatures() {
+        return exportedFeatures;
     }
 
-    public void setRowsExported(long rowsExported) {
-        this.rowsExported = rowsExported;
+    public void setExportedFeatures(long exportedFeatures) {
+        this.exportedFeatures = exportedFeatures;
     }
 
     public FileStatistics withRowsExported(long rowsExported) {
-        setRowsExported(rowsExported);
+        setExportedFeatures(rowsExported);
         return this;
     }
 
-    public long getBytesExported() {
-        return bytesExported;
+    public long getExportedBytes() {
+        return exportedBytes;
     }
 
-    public void setBytesExported(long bytesExported) {
-        this.bytesExported = bytesExported;
+    public void setExportedBytes(long exportedBytes) {
+        this.exportedBytes = exportedBytes;
     }
 
     public FileStatistics withBytesExported(long bytesExported) {
-        setBytesExported(bytesExported);
+        setExportedBytes(bytesExported);
         return this;
     }
 
-    public int getFilesCreated() {
-        return filesCreated;
+    public int getExportedFiles() {
+        return exportedFiles;
     }
 
-    public void setFilesCreated(int filesCreated) {
-        this.filesCreated = filesCreated;
+    public void setExportedFiles(int exportedFiles) {
+        this.exportedFiles = exportedFiles;
     }
 
     public FileStatistics withFilesCreated(int filesCreated) {
-        setFilesCreated(filesCreated);
+        setExportedFiles(filesCreated);
         return this;
     }
 }
