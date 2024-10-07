@@ -206,7 +206,7 @@ public class GraphTransformer {
         TaskState.builder());
     if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
-    else if (step instanceof RunEmrJob emrStep)
+    else if (step instanceof RunEmrStep emrStep)
       compile(emrStep, state);
     else
       throw new NotImplementedException("The provided step implementation (" + step.getClass().getSimpleName() + ") is not supported.");
@@ -255,7 +255,7 @@ public class GraphTransformer {
       state.stateBuilder.heartbeatSeconds(STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS);
   }
 
-  private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
+  private void compile(RunEmrStep emrStep, NamedState<TaskState.Builder> state) {
     taskParametersLookup.put(state.stateName, Map.of(
         "Name", EMR_JOB_NAME_PREFIX + emrStep.getGlobalStepId(),
         "ApplicationId", emrStep.getApplicationId(),

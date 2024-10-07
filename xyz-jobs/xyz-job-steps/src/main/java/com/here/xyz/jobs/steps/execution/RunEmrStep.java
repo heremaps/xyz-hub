@@ -25,12 +25,12 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.List;
 
-public class RunEmrJob extends Step<RunEmrJob> {
+public class RunEmrStep extends Step<RunEmrStep> {
   private String applicationId;
   private String executionRoleArn;
   private String jarUrl;
   private List<String> scriptParams;
-  private String sparkParams;
+  private List<String> sparkParams;
   private boolean inputsExpected;
 
   @Override
@@ -84,7 +84,7 @@ public class RunEmrJob extends Step<RunEmrJob> {
     this.applicationId = applicationId;
   }
 
-  public RunEmrJob withApplicationId(String applicationId) {
+  public RunEmrStep withApplicationId(String applicationId) {
     setApplicationId(applicationId);
     return this;
   }
@@ -97,7 +97,7 @@ public class RunEmrJob extends Step<RunEmrJob> {
     this.executionRoleArn = executionRoleArn;
   }
 
-  public RunEmrJob withExecutionRoleArn(String executionRoleArn) {
+  public RunEmrStep withExecutionRoleArn(String executionRoleArn) {
     setExecutionRoleArn(executionRoleArn);
     return this;
   }
@@ -110,7 +110,7 @@ public class RunEmrJob extends Step<RunEmrJob> {
     this.jarUrl = jarUrl;
   }
 
-  public RunEmrJob withJarUrl(String jarUrl) {
+  public RunEmrStep withJarUrl(String jarUrl) {
     setJarUrl(jarUrl);
     return this;
   }
@@ -123,20 +123,20 @@ public class RunEmrJob extends Step<RunEmrJob> {
     this.scriptParams = scriptParams;
   }
 
-  public RunEmrJob withScriptParams(List<String> scriptParams) {
+  public RunEmrStep withScriptParams(List<String> scriptParams) {
     setScriptParams(scriptParams);
     return this;
   }
 
-  public String getSparkParams() {
+  public List<String> getSparkParams() {
     return sparkParams;
   }
 
-  public void setSparkParams(String sparkParams) {
+  public void setSparkParams(List<String> sparkParams) {
     this.sparkParams = sparkParams;
   }
 
-  public RunEmrJob withSparkParams(String sparkParams) {
+  public RunEmrStep withSparkParams(List<String> sparkParams) {
     setSparkParams(sparkParams);
     return this;
   }
@@ -149,7 +149,7 @@ public class RunEmrJob extends Step<RunEmrJob> {
     this.inputsExpected = inputsExpected;
   }
 
-  public RunEmrJob withInputsExpected(boolean inputsExpected) {
+  public RunEmrStep withInputsExpected(boolean inputsExpected) {
     setInputsExpected(inputsExpected);
     return this;
   }
