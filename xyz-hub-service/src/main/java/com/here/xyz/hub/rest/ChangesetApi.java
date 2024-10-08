@@ -103,10 +103,10 @@ public class ChangesetApi extends SpaceBasedApi {
 
     final Long startVersion, endVersion;
 
-    if(useChangesetCollection){
-      startVersion = Query.getLong(context, Query.START_VERSION, null);
+    if (useChangesetCollection) {
+      startVersion = Query.getLong(context, Query.START_VERSION, 0L);
       endVersion = Query.getLong(context, Query.END_VERSION, null);
-    }else{
+    } else {
       final String version = context.pathParam(Path.VERSION);
       startVersion = Long.parseLong(version);
       endVersion = startVersion;
@@ -125,15 +125,15 @@ public class ChangesetApi extends SpaceBasedApi {
 
   private void validateGetChangesetsQueryParams(Long startVersion, Long endVersion, boolean useChangesetCollection)
           throws HttpException {
-    if(useChangesetCollection){
-      if(startVersion != null && endVersion != null){
-	      if(startVersion < 0 || endVersion < 0)
+    if (useChangesetCollection) {
+      if (startVersion != null && endVersion != null) {
+	      if (startVersion < 0 || endVersion < 0)
 	        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid version specified.");
-	      if(startVersion > endVersion)
+	      if (startVersion > endVersion)
 	        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter startVersion needs to be smaller as endVersion.");
       }
-    }else{
-      if(startVersion == null)
+    } else {
+      if (startVersion == null)
         throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter version is required.");
     }
   }
