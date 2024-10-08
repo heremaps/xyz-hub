@@ -40,13 +40,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
 public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
   private static final Logger logger = LogManager.getLogger();
-
+  private boolean inputsExpected;
   //This file has to exists in your local bucket.
   private String jarUrl;
 
@@ -93,6 +92,18 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
     return this;
   }
 
+  public boolean isInputsExpected() {
+    return inputsExpected;
+  }
+
+  public void setInputsExpected(boolean inputsExpected) {
+    this.inputsExpected = inputsExpected;
+  }
+
+  public RunLocalEmrStep withInputsExpected(boolean inputsExpected) {
+    setInputsExpected(inputsExpected);
+    return this;
+  }
 
   @Override
   public List<Load> getNeededResources() {
