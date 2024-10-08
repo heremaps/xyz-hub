@@ -259,7 +259,7 @@ public class FeatureApi extends SpaceBasedApi {
                 .compose(v -> resolveExtendedSpaces(getMarker(context), space))
                 .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
                 //Perform the actual feature writing
-                .compose(v -> FeatureHandler.writeFeatures(space, modifications, spaceContext, author))
+                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author))
                 .recover(t -> {
                   if (t instanceof TooManyRequestsException throttleException)
                     XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
