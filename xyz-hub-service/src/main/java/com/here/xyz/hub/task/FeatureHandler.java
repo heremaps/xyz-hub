@@ -37,6 +37,7 @@ import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
+import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.ConnectorType;
@@ -79,39 +80,36 @@ public class FeatureHandler {
   private static final ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
   private static final LongAdder globalInflightRequestMemory = new LongAdder();
 
-  public static Future<FeatureCollection> writeFeatures(Space space, Set<Modification> modifications, SpaceContext spaceContext,
+  public static Future<FeatureCollection> writeFeatures(Marker marker, Space space, Set<Modification> modifications, SpaceContext spaceContext,
       String author) {
     try {
       throttle(space);
+
+      WriteFeaturesEvent event = new WriteFeaturesEvent()
+          .withModifications(modifications)
+          .withContext(spaceContext)
+          .withAuthor(author);
+
+      //Enrich event with properties from the space
+      injectSpaceParams(event, space);
+
+      Promise<FeatureCollection> promise = Promise.promise();
+      RpcContext rpcContext = getRpcClient(space.getResolvedStorageConnector())
+          .execute(marker, event, response -> {
+            if (response instanceof FeatureCollection featureCollection)
+              promise.complete(featureCollection);
+            else
+              promise.fail(new RuntimeException("Received unexpected response from storage connector: " + response.getClass().getSimpleName()));
+          });
+      return promise.future();
+
+      //TODO: (For later) In FeatureWriter (also return unmodified features?)
+      //.then(FeatureTaskHandler::extractUnmodifiedFeatures)
+
     }
-    catch (HttpException e) {
+    catch (Exception e) {
       return Future.failedFuture(e);
     }
-
-    WriteFeaturesEvent event = new WriteFeaturesEvent()
-        .withModifications(modifications)
-        .withContext(spaceContext)
-        .withAuthor(author);
-
-    //Enrich event with properties from the space
-    injectSpaceParams(event, space);
-
-
-    //TODO: Resolve listeners & processors [DONE]
-    //TODO: resolveExtendedSpaces [DONE]
-
-    //TODO: Invoke storage connector (and others)
-    //.then(FeatureTaskHandler::invoke)
-
-    //TODO: (For later) In FeatureWriter (also return unmodified features?)
-    //.then(FeatureTaskHandler::extractUnmodifiedFeatures)
-
-
-
-
-    return null;
-
-
   }
 
   static void throttle(Space space) throws HttpException {
