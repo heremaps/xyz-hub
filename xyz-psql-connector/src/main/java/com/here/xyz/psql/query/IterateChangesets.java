@@ -64,7 +64,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   public XyzResponse run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
     long min = new GetMinAvailableVersion<>(event).withDataSourceProvider(dataSourceProvider).run();
 
-    if (start == null || start < min) {
+    if (start < min) {
       start = min;
       event.setStartVersion(start);
     }
