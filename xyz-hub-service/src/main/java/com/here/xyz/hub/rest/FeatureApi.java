@@ -21,13 +21,20 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
+import static com.here.xyz.hub.rest.ApiResponseType.EMPTY;
+import static com.here.xyz.hub.rest.ApiResponseType.FEATURE;
+import static com.here.xyz.hub.rest.ApiResponseType.FEATURE_COLLECTION;
 import static com.here.xyz.hub.task.FeatureHandler.checkReadOnly;
 import static com.here.xyz.hub.task.FeatureHandler.resolveExtendedSpaces;
 import static com.here.xyz.hub.task.FeatureHandler.resolveListenersAndProcessors;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -51,10 +58,12 @@ import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.FeatureModificationList;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
+import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
@@ -66,7 +75,6 @@ import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,14 +85,14 @@ public class FeatureApi extends SpaceBasedApi {
   private static final boolean USE_WRITE_FEATURES_EVENT = false;
 
   public FeatureApi(RouterBuilder rb) {
-    rb.getRoute("getFeature").setDoValidation(false).addHandler(this::getFeature);
-    rb.getRoute("getFeatures").setDoValidation(false).addHandler(this::getFeatures);
-    rb.getRoute("putFeature").setDoValidation(false).addHandler(this::putFeature);
-    rb.getRoute("putFeatures").setDoValidation(false).addHandler(this::putFeatures);
-    rb.getRoute("postFeatures").setDoValidation(false).addHandler(this::postFeatures);
-    rb.getRoute("patchFeature").setDoValidation(false).addHandler(this::patchFeature);
-    rb.getRoute("deleteFeature").setDoValidation(false).addHandler(this::deleteFeature);
-    rb.getRoute("deleteFeatures").setDoValidation(false).addHandler(this::deleteFeatures);
+    rb.getRoute("getFeature").setDoValidation(false).addHandler(handleErrors(this::getFeature));
+    rb.getRoute("getFeatures").setDoValidation(false).addHandler(handleErrors(this::getFeatures));
+    rb.getRoute("putFeature").setDoValidation(false).addHandler(handleErrors(this::putFeature));
+    rb.getRoute("putFeatures").setDoValidation(false).addHandler(handleErrors(this::putFeatures));
+    rb.getRoute("postFeatures").setDoValidation(false).addHandler(handleErrors(this::postFeatures));
+    rb.getRoute("patchFeature").setDoValidation(false).addHandler(handleErrors(this::patchFeature));
+    rb.getRoute("deleteFeature").setDoValidation(false).addHandler(handleErrors(this::deleteFeature));
+    rb.getRoute("deleteFeatures").setDoValidation(false).addHandler(handleErrors(this::deleteFeatures));
   }
 
   /**
@@ -107,21 +115,21 @@ public class FeatureApi extends SpaceBasedApi {
    * Retrieves a feature.
    */
   private void getFeature(final RoutingContext context) {
-    getFeatures(context, ApiResponseType.FEATURE);
+    getFeatures(context, FEATURE);
   }
 
   /**
    * Retrieves multiple features by ID.
    */
   private void getFeatures(final RoutingContext context) {
-    getFeatures(context, ApiResponseType.FEATURE_COLLECTION);
+    getFeatures(context, FEATURE_COLLECTION);
   }
 
   private void getFeatures(final RoutingContext context, ApiResponseType apiResponseType) {
     try {
-      final List<String> ids = apiResponseType == ApiResponseType.FEATURE_COLLECTION
+      final List<String> ids = apiResponseType == FEATURE_COLLECTION
               ? Query.queryParam(Query.FEATURE_ID, context)
-              : Collections.singletonList(context.pathParam(Path.FEATURE_ID));
+              : List.of(context.pathParam(Path.FEATURE_ID));
 
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
@@ -146,8 +154,39 @@ public class FeatureApi extends SpaceBasedApi {
   /**
    * Creates or replaces a feature.
    */
-  private void putFeature(final RoutingContext context) {
-    executeConditionalOperationChain(false, context, ApiResponseType.FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
+  private void putFeature(final RoutingContext context) throws HttpException {
+    if (USE_WRITE_FEATURES_EVENT)
+      executeWriteFeatures(context, FEATURE,
+          toFeatureModificationList(readFeature(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
+          false, getSpaceContext(context));
+    else
+      executeConditionalOperationChain(false, context, FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true,
+          ConflictResolution.ERROR);
+  }
+
+  private FeatureModificationList toFeatureModificationList(Feature feature, IfNotExists ifNotExists, IfExists ifExists,
+      ConflictResolution conflictResolution) {
+    return toFeatureModificationList(new FeatureCollection().withFeatures(List.of(feature)), ifNotExists, ifExists, conflictResolution);
+  }
+
+  private FeatureModificationList toFeatureModificationList(FeatureCollection featureCollection, IfNotExists ifNotExists, IfExists ifExists,
+      ConflictResolution conflictResolution) {
+    return new FeatureModificationList()
+        .withModifications(List.of(new FeatureModification()
+            .withFeatureData(featureCollection)
+            .withOnFeatureNotExists(ifNotExists)
+            .withOnFeatureExists(ifExists)
+            .withOnMergeConflict(conflictResolution)));
+  }
+
+  private FeatureModificationList toFeatureModificationList(List<String> featureIdsToDelete, IfNotExists ifNotExists, IfExists ifExists,
+      ConflictResolution conflictResolution) {
+    return new FeatureModificationList()
+        .withModifications(List.of(new FeatureModification()
+            .withFeatureData(new FeatureCollection().withDeleted(featureIdsToDelete))
+            .withOnFeatureNotExists(ifNotExists)
+            .withOnFeatureExists(ifExists)
+            .withOnMergeConflict(conflictResolution)));
   }
 
   /**
@@ -155,89 +194,106 @@ public class FeatureApi extends SpaceBasedApi {
    *
    * @param context the routing context
    */
-  private void putFeatures(final RoutingContext context) {
-    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), IfExists.REPLACE,
-        IfNotExists.CREATE, true, ConflictResolution.ERROR);
+  private void putFeatures(final RoutingContext context) throws HttpException {
+    if (USE_WRITE_FEATURES_EVENT)
+      executeWriteFeatures(context, FEATURE_COLLECTION,
+          toFeatureModificationList(readFeatureCollection(context), IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR),
+          false, getSpaceContext(context));
+    else
+      executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, FEATURE_COLLECTION),
+          IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
   }
 
   /**
    * Patches a feature
    */
-  private void patchFeature(final RoutingContext context) {
-    executeConditionalOperationChain(true, context, ApiResponseType.FEATURE, IfExists.PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
+  private void patchFeature(final RoutingContext context) throws HttpException {
+    if (USE_WRITE_FEATURES_EVENT)
+      executeWriteFeatures(context, FEATURE,
+          toFeatureModificationList(readFeature(context), IfNotExists.RETAIN, IfExists.PATCH, ConflictResolution.ERROR),
+          true, getSpaceContext(context));
+    else
+      executeConditionalOperationChain(true, context, FEATURE, IfExists.PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
   }
 
   /**
    * Creates or patches multiple features.
    */
-  private void postFeatures(final RoutingContext context) {
+  private void postFeatures(final RoutingContext context) throws HttpException {
     final IfNotExists ifNotExists = IfNotExists.of(Query.getString(context, Query.IF_NOT_EXISTS, "create"));
     final IfExists ifExists = IfExists.of(Query.getString(context, Query.IF_EXISTS, "patch"));
     final ConflictResolution conflictResolution = ConflictResolution.of(Query.getString(context, Query.CONFLICT_RESOLUTION, "error"));
     boolean transactional = Query.getBoolean(context, Query.TRANSACTIONAL, true);
+    ApiResponseType responseType = getEmptyResponseTypeOr(context, FEATURE_COLLECTION);
+    String contentType = context.parsedHeaders().contentType().value();
 
-    executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, ApiResponseType.FEATURE_COLLECTION), ifExists, ifNotExists, transactional, conflictResolution, true);
+    if (USE_WRITE_FEATURES_EVENT) {
+      FeatureModificationList featureModificationList = APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(contentType)
+          ? readFeatureModificationList(context)
+          : toFeatureModificationList(readFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR);
+
+      executeWriteFeatures(context, responseType, featureModificationList, false, getSpaceContext(context));
+    }
+    else
+      executeConditionalOperationChain(false, context, responseType, ifExists, ifNotExists, transactional,
+          conflictResolution, true);
   }
 
   /**
    * Deletes a feature by ID.
    */
-  private void deleteFeature(final RoutingContext context) {
-    try {
-      Map<String, Object> featureModification = Collections.singletonMap("featureIds",
-              Collections.singletonList(context.pathParam(Path.FEATURE_ID)));
-      final SpaceContext spaceContext = getSpaceContext(context);
-      executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN, true, ConflictResolution.ERROR,
-              Collections.singletonList(featureModification), spaceContext);
-    } catch (HttpException e) {
-      sendErrorResponse(context, e);
-    }
+  private void deleteFeature(final RoutingContext context) throws HttpException {
+    String featureId = context.pathParam(Path.FEATURE_ID);
+    final SpaceContext spaceContext = getSpaceContext(context);
+
+    if (USE_WRITE_FEATURES_EVENT)
+      executeDeleteFeatures(context, EMPTY, List.of(featureId), spaceContext);
+    else
+      executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN,
+          true, ConflictResolution.ERROR, List.of(Map.of("featureIds", List.of(featureId))), spaceContext);
   }
 
   /**
    * Delete features by IDs or by tags.
    */
-  private void deleteFeatures(final RoutingContext context) {
-    try {
-      final Set<String> featureIds = new HashSet<>(Query.queryParam(Query.FEATURE_ID, context));
-      final String accept = context.request().getHeader(ACCEPT);
-      final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
-              ? ApiResponseType.FEATURE_COLLECTION : ApiResponseType.EMPTY;
-      final SpaceContext spaceContext = getSpaceContext(context);
+  private void deleteFeatures(final RoutingContext context) throws HttpException {
+    final List<String> featureIds = new ArrayList<>(new HashSet<>(Query.queryParam(Query.FEATURE_ID, context)));
+    final String accept = context.request().getHeader(ACCEPT);
+    final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
+        ? FEATURE_COLLECTION : ApiResponseType.EMPTY;
+    final SpaceContext spaceContext = getSpaceContext(context);
 
+    if (featureIds.isEmpty())
+      sendErrorResponse(context, new HttpException(BAD_REQUEST, "At least one feature ID should be provided as a query parameter."));
+    else {
       //Delete features by IDs
-      if (!featureIds.isEmpty()) {
-        Map<String, Object> featureModification = Collections.singletonMap("featureIds", new ArrayList<>(featureIds));
-
+      if (USE_WRITE_FEATURES_EVENT)
+        executeDeleteFeatures(context, responseType, featureIds, spaceContext);
+      else
         executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
-                ConflictResolution.ERROR, Collections.singletonList(featureModification), spaceContext);
-      }
-      else {
-        context.fail(
-                new HttpException(HttpResponseStatus.BAD_REQUEST, "At least one identifier should be provided as a query parameter."));
-      }
-    } catch (HttpException e) {
-      sendErrorResponse(context, e);
+            ConflictResolution.ERROR, List.of(Map.of("featureIds", featureIds)), spaceContext);
     }
   }
 
   private void executeWriteFeatures(RoutingContext context, ApiResponseType responseType, FeatureModificationList modificationList,
-      boolean partialUpdates, SpaceContext spaceContext, String author) {
-    writeFeatures(context, modificationList, partialUpdates, spaceContext, author)
-        .onSuccess(featureCollection -> {
-          switch (responseType) {
-            case EMPTY -> sendResponse(context, 200, (XyzSerializable) null);
-            case FEATURE_COLLECTION -> sendResponse(context, 200, featureCollection);
-            case FEATURE -> {
-              try {
-                sendResponse(context, 200, featureCollection.getFeatures().get(0));
-              }
-              catch (JsonProcessingException e) {
-                sendErrorResponse(context, e);
-              }
-            }
-          }
-        });
+      boolean partialUpdates, SpaceContext spaceContext) {
+    writeFeatures(context, modificationList, partialUpdates, spaceContext, getAuthor(context))
+        .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
+  }
+
+  private void sendWriteFeaturesResponse(RoutingContext context, ApiResponseType responseType, FeatureCollection featureCollection) {
+    switch (responseType) {
+      case EMPTY -> sendResponse(context, 200, (XyzSerializable) null);
+      case FEATURE_COLLECTION -> sendResponse(context, 200, featureCollection);
+      case FEATURE -> {
+        try {
+          sendResponse(context, 200, featureCollection.getFeatures().get(0));
+        }
+        catch (JsonProcessingException e) {
+          sendErrorResponse(context, e);
+        }
+      }
+    }
   }
 
   private Future<FeatureCollection> writeFeatures(RoutingContext context, FeatureModificationList modificationList, boolean partialUpdates,
@@ -247,6 +303,19 @@ public class FeatureApi extends SpaceBasedApi {
             .withFeatureData(modification.getFeatureData())
             .withUpdateStrategy(toUpdateStrategy(modification.getOnFeatureExists(), modification.getOnFeatureNotExists(), modification.getOnMergeConflict()))
             .withPartialUpdates(partialUpdates)).collect(Collectors.toSet()), spaceContext, author);
+  }
+
+  private void executeDeleteFeatures(RoutingContext context, ApiResponseType responseType, List<String> featureIds,
+      SpaceContext spaceContext) {
+    deleteFeatures(context, featureIds, spaceContext, getAuthor(context))
+        .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
+  }
+
+  private Future<FeatureCollection> deleteFeatures(RoutingContext context, List<String> featureIds, SpaceContext spaceContext,
+      String author) {
+    return writeFeatures(context, Set.of(new Modification()
+            .withFeatureIds(featureIds)
+            .withUpdateStrategy(DEFAULT_DELETE_STRATEGY)), spaceContext, author);
   }
 
   /**
@@ -320,7 +389,7 @@ public class FeatureApi extends SpaceBasedApi {
     if (maxFeaturesPerSpace <= 0)
       return Future.succeededFuture();
 
-    return FeatureHandler.getCountForSpace(getMarker(context), space, spaceContext, BaseHttpServerVerticle.getAuthor(context))
+    return FeatureHandler.getCountForSpace(getMarker(context), space, spaceContext, getAuthor(context))
         .compose(count -> {
           try {
             //Check the quota
@@ -385,6 +454,33 @@ public class FeatureApi extends SpaceBasedApi {
     };
   }
 
+  private FeatureModificationList readFeatureModificationList(RoutingContext context) throws HttpException {
+    try {
+      return XyzSerializable.deserialize(context.body().asString(), FeatureModificationList.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new HttpException(BAD_REQUEST, "Error parsing request body as FeatureModificationList.");
+    }
+  }
+
+  private FeatureCollection readFeatureCollection(RoutingContext context) throws HttpException {
+    try {
+      return XyzSerializable.deserialize(context.body().asString(), FeatureCollection.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new HttpException(BAD_REQUEST, "Error parsing request body as GeoJSON FeatureCollection.");
+    }
+  }
+
+  private Feature readFeature(RoutingContext context) throws HttpException {
+    try {
+      return XyzSerializable.deserialize(context.body().asString(), Feature.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new HttpException(BAD_REQUEST, "Error parsing request body as GeoJSON Feature.");
+    }
+  }
+
   /**
    * Creates and executes a ModifyFeatureOp
    */
@@ -411,7 +507,7 @@ public class FeatureApi extends SpaceBasedApi {
     if (checkModificationOnSuper(context, spaceContext))
       return;
 
-    String author = BaseHttpServerVerticle.getAuthor(context);
+    String author = getAuthor(context);
     ModifyFeaturesEvent event = new ModifyFeaturesEvent()
         .withAuthor(author)
         .withTransaction(transactional)
