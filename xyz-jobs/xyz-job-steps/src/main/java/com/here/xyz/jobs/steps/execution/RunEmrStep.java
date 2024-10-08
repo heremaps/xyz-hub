@@ -30,7 +30,7 @@ public class RunEmrStep extends Step<RunEmrStep> {
   private String executionRoleArn;
   private String jarUrl;
   private List<String> scriptParams;
-  private List<String> sparkParams;
+  private String sparkParams;
   private boolean inputsExpected;
 
   @Override
@@ -128,15 +128,15 @@ public class RunEmrStep extends Step<RunEmrStep> {
     return this;
   }
 
-  public List<String> getSparkParams() {
+  public String getSparkParams() {
     return sparkParams;
   }
 
-  public void setSparkParams(List<String> sparkParams) {
+  public void setSparkParams(String sparkParams) {
     this.sparkParams = sparkParams;
   }
 
-  public RunEmrStep withSparkParams(List<String> sparkParams) {
+  public RunEmrStep withSparkParams(String sparkParams) {
     setSparkParams(sparkParams);
     return this;
   }

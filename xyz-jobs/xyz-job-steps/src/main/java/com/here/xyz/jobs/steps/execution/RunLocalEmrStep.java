@@ -36,6 +36,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -51,7 +52,7 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
 
   private List<String> scriptParams;
 
-  private List<String> sparkParams;
+  private String sparkParams;
 
   public List<String> getScriptParams() {
     return scriptParams;
@@ -66,15 +67,15 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
     return this;
   }
 
-  public List<String> getSparkParams() {
+  public String getSparkParams() {
     return sparkParams;
   }
 
-  public void setSparkParams(List<String> sparkParams) {
+  public void setSparkParams(String sparkParams) {
     this.sparkParams = sparkParams;
   }
 
-  public RunLocalEmrStep withSparkParams(List<String> sparkParams) {
+  public RunLocalEmrStep withSparkParams(String sparkParams) {
     setSparkParams(sparkParams);
     return this;
   }
@@ -126,10 +127,8 @@ public class RunLocalEmrStep extends LambdaBasedStep<RunLocalEmrStep> {
     scriptParams.set(0, localTmpSourceFolder);
     scriptParams.set(1, localTmpTargetFolder);
 
-    List<String> emrParams = sparkParams.stream()
-            .map(param -> param.replace("$localJarPath$", localJarPath))
-            .collect(Collectors.toList());
-
+    sparkParams = sparkParams.replace("$localJarPath$", localJarPath);
+    List<String> emrParams = new ArrayList<>(List.of(sparkParams.split(" ")));
     emrParams.addAll(scriptParams);
 
     logger.info("Start local EMR job with {} ", emrParams.toString());
