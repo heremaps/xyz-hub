@@ -20,6 +20,7 @@
 package com.here.xyz.events;
 
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import java.util.List;
 import java.util.Set;
 
 public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
@@ -41,6 +42,7 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
   public static class Modification {
     private UpdateStrategy updateStrategy;
     private FeatureCollection featureData;
+    private List<String> featureIds; //To be used only for deletions
     private boolean partialUpdates;
 
     public UpdateStrategy getUpdateStrategy() {
@@ -66,6 +68,19 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
 
     public Modification withFeatureData(FeatureCollection featureData) {
       setFeatureData(featureData);
+      return this;
+    }
+
+    public List<String> getFeatureIds() {
+      return featureIds;
+    }
+
+    public void setFeatureIds(List<String> featureIds) {
+      this.featureIds = featureIds;
+    }
+
+    public Modification withFeatureIds(List<String> featureIds) {
+      setFeatureIds(featureIds);
       return this;
     }
 

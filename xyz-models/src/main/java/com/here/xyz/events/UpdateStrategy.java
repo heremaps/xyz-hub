@@ -23,6 +23,8 @@ public record UpdateStrategy(OnExists onExists, OnNotExists onNotExists, OnVersi
     OnMergeConflict onMergeConflict) {
   public static final UpdateStrategy DEFAULT_UPDATE_STRATEGY = new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE,null,
       null);
+  public static final UpdateStrategy DEFAULT_DELETE_STRATEGY = new UpdateStrategy(OnExists.DELETE, OnNotExists.RETAIN,
+      OnVersionConflict.DELETE, null);
 
   public enum OnExists {
     DELETE,
