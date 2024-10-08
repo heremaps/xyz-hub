@@ -122,19 +122,29 @@ DROP FUNCTION IF EXISTS xyz_reduce_precision(geo GEOMETRY);
 CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boolean = TRUE)
     RETURNS GEOMETRY AS
 $BODY$
+DECLARE
+ sgeo geometry;
 BEGIN
 
   if not st_isvalid(geo) then
-   return geo;
+   RETURN geo;
   end if;
 
-  return ST_SnapToGrid(geo, 0.00000001); -- ST_ReducePrecision(geo, 0.00000001);
+  sgeo := ST_SnapToGrid(geo, 0.00000001); -- ST_ReducePrecision(geo, 0.00000001);
+
+  IF GeometryType(sgeo) = GeometryType(geo) THEN
+   RETURN sgeo;  -- only if type did not changed
+  ELSE
+   RETURN geo;
+  END IF;
 
   EXCEPTION WHEN OTHERS THEN
     IF enable_logging THEN
         RAISE WARNING 'xyz_reduce_precision: Invalid geometry detected: %',ST_AsGeoJson(geo);
     END IF;
-  return geo;
+  
+  RETURN geo;
+
 END
 $BODY$
 LANGUAGE plpgsql immutable;
