@@ -30,6 +30,8 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -72,6 +74,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class FeatureApi extends SpaceBasedApi {
+  private static final boolean USE_WRITE_FEATURES_EVENT = false;
 
   public FeatureApi(RouterBuilder rb) {
     rb.getRoute("getFeature").setDoValidation(false).addHandler(this::getFeature);
@@ -216,6 +219,25 @@ public class FeatureApi extends SpaceBasedApi {
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     }
+  }
+
+  private void executeWriteFeatures(RoutingContext context, ApiResponseType responseType, FeatureModificationList modificationList,
+      boolean partialUpdates, SpaceContext spaceContext, String author) {
+    writeFeatures(context, modificationList, partialUpdates, spaceContext, author)
+        .onSuccess(featureCollection -> {
+          switch (responseType) {
+            case EMPTY -> sendResponse(context, 200, (XyzSerializable) null);
+            case FEATURE_COLLECTION -> sendResponse(context, 200, featureCollection);
+            case FEATURE -> {
+              try {
+                sendResponse(context, 200, featureCollection.getFeatures().get(0));
+              }
+              catch (JsonProcessingException e) {
+                sendErrorResponse(context, e);
+              }
+            }
+          }
+        });
   }
 
   private Future<FeatureCollection> writeFeatures(RoutingContext context, FeatureModificationList modificationList, boolean partialUpdates,
