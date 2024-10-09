@@ -77,7 +77,7 @@ import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DatabaseBasedStep.class),
-    @JsonSubTypes.Type(value = RunEmrStep.class)
+    @JsonSubTypes.Type(value = RunEmrJob.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
   private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
@@ -118,11 +118,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public abstract AsyncExecutionState getExecutionState() throws UnknownStateException;
 
   /**
-   * This method can be implemented by subclasses. It is getting called at the beginning of each
-   * Execution and can be uses for initialize resources.
+   * This method can be overridden by subclasses.
+   * It is getting called at the beginning of each Lambda execution and can be used for initialization.
    */
-  @JsonIgnore
-  public abstract void init() throws Exception;
+  public void init() throws Exception {};
 
   private void startExecution() throws Exception {
     updateState(RUNNING);
