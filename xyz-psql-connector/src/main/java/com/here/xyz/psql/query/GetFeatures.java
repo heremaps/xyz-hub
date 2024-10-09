@@ -331,7 +331,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildGeoJsonExpression(E event) {
-    return new SQLQuery("REGEXP_REPLACE(ST_AsGeojson(${{rawGeoExpression}}, ${{precision}}), '(?i)nan', '0', 'g')")
+    return new SQLQuery("REGEXP_REPLACE(ST_AsGeojson(${{rawGeoExpression}}, ${{precision}}), 'nan', '0', 'gi')")
           .withQueryFragment("rawGeoExpression", buildRawGeoExpression(event))
           .withQueryFragment("precision", "" + GetFeatures.GEOMETRY_DECIMAL_DIGITS);
   }
