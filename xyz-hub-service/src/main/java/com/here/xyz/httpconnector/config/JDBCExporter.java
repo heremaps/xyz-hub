@@ -186,7 +186,7 @@ public class JDBCExporter extends JdbcBasedHandler {
       event.setRef( job.getTargetVersion() == null ? new Ref(HEAD) : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
-          PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
+          PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
           event.setPropertiesQuery(propertyQueryLists);
       }
 
@@ -664,7 +664,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             event.setRef(new Ref(targetVersion));
 
         if (propertyFilter != null) {
-            PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
+            PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
             event.setPropertiesQuery(propertyQueryLists);
         }
 
@@ -747,7 +747,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
            if( partitionByPropertyValue )
            {
-              String converted = ApiParam.getConvertedKey(partitionKey);
+              String converted = PropertiesQuery.getConvertedKey(partitionKey);
               partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
               //TODO: Simplify / structure the following query blob
               partQry =

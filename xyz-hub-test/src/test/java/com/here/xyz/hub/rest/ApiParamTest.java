@@ -34,7 +34,7 @@ public class ApiParamTest {
   @Test
   public void parsePropertiesQuery() {
     String URIquery = "a=1&b=2&p.a=3&p.b>4.1&p.boolean=true&f.createdAt>0&p.testString=string,\"5\"";
-    PropertiesQuery pq = Query.parsePropertiesQuery(URIquery, "", false);
+    PropertiesQuery pq = PropertiesQuery.fromString(URIquery, "", false);
     assertEquals("1 OR block is expected", 1, pq.size());
 
     PropertyQueryList pql = pq.get(0);
@@ -76,7 +76,7 @@ public class ApiParamTest {
   public void parsePropertiesQuerySpace() {
     // equals
     String URISpaceQuery = "a=1&b=2&contentUpatedAt=3";
-    PropertiesQuery pq = Query.parsePropertiesQuery(URISpaceQuery, "contentUpatedAt", true);
+    PropertiesQuery pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
     assertEquals("1 OR block is expected", 1, pq.size());
 
     PropertyQueryList pql = pq.get(0);
@@ -89,7 +89,7 @@ public class ApiParamTest {
 
     // equals with OR
     URISpaceQuery = "a=1&b=2&contentUpatedAt=3,4";
-    pq = Query.parsePropertiesQuery(URISpaceQuery, "contentUpatedAt", true);
+    pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
@@ -100,7 +100,7 @@ public class ApiParamTest {
 
     // not equals
     URISpaceQuery = "a=1&b=2&contentUpatedAt!=3";
-    pq = Query.parsePropertiesQuery(URISpaceQuery, "contentUpatedAt", true);
+    pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
@@ -110,7 +110,7 @@ public class ApiParamTest {
 
     // greater
     URISpaceQuery = "a=1&b=2&contentUpatedAt>3";
-    pq = Query.parsePropertiesQuery(URISpaceQuery, "contentUpatedAt", true);
+    pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
@@ -120,7 +120,7 @@ public class ApiParamTest {
 
     // greater equals
     URISpaceQuery = "a=1&b=2&contentUpatedAt>=3";
-    pq = Query.parsePropertiesQuery(URISpaceQuery, "contentUpatedAt", true);
+    pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
@@ -130,7 +130,7 @@ public class ApiParamTest {
 
     // less
     URISpaceQuery = "a=1&b=2&contentUpatedAt<3";
-    pq = Query.parsePropertiesQuery(URISpaceQuery, "contentUpatedAt", true);
+    pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
@@ -140,7 +140,7 @@ public class ApiParamTest {
 
     // less equals
     URISpaceQuery = "a=1&b=2&contentUpatedAt<=3";
-    pq = Query.parsePropertiesQuery(URISpaceQuery, "contentUpatedAt", true);
+    pq = PropertiesQuery.fromString(URISpaceQuery, "contentUpatedAt", true);
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
