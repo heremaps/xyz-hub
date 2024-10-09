@@ -36,6 +36,8 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -45,6 +47,10 @@ import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
+import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
+import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -78,20 +84,24 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   private Format format = Format.GEOJSON;
 
+  private SpatialFilter spatialFilter;
+  private String propertyFilter;
+  private SpaceContext context;
+
+  private Ref versionRef;
+
   /**
    * TODO:
-   *   Geometry-Filters
-   *    private Geometry geometry;
-   *    private int radius = -1;
-   *    private boolean clipOnFilterGeometry;
+   *   Spatial-Filters
+   *    DONE
    *
    *   Content-Filters
-   *    private String propertyFilter;
-   *    private SpaceContext context;
-   *    private String targetVersion;
+   *    DONE private String propertyFilter;
+   *    DONE private SpaceContext context;
+   *   ? private String targetVersion;
    *
    *   Version Filter:
-   *    private VersionRef versionRef;
+   *    DONE private VersionRef versionRef;
    *
    *   Partitioning - part of EMR?
    *    private String partitionKey;
@@ -104,6 +114,58 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     CSV_JSON_WKB,
     CSV_PARTITIONED_JSON_WKB,
     GEOJSON;
+  }
+
+  public SpatialFilter getSpatialFilter() {
+    return spatialFilter;
+  }
+
+  public void setSpatialFilter(SpatialFilter spatialFilter) {
+    this.spatialFilter = spatialFilter;
+  }
+
+  public ExportSpaceToFiles withSpatialFilter(SpatialFilter spatialFilter) {
+    setSpatialFilter(spatialFilter);
+    return this;
+  }
+
+  public String getPropertyFilter() {
+    return propertyFilter;
+  }
+
+  public void setPropertyFilter(String propertyFilter) {
+    this.propertyFilter = propertyFilter;
+  }
+
+  public ExportSpaceToFiles withPropertyFilter(String propertyFilter){
+    setPropertyFilter(propertyFilter);
+    return this;
+  }
+
+  public SpaceContext getContext() {
+    return context;
+  }
+
+  public void setContext(SpaceContext context) {
+    this.context = context;
+  }
+
+  public ExportSpaceToFiles withContext(SpaceContext context) {
+    setContext(context);
+    return this;
+  }
+
+  public Ref getVersionRef() {
+    return versionRef;
+  }
+
+  public void setVersionRef(Ref versionRef) {
+    this.versionRef = versionRef;
+  }
+
+  public ExportSpaceToFiles withVersionRef(Ref versionRef) {
+    setVersionRef(versionRef);
+    return this;
   }
 
   public boolean isAddStatisticsToUserOutput() {
@@ -281,16 +343,34 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     }
   }
 
-  private SQLQuery generateFilteredExportQuery(int threadNumber) throws WebClientException {
+  private String generateFilteredExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
+          QueryBuildingException {
+
+    GetFeaturesByGeometryBuilder qb = new GetFeaturesByGeometryBuilder()
+            .withDataSourceProvider(requestResource(db(), 0));
+
+    GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
+            getSpaceId(),
+            context == null ? EXTENSION : context,
+            space().getVersionsToKeep(),
+            versionRef,
+            spatialFilter != null ? spatialFilter.getGeometry() : null,
+            spatialFilter != null ? spatialFilter.getRadius() : 0,
+            spatialFilter != null && spatialFilter.isClip(),
+            null
+    );
+
     return new SQLQuery("${{exportQuery}} ${{threadCondition}}")
+            //.withQueryFragment("exportQuery"  , qb.buildQuery(input))
             .withQueryFragment("exportQuery" ,"Select * from ${schema}.${table}")
             .withQueryFragment("threadCondition"," WHERE i % " + calculatedThreadCount + " = " + threadNumber)
             .withVariable("table", getRootTableName(space()))
-            .withVariable("schema", getSchema(db()));
+            .withVariable("schema", getSchema(db())).substitute().text();
   }
 
-  public SQLQuery buildExportQuery(int threadNumber) throws WebClientException {
-    SQLQuery exportSelectString = generateFilteredExportQuery(threadNumber);
+  public SQLQuery buildExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
+          QueryBuildingException {
+    String exportSelectString = generateFilteredExportQuery(threadNumber);
 
     SQLQuery successQuery = buildSuccessCallbackQuery();
     SQLQuery failureQuery = buildFailureCallbackQuery();
@@ -302,7 +382,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                     .withNamedParameter("format", format.toString())
                     .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
                     .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
-                    .withNamedParameter("content_query", exportSelectString.substitute().text());
+                    .withNamedParameter("content_query", exportSelectString);
   }
 
   private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {

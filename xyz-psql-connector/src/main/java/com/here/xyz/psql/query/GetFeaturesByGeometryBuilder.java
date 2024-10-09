@@ -32,7 +32,7 @@ import java.sql.SQLException;
 
 public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByGeometryInput> {
   @Override
-  protected SQLQuery buildQuery(GetFeaturesByGeometryInput input) throws QueryBuildingException {
+  public SQLQuery buildQuery(GetFeaturesByGeometryInput input) throws QueryBuildingException {
     try {
       //TODO: Remove that workaround when refactoring is complete
       GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
