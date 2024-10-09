@@ -34,10 +34,11 @@ import com.here.xyz.util.Hasher;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Filters {
-
-  //@TODO: Copy Filters to old impl V1 + Rewrite V2 that propertyFilter uses modelBase approach
   @JsonView({Public.class})
   private PropertiesQuery propertyFilter;
+  //TODO: Remove after V1 got shutdown
+  @JsonView({Internal.class, Static.class})
+  private String propertyFilterAsString;
 
   @JsonView({Public.class})
   private SpatialFilter spatialFilter;
@@ -45,24 +46,14 @@ public class Filters {
   @JsonView({Public.class, Static.class})
   private SpaceContext context = DEFAULT;
 
-  //Gets removed after V1 got shutdown
-  @JsonView({Internal.class})
-  private String propertyFilterAsString;
-
   public PropertiesQuery getPropertyFilter() {
     return propertyFilter;
   }
 
-  //Gets removed after V1 got shutdown
-  @JsonView({Internal.class})
-  public String getPropertyFilterAsString() {
-    return propertyFilterAsString;
-  }
-
   public void setPropertyFilter(Object propertyFilter) {
-    if(propertyFilter instanceof PropertiesQuery propFilter)
+    if (propertyFilter instanceof PropertiesQuery propFilter)
       this.propertyFilter = propFilter;
-    else if(propertyFilter instanceof String propFilter) {
+    else if (propertyFilter instanceof String propFilter) {
       this.propertyFilter = PropertiesQuery.fromString(propFilter);
       this.propertyFilterAsString = propFilter;
     }
@@ -71,6 +62,11 @@ public class Filters {
   public Filters withPropertyFilter(String propertyFilter) {
     setPropertyFilter(propertyFilter);
     return this;
+  }
+
+  //TODO: Remove after V1 got shutdown
+  public String getPropertyFilterAsString() {
+    return propertyFilterAsString;
   }
 
   public SpatialFilter getSpatialFilter() {
@@ -100,12 +96,11 @@ public class Filters {
   }
 
   @JsonIgnore
-  public String getHash()
-  {
-   String input = "#" + (propertyFilter != null ? propertyFilter : "" ) 
-                + "#" + (spatialFilter != null ? serialize(spatialFilter) : "")
-                + "#";
+  public String getHash() {
+    String input = "#" + (getPropertyFilterAsString() != null ? getPropertyFilterAsString() : "")
+        + "#" + (spatialFilter != null ? serialize(spatialFilter) : "")
+        + "#";
 
-   return Hasher.getHash(input); 
+    return Hasher.getHash(input);
   }
 }
