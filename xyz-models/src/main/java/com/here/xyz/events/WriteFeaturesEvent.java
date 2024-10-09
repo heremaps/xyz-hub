@@ -25,6 +25,7 @@ import java.util.Set;
 
 public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
   private Set<Modification> modifications;
+  private boolean responseDataExpected;
 
   public Set<Modification> getModifications() {
     return modifications;
@@ -36,6 +37,19 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
 
   public WriteFeaturesEvent withModifications(Set<Modification> modifications) {
     setModifications(modifications);
+    return this;
+  }
+
+  public boolean isResponseDataExpected() {
+    return responseDataExpected;
+  }
+
+  public void setResponseDataExpected(boolean responseDataExpected) {
+    this.responseDataExpected = responseDataExpected;
+  }
+
+  public WriteFeaturesEvent withResponseDataExpected(boolean responseDataExpected) {
+    setResponseDataExpected(responseDataExpected);
     return this;
   }
 

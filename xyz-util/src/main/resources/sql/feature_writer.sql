@@ -19,6 +19,8 @@
 
 CREATE EXTENSION IF NOT EXISTS plv8;
 
+--TODO: Add 3rd method / variant that takes multiple feature lists with according parameter sets
+
 /**
  * @public
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
