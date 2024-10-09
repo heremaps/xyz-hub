@@ -163,7 +163,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Ch
 
   public SQLQuery buildIterateChangesets(IterateChangesetsEvent event){
     //TODO: Re-use geo fragment from GetFeatures QR instead of duplicating it here
-    String geo = "REGEXP_REPLACE(ST_AsGeojson(geo, " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), '(?i)nan', '0', 'g')::jsonb";
+    String geo = "REGEXP_REPLACE(ST_AsGeojson(geo, " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0', 'gi')::jsonb";
 
     SQLQuery query = new SQLQuery(
         "SELECT " +
