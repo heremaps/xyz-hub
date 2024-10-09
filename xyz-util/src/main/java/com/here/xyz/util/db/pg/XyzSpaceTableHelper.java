@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class XyzSpaceTableHelper {
 
@@ -59,7 +58,7 @@ public class XyzSpaceTableHelper {
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
     return switch (index) {
       case GEO -> buildCreateIndexQuery(schema, table, "geo", "GIST");
-      case VERSION_ID -> buildCreateIndexQuery(schema, table, Stream.of("version", "id").toList(), "BTREE");
+      case VERSION_ID -> buildCreateIndexQuery(schema, table, List.of("version", "id"), "BTREE");
       case NEXT_VERSION -> buildCreateIndexQuery(schema, table, "next_version", "BTREE");
       case OPERATION -> buildCreateIndexQuery(schema, table, "operation", "BTREE");
       case SERIAL -> buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial");
