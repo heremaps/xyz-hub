@@ -205,12 +205,8 @@ public class GraphTransformer {
   private NamedState<TaskState.Builder> compile(Step<?> step, State.Builder previousState) {
     NamedState<TaskState.Builder> state = new NamedState<>(step.getClass().getSimpleName() + "." + step.getId(),
         TaskState.builder());
-    if (step instanceof RunEmrJob emrStep) {
-      if( Config.instance.LOCALSTACK_ENDPOINT == null)
-        compile(emrStep, state);
-      else
-        compile((LambdaBasedStep<?>) emrStep, state);
-    }
+    if (step instanceof RunEmrJob emrStep && Config.instance.LOCALSTACK_ENDPOINT == null)
+      compile(emrStep, state);
     else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
     else
