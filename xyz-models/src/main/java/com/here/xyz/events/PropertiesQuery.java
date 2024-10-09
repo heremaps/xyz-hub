@@ -51,6 +51,10 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
     return this;
   }
 
+  public static PropertiesQuery fromString(String query) {
+    return fromString(query, "", false);
+  }
+
   public static PropertiesQuery fromString(String query, String property, boolean spaceProperties) {
       if (query == null || query.length() == 0)
         return null;
