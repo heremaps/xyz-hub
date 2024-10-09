@@ -300,6 +300,10 @@ public class SQLQuery {
     return this;
   }
 
+  public String toExecutableQueryString() {
+    return substitute().replaceUnnamedParametersForLogging();
+  }
+
   private synchronized SQLQuery substitute(boolean usePlaceholders) {
     initQueryId();
     injectContext();

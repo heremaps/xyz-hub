@@ -37,6 +37,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -85,7 +86,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private Format format = Format.GEOJSON;
 
   private SpatialFilter spatialFilter;
-  private String propertyFilter;
+  private PropertiesQuery propertyFilter;
   private SpaceContext context;
 
   private Ref versionRef;
@@ -129,15 +130,15 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return this;
   }
 
-  public String getPropertyFilter() {
+  public PropertiesQuery getPropertyFilter() {
     return propertyFilter;
   }
 
-  public void setPropertyFilter(String propertyFilter) {
+  public void setPropertyFilter(PropertiesQuery propertyFilter) {
     this.propertyFilter = propertyFilter;
   }
 
-  public ExportSpaceToFiles withPropertyFilter(String propertyFilter){
+  public ExportSpaceToFiles withPropertyFilter(PropertiesQuery propertyFilter){
     setPropertyFilter(propertyFilter);
     return this;
   }
@@ -343,29 +344,34 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     }
   }
 
-  private String generateFilteredExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
-          QueryBuildingException {
-
-    GetFeaturesByGeometryBuilder qb = new GetFeaturesByGeometryBuilder()
-            .withDataSourceProvider(requestResource(db(), 0));
+  private String generateFilteredExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
+    GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
+        .withDataSourceProvider(requestResource(db(), 0));
 
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
-            getSpaceId(),
-            context == null ? EXTENSION : context,
-            space().getVersionsToKeep(),
-            versionRef,
-            spatialFilter != null ? spatialFilter.getGeometry() : null,
-            spatialFilter != null ? spatialFilter.getRadius() : 0,
-            spatialFilter != null && spatialFilter.isClip(),
-            null
+        getSpaceId(),
+        context == null ? EXTENSION : context,
+        space().getVersionsToKeep(),
+        versionRef,
+        spatialFilter != null ? spatialFilter.getGeometry() : null,
+        spatialFilter != null ? spatialFilter.getRadius() : 0,
+        spatialFilter != null && spatialFilter.isClip(),
+        propertyFilter
     );
 
-    return new SQLQuery("${{exportQuery}} ${{threadCondition}}")
-            //.withQueryFragment("exportQuery"  , qb.buildQuery(input))
-            .withQueryFragment("exportQuery" ,"Select * from ${schema}.${table}")
-            .withQueryFragment("threadCondition"," WHERE i % " + calculatedThreadCount + " = " + threadNumber)
-            .withVariable("table", getRootTableName(space()))
-            .withVariable("schema", getSchema(db())).substitute().text();
+    SQLQuery threadCondition = new SQLQuery("i % #{threadCount} = #{threadNumber}")
+        .withNamedParameter("threadCount", calculatedThreadCount)
+        .withNamedParameter("threadNumber", threadNumber);
+
+    SQLQuery contentQuery = queryBuilder.buildQuery(input);
+    SQLQuery filtersFragment = contentQuery.getQueryFragment("filters");
+
+    //Augment the filters fragment of the content query by adding the thread condition
+    //TODO: Enhance this thread condition to work correctly for composite spaces as well
+    filtersFragment = SQLQuery.join(List.of(filtersFragment, threadCondition), " AND ");
+    contentQuery.setQueryFragment("filters", filtersFragment);
+
+    return contentQuery.toExecutableQueryString();
   }
 
   public SQLQuery buildExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
@@ -376,13 +382,13 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     SQLQuery failureQuery = buildFailureCallbackQuery();
 
     return new SQLQuery(
-                    "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}', #{content_query} );")
+                    "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}', #{contentQuery});")
                     .withContext(getQueryContext())
                     .withAsyncProcedure(true)
                     .withNamedParameter("format", format.toString())
                     .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
                     .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
-                    .withNamedParameter("content_query", exportSelectString);
+                    .withNamedParameter("contentQuery", exportSelectString);
   }
 
   private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
