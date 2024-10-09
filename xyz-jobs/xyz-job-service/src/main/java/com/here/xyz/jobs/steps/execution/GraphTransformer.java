@@ -205,7 +205,7 @@ public class GraphTransformer {
   private NamedState<TaskState.Builder> compile(Step<?> step, State.Builder previousState) {
     NamedState<TaskState.Builder> state = new NamedState<>(step.getClass().getSimpleName() + "." + step.getId(),
         TaskState.builder());
-    if (step instanceof RunEmrStep emrStep) {
+    if (step instanceof RunEmrJob emrStep) {
       if( Config.instance.LOCALSTACK_ENDPOINT == null)
         compile(emrStep, state);
       else
@@ -260,7 +260,7 @@ public class GraphTransformer {
       state.stateBuilder.heartbeatSeconds(STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS);
   }
 
-  private void compile(RunEmrStep emrStep, NamedState<TaskState.Builder> state) {
+  private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
     taskParametersLookup.put(state.stateName, Map.of(
         "Name", EMR_JOB_NAME_PREFIX + emrStep.getGlobalStepId(),
         "ApplicationId", emrStep.getApplicationId(),

@@ -19,16 +19,14 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
+
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -42,10 +40,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-
-public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
+public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private static final Logger logger = LogManager.getLogger();
 
   private String applicationId;
@@ -64,7 +62,7 @@ public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
     this.applicationId = applicationId;
   }
 
-  public RunEmrStep withApplicationId(String applicationId) {
+  public RunEmrJob withApplicationId(String applicationId) {
     setApplicationId(applicationId);
     return this;
   }
@@ -77,7 +75,7 @@ public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
     this.executionRoleArn = executionRoleArn;
   }
 
-  public RunEmrStep withExecutionRoleArn(String executionRoleArn) {
+  public RunEmrJob withExecutionRoleArn(String executionRoleArn) {
     setExecutionRoleArn(executionRoleArn);
     return this;
   }
@@ -90,7 +88,7 @@ public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
     this.scriptParams = scriptParams;
   }
 
-  public RunEmrStep withScriptParams(List<String> scriptParams) {
+  public RunEmrJob withScriptParams(List<String> scriptParams) {
     setScriptParams(scriptParams);
     return this;
   }
@@ -103,7 +101,7 @@ public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
     this.sparkParams = sparkParams;
   }
 
-  public RunEmrStep withSparkParams(String sparkParams) {
+  public RunEmrJob withSparkParams(String sparkParams) {
     setSparkParams(sparkParams);
     return this;
   }
@@ -116,7 +114,7 @@ public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
     this.jarUrl = jarUrl;
   }
 
-  public RunEmrStep withJarUrl(String jarUrl) {
+  public RunEmrJob withJarUrl(String jarUrl) {
     setJarUrl(jarUrl);
     return this;
   }
@@ -129,7 +127,7 @@ public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
     this.inputsExpected = inputsExpected;
   }
 
-  public RunEmrStep withInputsExpected(boolean inputsExpected) {
+  public RunEmrJob withInputsExpected(boolean inputsExpected) {
     setInputsExpected(inputsExpected);
     return this;
   }
@@ -301,13 +299,13 @@ public class RunEmrStep extends LambdaBasedStep<RunEmrStep> {
   @Override
   public void resume() throws Exception {
     //NOTE: As this step is just a "configuration holder", this method should never actually be called
-    throw new RuntimeException("RunEmrStep#resume() was called.");
+    throw new RuntimeException("RunEmrJob#resume() was called.");
   }
 
   @Override
   public void cancel() throws Exception {
     //NOTE: As this step is just a "configuration holder", this method should never actually be called
-    throw new RuntimeException("RunEmrStep#cancel() was called.");
+    throw new RuntimeException("RunEmrJob#cancel() was called.");
   }
 
   @Override
