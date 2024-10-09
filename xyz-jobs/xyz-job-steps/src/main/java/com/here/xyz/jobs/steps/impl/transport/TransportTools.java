@@ -46,12 +46,12 @@ public class TransportTools {
     return null;
   }
 
-  protected static String getTemporaryJobTableName(Step step) {
-    return JOB_DATA_PREFIX + step.getId();
+  public static String getTemporaryJobTableName(String stepId) {
+    return JOB_DATA_PREFIX + stepId;
   }
 
-  protected static String getTemporaryTriggerTableName(Step step) {
-    return getTemporaryJobTableName(step) + TRIGGER_TABLE_SUFFIX;
+  public static String getTemporaryTriggerTableName(String stepId) {
+    return getTemporaryJobTableName(stepId) + TRIGGER_TABLE_SUFFIX;
   }
 
   protected static SQLQuery buildTemporaryJobTableDropStatement(String schema, String tableName) {
@@ -74,9 +74,9 @@ public class TransportTools {
                     CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
                );
         """)
-            .withVariable("table", getTemporaryJobTableName(step))
+            .withVariable("table", getTemporaryJobTableName(step.getId()))
             .withVariable("schema", schema)
-            .withVariable("primaryKey", getTemporaryJobTableName(step) + "_primKey");
+            .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
   }
 
   protected static List<SQLQuery> buildTemporaryJobTableInsertStatements(String schema, List<S3DataFile> fileList,
@@ -95,7 +95,7 @@ public class TransportTools {
                         ON CONFLICT (s3_path) DO NOTHING;
                 """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                         .withVariable("schema", schema)
-                        .withVariable("table", getTemporaryJobTableName(step))
+                        .withVariable("table", getTemporaryJobTableName(step.getId()))
                         .withNamedParameter("s3Key", input.getS3Key())
                         .withNamedParameter("bucketName", input.getS3Bucket())
                         .withNamedParameter("bucketRegion", bucketRegion)
@@ -112,7 +112,7 @@ public class TransportTools {
                     ON CONFLICT (s3_path) DO NOTHING;
             """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
                     .withVariable("schema", schema)
-                    .withVariable("table", getTemporaryJobTableName(step))
+                    .withVariable("table", getTemporaryJobTableName(step.getId()))
                     .withNamedParameter("s3Key", "SUCCESS_MARKER")
                     .withNamedParameter("bucketName", "SUCCESS_MARKER")
                     .withNamedParameter("state", "SUCCESS_MARKER")
@@ -132,7 +132,7 @@ public class TransportTools {
           WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step));
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   protected static SQLQuery buildProgressQuery(String schema, Step step) {
@@ -154,7 +154,7 @@ public class TransportTools {
             )A          
         """)
             .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step));
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   protected static Map<String, Object> createQueryContext(String stepId, String schema, String table,

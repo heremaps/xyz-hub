@@ -20,10 +20,10 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static java.lang.Thread.sleep;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -31,17 +31,11 @@ public class DropIndexStepTest extends JobStepTest {
 
   @Test
   public void testDropIndexesStep() throws Exception {
-    assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
+    Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
-//    simulateLambdaStepRequest(step, START_EXECUTION);
-//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
+    sendLambdaStepRequest(step, START_EXECUTION, true);
 
-    sendLambdaStepRequest(step, START_EXECUTION);
-    sleep(2000);
-
-    assertEquals(0, listExistingIndexes(SPACE_ID).size());
+    Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
   }
-
-
 }

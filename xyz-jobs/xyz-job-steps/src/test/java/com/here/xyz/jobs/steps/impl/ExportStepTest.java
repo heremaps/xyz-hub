@@ -19,38 +19,25 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static java.lang.Thread.sleep;
-
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;
-import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.StatisticsResponse;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class ExportStepTest extends JobStepTest {
-    private static final Logger logger = LogManager.getLogger();
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+
+public class ExportStepTest extends JobStepTest {
     private static final int FILE_COUNT = 1;
     private static final int FEATURE_COUNT = 33;
 
@@ -62,8 +49,7 @@ public class ExportStepTest extends JobStepTest {
                 .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
                 .withSpaceId(SPACE_ID);
 
-        sendLambdaStepRequest(step, START_EXECUTION);
-        sleep(2000);
+        sendLambdaStepRequestBlock(step);
     }
 
     @Test
@@ -75,14 +61,13 @@ public class ExportStepTest extends JobStepTest {
                 .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
-        sendLambdaStepRequest(step, START_EXECUTION);
-        sleep(2000);
+        sendLambdaStepRequestBlock(step);
 
         StatisticsResponse statsAfter = getStatistics(SPACE_ID);
         Assertions.assertEquals(statsBefore.getCount().getValue(), statsAfter.getCount().getValue());
 
         List outputs = step.loadOutputs(true);
-        Assert.assertNotEquals(0, outputs.size());
+        Assertions.assertNotEquals(0, outputs.size());
 
         List<Feature>  exportedFeatures = new ArrayList<>();
 
@@ -102,25 +87,6 @@ public class ExportStepTest extends JobStepTest {
         List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
 
         Assertions.assertTrue(exportedFeaturesFeaturesIdList.containsAll(existingFeaturesIdList));
-    }
-
-    private List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {
-        logger.info("Check file: {}",output.getS3Key());
-        List<Feature> features = new ArrayList<>();
-
-        InputStream dataStream = S3Client.getInstance().streamObjectContent(output.getS3Key());
-
-        if (output.isCompressed())
-            dataStream = new GZIPInputStream(dataStream);
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(dataStream))) {
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                features.add(XyzSerializable.deserialize(line, Feature.class));
-            }
-        }
-        return features;
     }
 
     private int getExpectedFeatureCount(){

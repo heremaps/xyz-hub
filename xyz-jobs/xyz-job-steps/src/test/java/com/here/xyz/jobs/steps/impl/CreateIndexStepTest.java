@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.impl;
 
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -34,18 +35,16 @@ public class CreateIndexStepTest extends JobStepTest {
     @Test
     public void testCreateIndex() throws Exception {
         deleteAllExistingIndexes(SPACE_ID);
-        assertEquals(0, listExistingIndexes(SPACE_ID).size());
+        Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
 
         LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(GEO);
 
-//    simulateLambdaStepRequest(step, START_EXECUTION);
-//    simulateLambdaStepRequest(step, SUCCESS_CALLBACK);
-
-        sendLambdaStepRequest(step, START_EXECUTION);
-        sleep(2000);
+        sendLambdaStepRequest(step, START_EXECUTION, true);
+        //Index Creation takes time
+        sleep(100);
 
         List<String> indexes = listExistingIndexes(SPACE_ID);
-        assertEquals(1, indexes.size());
-        assertEquals("idx_" + SPACE_ID + "_" + GEO.toString().toLowerCase(), indexes.get(0));
+        Assertions.assertEquals(1, indexes.size());
+        Assertions.assertEquals("idx_" + SPACE_ID + "_" + GEO.toString().toLowerCase(), indexes.get(0));
     }
 }

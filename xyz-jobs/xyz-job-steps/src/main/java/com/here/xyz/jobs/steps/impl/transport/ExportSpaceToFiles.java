@@ -284,7 +284,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       registerOutputs(List.of(statistics), true);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
-    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(this)), db(), 0);
+    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
   }
 
   @Override
@@ -394,8 +394,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
               WHERE POSITION('SUCCESS_MARKER' in state) = 0;
         """)
             .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(this))
-            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(this));
+            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
+            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {

@@ -17,18 +17,29 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps;
+package com.here.xyz.jobs.util.test;
 
+import com.amazonaws.services.lambda.runtime.Context;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.jobs.steps.impl.transport.TransportTools;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
@@ -36,16 +47,36 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.lambda.model.InvokeRequest;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.URL;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+import java.util.zip.GZIPInputStream;
 
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
+import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
+import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
+import static java.lang.Thread.sleep;
 
 public class TestSteps {
+  private static final Logger logger = LogManager.getLogger();
+  protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
+  protected static final String SPACE_ID = "test-space-" + randomAlpha(5);
+  protected static final String JOB_ID = "test-job-" + randomAlpha(5);
+
   private static final HubWebClient hubWebClient;
   private static final S3Client s3Client;
   private static LambdaClient lambdaClient;
@@ -145,6 +176,22 @@ public class TestSteps {
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
   }
 
+  protected void deleteAllJobTables(List<String> stepIds) throws SQLException {
+    List<SQLQuery> dropQueries = new ArrayList<>();
+    for (String stepId : stepIds) {
+      dropQueries.add(new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
+                      .withVariable("schema", SCHEMA)
+                      .withVariable("table", TransportTools.getTemporaryJobTableName(stepId))
+      );
+      dropQueries.add(
+              new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
+                      .withVariable("schema", SCHEMA)
+                      .withVariable("table", TransportTools.getTemporaryTriggerTableName(stepId))
+      );
+    }
+    SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
+  }
+
   protected void uploadFileToS3(String s3Key, S3ContentType contentType, byte[] data, boolean gzip) throws IOException {
     s3Client.putObject(s3Key, contentType.value, data, gzip);
   }
@@ -153,11 +200,84 @@ public class TestSteps {
     s3Client.deleteFolder(s3Prefix);
   }
 
-  protected void invokeLambda(String lambdaArn, byte[] payload) {
+  private void invokeLambda(String lambdaArn, byte[] payload) {
     lambdaClient.invoke(InvokeRequest.builder()
             .functionName(lambdaArn)
             .payload(SdkBytes.fromByteArray(payload))
             .build());
   }
 
+  protected void sendLambdaStepRequestBlock(LambdaBasedStep step) throws IOException, InterruptedException {
+    sendLambdaStepRequest(step, START_EXECUTION, true);
+    sleep(500);
+    sendLambdaStepRequest(step, SUCCESS_CALLBACK,true);
+  }
+
+  protected void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType, boolean simulate) throws IOException {
+    Map<String, Object> stepMap = step.toMap();
+    stepMap.put("taskToken.$", "test123");
+    stepMap.put("jobId", JOB_ID);
+    LambdaBasedStep enrichedStep = XyzSerializable.fromMap(stepMap, LambdaBasedStep.class);
+    LambdaBasedStep.LambdaStepRequest request = new LambdaBasedStep.LambdaStepRequest().withStep(enrichedStep).withType(requestType);
+
+    if(!simulate)
+      invokeLambda(LAMBDA_ARN, request.toByteArray());
+    else{
+      OutputStream os = new ByteArrayOutputStream();
+      Context ctx = new SimulatedContext("localLambda", null);
+      new LambdaBasedStep.LambdaBasedStepExecutor().handleRequest(new ByteArrayInputStream(request.toByteArray()), os, ctx);
+    }
+  }
+
+  //TODO: find a central place to avoid double implementation from JobPlayground
+  protected void uploadFiles(String jobId, int uploadFileCount, int featureCountPerFile, ImportFilesToSpace.Format format)
+          throws IOException {
+    //Generate N Files with M features
+    for (int i = 0; i < uploadFileCount; i++)
+      uploadInputFile(jobId, generateContent(format, featureCountPerFile));
+  }
+
+  private void uploadInputFile(String jobId , byte[] bytes) throws IOException {
+    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, bytes, false);
+  }
+
+  private byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt) {
+    String output = "";
+
+    for (int i = 1; i <= featureCnt; i++) {
+      output += generateContentLine(format, i);
+    }
+    return output.getBytes();
+  }
+
+  private String generateContentLine(ImportFilesToSpace.Format format, int i){
+    Random rd = new Random();
+    String lineSeparator = "\n";
+
+    if(format.equals(ImportFilesToSpace.Format.CSV_JSON_WKB))
+      return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
+    else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
+      return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
+    else
+      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"te\\\"st\":"+i+"}}"+lineSeparator;
+  }
+
+  protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {
+    logger.info("Check file: {}",output.getS3Key());
+    List<Feature> features = new ArrayList<>();
+
+    InputStream dataStream = S3Client.getInstance().streamObjectContent(output.getS3Key());
+
+    if (output.isCompressed())
+      dataStream = new GZIPInputStream(dataStream);
+
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(dataStream))) {
+      String line;
+
+      while ((line = reader.readLine()) != null) {
+        features.add(XyzSerializable.deserialize(line, Feature.class));
+      }
+    }
+    return features;
+  }
 }
