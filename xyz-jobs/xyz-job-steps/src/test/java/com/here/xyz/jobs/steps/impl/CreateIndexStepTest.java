@@ -30,7 +30,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
 import static java.lang.Thread.sleep;
 import static org.junit.Assert.assertEquals;
 
-public class CreateIndexStepTest extends JobStepTest {
+public class CreateIndexStepTest extends StepTest {
 
     @Test
     public void testCreateIndex() throws Exception {
@@ -39,9 +39,9 @@ public class CreateIndexStepTest extends JobStepTest {
 
         LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(GEO);
 
-        sendLambdaStepRequest(step, START_EXECUTION, true);
+        sendLambdaStepRequest(step, START_EXECUTION, false);
         //Index Creation takes time
-        sleep(100);
+        sleep(1000);
 
         List<String> indexes = listExistingIndexes(SPACE_ID);
         Assertions.assertEquals(1, indexes.size());

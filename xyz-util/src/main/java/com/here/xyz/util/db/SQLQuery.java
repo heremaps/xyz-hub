@@ -65,7 +65,7 @@ public class SQLQuery {
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
   public static final String QUERY_ID = "queryId";
-  public static final String TEXT_QUOTE = "\\$sqlq\\$";
+  public static final String TEXT_QUOTE = "$a$";
   private String statement = "";
   @JsonProperty
   private List<Object> parameters = new ArrayList<>();
@@ -230,8 +230,8 @@ public class SQLQuery {
   private String paramValueToString(Object paramValue) {
     if (paramValue == null)
       return "NULL";
-    if (paramValue instanceof String)
-      return TEXT_QUOTE + paramValue + TEXT_QUOTE;
+    if (paramValue instanceof String stringParam)
+      return escapeDollarSigns(customQuote(stringParam));
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
@@ -243,6 +243,44 @@ public class SQLQuery {
           .map(elementValue -> paramValueToString(elementValue))
           .collect(Collectors.joining(",")) + "]";
     return paramValue.toString();
+  }
+
+  private static String customQuote(String stringToQuote) {
+    String quote = getEscapedCustomQuoteFor(stringToQuote, TEXT_QUOTE);
+    return quote + stringToQuote + quote;
+  }
+
+  /**
+   * Internal helper method that escapes $-signs, because they're treated as special chars when using the containing string as value
+   * in a string / pattern-matching replacement.
+   *
+   * @see String#replaceAll(String, String)
+   * @see Matcher#replaceFirst(String)
+   *
+   * @param containingString
+   * @return A string that has all $-signs being
+   */
+  private static String escapeDollarSigns(String containingString) {
+    return containingString.replaceAll("\\$", "\\\\\\$");
+  }
+
+  /**
+   * Escapes custom quotes in the form of how they're being used within this class for string quoting. E.g.: `$a$`
+   *
+   * @param containingString
+   * @param customQuoteToEscape
+   * @return
+   */
+  private static String getEscapedCustomQuoteFor(String containingString, String customQuoteToEscape) {
+    //Further escape the custom quote until finding one that is not in use yet
+    while (containingString.contains(customQuoteToEscape))
+      customQuoteToEscape = getEscapedCustomQuoteFor(customQuoteToEscape);
+
+    return customQuoteToEscape;
+  }
+
+  private static String getEscapedCustomQuoteFor(String customQuoteToEscape) {
+    return "$" + (char) (customQuoteToEscape.charAt(1) + 1) + "$";
   }
 
   @Override
@@ -363,18 +401,23 @@ public class SQLQuery {
     Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
     Matcher m = p.matcher(text());
 
-    while (m.find()) {
-      String nParam = m.group(1);
-      if (!namedParameters.containsKey(nParam))
-        throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
-      if (!namedParams2Positions.containsKey(nParam))
-        namedParams2Positions.put(nParam, new ArrayList<>());
-      namedParams2Positions.get(nParam).add(parameters.size());
-      parameters.add(namedParameters.get(nParam));
-      if (!usePlaceholders) {
-        statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
-        m = p.matcher(text());
+    try {
+      while (m.find()) {
+        String nParam = m.group(1);
+        if (!namedParameters.containsKey(nParam))
+          throw new IllegalArgumentException("sql: named Parameter [" + nParam + "] missing");
+        if (!namedParams2Positions.containsKey(nParam))
+          namedParams2Positions.put(nParam, new ArrayList<>());
+        namedParams2Positions.get(nParam).add(parameters.size());
+        parameters.add(namedParameters.get(nParam));
+        if (!usePlaceholders) {
+          statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
+          m = p.matcher(text());
+        }
       }
+    }
+    catch (Exception e) {
+      System.out.println(e.getMessage());
     }
 
     if (usePlaceholders)

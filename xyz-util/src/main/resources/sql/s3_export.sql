@@ -40,7 +40,7 @@ BEGIN
                 ||' NULL,'
                 ||' %5$L )',
 
-            format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', content_query),
+            format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', REPLACE(content_query, $x$'$x$, $x$''$x$)),
             s3_bucket,
             s3_path,
             s3_region,

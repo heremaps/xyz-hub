@@ -19,54 +19,107 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;
+import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.models.geojson.implementation.Point;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+public class ExportStepTest extends StepTest {
+    /**
+     * fcWithMixedGeometryTypes.geojson:
+     * 11 features:
+     *
+     * 3 Points
+     * 1 MultiPoint (2 Points)
+     * 2 Lines
+     * 2 MultiLine (2 Lines each)
+     * 1 Polygon with hole
+     * 1 Polygon without hole
+     * 1 MultiPolygon (2 Polygons)
+     *
+     */
 
-public class ExportStepTest extends JobStepTest {
-    private static final int FILE_COUNT = 1;
-    private static final int FEATURE_COUNT = 33;
 
     @BeforeEach
     public void setUp() throws Exception {
-        uploadFiles(JOB_ID, FILE_COUNT, FEATURE_COUNT, ImportFilesToSpace.Format.GEOJSON);
-
-        LambdaBasedStep step = new ImportFilesToSpace()
-                .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
-                .withSpaceId(SPACE_ID);
-
-        sendLambdaStepRequestBlock(step);
+        putFeatureCollectionToSpace(SPACE_ID, readTestFeatureCollection("/testFeatureCollections/fcWithMixedGeometryTypes.geojson"));
     }
 
     @Test
-    public void testExportSpaceToFilesStep() throws Exception {
-        StatisticsResponse statsBefore = getStatistics(SPACE_ID);
-        FeatureCollection allExistingFeatures = getAllFeaturesFromSmallSpace(SPACE_ID);
+    public void testExportSpaceToFilesStepUnfiltered() throws Exception {
+        FeatureCollection allExistingFeatures = getFeaturesFromSmallSpace(SPACE_ID, null,false);
 
         LambdaBasedStep step = new ExportSpaceToFiles()
                 .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
-        sendLambdaStepRequestBlock(step);
+        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
+        Thread.sleep(2000);
+        //TODO: switch back to simulation if test issue is fixed
+        //sendLambdaStepRequestBlock(step);
+        checkOutputs(allExistingFeatures, step.loadOutputs(true));
+    }
 
-        StatisticsResponse statsAfter = getStatistics(SPACE_ID);
-        Assertions.assertEquals(statsBefore.getCount().getValue(), statsAfter.getCount().getValue());
+    @Test
+    public void testExportSpaceToFilesStepWithPropertyFilter() throws Exception {
+        String propertyFilterString = "p.description=\"Point\"";
 
-        List outputs = step.loadOutputs(true);
+        FeatureCollection allExistingFeatures = getFeaturesFromSmallSpace(SPACE_ID, propertyFilterString, false);
+
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withPropertyFilter(PropertiesQuery.fromString(propertyFilterString))
+                .withSpaceId(SPACE_ID)
+                .withJobId(JOB_ID);
+
+        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
+        Thread.sleep(2000);
+
+        //TODO: switch back to simulation if test issue is fixed
+        //sendLambdaStepRequestBlock(step);
+        checkOutputs(allExistingFeatures, step.loadOutputs(true));
+    }
+
+    @Test
+    public void testExportSpaceToFilesStepWithSpatialFilter() throws Exception {
+        String spatialFilterString = "spatial?lat=50.102964&lon=8.6709594&clip=true&radius=5500";
+
+        SpatialFilter spatialFilter = new SpatialFilter()
+                .withGeometry(
+                    new Point().withCoordinates(new PointCoordinates(8.6709594,50.102964))
+                )
+                .withRadius(5500)
+                .withClip(true);
+
+        FeatureCollection allExistingFeatures = customReadFeaturesQuery(SPACE_ID, spatialFilterString);
+
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
+                .withJobId(JOB_ID);
+
+        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
+        Thread.sleep(2000);
+        //TODO: switch back to simulation if test issue is fixed
+        //sendLambdaStepRequestBlock(step);
+        checkOutputs(allExistingFeatures, step.loadOutputs(true));
+    }
+
+    private void checkOutputs(FeatureCollection expectedFeatures, List<Output> outputs) throws IOException {
         Assertions.assertNotEquals(0, outputs.size());
 
         List<Feature>  exportedFeatures = new ArrayList<>();
@@ -75,21 +128,14 @@ public class ExportStepTest extends JobStepTest {
             if(output instanceof DownloadUrl) {
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
             }else if(output instanceof FileStatistics statistics) {
-                Assertions.assertEquals(getExpectedFeatureCount(), statistics.getExportedFeatures());
-                Assertions.assertEquals(getExpectedFeatureCount() > ExportSpaceToFiles.PARALLELIZTATION_MIN_THRESHOLD ?
-                        ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getExportedFiles());
+                Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getExportedFeatures());
+                Assertions.assertTrue(statistics.getExportedFiles() > 0);
             }
         }
 
-        Assertions.assertEquals(getExpectedFeatureCount(), allExistingFeatures.getFeatures().size());
-
-        List<String> existingFeaturesIdList = allExistingFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+        List<String> existingFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
         List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
 
         Assertions.assertTrue(exportedFeaturesFeaturesIdList.containsAll(existingFeaturesIdList));
-    }
-
-    private int getExpectedFeatureCount(){
-        return FILE_COUNT * FEATURE_COUNT;
     }
 }

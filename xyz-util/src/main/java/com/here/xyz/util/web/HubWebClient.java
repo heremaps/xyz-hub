@@ -36,10 +36,12 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+
+import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -162,10 +164,24 @@ public class HubWebClient extends XyzWebClient {
     }
   }
 
-  public FeatureCollection getAllFeaturesFromSmallSpace(String spaceId, SpaceContext context) throws WebClientException {
+  public FeatureCollection getFeaturesFromSmallSpace(String spaceId, SpaceContext context, String propertyFilter, boolean force2D) throws WebClientException {
+    try {
+      String filters = "?" + (context != null ? "&context=" + context : "")
+                      + (force2D ? "&force2D=" + force2D : "")
+                      + (propertyFilter != null ? "&" + URLEncoder.encode(propertyFilter, StandardCharsets.UTF_8) : "");
+
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/search" + filters ))).body(), FeatureCollection.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public FeatureCollection customReadFeaturesQuery(String spaceId, String customPath) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
-              .uri(uri("/spaces/" + spaceId + "/search" + (context == null ? "" : "?context=" + context)))).body(), FeatureCollection.class);
+              .uri(uri("/spaces/" + spaceId + "/"+ customPath))).body(), FeatureCollection.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);

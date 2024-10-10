@@ -145,6 +145,10 @@
       <artifactId>guava</artifactId>
       <groupId>com.google.guava</groupId>
     </dependency>
+    <dependency>
+      <artifactId>gt-main</artifactId>
+      <groupId>org.geotools</groupId>
+    </dependency>
 
     <!-- Cache -->
     <dependency>

@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.AS
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
+import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
@@ -49,6 +50,7 @@ import com.here.xyz.jobs.datasets.space.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -218,9 +220,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public ExecutionMode getExecutionMode() {
     //CSV is not supported in SYNC mode
-    //if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
+    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
       return ASYNC;
-//    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
   }
 
   @Override
