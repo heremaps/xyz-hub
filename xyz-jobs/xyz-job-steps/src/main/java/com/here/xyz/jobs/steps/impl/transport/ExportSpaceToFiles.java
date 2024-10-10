@@ -363,15 +363,10 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
         .withNamedParameter("threadCount", calculatedThreadCount)
         .withNamedParameter("threadNumber", threadNumber);
 
-    SQLQuery contentQuery = queryBuilder.buildQuery(input);
-    SQLQuery filtersFragment = contentQuery.getQueryFragment("filters");
-
-    //Augment the filters fragment of the content query by adding the thread condition
-    //TODO: Enhance this thread condition to work correctly for composite spaces as well
-    filtersFragment = SQLQuery.join(List.of(filtersFragment, threadCondition), " AND ");
-    contentQuery.setQueryFragment("filters", filtersFragment);
-
-    return contentQuery.toExecutableQueryString();
+    return queryBuilder
+        .withAdditionalFilterFragment(threadCondition)
+        .buildQuery(input)
+        .toExecutableQueryString();
   }
 
   public SQLQuery buildExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,

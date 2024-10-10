@@ -33,6 +33,8 @@ import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 
 public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByGeometryInput> {
+  private SQLQuery additionalFilterFragment;
+
   @Override
   public SQLQuery buildQuery(GetFeaturesByGeometryInput input) throws QueryBuildingException {
     try {
@@ -48,13 +50,18 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
           .withRadius(input.radius)
           .withClip(input.clip);
 
-      return new GetFeaturesByGeometry(event)
+      return new GetFeaturesByGeometryWithModifiedFilter(event)
           .<GetFeaturesByGeometry>withDataSourceProvider(getDataSourceProvider())
           .buildQuery(event);
     }
     catch (SQLException | ErrorResponseException e) {
       throw new QueryBuildingException(e);
     }
+  }
+
+  public GetFeaturesByGeometryBuilder withAdditionalFilterFragment(SQLQuery additionalFilterFragment) {
+    this.additionalFilterFragment = additionalFilterFragment;
+    return this;
   }
 
   public record GetFeaturesByGeometryInput(
@@ -72,6 +79,27 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
         ref = new Ref(HEAD);
       if (geometry == null && clip)
         throw new IllegalArgumentException("Clip can not be applied if no filter geometry is provided.");
+    }
+  }
+
+  private class GetFeaturesByGeometryWithModifiedFilter extends GetFeaturesByGeometry {
+
+    public GetFeaturesByGeometryWithModifiedFilter(GetFeaturesByGeometryEvent event) throws SQLException, ErrorResponseException {
+      super(event);
+    }
+
+    @Override
+    protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
+      return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment);
+    }
+
+    private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment) {
+      if (additionalFilterFragment == null)
+        return filterWhereClause;
+      SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} ${{customWhereClause}}")
+          .withQueryFragment("innerFilterWhereClause", filterWhereClause)
+          .withQueryFragment("customWhereClause", additionalFilterFragment);
+      return customizedWhereClause;
     }
   }
 }
