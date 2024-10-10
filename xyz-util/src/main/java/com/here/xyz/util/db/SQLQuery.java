@@ -230,8 +230,8 @@ public class SQLQuery {
   private String paramValueToString(Object paramValue) {
     if (paramValue == null)
       return "NULL";
-    if (paramValue instanceof String)
-      return TEXT_QUOTE + paramValue + TEXT_QUOTE;
+    if (paramValue instanceof String stringParam)
+      return TEXT_QUOTE + stringParam.replaceAll("\\$", "\\\\\\$") + TEXT_QUOTE;
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
@@ -363,18 +363,23 @@ public class SQLQuery {
     Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
     Matcher m = p.matcher(text());
 
-    while (m.find()) {
-      String nParam = m.group(1);
-      if (!namedParameters.containsKey(nParam))
-        throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
-      if (!namedParams2Positions.containsKey(nParam))
-        namedParams2Positions.put(nParam, new ArrayList<>());
-      namedParams2Positions.get(nParam).add(parameters.size());
-      parameters.add(namedParameters.get(nParam));
-      if (!usePlaceholders) {
-        statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
-        m = p.matcher(text());
+    try {
+      while (m.find()) {
+        String nParam = m.group(1);
+        if (!namedParameters.containsKey(nParam))
+          throw new IllegalArgumentException("sql: named Parameter [" + nParam + "] missing");
+        if (!namedParams2Positions.containsKey(nParam))
+          namedParams2Positions.put(nParam, new ArrayList<>());
+        namedParams2Positions.get(nParam).add(parameters.size());
+        parameters.add(namedParameters.get(nParam));
+        if (!usePlaceholders) {
+          statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
+          m = p.matcher(text());
+        }
       }
+    }
+    catch (Exception e) {
+      System.out.println(e.getMessage());
     }
 
     if (usePlaceholders)
