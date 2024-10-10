@@ -19,26 +19,44 @@
 
 CREATE EXTENSION IF NOT EXISTS plv8;
 
---TODO: Add 3rd method / variant that takes multiple feature lists with according parameter sets
+/**
+ * @public
+ * @throws VersionConflictError, MergeConflictError, FeatureExistsError
+ */
+CREATE OR REPLACE FUNCTION write_features_old(input_features TEXT, author TEXT, on_exists TEXT,
+    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL, return_result BOOLEAN = true)
+    RETURNS JSONB AS
+$BODY$
+    const writeFeatures = plv8.find_function("write_features");
+
+    if (input_features == null)
+      throw new Error("Parameter input_features must not be null.");
+
+    let modification = `{
+        "updateStrategy": {
+            "onExists": ${JSON.stringify(on_exists)},
+            "onNotExists": ${JSON.stringify(on_not_exists)},
+            "onVersionConflict": ${JSON.stringify(on_version_conflict)},
+            "onMergeConflict": ${JSON.stringify(on_merge_conflict)}
+        },
+        "featureData": {"type": "FeatureCollection", "features": ${input_features}},
+        "partialUpdates": ${is_partial}
+    }`;
+
+    return writeFeatures(`[${modification}]`, author, return_result, version == null ? undefined : version);
+$BODY$ LANGUAGE plv8 IMMUTABLE;
 
 /**
  * @public
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
-CREATE OR REPLACE FUNCTION write_features(input_features TEXT, author TEXT, on_exists TEXT,
-    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL, return_result BOOLEAN = true)
+CREATE OR REPLACE FUNCTION write_features(feature_modifications TEXT, author TEXT, return_result BOOLEAN = true, version BIGINT = NULL)
     RETURNS JSONB AS
 $BODY$
     try {
-      //TODO: Check why / from where "NULL" strings are passed into here and remove that bloody workaround once the actual issue has been solved properly
-      if (on_exists != null && on_exists.toLowerCase() == "null")
-        on_exists = null;
-      if (on_not_exists != null && on_not_exists.toLowerCase() == "null")
-        on_not_exists = null;
-      if (on_version_conflict != null && on_version_conflict.toLowerCase() == "null")
-        on_version_conflict = null;
-      if (on_merge_conflict != null && on_merge_conflict.toLowerCase() == "null")
-        on_merge_conflict = null;
+      //Actual executions
+      if (feature_modifications == null)
+        throw new Error("Parameter feature_modifications must not be null.");
 
       //Import other functions
       let _queryContext;
@@ -57,11 +75,7 @@ $BODY$
       ${{FeatureWriter.js}}
       //Init completed
 
-      //Actual executions
-      if (input_features == null)
-        throw new Error("Parameter input_features must not be null.");
-
-      let result = FeatureWriter.writeFeatures(JSON.parse(input_features), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version == null ? undefined : version);
+      let result = FeatureWriter.writeFeatureModifications(JSON.parse(feature_modifications), author, version == null ? undefined : version);
 
       return return_result ? result : {"count": result.features.length};
     }
@@ -82,10 +96,10 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature TEXT, author TEXT, on_exi
     RETURNS JSONB AS $BODY$
 
     //Import other functions
-    const writeFeatures = plv8.find_function("write_features");
+    const writeFeatures = plv8.find_function("write_features_old");
 
     if (input_feature == null)
       throw new Error("Parameter input_feature must not be null.");
 
-    return writeFeatures(`[${input_feature}]`, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version, return_result);
+    return writeFeatures(`[${input_feature}]`, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version == null ? undefined : version, return_result);
 $BODY$ LANGUAGE plv8 VOLATILE;
