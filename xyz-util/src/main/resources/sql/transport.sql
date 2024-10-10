@@ -278,7 +278,7 @@ BEGIN
 		ctx JSONB := '$wrappedouter$||(ctx::TEXT)||$wrappedouter$'::JSONB;
         work_item JSONB := '$wrappedouter$||(work_item::TEXT)||$wrappedouter$'::JSONB;
         format TEXT := '$wrappedouter$||format||$wrappedouter$'::TEXT;
-        content_query TEXT := '$wrappedouter$||(coalesce(content_query,''))||$wrappedouter$'::TEXT;
+        content_query TEXT := $x$$wrappedouter$||coalesce(content_query,'')||$wrappedouter$$x$::TEXT;
 		retry_count INT := 2;
     BEGIN
 			BEGIN
