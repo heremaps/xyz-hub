@@ -43,6 +43,7 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
@@ -78,6 +79,8 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
         return processModifySubscriptionEvent((ModifySubscriptionEvent) event);
       if (event instanceof ModifyFeaturesEvent)
         return processModifyFeaturesEvent((ModifyFeaturesEvent) event);
+      if (event instanceof WriteFeaturesEvent writeFeaturesEvent)
+        return processWriteFeaturesEvent(writeFeaturesEvent);
       if (event instanceof GetFeaturesByGeometryEvent)
         return processGetFeaturesByGeometryEvent((GetFeaturesByGeometryEvent) event);
       if (event instanceof GetFeaturesByTileEvent tileEvent) {
@@ -198,6 +201,12 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract FeatureCollection processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception;
+
+  /**
+   * Processes a {@link WriteFeaturesEvent} event.
+   */
+  @SuppressWarnings("WeakerAccess")
+  protected abstract FeatureCollection processWriteFeaturesEvent(WriteFeaturesEvent event) throws Exception;
 
   /**
    * Processes a DeleteSpaceEvent event.

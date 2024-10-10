@@ -17,13 +17,14 @@
  * License-Filename: LICENSE
  */
 
+const MAX_BIG_INT = "9223372036854775807"; //NOTE: Must be a string because of JS precision
+const XYZ_NS = "@ns:com:here:xyz";
+
 /**
  * The unified implementation of the database-based feature writer.
  */
 class FeatureWriter {
   debugOutput = false; //TODO: Read from queryContext
-  maxBigint = "9223372036854775807"; //NOTE: Must be a string because of JS precision
-  XYZ_NS = "@ns:com:here:xyz";
 
   //Context input fields
   schema;
@@ -50,10 +51,10 @@ class FeatureWriter {
   isDelete = false;
   attributeConflicts;
   ignoreConflictPaths = {
-    [`properties.${this.XYZ_NS}.author`]: true,
-    [`properties.${this.XYZ_NS}.version`]: true,
-    [`properties.${this.XYZ_NS}.createdAt`]: true,
-    [`properties.${this.XYZ_NS}.updatedAt`]: true
+    [`properties.${XYZ_NS}.author`]: true,
+    [`properties.${XYZ_NS}.version`]: true,
+    [`properties.${XYZ_NS}.createdAt`]: true,
+    [`properties.${XYZ_NS}.updatedAt`]: true
   };
 
   constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
@@ -70,10 +71,10 @@ class FeatureWriter {
     this.inputFeature = inputFeature;
     this.version = version;
     this.author = author || "ANONYMOUS";
-    this.baseVersion = (this.inputFeature.properties || {})[this.XYZ_NS]?.version;
+    this.baseVersion = (this.inputFeature.properties || {})[XYZ_NS]?.version;
     this.enrichFeature();
 
-    this.isDelete = !!this.inputFeature.properties[this.XYZ_NS].deleted;
+    this.isDelete = !!this.inputFeature.properties[XYZ_NS].deleted;
     this.onExists = onExists || "REPLACE";
     this.onNotExists = onNotExists || (isPartial ? "ERROR" : "CREATE");
     this.onVersionConflict = onVersionConflict == null ? null : onVersionConflict || (this.isDelete ? "REPLACE" : "MERGE");
@@ -126,7 +127,11 @@ class FeatureWriter {
   }
 
   _transformToDeletedFeature() {
-    this.inputFeature = {type: "Feature", id: this.inputFeature.id, properties: {[this.XYZ_NS]: {deleted: true}}};
+    this.inputFeature = FeatureWriter._transformToDeletedFeature(this.inputFeature.id);
+  }
+
+  static _transformToDeletedFeature(featureId) {
+    return {type: "Feature", id: featureId, properties: {[XYZ_NS]: {deleted: true}}};
   }
 
   /**
@@ -292,7 +297,7 @@ class FeatureWriter {
 
         if (writtenFeature[0]?.operation == "U")
           //Inject createdAt
-          this.inputFeature.properties[this.XYZ_NS].createdAt = writtenFeature[0].created_at[0];
+          this.inputFeature.properties[XYZ_NS].createdAt = writtenFeature[0].created_at[0];
         else if (this.onNotExists == "ERROR")
           this._throwFeatureNotExistsError();
       }
@@ -471,8 +476,8 @@ class FeatureWriter {
       let feature = res[0].jsondata;
       feature.id = res[0].id;
       feature.geometry = res[0].geo;
-      feature.properties[this.XYZ_NS].version = res[0].version;
-      feature.properties[this.XYZ_NS].author = res[0].author;
+      feature.properties[XYZ_NS].version = res[0].version;
+      feature.properties[XYZ_NS].author = res[0].author;
       if (feature.geometry != null)
         delete feature.geometry.crs; //TODO: What is crs?!
       //Cache the HEAD-feature in case its needed later again
@@ -486,7 +491,7 @@ class FeatureWriter {
   }
 
   _getFeatureVersion(feature) {
-    return feature.properties[this.XYZ_NS].version;
+    return feature.properties[XYZ_NS].version;
   }
 
   //Helper function to determine if a value is an object
@@ -609,20 +614,20 @@ class FeatureWriter {
     feature.type = feature.type || "Feature";
     delete feature.bbox;
     feature.properties = feature.properties || {};
-    feature.properties[this.XYZ_NS] = feature.properties[this.XYZ_NS] || {};
+    feature.properties[XYZ_NS] = feature.properties[XYZ_NS] || {};
   }
 
   enrichTimestamps(feature, isCreation = false) {
     let now = Date.now();
     feature.properties = {
       ...feature.properties,
-      [this.XYZ_NS]: {
-        ...feature.properties[this.XYZ_NS],
+      [XYZ_NS]: {
+        ...feature.properties[XYZ_NS],
         updatedAt: now
       }
     };
     if (isCreation)
-      feature.properties[this.XYZ_NS].createdAt = now;
+      feature.properties[XYZ_NS].createdAt = now;
   }
 
   debugBox(message) {
@@ -676,8 +681,8 @@ class FeatureWriter {
                           CASE WHEN $3::CHAR = 'I' OR $3::CHAR = 'H' THEN
                               $5::JSONB - 'geometry'
                           ELSE 
-                              jsonb_set($5::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
-                                        (SELECT jsondata->'properties'->'${this.XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this._targetTable()}" WHERE id = $1 AND next_version = $2::BIGINT))
+                              jsonb_set($5::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
+                                        (SELECT jsondata->'properties'->'${XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this._targetTable()}" WHERE id = $1 AND next_version = $2::BIGINT))
                           END,
                           CASE
                               WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL
@@ -702,14 +707,14 @@ class FeatureWriter {
                            WHERE id = $2
                              AND next_version = $3::BIGINT
                              AND version = $4
-                           RETURNING *`, this.version, this.inputFeature.id, this.maxBigint, this.baseVersion);
+                           RETURNING *`, this.version, this.inputFeature.id, MAX_BIG_INT, this.baseVersion);
     else
       return plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}"
                            SET next_version = $1
                            WHERE id = $2
                              AND next_version = $3::BIGINT
                              AND version < $1
-                           RETURNING *`, this.version, this.inputFeature.id, this.maxBigint);
+                           RETURNING *`, this.version, this.inputFeature.id, MAX_BIG_INT);
   }
 
   _upsertRow() {
@@ -718,14 +723,14 @@ class FeatureWriter {
                               version = greatest(tbl.version, EXCLUDED.version),
                               operation = CASE WHEN $3 = 'H' THEN 'J' ELSE 'U' END,
                               author = EXCLUDED.author,
-                              jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${this.XYZ_NS}, createdAt}',
-                                     tbl.jsondata->'properties'->'${this.XYZ_NS}'->'createdAt'),
+                              jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${XYZ_NS}, createdAt}',
+                                     tbl.jsondata->'properties'->'${XYZ_NS}'->'createdAt'),
                               geo = xyz_reduce_precision(EXCLUDED.geo, false)` : this.onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this._targetTable()}" AS tbl
                         (id, version, operation, author, jsondata, geo)
                         VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)) ${onConflict}
-                        RETURNING (jsondata->'properties'->'${this.XYZ_NS}'->'createdAt') as created_at, operation`;
+                        RETURNING (jsondata->'properties'->'${XYZ_NS}'->'createdAt') as created_at, operation`;
 
     //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
 
@@ -745,12 +750,12 @@ class FeatureWriter {
                          SET version   = $1,
                              operation = $2,
                              author    = $3,
-                             jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${this.XYZ_NS}, createdAt}',
-                                                   tbl.jsondata -> 'properties' -> '${this.XYZ_NS}' -> 'createdAt'),
+                             jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
+                                                   tbl.jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt'),
                              geo       = xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)), false)
                          WHERE id = $6
                            AND version = $7
-                         RETURNING (jsondata -> 'properties' -> '${this.XYZ_NS}' -> 'createdAt') as created_at, operation`,
+                         RETURNING (jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt') as created_at, operation`,
         this.version,
         "U" /*TODO set version operation*/,
         this.author,
@@ -760,6 +765,24 @@ class FeatureWriter {
         this.baseVersion);
   }
 
+  static combineResults(featureCollections) {
+    if (featureCollections.length <= 1)
+      return featureCollections[0];
+
+    //TODO: Also merge inserted, updated, deleted arrays in FCs
+    let result = featureCollections[0];
+    for (let i = 1; i < featureCollections.length; i++)
+      result.features = result.features.concat(featureCollections[i].features);
+
+    return result;
+  }
+
+  static toFeatureList(featureModification) {
+    return featureModification.featureData
+        ? featureModification.featureData.features
+        : featureModification.featureIds.map(featureId => FeatureWriter._transformToDeletedFeature(featureId));
+  }
+
   static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = FeatureWriter.getNextVersion()) {
     let result = {type: "FeatureCollection", features : []};
     for (let feature of inputFeatures) {
@@ -767,6 +790,13 @@ class FeatureWriter {
       result.features.push(writer.writeFeature());
     }
     return result;
+  }
+
+  static writeFeatureModifications(featureModifications, author, version = FeatureWriter.getNextVersion()) {
+    let featureCollections = featureModifications.map(modification => FeatureWriter.writeFeatures(this.toFeatureList(modification),
+        author, modification.updateStrategy.onExists, modification.updateStrategy.onNotExists,
+        modification.updateStrategy.onVersionConflict, modification.updateStrategy.onMergeConflict, modification.partialUpdates, version));
+    return this.combineResults(featureCollections);
   }
 
   static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = undefined) {

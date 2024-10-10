@@ -26,6 +26,7 @@ import static com.here.xyz.util.db.pg.LockHelper.advisoryUnlock;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
@@ -194,6 +195,10 @@ public class SQLQuery {
   @JsonProperty
   public String text() {
     return statement;
+  }
+
+  public void setText(String text) {
+    statement = text;
   }
 
   private List<String> batchTexts() {
@@ -984,6 +989,149 @@ public class SQLQuery {
     QUERY,
     UPDATE,
     UPDATE_BATCH
+  }
+
+  public static void main(String[] args) throws JsonProcessingException {
+    String jsonQuery = """
+        {
+          "variables": {
+            "schema": "public",
+            "table": "2dc212fe4f92188b95e0bc8b4aee086c"
+          },
+          "queryFragments": {
+            "limit": {
+              "namedParameters": {
+                "limit": 30000
+              },
+              "text": "LIMIT #{limit}"
+            },
+            "filters": {
+              "queryFragments": {
+                "filterWhereClause": {
+                  "queryFragments": {
+                    "geoQuery": {
+                      "queryFragments": {
+                        "geoFilter": {
+                          "namedParameters": {
+                            "maxLon": -1.3978569556631413,
+                            "minLon": -1.4206683339496382,
+                            "maxLat": 50.916136480871465,
+                            "minLat": 50.903123287710166
+                          },
+                          "text": "ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)"
+                        }
+                      },
+                      "text": "(ST_isvalid(${{geoFilter}}) AND ST_Intersects(geo, ${{geoFilter}}))"
+                    },
+                    "searchQuery": {
+                      "namedParameters": {
+                        "userValue_properties.functionalClass": "{\\"value\\":5}",
+                        "keySegment_properties": "properties",
+                        "keySegment_functionalClass": "functionalClass"
+                      },
+                      "queryFragments": {
+                        "f0": {
+                          "queryFragments": {
+                            "f0": {
+                              "queryFragments": {
+                                "f0": {
+                                  "queryFragments": {
+                                    "operation": {
+                                      "text": "@>"
+                                    },
+                                    "value": {
+                                      "text": "(#{userValue_properties.functionalClass}::JSONB || '[]'::JSONB)"
+                                    },
+                                    "keyPath": {
+                                      "namedParameters": {
+                                        "keySegment_functionalClass": "functionalClass",
+                                        "keySegment_properties": "properties"
+                                      },
+                                      "text": "jsondata->#{keySegment_properties}->#{keySegment_functionalClass}"
+                                    }
+                                  },
+                                  "text": "${{keyPath}} ${{operation}} ${{value}}"
+                                }
+                              },
+                              "text": "(${{f0}})"
+                            }
+                          },
+                          "text": "${{f0}}"
+                        }
+                      },
+                      "text": "${{f0}}"
+                    }
+                  },
+                  "text": "${{geoQuery}} AND ${{searchQuery}}"
+                },
+                "deletedCheck": {},
+                "authorCheck": {}
+              },
+              "text": "${{filterWhereClause}} ${{authorCheck}} ${{deletedCheck}}"
+            },
+            "selectClause": {
+              "queryFragments": {
+                "geo": {
+                  "queryFragments": {
+                    "geoExpression": {
+                      "queryFragments": {
+                        "rawGeoExpression": {
+                          "text": "ST_Force3D(geo)"
+                        },
+                        "precision": {
+                          "text": "8"
+                        }
+                      },
+                      "text": "REGEXP_REPLACE(ST_AsGeojson(${{rawGeoExpression}}, ${{precision}}), 'nan', '0', 'gi')"
+                    }
+                  },
+                  "text": "${{geoExpression}} AS geo"
+                },
+                "selection": {
+                  "namedParameters": {
+                    "selection": [
+                      "properties.isoCC",
+                      "properties.startNodeId",
+                      "properties.endNodeId",
+                      "properties.accessCharacteristics",
+                      "properties.functionalClass",
+                      "id",
+                      "type",
+                      "properties.roads"
+                    ]
+                  },
+                  "text": "(SELECT CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) END FROM prj_build(#{selection}, jsonb_set(jsondata, '{properties, @ns:com:here:xyz, version}', to_jsonb(version)))) AS jsondata"
+                },
+                "dataset": {
+                  "queryFragments": {
+                    "datasetNo": {
+                      "text": "0"
+                    }
+                  },
+                  "text": "${{datasetNo}} AS dataset"
+                },
+                "version": {}
+              },
+              "text": "id, ${{selection}}, ${{geo}}, ${{dataset}} ${{version}}"
+            },
+            "versionCheck": {
+              "queryFragments": {
+                "minVersion": {},
+                "versionComparison": {},
+                "nextVersion": {}
+              },
+              "text": "${{versionComparison}} ${{nextVersion}} ${{minVersion}}"
+            },
+            "outerOrderBy": {}
+          },
+          "timeout": 32,
+          "maximumRetries": 2,
+          "queryId": "mR1hzuL3lk",
+          "text": "SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{outerOrderBy}} ${{limit}}"
+        }""";
+
+    SQLQuery q = XyzSerializable.deserialize(jsonQuery, SQLQuery.class);
+    System.out.println(q.substitute().replaceUnnamedParametersForLogging());
   }
 
   private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,

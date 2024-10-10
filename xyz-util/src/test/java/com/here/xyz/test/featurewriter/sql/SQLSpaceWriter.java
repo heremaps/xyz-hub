@@ -104,9 +104,10 @@ public class SQLSpaceWriter extends SpaceWriter {
     if (composite)
       queryContext.put("extendedTable", superSpaceId());
 
-    SQLQuery writeFeaturesQuery = new SQLQuery("SELECT write_features(#{featureList}::TEXT, #{author}::TEXT, #{onExists},"
-        + "#{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}::BOOLEAN);").withNamedParameter("featureList",
-            XyzSerializable.serialize(featureList)).withNamedParameter("author", author)
+    SQLQuery writeFeaturesQuery = new SQLQuery("SELECT write_features_old(#{featureList}::TEXT, #{author}::TEXT, #{onExists},"
+        + "#{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}::BOOLEAN);")
+        .withNamedParameter("featureList", XyzSerializable.serialize(featureList))
+        .withNamedParameter("author", author)
         .withNamedParameter("onExists", onExists != null ? onExists.toString() : null)
         .withNamedParameter("onNotExists", onNotExists != null ? onNotExists.toString() : null)
         .withNamedParameter("onVersionConflict", onVersionConflict != null ? onVersionConflict.toString() : null)

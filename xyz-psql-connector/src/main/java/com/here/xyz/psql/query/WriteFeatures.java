@@ -19,30 +19,19 @@
 
 package com.here.xyz.psql.query;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
-  private long version = -1;
-  private WriteFeaturesEvent tmpEvent;
 
   public WriteFeatures(WriteFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
-    this.tmpEvent = event;
-  }
-
-  @Override
-  protected FeatureCollection run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
-    version = new GetNextVersion<>(tmpEvent).withDataSourceProvider(dataSourceProvider).run();
-    tmpEvent = null;
-    return super.run(dataSourceProvider);
   }
 
   @Override
@@ -53,16 +42,9 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
   }
 
   private SQLQuery buildModificationQuery(Modification modification, String author, boolean responseDataExpected) {
-    return new SQLQuery("SELECT write_features(#{featureData}, #{author}, #{onExists}, #{onNotExists}, #{onVersionConflict}, "
-        + "#{onMergeConflict}, #{isPartial}, #{version}, #{responseDataExpected});")
-        .withNamedParameter("featureData", modification.getFeatureData())
+    return new SQLQuery("SELECT write_features(#{modifications}, #{author}, #{responseDataExpected});")
+        .withNamedParameter("featureData", XyzSerializable.serialize(modification))
         .withNamedParameter("author", author)
-        .withNamedParameter("onExists", modification.getUpdateStrategy().onExists())
-        .withNamedParameter("onNotExists", modification.getUpdateStrategy().onNotExists())
-        .withNamedParameter("onVersionConflict", modification.getUpdateStrategy().onVersionConflict())
-        .withNamedParameter("onMergeConflict", modification.getUpdateStrategy().onMergeConflict())
-        .withNamedParameter("isPartial", modification.isPartialUpdates())
-        .withNamedParameter("version", version)
         .withNamedParameter("responseDataExpected", responseDataExpected);
   }
 

@@ -101,6 +101,18 @@ public class Job implements XyzSerializable {
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(4 * 7); //4 weeks
 
+  public static void main(String[] args) {
+    long createdAt = 1727910277687l;
+    long keepUntil = 1728515077;
+
+    final long actual = keepUntil * 1000;
+    System.out.println("Actual keep Until  : " + actual);
+    final long expected = createdAt + DEFAULT_JOB_TTL;
+    System.out.println("Expected keep until: " + expected);
+    System.out.println("Difference: " + (expected - actual));
+
+  }
+
   /**
    * Creates a new Job.
    * The new job will have the following properties being filled by the framework:

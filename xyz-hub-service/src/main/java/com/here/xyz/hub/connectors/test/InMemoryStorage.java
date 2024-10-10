@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.connectors.test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
 import com.here.xyz.events.DeleteChangesetsEvent;
@@ -37,6 +38,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
@@ -47,6 +49,7 @@ import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -117,6 +120,24 @@ public class InMemoryStorage extends StorageConnector {
     return new FeatureCollection()
         .withFeatures(event.getInsertFeatures())
         .withInserted(event.getInsertFeatures().stream().map(f -> f.getId()).collect(Collectors.toList()));
+  }
+
+  @Override
+  protected FeatureCollection processWriteFeaturesEvent(WriteFeaturesEvent event) throws Exception {
+    List<Feature> featuresToInsert = event.getModifications().stream().flatMap(modification -> {
+      try {
+        return modification.getFeatureData().getFeatures().stream();
+      }
+      catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+    }).toList();
+
+    featuresToInsert.forEach(feature -> storage.put(feature.getId(), feature));
+
+    return new FeatureCollection()
+        .withFeatures(featuresToInsert)
+        .withInserted(featuresToInsert.stream().map(feature -> feature.getId()).collect(Collectors.toList()));
   }
 
   @Override
