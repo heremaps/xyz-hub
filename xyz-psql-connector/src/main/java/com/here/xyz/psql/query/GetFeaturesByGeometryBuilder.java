@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.models.hub.Ref.HEAD;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -64,5 +66,12 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       int radius,
       boolean clip,
       PropertiesQuery propertiesQuery
-  ) {}
+  ) {
+    public GetFeaturesByGeometryInput {
+      if (ref == null)
+        ref = new Ref(HEAD);
+      if (geometry == null && clip)
+        throw new IllegalArgumentException("Clip can not be applied if no filter geometry is provided.");
+    }
+  }
 }

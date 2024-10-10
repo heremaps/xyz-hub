@@ -40,8 +40,10 @@ public abstract class Spatial<E extends SpatialQueryEvent, R extends XyzResponse
 
   @Override
   protected SQLQuery buildFilterWhereClause(E event) {
-    SQLQuery geoQuery = new SQLQuery("(ST_isvalid(${{geoFilter}}) AND ST_Intersects(geo, ${{geoFilter}}))")
-        .withQueryFragment("geoFilter", geoFilter);
+    SQLQuery geoQuery = geoFilter != null
+        ? new SQLQuery("(ST_isvalid(${{geoFilter}}) AND ST_Intersects(geo, ${{geoFilter}}))")
+            .withQueryFragment("geoFilter", geoFilter)
+        : new SQLQuery("TRUE");
 
     final SQLQuery filterWhereClause = super.buildFilterWhereClause(event);
     return new SQLQuery("${{geoQuery}} AND ${{searchQuery}}")
