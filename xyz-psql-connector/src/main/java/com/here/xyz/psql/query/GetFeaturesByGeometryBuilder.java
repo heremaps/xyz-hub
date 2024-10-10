@@ -96,7 +96,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment) {
       if (additionalFilterFragment == null)
         return filterWhereClause;
-      SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} ${{customWhereClause}}")
+      SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} AND ${{customWhereClause}}")
           .withQueryFragment("innerFilterWhereClause", filterWhereClause)
           .withQueryFragment("customWhereClause", additionalFilterFragment);
       return customizedWhereClause;
