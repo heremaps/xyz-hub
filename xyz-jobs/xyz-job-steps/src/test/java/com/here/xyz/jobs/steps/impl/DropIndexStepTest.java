@@ -24,8 +24,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static java.lang.Thread.sleep;
 
 public class DropIndexStepTest extends JobStepTest {
 
@@ -35,6 +34,7 @@ public class DropIndexStepTest extends JobStepTest {
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
     sendLambdaStepRequest(step, START_EXECUTION, true);
+    sleep(1000);
 
     Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
   }

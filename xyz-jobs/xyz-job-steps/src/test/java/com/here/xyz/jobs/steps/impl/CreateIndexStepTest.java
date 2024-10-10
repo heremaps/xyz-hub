@@ -41,7 +41,7 @@ public class CreateIndexStepTest extends JobStepTest {
 
         sendLambdaStepRequest(step, START_EXECUTION, true);
         //Index Creation takes time
-        sleep(100);
+        sleep(1000);
 
         List<String> indexes = listExistingIndexes(SPACE_ID);
         Assertions.assertEquals(1, indexes.size());
