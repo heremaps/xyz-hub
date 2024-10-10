@@ -19,13 +19,13 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import com.here.xyz.jobs.util.test.TestSteps;
+import com.here.xyz.jobs.util.test.StepTestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.sql.SQLException;
 
-public class JobStepTest extends TestSteps {
+public abstract class StepTest extends StepTestBase {
 
   @BeforeEach
   public void setup() throws SQLException {

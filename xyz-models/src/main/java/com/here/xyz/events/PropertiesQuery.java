@@ -51,6 +51,16 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
     return this;
   }
 
+  public List<String> getQueryKeys(){
+    ArrayList keyList = new ArrayList();
+    for (PropertyQueryList queries : this){
+      for(PropertyQuery query : queries){
+        keyList.add(query.getKey());
+      }
+    }
+    return keyList;
+  }
+
   public static PropertiesQuery fromString(String query) {
     return fromString(query, "", false);
   }

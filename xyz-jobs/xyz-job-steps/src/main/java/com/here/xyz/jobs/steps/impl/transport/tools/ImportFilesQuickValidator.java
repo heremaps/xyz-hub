@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl.transport;
+package com.here.xyz.jobs.steps.impl.transport.tools;
 
 import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 
@@ -44,7 +44,7 @@ public class ImportFilesQuickValidator {
   private static final int VALIDATE_LINE_PAGE_SIZE_BYTES = 512 * 1024;
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
 
-  static void validate(S3DataFile s3File, Format format, EntityPerLine entityPerLine) throws ValidationException {
+  public static void validate(S3DataFile s3File, Format format, EntityPerLine entityPerLine) throws ValidationException {
     try {
       validateFirstCSVLine(s3File, format, "", 0, entityPerLine);
     }

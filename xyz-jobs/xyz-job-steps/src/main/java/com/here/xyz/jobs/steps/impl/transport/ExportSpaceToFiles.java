@@ -66,7 +66,7 @@ import java.util.UUID;
  * This step produces exactly one output of type {@link FeatureStatistics}.
  */
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
-    //Defines how many features a source layer need to have to start parallelization.
+  //Defines how many features a source layer need to have to start parallelization.
   public static final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
@@ -144,7 +144,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   public SpaceContext getContext() {
-    return context;
+    return context == null ? EXTENSION :context;
   }
 
   public void setContext(SpaceContext context) {
@@ -188,7 +188,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), EXTENSION);
+      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
       overallNeededAcus = overallNeededAcus != -1 ?
               overallNeededAcus : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
@@ -230,17 +230,43 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public boolean validate() throws ValidationException {
     super.validate();
+
     try {
+      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
 
-      loadSpace(getSpaceId());
+      //Validate input Geometry
+      if(this.spatialFilter != null)
+        this.spatialFilter.validateSpatialFilter();
 
-      /**
-       * @TODO:
-       * - Check if geometry is valid
-       * - Check searchableProperties
-       * - Check if targetVersion is valid
-       * - Check if targetLevel is valid
-      */
+      //Validate versionRef
+      if(this.versionRef == null)
+        return true;
+
+      Long minSpaceVersion = statistics.getMinVersion().getValue();
+      Long maxSpaceVersion = statistics.getMaxVersion().getValue();
+
+      if(this.versionRef.isSingleVersion()){
+        if(this.versionRef.getVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '"+
+                  minSpaceVersion+"'!");
+        if(this.versionRef.getVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '"+
+                  maxSpaceVersion+"'!");
+      }else if(this.versionRef.isRange()){
+        if(this.versionRef.getStartVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '"+
+                  minSpaceVersion+"'!");
+        if(this.versionRef.getEndVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '"+
+                  maxSpaceVersion+"'!");
+      }
+
+
+      //TODO: Check if property validation is needed - in sense of searchableProperties
+//      if(statistics.getCount().getValue() > 1_000_000 && getPropertyFilter() != null){
+//        getPropertyFilter().getQueryKeys()
+//          throw new ValidationException("is not a searchable property");
+//      }
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -250,7 +276,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), EXTENSION);
+    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
     List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
@@ -363,15 +389,10 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
         .withNamedParameter("threadCount", calculatedThreadCount)
         .withNamedParameter("threadNumber", threadNumber);
 
-    SQLQuery contentQuery = queryBuilder.buildQuery(input);
-    SQLQuery filtersFragment = contentQuery.getQueryFragment("filters");
-
-    //Augment the filters fragment of the content query by adding the thread condition
-    //TODO: Enhance this thread condition to work correctly for composite spaces as well
-    filtersFragment = SQLQuery.join(List.of(filtersFragment, threadCondition), " AND ");
-    contentQuery.setQueryFragment("filters", filtersFragment);
-
-    return contentQuery.toExecutableQueryString();
+    return queryBuilder
+        .withAdditionalFilterFragment(threadCondition)
+        .buildQuery(input)
+        .toExecutableQueryString();
   }
 
   public SQLQuery buildExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
@@ -394,7 +415,11 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
     return new SQLQuery("""
           SELECT sum((data->'export_statistics'->'rows_uploaded')::bigint) as rows_uploaded,
-                 sum((data->'export_statistics'->'files_uploaded')::bigint) as files_uploaded,
+                 sum(CASE
+                     WHEN (data->'export_statistics'->'bytes_uploaded')::bigint > 0
+                     THEN (data->'export_statistics'->'files_uploaded')::bigint
+                     ELSE 0
+                 END) as files_uploaded,
                  sum((data->'export_statistics'->'bytes_uploaded')::bigint) as bytes_uploaded
                   FROM ${schema}.${tmpTable}
               WHERE POSITION('SUCCESS_MARKER' in state) = 0;

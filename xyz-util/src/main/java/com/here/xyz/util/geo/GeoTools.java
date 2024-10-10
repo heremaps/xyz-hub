@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.util.geo;
+package com.here.xyz.util.geo;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -207,7 +207,7 @@ public class GeoTools {
   }
 
   public static boolean geometryCrossesDateline(com.here.xyz.models.geojson.implementation.Geometry geometry, int radius) 
-   throws NullPointerException, NoSuchAuthorityCodeException, FactoryException, MismatchedDimensionException, TransformException
+   throws NullPointerException, FactoryException, MismatchedDimensionException, TransformException
   { 
 
     Geometry degGeo = geometry.getJTSGeometry();

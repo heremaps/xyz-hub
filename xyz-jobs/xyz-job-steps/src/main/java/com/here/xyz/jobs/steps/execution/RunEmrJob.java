@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -86,8 +87,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
     scriptParams.set(0, localTmpInputsFolder);
     scriptParams.set(1, localTmpOutputsFolder);
+    scriptParams.add("--local");
 
     sparkParams = sparkParams.replace("$localJarPath$", localJarPath);
+    sparkParams = "java -Xshare:off --add-exports=java.base/java.nio=ALL-UNNAMED "
+            + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
+            + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
+            + "--add-exports=java.base/java.util=ALL-UNNAMED "
+            + sparkParams;
+
     List<String> emrParams = new ArrayList<>(List.of(sparkParams.split(" ")));
     emrParams.addAll(scriptParams);
 
@@ -244,11 +252,11 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       createLocalFolder(Paths.get(s3Path).getParent().toString(), false);
       Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
       jarStream.close();
-    }
-    catch (FileAlreadyExistsException e) {
+    } catch (FileAlreadyExistsException e) {
       logger.info("File: '{}' already exists locally - skip download.", s3Path);
-    }
-    catch (IOException e) {
+    }catch (AmazonS3Exception e){
+      throw new RuntimeException("Can't download File: '" + s3Path + "' for local copy!", e);
+    } catch (IOException e) {
       throw new RuntimeException("Can't copy File: '" + s3Path + "'!", e);
     }
     return getLocalTmpPath(s3Path);
