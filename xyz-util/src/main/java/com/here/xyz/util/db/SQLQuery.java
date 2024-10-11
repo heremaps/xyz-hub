@@ -65,7 +65,7 @@ public class SQLQuery {
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
   public static final String QUERY_ID = "queryId";
-  public static final String TEXT_QUOTE = "\\$sqlq\\$";
+  public static final String TEXT_QUOTE = "\\$a\\$";
   private String statement = "";
   @JsonProperty
   private List<Object> parameters = new ArrayList<>();
@@ -231,7 +231,7 @@ public class SQLQuery {
     if (paramValue == null)
       return "NULL";
     if (paramValue instanceof String stringParam)
-      return TEXT_QUOTE + stringParam.replaceAll("\\$", "\\\\\\$") + TEXT_QUOTE;
+      return TEXT_QUOTE + escapeDollarSigns(escapeCustomQuotes(stringParam, TEXT_QUOTE)) + TEXT_QUOTE;
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
@@ -243,6 +243,44 @@ public class SQLQuery {
           .map(elementValue -> paramValueToString(elementValue))
           .collect(Collectors.joining(",")) + "]";
     return paramValue.toString();
+  }
+
+  /**
+   * Internal helper method that escapes $-signs, because they're treated as special chars when using the containing string as value
+   * in a string / pattern-matching replacement.
+   *
+   * @see String#replaceAll(String, String)
+   * @see Matcher#replaceFirst(String)
+   *
+   * @param containingString
+   * @return A string that has all $-signs being
+   */
+  private static String escapeDollarSigns(String containingString) {
+    return containingString.replaceAll("\\$", "\\\\\\$");
+  }
+
+  /**
+   * Escapes custom quotes in the form of how they're being used within this class for string quoting. E.g.: `$a$`
+   *
+   * @param containingString
+   * @param customQuoteToEscape
+   * @return
+   */
+  private static String escapeCustomQuotes(String containingString, String customQuoteToEscape) {
+    if (!containingString.contains(customQuoteToEscape))
+      return containingString;
+
+    String escapedCustomQuote = getEscapedCustomQuoteFor(customQuoteToEscape);
+
+    //Further escape the custom quote until finding one that is not in use yet
+    while (containingString.contains(escapedCustomQuote))
+      escapedCustomQuote = getEscapedCustomQuoteFor(escapedCustomQuote);
+
+    return containingString.replaceAll(Pattern.quote(customQuoteToEscape), escapeDollarSigns(escapedCustomQuote));
+  }
+
+  private static String getEscapedCustomQuoteFor(String customQuoteToEscape) {
+    return "$" + (char) (customQuoteToEscape.charAt(1) + 1) + "$";
   }
 
   @Override
