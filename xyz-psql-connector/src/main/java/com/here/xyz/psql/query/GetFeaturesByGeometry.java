@@ -34,7 +34,7 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, F
 
   @Override
   protected SQLQuery buildGeoFilter(GetFeaturesByGeometryEvent event) {
-    if (event.getGeometry() == null)
+    if (event.getGeometry() == null && event.getH3Index() == null)
       return null;
 
     final int radius = event.getRadius();
