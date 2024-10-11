@@ -38,7 +38,7 @@ connection_arn=$(aws --endpoint http://localhost:4566 events create-connection \
   --name JobApiConnection \
   --authorization-type API_KEY \
   --auth-parameters "ApiKeyAuthParameters={ApiKeyName=apiKey,ApiKeyValue=dummy-admin-api-key}" \
-  --region us-east-1 | python -c "import sys, json; print(json.load(sys.stdin)['ConnectionArn'])" )
+  --region us-east-1 | sed -n 's/.*"ConnectionArn":\s*"\([^"]*\)".*/\1/p' )
 
 echo "connection_arn -> $connection_arn"
 
@@ -47,7 +47,7 @@ api_destination_arn=$(aws --endpoint http://localhost:4566 events create-api-des
   --connection-arn "$connection_arn" \
   --invocation-endpoint $invocation_endpoint \
   --http-method POST \
-  --region us-east-1 | python -c "import sys, json; print(json.load(sys.stdin)['ApiDestinationArn'])" )
+  --region us-east-1 | sed -n 's/.*"ApiDestinationArn":\s*"\([^"]*\)".*/\1/p')
 
 echo "api_destination_arn -> $api_destination_arn"
 
