@@ -21,6 +21,12 @@
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
+targetPathRel="../../../target"
+
+if [ "$HOSTNAME" = "localstack" ]; then
+targetPathRel="../job-steps.target"
+fi
+
 #Check if the localstack is up and running
 curl -sf $LOCAL_STACK_HOST/_localstack/health > /dev/null
 if [ $? -ne 0 ]; then
@@ -29,7 +35,8 @@ if [ $? -ne 0 ]; then
 fi
 
 scriptBasePath="$(dirname $(realpath $0))"
-cd $scriptBasePath/../../../target
+
+cd ${scriptBasePath}/${targetPathRel}
 
 rm -rf lib > /dev/null 2>&1
 mkdir lib

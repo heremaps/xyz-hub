@@ -19,6 +19,13 @@
 # License-Filename: LICENSE
 #
 
+invocation_endpoint = "http://host.docker.internal:7070/admin/state/events"
+
+if [ "$HOSTNAME" = "localstack" ]; then
+invocation_endpoint="'http://host.docker.internal:7070/admin/state/events'"
+fi
+
+
 state_machine_arn_prefix=arn:aws:states:us-east-1:000000000000:stateMachine:job-
 
 aws --endpoint http://localhost:4566 events put-rule \
@@ -31,15 +38,18 @@ connection_arn=$(aws --endpoint http://localhost:4566 events create-connection \
   --name JobApiConnection \
   --authorization-type API_KEY \
   --auth-parameters "ApiKeyAuthParameters={ApiKeyName=apiKey,ApiKeyValue=dummy-admin-api-key}" \
-  --region us-east-1 | jq -r '.ConnectionArn')
+  --region us-east-1 | python -c "import sys, json; print(json.load(sys.stdin)['ConnectionArn'])" )
+
+echo "connection_arn -> $connection_arn"
 
 api_destination_arn=$(aws --endpoint http://localhost:4566 events create-api-destination \
   --name JobApiDestination \
   --connection-arn "$connection_arn" \
-  --invocation-endpoint http://host.docker.internal:7070/admin/state/events \
+  --invocation-endpoint $invocation_endpoint \
   --http-method POST \
-  --region us-east-1 | jq -r '.ApiDestinationArn')
+  --region us-east-1 | python -c "import sys, json; print(json.load(sys.stdin)['ApiDestinationArn'])" )
 
+echo "api_destination_arn -> $api_destination_arn"
 
 aws --endpoint http://localhost:4566 events put-targets \
   --rule StepFunctionStateChangeRule \
