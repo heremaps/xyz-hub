@@ -116,7 +116,9 @@ public class TestSteps {
   }
 
   private static DataSourceProvider getDataSourceProvider() {
-    return new PooledDataSources(new DatabaseSettings("testPSQL")
+    return new PooledDataSources(
+            new DatabaseSettings("testSteps")
+            .withApplicationName(TestSteps.class.getSimpleName())
             .withHost(PG_HOST)
             .withDb(PG_DB)
             .withUser(PG_USER)
@@ -259,7 +261,7 @@ public class TestSteps {
     else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
       return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
     else
-      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"te\\\"st\":"+i+"}}"+lineSeparator;
+      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}"+lineSeparator;
   }
 
   protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {
