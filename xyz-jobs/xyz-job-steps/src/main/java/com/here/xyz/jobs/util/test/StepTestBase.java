@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.util.test;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.google.common.net.MediaType;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.jobs.steps.Config;
@@ -56,7 +57,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,12 +69,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 
+import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
 import static java.lang.Thread.sleep;
+import static java.net.http.HttpClient.Redirect.NORMAL;
 
 public class StepTestBase {
   private static final Logger logger = LogManager.getLogger();
@@ -286,5 +293,37 @@ public class StepTestBase {
       }
     }
     return features;
+  }
+
+  protected List<String> downloadFileAsText(URL url, boolean isCompressed, MediaType mediaType) throws IOException, URISyntaxException, InterruptedException {
+    List<String> fileInLines = new ArrayList<>();
+
+    logger.info("Check file: {}", url);
+    InputStream dataStream;
+    HttpRequest request = HttpRequest.newBuilder()
+            .uri(url.toURI())
+            .header(CONTENT_TYPE, mediaType.toString())
+            .method("GET", HttpRequest.BodyPublishers.noBody())
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+
+    HttpClient client = HttpClient.newBuilder().followRedirects(NORMAL).build();
+    HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+    if (response.statusCode() >= 400)
+      throw new RuntimeException("Received error response!");
+
+    dataStream = response.body();
+
+    if (isCompressed)
+      dataStream = new GZIPInputStream(dataStream);
+
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(dataStream))) {
+      String line;
+
+      while ((line = reader.readLine()) != null) {
+        fileInLines.add(line);
+      }
+    }
+    return fileInLines;
   }
 }

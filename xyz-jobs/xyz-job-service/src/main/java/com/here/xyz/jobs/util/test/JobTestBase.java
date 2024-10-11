@@ -1,7 +1,9 @@
 package com.here.xyz.jobs.util.test;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -68,6 +70,12 @@ public class JobTestBase extends StepTestBase {
         return XyzSerializable.deserialize(statusResponse.body(), RuntimeStatus.class);
     }
 
+    public static List<Map> getJobOutputs(String jobId) throws IOException, InterruptedException {
+        logger.info("Get job Outputs ...");
+        HttpResponse<byte[]> outputResponse = get("/jobs/" + jobId + "/outputs");
+        return XyzSerializable.deserialize(outputResponse.body(), new TypeReference<List<Map>>() {});
+    }
+
     public static void pollJobStatus(String jobId) throws InterruptedException {
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -78,6 +86,8 @@ public class JobTestBase extends StepTestBase {
                 logger.info("Job state for {}: {} ({}/{} steps succeeded)", jobId, status.getState(), status.getSucceededSteps(),
                         status.getOverallStepCount());
                 if (status.getState().isFinal()) {
+                    if(!status.getState().equals(RuntimeInfo.State.SUCCEEDED))
+                        logger.info("Job state for {} is not SUCCEEDED: {}", jobId, XyzSerializable.serialize(status));
                     executor.shutdownNow();
                 }
             }

@@ -25,7 +25,8 @@ public class ImportJobTestIT extends JobTest {
         deleteSpace(SPACE_ID);
     }
 
-    @Test
+    //TODO: enable if JobService runs during tests
+//    @Test
     public void testSimpleImport() throws Exception {
         Job importJob = buildImportJob();
         createAndStartJob(importJob, ContentCreator.generateImportFileContent(ImportFilesToSpace.Format.GEOJSON, 50));

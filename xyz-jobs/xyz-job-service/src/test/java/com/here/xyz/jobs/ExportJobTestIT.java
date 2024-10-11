@@ -22,8 +22,8 @@ public class ExportJobTestIT extends JobTest {
     public void tearDown() {
         deleteSpace(SPACE_ID);
     }
-
-    @Test
+//TODO: enable if JobService runs during tests
+//    @Test
     public void testSimpleExport() throws Exception {
         Job exportJob = buildExportJob();
         createSelfRunningJob(exportJob);
