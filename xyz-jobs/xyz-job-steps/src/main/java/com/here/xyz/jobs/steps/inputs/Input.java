@@ -145,7 +145,7 @@ public abstract class Input <T extends Input> implements Typed {
     return inputs;
   }
 
-  static final InputsMetadata loadMetadata(String jobId) throws IOException {
+  static final InputsMetadata loadMetadata(String jobId) throws IOException, AmazonS3Exception {
     InputsMetadata metadata = metadataCache.get(jobId);
     if (metadata != null)
       return metadata;
@@ -182,7 +182,7 @@ public abstract class Input <T extends Input> implements Typed {
     Map<String, InputMetadata> metadata = inputs.stream()
         .collect(Collectors.toMap(input -> (input.s3Bucket == null ? "" : "s3://" + input.s3Bucket + "/") + input.s3Key,
             input -> new InputMetadata(input.byteSize, input.compressed)));
-    storeMetadata(jobId, new InputsMetadata(metadata, Set.of(jobId), referencedJobId));
+    storeMetadata(jobId, new InputsMetadata(metadata, new HashSet<>(Set.of(jobId)), referencedJobId));
   }
 
   static final List<Input> loadInputsInParallel(String bucketName, String inputS3Prefix) {
@@ -249,7 +249,7 @@ public abstract class Input <T extends Input> implements Typed {
       metadata = loadMetadata(owningJobId);
       metadata.referencingJobs().remove(referencingJob);
     }
-    catch (IOException ignore) {}
+    catch (AmazonS3Exception | IOException ignore) {}
 
     //Only delete the inputs if no other job is referencing them anymore
     if (metadata == null || metadata.referencingJobs().isEmpty()) {
