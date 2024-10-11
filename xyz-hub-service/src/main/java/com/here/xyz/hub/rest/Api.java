@@ -34,6 +34,7 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.connectors.models.Space.CacheProfile;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTask;
@@ -52,6 +53,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;
+import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
@@ -305,6 +307,9 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
   void sendErrorResponse(final Task task, final Throwable e) {
+    if (e instanceof TooManyRequestsException throttleException)
+      XYZHubRESTVerticle.addStreamInfo(task.context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
+
     sendErrorResponse(task.context, e);
   }
 
