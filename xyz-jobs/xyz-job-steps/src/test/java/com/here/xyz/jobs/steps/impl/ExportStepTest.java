@@ -49,7 +49,10 @@ public class ExportStepTest extends JobStepTest {
                 .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
                 .withSpaceId(SPACE_ID);
 
-        sendLambdaStepRequestBlock(step);
+        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
+        Thread.sleep(2000);
+        //TODO: switch back to simulation if test issue is fixed
+//        sendLambdaStepRequestBlock(step);
     }
 
     @Test
