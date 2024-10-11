@@ -35,24 +35,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-
-public class ExportStepTest extends JobStepTest {
-    private static final int FILE_COUNT = 1;
+public class ExportStepTest extends StepTest {
     private static final int FEATURE_COUNT = 33;
 
     @BeforeEach
     public void setUp() throws Exception {
-        uploadFiles(JOB_ID, FILE_COUNT, FEATURE_COUNT, ImportFilesToSpace.Format.GEOJSON);
-
-        LambdaBasedStep step = new ImportFilesToSpace()
-                .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
-                .withSpaceId(SPACE_ID);
-
-        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
-        Thread.sleep(2000);
-        //TODO: switch back to simulation if test issue is fixed
-//        sendLambdaStepRequestBlock(step);
+        putFeatureCollectionToSpace(SPACE_ID, FEATURE_COUNT);
     }
 
     @Test
@@ -81,21 +69,17 @@ public class ExportStepTest extends JobStepTest {
             if(output instanceof DownloadUrl) {
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
             }else if(output instanceof FileStatistics statistics) {
-                Assertions.assertEquals(getExpectedFeatureCount(), statistics.getExportedFeatures());
-                Assertions.assertEquals(getExpectedFeatureCount() > ExportSpaceToFiles.PARALLELIZTATION_MIN_THRESHOLD ?
+                Assertions.assertEquals(FEATURE_COUNT, statistics.getExportedFeatures());
+                Assertions.assertEquals(FEATURE_COUNT > ExportSpaceToFiles.PARALLELIZTATION_MIN_THRESHOLD ?
                         ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getExportedFiles());
             }
         }
 
-        Assertions.assertEquals(getExpectedFeatureCount(), allExistingFeatures.getFeatures().size());
+        Assertions.assertEquals(FEATURE_COUNT, allExistingFeatures.getFeatures().size());
 
         List<String> existingFeaturesIdList = allExistingFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
         List<String> exportedFeaturesFeaturesIdList = exportedFeatures.stream().map(Feature::getId).collect(Collectors.toList());
 
         Assertions.assertTrue(exportedFeaturesFeaturesIdList.containsAll(existingFeaturesIdList));
-    }
-
-    private int getExpectedFeatureCount(){
-        return FILE_COUNT * FEATURE_COUNT;
     }
 }

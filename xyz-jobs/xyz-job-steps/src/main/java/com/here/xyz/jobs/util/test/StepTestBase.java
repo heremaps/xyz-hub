@@ -30,6 +30,7 @@ import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
@@ -60,7 +61,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 
@@ -71,12 +71,12 @@ import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
 import static java.lang.Thread.sleep;
 
-public class TestSteps {
+public class StepTestBase {
   private static final Logger logger = LogManager.getLogger();
-  protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
-  protected static final String SPACE_ID = "test-space-" + randomAlpha(5);
-  protected static final String JOB_ID = "test-job-" + randomAlpha(5);
+  protected String SPACE_ID =  getClass().getSimpleName() + "_" + randomAlpha(5);
+  protected String JOB_ID =  getClass().getSimpleName() + "_" + randomAlpha(5);
 
+  protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final HubWebClient hubWebClient;
   private static final S3Client s3Client;
   private static LambdaClient lambdaClient;
@@ -85,10 +85,11 @@ public class TestSteps {
   private static final String PG_USER = "postgres";
   private static final String PG_PW = "password";
   private static final String SCHEMA = "public";
+  public static final Config config = new Config();
 
   static {
     try {
-      new Config();
+
       Config.instance.JOBS_S3_BUCKET = "test-bucket";
       Config.instance.AWS_REGION = "us-east-1";
       Config.instance.ECPS_PHRASE = "local";
@@ -115,10 +116,10 @@ public class TestSteps {
     S3ContentType(String value) { this.value = value; }
   }
 
-  private static DataSourceProvider getDataSourceProvider() {
+  private DataSourceProvider getDataSourceProvider() {
     return new PooledDataSources(
             new DatabaseSettings("testSteps")
-            .withApplicationName(TestSteps.class.getSimpleName())
+            .withApplicationName(StepTestBase.class.getSimpleName())
             .withHost(PG_HOST)
             .withDb(PG_DB)
             .withUser(PG_USER)
@@ -126,15 +127,30 @@ public class TestSteps {
             .withDbMaxPoolSize(2));
   }
 
-  protected static void createSpace(String spaceId) {
+  protected Space createSpace(String spaceId){
+    return createSpace(spaceId, false);
+  }
+
+  protected Space createSpace(String spaceId, boolean force) {
+    String title = "test space for jobs";
     try {
-      hubWebClient.createSpace(spaceId, "test space for jobs");
+      return hubWebClient.createSpace(spaceId, title);
+    }
+    catch (XyzWebClient.ErrorResponseException e) {
+      if (e.getErrorResponse().statusCode() == 409) {
+        deleteSpace(spaceId);
+        return createSpace(spaceId, false);
+      }
+      else {
+        System.out.println("Hub Error: " + e.getMessage());
+      }
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
+    return null;
   }
 
-  protected static void deleteSpace(String spaceId) {
+  protected void deleteSpace(String spaceId) {
     try {
       hubWebClient.deleteSpace(spaceId);
     } catch (XyzWebClient.WebClientException e) {
@@ -142,7 +158,7 @@ public class TestSteps {
     }
   }
 
-  protected static StatisticsResponse getStatistics(String spaceId) {
+  protected StatisticsResponse getStatistics(String spaceId) {
     try {
       return hubWebClient.loadSpaceStatistics(spaceId, ContextAwareEvent.SpaceContext.EXTENSION);
     } catch (XyzWebClient.WebClientException e) {
@@ -151,7 +167,7 @@ public class TestSteps {
     return null;
   }
 
-  protected static FeatureCollection getAllFeaturesFromSmallSpace(String spaceId) {
+  protected FeatureCollection getAllFeaturesFromSmallSpace(String spaceId) {
     try {
       return hubWebClient.getAllFeaturesFromSmallSpace(spaceId, ContextAwareEvent.SpaceContext.EXTENSION);
     } catch (XyzWebClient.WebClientException e) {
@@ -160,7 +176,15 @@ public class TestSteps {
     return null;
   }
 
-  protected static List<String> listExistingIndexes(String spaceId) throws SQLException {
+  protected void putFeatureCollectionToSpace(String spaceId, int featureCount) {
+    try {
+      hubWebClient.putFeaturesWithoutResponse(spaceId, ContentCreator.generateFeatureCollection(featureCount));
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
+  protected List<String> listExistingIndexes(String spaceId) throws SQLException {
     return new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
             .withNamedParameter("schema", SCHEMA)
             .withNamedParameter("table", spaceId)
@@ -222,6 +246,8 @@ public class TestSteps {
     LambdaBasedStep enrichedStep = XyzSerializable.fromMap(stepMap, LambdaBasedStep.class);
     LambdaBasedStep.LambdaStepRequest request = new LambdaBasedStep.LambdaStepRequest().withStep(enrichedStep).withType(requestType);
 
+    logger.info("sendLambdaStepRequest with job-id: {}", JOB_ID);
+
     if(!simulate)
       invokeLambda(LAMBDA_ARN, request.toByteArray());
     else{
@@ -232,36 +258,15 @@ public class TestSteps {
   }
 
   //TODO: find a central place to avoid double implementation from JobPlayground
-  protected void uploadFiles(String jobId, int uploadFileCount, int featureCountPerFile, ImportFilesToSpace.Format format)
+  public void uploadFiles(String jobId, int uploadFileCount, int featureCountPerFile, ImportFilesToSpace.Format format)
           throws IOException {
     //Generate N Files with M features
     for (int i = 0; i < uploadFileCount; i++)
-      uploadInputFile(jobId, generateContent(format, featureCountPerFile));
+      uploadInputFile(jobId, ContentCreator.generateImportFileContent(format, featureCountPerFile));
   }
 
   private void uploadInputFile(String jobId , byte[] bytes) throws IOException {
     uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, bytes, false);
-  }
-
-  private byte[] generateContent(ImportFilesToSpace.Format format, int featureCnt) {
-    String output = "";
-
-    for (int i = 1; i <= featureCnt; i++) {
-      output += generateContentLine(format, i);
-    }
-    return output.getBytes();
-  }
-
-  private String generateContentLine(ImportFilesToSpace.Format format, int i){
-    Random rd = new Random();
-    String lineSeparator = "\n";
-
-    if(format.equals(ImportFilesToSpace.Format.CSV_JSON_WKB))
-      return "\"{'\"properties'\": {'\"test'\": "+i+"}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000"+lineSeparator;
-    else if(format.equals(ImportFilesToSpace.Format.CSV_GEOJSON))
-      return "\"{'\"type'\":'\"Feature'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},'\"properties'\":{'\"test'\":"+i+"}}\""+lineSeparator;
-    else
-      return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}"+lineSeparator;
   }
 
   protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {

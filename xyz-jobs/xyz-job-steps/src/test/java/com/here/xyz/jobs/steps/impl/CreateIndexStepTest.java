@@ -30,7 +30,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
 import static java.lang.Thread.sleep;
 import static org.junit.Assert.assertEquals;
 
-public class CreateIndexStepTest extends JobStepTest {
+public class CreateIndexStepTest extends StepTest {
 
     @Test
     public void testCreateIndex() throws Exception {

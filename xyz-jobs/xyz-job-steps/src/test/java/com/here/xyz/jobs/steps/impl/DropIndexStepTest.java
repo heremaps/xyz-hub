@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static java.lang.Thread.sleep;
 
-public class DropIndexStepTest extends JobStepTest {
+public class DropIndexStepTest extends StepTest {
 
   @Test
   public void testDropIndexesStep() throws Exception {

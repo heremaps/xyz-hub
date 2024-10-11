@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 
-public class ImportStepTest extends JobStepTest {
+public class ImportStepTest extends StepTest {
   private static final int FILE_COUNT = 2;
   private static final int FEATURE_COUNT = 10;
 
