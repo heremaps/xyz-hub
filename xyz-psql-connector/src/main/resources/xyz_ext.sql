@@ -111,7 +111,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 201
+ select 202
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -126,7 +126,7 @@ DECLARE
  sgeo geometry;
 BEGIN
 
-  if not st_isvalid(geo) then
+  if not st_isvalid(geo,0) then -- check without notice
    RETURN geo;
   end if;
 
