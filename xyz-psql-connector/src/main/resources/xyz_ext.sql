@@ -111,7 +111,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 201
+ select 202
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -3329,6 +3329,7 @@ BEGIN
             DO
             $block$
             BEGIN
+                SET client_min_messages TO ERROR;
                 SET search_path = $outer$ || current_setting('search_path') || $outer$;
                 PERFORM context('$outer$ || context()::TEXT ||  $outer$'::JSONB);
                 PERFORM set_config('xyz.password', '$outer$ || password || $outer$', false);
@@ -3341,6 +3342,7 @@ BEGIN
         $outer$;
     ELSE
         RETURN $block$
+            SET client_min_messages TO ERROR;
             SET search_path = $block$ || current_setting('search_path') || $block$;
             SELECT context('$block$ || context()::TEXT ||  $block$'::JSONB);
             SELECT set_config('xyz.password', '$block$ || password || $block$', false);
