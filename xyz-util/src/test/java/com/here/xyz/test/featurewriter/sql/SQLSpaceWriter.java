@@ -30,6 +30,7 @@ import com.here.xyz.test.SQLITBase;
 import com.here.xyz.test.featurewriter.SpaceWriter;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.SQLError;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -76,7 +77,7 @@ public class SQLSpaceWriter extends SpaceWriter {
   protected void writeFeatures(List<Feature> featureList, String author, SpaceWriter.OnExists onExists,
       SpaceWriter.OnNotExists onNotExists, SpaceWriter.OnVersionConflict onVersionConflict,
       SpaceWriter.OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled,
-      SpaceWriter.SQLError expectedErrorCode) throws Exception {
+      SQLError expectedErrorCode) throws Exception {
     runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
         historyEnabled);
   }

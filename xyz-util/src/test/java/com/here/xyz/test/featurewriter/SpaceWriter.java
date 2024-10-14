@@ -35,9 +35,9 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.test.SQLITBase;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.SQLError;
 import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -170,33 +170,6 @@ public abstract class SpaceWriter extends SQLITBase {
       });
     }
     return null;
-  }
-
-  private static final Map<String, SQLError> SQLErrorLookup = new HashMap<>();
-
-  public enum SQLError {
-    ILLEGAL_ARGUMENT("XYZ40"),
-    FEATURE_EXISTS("XYZ20"),
-    FEATURE_NOT_EXISTS("XYZ44"),
-    MERGE_CONFLICT_ERROR("XYZ48"),
-    VERSION_CONFLICT_ERROR("XYZ49"),
-    XYZ_EXCEPTION("XYZ50");
-
-
-    public final String errorCode;
-
-    SQLError(String errorCode) {
-      this.errorCode = errorCode;
-      SQLErrorLookup.put(errorCode, this);
-    }
-
-    public String getErrorCode() {
-      return errorCode;
-    }
-
-    public static SQLError fromErrorCode(String errorCode) {
-      return SQLErrorLookup.get(errorCode);
-    }
   }
 
   public enum OnExists {

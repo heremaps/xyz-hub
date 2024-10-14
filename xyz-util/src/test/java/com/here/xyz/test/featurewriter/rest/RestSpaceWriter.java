@@ -20,10 +20,10 @@
 package com.here.xyz.test.featurewriter.rest;
 
 import static com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict.REPLACE;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_NOT_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.MERGE_CONFLICT_ERROR;
 import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.MERGE_CONFLICT_ERROR;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -32,6 +32,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.test.featurewriter.SpaceWriter;
+import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;

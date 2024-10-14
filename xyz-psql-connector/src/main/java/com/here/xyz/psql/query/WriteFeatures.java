@@ -19,38 +19,78 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.responses.XyzError.CONFLICT;
+import static com.here.xyz.responses.XyzError.EXCEPTION;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.WriteFeaturesEvent;
-import com.here.xyz.events.WriteFeaturesEvent.Modification;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.SQLError;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureCollection> {
+  boolean responseDataExpected;
 
   public WriteFeatures(WriteFeaturesEvent event) throws SQLException, ErrorResponseException {
     super(event);
+    responseDataExpected = event.isResponseDataExpected();
   }
 
   @Override
-  protected SQLQuery buildQuery(WriteFeaturesEvent event) throws SQLException, ErrorResponseException {
-    return SQLQuery.batchOf(event.getModifications().stream()
-        .map(modification -> buildModificationQuery(modification, event.getAuthor(), event.isResponseDataExpected()))
-        .toList());
+  protected SQLQuery buildQuery(WriteFeaturesEvent event) throws ErrorResponseException {
+    Map<String, Object> queryContext = new HashMap<>(Map.of(
+        "schema", getSchema(),
+        "table", getDefaultTable(event),
+        "historyEnabled", event.getVersionsToKeep() > 1
+    ));
+    String extendedTable = getExtendedTable(event);
+    if (extendedTable != null) {
+      queryContext.put("extendedTable", extendedTable);
+      queryContext.put("context", event.getContext().toString());
+    }
+
+    return new SQLQuery("SELECT write_features(#{modifications}, #{author}, #{responseDataExpected});")
+        .withContext(queryContext)
+        .withNamedParameter("modifications", XyzSerializable.serialize(event.getModifications()))
+        .withNamedParameter("author", event.getAuthor())
+        .withNamedParameter("responseDataExpected", event.isResponseDataExpected());
   }
 
-  private SQLQuery buildModificationQuery(Modification modification, String author, boolean responseDataExpected) {
-    return new SQLQuery("SELECT write_features(#{modifications}, #{author}, #{responseDataExpected});")
-        .withNamedParameter("featureData", XyzSerializable.serialize(modification))
-        .withNamedParameter("author", author)
-        .withNamedParameter("responseDataExpected", responseDataExpected);
+  @Override
+  protected FeatureCollection run(DataSourceProvider dataSourceProvider) throws ErrorResponseException {
+    try {
+      return super.run(dataSourceProvider);
+    }
+    catch (SQLException e) {
+      throw switch (SQLError.fromErrorCode(e.getSQLState())) {
+        case FEATURE_EXISTS, FEATURE_NOT_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, "Conflict while writing the feature(s).", e);
+        case ILLEGAL_ARGUMENT -> {
+          final String message = e.getMessage();
+          String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
+          yield new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
+        }
+        case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e);
+      };
+    }
   }
 
   @Override
   public FeatureCollection handle(ResultSet rs) throws SQLException {
-    //TODO: Read feature collection from result (see GetFeatures)
-    return null;
+    try {
+      return responseDataExpected && rs.next()
+          ? XyzSerializable.deserialize(rs.getString(1), FeatureCollection.class)
+          : new FeatureCollection();
+    }
+    catch (JsonProcessingException e) {
+      throw new RuntimeException("Error parsing query result.", e);
+    }
   }
 }
