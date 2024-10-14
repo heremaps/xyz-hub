@@ -23,9 +23,10 @@ CREATE EXTENSION IF NOT EXISTS plv8;
  * @public
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
+--TODO: Get rid of this function by updating the import step to use the new write_features() directly
 CREATE OR REPLACE FUNCTION write_features_old(input_features TEXT, author TEXT, on_exists TEXT,
-    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL, return_result BOOLEAN = true)
-    RETURNS JSONB AS
+    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL, return_result BOOLEAN = false)
+    RETURNS TEXT AS
 $BODY$
     const writeFeatures = plv8.find_function("write_features");
 
@@ -50,8 +51,8 @@ $BODY$ LANGUAGE plv8 IMMUTABLE;
  * @public
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
-CREATE OR REPLACE FUNCTION write_features(feature_modifications TEXT, author TEXT, return_result BOOLEAN = true, version BIGINT = NULL)
-    RETURNS JSONB AS
+CREATE OR REPLACE FUNCTION write_features(feature_modifications TEXT, author TEXT, return_result BOOLEAN = false, version BIGINT = NULL)
+    RETURNS TEXT AS
 $BODY$
     try {
       //Actual executions
@@ -77,7 +78,7 @@ $BODY$
 
       let result = FeatureWriter.writeFeatureModifications(JSON.parse(feature_modifications), author, version == null ? undefined : version);
 
-      return return_result ? result : {"count": result.features.length};
+      return JSON.stringify(return_result ? result : {"count": result.features.length});
     }
     catch (error) {
       if (!error.code)
@@ -92,8 +93,8 @@ $BODY$ LANGUAGE plv8 VOLATILE;
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
 CREATE OR REPLACE FUNCTION write_feature(input_feature TEXT, author TEXT, on_exists TEXT,
-    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL, return_result BOOLEAN = true)
-    RETURNS JSONB AS $BODY$
+    on_not_exists TEXT, on_version_conflict TEXT, on_merge_conflict TEXT, is_partial BOOLEAN, version BIGINT = NULL, return_result BOOLEAN = false)
+    RETURNS TEXT AS $BODY$
 
     //Import other functions
     const writeFeatures = plv8.find_function("write_features_old");

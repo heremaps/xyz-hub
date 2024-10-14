@@ -34,6 +34,7 @@ import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.DELETE;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.NONE;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.UPDATE;
+import static com.here.xyz.util.db.pg.SQLError.UNKNOWN;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -52,8 +53,8 @@ import com.here.xyz.test.featurewriter.SpaceWriter.OnMergeConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.Operation;
-import com.here.xyz.test.featurewriter.SpaceWriter.SQLError;
 import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
+import com.here.xyz.util.db.pg.SQLError;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -264,7 +265,7 @@ public abstract class TestSuite {
     catch (SQLException e) {
       thrownError = SQLError.fromErrorCode(e.getSQLState());
       //Rethrow the exception if it was not one of the expected ones
-      if (thrownError == null)
+      if (thrownError == UNKNOWN)
         throw e;
     }
 

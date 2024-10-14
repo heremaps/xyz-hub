@@ -22,11 +22,11 @@ package com.here.xyz.test.featurewriter.sql.noncomposite.history;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.D;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.I;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.U;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_NOT_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.MERGE_CONFLICT_ERROR;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.VERSION_CONFLICT_ERROR;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.MERGE_CONFLICT_ERROR;
+import static com.here.xyz.util.db.pg.SQLError.VERSION_CONFLICT_ERROR;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;

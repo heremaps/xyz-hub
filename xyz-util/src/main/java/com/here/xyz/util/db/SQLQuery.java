@@ -32,6 +32,7 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -1205,7 +1206,10 @@ public class SQLQuery {
 
   private Object executeQuery(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
     SQLQuery query = prepareFinalQuery(executionContext);
-    return getRunner(dataSource, executionContext).query(query.text(), handler, query.parameters().toArray());
+    if (context != null)
+      handler = new Ignore1stResultSet(handler);
+    final List<?> results = getRunner(dataSource, executionContext).execute(query.text(), handler, query.parameters().toArray());
+    return results.size() <= 1 ? results.get(0) : results.get(results.size() - 1);
   }
 
   private static QueryRunner getRunner(DataSource dataSource, ExecutionContext executionContext) {
@@ -1387,6 +1391,24 @@ public class SQLQuery {
     @Override
     public String toString() {
       return errorName;
+    }
+  }
+
+  private static class Ignore1stResultSet implements ResultSetHandler<Object> {
+    private final ResultSetHandler<?> originalHandler;
+    private boolean calledBefore;
+
+    public Ignore1stResultSet(ResultSetHandler<?> originalHandler) {
+      this.originalHandler = originalHandler;
+    }
+
+    @Override
+    public Object handle(ResultSet rs) throws SQLException {
+      if (!calledBefore) {
+        calledBefore = true;
+        return null;
+      }
+      return originalHandler.handle(rs);
     }
   }
 }

@@ -55,7 +55,7 @@ $BODY$ LANGUAGE plpgsql VOLATILE;
  */
 CREATE OR REPLACE FUNCTION context(context JSONB) RETURNS VOID AS $BODY$
 BEGIN
-    PERFORM set_config('xyz.queryContext', context::TEXT, true);
+    PERFORM set_config('xyz.queryContext', context::TEXT, false);
 END
 $BODY$ LANGUAGE plpgsql VOLATILE;
 

@@ -81,25 +81,28 @@ public class FeatureHandler {
   private static final LongAdder globalInflightRequestMemory = new LongAdder();
 
   public static Future<FeatureCollection> writeFeatures(Marker marker, Space space, Set<Modification> modifications, SpaceContext spaceContext,
-      String author) {
+      String author, boolean responseDataExpected) {
     try {
       throttle(space);
 
       WriteFeaturesEvent event = new WriteFeaturesEvent()
           .withModifications(modifications)
           .withContext(spaceContext)
-          .withAuthor(author);
+          .withAuthor(author)
+          .withResponseDataExpected(responseDataExpected);
 
       //Enrich event with properties from the space
       injectSpaceParams(event, space);
 
       Promise<FeatureCollection> promise = Promise.promise();
       RpcContext rpcContext = getRpcClient(space.getResolvedStorageConnector())
-          .execute(marker, event, response -> {
-            if (response instanceof FeatureCollection featureCollection)
+          .execute(marker, event, ar -> {
+            if (ar.failed())
+              promise.fail(ar.cause());
+            else if (ar.result() instanceof FeatureCollection featureCollection)
               promise.complete(featureCollection);
             else
-              promise.fail(new RuntimeException("Received unexpected response from storage connector: " + response.getClass().getSimpleName()));
+              promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
           });
       return promise.future();
 
@@ -137,6 +140,7 @@ public class FeatureHandler {
   }
 
   static void injectSpaceParams(Event event, Space space) {
+    event.setSpace(space.getId());
     if (event instanceof ContextAwareEvent contextAwareEvent)
       contextAwareEvent.setVersionsToKeep(space.getVersionsToKeep());
   }

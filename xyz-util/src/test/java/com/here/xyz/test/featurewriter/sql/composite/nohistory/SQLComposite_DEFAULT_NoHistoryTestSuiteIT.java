@@ -24,13 +24,13 @@ import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.H;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.I;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.J;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.U;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_NOT_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.ILLEGAL_ARGUMENT;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.VERSION_CONFLICT_ERROR;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.DELETE;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.UPDATE;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.util.db.pg.SQLError.VERSION_CONFLICT_ERROR;
 
 import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
 import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;

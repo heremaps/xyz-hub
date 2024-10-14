@@ -277,7 +277,8 @@ public class FeatureApi extends SpaceBasedApi {
 
   private void executeWriteFeatures(RoutingContext context, ApiResponseType responseType, FeatureModificationList modificationList,
       boolean partialUpdates, SpaceContext spaceContext) {
-    writeFeatures(context, modificationList, partialUpdates, spaceContext, getAuthor(context))
+    writeFeatures(context, modificationList, partialUpdates, spaceContext, getAuthor(context), responseType != EMPTY)
+        .onFailure(e -> this.sendErrorResponse(context, e))
         .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
   }
 
@@ -296,41 +297,36 @@ public class FeatureApi extends SpaceBasedApi {
     }
   }
 
-  private Future<FeatureCollection> writeFeatures(RoutingContext context, FeatureModificationList modificationList, boolean partialUpdates,
-      SpaceContext spaceContext, String author) {
-    return writeFeatures(context, modificationList.getModifications().stream()
-        .map(modification -> new Modification()
-            .withFeatureData(modification.getFeatureData())
-            .withUpdateStrategy(toUpdateStrategy(modification.getOnFeatureExists(), modification.getOnFeatureNotExists(), modification.getOnMergeConflict()))
-            .withPartialUpdates(partialUpdates)).collect(Collectors.toSet()), spaceContext, author);
-  }
-
   private void executeDeleteFeatures(RoutingContext context, ApiResponseType responseType, List<String> featureIds,
       SpaceContext spaceContext) {
-    deleteFeatures(context, featureIds, spaceContext, getAuthor(context))
+    deleteFeatures(context, featureIds, spaceContext, getAuthor(context), responseType != EMPTY)
+        .onFailure(e -> this.sendErrorResponse(context, e))
         .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
   }
 
   private Future<FeatureCollection> deleteFeatures(RoutingContext context, List<String> featureIds, SpaceContext spaceContext,
-      String author) {
+      String author, boolean responseDataExpected) {
     return writeFeatures(context, Set.of(new Modification()
             .withFeatureIds(featureIds)
-            .withUpdateStrategy(DEFAULT_DELETE_STRATEGY)), spaceContext, author);
+            .withUpdateStrategy(DEFAULT_DELETE_STRATEGY)), false, spaceContext, author, responseDataExpected);
   }
 
   /**
    * Performs all the API-level checks (e.g., authorization, parameter validation, ...) before actually calling the {@link FeatureHandler}
    * to execute the modification of the features.
    * @param context
-   * @param modifications
+   * @param inputModifications
    * @param spaceContext
    * @param author
    * @return
    */
-  private Future<FeatureCollection> writeFeatures(RoutingContext context, Set<Modification> modifications, SpaceContext spaceContext,
-      String author) {
+  private Future<FeatureCollection> writeFeatures(RoutingContext context, Object inputModifications,
+      boolean partialUpdates, SpaceContext spaceContext, String author, boolean responseDataExpected) {
     return Space.resolveSpace(getMarker(context), getSpaceId(context))
         .compose(space -> {
+          Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
+              ? toModifications(space, featureModificationList, partialUpdates)
+              : (Set<Modification>) inputModifications;
           boolean isDelete = hasDeletion(modifications);
           boolean isWrite = hasWrite(modifications);
 
@@ -350,7 +346,7 @@ public class FeatureApi extends SpaceBasedApi {
                 .compose(v -> resolveExtendedSpaces(getMarker(context), space))
                 .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
                 //Perform the actual feature writing
-                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author))
+                .compose(v -> FeatureHandler.writeFeatures(getMarker(context), space, modifications, spaceContext, author, responseDataExpected))
                 .recover(t -> {
                   if (t instanceof TooManyRequestsException throttleException)
                     XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
@@ -410,22 +406,37 @@ public class FeatureApi extends SpaceBasedApi {
    * @param conflictResolution
    * @return
    */
-  private UpdateStrategy toUpdateStrategy(IfExists ifExists, IfNotExists ifNotExists, ConflictResolution conflictResolution) {
+  private UpdateStrategy toUpdateStrategy(Space space, IfExists ifExists, IfNotExists ifNotExists, ConflictResolution conflictResolution) {
+    OnVersionConflict onVersionConflict = toOnVersionConflict(space, ifExists, conflictResolution);
     return new UpdateStrategy(
         toOnExists(ifExists),
         toOnNotExists(ifNotExists),
-        toOnVersionConflict(ifExists, conflictResolution),
-        toOnMergeConflict(conflictResolution)
+        onVersionConflict,
+        onVersionConflict == OnVersionConflict.MERGE ? toOnMergeConflict(conflictResolution) : null
     );
   }
 
-  private OnVersionConflict toOnVersionConflict(IfExists ifExists, ConflictResolution conflictResolution) {
+  private Set<Modification> toModifications(Space space, FeatureModificationList featureModificationList, boolean partialUpdates) {
+    return featureModificationList.getModifications().stream()
+        .map(modification -> new Modification()
+            .withFeatureData(modification.getFeatureData())
+            .withUpdateStrategy(toUpdateStrategy(space, modification.getOnFeatureExists(), modification.getOnFeatureNotExists(),
+                modification.getOnMergeConflict()))
+            .withPartialUpdates(partialUpdates)).collect(Collectors.toSet());
+  }
+
+  private OnVersionConflict toOnVersionConflict(Space space, IfExists ifExists, ConflictResolution conflictResolution) {
+    //TODO: Enable version-conflict detection if the user explicitly asked for it using the query parameter
+    boolean historyEnabled = space.getVersionsToKeep() <= 1;
+    if (historyEnabled) //For now deactivate version-conflict detection, if the history is not enabled
+      return null;
+
     return switch (ifExists) {
       case RETAIN -> OnVersionConflict.RETAIN;
       case ERROR -> OnVersionConflict.ERROR;
       case DELETE -> OnVersionConflict.DELETE;
       case REPLACE, PATCH -> OnVersionConflict.REPLACE;
-      case MERGE -> OnVersionConflict.MERGE;
+      case MERGE -> historyEnabled ? OnVersionConflict.MERGE : OnVersionConflict.REPLACE;
     };
   }
 

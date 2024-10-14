@@ -29,6 +29,7 @@ import static org.junit.Assert.fail;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
@@ -249,6 +250,20 @@ public class SQLQueryIT extends SQLITBase {
       finally {
         dropTmpTable(dsp);
       }
+    }
+  }
+
+  @Test
+  public void runQueryWithContext() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      String key = "someKey";
+      String value = "someValue";
+
+      SQLQuery query = new SQLQuery("SELECT context()->>#{key};")
+          .withContext(Map.of(key, value))
+          .withNamedParameter("key", key);
+
+      assertEquals(value, query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
     }
   }
 
