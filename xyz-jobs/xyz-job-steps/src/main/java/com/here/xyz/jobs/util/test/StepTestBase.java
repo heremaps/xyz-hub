@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.util.test;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
@@ -174,18 +175,35 @@ public class StepTestBase {
     return null;
   }
 
-  protected FeatureCollection getAllFeaturesFromSmallSpace(String spaceId) {
+  protected FeatureCollection getFeaturesFromSmallSpace(String spaceId, String propertyFilter, boolean force2D) {
     try {
-      return hubWebClient.getAllFeaturesFromSmallSpace(spaceId, ContextAwareEvent.SpaceContext.EXTENSION);
+      return hubWebClient.getFeaturesFromSmallSpace(spaceId, ContextAwareEvent.SpaceContext.EXTENSION, propertyFilter, force2D);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
     return null;
   }
 
-  protected void putFeatureCollectionToSpace(String spaceId, int featureCount) {
+  protected FeatureCollection customReadFeaturesQuery(String spaceId, String customPath) {
     try {
-      hubWebClient.putFeaturesWithoutResponse(spaceId, ContentCreator.generateFeatureCollection(featureCount));
+      return hubWebClient.customReadFeaturesQuery(spaceId, customPath);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+    return null;
+  }
+
+  protected void putFeatureCollectionToSpace(String spaceId, FeatureCollection fc) {
+    try {
+      hubWebClient.putFeaturesWithoutResponse(spaceId, fc);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
+  protected void putRandomFeatureCollectionToSpace(String spaceId, int featureCount) {
+    try {
+      hubWebClient.putFeaturesWithoutResponse(spaceId, ContentCreator.generateRandomFeatureCollection(featureCount));
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
@@ -325,5 +343,9 @@ public class StepTestBase {
       }
     }
     return fileInLines;
+  }
+
+  protected FeatureCollection readTestFeatureCollection(String filePath) throws IOException {
+    return XyzSerializable.deserialize( new String(ByteStreams.toByteArray(this.getClass().getResourceAsStream(filePath))).trim(), FeatureCollection.class);
   }
 }

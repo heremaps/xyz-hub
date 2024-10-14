@@ -1,12 +1,16 @@
 package com.here.xyz.jobs.util.test;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKBReader;
 
 import java.util.Random;
 
@@ -33,7 +37,7 @@ public class ContentCreator {
             return "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"test\":"+i+"}}"+lineSeparator;
     }
 
-    public static FeatureCollection generateFeatureCollection(int featureCnt) {
+    public static FeatureCollection generateRandomFeatureCollection(int featureCnt) {
         FeatureCollection fc = new FeatureCollection();
         try {
             for (int i = 0; i < featureCnt; i++)
@@ -42,5 +46,17 @@ public class ContentCreator {
         }catch (JsonProcessingException e){}
 
         return fc;
+    }
+
+    public static Feature getFeatureFromCSVLine(String csvLine) throws JsonProcessingException {
+        return XyzSerializable.deserialize( csvLine.substring(1, csvLine.lastIndexOf(",") -1 ).replaceAll("'\"","\""), Feature.class);
+    }
+
+    public static Geometry getWKBFromCsvLine(String csvLine) throws ParseException {
+        String geomAsWKB = csvLine.substring(csvLine.lastIndexOf(",") + 1 );
+        byte[] aux = WKBReader.hexToBytes(geomAsWKB);
+        /** Try to read WKB */
+        org.locationtech.jts.geom.Geometry read = new WKBReader().read(aux);
+        return Geometry.convertJTSGeometry(read);
     }
 }

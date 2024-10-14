@@ -6,16 +6,17 @@ import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
 
 import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
 public class ExportJobTestIT extends JobTest {
 
     @BeforeEach
-    public void setUp() {
+    public void setUp() throws IOException {
         createSpace(SPACE_ID);
-        putFeatureCollectionToSpace(SPACE_ID,50);
+        putRandomFeatureCollectionToSpace(SPACE_ID,50);
     }
 
     @AfterEach
