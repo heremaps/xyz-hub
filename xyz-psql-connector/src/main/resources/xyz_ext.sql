@@ -126,7 +126,7 @@ DECLARE
  sgeo geometry;
 BEGIN
 
-  if not st_isvalid(geo) then
+  if not st_isvalid(geo,0) then -- check without notice
    RETURN geo;
   end if;
 
