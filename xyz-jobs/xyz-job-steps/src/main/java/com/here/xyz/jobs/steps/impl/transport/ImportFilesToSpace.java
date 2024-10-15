@@ -49,6 +49,7 @@ import com.here.xyz.jobs.datasets.space.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
