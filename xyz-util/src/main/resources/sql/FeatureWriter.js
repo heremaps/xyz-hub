@@ -93,6 +93,7 @@ class FeatureWriter {
 
   /**
    * @throws VersionConflictError, MergeConflictError, FeatureExistsError
+   * @returns {FeatureModificationExecutionResult}
    */
   writeFeature() {
     return this.isDelete ? this.deleteFeature() : this.writeRow();
@@ -100,6 +101,7 @@ class FeatureWriter {
 
   /**
    * @throws VersionConflictError, MergeConflictError
+   * @returns {FeatureModificationExecutionResult}
    */
   deleteFeature() {
     if (this.context == "DEFAULT") {
@@ -136,6 +138,7 @@ class FeatureWriter {
 
   /**
    * @throws VersionConflictError, MergeConflictError, FeatureExistsError
+   * @returns {FeatureModificationExecutionResult}
    */
   writeRow() {
     if (this.historyEnabled)
@@ -145,6 +148,7 @@ class FeatureWriter {
 
   /**
    * @throws VersionConflictError, MergeConflictError, FeatureExistsError
+   * @returns {FeatureModificationExecutionResult}
    */
   writeRowWithHistory() {
     switch (this.onExists) {
@@ -169,21 +173,21 @@ class FeatureWriter {
         if (this.operation == "D") {
           if (updatedRows[0].operation != "D") {
             this._transformToDeletedFeature();
-            this._insertHistoryRow();
+            return this._insertHistoryRow();
           }
         }
         else {
           this.operation = updatedRows[0].operation == "D" ? this.operation : this._transformToUpdate(this.operation);
-          this._insertHistoryRow();
+          return this._insertHistoryRow();
         }
       }
       else {
         if (this.loadFeature(this.inputFeature.id) != null)
             //The feature exists in HEAD and still no previous version was updated, so we have a version conflict
-          this.handleVersionConflict();
+          return this.handleVersionConflict();
         else {
-          if (updatedRows[0].operation != "D")
-            this._insertHistoryRow();
+          if (updatedRows[0]?.operation != "D")
+            return this._insertHistoryRow();
         }
       }
     }
@@ -199,12 +203,12 @@ class FeatureWriter {
             if (this.context == "DEFAULT" && this.featureExistsInHead(this.inputFeature.id, "SUPER"))
               this.operation = "J";
             this._transformToDeletedFeature();
-            this._insertHistoryRow();
+            return this._insertHistoryRow();
           }
         }
         else {
           this.operation = updatedRows[0].operation == "D" ? this.operation : this._transformToUpdate(this.operation);
-          this._insertHistoryRow();
+          return this._insertHistoryRow();
         }
       }
       else {
@@ -228,7 +232,7 @@ class FeatureWriter {
         }
 
         if (this.operation != "D")
-          this._insertHistoryRow();
+          return this._insertHistoryRow();
       }
     }
   }
@@ -243,6 +247,7 @@ class FeatureWriter {
 
   /**
    * @throws FeatureExistsError
+   * @returns {FeatureModificationExecutionResult}
    */
   writeRowWithoutHistory() {
     if (this.isPartial) {
@@ -285,21 +290,22 @@ class FeatureWriter {
     if (this.onVersionConflict != null) {
       this.debugBox("Version conflict handling! Base version: " + this.baseVersion);
 
-      if (this._updateRow().length == 0)
+      let execution = this._updateRow();
+      if (execution == null)
         return this.handleVersionConflict();
+      return execution;
     }
     else {
       try {
         if (this.onNotExists == "RETAIN" && !this.featureExistsInHead(this.inputFeature.id))
           return null;
 
-        let writtenFeature = this._upsertRow();
+        let execution = this._upsertRow();
 
-        if (writtenFeature[0]?.operation == "U")
-          //Inject createdAt
-          this.inputFeature.properties[XYZ_NS].createdAt = writtenFeature[0].created_at[0];
-        else if (this.onNotExists == "ERROR")
+        if (execution.action != ExecutionAction.UPDATED && this.onNotExists == "ERROR")
           this._throwFeatureNotExistsError();
+
+        return execution;
       }
       catch (e) {
         if (e.sqlerrcode == SQLErrors.CONFLICT) {
@@ -314,7 +320,6 @@ class FeatureWriter {
         //Rethrow the original error, as it is unexpected
         throw e;
       }
-      return this.inputFeature;
     }
   }
 
@@ -328,6 +333,7 @@ class FeatureWriter {
 
   /**
    * @throws VersionConflictError
+   * @returns {FeatureModificationExecutionResult}
    */
   deleteRow() {
     //TODO: do we need the payload of the feature as return?
@@ -338,11 +344,14 @@ class FeatureWriter {
     if (deletedRows == 0) {
       this.debugBox("HandleConflict for id: " + this.inputFeature.id);
       //handleDeleteVersionConflict
+      return null;
     }
+    return new FeatureModificationExecutionResult(ExecutionAction.DELETED, this.inputFeature);
   }
 
   /**
    * @throws VersionConflictError, MergeConflictError
+   * @returns {FeatureModificationExecutionResult}
    */
   handleVersionConflict() {
     return this.isDelete ? this.handleDeleteVersionConflict() : this.handleWriteVersionConflict();
@@ -350,6 +359,7 @@ class FeatureWriter {
 
   /**
    * @throws VersionConflictError
+   * @returns {FeatureModificationExecutionResult}
    */
   handleWriteVersionConflict() {
     switch (this.onVersionConflict) {
@@ -368,6 +378,7 @@ class FeatureWriter {
 
   /**
    * @throws VersionConflictError, MergeConflictError
+   * @returns {FeatureModificationExecutionResult}
    */
   handleDeleteVersionConflict() {
     switch (this.onVersionConflict) {
@@ -672,6 +683,10 @@ class FeatureWriter {
     return res;
   }
 
+  /**
+   * @private
+   * @returns {FeatureModificationExecutionResult}
+   */
   _insertHistoryRow() {
     //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
     this.enrichTimestamps(this.inputFeature, true);
@@ -688,15 +703,23 @@ class FeatureWriter {
                               WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL
                               ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry')), false) END)`,
         this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
+
+    //FIXME: Extract written creation timestamp if applicable
+    return new FeatureModificationExecutionResult(ExecutionAction.fromOperation[this.operation], this.inputFeature);
   }
 
+  /**
+   * @private
+   * @param baseVersion
+   * @returns {int} The deleted row count
+   */
   _deleteRow(baseVersion = -1) {
     let sql = `DELETE FROM "${this.schema}"."${this._targetTable()}" WHERE id = $1 `;
     if (baseVersion == 0)
         //TODO: Check if this case is necessary. Why would we need to delete sth. on a space with v=0 (empty space)
       return plv8.execute(sql + "AND next_version = max_bigint();", this.inputFeature.id);
     else if (baseVersion > 0)
-      plv8.execute(sql + "AND version = $2;", this.inputFeature.id, baseVersion);
+      return plv8.execute(sql + "AND version = $2;", this.inputFeature.id, baseVersion);
     return plv8.execute(sql, this.inputFeature.id);
   }
 
@@ -717,6 +740,10 @@ class FeatureWriter {
                            RETURNING *`, this.version, this.inputFeature.id, MAX_BIG_INT);
   }
 
+  /**
+   * @private
+   * @returns {FeatureModificationExecutionResult}
+   */
   _upsertRow() {
     this.enrichTimestamps(this.inputFeature, true);
     let onConflict = this.onExists == "REPLACE" ? ` ON CONFLICT (id, next_version) DO UPDATE SET
@@ -734,7 +761,7 @@ class FeatureWriter {
 
     //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
 
-    return plv8.execute(sql,
+    let writtenRow = plv8.execute(sql,
         this.inputFeature.id,
         this.version,
         this.operation,
@@ -742,11 +769,20 @@ class FeatureWriter {
         this.inputFeature,
         this.inputFeature.geometry
     );
+
+    if (writtenRow[0]?.operation == "U")
+      //Inject createdAt
+      this.inputFeature.properties[XYZ_NS].createdAt = writtenRow[0].created_at[0];
+    return new FeatureModificationExecutionResult(ExecutionAction.fromOperation[writtenRow[0]?.operation], this.inputFeature);
   }
 
+  /**
+   * @private
+   * @returns {FeatureModificationExecutionResult}
+   */
   _updateRow() {
     this.enrichTimestamps(this.inputFeature);
-    return plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}" AS tbl
+    let writtenRows = plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}" AS tbl
                          SET version   = $1,
                              operation = $2,
                              author    = $3,
@@ -763,16 +799,21 @@ class FeatureWriter {
         this.inputFeature.geometry,
         this.inputFeature.id,
         this.baseVersion);
+
+    return !writtenRows.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, this.inputFeature);
   }
 
   static combineResults(featureCollections) {
     if (featureCollections.length <= 1)
       return featureCollections[0];
 
-    //TODO: Also merge inserted, updated, deleted arrays in FCs
     let result = featureCollections[0];
-    for (let i = 1; i < featureCollections.length; i++)
+    for (let i = 1; i < featureCollections.length; i++) {
       result.features = result.features.concat(featureCollections[i].features);
+      result.inserted = result.inserted.concat(featureCollections[i].inserted);
+      result.updated = result.updated.concat(featureCollections[i].updated);
+      result.deleted = result.deleted.concat(featureCollections[i].deleted);
+    }
 
     return result;
   }
@@ -783,15 +824,35 @@ class FeatureWriter {
         : featureModification.featureIds.map(featureId => FeatureWriter._transformToDeletedFeature(featureId));
   }
 
+  /**
+   * @returns {FeatureCollection}
+   */
   static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = FeatureWriter.getNextVersion()) {
-    let result = {type: "FeatureCollection", features : []};
+    let result = this.newFeatureCollection();
     for (let feature of inputFeatures) {
-      let writer = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial);
-      result.features.push(writer.writeFeature());
+      let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial).writeFeature();
+      if (execution != null) {
+        if (execution.action != ExecutionAction.DELETED)
+          result.features.push(execution.feature);
+        result[execution.action].push(execution.feature.id);
+      }
     }
     return result;
   }
 
+  static newFeatureCollection() {
+    return {
+      type: "FeatureCollection",
+      features: [],
+      inserted: [],
+      updated: [],
+      deleted: []
+    };
+  }
+
+  /**
+   * @returns {FeatureCollection}
+   */
   static writeFeatureModifications(featureModifications, author, version = FeatureWriter.getNextVersion()) {
     let featureCollections = featureModifications.map(modification => FeatureWriter.writeFeatures(this.toFeatureList(modification),
         author, modification.updateStrategy.onExists, modification.updateStrategy.onNotExists,
@@ -799,9 +860,36 @@ class FeatureWriter {
     return this.combineResults(featureCollections);
   }
 
+  /**
+   * @returns {FeatureCollection}
+   */
   static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = undefined) {
     return FeatureWriter.writeFeatures([inputFeature], author, onExists, onNotExists, onVersionConflict, onMergeConflict,
         isPartial, version);
+  }
+}
+
+class ExecutionAction {
+  static INSERTED = "inserted";
+  static UPDATED = "updated";
+  static DELETED = "deleted";
+
+  static fromOperation = {
+    "I": this.INSERTED,
+    "H": this.INSERTED,
+    "U": this.UPDATED,
+    "J": this.UPDATED,
+    "D": this.DELETED
+  }
+};
+
+class FeatureModificationExecutionResult {
+  action;
+  feature;
+
+  constructor(action, feature) {
+    this.action = action;
+    this.feature = feature;
   }
 }
 

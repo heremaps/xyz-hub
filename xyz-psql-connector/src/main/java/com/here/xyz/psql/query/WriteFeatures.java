@@ -70,13 +70,11 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       return super.run(dataSourceProvider);
     }
     catch (SQLException e) {
+      final String message = e.getMessage();
+      String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
       throw switch (SQLError.fromErrorCode(e.getSQLState())) {
-        case FEATURE_EXISTS, FEATURE_NOT_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, "Conflict while writing the feature(s).", e);
-        case ILLEGAL_ARGUMENT -> {
-          final String message = e.getMessage();
-          String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
-          yield new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
-        }
+        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR, FEATURE_NOT_EXISTS -> new ErrorResponseException(CONFLICT, cleanMessage, e);
+        case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
         case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e);
       };
     }

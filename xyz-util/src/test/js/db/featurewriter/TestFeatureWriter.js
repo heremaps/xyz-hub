@@ -24,9 +24,9 @@ const FeatureWriter = plv8.FeatureWriter;
 
 global.queryContext = () => ({
   schema: "public",
-  table: "SQLSpaceWriter",
-  extendedTable: "SQLSpaceWriter_super",
-  context: "EXTENSION",
+  table: "HubComposite_DEFAULT_WithHistoryTestSuiteIT",
+  extendedTable: "HubComposite_DEFAULT_WithHistoryTestSuiteIT_super",
+  context: "DEFAULT",
   historyEnabled: true
 });
 
@@ -43,11 +43,14 @@ class TestFeatureWriter {
     },
     "properties": {
       "firstName": "Alice",
-      "age": 35
+      "age": 35,
+      "@ns:com:here:xyz": {
+        version: 1
+      }
     }
   };
 
-  writer = new FeatureWriter(this.inputFeature, 2, null, "DELETE", "CREATE", null, null, false);
+  writer = new FeatureWriter(this.inputFeature, 1, null, "ERROR", "CREATE", null, null, false);
 
   run() {
     this.writer.writeFeature();

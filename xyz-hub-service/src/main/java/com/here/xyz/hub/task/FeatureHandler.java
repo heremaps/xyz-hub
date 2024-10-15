@@ -237,8 +237,8 @@ public class FeatureHandler {
    */
   private static boolean inExtensionPath(Space mainCompositeSpace, Space extendedSpace) {
     return mainCompositeSpace.getId().equals(extendedSpace.getId())
-        || mainCompositeSpace.getExtension() != null && mainCompositeSpace.getExtension().getSpaceId().equals(extendedSpace.getId())
-        || inExtensionPath((Space) mainCompositeSpace.getExtension().resolvedSpace, extendedSpace);
+        || mainCompositeSpace.getExtension() != null && mainCompositeSpace.getExtension().resolvedSpace != null
+        && inExtensionPath((Space) mainCompositeSpace.getExtension().resolvedSpace, extendedSpace);
   }
 
   public static Future<Void> resolveListenersAndProcessors(Marker marker, Space space) {

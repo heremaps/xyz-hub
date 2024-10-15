@@ -37,6 +37,7 @@ pgClient.connect().then(err => {
 global.NOTICE = "NOTICE";
 global.ERROR = "ERROR";
 global.plv8 = {
+  global: global,
   elog: console.log,
   execute(sql, ...params) {
     if (!clientConnected)
