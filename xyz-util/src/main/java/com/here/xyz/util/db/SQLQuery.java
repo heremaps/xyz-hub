@@ -65,7 +65,7 @@ public class SQLQuery {
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
   public static final String QUERY_ID = "queryId";
-  public static final String TEXT_QUOTE = "\\$a\\$";
+  public static final String TEXT_QUOTE = "$a$";
   private String statement = "";
   @JsonProperty
   private List<Object> parameters = new ArrayList<>();
@@ -231,7 +231,7 @@ public class SQLQuery {
     if (paramValue == null)
       return "NULL";
     if (paramValue instanceof String stringParam)
-      return TEXT_QUOTE + escapeDollarSigns(escapeCustomQuotes(stringParam, TEXT_QUOTE)) + TEXT_QUOTE;
+      return escapeDollarSigns(customQuote(stringParam));
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
@@ -243,6 +243,11 @@ public class SQLQuery {
           .map(elementValue -> paramValueToString(elementValue))
           .collect(Collectors.joining(",")) + "]";
     return paramValue.toString();
+  }
+
+  private static String customQuote(String stringToQuote) {
+    String quote = getEscapedCustomQuoteFor(stringToQuote, TEXT_QUOTE);
+    return quote + stringToQuote + quote;
   }
 
   /**
@@ -266,17 +271,12 @@ public class SQLQuery {
    * @param customQuoteToEscape
    * @return
    */
-  private static String escapeCustomQuotes(String containingString, String customQuoteToEscape) {
-    if (!containingString.contains(customQuoteToEscape))
-      return containingString;
-
-    String escapedCustomQuote = getEscapedCustomQuoteFor(customQuoteToEscape);
-
+  private static String getEscapedCustomQuoteFor(String containingString, String customQuoteToEscape) {
     //Further escape the custom quote until finding one that is not in use yet
-    while (containingString.contains(escapedCustomQuote))
-      escapedCustomQuote = getEscapedCustomQuoteFor(escapedCustomQuote);
+    while (containingString.contains(customQuoteToEscape))
+      customQuoteToEscape = getEscapedCustomQuoteFor(customQuoteToEscape);
 
-    return containingString.replaceAll(Pattern.quote(customQuoteToEscape), escapeDollarSigns(escapedCustomQuote));
+    return customQuoteToEscape;
   }
 
   private static String getEscapedCustomQuoteFor(String customQuoteToEscape) {
