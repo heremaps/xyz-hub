@@ -105,9 +105,9 @@ public class RestSpaceWriter extends SpaceWriter {
           //FIXME: respond with correct status codes in hub (e.g. not exists => 404)
           String errorMessage = (String) responseBody.get("errorMessage");
           switch (errorMessage) {
-            case "The record does not exist.":
+            case "The record does not exist.", "ERROR: Feature with ID " + TEST_FEATURE_ID + " not exists!":
               throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
-            case "The record {" + TEST_FEATURE_ID + "} exists.":
+            case "The record {" + TEST_FEATURE_ID + "} exists.", "ERROR: Feature with ID " + TEST_FEATURE_ID + " exists!":
               throw new SQLException(errorMessage, FEATURE_EXISTS.errorCode, e);
             case "Conflict while merging someConflictingValue with someValue":
               throw new SQLException(errorMessage, MERGE_CONFLICT_ERROR.errorCode, e);

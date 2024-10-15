@@ -397,7 +397,7 @@ public class RpcClient {
         case NOT_IMPLEMENTED:
           throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.", errorResponse.getErrorDetails());
         case CONFLICT:
-          throw new HttpException(CONFLICT, "A conflict occurred when writing a feature: " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
+          throw new HttpException(CONFLICT, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case FORBIDDEN:
           throw new HttpException(FORBIDDEN, "The user is not authorized.", errorResponse.getErrorDetails());
         case TOO_MANY_REQUESTS:

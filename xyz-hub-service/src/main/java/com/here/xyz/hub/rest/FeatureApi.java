@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
+import static com.here.xyz.hub.rest.ApiParam.Query.CONFLICT_DETECTION;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static com.here.xyz.hub.rest.ApiResponseType.EMPTY;
@@ -82,7 +83,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class FeatureApi extends SpaceBasedApi {
-  private static final boolean USE_WRITE_FEATURES_EVENT = false;
+  private static final boolean USE_WRITE_FEATURES_EVENT = true;
 
   public FeatureApi(RouterBuilder rb) {
     rb.getRoute("getFeature").setDoValidation(false).addHandler(handleErrors(this::getFeature));
@@ -197,7 +198,7 @@ public class FeatureApi extends SpaceBasedApi {
   private void putFeatures(final RoutingContext context) throws HttpException {
     if (USE_WRITE_FEATURES_EVENT)
       executeWriteFeatures(context, FEATURE_COLLECTION,
-          toFeatureModificationList(readFeatureCollection(context), IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR),
+          toFeatureModificationList(readFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
           false, getSpaceContext(context));
     else
       executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, FEATURE_COLLECTION),
@@ -230,7 +231,7 @@ public class FeatureApi extends SpaceBasedApi {
     if (USE_WRITE_FEATURES_EVENT) {
       FeatureModificationList featureModificationList = APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(contentType)
           ? readFeatureModificationList(context)
-          : toFeatureModificationList(readFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR);
+          : toFeatureModificationList(readFeatureCollection(context), ifNotExists, ifExists, conflictResolution);
 
       executeWriteFeatures(context, responseType, featureModificationList, false, getSpaceContext(context));
     }
@@ -325,7 +326,7 @@ public class FeatureApi extends SpaceBasedApi {
     return Space.resolveSpace(getMarker(context), getSpaceId(context))
         .compose(space -> {
           Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
-              ? toModifications(space, featureModificationList, partialUpdates)
+              ? toModifications(space, featureModificationList, isConflictDetectionEnabled(context), partialUpdates)
               : (Set<Modification>) inputModifications;
           boolean isDelete = hasDeletion(modifications);
           boolean isWrite = hasWrite(modifications);
@@ -406,8 +407,9 @@ public class FeatureApi extends SpaceBasedApi {
    * @param conflictResolution
    * @return
    */
-  private UpdateStrategy toUpdateStrategy(Space space, IfExists ifExists, IfNotExists ifNotExists, ConflictResolution conflictResolution) {
-    OnVersionConflict onVersionConflict = toOnVersionConflict(space, ifExists, conflictResolution);
+  private UpdateStrategy toUpdateStrategy(Space space, IfExists ifExists, IfNotExists ifNotExists, ConflictResolution conflictResolution,
+      boolean versionConflictDetectionEnabled) {
+    OnVersionConflict onVersionConflict = versionConflictDetectionEnabled ? toOnVersionConflict(space, ifExists, conflictResolution) : null;
     return new UpdateStrategy(
         toOnExists(ifExists),
         toOnNotExists(ifNotExists),
@@ -416,12 +418,13 @@ public class FeatureApi extends SpaceBasedApi {
     );
   }
 
-  private Set<Modification> toModifications(Space space, FeatureModificationList featureModificationList, boolean partialUpdates) {
+  private Set<Modification> toModifications(Space space, FeatureModificationList featureModificationList,
+      boolean versionConflictDetectionEnabled, boolean partialUpdates) {
     return featureModificationList.getModifications().stream()
         .map(modification -> new Modification()
             .withFeatureData(modification.getFeatureData())
             .withUpdateStrategy(toUpdateStrategy(space, modification.getOnFeatureExists(), modification.getOnFeatureNotExists(),
-                modification.getOnMergeConflict()))
+                modification.getOnMergeConflict(), versionConflictDetectionEnabled))
             .withPartialUpdates(partialUpdates)).collect(Collectors.toSet());
   }
 
@@ -523,7 +526,7 @@ public class FeatureApi extends SpaceBasedApi {
         .withAuthor(author)
         .withTransaction(transactional)
         .withContext(spaceContext)
-        .withConflictDetectionEnabled(Query.getBoolean(context, Query.CONFLICT_DETECTION, false));
+        .withConflictDetectionEnabled(isConflictDetectionEnabled(context));
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
 
     try {
@@ -542,6 +545,10 @@ public class FeatureApi extends SpaceBasedApi {
       logger.warn(getMarker(context), e.getMessage(), e);
       context.fail(e);
     }
+  }
+
+  private static boolean isConflictDetectionEnabled(RoutingContext context) {
+    return Query.getBoolean(context, CONFLICT_DETECTION, false);
   }
 
   private static boolean checkModificationOnSuper(RoutingContext context, SpaceContext spaceContext) {

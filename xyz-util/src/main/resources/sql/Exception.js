@@ -101,3 +101,14 @@ class FeatureNotExistsException extends XyzException {
 SQLErrors = {
   CONFLICT: "23505"
 };
+
+if (plv8.global) {
+  global.Exception = Exception;
+  global.XyzException = XyzException;
+  global.VersionConflictError = VersionConflictError;
+  global.MergeConflictError = MergeConflictError;
+  global.IllegalArgumentException = IllegalArgumentException;
+  global.FeatureExistsException = FeatureExistsException;
+  global.FeatureNotExistsException = FeatureNotExistsException;
+  global.SQLErrors = SQLErrors;
+}
