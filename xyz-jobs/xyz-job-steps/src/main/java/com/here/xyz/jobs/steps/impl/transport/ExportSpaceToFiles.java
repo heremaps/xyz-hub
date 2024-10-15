@@ -66,7 +66,7 @@ import java.util.UUID;
  * This step produces exactly one output of type {@link FeatureStatistics}.
  */
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
-    //Defines how many features a source layer need to have to start parallelization.
+  //Defines how many features a source layer need to have to start parallelization.
   public static final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
@@ -144,7 +144,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   public SpaceContext getContext() {
-    return context;
+    return context == null ? EXTENSION :context;
   }
 
   public void setContext(SpaceContext context) {
@@ -188,7 +188,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), EXTENSION);
+      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
       overallNeededAcus = overallNeededAcus != -1 ?
               overallNeededAcus : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
@@ -230,17 +230,21 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public boolean validate() throws ValidationException {
     super.validate();
+
     try {
+      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
 
-      loadSpace(getSpaceId());
+      //Validate input Geometry
+      if(getSpatialFilter() != null)
+        getSpatialFilter().validateSpatialFilter();
 
-      /**
-       * @TODO:
-       * - Check if geometry is valid
-       * - Check searchableProperties
-       * - Check if targetVersion is valid
-       * - Check if targetLevel is valid
-      */
+      //TODO: Check if property validation is needed - in sense of searchableProperties
+//      if(statistics.getCount().getValue() > 1_000_000 && getPropertyFilter() != null){
+//        getPropertyFilter().getQueryKeys()
+//          throw new ValidationException("is not a searchable property");
+//      }
+
+      //TODO: Check if versionRef validation is needed
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
@@ -250,7 +254,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), EXTENSION);
+    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
     List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
