@@ -23,11 +23,11 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
 
 public class GeometryValidator {
-  private static int MAX_NUMBER_OF_COORDNIATES = 12000;
+  public static int MAX_NUMBER_OF_COORDNIATES = 12_000;
 
   public static void validateGeometry(Geometry geometry, int radius) throws GeometryException {
     if (geometry == null)
-      return;
+      throw new GeometryException("Invalid arguments! Geometry cant be null!");
 
     try {
       geometry.validate();
