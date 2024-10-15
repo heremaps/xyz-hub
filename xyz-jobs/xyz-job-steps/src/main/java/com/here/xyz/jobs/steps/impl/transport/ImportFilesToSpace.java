@@ -259,7 +259,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     try {
       logAndSetPhase(Phase.VALIDATE);
       //Check if the space is actually existing
-      space();
+      Space space = space();
+      if(space.isReadOnly())
+        throw new ValidationException("Data can not be written to target " + space.getId() + " as it is in read-only mode.");
 
       if (entityPerLine == FeatureCollection && format == CSV_JSON_WKB)
         throw new ValidationException("Combination of entityPerLine 'FeatureCollection' and type 'Csv' is not supported!");
