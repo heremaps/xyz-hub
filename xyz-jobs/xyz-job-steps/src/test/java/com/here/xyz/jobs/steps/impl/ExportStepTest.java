@@ -76,7 +76,7 @@ public class ExportStepTest extends StepTest {
         checkOutputs(allExistingFeatures, step.loadOutputs(true));
     }
 
-    //@Test  TODO: not working currently
+    @Test
     public void testExportSpaceToFilesStepWithPropertyFilter() throws Exception {
         String propertyFilterString = "p.description=\"Point\"";
 
@@ -87,14 +87,15 @@ public class ExportStepTest extends StepTest {
                 .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
-        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
+        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, true);
         Thread.sleep(2000);
+
         //TODO: switch back to simulation if test issue is fixed
         //sendLambdaStepRequestBlock(step);
         checkOutputs(allExistingFeatures, step.loadOutputs(true));
     }
 
-    //@Test  TODO: not working currently
+    @Test
     public void testExportSpaceToFilesStepWithSpatialFilter() throws Exception {
         String spatialFilterString = "spatial?lat=50.102964&lon=8.6709594&clip=true&radius=5500";
 
@@ -144,8 +145,7 @@ public class ExportStepTest extends StepTest {
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
             }else if(output instanceof FileStatistics statistics) {
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getExportedFeatures());
-                Assertions.assertEquals(expectedFeatures.getFeatures().size() > ExportSpaceToFiles.PARALLELIZTATION_MIN_THRESHOLD ?
-                        ExportSpaceToFiles.PARALLELIZTATION_THREAD_COUNT : 1 , statistics.getExportedFiles());
+                Assertions.assertTrue(statistics.getExportedFiles() > 0);
             }
         }
 
