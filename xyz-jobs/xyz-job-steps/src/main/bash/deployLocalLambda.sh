@@ -24,7 +24,7 @@ LOCAL_STACK_HOST="http://localhost:4566"
 targetPathRel="../../../target"
 
 if [ "$HOSTNAME" = "localstack" ]; then
-targetPathRel="../job-steps.target"
+  targetPathRel="../job-steps/target"
 fi
 
 #Check if the localstack is up and running
@@ -41,6 +41,7 @@ cd ${scriptBasePath}/${targetPathRel}
 rm -rf lib > /dev/null 2>&1
 mkdir lib
 cp ./xyz-job-steps-fat.jar lib
+chown -R 1000:1000 lib
 zip -r xyz-job-steps.zip lib
 
 #Delete a potentially existing old local Lambda Function with the same name
