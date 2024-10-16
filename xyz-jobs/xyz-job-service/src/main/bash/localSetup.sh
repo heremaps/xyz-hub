@@ -19,39 +19,38 @@
 # License-Filename: LICENSE
 #
 
-invocation_endpoint = "http://host.docker.internal:7070/admin/state/events"
+LOCAL_STACK_HOST="http://localhost:4566"
 
-if [ "$HOSTNAME" = "localstack" ]; then
-invocation_endpoint="'http://host.docker.internal:7070/admin/state/events'"
+inContainer=$1
+if [ "$inContainer" = "true" ]; then
+  LOCAL_STACK_HOST="http://host.docker.internal:4566"
+  mkdir -p ~/.aws
+  echo -e "[default]\nregion=us-east-1" > ~/.aws/config
+  echo -e "[default]\naws_access_key_id = localstack\naws_secret_access_key = localstack" > ~/.aws/credentials
 fi
-
 
 state_machine_arn_prefix=arn:aws:states:us-east-1:000000000000:stateMachine:job-
 
-aws --endpoint http://localhost:4566 events put-rule \
+aws --endpoint $LOCAL_STACK_HOST events put-rule \
   --name StepFunctionStateChangeRule \
   --event-pattern "{\"source\":[\"aws.states\"],\"detail-type\":[\"Step Functions Execution Status Change\"],\"detail\":{\"stateMachineArn\":[{\"prefix\":\"$state_machine_arn_prefix\"}]}}" \
   --state ENABLED \
   --region us-east-1
 
-connection_arn=$(aws --endpoint http://localhost:4566 events create-connection \
+connection_arn=$(aws --endpoint $LOCAL_STACK_HOST events create-connection \
   --name JobApiConnection \
   --authorization-type API_KEY \
   --auth-parameters "ApiKeyAuthParameters={ApiKeyName=apiKey,ApiKeyValue=dummy-admin-api-key}" \
-  --region us-east-1 | sed -n 's/.*"ConnectionArn":\s*"\([^"]*\)".*/\1/p' )
+  --region us-east-1 | sed -n 's/.*"ConnectionArn":\s*"\([^"]*\)".*/\1/p')
 
-echo "connection_arn -> $connection_arn"
-
-api_destination_arn=$(aws --endpoint http://localhost:4566 events create-api-destination \
+api_destination_arn=$(aws --endpoint $LOCAL_STACK_HOST events create-api-destination \
   --name JobApiDestination \
   --connection-arn "$connection_arn" \
-  --invocation-endpoint $invocation_endpoint \
+  --invocation-endpoint http://host.docker.internal:7070/admin/state/events \
   --http-method POST \
   --region us-east-1 | sed -n 's/.*"ApiDestinationArn":\s*"\([^"]*\)".*/\1/p')
 
-echo "api_destination_arn -> $api_destination_arn"
-
-aws --endpoint http://localhost:4566 events put-targets \
+aws --endpoint $LOCAL_STACK_HOST events put-targets \
   --rule StepFunctionStateChangeRule \
   --targets "Id"="JobApiDestination","Arn"="$api_destination_arn" \
   --region us-east-1
