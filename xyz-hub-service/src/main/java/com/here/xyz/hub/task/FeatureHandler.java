@@ -54,6 +54,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -143,6 +144,20 @@ public class FeatureHandler {
     event.setSpace(space.getId());
     if (event instanceof ContextAwareEvent contextAwareEvent)
       contextAwareEvent.setVersionsToKeep(space.getVersionsToKeep());
+
+    Map<String, Object> storageParams = new HashMap<>();
+    if (space.getStorage().getParams() != null)
+      storageParams.putAll(space.getStorage().getParams());
+
+    if (space.getExtension() != null) {
+      Map<String, Object> extendsMap = space.getExtension().toMap();
+      //Check if the extended space itself is extending some other space (2-level extension)
+      if (space.getExtension().resolvedSpace.getExtension() != null)
+        extendsMap.put("extends", space.getExtension().resolvedSpace.getExtension().toMap());
+      storageParams.putAll(Map.of("extends", extendsMap));
+    }
+
+    event.setParams(storageParams);
   }
 
   public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId) {
