@@ -393,7 +393,11 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
     return new SQLQuery("""
           SELECT sum((data->'export_statistics'->'rows_uploaded')::bigint) as rows_uploaded,
-                 sum((data->'export_statistics'->'files_uploaded')::bigint) as files_uploaded,
+                 sum(CASE
+                     WHEN (data->'export_statistics'->'bytes_uploaded')::bigint > 0
+                     THEN (data->'export_statistics'->'files_uploaded')::bigint
+                     ELSE 0
+                 END) as files_uploaded,
                  sum((data->'export_statistics'->'bytes_uploaded')::bigint) as bytes_uploaded
                   FROM ${schema}.${tmpTable}
               WHERE POSITION('SUCCESS_MARKER' in state) = 0;
