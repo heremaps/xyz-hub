@@ -31,6 +31,7 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -85,6 +86,12 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
     Space space = loadSpace(getSpaceId());
     logger.info("Getting storage database for space {}", getSpaceId());
     Database db = loadDatabase(space.getStorage().getId(), WRITER);
+
+    if (!space.isActive()) {
+      logger.info("[{}] Re-activating the space {} ...", getGlobalStepId(), getSpaceId());
+      hubWebClient().patchSpace(getSpaceId(), Map.of("active", true));
+    }
+
     runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
   }
 

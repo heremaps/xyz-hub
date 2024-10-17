@@ -34,6 +34,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -95,6 +96,8 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
       logger.info("No indices to found. None will be dropped for space " + getSpaceId());
     }
     else {
+      logger.info("[{}] Deactivating the space {} ...", getGlobalStepId(), getSpaceId());
+      hubWebClient().patchSpace(getSpaceId(), Map.of("active", false));
       logger.info("Dropping the following indices for space " + getSpaceId() + ": " + indexes);
       List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(getSchema(db), indexes);
       SQLQuery dropIndexesQuery = SQLQuery.join(dropQueries, ";");
