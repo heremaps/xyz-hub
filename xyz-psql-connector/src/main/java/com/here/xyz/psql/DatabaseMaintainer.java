@@ -25,6 +25,7 @@ import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.StaticDataSources;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -64,8 +65,8 @@ public class DatabaseMaintainer {
             .setSocketTimeout(1 * 1000)
             .build();
 
-    public DatabaseMaintainer(DataSourceProvider dataSourceProvider, DatabaseSettings dbSettings, ConnectorParameters connectorParameters, String maintenanceEndpoint) {
-        this.dataSourceProvider = dataSourceProvider;
+    public DatabaseMaintainer(DatabaseSettings dbSettings, ConnectorParameters connectorParameters, String maintenanceEndpoint) {
+        this.dataSourceProvider = new StaticDataSources(dbSettings);
         this.dbSettings = dbSettings;
         this.connectorParameters = connectorParameters;
         this.maintenanceEndpoint = maintenanceEndpoint;

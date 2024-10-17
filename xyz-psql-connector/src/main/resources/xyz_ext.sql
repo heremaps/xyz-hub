@@ -18,7 +18,6 @@
  */
 
 --
--- SET search_path=xyz,h3,public,topology
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
@@ -142,7 +141,7 @@ BEGIN
     IF enable_logging THEN
         RAISE WARNING 'xyz_reduce_precision: Invalid geometry detected: %',ST_AsGeoJson(geo);
     END IF;
-  
+
   RETURN geo;
 
 END
