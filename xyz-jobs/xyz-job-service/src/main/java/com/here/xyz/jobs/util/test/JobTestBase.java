@@ -44,6 +44,7 @@ public class JobTestBase extends StepTestBase {
     public static void uploadFileToJob(String jobId, byte[] fileContent) throws IOException, InterruptedException {
         HttpResponse<byte[]> inputResponse = post("/jobs/" + jobId + "/inputs", Map.of("type", "UploadUrl"));
         String uploadUrl = (String) XyzSerializable.deserialize(inputResponse.body(), Map.class).get("url");
+        uploadUrl = uploadUrl.replace("localstack","localhost");
         uploadInputFile(fileContent, new URL(uploadUrl));
     }
 

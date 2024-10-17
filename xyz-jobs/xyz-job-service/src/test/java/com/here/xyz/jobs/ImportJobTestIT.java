@@ -6,27 +6,15 @@ import com.here.xyz.jobs.datasets.files.FileInputSettings;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.util.test.ContentCreator;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
-import static com.here.xyz.util.Random.randomAlpha;
 
 public class ImportJobTestIT extends JobTest {
 
-    @BeforeEach
-    public void setUp() {
-        createSpace(SPACE_ID);
-    }
-
-    @AfterEach
-    public void tearDown() {
-        deleteSpace(SPACE_ID);
-    }
 
     //TODO: enable if JobService runs during tests
-//    @Test
+    //@Test
     public void testSimpleImport() throws Exception {
         Job importJob = buildImportJob();
         createAndStartJob(importJob, ContentCreator.generateImportFileContent(ImportFilesToSpace.Format.GEOJSON, 50));

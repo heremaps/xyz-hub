@@ -1,6 +1,7 @@
 package com.here.xyz.jobs.steps.compiler;
 
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.JobTest;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
@@ -8,7 +9,6 @@ import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.jobs.util.test.JobTestBase;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
-public class ExportToFilesTest extends JobTestBase {
+public class ExportToFilesTest extends JobTest {
 
     @BeforeEach
     public void setUp() {

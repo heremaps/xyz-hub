@@ -86,7 +86,7 @@ public class ExportStepTest extends StepTest {
                 .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
 
-        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, true);
+        sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
         Thread.sleep(2000);
 
         //TODO: switch back to simulation if test issue is fixed
