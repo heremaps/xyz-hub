@@ -221,6 +221,7 @@ public final class NakshaContext {
         return newValue;
       }
       // Conflict, two threads seem to want to update the same key the same time!
+      logger.info("Concurrency conflict while updating attachment map for key {}", valueClass);
     }
   }
 

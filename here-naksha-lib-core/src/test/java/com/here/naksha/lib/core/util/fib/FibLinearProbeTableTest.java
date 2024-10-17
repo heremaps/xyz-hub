@@ -29,9 +29,16 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 
 class FibLinearProbeTableTest {
@@ -150,5 +157,39 @@ class FibLinearProbeTableTest {
       i++;
       assertEquals(TOTAL_SIZE - i, SET.size);
     }
+  }
+
+  @Test
+  void test_Lock() {
+    final FibSet<String, FibMapEntry<String, String>> SET = new FibSet<>(FibMapEntry::new);
+    final FibLinearProbeTable<String, FibMapEntry<String, String>> lpt = new FibLinearProbeTable<>(SET, 0);
+
+    /**
+     * First we put 2 weak references to lpt, then we call gc() - in such scenario next GET call should remove
+     * all empty references, but to do this it has to acquire lock, and release it at the end.
+     */
+
+    lpt.execute(PUT, "foo", WEAK);
+    lpt.execute(PUT, "foo1", WEAK);
+    System.gc();
+    lpt.execute(GET, "foo1", WEAK);
+
+    // then
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    Future<String> future = executor.submit(() -> {
+      lpt.execute(PUT, "foo3", WEAK);
+      return "done";
+    });
+
+    /**
+     * Now we try to put new value to lpt in another thread - if previous locks were not released it should
+     * throw timeout exception.
+     */
+    try {
+      future.get(1, TimeUnit.SECONDS);
+    } catch (TimeoutException | InterruptedException | ExecutionException e) {
+      fail("lock not released! " + e);
+    }
+    executor.shutdownNow();
   }
 }

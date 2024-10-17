@@ -1,3 +1,7 @@
+## Naksha_2.1.5
+
+- Fixed thread hanging issue fixed by avoiding indefinite locking in `FibLinearProbeTable.java`
+
 ## Naksha_2.1.4
 
 - Fixes:

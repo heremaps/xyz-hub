@@ -23,8 +23,12 @@ import java.lang.reflect.Field;
 import java.nio.ByteOrder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class JsonFieldBool<OBJECT> extends JsonField<OBJECT, Boolean> {
+
+  private static final Logger logger = LoggerFactory.getLogger(JsonFieldBool.class);
 
   JsonFieldBool(
       @NotNull JsonClass<OBJECT> jsonClass,
@@ -94,6 +98,7 @@ public final class JsonFieldBool<OBJECT> extends JsonField<OBJECT, Boolean> {
         return true;
       }
       // We need to loop, because possibly some code modified bytes we're not interested in.
+      logger.info("Concurrency conflict while setting value at offset {}. Will retry...", offset);
     }
   }
 

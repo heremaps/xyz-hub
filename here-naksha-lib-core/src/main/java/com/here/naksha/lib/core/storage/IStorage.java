@@ -32,12 +32,16 @@ import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Storage API to gain access to storages.
  */
 @AvailableSince(NakshaVersion.v2_0_6)
 public interface IStorage extends AutoCloseable {
+
+  Logger logger = LoggerFactory.getLogger(IStorage.class);
 
   /**
    * Initializes the storage, create the transaction table, install needed scripts and extensions.
@@ -191,10 +195,12 @@ public interface IStorage extends AutoCloseable {
       try {
         shutdown(null).get();
         return;
-      } catch (InterruptedException ignore) {
+      } catch (InterruptedException ie) {
+        logger.warn("Exception while shutting down IStorage. ", ie);
       } catch (Exception e) {
         throw unchecked(e);
       }
+      logger.info("Unable to shutdown IStorage. Will retry...");
     }
   }
 

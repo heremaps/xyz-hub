@@ -37,6 +37,8 @@ import java.util.Set;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A recursive, thread safe, weak/soft/strong referencing set, based upon <a
@@ -53,6 +55,8 @@ import org.jetbrains.annotations.Nullable;
 @AvailableSince(NakshaVersion.v2_0_5)
 @SuppressWarnings({"rawtypes", "unused"})
 public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
+
+  private static final Logger logger = LoggerFactory.getLogger(FibSet.class);
 
   /**
    * The empty array used by default, so that empty maps do not consume memory.
@@ -452,6 +456,9 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
         if (raw_entry == null) {
           if (!ARRAY.compareAndSet(array, index, ref, null)) {
             // Race condition, another thread modified the array slot.
+            logger.info(
+                "Concurrency conflict while initializing array value at index {}. Will retry...",
+                index);
             continue;
           }
           SIZE.getAndAdd(this, -1L);
@@ -487,6 +494,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
               return (ENTRY) entry;
             }
             // Race condition, other thread updated the reference concurrently.
+            logger.info("Concurrency conflict while setting array value at index {}. Will retry...", index);
             continue;
           }
           assert op == REMOVE;
@@ -495,6 +503,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
             return (ENTRY) entry;
           }
           // Race condition, other thread updated the reference concurrently.
+          logger.info("Concurrency conflict while nullifying array value at index {}. Will retry...", index);
           continue;
         }
 
@@ -516,6 +525,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
             return _execute(op, key, key_hash, refType, sub_array, depth + 1);
           }
           // Race condition, another thread modified concurrently.
+          logger.info("Concurrency conflict while setting array value at index {}. Will retry...", index);
           continue;
         }
 
@@ -529,6 +539,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
           return new_entry;
         }
         // Race condition, another thread modified concurrently.
+        logger.info("Concurrency conflict while setting array value at index {}. Will retry...", index);
         continue;
       }
 
@@ -546,6 +557,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
         return new_entry;
       }
       // Race condition, another thread modified concurrently.
+      logger.info("Concurrency conflict while initializing array value at index {}. Will retry...", index);
     }
   }
 

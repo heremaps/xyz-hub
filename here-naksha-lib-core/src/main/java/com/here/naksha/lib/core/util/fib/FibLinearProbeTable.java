@@ -82,7 +82,7 @@ class FibLinearProbeTable<KEY, ENTRY extends FibEntry<KEY>> {
           if (raw instanceof Reference<?>) {
             Reference<?> ref = (Reference<?>) raw;
             entry = (ENTRY) ref.get();
-            if (entry == null && lock.tryLock()) {
+            if (entry == null && (lock.isHeldByCurrentThread() || lock.tryLock())) {
               locked = true;
               array[i] = null;
               SIZE.getAndAdd(fibSet, -1L);

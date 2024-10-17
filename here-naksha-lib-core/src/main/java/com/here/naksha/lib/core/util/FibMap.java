@@ -29,6 +29,8 @@ import java.util.Arrays;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Functional implementation of a recursive, thread safe, growing map, based upon <a
@@ -75,6 +77,8 @@ public final class FibMap {
   //                      for the barrier to complete.
   // See: https://developer.arm.com/documentation/100941/0101/Barriers
   //
+
+  private static final Logger log = LoggerFactory.getLogger(FibMap.class);
 
   /** The empty array used by default, so that empty maps do not consume memory. */
   public static final Object[] EMPTY = new Object[0];
@@ -343,6 +347,7 @@ public final class FibMap {
 
       if (existing_key == LOCK_OBJECT) {
         // Thread.yield();
+        log.info("Concurrency conflict while modifying a key at {}. Will retry...", i);
         continue;
       }
 
@@ -359,6 +364,7 @@ public final class FibMap {
 
             if (sub_key == LOCK_OBJECT) {
               // Thread.yield();
+              log.info("Concurrency conflict while modifying a sub_key at {}. Will retry...", j);
               continue;
             }
             if (ILike.equals(sub_key, key)) {
@@ -560,6 +566,7 @@ public final class FibMap {
 
       if (existing_key == LOCK_OBJECT) {
         // Thread.yield();
+        log.info("Concurrency conflict while modifying a key at {}. Will retry...", ki);
         continue;
       }
 
@@ -630,6 +637,7 @@ public final class FibMap {
             }
           }
           // Conflict: concurrent update.
+          log.info("Concurrency conflict while locking key at {}. Will retry...", ki);
           continue;
         }
         return _put(key, key_hash, expected_value, new_value, create, segment, depth + 1, intern, conflict);
@@ -656,6 +664,7 @@ public final class FibMap {
           }
           // Race condition, another thread modifies concurrently.
           // Thread.yield();
+          log.info("Concurrency conflict while locking key at {}. Will retry...", ki);
           continue;
         }
 
@@ -693,6 +702,7 @@ public final class FibMap {
             return UNDEFINED;
           }
           // Race condition, another thread modifies concurrently.
+          log.info("Concurrency conflict while locking key at {}. Will retry...", ki);
           continue;
         }
         // We need to create a new sub-array that must be initialized with the existing key, so we
@@ -710,6 +720,7 @@ public final class FibMap {
           return _put(key, key_hash, expected_value, new_value, true, sub_array, depth + 1, intern, conflict);
         }
         // Race condition, another thread modifies concurrently.
+        log.info("Concurrency conflict while locking key at {}. Will retry...", ki);
         continue;
       }
 
@@ -735,6 +746,7 @@ public final class FibMap {
         return UNDEFINED;
       }
       // Race condition, another thread modified concurrently.
+      log.info("Race condition while modifying key. Will retry...");
     }
   }
 
