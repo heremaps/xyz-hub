@@ -33,6 +33,7 @@ import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
@@ -136,18 +137,19 @@ public class StepTestBase {
   }
 
   protected Space createSpace(String spaceId){
-    return createSpace(spaceId, false);
+    return createSpace(new Space().withId(spaceId), false);
   }
 
-  protected Space createSpace(String spaceId, boolean force) {
+  protected Space createSpace(Space space, boolean force) {
     String title = "test space for jobs";
     try {
-      return hubWebClient.createSpace(spaceId, title);
+      space.setTitle(title);
+      return hubWebClient.createSpace(space);
     }
     catch (XyzWebClient.ErrorResponseException e) {
       if (e.getErrorResponse().statusCode() == 409) {
-        deleteSpace(spaceId);
-        return createSpace(spaceId, false);
+        deleteSpace(space.getId());
+        return createSpace(space, false);
       }
       else {
         System.out.println("Hub Error: " + e.getMessage());
@@ -156,6 +158,14 @@ public class StepTestBase {
       System.out.println("Hub Error: " + e.getMessage());
     }
     return null;
+  }
+
+  protected void createTag(String spaceId, Tag tag) {
+    try {
+      hubWebClient.postTag(spaceId, tag);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
   }
 
   protected void deleteSpace(String spaceId) {
