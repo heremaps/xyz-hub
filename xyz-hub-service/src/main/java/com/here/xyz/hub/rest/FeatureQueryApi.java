@@ -227,7 +227,10 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withRef(getRef(context));
 
       try {
-        GeometryValidator.validateGeometry(event.getGeometry(), event.getRadius());
+        //If a h3 reference got provided - we do not need to validate the Geometry
+        //If there is a referenced feature - the geometry validation happens in FeatureTask - after the geometry is resolved.
+        if(h3Index == null && refFeatureId == null && refSpaceId == null)
+          GeometryValidator.validateGeometry(event.getGeometry(), event.getRadius());
       }catch (GeometryValidator.GeometryException e){
         throw new HttpException(BAD_REQUEST ,e.getMessage());
       }
