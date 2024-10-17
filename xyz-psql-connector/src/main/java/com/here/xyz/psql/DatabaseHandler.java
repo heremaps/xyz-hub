@@ -113,7 +113,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;
-        dbMaintainer = new DatabaseMaintainer(dataSourceProvider, dbSettings, connectorParams,
+        dbMaintainer = new DatabaseMaintainer(dbSettings, connectorParams,
             FunctionRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
         DataSourceProvider.setDefaultProvider(dataSourceProvider);
     }

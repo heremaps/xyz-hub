@@ -87,6 +87,7 @@ public class FeatureHandler {
       throttle(space);
 
       WriteFeaturesEvent event = new WriteFeaturesEvent()
+          .withStreamId(marker.getName())
           .withModifications(modifications)
           .withContext(spaceContext)
           .withAuthor(author)
