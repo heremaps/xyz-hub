@@ -35,6 +35,24 @@ services:
             - "postgres"
             - "aws-localstack"
         command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
+    xyz-job-service:
+        image: "xyz-job"
+        build:
+            context: "./"
+            dockerfile: "Dockerfile-job-service"
+        container_name: xyz-job-service
+        ports:
+            - "7070:7070"
+        environment:
+            - HUB_ENDPOINT=http://xyz-hub:8080/hub
+            - LOCALSTACK_ENDPOINT=http://localstack:4566
+            - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-jobs-local
+        depends_on:
+            - "xyz-hub"
+            - "dynamodb"
+            - "postgres"
+            - "aws-localstack"
+        command: java -cp xyz-job-service.jar com.here.xyz.jobs.service.JobService
     postgres:
         image: "xyz-postgres"
         build:
