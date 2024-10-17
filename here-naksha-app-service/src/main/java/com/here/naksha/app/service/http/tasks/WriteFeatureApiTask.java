@@ -20,7 +20,7 @@ package com.here.naksha.app.service.http.tasks;
 
 import static com.here.naksha.app.service.http.apis.ApiParams.*;
 import static com.here.naksha.common.http.apis.ApiParamsConst.*;
-import static com.here.naksha.lib.core.util.diff.PatcherUtils.removeAllRemoveOp;
+import static com.here.naksha.lib.core.util.diff.PatcherUtils.removeAllRemoveOpExceptForList;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -389,7 +389,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
           if (inputFeature.getId().equals(storageFeature.getId())) {
             // we found matching feature in storage, so we take patched version of the feature
             final Difference difference = Patcher.getDifference(storageFeature, inputFeature);
-            final Difference diffNoRemoveOp = removeAllRemoveOp(difference);
+            final Difference diffNoRemoveOp = removeAllRemoveOpExceptForList(difference);
             featureToPatch = Patcher.patch(storageFeature, diffNoRemoveOp);
             break;
           }

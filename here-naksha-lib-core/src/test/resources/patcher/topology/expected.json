@@ -1,0 +1,109 @@
+{
+  "momType": "Topology",
+  "referencePoint": {
+    "type": "Point",
+    "coordinates": [
+      14.20667,
+      50.02379,
+      416.38
+    ]
+  },
+  "id": "778407118",
+  "type": "Feature",
+  "bbox": [
+    14.20594,
+    50.02377,
+    14.20667,
+    50.02386
+  ],
+  "properties": {
+    "isLongHaul": [
+      {
+        "range": {
+          "endOffset": 1.0,
+          "startOffset": 0.0
+        },
+        "value": false
+      }
+    ],
+    "isMotorway": [
+      {
+        "range": {
+          "endOffset": 1,
+          "startOffset": 0
+        },
+        "value": false,
+        "confidence": {
+          "score": 0.75,
+          "sources": [
+            "BMW_RSD"
+          ],
+          "scoreType": "GENERIC",
+          "updatedOn": "2024-10-15T16:39:51.329Z",
+          "featureType": "UNDEFINED",
+          "updateSource": "MODERATED",
+          "triggeringReferences": [
+            {
+              "momFeatureType": "LogicalRoadSign",
+              "genericFeatureId": "urn:here::here:logicalroadsign:1622677077480690247"
+            }
+          ]
+        }
+      }
+    ],
+    "rightAdmin": [
+      {
+        "range": {
+          "endOffset": 1,
+          "startOffset": 0
+        },
+        "value": {
+          "id": "urn:here::here:Admin:20445433",
+          "featureType": "Admin",
+          "referenceName": "adminId"
+        },
+        "confidence": {
+          "score": 0,
+          "scoreType": "EXISTENCE",
+          "updatedOn": "2021-02-17T21:44:27.863Z",
+          "featureType": "ROAD_ADMIN_INFORMATION",
+          "updateSource": "INJECTION_TMOB"
+        }
+      }
+    ],
+    "referencePoint": {
+      "type": "Point",
+      "coordinates": [
+        14.20667,
+        50.02379,
+        416.38
+      ]
+    }
+  },
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [
+      [
+        14.20667,
+        50.02379,
+        416.38
+      ],
+      [
+        14.20636,
+        50.02377,
+        417.17
+      ],
+      [
+        14.20617,
+        50.02379,
+        417.38
+      ],
+      [
+        14.20594,
+        50.02386,
+        417.16
+      ]
+    ]
+  },
+  "class": "NAVLINK"
+}

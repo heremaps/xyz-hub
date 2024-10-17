@@ -1,0 +1,109 @@
+{
+  "id": "778407118",
+  "bbox": [
+    14.20594,
+    50.02377,
+    14.20667,
+    50.02386
+  ],
+  "type": "Feature",
+  "momType": "Topology",
+  "properties": {
+    "rightAdmin": [
+      {
+        "range": {
+          "endOffset": 1.0,
+          "startOffset": 0.0
+        },
+        "value": {
+          "id": "urn:here::here:Admin:20445433",
+          "featureType": "Admin",
+          "referenceName": "adminId"
+        },
+        "confidence": {
+          "score": 0.0,
+          "scoreType": "EXISTENCE",
+          "updatedOn": "2021-02-17T21:44:27.863Z",
+          "featureType": "ROAD_ADMIN_INFORMATION",
+          "updateSource": "INJECTION_TMOB"
+        }
+      }
+    ],
+    "isLongHaul": [
+      {
+        "range": {
+          "endOffset": 1.0,
+          "startOffset": 0.0
+        },
+        "value": false
+      }
+    ],
+    "isMotorway": [
+      {
+        "range": {
+          "endOffset": 1,
+          "startOffset": 0
+        },
+        "value": false,
+        "confidence": {
+          "score": 0.9,
+          "sources": [
+            "BMW_RSD"
+          ],
+          "scoreType": "GENERIC",
+          "updatedOn": "2024-10-15T16:39:51.329Z",
+          "featureType": "UNDEFINED",
+          "updateSource": "MODERATED",
+          "triggeringReferences": [
+            {
+              "momFeatureType": "LogicalRoadSign",
+              "genericFeatureId": "urn:here::here:logicalroadsign:1622677077480690247"
+            }
+          ]
+        }
+      },
+      {
+        "range": {
+          "endOffset": 1.0,
+          "startOffset": 0.6918789974069862
+        },
+        "value": true,
+        "confidence": {
+          "score": 0.75,
+          "sources": [
+            "BMW_RSD"
+          ],
+          "scoreType": "GENERIC",
+          "updatedOn": "2024-10-05T20:59:55.69448Z",
+          "featureType": "UNDEFINED",
+          "updateSource": "WALLE",
+          "triggeringReferences": [
+            {
+              "momFeatureType": "LogicalRoadSign",
+              "genericFeatureId": "urn:here::here:logicalroadsign:1622677077480690247"
+            },
+            {
+              "momFeatureType": "LogicalRoadSign",
+              "genericFeatureId": "urn:here::here:logicalroadsign:1622677077990856712"
+            }
+          ]
+        }
+      },
+      {
+        "range": {
+          "endOffset": 0.6873084947544703,
+          "startOffset": 0.0
+        },
+        "value": false
+      }
+    ],
+    "referencePoint": {
+      "type": "Point",
+      "coordinates": [
+        14.20667,
+        50.02379,
+        416.38
+      ]
+    }
+  }
+}

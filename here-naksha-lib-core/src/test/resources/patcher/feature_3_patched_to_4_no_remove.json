@@ -15,10 +15,8 @@
     {
       "id": "element1",
       "nestedShouldBeUpdated": "updated",
-      "willBeDeletedProperty": "not yet",
       "isAddedProperty": "yes"
-    },
-    "willBeDeletedElement"
+    }
   ],
   "speedLimit": [
     {

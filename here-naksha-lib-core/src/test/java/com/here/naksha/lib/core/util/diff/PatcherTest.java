@@ -24,15 +24,16 @@ import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzName
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import java.util.ArrayList;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
+
+import com.here.naksha.test.common.FileUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONException;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -42,7 +43,7 @@ import org.skyscreamer.jsonassert.JSONCompareMode;
 
 import java.util.Map;
 
-import static com.here.naksha.lib.core.util.diff.PatcherUtils.removeAllRemoveOp;
+import static com.here.naksha.lib.core.util.diff.PatcherUtils.removeAllRemoveOpExceptForList;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
@@ -113,7 +114,7 @@ class PatcherTest {
     assertTrue(((MapDiff) nestedArrayDiff34.get(2)).get("willBeDeletedProperty") instanceof RemoveOp);
 
     // Modify the whole difference to get rid of all RemoveOp
-    Difference newDiff34 = removeAllRemoveOp(mapDiff34);
+    Difference newDiff34 = removeAllRemoveOpExceptForList(mapDiff34);
     final JsonObject patchedf3 = Patcher.patch(f3,newDiff34);
 
     assertNotNull(patchedf3);
@@ -159,6 +160,28 @@ class PatcherTest {
   }
 
   @Test
+  void testCompareArrayRemovalOfNode() throws JSONException {
+    final XyzFeature input =
+            FileUtil.parseJsonFileOrFail("src/test/resources/", "patcher/topology/input.json", XyzFeature.class);
+            //JsonSerializable.deserialize(IoHelp.readResource("patcher/topology/input.json"), XyzFeature.class);
+    assertNotNull(input);
+    final XyzFeature existing =
+            FileUtil.parseJsonFileOrFail("src/test/resources/", "patcher/topology/existing.json", XyzFeature.class);
+            //JsonSerializable.deserialize(IoHelp.readResource("patcher/topology/existing.json"), XyzFeature.class);
+    assertNotNull(existing);
+    final XyzFeature expected =
+            FileUtil.parseJsonFileOrFail("src/test/resources/", "patcher/topology/expected.json", XyzFeature.class);
+    assertNotNull(expected);
+
+    final Difference difference = Patcher.getDifference(existing, input);
+    final Difference diffNoRemoveOp = removeAllRemoveOpExceptForList(difference);
+    final XyzFeature patchedFeature = Patcher.patch(existing, diffNoRemoveOp);
+    assertNotNull(patchedFeature);
+
+    JSONAssert.assertEquals(expected.toString(), patchedFeature.toString(), JSONCompareMode.STRICT);
+  }
+
+  @Test
   void testPatchingOnlyShuffledArrayProvided() throws JSONException {
     final JsonObject f3 =
             JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_3.json"), JsonObject.class);
@@ -171,7 +194,7 @@ class PatcherTest {
     final Difference diff36 = Patcher.getDifference(f3, f6);
     assertNotNull(diff36);
     // Simulate REST API behaviour, ignore all RemoveOp type of Difference
-    final Difference diff36NoRemove = removeAllRemoveOp(diff36);
+    final Difference diff36NoRemove = removeAllRemoveOpExceptForList(diff36);
     final JsonObject patchedf3Tof6 = Patcher.patch(f3, diff36NoRemove);
 
     final JsonObject expectedPatchedf3 =
