@@ -203,7 +203,7 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
   }
 
   @Test
-  public void deactivateCompositeSpacesOnParentDelete() {
+  public void deactivateCompositeSpacesOnParentDelete() throws InterruptedException {
     removeSpace("x-psql-test");
 
     given()
@@ -220,6 +220,9 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
         .get("/spaces/x-psql-test-ext/iterate")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
+
+    //Takes some time till parent deletion got propagated. If we are to fast - the db-query will hit the delted table.
+    Thread.sleep(100);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
