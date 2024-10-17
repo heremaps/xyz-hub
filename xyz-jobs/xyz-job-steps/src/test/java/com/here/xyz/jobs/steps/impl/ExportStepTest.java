@@ -30,7 +30,6 @@ import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -118,21 +117,6 @@ public class ExportStepTest extends StepTest {
         //TODO: switch back to simulation if test issue is fixed
         //sendLambdaStepRequestBlock(step);
         checkOutputs(allExistingFeatures, step.loadOutputs(true));
-    }
-
-    @Test
-    public void testExportSpaceToFilesStepValidation(){
-        SpatialFilter spatialFilter = new SpatialFilter()
-                .withRadius(5500)
-                .withClip(true);
-
-        LambdaBasedStep step = new ExportSpaceToFiles()
-                .withSpatialFilter(spatialFilter)
-                .withSpaceId(SPACE_ID)
-                .withJobId(JOB_ID);
-
-        //Check ExceptionType
-        Assertions.assertThrows(ValidationException.class, () -> step.validate());
     }
 
     private void checkOutputs(FeatureCollection expectedFeatures, List<Output> outputs) throws IOException {

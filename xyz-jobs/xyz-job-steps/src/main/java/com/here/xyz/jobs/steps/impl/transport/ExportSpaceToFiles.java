@@ -235,16 +235,38 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
 
       //Validate input Geometry
-      if(getSpatialFilter() != null)
-        getSpatialFilter().validateSpatialFilter();
+      if(this.spatialFilter != null)
+        this.spatialFilter.validateSpatialFilter();
+
+      //Validate versionRef
+      if(this.versionRef == null)
+        return true;
+
+      Long minSpaceVersion = statistics.getMinVersion().getValue();
+      Long maxSpaceVersion = statistics.getMaxVersion().getValue();
+
+      if(this.versionRef.isSingleVersion()){
+        if(this.versionRef.getVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '"+
+                  minSpaceVersion+"'!");
+        if(this.versionRef.getVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '"+
+                  maxSpaceVersion+"'!");
+      }else if(this.versionRef.isRange()){
+        if(this.versionRef.getStartVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '"+
+                  minSpaceVersion+"'!");
+        if(this.versionRef.getEndVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '"+
+                  maxSpaceVersion+"'!");
+      }
+
 
       //TODO: Check if property validation is needed - in sense of searchableProperties
 //      if(statistics.getCount().getValue() > 1_000_000 && getPropertyFilter() != null){
 //        getPropertyFilter().getQueryKeys()
 //          throw new ValidationException("is not a searchable property");
 //      }
-
-      //TODO: Check if versionRef validation is needed
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
