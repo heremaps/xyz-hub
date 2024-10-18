@@ -78,12 +78,12 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   @Override
   public void execute() throws Exception {
     //Create the local target directory in which EMR writes the output
-    String localTmpOutputsFolder = createLocalFolder(scriptParams.get(1), true);
+    String localTmpOutputsFolder = createLocalFolder(S3Client.getKeyFromS3Uri(scriptParams.get(1)), true);
 
     //Download EMR executable JAR from S3 to local
     String localJarPath = copyFileFromS3ToLocal(jarUrl);
     //Copy step input files from S3 to local /tmp
-    String localTmpInputsFolder = copyFolderFromS3ToLocal(scriptParams.get(0));
+    String localTmpInputsFolder = copyFolderFromS3ToLocal(S3Client.getKeyFromS3Uri(scriptParams.get(0)));
 
     scriptParams.set(0, localTmpInputsFolder);
     scriptParams.set(1, localTmpOutputsFolder);
