@@ -17,8 +17,7 @@ public class ExportJobTestIT extends JobTest {
         putRandomFeatureCollectionToSpace(SPACE_ID,50);
     }
 
-//TODO: enable if JobService runs during tests
-    //@Test
+    @Test
     public void testSimpleExport() throws Exception {
         Job exportJob = buildExportJob();
         createSelfRunningJob(exportJob);

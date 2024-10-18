@@ -12,9 +12,7 @@ import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
 public class ImportJobTestIT extends JobTest {
 
-
-    //TODO: enable if JobService runs during tests
-    //@Test
+    @Test
     public void testSimpleImport() throws Exception {
         Job importJob = buildImportJob();
         createAndStartJob(importJob, ContentCreator.generateImportFileContent(ImportFilesToSpace.Format.GEOJSON, 50));
