@@ -111,7 +111,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 200
+ select 202
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -122,19 +122,33 @@ DROP FUNCTION IF EXISTS xyz_reduce_precision(geo GEOMETRY);
 CREATE OR REPLACE FUNCTION xyz_reduce_precision(geo GEOMETRY, enable_logging boolean = TRUE)
     RETURNS GEOMETRY AS
 $BODY$
+DECLARE
+ sgeo geometry;
 BEGIN
-    RETURN geo;
--- Temporary deactivated, till we found a proper solution.
---
---     RETURN ST_ReducePrecision(geo, 0.00000001);
---     EXCEPTION WHEN OTHERS THEN
---         IF enable_logging THEN
---             RAISE WARNING 'Invalid geometry detected: %',ST_AsGeoJson(geo);
---         END IF;
---         RETURN geo;
+
+  if not st_isvalid(geo) then
+   RETURN geo;
+  end if;
+
+  sgeo := ST_SnapToGrid(geo, 0.00000001); -- ST_ReducePrecision(geo, 0.00000001);
+
+  IF GeometryType(sgeo) = GeometryType(geo) THEN
+   RETURN sgeo;  -- only if type did not changed
+  ELSE
+   RETURN geo;
+  END IF;
+
+  EXCEPTION WHEN OTHERS THEN
+    IF enable_logging THEN
+        RAISE WARNING 'xyz_reduce_precision: Invalid geometry detected: %',ST_AsGeoJson(geo);
+    END IF;
+  
+  RETURN geo;
+
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql immutable;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_import_trigger()
@@ -3315,6 +3329,7 @@ BEGIN
             DO
             $block$
             BEGIN
+                SET client_min_messages TO ERROR;
                 SET search_path = $outer$ || current_setting('search_path') || $outer$;
                 PERFORM context('$outer$ || context()::TEXT ||  $outer$'::JSONB);
                 PERFORM set_config('xyz.password', '$outer$ || password || $outer$', false);
@@ -3327,6 +3342,7 @@ BEGIN
         $outer$;
     ELSE
         RETURN $block$
+            SET client_min_messages TO ERROR;
             SET search_path = $block$ || current_setting('search_path') || $block$;
             SELECT context('$block$ || context()::TEXT ||  $block$'::JSONB);
             SELECT set_config('xyz.password', '$block$ || password || $block$', false);

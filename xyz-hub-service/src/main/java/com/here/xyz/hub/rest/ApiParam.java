@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.hub.rest.ApiParam.Query.F_PREFIX;
 
 import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.ContextAwareEvent;
@@ -27,7 +28,6 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import io.vertx.ext.web.RoutingContext;
@@ -46,6 +46,12 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 public class ApiParam {
+  private static final Map<String, String> SEARCH_KEY_REPLACEMENTS = Map.of(
+      "f.id", "id",
+      "f.createdAt", "properties.@ns:com:here:xyz.createdAt",
+      "f.updatedAt", "properties.@ns:com:here:xyz.updatedAt",
+      "f.tags", "properties.@ns:com:here:xyz.tags"
+  );
 
   private static Object getConvertedValue(String rawValue) {
     // Boolean
@@ -82,19 +88,13 @@ public class ApiParam {
   }
 
   public static String getConvertedKey(String rawKey) {
-    if (rawKey.startsWith("p.")) {
+    if (rawKey.startsWith("p."))
       return rawKey.replaceFirst("p.", "properties.");
-    }
-    Map<String, String> keyReplacements = new HashMap<String, String>() {{
-      put("f.id", "id");
-      put("f.createdAt", "properties.@ns:com:here:xyz.createdAt");
-      put("f.updatedAt", "properties.@ns:com:here:xyz.updatedAt");
-    }};
 
-    String replacement = keyReplacements.get(rawKey);
+    String replacement = SEARCH_KEY_REPLACEMENTS.get(rawKey);
 
-    /** Allow root property search f.foo */
-    if(replacement == null && rawKey.startsWith("f."))
+    //Allow root property search by using f.<key>
+    if (replacement == null && rawKey.startsWith(F_PREFIX))
       return rawKey.substring(2);
 
     return replacement;
@@ -195,24 +195,6 @@ public class ApiParam {
 
     static final String DRY_RUN = "dryRun";
 
-    private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
-      put("!=", QueryOperation.NOT_EQUALS);
-      put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
-      put("=gte=", QueryOperation.GREATER_THAN_OR_EQUALS);
-      put("<=", QueryOperation.LESS_THAN_OR_EQUALS);
-      put("=lte=", QueryOperation.LESS_THAN_OR_EQUALS);
-      put(">", QueryOperation.GREATER_THAN);
-      put("=gt=", QueryOperation.GREATER_THAN);
-      put("<", QueryOperation.LESS_THAN);
-      put("=lt=", QueryOperation.LESS_THAN);
-      put("=", QueryOperation.EQUALS);
-      put("@>", QueryOperation.CONTAINS);
-      put("=cs=", QueryOperation.CONTAINS);
-    }};
-
-    private static List<String> shortOperators = new ArrayList<>(operators.keySet());
-
-
     /**
      * Get access to the custom parsed query parameters. Used as a temporary replacement for context.queryParam until
      * https://github.com/vert-x3/issues/issues/380 is resolved.
@@ -302,13 +284,6 @@ public class ApiParam {
       return alt;
     }
 
-    /**
-     * Returns the parsed tags parameter
-     */
-    static TagsQuery getTags(RoutingContext context) {
-      return TagsQuery.fromQueryParameter(queryParam(Query.TAGS, context));
-    }
-
     public static List<String> getSelection(RoutingContext context) {
       if (Query.getString(context, Query.SELECTION, null) == null) {
         return null;
@@ -334,7 +309,7 @@ public class ApiParam {
 
       List<String> sort = new ArrayList<>();
       for (String s : Query.queryParam(Query.SORT, context))
-        if (s.startsWith("p.") || s.startsWith("f."))
+        if (s.startsWith("p.") || s.startsWith(F_PREFIX))
          sort.add( s.replaceFirst("^p\\.", "properties.") );
 
       return sort;
@@ -383,8 +358,8 @@ public class ApiParam {
     }
 
     /**
-     * Returns the first property found in the query string in the format of key-operator-value(s)
-     * @param query the query part in the url without the '?' symbol
+     * Returns the first property found in the query string in the format of: `<key> <operator> <value(s)>`
+     * @param query the query part in the url without the '?' or '&' symbol
      * @param key the property to be searched
      * @param multiValue when true, checks for comma separated values, otherwise return the first value found
      * @return null in case none is found
@@ -400,12 +375,12 @@ public class ApiParam {
         return null;
       }
 
-      int startIndex;
-      if ((startIndex=query.indexOf(key)) != -1) {
+      int startIndex = query.indexOf(key);
+      if (startIndex != -1) {
         String opValue = query.substring(startIndex + key.length()); // e.g. =eq=head
-        String operation = shortOperators
+        String operation = QueryOperation.inputRepresentations()
             .stream()
-            .sorted(Comparator.comparingInt(k->k.length() * -1)) // reverse a sorted list because u want to get the longer ops first.
+            .sorted(Comparator.comparingInt(k -> k.length() * -1)) // reverse a sorted list because u want to get the longer ops first.
             .filter(opValue::startsWith) // e.g. in case of key=eq=val, 2 ops will be filtered in: '=eq=' and '='.
             .findFirst() // The reversed sort plus the findFirst makes sure the =eq= is the one you are looking for.
             .orElse(null); // e.g. anything different from the allowed operators
@@ -420,7 +395,7 @@ public class ApiParam {
 
         return new PropertyQuery()
             .withKey(key)
-            .withOperation(operators.get(operation))
+            .withOperation(QueryOperation.fromInputRepresentation(operation))
             .withValues(values);
       }
 
@@ -428,13 +403,13 @@ public class ApiParam {
     }
 
     public static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
-      if (query == null || query.length() == 0) {
+      if (query == null || query.length() == 0)
         return null;
-      }
 
       PropertyQueryList pql = new PropertyQueryList();
       Stream.of(query.split("&"))
-          .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
+          .map(queryParam -> queryParam.startsWith("tags=") ? transformLegacyTags(queryParam) : queryParam)
+          .filter(queryParam -> queryParam.startsWith("p.") || queryParam.startsWith(F_PREFIX) || spaceProperties)
           .forEach(keyValuePair -> {
             PropertyQuery propertyQuery = new PropertyQuery();
 
@@ -449,8 +424,8 @@ public class ApiParam {
             int position=0;
             String op=null;
 
-            /** store "main" operator. Needed for such cases foo=bar-->test*/
-            for (String shortOperator : shortOperators) {
+            //store "main" operator. Needed for such cases foo=bar-->test
+            for (String shortOperator : QueryOperation.inputRepresentations()) {
               int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
               if (currentPositionOfOp != -1) {
                 if(
@@ -465,23 +440,23 @@ public class ApiParam {
               }
             }
 
-            if(op != null){
-                String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma,","),
-                                               keyValuePair.substring(position + op.length())
-                                              };
-                /** Cut from API-Gateway appended "=" */
-                if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("=")) {
+            if (op != null) {
+                String[] keyVal = new String[] {
+                    keyValuePair.substring(0, position).replaceAll(operatorComma,","),
+                    keyValuePair.substring(position + op.length())
+                };
+                //Cut from API-Gateway appended "="
+                if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("="))
                   keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
-                }
 
                 propertyQuery.setKey(spaceProperties ? keyVal[0] : getConvertedKey(keyVal[0]));
-                propertyQuery.setOperation(operators.get(op));
-                String[] rawValues = keyVal[1].split( operatorComma );
+                propertyQuery.setOperation(QueryOperation.fromInputRepresentation(op));
+                String[] rawValues = keyVal[1].split(operatorComma);
 
                 ArrayList<Object> values = new ArrayList<>();
-                for (String rawValue : rawValues) {
+                for (String rawValue : rawValues)
                     values.add(getConvertedValue(rawValue));
-                }
+
                 propertyQuery.setValues(values);
                 pql.add(propertyQuery);
               }
@@ -490,10 +465,19 @@ public class ApiParam {
       PropertiesQuery pq = new PropertiesQuery();
       pq.add(pql);
 
-      if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0) {
+      if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0)
         return null;
-      }
+
       return pq;
+    }
+
+    private static String transformLegacyTags(String legacyTagsQuery) {
+      String[] tagQueryParts = legacyTagsQuery.split("=");
+      if (tagQueryParts.length != 2)
+        return legacyTagsQuery;
+      String tags = tagQueryParts[1];
+
+      return F_PREFIX + "tags" + "=cs=" + tags;
     }
 
     static Map<String, Object> getAdditionalParams(RoutingContext context, String type) throws Exception{

@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.events.PropertyQuery.QueryOperation.CONTAINS;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.NOT_EQUALS;
 
 import com.here.xyz.connectors.ErrorResponseException;
@@ -26,7 +27,6 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.psql.query.helpers.GetIndexList;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -107,42 +107,36 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
       int idx_check = 0;
 
+      //NOTE: All keys are always full qualified property-"paths" (dot-separated)
       for (String key : keys) {
-
-        /** properties.foo vs foo (root)
-         * If hub receives "f.foo=bar&p.foo=bar" it will generates a PropertyQuery with properties.foo=bar and foo=bar
-         **/
         boolean isPropertyQuery = key.startsWith("properties.");
 
-        /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
-        if (     key.equals("id")
-            ||  key.equals("properties.@ns:com:here:xyz.createdAt")
-            ||  key.equals("properties.@ns:com:here:xyz.updatedAt")
-        )
+        //If the property query hits a default existing system index - allow the search
+        if (key.equals("id"))
           return true;
 
-        /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
+        //Check if custom Indices are available. E.g., properties.foo1
         List<String> indices = new GetIndexList(tableName).run(dataSourceProvider);
 
-        /** The table has not many records - Indices are not required */
-        if (indices == null) {
+        //The table does not have too many records - Indices are not required
+        if (indices == null)
           return true;
-        }
 
         List<String> sindices = sortableCanSearchForIndex( indices );
-        /** If it is a root property query "foo=bar" we extend the suffix "f."
-         *  If it is a property query "properties.foo=bar" we remove the suffix "properties." */
-        String searchKey = isPropertyQuery ? key.substring("properties.".length()) : "f."+key;
+        //If it is a root property query "foo=bar" we extend the suffix "f."
+        //If it is a property query "properties.foo=bar" we remove the suffix "properties."
+        //TODO: That seems to be a weired hack. Check why that is needed and remove if possible
+        String searchKey = isPropertyQuery ? key.substring("properties.".length()) : "f." + key;
 
-        if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
-          /** Check if all properties are indexed */
+        if (indices.contains(searchKey) || sindices != null && sindices.contains(searchKey))
+          //Check if all properties are indexed
           idx_check++;
-        }
       }
 
-      if(idx_check == keys.size())
+      if (idx_check == keys.size())
         return true;
 
+      //TODO: Why is that 2nd extra call needed? Could we remove it?
       return new GetIndexList(tableName).run(dataSourceProvider) == null;
     }
     catch (Exception e) {
@@ -159,25 +153,24 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
   protected static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
     PropertiesQuery properties = event.getPropertiesQuery();
-    if (properties == null || properties.size() == 0) {
+    if (properties == null || properties.size() == 0)
       return null;
-    }
+
     // TODO: This is only a hot-fix for the connector. The issue is caused in the service and the code below will be removed after the next XYZ Hub deployment
-    if (properties.get(0).size() == 0 || properties.get(0).size() == 1 && properties.get(0).get(0) == null) {
+    if (properties.get(0).size() == 0 || properties.get(0).size() == 1 && properties.get(0).get(0) == null)
       return null;
-    }
 
     HashMap<String, Integer> countingMap = new HashMap<>();
     Map<String, Object> namedParams = new HashMap<>();
-    // List with the outer OR combined statements
+    //List with the outer OR combined statements
     List<SQLQuery> disjunctionQueries = new ArrayList<>();
     properties.forEach(conjunctions -> {
 
-      // List with the AND combined statements
+      //List with the AND combined statements
       final List<SQLQuery> conjunctionQueries = new ArrayList<>();
       conjunctions.forEach(propertyQuery -> {
 
-        // List with OR combined statements for one property key
+        //List with OR combined statements for one property key
         final List<SQLQuery> keyDisjunctionQueries = new ArrayList<>();
         int valuesCount = propertyQuery.getValues().size();
         for (int i = 0; i < valuesCount; i++) {
@@ -202,7 +195,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           else {
             predicateQuery = new SQLQuery("${{keyPath}} ${{operation}} ${{value}}")
                 .withQueryFragment("keyPath", keyPath)
-                .withQueryFragment("operation", QueryOperation.getOperation(op))
+                .withQueryFragment("operation", QueryOperation.getOutputRepresentation(op))
                 .withQueryFragment("value", value == null ? "" : value);
             namedParams.put(paramName, v);
           }
@@ -216,46 +209,20 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
         .withNamedParameters(namedParams);
   }
 
-  //TODO: Remove search by tags implementation as it was removed from the API
-  @Deprecated
-  private static SQLQuery generateTagsQuery(TagsQuery tagsQuery) {
-    if (tagsQuery == null || tagsQuery.size() == 0)
-      return null;
-
-    List<SQLQuery> tagsQueries = new ArrayList<>();
-    for (int i = 0; i < tagsQuery.size(); i++)
-      tagsQueries.add(new SQLQuery("jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??& #{tags" + i + "}")
-          .withNamedParameter("tags" + i, tagsQuery.get(i).toArray(new String[0])));
-
-    return SQLQuery.join(tagsQueries, " OR ");
-  }
-
   protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
-    final SQLQuery propertiesQuery = generatePropertiesQuery(event);
-    final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
-
-    if (propertiesQuery == null && tagsQuery == null)
-      return null;
-
-    return new SQLQuery("${{propertiesQuery}} ${{tagsQuery}}")
-        .withQueryFragment("propertiesQuery", propertiesQuery != null ? propertiesQuery : new SQLQuery(""))
-        .withQueryFragment("tagsQuery", tagsQuery != null
-            ? propertiesQuery != null ? new SQLQuery("AND ${{tagsQuery}}").withQueryFragment("tagsQuery", tagsQuery) : tagsQuery
-            : new SQLQuery(""));
+    return generatePropertiesQuery(event);
   }
 
   private static SQLQuery createKey(String key) {
     String[] keySegments = key.split("\\.");
 
-    /** ID is indexed as text */
-    if(keySegments.length == 1 && keySegments[0].equalsIgnoreCase("id")) {
+    //ID is indexed as text
+    if (keySegments.length == 1 && keySegments[0].equalsIgnoreCase("id"))
       return new SQLQuery("id");
-    }
 
-    /** special handling on geometry column */
-    if(keySegments.length == 2 && keySegments[0].equalsIgnoreCase("geometry") && keySegments[1].equalsIgnoreCase("type")) {
+    //Special handling on geometry column
+    if (keySegments.length == 2 && keySegments[0].equalsIgnoreCase("geometry") && keySegments[1].equalsIgnoreCase("type"))
       return new SQLQuery("GeometryType(geo) ");
-    }
 
     Map<String, Object> segmentNames = new HashMap<>();
     String keyPath = "jsondata";
@@ -272,26 +239,27 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     String param = "#{" + paramName + "}";
 
     if (key.equalsIgnoreCase("geometry.type"))
-      return "upper(" + param + "::text)";
+      return "upper(" + param + "::TEXT)";
 
     if (value == null)
       return null;
 
-    /** The ID is indexed as text */
+    //The ID is indexed as text
     if (key.equalsIgnoreCase("id"))
-      return param + "::text";
+      return param + "::TEXT";
 
     if (value instanceof String) {
-      if (op.equals(PropertyQuery.QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
-        return "(" + param + "::jsonb || '[]'::jsonb)";
-      return "to_jsonb(" + param + "::text)";
+      if (op == CONTAINS && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
+        return "(" + param + "::JSONB || '[]'::JSONB)";
+      return "to_jsonb(" + param + "::TEXT)";
     }
-    if (value instanceof Number) {
-      return "to_jsonb(" + param + "::numeric)";
-    }
-    if (value instanceof Boolean) {
-      return "to_jsonb(" + param + "::boolean)";
-    }
+
+    if (value instanceof Number)
+      return "to_jsonb(" + param + "::NUMERIC)";
+
+    if (value instanceof Boolean)
+      return "to_jsonb(" + param + "::BOOLEAN)";
+
     return "";
   }
 

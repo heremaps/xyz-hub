@@ -66,9 +66,23 @@ public class PSQLSearchIT extends PSQLAbstractIT {
   }
 
   protected void addTagsToSearchObject(Map<String, Object> json, String... tags) {
-    json.remove("tags");
-    json.put("tags", new ArrayList<String>());
-    ((List) json.get("tags")).add(new ArrayList(Arrays.asList(tags)));
+    Map<String, Object> tagsSearchPredicate = Map.of(
+        "key", "properties.@ns:com:here:xyz.tags",
+        "operation", "CONTAINS",
+        "values", Arrays.asList(tags)
+    );
+
+    if (!json.containsKey("propertiesQuery"))
+      json.put("propertiesQuery", List.of(List.of(tagsSearchPredicate)));
+    else if (json.get("propertiesQuery") instanceof List propertiesQuery) {
+      if (propertiesQuery.size() == 0)
+        json.put("propertiesQuery", List.of(List.of(tagsSearchPredicate)));
+      else if (propertiesQuery.get(0) instanceof List propertyQueryList)
+        json.put("propertiesQuery", List.of(new ArrayList() {{
+          add(tagsSearchPredicate);
+          addAll(propertyQueryList);
+        }}));
+    }
   }
 
   /**

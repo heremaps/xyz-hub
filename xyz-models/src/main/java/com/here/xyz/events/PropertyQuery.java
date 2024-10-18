@@ -21,7 +21,10 @@ package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "PropertyQuery")
@@ -80,36 +83,41 @@ public class PropertyQuery {
   }
 
   public enum QueryOperation {
-    EQUALS,
-    NOT_EQUALS,
-    LESS_THAN,
-    GREATER_THAN,
-    LESS_THAN_OR_EQUALS,
-    GREATER_THAN_OR_EQUALS,
-    CONTAINS;
+    EQUALS("=", "="),
+    NOT_EQUALS("!=", "<>"),
+    LESS_THAN(Set.of("<", "=lt="), "<"),
+    GREATER_THAN(Set.of(">", "=gt="), ">"),
+    LESS_THAN_OR_EQUALS(Set.of("<=", "=lte="), "<="),
+    GREATER_THAN_OR_EQUALS(Set.of(">=", "=gte="), ">="),
+    CONTAINS(Set.of("@>", "=cs="), "@>");
 
-    public static String getOperation(QueryOperation op) {
+    public final Set<String> inputRepresentations;
+    public final String outputRepresentation;
+
+    QueryOperation (Set<String> inputRepresentations, String outputRepresentation) {
+      this.inputRepresentations = inputRepresentations;
+      this.outputRepresentation = outputRepresentation;
+    }
+
+    QueryOperation (String inputRepresentation, String outputRepresentation) {
+      this(Set.of(inputRepresentation), outputRepresentation);
+    }
+
+    public static String getOutputRepresentation(QueryOperation op) {
       if (op == null)
         throw new NullPointerException("op is required");
+      return op.outputRepresentation;
+    }
 
-      switch (op) {
-        case EQUALS:
-          return "=";
-        case NOT_EQUALS:
-          return "<>";
-        case LESS_THAN:
-          return "<";
-        case GREATER_THAN:
-          return ">";
-        case LESS_THAN_OR_EQUALS:
-          return "<=";
-        case GREATER_THAN_OR_EQUALS:
-          return ">=";
-        case CONTAINS:
-          return "@>";
-      }
+    public static QueryOperation fromInputRepresentation(String inputRepresentation) {
+      for (QueryOperation op : values())
+        if (op.inputRepresentations.contains(inputRepresentation))
+          return op;
+      return null;
+    }
 
-      return "";
+    public static Set<String> inputRepresentations() {
+      return Arrays.stream(values()).flatMap(operator -> operator.inputRepresentations.stream()).collect(Collectors.toSet());
     }
   }
 }

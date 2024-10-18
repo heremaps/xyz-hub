@@ -99,9 +99,11 @@ public class ConnectorParameters {
   }
 
   public static ConnectorParameters fromMap(Map<String, Object> connectorParams) {
-    if (!cache.containsKey(connectorParams))
-      cache.put(connectorParams,
-          connectorParams != null ? XyzSerializable.fromMap(connectorParams, ConnectorParameters.class) : new ConnectorParameters());
-    return cache.get(connectorParams);
+    ConnectorParameters cp = cache.get(connectorParams);
+    if(cp == null) {
+      cp = connectorParams != null ? XyzSerializable.fromMap(connectorParams, ConnectorParameters.class) : new ConnectorParameters();
+      cache.put(connectorParams, cp);
+    }
+    return cp;
   }
 }

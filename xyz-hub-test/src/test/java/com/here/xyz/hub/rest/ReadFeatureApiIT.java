@@ -322,7 +322,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testEmptyParams() {
+  public void testEmptyParamsForIterate() {
     given().
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
@@ -330,7 +330,10 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/iterate?limit=5&tags=").
         then().
         statusCode(OK.code());
+  }
 
+  @Test
+  public void testEmptyParamsForSearch() {
     given().
         accept(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
@@ -456,8 +459,7 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/tile/here/5148795631.geojson").
         then().
         statusCode(OK.code()).
-            // Fix if we enable back precision method which removes duplicate points
-        body("features.size()", equalTo(1));
+        body("features.size()", equalTo(0));
   }
 
 

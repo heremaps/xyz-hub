@@ -116,6 +116,7 @@ public class Database extends ExecutionResource {
       dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
           .withApplicationName("JobFramework")
           .withSearchPath(DEFAULT_SEARCH_PATH);
+    dbSettings.setStatementTimeoutSeconds(600);
     return dbSettings;
   }
 

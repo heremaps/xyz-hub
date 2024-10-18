@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.10.12-SNAPSHOT</version>
+    <version>3.10.17-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Steps</name>
@@ -270,7 +270,12 @@
               <execution>
                 <configuration>
                   <workingDirectory>${project.build.directory}</workingDirectory>
-                  <executable>${basedir}/src/main/bash/deployLocalLambda.sh</executable>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>exec</argument>
+                    <argument>localstack-main</argument>
+                    <argument>/home/localstack/job-steps-scripts/deployLocalLambda.sh</argument>
+                  </arguments>
                 </configuration>
                 <goals>
                   <goal>exec</goal>

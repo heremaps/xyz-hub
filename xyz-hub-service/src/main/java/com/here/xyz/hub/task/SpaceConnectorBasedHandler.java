@@ -107,11 +107,15 @@ public class SpaceConnectorBasedHandler {
   }
 
   public static Future<Space> getAndValidateSpace(Marker marker, String spaceId) {
+    return getAndValidateSpace(marker, spaceId, false);
+  }
+
+  public static Future<Space> getAndValidateSpace(Marker marker, String spaceId, boolean ignoreMissingSpace) {
     return Service.spaceConfigClient.get(marker, spaceId)
-        .compose(space -> space == null
+        .compose(space -> space == null && !ignoreMissingSpace
             ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + spaceId + "' does not exist!"))
             : Future.succeededFuture(space))
-        .compose(space -> !space.isActive()
+        .compose(space -> space != null && !space.isActive()
             ? Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED, "The method is not allowed, because the resource \"" + spaceId + "\" is not active."))
             : Future.succeededFuture(space));
   }

@@ -21,6 +21,7 @@ package com.here.xyz.hub.connectors;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.CONNECTOR;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -28,7 +29,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -57,6 +57,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -400,8 +401,8 @@ public class RpcClient {
         case FORBIDDEN:
           throw new HttpException(FORBIDDEN, "The user is not authorized.", errorResponse.getErrorDetails());
         case TOO_MANY_REQUESTS:
-          throw new HttpException(TOO_MANY_REQUESTS,
-              "The connector cannot process the message due to a limitation in an upstream service or a database.", errorResponse.getErrorDetails());
+          throw new TooManyRequestsException("The connector cannot process the message due to a limitation in an upstream service or a database.",
+              CONNECTOR, errorResponse.getErrorDetails());
         case ILLEGAL_ARGUMENT:
           throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case TIMEOUT:

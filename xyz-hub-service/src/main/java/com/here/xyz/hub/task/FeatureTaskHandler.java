@@ -29,6 +29,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -37,7 +38,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
@@ -105,6 +105,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;
+import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -1061,7 +1062,7 @@ public class FeatureTaskHandler {
       if (Service.IS_USING_ZGC) {
         if (usedMemoryPercent > Service.configuration.SERVICE_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
           XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
-          throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node.");
+          throw new TooManyRequestsException("Too many requests for the service node.", MEMORY);
         }
       }
       //For other GCs, only throttle requests if the request memory filled up over the specified request memory threshold
@@ -1077,7 +1078,7 @@ public class FeatureTaskHandler {
         RpcClient rpcClient = getRpcClient(storage);
         if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE) {
           XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
-          throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
+          throw new TooManyRequestsException("Too many requests for the storage.", MEMORY);
         }
       }
     }
@@ -1559,8 +1560,8 @@ public class FeatureTaskHandler {
     }
 
     if (task.getEvent() instanceof GetFeaturesByGeometryEvent ev && ev.getGeometry() != null ) {
-    // DS-641 - /spatial - restrict post/ref geom to max. 12000 coords  
-      final int MAX_NR_COORDINATES = 12000; 
+    // DS-641 - /spatial - restrict post/ref geom to max. 12000 coords
+      final int MAX_NR_COORDINATES = 12000;
       int nrCoordinates = ev.getGeometry().getJTSGeometry().getNumPoints();
       if( MAX_NR_COORDINATES < nrCoordinates )
       {

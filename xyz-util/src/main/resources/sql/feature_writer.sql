@@ -64,7 +64,10 @@ $BODY$
       return return_result ? result : {"count": result.features.length};
     }
     catch (error) {
-      throw new Error("Unexpected error in feature_writer: " + error.message);
+      if (!error.code)
+        throw new Error("Unexpected error in feature_writer: " + error.message);
+      else
+        throw error;
     }
 $BODY$ LANGUAGE plv8 IMMUTABLE;
 
