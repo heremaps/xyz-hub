@@ -329,8 +329,8 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     );
     // 3 project tile to wgs84 and map invalid geom to null
 
-    mvtgeom = DhString.format( (!hereTile ? "(select case st_isvalid(g) when true then g else null end from st_transform(%1$s,4326) g)"
-            : "(select case st_isvalid(g) when true then g else null end from %1$s g)")
+    mvtgeom = DhString.format( (!hereTile ? "(select case st_isvalid(g,0) when true then g else null end from st_transform(%1$s,4326) g)"
+            : "(select case st_isvalid(g,0) when true then g else null end from %1$s g)")
         , mvtgeom );
 
     // 4. assure intersect with origin bbox in case of mapping errors
