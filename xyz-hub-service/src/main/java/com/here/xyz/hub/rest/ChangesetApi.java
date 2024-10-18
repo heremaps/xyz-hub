@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
+import com.google.common.primitives.Longs;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
@@ -111,9 +112,8 @@ public class ChangesetApi extends SpaceBasedApi {
       validateVersion(endVersion, false);
       validateVersions(startVersion, endVersion);
     } else {
-      final Long version = Query.getLong(context, Query.VERSION, null);
+      final Long version = getVersionFromPath(context);
       validateVersion(version, true);
-
       startVersion = version;
       endVersion = version;
     }
@@ -125,6 +125,14 @@ public class ChangesetApi extends SpaceBasedApi {
             .withEndVersion(endVersion)
             .withPageToken(pageToken)
             .withLimit(limit);
+  }
+
+  private Long getVersionFromPath(RoutingContext context) throws HttpException {
+    final Long version = Longs.tryParse(context.pathParam(Path.VERSION));
+    if (version == null)
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid version specified.");
+
+    return version;
   }
 
   private void validateVersion(Long version, boolean required) throws HttpException {
