@@ -25,7 +25,6 @@ import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
-import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -41,6 +40,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -85,9 +86,11 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     //Copy step input files from S3 to local /tmp
     String localTmpInputsFolder = copyFolderFromS3ToLocal(S3Client.getKeyFromS3Uri(scriptParams.get(0)));
 
-    scriptParams.set(0, localTmpInputsFolder);
-    scriptParams.set(1, localTmpOutputsFolder);
-    scriptParams.add("--local");
+    List<String> localScriptParams = new ArrayList<>(scriptParams);
+
+    localScriptParams.set(0, localTmpInputsFolder);
+    localScriptParams.set(1, localTmpOutputsFolder);
+    localScriptParams.add("--local");
 
     sparkParams = sparkParams.replace("$localJarPath$", localJarPath);
     sparkParams = "java -Xshare:off --add-exports=java.base/java.nio=ALL-UNNAMED "
@@ -97,7 +100,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
             + sparkParams;
 
     List<String> emrParams = new ArrayList<>(List.of(sparkParams.split(" ")));
-    emrParams.addAll(scriptParams);
+    emrParams.addAll(localScriptParams);
 
     logger.info("Start local EMR job with the following params: {} ", emrParams.toString());
 
@@ -124,8 +127,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (exitCode != 0)
       throw new RuntimeException("Local EMR execution failed with exit code " + exitCode + ". Please check the logs.");
 
-    //Register the EMR files, which are stored locally, as step outputs.
-    registerEmrOutputs(new File(localTmpOutputsFolder));
+    //Upload EMR files, which are stored locally
+    uploadEMRResulstToS3(new File(localTmpOutputsFolder), S3Client.getKeyFromS3Uri(scriptParams.get(1)));
   }
 
   @Override
@@ -308,7 +311,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getLocalTmpPath(s3Path);
   }
 
-  private void registerEmrOutputs(File emrOutputDir) throws IOException {
+  private void uploadEMRResulstToS3(File emrOutputDir, String s3TargetPath) throws IOException {
     if (emrOutputDir.exists() && emrOutputDir.isDirectory()) {
       File[] files = emrOutputDir.listFiles();
 
@@ -323,10 +326,12 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
           continue;
         //TODO: skip _SUCCESS?
 
-        logger.info("Register output for local file {} ", file);
+        logger.info("Store local file {} to {} ", file, s3TargetPath);
         //TODO: Check if this is the correct content-type
-        Output output = new DownloadUrl().withContentType("text").withContent(Files.readAllBytes(file.toPath()));
-        registerOutputs(List.of(output), !isUseSystemOutput());
+        new DownloadUrl()
+                .withContentType("text")
+                .withContent(Files.readAllBytes(file.toPath()))
+                .store(s3TargetPath + "/" + UUID.randomUUID());
       }
     }
   }
