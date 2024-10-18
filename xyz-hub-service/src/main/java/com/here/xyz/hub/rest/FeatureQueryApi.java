@@ -57,6 +57,7 @@ import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.GetFeaturesByBBoxClustered;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
@@ -64,6 +65,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class FeatureQueryApi extends SpaceBasedApi {
 
@@ -318,10 +320,20 @@ public class FeatureQueryApi extends SpaceBasedApi {
       String optimMode = Query.getString(context, Query.OPTIM_MODE, "raw");
 
       try {
+
+        // "remove countmode=real and defaults to countmode=mixed s. DS-749" 
+        Map<String, Object> clusteringParams = Query.getAdditionalParams(context, Query.CLUSTERING);
+        if(
+              clusteringParams != null
+           && clusteringParams.containsKey(ApiParam.Query.CLUSTERING_PARAM_COUNTMODE) 
+           && "real".equalsIgnoreCase(""+clusteringParams.get(ApiParam.Query.CLUSTERING_PARAM_COUNTMODE))
+          ) 
+           clusteringParams.remove(ApiParam.Query.CLUSTERING_PARAM_COUNTMODE);
+
         event.withClip(Query.getBoolean(context, Query.CLIP, (responseType == ApiResponseType.MVT || responseType == ApiResponseType.MVT_FLATTENED || "viz".equals(optimMode) )))
             .withMargin(Query.getInteger(context, Query.MARGIN, 0))
             .withClusteringType(Query.getString(context, Query.CLUSTERING, null))
-            .withClusteringParams(Query.getAdditionalParams(context, Query.CLUSTERING))
+            .withClusteringParams(clusteringParams)
             .withTweakType(Query.getString(context, Query.TWEAKS, null))
             .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
             .withLimit(getLimit(context, ("viz".equals(optimMode) ? HARD_LIMIT : DEFAULT_FEATURE_LIMIT)))
