@@ -30,7 +30,6 @@ import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -47,15 +46,12 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.Random;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.StaticDataSources;
-import com.here.xyz.util.db.pg.Script;
-import java.io.IOException;
-import java.net.URISyntaxException;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -67,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -114,11 +109,10 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //Decrypt the ECPS into an instance of DatabaseSettings
         dbSettings = new DatabaseSettings(connectorId,
-            ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()), SCRIPT_RESOURCE_PATH)
-            .withApplicationName(FunctionRuntime.getInstance().getApplicationName());
-
+            ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
+            .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
+            .withScriptResourcePaths(List.of(SCRIPT_RESOURCE_PATH));
         //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
-        dbSettings.checkScripts();
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;

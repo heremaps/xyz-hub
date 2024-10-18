@@ -19,6 +19,15 @@
 
 package com.here.xyz.jobs.util.test;
 
+import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
+import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
+import static com.here.xyz.util.Random.randomAlpha;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
+import static java.lang.Thread.sleep;
+import static java.net.http.HttpClient.Redirect.NORMAL;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
@@ -35,22 +44,13 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.lambda.LambdaClient;
-import software.amazon.awssdk.services.lambda.model.InvokeRequest;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -70,15 +70,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
-
-import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
-import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
-import static com.here.xyz.util.Random.randomAlpha;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
-import static java.lang.Thread.sleep;
-import static java.net.http.HttpClient.Redirect.NORMAL;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.lambda.LambdaClient;
+import software.amazon.awssdk.services.lambda.model.InvokeRequest;
 
 public class StepTestBase {
   private static final Logger logger = LogManager.getLogger();

@@ -24,11 +24,11 @@ import static org.junit.Assert.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.Test;

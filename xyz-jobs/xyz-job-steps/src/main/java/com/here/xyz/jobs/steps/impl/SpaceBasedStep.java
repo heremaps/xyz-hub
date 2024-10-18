@@ -80,11 +80,6 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return (T) this;
   }
 
-  @Override
-  public void init() throws WebClientException {
-    checkScripts(db());
-  }
-
   protected final String getRootTableName(Space space) throws WebClientException {
     return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(),
         ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId());

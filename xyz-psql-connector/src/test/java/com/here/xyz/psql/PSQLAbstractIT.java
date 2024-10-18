@@ -20,9 +20,9 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.psql.DatabaseHandler.ECPS_PHRASE;
-import static com.here.xyz.util.db.DatabaseSettings.PSQL_HOST;
-import static com.here.xyz.util.db.DatabaseSettings.PSQL_PASSWORD;
-import static com.here.xyz.util.db.DatabaseSettings.PSQL_USER;
+import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_HOST;
+import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_PASSWORD;
+import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_USER;
 import static io.restassured.path.json.JsonPath.with;
 import static org.junit.Assert.assertEquals;
 

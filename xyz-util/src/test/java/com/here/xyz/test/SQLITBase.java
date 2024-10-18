@@ -19,8 +19,8 @@
 
 package com.here.xyz.test;
 
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.util.List;
 

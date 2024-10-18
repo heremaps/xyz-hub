@@ -281,13 +281,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return db.getDataSources();
   }
 
-  /**
-   * Checks whether the latest version of all SQL scripts is installed on the DB.
-   */
-  protected synchronized void checkScripts(Database db) {
-    db.getDatabaseSettings().checkScripts();
-  }
-
   private record RunningQuery(@JsonProperty("queryId") String queryId, @JsonProperty("dbName") String dbName,
                               @JsonProperty("dbId") String dbId) implements XyzSerializable {}
 }
