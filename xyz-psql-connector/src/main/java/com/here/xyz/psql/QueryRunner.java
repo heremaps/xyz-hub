@@ -20,10 +20,10 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.util.runtime.FunctionRuntime;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;

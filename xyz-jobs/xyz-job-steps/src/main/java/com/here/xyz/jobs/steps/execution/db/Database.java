@@ -21,8 +21,8 @@ package com.here.xyz.jobs.steps.execution.db;
 
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.util.db.DatabaseSettings.PSQL_HOST;
-import static com.here.xyz.util.db.DatabaseSettings.PSQL_REPLICA_HOST;
+import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_HOST;
+import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_REPLICA_HOST;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -32,9 +32,9 @@ import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.HubWebClientAsync;
@@ -113,8 +113,9 @@ public class Database extends ExecutionResource {
 
   DatabaseSettings getDatabaseSettings() {
     if (dbSettings == null)
-      dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap, SCRIPT_RESOURCE_PATH)
-          .withApplicationName("JobFramework");
+      dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
+          .withApplicationName("JobFramework")
+          .withScriptResourcePaths(List.of(SCRIPT_RESOURCE_PATH));
     dbSettings.setStatementTimeoutSeconds(600);
     return dbSettings;
   }
@@ -208,7 +209,8 @@ public class Database extends ExecutionResource {
             connectorParameters.getEcps());
         fixLocalDbHosts(connectorDbSettingsMap);
 
-        DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap, SCRIPT_RESOURCE_PATH );
+        DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap)
+            .withScriptResourcePaths(List.of(SCRIPT_RESOURCE_PATH));
 
         String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
 
@@ -341,8 +343,8 @@ public class Database extends ExecutionResource {
    * depending on the role of the parent database instance.
    */
   private class RestrictedDatabaseSettings extends DatabaseSettings {
-    public RestrictedDatabaseSettings(String id, Map<String, Object> databaseSettings, String resourcePath) {
-      super(id, databaseSettings, resourcePath);
+    public RestrictedDatabaseSettings(String id, Map<String, Object> databaseSettings) {
+      super(id, databaseSettings);
     }
 
     @Override

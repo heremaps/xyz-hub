@@ -117,12 +117,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonIgnore
   public abstract AsyncExecutionState getExecutionState() throws UnknownStateException;
 
-  /**
-   * This method can be overridden by subclasses.
-   * It is getting called at the beginning of each Lambda execution and can be used for initialization.
-   */
-  public void init() throws Exception {};
-
   private void startExecution() throws Exception {
     updateState(RUNNING);
 
@@ -492,12 +486,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
         new LambdaFunctionRuntime(context, request.getStep().getGlobalStepId());
-
-        try {
-            request.getStep().init();
-        } catch (Exception e) {
-            throw new RuntimeException("Error during initialization",e);
-        }
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");

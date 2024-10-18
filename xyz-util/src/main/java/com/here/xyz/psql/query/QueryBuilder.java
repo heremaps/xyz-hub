@@ -19,9 +19,9 @@
 
 package com.here.xyz.psql.query;
 
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 
 public abstract class QueryBuilder<I> {
   private DataSourceProvider dataSourceProvider;
