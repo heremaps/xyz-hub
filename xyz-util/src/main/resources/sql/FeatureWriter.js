@@ -342,9 +342,12 @@ class FeatureWriter {
 
     let deletedRows = this.onVersionConflict == null ? this._deleteRow() : this._deleteRow(this.baseVersion);
     if (deletedRows == 0) {
-      this.debugBox("HandleConflict for id: " + this.inputFeature.id);
-      //handleDeleteVersionConflict
-      return null;
+      if (this.onVersionConflict != null) {
+        this.debugBox("HandleConflict for id: " + this.inputFeature.id);
+        //handleDeleteVersionConflict
+        return null;
+      }
+      this._throwFeatureNotExistsError();
     }
     return new FeatureModificationExecutionResult(ExecutionAction.DELETED, this.inputFeature);
   }

@@ -99,11 +99,12 @@ public class RestSpaceWriter extends SpaceWriter {
           generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
     }
     catch (ErrorResponseException e) {
+      Map<String, Object> responseBody = XyzSerializable.deserialize(e.getErrorResponse().body(), Map.class);
+      String errorMessage = (String) responseBody.get("errorMessage");
       switch (e.getErrorResponse().statusCode()) {
+        case 404:
+          throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
         case 409: {
-          Map<String, Object> responseBody = XyzSerializable.deserialize(e.getErrorResponse().body(), Map.class);
-          //FIXME: respond with correct status codes in hub (e.g. not exists => 404)
-          String errorMessage = (String) responseBody.get("errorMessage");
           switch (errorMessage) {
             case "The record does not exist.", "ERROR: Feature with ID " + TEST_FEATURE_ID + " not exists!":
               throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
