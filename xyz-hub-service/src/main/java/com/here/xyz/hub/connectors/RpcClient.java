@@ -28,6 +28,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
 
@@ -394,6 +395,8 @@ public class RpcClient {
           errorResponse.getErrorMessage());
 
       switch (errorResponse.getError()) {
+        case NOT_FOUND:
+          throw new HttpException(NOT_FOUND, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case NOT_IMPLEMENTED:
           throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.", errorResponse.getErrorDetails());
         case CONFLICT:

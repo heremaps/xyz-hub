@@ -36,6 +36,7 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -248,7 +249,7 @@ public class FeatureApi extends SpaceBasedApi {
     final SpaceContext spaceContext = getSpaceContext(context);
 
     if (USE_WRITE_FEATURES_EVENT)
-      executeDeleteFeatures(context, EMPTY, List.of(featureId), spaceContext);
+      executeDeleteFeatures(context, EMPTY, List.of(featureId), spaceContext, true);
     else
       executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN,
           true, ConflictResolution.ERROR, List.of(Map.of("featureIds", List.of(featureId))), spaceContext);
@@ -269,7 +270,7 @@ public class FeatureApi extends SpaceBasedApi {
     else {
       //Delete features by IDs
       if (USE_WRITE_FEATURES_EVENT)
-        executeDeleteFeatures(context, responseType, featureIds, spaceContext);
+        executeDeleteFeatures(context, responseType, featureIds, spaceContext, false);
       else
         executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
             ConflictResolution.ERROR, List.of(Map.of("featureIds", featureIds)), spaceContext);
@@ -299,17 +300,20 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   private void executeDeleteFeatures(RoutingContext context, ApiResponseType responseType, List<String> featureIds,
-      SpaceContext spaceContext) {
-    deleteFeatures(context, featureIds, spaceContext, getAuthor(context), responseType != EMPTY)
+      SpaceContext spaceContext, boolean requireResourceExists) {
+    deleteFeatures(context, featureIds, spaceContext, getAuthor(context), responseType != EMPTY, requireResourceExists)
         .onFailure(e -> this.sendErrorResponse(context, e))
         .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
   }
 
   private Future<FeatureCollection> deleteFeatures(RoutingContext context, List<String> featureIds, SpaceContext spaceContext,
-      String author, boolean responseDataExpected) {
+      String author, boolean responseDataExpected, boolean requireResourceExists) {
+    UpdateStrategy updateStrategy = requireResourceExists
+        ? new UpdateStrategy(OnExists.DELETE, OnNotExists.ERROR, null, null)
+        : DEFAULT_DELETE_STRATEGY;
     return writeFeatures(context, Set.of(new Modification()
             .withFeatureIds(featureIds)
-            .withUpdateStrategy(DEFAULT_DELETE_STRATEGY)), false, spaceContext, author, responseDataExpected);
+            .withUpdateStrategy(updateStrategy)), false, spaceContext, author, responseDataExpected);
   }
 
   /**
@@ -325,6 +329,9 @@ public class FeatureApi extends SpaceBasedApi {
       boolean partialUpdates, SpaceContext spaceContext, String author, boolean responseDataExpected) {
     return Space.resolveSpace(getMarker(context), getSpaceId(context))
         .compose(space -> {
+          if (space == null)
+            return Future.failedFuture(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
+
           Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
               ? toModifications(space, featureModificationList, isConflictDetectionEnabled(context), partialUpdates)
               : (Set<Modification>) inputModifications;

@@ -21,6 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.responses.XyzError.CONFLICT;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
+import static com.here.xyz.responses.XyzError.NOT_FOUND;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -73,7 +74,8 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       final String message = e.getMessage();
       String cleanMessage = message.contains("\n") ? message.substring(0, message.indexOf("\n")) : message;
       throw switch (SQLError.fromErrorCode(e.getSQLState())) {
-        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR, FEATURE_NOT_EXISTS -> new ErrorResponseException(CONFLICT, cleanMessage, e);
+        case FEATURE_EXISTS, VERSION_CONFLICT_ERROR, MERGE_CONFLICT_ERROR -> new ErrorResponseException(CONFLICT, cleanMessage, e);
+        case FEATURE_NOT_EXISTS -> new ErrorResponseException(NOT_FOUND, cleanMessage, e);
         case ILLEGAL_ARGUMENT -> new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, cleanMessage, e);
         case XYZ_EXCEPTION, UNKNOWN -> new ErrorResponseException(EXCEPTION, e.getMessage(), e);
       };
