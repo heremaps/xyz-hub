@@ -106,13 +106,17 @@ public class ChangesetApi extends SpaceBasedApi {
     if (useChangesetCollection) {
       startVersion = Query.getLong(context, Query.START_VERSION, 0L);
       endVersion = Query.getLong(context, Query.END_VERSION, null);
-    } else {
-      final String version = context.pathParam(Path.VERSION);
-      startVersion = Long.parseLong(version);
-      endVersion = startVersion;
-    }
 
-    validateGetChangesetsQueryParams(startVersion, endVersion, useChangesetCollection);
+      validateVersion(startVersion, true);
+      validateVersion(endVersion, false);
+      validateVersions(startVersion, endVersion);
+    } else {
+      final Long version = Query.getLong(context, Query.VERSION, null);
+      validateVersion(version, true);
+
+      startVersion = version;
+      endVersion = version;
+    }
 
     return new IterateChangesetsEvent()
             .withSpace(getSpaceId(context))
@@ -123,21 +127,17 @@ public class ChangesetApi extends SpaceBasedApi {
             .withLimit(limit);
   }
 
-  private void validateGetChangesetsQueryParams(Long startVersion, Long endVersion, boolean useChangesetCollection)
-          throws HttpException {
-    if (useChangesetCollection) {
-      if (startVersion != null && endVersion != null) {
-	      if (startVersion < 0 || endVersion < 0)
-	        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid version specified.");
-	      if (startVersion > endVersion)
-	        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter startVersion needs to be smaller as endVersion.");
-      }
-    } else {
-      if (startVersion == null)
-        throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter version is required.");
-    }
+  private void validateVersion(Long version, boolean required) throws HttpException {
+    if (required && version == null)
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter version is required.");
+    if (version != null && version < 0)
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid version specified.");
   }
 
+  private void validateVersions(Long startVersion, Long endVersion) throws HttpException {
+    if (endVersion != null && startVersion > endVersion)
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "The parameter startVersion needs to be smaller as endVersion.");
+  }
 
   /**
    * Delete changesets by version number
