@@ -94,9 +94,11 @@ public class Api {
         return context -> {
             try {
                 handler.handle(context);
-            } catch (HttpException e) {
+            }
+            catch (HttpException | IllegalArgumentException | ValidationException | AccessDeniedException | RequestCancelledException e) {
                 sendErrorResponse(context, e);
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 sendInternalServerError(context, e);
             }
         };

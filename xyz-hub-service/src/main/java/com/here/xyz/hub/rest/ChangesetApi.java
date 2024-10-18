@@ -49,64 +49,53 @@ import org.apache.logging.log4j.Marker;
 public class ChangesetApi extends SpaceBasedApi {
 
   public ChangesetApi(RouterBuilder rb) {
-    rb.getRoute("getChangesets").setDoValidation(false).addHandler(this::getChangesets);
-    rb.getRoute("getChangeset").setDoValidation(false).addHandler(this::getChangeset);
-    rb.getRoute("deleteChangesets").setDoValidation(false).addHandler(this::deleteChangesets);
-    rb.getRoute("getChangesetStatistics").setDoValidation(false).addHandler(this::getChangesetStatistics);
+    rb.getRoute("getChangesets").setDoValidation(false).addHandler(handleErrors(this::getChangesets));
+    rb.getRoute("getChangeset").setDoValidation(false).addHandler(handleErrors(this::getChangeset));
+    rb.getRoute("deleteChangesets").setDoValidation(false).addHandler(handleErrors(this::deleteChangesets));
+    rb.getRoute("getChangesetStatistics").setDoValidation(false).addHandler(handleErrors(this::getChangesetStatistics));
   }
 
   /**
    * Get changesets by version
    */
   private void getChangesets(final RoutingContext context) {
-    try {
-      long startVersion = getLongQueryParam(context, START_VERSION);
-      long endVersion = getLongQueryParam(context, END_VERSION);
+    long startVersion = getLongQueryParam(context, START_VERSION, 0);
+    long endVersion = getLongQueryParam(context, END_VERSION, -1);
 
-      if (startVersion > endVersion)
-        throw new IllegalArgumentException("The parameter \"" + START_VERSION + "\" needs to be smaller than \"" + END_VERSION + "\".");
+    if (endVersion != -1 && startVersion > endVersion)
+      throw new IllegalArgumentException("The parameter \"" + START_VERSION + "\" needs to be smaller than or equal to \"" + END_VERSION + "\".");
 
-      IterateChangesetsEvent event = buildIterateChangesetsEvent(context, startVersion, endVersion);
-      //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
-      SpaceConnectorBasedHandler.execute(getMarker(context),
-              space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
-          .onSuccess(result -> sendResponse(context, result))
-          .onFailure(t -> sendErrorResponse(context, t));
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
+    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, startVersion, endVersion);
+    //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
+    SpaceConnectorBasedHandler.execute(getMarker(context),
+            space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
+        .onSuccess(result -> sendResponse(context, result))
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   /**
    * Get changesets by version
    */
   private void getChangeset(RoutingContext context) {
-    try {
-      long version = getVersionFromPathParam(context);
-      IterateChangesetsEvent event = buildIterateChangesetsEvent(context, version, version);
-      //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
-      SpaceConnectorBasedHandler.execute(getMarker(context),
-              space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
-          .onSuccess(result -> {
-            ChangesetCollection changesets = (ChangesetCollection) result;
-            if (changesets.getVersions().isEmpty())
-              sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
-            else
-              sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
-          })
-          .onFailure(t -> sendErrorResponse(context, t));
-
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
+    long version = getVersionFromPathParam(context);
+    IterateChangesetsEvent event = buildIterateChangesetsEvent(context, version, version);
+    //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
+    SpaceConnectorBasedHandler.execute(getMarker(context),
+            space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
+        .onSuccess(result -> {
+          ChangesetCollection changesets = (ChangesetCollection) result;
+          if (changesets.getVersions().isEmpty())
+            sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
+          else
+            sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
+        })
+        .onFailure(t -> sendErrorResponse(context, t));
   }
 
   /**
    * Delete changesets by version number
    */
-  private void deleteChangesets(final RoutingContext context) {
+  private void deleteChangesets(final RoutingContext context) throws HttpException {
     final String spaceId = getSpaceId(context);
     final PropertyQuery version = Query.getPropertyQuery(context.request().query(), "version", false);
 
@@ -141,8 +130,7 @@ public class ChangesetApi extends SpaceBasedApi {
           .onFailure(t -> sendErrorResponse(context, t));
     }
     catch (NumberFormatException e) {
-      sendErrorResponse(context,
-          new HttpException(HttpResponseStatus.BAD_REQUEST, "Query parameter version must be a valid number larger than 0"));
+      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Query parameter version must be a valid number larger than 0");
     }
   }
 
@@ -155,8 +143,7 @@ public class ChangesetApi extends SpaceBasedApi {
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
-  private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, long startVersion, long endVersion)
-      throws HttpException {
+  private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, long startVersion, long endVersion) {
     String pageToken = Query.getString(context, Query.PAGE_TOKEN, null);
     long limit = Query.getLong(context, Query.LIMIT, IterateChangesets.DEFAULT_LIMIT);
 
@@ -168,7 +155,7 @@ public class ChangesetApi extends SpaceBasedApi {
         .withLimit(limit);
   }
 
-  private long getLongQueryParam(RoutingContext context, String paramName) {
+  private long getLongQueryParam(RoutingContext context, String paramName, long defaultValue) {
     try {
       long paramValue = Query.getLong(context, paramName);
       if (paramValue < 0)
@@ -176,7 +163,7 @@ public class ChangesetApi extends SpaceBasedApi {
       return paramValue;
     }
     catch (NullPointerException e) {
-      throw new IllegalArgumentException("The parameter \"" + paramName + "\" is required.", e);
+      return defaultValue;
     }
     catch (NumberFormatException e) {
       throw new IllegalArgumentException("The parameter \"" + paramName + "\" is not a number.", e);

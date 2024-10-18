@@ -191,8 +191,8 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Ch
                     .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
                     .withNamedParameter("start", startVersion));
 
-    query.setQueryFragment("end_version", new SQLQuery("AND version <= #{end}")
-                    .withNamedParameter("end", event.getEndVersion()));
+    query.setQueryFragment("end_version", event.getEndVersion() != -1 ? new SQLQuery("AND version <= #{end}")
+                    .withNamedParameter("end", event.getEndVersion()) : new SQLQuery(""));
 
     //Query one more feature as requested, to be able to determine if we need to include a nextPageToken
     query.setQueryFragment("limit", new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", limit + 1));

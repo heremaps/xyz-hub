@@ -30,7 +30,7 @@ public final class IterateChangesetsEvent extends SearchForFeaturesEvent<Iterate
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   private long startVersion;
   @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-  private long endVersion;
+  private long endVersion = -1;
 
   private int versionsToKeep;
 
