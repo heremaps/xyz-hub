@@ -42,7 +42,7 @@ import java.util.stream.Stream;
 
 public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R extends XyzResponse> extends GetFeaturesByBBox<E, R> {
 
-  public static final String COUNTMODE_REAL      = "real";  // Real live counts via count(*)
+//  public static final String COUNTMODE_REAL      = "real";  // Real live counts via count(*)
   public static final String COUNTMODE_ESTIMATED = "estimated"; // Estimated counts, determined with _postgis_selectivity() or EXPLAIN Plan analyze
   public static final String COUNTMODE_MIXED     = "mixed"; // Combination of real and estimated.
   public static final String COUNTMODE_BOOL      = "bool"; // no counts but test [0|1] if data exists int tile.
@@ -87,10 +87,10 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
   private void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event) throws ErrorResponseException {
     if (countMode != null)
      switch (countMode.toLowerCase()) {
-       case COUNTMODE_REAL : case COUNTMODE_ESTIMATED: case COUNTMODE_MIXED: case COUNTMODE_BOOL : break;
+       case COUNTMODE_ESTIMATED: case COUNTMODE_MIXED: case COUNTMODE_BOOL : break;
        default:
          throw new ErrorResponseException(ILLEGAL_ARGUMENT,
-             "Invalid request parameters. Unknown clustering.countmode=" + countMode + ". Available are: [" + COUNTMODE_REAL + ","
+             "Invalid request parameters. Unknown clustering.countmode=" + countMode + ". Available are: [" 
                  + COUNTMODE_ESTIMATED + "," + COUNTMODE_MIXED + "," + COUNTMODE_BOOL + "]!");
      }
 
@@ -340,10 +340,6 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     switch (quadMode) {
       case COUNTMODE_BOOL:
         boolCountCondition = "TRUE";
-      case COUNTMODE_REAL:
-        realCountCondition = "TRUE";
-        pureEstimation = _pureEstimation;
-        break;
       case COUNTMODE_ESTIMATED:
       case COUNTMODE_MIXED:
 
