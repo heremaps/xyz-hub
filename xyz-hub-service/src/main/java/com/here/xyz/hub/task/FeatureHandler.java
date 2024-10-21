@@ -27,7 +27,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static java.util.concurrent.TimeUnit.SECONDS;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -161,7 +162,8 @@ public class FeatureHandler {
     event.setParams(storageParams);
   }
 
-  public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId) {
+  public static Future<Long> getCountForSpace(Marker marker, Space space, SpaceContext spaceContext, String requesterId,
+      long maxFeaturesPerSpace) {
     Long cachedCount = countCache.get(space.getId());
     if (cachedCount != null)
       return Future.succeededFuture(cachedCount);
@@ -186,7 +188,8 @@ public class FeatureHandler {
               promise.fail(Api.responseToHttpException(response));
               return;
             }
-            countCache.put(space.getId(), count, 60, SECONDS);
+            long ttl = maxFeaturesPerSpace - count > 100_000 ? 30_000 : 500;
+            countCache.put(space.getId(), count, ttl, MILLISECONDS);
             promise.complete(count);
           }, space, requesterId);
       return promise.future();
@@ -196,9 +199,9 @@ public class FeatureHandler {
     }
   }
 
-  public static void checkFeaturesPerSpaceQuota(String spaceId, long maxFeaturesPerSpace, long currentSpaceCount,
-      boolean isDeleteOnly) throws HttpException {
-    if (!isDeleteOnly && currentSpaceCount > maxFeaturesPerSpace)
+  public static void checkFeaturesPerSpaceQuota(String spaceId, long maxFeaturesPerSpace, long currentSpaceCount, boolean isDeleteOnly)
+      throws HttpException {
+    if (!isDeleteOnly && currentSpaceCount >= maxFeaturesPerSpace)
       throw new HttpException(FORBIDDEN,
           "The maximum number of " + maxFeaturesPerSpace + " features for the resource \"" + spaceId + "\" was reached. " +
               "The resource contains " + currentSpaceCount + " features and cannot store any more features.");
@@ -220,11 +223,17 @@ public class FeatureHandler {
               + "Update the resource definition to enable editing of features.");
   }
 
-  public static Future<Void> resolveExtendedSpaces(Marker marker, Space compositeSpace) {
-    return resolveExtendedSpace(marker, compositeSpace, compositeSpace.getExtension());
+  public static void checkIsActive(Space space) throws HttpException {
+    if (!space.isActive())
+      throw new HttpException(PRECONDITION_REQUIRED, "The method is not allowed, because the resource \"" + space.getId()
+          + "\" is not active.");
   }
 
-  private static Future<Void> resolveExtendedSpace(Marker marker, Space compositeSpace, Extension extendedConfig) {
+  public static Future<Void> resolveExtendedSpaces(Marker marker, Space compositeSpace) {
+    return resolveExtendedSpace(marker, compositeSpace, compositeSpace.getExtension(), new ArrayList<>(List.of(compositeSpace.getId())));
+  }
+
+  private static Future<Void> resolveExtendedSpace(Marker marker, Space compositeSpace, Extension extendedConfig, List<String> resolvedIds) {
     if (extendedConfig == null)
       return Future.succeededFuture();
     return Space.resolveSpace(marker, extendedConfig.getSpaceId())
@@ -233,14 +242,15 @@ public class FeatureHandler {
             return Future.failedFuture(new HttpException(NOT_FOUND, "Extended resource with ID " + extendedConfig.getSpaceId() + " was not found."));
 
           //Check for cyclical extensions
-          if (inExtensionPath(compositeSpace, extendedSpace)) {
+          if (resolvedIds.contains(extendedSpace.getId())) {
             logger.error(marker, "Cyclical extension on composite space {}. Causing extended space: {}.",
                 compositeSpace.getId(), extendedSpace.getId());
             return Future.failedFuture(new HttpException(BAD_REQUEST, "Cyclical reference when resolving extensions"));
           }
 
+          resolvedIds.add(extendedSpace.getId());
           extendedConfig.resolvedSpace = extendedSpace;
-          return resolveExtendedSpace(marker, compositeSpace, extendedSpace.getExtension());
+          return resolveExtendedSpace(marker, compositeSpace, extendedSpace.getExtension(), resolvedIds);
         });
   }
 

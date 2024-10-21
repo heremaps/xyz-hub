@@ -117,6 +117,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .body("$", not(hasKey("active")));
   }
 
+  //TODO: split the following test into multiple tests
   @Test
   public void readFeaturesInactiveSpace() {
     given()
@@ -190,7 +191,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void writeFeaturesInactiveSpace() {
+  public void putFeaturesInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -207,7 +208,10 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .put(getSpacesPath() + "/" + SPACE_ID + "/features")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
+  }
 
+  @Test
+  public void postFeaturesInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -224,7 +228,10 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .post(getSpacesPath() + "/" + SPACE_ID + "/features")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
+  }
 
+  @Test
+  public void deleteFeaturesOnInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -232,7 +239,10 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .delete(getSpacesPath() + "/" + SPACE_ID + "/features?id=1")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
+  }
 
+  @Test
+  public void putFeatureOnInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -249,13 +259,17 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .put(getSpacesPath() + "/" + SPACE_ID + "/features/F1")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
+  }
 
+  @Test
+  public void patchFeatureOnInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .body("""
             {
+              "type": "Feature",
               "properties": {
                 "prop1": "val1"
               }
@@ -264,7 +278,10 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .patch(getSpacesPath() + "/" + SPACE_ID + "/features/F1")
         .then()
         .statusCode(PRECONDITION_REQUIRED.code());
+  }
 
+  @Test
+  public void deleteFeatureFromInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -275,14 +292,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void writeSubscriptionsInactiveSpace() {
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/subscriptions")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-
+  public void getSubscriptionOfInactiveSpaceNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
@@ -292,7 +302,17 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void readSubscriptionsInactiveSpace() {
+  public void listSubscriptionsOfInactiveSpaceNegative() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/" + SPACE_ID + "/subscriptions")
+        .then()
+        .statusCode(METHOD_NOT_ALLOWED.code());
+  }
+
+  @Test
+  public void postSubscriptionOnInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -309,7 +329,10 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .post(getSpacesPath() + "/" + SPACE_ID + "/subscriptions")
         .then()
         .statusCode(METHOD_NOT_ALLOWED.code());
+  }
 
+  @Test
+  public void putSubscriptionOnInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
@@ -326,73 +349,14 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .put(getSpacesPath() + "/" + SPACE_ID + "/subscriptions/S1")
         .then()
         .statusCode(METHOD_NOT_ALLOWED.code());
+  }
 
+  @Test
+  public void deleteSubscriptionFromInactiveSpaceNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
         .delete(getSpacesPath() + "/" + SPACE_ID + "/subscriptions/S1")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-  }
-
-//  @Test
-  public void readJobsInactiveSpace() {
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/jobs")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/jobs/J1")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-  }
-
-//  @Test
-  public void writeJobsInactiveSpace() {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .body("""
-            {
-                "type": "Import",
-                "description": "Job Description",
-                "csvFormat": "JSON_WKB"
-            }
-            """)
-        .post(getSpacesPath() + "/" + SPACE_ID + "/jobs")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .body("""
-            {
-                "description": "Job Description"
-            }
-            """)
-        .patch(getSpacesPath() + "/" + SPACE_ID + "/jobs/J1")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .delete(getSpacesPath() + "/" + SPACE_ID + "/jobs/J1")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .post(getSpacesPath() + "/" + SPACE_ID + "/jobs/J1/execute?command=start")
         .then()
         .statusCode(METHOD_NOT_ALLOWED.code());
   }
@@ -405,14 +369,10 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .get(getSpacesPath() + "/" + SPACE_ID + "/changesets?startVersion=0&endVersion=10")
         .then()
         .statusCode(METHOD_NOT_ALLOWED.code());
+  }
 
-    given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .when()
-        .get(getSpacesPath() + "/" + SPACE_ID + "/changesets/statistics")
-        .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
-
+  @Test
+  public void getChangesetOfInactiveSpaceNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
@@ -422,7 +382,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void writeChangesetsInactiveSpace() {
+  public void deleteChangesetsFromInactiveSpaceNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
@@ -432,7 +392,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void readTagsInactiveSpace() {
+  public void getTagOfInactiveSpaceNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
@@ -442,7 +402,7 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void writeTagsInactiveSpace() {
+  public void postTagOnInactiveSpaceNegative() {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -455,8 +415,11 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .post(getSpacesPath() + "/" + SPACE_ID + "/tags")
         .then()
         .statusCode(METHOD_NOT_ALLOWED.code());
+  }
 
-    System.out.println(given()
+  @Test
+  public void patchTagsOnInactiveSpaceNegative() {
+    given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
@@ -468,8 +431,11 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
         .patch(getSpacesPath() + "/" + SPACE_ID + "/tags/T1")
         .then()
         .statusCode(METHOD_NOT_ALLOWED.code())
-        .extract().asPrettyString());
+        .extract().asPrettyString();
+  }
 
+  @Test
+  public void deleteTagFromInactiveSpaceNegative() {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()

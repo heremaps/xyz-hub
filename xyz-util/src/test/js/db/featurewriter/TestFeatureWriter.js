@@ -22,18 +22,20 @@ require("../../../../main/resources/sql/Exception");
 require("../../../../main/resources/sql/FeatureWriter");
 const FeatureWriter = plv8.FeatureWriter;
 
+
 global.queryContext = () => ({
   schema: "public",
-  table: "HubComposite_DEFAULT_WithHistoryTestSuiteIT",
-  extendedTable: "HubComposite_DEFAULT_WithHistoryTestSuiteIT_super",
+  table: "composite-export-space-ext-ext",
+  extendedTable: "composite-export-space-ext",
+  extendedTableL2: "composite-export-space",
   context: "DEFAULT",
-  historyEnabled: true
+  historyEnabled: false
 });
 
 class TestFeatureWriter {
 
   inputFeature = {
-    "id": "id1",
+    "id": "id4",
     "geometry": {
       "type": "Point",
       "coordinates": [
@@ -45,15 +47,28 @@ class TestFeatureWriter {
       "firstName": "Alice",
       "age": 35,
       "@ns:com:here:xyz": {
-        version: 1
+        deleted: true
       }
     }
   };
 
-  writer = new FeatureWriter(this.inputFeature, 1, null, "ERROR", "CREATE", null, null, false);
+  modification = [{
+    updateStrategy: {
+      onExists: "DELETE",
+      onNotExists: "ERROR",
+      onVersionConflict: null,
+      onMergeConflict: null
+    },
+    featureIds: ["Q12345678"],
+    partialUpdates: false,
+    featureHooks: null
+  }];
+
+  writer = new FeatureWriter(this.inputFeature, 2, null, "DELETE", "ERROR", null, null, false);
 
   run() {
     this.writer.writeFeature();
+    // this.writer.writeFeatureModifications(this.modification, "ANONYMOUS");
   }
 
 }

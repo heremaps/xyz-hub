@@ -58,6 +58,7 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
     private FeatureCollection featureData;
     private List<String> featureIds; //To be used only for deletions
     private boolean partialUpdates;
+    private List<String> featureHooks; //NOTE: The featureHooks will be applied in the given order
 
     public UpdateStrategy getUpdateStrategy() {
       return updateStrategy;
@@ -108,6 +109,19 @@ public class WriteFeaturesEvent extends ContextAwareEvent<WriteFeaturesEvent> {
 
     public Modification withPartialUpdates(boolean partialUpdates) {
       setPartialUpdates(partialUpdates);
+      return this;
+    }
+
+    public List<String> getFeatureHooks() {
+      return featureHooks;
+    }
+
+    public void setFeatureHooks(List<String> featureHooks) {
+      this.featureHooks = featureHooks;
+    }
+
+    public Modification withFeatureHooks(List<String> featureHooks) {
+      setFeatureHooks(featureHooks);
       return this;
     }
   }

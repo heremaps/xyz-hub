@@ -19,6 +19,7 @@
 
 package com.here.xyz.models.hub;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -104,7 +105,8 @@ public class FeatureModificationList extends Payload {
     ERROR,
     CREATE;
 
-    public static IfNotExists of(String value) {
+    @JsonCreator
+    public static IfNotExists from(String value) {
       if (value == null)
         return null;
 
@@ -112,7 +114,7 @@ public class FeatureModificationList extends Payload {
         return valueOf(value.toUpperCase());
       }
       catch (IllegalArgumentException e) {
-        return null;
+        throw new IllegalArgumentException("Invalid value provided for onFeatureNotExists: " + value, e);
       }
     }
   }
@@ -125,7 +127,8 @@ public class FeatureModificationList extends Payload {
     PATCH,
     MERGE;
 
-    public static IfExists of(String value) {
+    @JsonCreator
+    public static IfExists from(String value) {
       if (value == null)
         return null;
 
@@ -133,7 +136,7 @@ public class FeatureModificationList extends Payload {
         return valueOf(value.toUpperCase());
       }
       catch (IllegalArgumentException e) {
-        return null;
+        throw new IllegalArgumentException("Invalid value provided for onFeatureExists: " + value, e);
       }
     }
   }
@@ -143,7 +146,8 @@ public class FeatureModificationList extends Payload {
     RETAIN,
     REPLACE;
 
-    public static ConflictResolution of(String value) {
+    @JsonCreator
+    public static ConflictResolution from(String value) {
       if (value == null)
         return null;
 
@@ -151,7 +155,7 @@ public class FeatureModificationList extends Payload {
         return valueOf(value.toUpperCase());
       }
       catch (IllegalArgumentException e) {
-        return null;
+        throw new IllegalArgumentException("Invalid value provided for onMergeConflict: " + value, e);
       }
     }
   }

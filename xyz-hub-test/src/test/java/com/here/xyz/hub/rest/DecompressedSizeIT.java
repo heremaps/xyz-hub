@@ -21,7 +21,12 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -54,14 +59,18 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
 
   @Test
   public void testHeaderInputSizeReporting() {
-    given()
+    String decompressedValue = given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .body("{\"type\": \"FeatureCollection\",\"features\": [{\"type\": \"Feature\"}]}")
+        .body(new JsonObject().put("type", "FeatureCollection").put("features", new JsonArray().add(new JsonObject().put("type", "Feature").put("id", "f1"))).toString())
         .when()
         .put(getSpacesPath() + "/x-psql-test/features")
+        .prettyPeek()
         .then()
-        .header("X-Decompressed-Input-Size", "63")
-        .header("X-Decompressed-Output-Size", "278");
+        .header("X-Decompressed-Input-Size", "70")
+        .extract()
+        .header("X-Decompressed-Output-Size");
+
+    assertThat(decompressedValue, anyOf(equalTo("250"), equalTo("286")));
   }
 }

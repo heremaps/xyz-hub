@@ -22,15 +22,23 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
+import static com.here.xyz.hub.rest.ApiParam.Query.ADD_TAGS;
 import static com.here.xyz.hub.rest.ApiParam.Query.CONFLICT_DETECTION;
+import static com.here.xyz.hub.rest.ApiParam.Query.FEATURE_ID;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
+import static com.here.xyz.hub.rest.ApiParam.Query.PREFIX_ID;
+import static com.here.xyz.hub.rest.ApiParam.Query.REMOVE_TAGS;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static com.here.xyz.hub.rest.ApiResponseType.EMPTY;
 import static com.here.xyz.hub.rest.ApiResponseType.FEATURE;
 import static com.here.xyz.hub.rest.ApiResponseType.FEATURE_COLLECTION;
+import static com.here.xyz.hub.task.FeatureHandler.checkIsActive;
 import static com.here.xyz.hub.task.FeatureHandler.checkReadOnly;
 import static com.here.xyz.hub.task.FeatureHandler.resolveExtendedSpaces;
 import static com.here.xyz.hub.task.FeatureHandler.resolveListenersAndProcessors;
+import static com.here.xyz.models.geojson.implementation.XyzNamespace.fixNormalizedTags;
+import static com.here.xyz.models.geojson.implementation.XyzNamespace.normalizeTags;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
@@ -50,6 +58,7 @@ import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
 import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.events.WriteFeaturesEvent.Modification;
+import com.here.xyz.hub.Config;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.models.Space;
@@ -62,7 +71,6 @@ import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.FeatureModificationList;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
@@ -84,8 +92,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class FeatureApi extends SpaceBasedApi {
-  private static final boolean USE_WRITE_FEATURES_EVENT = true;
-
   public FeatureApi(RouterBuilder rb) {
     rb.getRoute("getFeature").setDoValidation(false).addHandler(handleErrors(this::getFeature));
     rb.getRoute("getFeatures").setDoValidation(false).addHandler(handleErrors(this::getFeatures));
@@ -130,7 +136,7 @@ public class FeatureApi extends SpaceBasedApi {
   private void getFeatures(final RoutingContext context, ApiResponseType apiResponseType) {
     try {
       final List<String> ids = apiResponseType == FEATURE_COLLECTION
-              ? Query.queryParam(Query.FEATURE_ID, context)
+              ? Query.queryParam(FEATURE_ID, context)
               : List.of(context.pathParam(Path.FEATURE_ID));
 
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
@@ -157,10 +163,10 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates or replaces a feature.
    */
   private void putFeature(final RoutingContext context) throws HttpException {
-    if (USE_WRITE_FEATURES_EVENT)
+    if (Config.instance.USE_WRITE_FEATURES_EVENT)
       executeWriteFeatures(context, FEATURE,
-          toFeatureModificationList(readFeature(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
-          false, getSpaceContext(context));
+          toFeatureModificationList(readFeature(context).withId(getFeatureId(context)), IfNotExists.CREATE, IfExists.REPLACE,
+              ConflictResolution.ERROR), getSpaceContext(context));
     else
       executeConditionalOperationChain(false, context, FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true,
           ConflictResolution.ERROR);
@@ -197,12 +203,13 @@ public class FeatureApi extends SpaceBasedApi {
    * @param context the routing context
    */
   private void putFeatures(final RoutingContext context) throws HttpException {
-    if (USE_WRITE_FEATURES_EVENT)
-      executeWriteFeatures(context, FEATURE_COLLECTION,
-          toFeatureModificationList(readFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
-          false, getSpaceContext(context));
+    ApiResponseType responseType = getEmptyResponseTypeOr(context, FEATURE_COLLECTION);
+    if (Config.instance.USE_WRITE_FEATURES_EVENT)
+      executeWriteFeatures(context, responseType,
+          toFeatureModificationList(readFeatureOrFeatureCollection(context), IfNotExists.CREATE, IfExists.REPLACE, ConflictResolution.ERROR),
+          getSpaceContext(context));
     else
-      executeConditionalOperationChain(false, context, getEmptyResponseTypeOr(context, FEATURE_COLLECTION),
+      executeConditionalOperationChain(false, context, responseType,
           IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
   }
 
@@ -210,31 +217,31 @@ public class FeatureApi extends SpaceBasedApi {
    * Patches a feature
    */
   private void patchFeature(final RoutingContext context) throws HttpException {
-    if (USE_WRITE_FEATURES_EVENT)
+    if (Config.instance.USE_WRITE_FEATURES_EVENT)
       executeWriteFeatures(context, FEATURE,
-          toFeatureModificationList(readFeature(context), IfNotExists.RETAIN, IfExists.PATCH, ConflictResolution.ERROR),
-          true, getSpaceContext(context));
+          toFeatureModificationList(readFeature(context).withId(getFeatureId(context)), IfNotExists.RETAIN, PATCH, ConflictResolution.ERROR),
+          getSpaceContext(context));
     else
-      executeConditionalOperationChain(true, context, FEATURE, IfExists.PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
+      executeConditionalOperationChain(true, context, FEATURE, PATCH, IfNotExists.RETAIN, true, ConflictResolution.ERROR);
   }
 
   /**
    * Creates or patches multiple features.
    */
   private void postFeatures(final RoutingContext context) throws HttpException {
-    final IfNotExists ifNotExists = IfNotExists.of(Query.getString(context, Query.IF_NOT_EXISTS, "create"));
-    final IfExists ifExists = IfExists.of(Query.getString(context, Query.IF_EXISTS, "patch"));
-    final ConflictResolution conflictResolution = ConflictResolution.of(Query.getString(context, Query.CONFLICT_RESOLUTION, "error"));
+    final IfNotExists ifNotExists = IfNotExists.from(Query.getString(context, Query.IF_NOT_EXISTS, "CREATE"));
+    final IfExists ifExists = IfExists.from(Query.getString(context, Query.IF_EXISTS, "PATCH"));
+    final ConflictResolution conflictResolution = ConflictResolution.from(Query.getString(context, Query.CONFLICT_RESOLUTION, "ERROR"));
     boolean transactional = Query.getBoolean(context, Query.TRANSACTIONAL, true);
     ApiResponseType responseType = getEmptyResponseTypeOr(context, FEATURE_COLLECTION);
     String contentType = context.parsedHeaders().contentType().value();
 
-    if (USE_WRITE_FEATURES_EVENT) {
+    if (Config.instance.USE_WRITE_FEATURES_EVENT) {
       FeatureModificationList featureModificationList = APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST.equals(contentType)
-          ? readFeatureModificationList(context)
-          : toFeatureModificationList(readFeatureCollection(context), ifNotExists, ifExists, conflictResolution);
+          ? readFeatureModificationList(context, ifExists, ifNotExists, conflictResolution)
+          : toFeatureModificationList(readFeatureOrFeatureCollection(context), ifNotExists, ifExists, conflictResolution);
 
-      executeWriteFeatures(context, responseType, featureModificationList, false, getSpaceContext(context));
+      executeWriteFeatures(context, responseType, featureModificationList, getSpaceContext(context));
     }
     else
       executeConditionalOperationChain(false, context, responseType, ifExists, ifNotExists, transactional,
@@ -248,7 +255,7 @@ public class FeatureApi extends SpaceBasedApi {
     String featureId = context.pathParam(Path.FEATURE_ID);
     final SpaceContext spaceContext = getSpaceContext(context);
 
-    if (USE_WRITE_FEATURES_EVENT)
+    if (Config.instance.USE_WRITE_FEATURES_EVENT)
       executeDeleteFeatures(context, EMPTY, List.of(featureId), spaceContext, true);
     else
       executeConditionalOperationChain(true, context, ApiResponseType.EMPTY, IfExists.DELETE, IfNotExists.RETAIN,
@@ -259,7 +266,7 @@ public class FeatureApi extends SpaceBasedApi {
    * Delete features by IDs or by tags.
    */
   private void deleteFeatures(final RoutingContext context) throws HttpException {
-    final List<String> featureIds = new ArrayList<>(new HashSet<>(Query.queryParam(Query.FEATURE_ID, context)));
+    final List<String> featureIds = new ArrayList<>(new HashSet<>(Query.queryParam(FEATURE_ID, context)));
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
         ? FEATURE_COLLECTION : ApiResponseType.EMPTY;
@@ -269,7 +276,7 @@ public class FeatureApi extends SpaceBasedApi {
       sendErrorResponse(context, new HttpException(BAD_REQUEST, "At least one feature ID should be provided as a query parameter."));
     else {
       //Delete features by IDs
-      if (USE_WRITE_FEATURES_EVENT)
+      if (Config.instance.USE_WRITE_FEATURES_EVENT)
         executeDeleteFeatures(context, responseType, featureIds, spaceContext, false);
       else
         executeConditionalOperationChain(false, context, responseType, IfExists.DELETE, IfNotExists.RETAIN, true,
@@ -278,8 +285,8 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   private void executeWriteFeatures(RoutingContext context, ApiResponseType responseType, FeatureModificationList modificationList,
-      boolean partialUpdates, SpaceContext spaceContext) {
-    writeFeatures(context, modificationList, partialUpdates, spaceContext, getAuthor(context), responseType != EMPTY)
+      SpaceContext spaceContext) throws HttpException {
+    writeFeatures(context, modificationList, spaceContext, getAuthor(context), responseType != EMPTY)
         .onFailure(e -> this.sendErrorResponse(context, e))
         .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
   }
@@ -300,20 +307,20 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   private void executeDeleteFeatures(RoutingContext context, ApiResponseType responseType, List<String> featureIds,
-      SpaceContext spaceContext, boolean requireResourceExists) {
+      SpaceContext spaceContext, boolean requireResourceExists) throws HttpException {
     deleteFeatures(context, featureIds, spaceContext, getAuthor(context), responseType != EMPTY, requireResourceExists)
         .onFailure(e -> this.sendErrorResponse(context, e))
         .onSuccess(featureCollection -> sendWriteFeaturesResponse(context, responseType, featureCollection));
   }
 
   private Future<FeatureCollection> deleteFeatures(RoutingContext context, List<String> featureIds, SpaceContext spaceContext,
-      String author, boolean responseDataExpected, boolean requireResourceExists) {
+      String author, boolean responseDataExpected, boolean requireResourceExists) throws HttpException {
     UpdateStrategy updateStrategy = requireResourceExists
         ? new UpdateStrategy(OnExists.DELETE, OnNotExists.ERROR, null, null)
         : DEFAULT_DELETE_STRATEGY;
     return writeFeatures(context, Set.of(new Modification()
             .withFeatureIds(featureIds)
-            .withUpdateStrategy(updateStrategy)), false, spaceContext, author, responseDataExpected);
+            .withUpdateStrategy(updateStrategy)), spaceContext, author, responseDataExpected);
   }
 
   /**
@@ -325,15 +332,16 @@ public class FeatureApi extends SpaceBasedApi {
    * @param author
    * @return
    */
-  private Future<FeatureCollection> writeFeatures(RoutingContext context, Object inputModifications,
-      boolean partialUpdates, SpaceContext spaceContext, String author, boolean responseDataExpected) {
+  private Future<FeatureCollection> writeFeatures(RoutingContext context, Object inputModifications, SpaceContext spaceContext,
+      String author, boolean responseDataExpected) throws HttpException {
+    checkModificationOnSuper(spaceContext);
     return Space.resolveSpace(getMarker(context), getSpaceId(context))
         .compose(space -> {
           if (space == null)
             return Future.failedFuture(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
 
           Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
-              ? toModifications(space, featureModificationList, isConflictDetectionEnabled(context), partialUpdates)
+              ? toModifications(context, space, featureModificationList, isConflictDetectionEnabled(context))
               : (Set<Modification>) inputModifications;
           boolean isDelete = hasDeletion(modifications);
           boolean isWrite = hasWrite(modifications);
@@ -345,6 +353,7 @@ public class FeatureApi extends SpaceBasedApi {
             if (isWrite)
               FeatureAuthorization.authorizeWrite(context, space, false);
             //TODO: authorizeComposite?
+            checkIsActive(space);
             checkReadOnly(space);
 
             XYZHubRESTVerticle.addStreamInfo(context, "SID", space.getStorage().getId());
@@ -393,7 +402,7 @@ public class FeatureApi extends SpaceBasedApi {
     if (maxFeaturesPerSpace <= 0)
       return Future.succeededFuture();
 
-    return FeatureHandler.getCountForSpace(getMarker(context), space, spaceContext, getAuthor(context))
+    return FeatureHandler.getCountForSpace(getMarker(context), space, spaceContext, getAuthor(context), maxFeaturesPerSpace)
         .compose(count -> {
           try {
             //Check the quota
@@ -425,29 +434,51 @@ public class FeatureApi extends SpaceBasedApi {
     );
   }
 
-  private Set<Modification> toModifications(Space space, FeatureModificationList featureModificationList,
-      boolean versionConflictDetectionEnabled, boolean partialUpdates) {
+  private Set<Modification> toModifications(RoutingContext context, Space space, FeatureModificationList featureModificationList,
+      boolean versionConflictDetectionEnabled) {
+    List<String> featureHooks = new ArrayList<>();
+    List<String> addTags = getAddTags(context);
+    List<String> removeTags = getRemoveTags(context);
+    String idPrefix = getIdPrefix(context);
+    if (!addTags.isEmpty())
+      featureHooks.add("feature => feature.properties[XYZ_NS].tags = (feature.properties[XYZ_NS].tags || []).concat(" + XyzSerializable.serialize(addTags) + ")");
+    if (!removeTags.isEmpty())
+      featureHooks.add("feature => feature.properties[XYZ_NS].tags && (feature.properties[XYZ_NS].tags = feature.properties[XYZ_NS].tags.filter(tag => !" + XyzSerializable.serialize(removeTags) + ".includes(tag)))");
+    if (idPrefix != null)
+      featureHooks.add("feature => feature.id = \"" + idPrefix + "\" + feature.id");
+
     return featureModificationList.getModifications().stream()
         .map(modification -> new Modification()
             .withFeatureData(modification.getFeatureData())
             .withUpdateStrategy(toUpdateStrategy(space, modification.getOnFeatureExists(), modification.getOnFeatureNotExists(),
                 modification.getOnMergeConflict(), versionConflictDetectionEnabled))
-            .withPartialUpdates(partialUpdates)).collect(Collectors.toSet());
+            .withPartialUpdates(modification.getOnFeatureExists() == PATCH)
+            .withFeatureHooks(featureHooks.isEmpty() ? null : featureHooks))
+        .collect(Collectors.toSet());
   }
 
   private OnVersionConflict toOnVersionConflict(Space space, IfExists ifExists, ConflictResolution conflictResolution) {
     //TODO: Enable version-conflict detection if the user explicitly asked for it using the query parameter
-    boolean historyEnabled = space.getVersionsToKeep() <= 1;
-    if (historyEnabled) //For now deactivate version-conflict detection, if the history is not enabled
+    boolean historyEnabled = space.getVersionsToKeep() > 1;
+    if (!historyEnabled) //For now, deactivate version-conflict detection, if the history is not enabled
       return null;
 
-    return switch (ifExists) {
+    if (ifExists == IfExists.MERGE)
+      return historyEnabled ? OnVersionConflict.MERGE : OnVersionConflict.REPLACE;
+
+    return switch (conflictResolution) {
       case RETAIN -> OnVersionConflict.RETAIN;
       case ERROR -> OnVersionConflict.ERROR;
-      case DELETE -> OnVersionConflict.DELETE;
-      case REPLACE, PATCH -> OnVersionConflict.REPLACE;
-      case MERGE -> historyEnabled ? OnVersionConflict.MERGE : OnVersionConflict.REPLACE;
+      case REPLACE -> OnVersionConflict.REPLACE;
     };
+
+    //return switch (ifExists) {
+    //  case RETAIN -> OnVersionConflict.RETAIN;
+    //  case ERROR -> OnVersionConflict.ERROR;
+    //  case DELETE -> OnVersionConflict.DELETE;
+    //  case REPLACE, PATCH -> OnVersionConflict.REPLACE;
+    //  case MERGE -> historyEnabled ? OnVersionConflict.MERGE : OnVersionConflict.REPLACE;
+    //};
   }
 
   private OnMergeConflict toOnMergeConflict(ConflictResolution conflictResolution) {
@@ -475,12 +506,37 @@ public class FeatureApi extends SpaceBasedApi {
     };
   }
 
-  private FeatureModificationList readFeatureModificationList(RoutingContext context) throws HttpException {
+  private FeatureModificationList readFeatureModificationList(RoutingContext context, IfExists globalIfExists,
+      IfNotExists globalIfNotExists, ConflictResolution globalConflictResolution) throws HttpException {
     try {
-      return XyzSerializable.deserialize(context.body().asString(), FeatureModificationList.class);
+      FeatureModificationList modificationList = XyzSerializable.deserialize(context.body().asString(), FeatureModificationList.class);
+      //Set default values if necessary
+      modificationList.getModifications().forEach(modification -> {
+        if (modification.getOnFeatureExists() == null)
+          modification.setOnFeatureExists(globalIfExists);
+        if (modification.getOnFeatureNotExists() == null)
+          modification.setOnFeatureNotExists(globalIfNotExists);
+        if (modification.getOnMergeConflict() == null)
+          modification.setOnMergeConflict(globalConflictResolution);
+      });
+      return modificationList;
     }
     catch (JsonProcessingException e) {
       throw new HttpException(BAD_REQUEST, "Error parsing request body as FeatureModificationList.");
+    }
+  }
+
+  private FeatureCollection readFeatureOrFeatureCollection(RoutingContext context) throws HttpException {
+    try {
+      return readFeatureCollection(context);
+    }
+    catch (HttpException e) {
+      try {
+        return new FeatureCollection().withFeatures(List.of(readFeature(context)));
+      }
+      catch (HttpException ex) {
+        throw new HttpException(BAD_REQUEST, "Error parsing request body as GeoJSON FeatureCollection or Feature.", ex);
+      }
     }
   }
 
@@ -506,15 +562,16 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates and executes a ModifyFeatureOp
    */
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
-      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr, boolean useSpaceContext )
-  {
+      ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
+      boolean useSpaceContext) {
     try {
-        if (checkModificationOnSuper(context, getSpaceContext(context)))
-          return;
-        executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null, useSpaceContext ? getSpaceContext(context) : DEFAULT);
-      } catch (HttpException e) {
-        sendErrorResponse(context, e);
-      }
+      checkModificationOnSuper(getSpaceContext(context));
+      executeConditionalOperationChain(requireResourceExists, context, apiResponseTypeType, ifExists, ifNotExists, transactional, cr, null,
+          useSpaceContext ? getSpaceContext(context) : DEFAULT);
+    }
+    catch (HttpException e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
@@ -525,46 +582,56 @@ public class FeatureApi extends SpaceBasedApi {
   private void executeConditionalOperationChain(boolean requireResourceExists, final RoutingContext context,
       ApiResponseType apiResponseTypeType, IfExists ifExists, IfNotExists ifNotExists, boolean transactional, ConflictResolution cr,
       List<Map<String, Object>> featureModifications, SpaceContext spaceContext) {
-    if (checkModificationOnSuper(context, spaceContext))
-      return;
-
-    String author = getAuthor(context);
-    ModifyFeaturesEvent event = new ModifyFeaturesEvent()
-        .withAuthor(author)
-        .withTransaction(transactional)
-        .withContext(spaceContext)
-        .withConflictDetectionEnabled(isConflictDetectionEnabled(context));
-    int bodySize = context.getBody() != null ? context.getBody().length() : 0;
-
     try {
+      checkModificationOnSuper(spaceContext);
+
+      String author = getAuthor(context);
+      ModifyFeaturesEvent event = new ModifyFeaturesEvent()
+          .withAuthor(author)
+          .withTransaction(transactional)
+          .withContext(spaceContext)
+          .withConflictDetectionEnabled(isConflictDetectionEnabled(context));
+      int bodySize = context.getBody() != null ? context.getBody().length() : 0;
+
       ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists,
           ifExists, transactional, cr, requireResourceExists, bodySize);
-      final List<String> addTags = new ArrayList<>(Query.queryParam(Query.ADD_TAGS, context));
-      final List<String> removeTags = new ArrayList<>(Query.queryParam(Query.REMOVE_TAGS, context));
-      task.addTags = XyzNamespace.normalizeTags(addTags);
-      task.removeTags = XyzNamespace.normalizeTags(removeTags);
-      XyzNamespace.fixNormalizedTags(task.addTags);
-      XyzNamespace.fixNormalizedTags(task.removeTags);
-      task.prefixId = Query.getString(context, Query.PREFIX_ID, null);
+      final List<String> addTags = getAddTags(context);
+      final List<String> removeTags = getRemoveTags(context);
+      task.addTags = normalizeTags(addTags);
+      task.removeTags = normalizeTags(removeTags);
+      task.prefixId = getIdPrefix(context);
       task.author = author;
       task.execute(this::sendResponse, this::sendErrorResponse);
-    } catch (HttpException e) {
+    }
+    catch (HttpException e) {
       logger.warn(getMarker(context), e.getMessage(), e);
       context.fail(e);
     }
+  }
+
+  private static String getFeatureId(RoutingContext context) {
+    return context.pathParam(Path.FEATURE_ID);
+  }
+
+  private static String getIdPrefix(RoutingContext context) {
+    return Query.getString(context, PREFIX_ID, null);
+  }
+
+  private static List<String> getRemoveTags(RoutingContext context) {
+    return fixNormalizedTags(normalizeTags(new ArrayList<>(Query.queryParam(REMOVE_TAGS, context))));
+  }
+
+  private static List<String> getAddTags(RoutingContext context) {
+    return fixNormalizedTags(normalizeTags(new ArrayList<>(Query.queryParam(ADD_TAGS, context))));
   }
 
   private static boolean isConflictDetectionEnabled(RoutingContext context) {
     return Query.getBoolean(context, CONFLICT_DETECTION, false);
   }
 
-  private static boolean checkModificationOnSuper(RoutingContext context, SpaceContext spaceContext) {
-    if (spaceContext != null && spaceContext.equals(SUPER)) {
-      context.fail(
-          new HttpException(HttpResponseStatus.FORBIDDEN, "It's not permitted to perform modifications through context " + SUPER + "."));
-      return true;
-    }
-    return false;
+  private static void checkModificationOnSuper(SpaceContext spaceContext) throws HttpException {
+    if (spaceContext != null && spaceContext.equals(SUPER))
+      throw new HttpException(HttpResponseStatus.FORBIDDEN, "It's not permitted to perform modifications through context " + SUPER + ".");
   }
 
   private ConditionalOperation buildConditionalOperation(

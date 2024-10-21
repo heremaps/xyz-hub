@@ -19,17 +19,12 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.restassured.RestAssured.given;
+import static io.restassured.http.ContentType.JSON;
 
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import io.restassured.RestAssured;
 import io.restassured.config.EncoderConfig;
-import io.restassured.http.ContentType;
-import io.restassured.response.ValidatableResponse;
-import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,8 +39,8 @@ public class FeatureModificationIT extends TestSpaceWithFeature {
 
   @BeforeClass
   public static void beforeClass() {
-    RestAssured.config = RestAssured.config().encoderConfig(EncoderConfig.encoderConfig().encodeContentTypeAs("application/vnd.here.feature-modification-list",
-        ContentType.JSON));
+    RestAssured.config = RestAssured.config().encoderConfig(EncoderConfig.encoderConfig()
+        .encodeContentTypeAs("application/vnd.here.feature-modification-list", JSON));
   }
 
   @Before
@@ -59,56 +54,21 @@ public class FeatureModificationIT extends TestSpaceWithFeature {
     remove();
   }
 
-  public String constructPayload(Feature feature, String ifNotExists, String ifExists, String conflictResolution) {
-    return "{"
-        + "    \"type\": \"FeatureModificationList\","
-        + "    \"modifications\": ["
-        + "        {"
-        + "            \"type\": \"FeatureModification\","
-        + "            \"onFeatureNotExists\": \""+ifNotExists+"\","
-        + "            \"onFeatureExists\": \""+ifExists+"\","
-        + "            \"onMergeConflict\": \""+conflictResolution+"\","
-        + "            \"featureData\": " + new FeatureCollection().withFeatures(Collections.singletonList(feature)).serialize()
-        + "        }"
-        + "    ]"
-        + "}";
-  }
-
-  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists, String conflictResolution) {
-    return given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, ifNotExists, ifExists, conflictResolution))
-        .when().post(getSpacesPath() + "/"+ getSpaceId() +"/features").then();
+  @Test
+  public void invalidIfNotExistsValue() {
+    writeFeature(new Feature().withId("F1"), "invalid", "patch", "error")
+        .statusCode(BAD_REQUEST.code());
   }
 
   @Test
-  public void testInvalidPayload() {
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(new Feature().withId("F1"), "invalid", "patch", "error"))
-        .when()
-        .post(getSpacesPath() + "/"+ getSpaceId() +"/features")
-        .then()
+  public void invalidIfExistsValue() {
+    writeFeature(new Feature().withId("F1"), "create", "invalid", "error")
         .statusCode(BAD_REQUEST.code());
+  }
 
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(new Feature().withId("F1"), "create", "invalid", "error"))
-        .when()
-        .post(getSpacesPath() + "/"+ getSpaceId() +"/features")
-        .then()
-        .statusCode(BAD_REQUEST.code());
-
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(new Feature().withId("F1"), "create", "patch", "invalid"))
-        .when()
-        .post(getSpacesPath() + "/"+ getSpaceId() +"/features")
-        .then()
+  @Test
+  public void invalidConflictResolutionValue() {
+    writeFeature(new Feature().withId("F1"), "create", "patch", "invalid")
         .statusCode(BAD_REQUEST.code());
   }
 }

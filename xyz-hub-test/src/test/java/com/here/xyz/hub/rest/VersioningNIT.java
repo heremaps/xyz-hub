@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -30,15 +31,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.restassured.RestAssured;
 import io.restassured.config.EncoderConfig;
 import io.restassured.http.ContentType;
-import io.restassured.response.ValidatableResponse;
-import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -51,7 +49,6 @@ import org.junit.runners.MethodSorters;
 @Category(RestTests.class)
 public class VersioningNIT extends TestSpaceWithFeature {
 
-  String SPACE_ID = "spacev2k1000";
   final static Feature TEST_FEATURE =  new Feature().withId("f1")
       .withGeometry(new Point().withCoordinates(new PointCoordinates(0,0)))
       .withProperties(new Properties().with("key1", "value1"));
@@ -64,61 +61,22 @@ public class VersioningNIT extends TestSpaceWithFeature {
 
   @Before
   public void before() {
-    removeSpace(SPACE_ID);
-    createSpaceWithVersionsToKeep(SPACE_ID, 1000);
+    removeSpace(getSpaceId());
+    createSpaceWithVersionsToKeep(getSpaceId(), 1000);
   }
 
   @After
   public void after() {
-    removeSpace(SPACE_ID);
-  }
-
-  public String constructPayload(Feature feature, String ifNotExists, String ifExists) {
-    return "{"
-        + "    \"type\": \"FeatureModificationList\","
-        + "    \"modifications\": ["
-        + "        {"
-        + "            \"type\": \"FeatureModification\","
-        + "            \"onFeatureNotExists\": \"" + ifNotExists + "\","
-        + "            \"onFeatureExists\": \"" + ifExists + "\","
-        + "            \"featureData\": " + new FeatureCollection().withFeatures(Collections.singletonList(feature)).serialize()
-        + "        }"
-        + "    ]"
-        + "}";
-  }
-
-  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists) {
-    return write(feature, ifNotExists, ifExists, true);
-  }
-
-  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists, boolean conflictDetection) {
-    return given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, ifNotExists, ifExists))
-        .when()
-        .post(getSpacesPath() + "/" + SPACE_ID + "/features?conflictDetection=" + conflictDetection)
-        .then();
+    removeSpace(getSpaceId());
   }
 
   public void addDefaultFeature() {
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(TEST_FEATURE, "create", "patch"))
-        .when()
-        .post(getSpacesPath() + "/" + SPACE_ID + "/features");
+    writeFeature(TEST_FEATURE, "create", "patch", false);
   }
 
   @Test
-  public void testCreateNoVersion() {
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(TEST_FEATURE, "create", "patch"))
-        .when()
-        .post(getSpacesPath() + "/" + SPACE_ID + "/features")
-        .then()
+  public void testCreateWithoutBaseVersion() {
+    writeFeature(TEST_FEATURE, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
@@ -126,11 +84,11 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testCreateWithNotExistingVersion() {
+  public void testCreateFeatureWithNotExistingVersion() {
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(999));
 
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", true)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
@@ -139,12 +97,13 @@ public class VersioningNIT extends TestSpaceWithFeature {
 
   @Test
   public void testNamespacePropertiesCorrect() {
-    write(TEST_FEATURE, "create", "patch")
+    writeFeature(TEST_FEATURE, "create", "patch", false)
         .statusCode(OK.code())
         .body("features[0].properties.'@ns:com:here:xyz'.size()", equalTo(4))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1))
         .body("features[0].properties.'@ns:com:here:xyz'.createdAt", notNullValue())
-        .body("features[0].properties.'@ns:com:here:xyz'.updatedAt", notNullValue());
+        .body("features[0].properties.'@ns:com:here:xyz'.updatedAt", notNullValue())
+        .body("features[0].properties.'@ns:com:here:xyz'.author", equalTo(ACCESS_ALL.payload.aid));
   }
 
   @Test
@@ -154,11 +113,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
     feature.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature.getProperties().put("key2", "value2");
 
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, "create", "patch"))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+    writeFeature(feature, "create", "patch", true)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
@@ -167,16 +122,12 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testPatchNoVersion() {
+  public void testPatchWithoutBaseVersion() {
     addDefaultFeature();
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
 
-    given()
-        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body(constructPayload(feature, "create", "patch"))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then()
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
@@ -185,23 +136,23 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testPatchOldVersion() {
+  public void testPatchWithStaleBaseVersion() {
     addDefaultFeature();
 
-    // update
+    //Update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
-    // update again with "base" version 0 and a non-conflicting change
+    //Update again with base version 1 and a non-conflicting change
     Feature feature2 = TEST_FEATURE.copy();
     feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key3", "value3");
-    write(feature2, "create", "patch")
+    writeFeature(feature2, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
@@ -211,22 +162,22 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testPatchOldVersionWithConflict() {
+  public void testPatchStaleBaseVersionWithAttributeConflict() {
     addDefaultFeature();
     // update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
-    // update again with "base" version 0 and a conflicting change
+    //Update again with base version 0 and a conflicting change
     Feature feature2 = TEST_FEATURE.copy();
     feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key2", "value3");
-    write(feature2, "create", "patch")
+    writeFeature(feature2, "create", "patch", true)
         .statusCode(CONFLICT.code());
   }
 
@@ -237,9 +188,9 @@ public class VersioningNIT extends TestSpaceWithFeature {
     // update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    feature.getProperties().put("version", 1);
+    feature.getProperties().setXyzNamespace(new XyzNamespace().withVersion(1));
 
-    write(feature, "create", "merge")
+    writeFeature(feature, "create", "merge", true)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
@@ -247,13 +198,13 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testMergeNoVersion() {
+  public void testMergeWithoutBaseVersion() {
     addDefaultFeature();
     // update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
 
-    write(feature, "create", "merge")
+    writeFeature(feature, "create", "merge", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
@@ -261,23 +212,23 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testMergeOldVersion() {
+  public void testMergeWithStaleBaseVersion() {
     addDefaultFeature();
 
-    // update
+    //Update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
-    // update again with "base" version 0 and a non-conflicting change
+    //Update again with base version 1 and a non-conflicting change
     Feature feature2 = TEST_FEATURE.copy();
     feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key3", "value3");
-    write(feature2, "create", "merge")
+    writeFeature(feature2, "create", "merge", true)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
@@ -287,23 +238,23 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testMergeOldVersionWithConflict() {
+  public void testMergeWithStaleBaseVersionAndAttributeConflict() {
     addDefaultFeature();
 
-    // update
+    //Update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
-    // update again with "base" version 0 and a non-conflicting change
+    //Update again with base version 1 and a conflicting change
     Feature feature2 = TEST_FEATURE.copy();
     feature2.getProperties().withXyzNamespace(new XyzNamespace().withVersion(1));
     feature2.getProperties().put("key2", "value3");
-    write(feature2, "create", "merge")
+    writeFeature(feature2, "create", "merge", true)
         .statusCode(CONFLICT.code());
   }
 
@@ -313,7 +264,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
 
     // replace
     Feature feature = new Feature().withId("f1").withProperties(new Properties().with("key2", "value2").withXyzNamespace(new XyzNamespace().withVersion(1)));
-    write(feature, "create", "replace")
+    writeFeature(feature, "create", "replace", true)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", nullValue())
@@ -322,12 +273,12 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testReplaceNoVersion() {
+  public void testReplaceWithoutBaseVersion() {
     addDefaultFeature();
 
     // replace
     Feature feature = new Feature().withId("f1").withProperties(new Properties().with("key2", "value2"));
-    write(feature, "create", "replace")
+    writeFeature(feature, "create", "replace", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", nullValue())
@@ -336,13 +287,13 @@ public class VersioningNIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testReplaceOldVersion() {
+  public void testReplaceWithStaleBaseVersion() {
     addDefaultFeature();
 
     // update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
@@ -350,7 +301,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
 
     // replace
     Feature feature2 = new Feature().withId("f1").withProperties(new Properties().withXyzNamespace(new XyzNamespace().withVersion(1)));
-    write(feature2, "create", "replace")
+    writeFeature(feature2, "create", "replace", true)
         .statusCode(CONFLICT.code());
   }
 
@@ -358,20 +309,21 @@ public class VersioningNIT extends TestSpaceWithFeature {
   public void delete() {
     addDefaultFeature();
 
-    // update
+    //Update
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key2", equalTo("value2"))
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(2));
 
+    //Delete
     given()
         .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
-        .delete(getSpacesPath() + "/"+ SPACE_ID +"/features/f1")
+        .delete(getSpacesPath() + "/"+ getSpaceId() +"/features/f1")
         .then()
         .statusCode(NO_CONTENT.code());
   }
@@ -380,18 +332,19 @@ public class VersioningNIT extends TestSpaceWithFeature {
   public void deleteAndRecreate() {
     addDefaultFeature();
 
+    //Delete
     given()
         .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
-        .delete(getSpacesPath() + "/"+ SPACE_ID +"/features/f1")
+        .delete(getSpacesPath() + "/"+ getSpaceId() +"/features/f1")
         .then()
         .statusCode(NO_CONTENT.code());
 
-    // update
+    //Create
     Feature feature = TEST_FEATURE.copy();
     feature.getProperties().put("key2", "value2");
-    write(feature, "create", "patch")
+    writeFeature(feature, "create", "patch", false)
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
         .body("features[0].properties.key1", equalTo("value1"))
