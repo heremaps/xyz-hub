@@ -41,8 +41,8 @@ cd ${scriptBasePath}/${targetPathRel}
 rm -rf lib > /dev/null 2>&1
 mkdir lib
 cp ./xyz-job-steps-fat.jar lib
-chown -R 1000:1000 lib
 zip -r xyz-job-steps.zip lib
+chmod -R 777 lib xyz-job-steps.zip
 
 #Delete a potentially existing old local Lambda Function with the same name
 aws --endpoint $LOCAL_STACK_HOST lambda delete-function \
