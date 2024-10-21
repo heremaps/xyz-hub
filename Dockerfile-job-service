@@ -13,8 +13,8 @@ ENV LOG_PATH /var/log/xyz
 ENV LOCALSTACK_ENDPOINT http://aws-localstack:4566
 ENV HUB_ENDPOINT http://xyz-hub:8080/hub
 
-COPY xyz-jobs/xyz-job-service/target/xyz-job-service.jar .
+COPY xyz-jobs/xyz-job-service/target/xyz-job-service-fat.jar .
 ADD Dockerfile-job-service /
 
 EXPOSE 7070
-CMD java -jar xyz-job-service.jar
+CMD java -jar xyz-job-service-fat.jar
