@@ -455,4 +455,6 @@ public class Config extends BaseConfig {
    * When creating space, the default strategy is used if not informed on the request
    */
   public ConnectorMapping DEFAULT_CONNECTOR_MAPPING_STRATEGY = RANDOM;
+
+  public boolean USE_WRITE_FEATURES_EVENT = false;
 }

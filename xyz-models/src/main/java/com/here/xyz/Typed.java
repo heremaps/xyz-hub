@@ -24,12 +24,14 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Payload.class),
     @JsonSubTypes.Type(value = Feature.class, name = "Feature"),
-    @JsonSubTypes.Type(value = Geometry.class)
+    @JsonSubTypes.Type(value = Geometry.class),
+    @JsonSubTypes.Type(value = FeatureModification.class, name = "FeatureModification")
 })
 public interface Typed extends XyzSerializable {
 

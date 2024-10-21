@@ -362,33 +362,43 @@ public abstract class Api extends com.here.xyz.util.service.rest.Api {
   private void sendBinaryResponse(Task task, String mimeType, byte[] bytes) {
     sendResponse(task, OK, mimeType, bytes);
   }
+
+  @Override
+  protected void sendResponseBytes(RoutingContext context, HttpServerResponse httpResponse, byte[] response) {
+    setDecompressedSizeHeaders(response, context);
+    super.sendResponseBytes(context, httpResponse, response);
+  }
+
   private void sendResponse(final Task task, HttpResponseStatus status, String contentType, final byte[] response) {
     HttpServerResponse httpResponse = task.context.response().setStatusCode(status.code());
 
     CacheProfile cacheProfile = task.getCacheProfile();
-    if (cacheProfile.browserTTL > 0) {
+    if (cacheProfile.browserTTL > 0)
       httpResponse.putHeader(HttpHeaders.CACHE_CONTROL, "private, max-age=" + (cacheProfile.browserTTL / 1000));
-    }
 
-    if (Service.configuration.INCLUDE_HEADERS_FOR_DECOMPRESSED_IO_SIZE){
-      RoutingContext context = task.context;
-      // the body is discarded already, but the request size is stored in the access log object
-      long requestSize = LogUtil.getAccessLog(context).reqInfo.size;
-      long responseSize = response == null ? 0 : response.length;
-      context.response().putHeader(Service.configuration.DECOMPRESSED_INPUT_SIZE_HEADER_NAME, String.valueOf(requestSize));
-      context.response().putHeader(Service.configuration.DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME, String.valueOf(responseSize));
-    }
+    setDecompressedSizeHeaders(response, task.context);
 
     if (response == null || response.length == 0) {
       if (contentType != null)
         httpResponse.putHeader(CONTENT_TYPE, contentType);
 
       httpResponse.end();
-    } else if (response.length > getMaxResponseLength(task.context)) {
+    }
+    else if (response.length > getMaxResponseLength(task.context))
       sendErrorResponse(task.context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
-    } else {
+    else {
       httpResponse.putHeader(CONTENT_TYPE, contentType);
       httpResponse.end(Buffer.buffer(response));
+    }
+  }
+
+  private void setDecompressedSizeHeaders(byte[] response, RoutingContext context) {
+    if (Service.configuration != null && Service.configuration.INCLUDE_HEADERS_FOR_DECOMPRESSED_IO_SIZE) {
+      //The body is discarded already, but the request size is stored in the access log object
+      long requestSize = LogUtil.getAccessLog(context).reqInfo.size;
+      long responseSize = response == null ? 0 : response.length;
+      context.response().putHeader(Service.configuration.DECOMPRESSED_INPUT_SIZE_HEADER_NAME, String.valueOf(requestSize));
+      context.response().putHeader(Service.configuration.DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME, String.valueOf(responseSize));
     }
   }
 

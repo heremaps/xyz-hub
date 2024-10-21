@@ -52,13 +52,18 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
         "table", getDefaultTable(event),
         "historyEnabled", event.getVersionsToKeep() > 1
     ));
-    String extendedTable = getExtendedTable(event);
-    if (extendedTable != null) {
+    if (isExtendedSpace(event)) {
+      String extendedTable = getExtendedTable(event);
+      if (is2LevelExtendedSpace(event)) {
+        queryContext.put("extendedTableL2", extendedTable);
+        extendedTable = getIntermediateTable(event);
+      }
       queryContext.put("extendedTable", extendedTable);
       queryContext.put("context", event.getContext().toString());
     }
 
     return new SQLQuery("SELECT write_features(#{modifications}, #{author}, #{responseDataExpected});")
+        .withLoggingEnabled(false)
         .withContext(queryContext)
         .withNamedParameter("modifications", XyzSerializable.serialize(event.getModifications()))
         .withNamedParameter("author", event.getAuthor())

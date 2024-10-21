@@ -30,6 +30,7 @@ class FeatureWriter {
   schema;
   table;
   extendedTable;
+  extendedTableL2;
   context;
   historyEnabled;
 
@@ -39,6 +40,7 @@ class FeatureWriter {
   author;
   isPartial;
   baseVersion;
+  featureHooks;
 
   onExists;
   onNotExists;
@@ -57,14 +59,14 @@ class FeatureWriter {
     [`properties.${XYZ_NS}.updatedAt`]: true
   };
 
-  constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial) {
-    if (isPartial && onNotExists != null)
-      throw new IllegalArgumentException("onNotExists must not be defined for partial writes.");
+  constructor(inputFeature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks) {
+    // if (isPartial && onNotExists == "CREATE")
+    //   throw new IllegalArgumentException("onNotExists must not be \"CREATE\" for partial writes.");
 
-    //TODO: Improve performance by getting the whole context as object and then read the fields instead of calling the PG_function multiple times
     this.schema = queryContext().schema;
     this.table = queryContext().table;
     this.extendedTable = queryContext().extendedTable;
+    this.extendedTableL2 = queryContext().extendedTableL2;
     this.context = queryContext().context;
     this.historyEnabled = queryContext().historyEnabled;
 
@@ -72,6 +74,7 @@ class FeatureWriter {
     this.version = version;
     this.author = author || "ANONYMOUS";
     this.baseVersion = (this.inputFeature.properties || {})[XYZ_NS]?.version;
+    this.featureHooks = featureHooks;
     this.enrichFeature();
 
     this.isDelete = !!this.inputFeature.properties[XYZ_NS].deleted;
@@ -118,7 +121,7 @@ class FeatureWriter {
       if (this.historyEnabled) {
         //TODO: Only insert deletion row if the object actually exists in HEAD
         this.onExists = "DELETE";
-        this.onNotExists = "RETAIN";
+        this.onNotExists = this.onNotExists == "ERROR" ? this.onNotExists : "RETAIN";
         this._transformToDeletedFeature();
         return this.writeRow();
       }
@@ -151,6 +154,10 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   writeRowWithHistory() {
+    this.inputFeature = this.patchToHeadIfPartial();
+    if (this.inputFeature == null)
+      return null;
+
     switch (this.onExists) {
       case "RETAIN":
         this.headFeature = this.loadFeature(this.inputFeature.id);
@@ -183,7 +190,7 @@ class FeatureWriter {
       }
       else {
         if (this.loadFeature(this.inputFeature.id) != null)
-            //The feature exists in HEAD and still no previous version was updated, so we have a version conflict
+          //The feature exists in HEAD, and still no previous version was updated, so we have a version conflict
           return this.handleVersionConflict();
         else {
           if (updatedRows[0]?.operation != "D")
@@ -237,6 +244,32 @@ class FeatureWriter {
     }
   }
 
+  /**
+   * Patches the incoming partial inputFeature into the current HEAD feature
+   * @throws FeatureNotExistsException if the features does not exist in HEAD and onNotExists = ERROR
+   * @returns {Feature|null} The resulting feature, or null if the feature does not exist in HEAD and onNotExists = RETAIN
+   */
+  patchToHeadIfPartial() {
+    if (this.isPartial) {
+      let headFeature = this.loadFeature(this.inputFeature.id);
+      if (headFeature == null) {
+        switch (this.onNotExists) {
+          case "RETAIN":
+            return null;
+          case "CREATE":
+            headFeature = this.newEmptyFeature();
+            break;
+          case "ERROR":
+            this._throwFeatureNotExistsError();
+        }
+      }
+      return this.patch(headFeature, this.inputFeature);
+    }
+    else
+      this.removeNullValues(this.inputFeature);
+    return this.inputFeature;
+  }
+
   _transformToUpdate(operation) {
     return operation == "I" || operation == "U" ? "U" : "J";
   }
@@ -250,12 +283,9 @@ class FeatureWriter {
    * @returns {FeatureModificationExecutionResult}
    */
   writeRowWithoutHistory() {
-    if (this.isPartial) {
-      let headFeature = this.loadFeature(this.inputFeature.id);
-      if (headFeature == null)
-        this._throwFeatureNotExistsError()
-      this.inputFeature = this.patch(headFeature, this.inputFeature);
-    }
+    this.inputFeature = this.patchToHeadIfPartial();
+    if (this.inputFeature == null)
+      return null;
 
     if (this.onExists == "DELETE")
       //TODO: Ensure deletion is done with conflict detection (depending on this.onVersionConflict)
@@ -349,7 +379,7 @@ class FeatureWriter {
       }
       this._throwFeatureNotExistsError();
     }
-    return new FeatureModificationExecutionResult(ExecutionAction.DELETED, this.inputFeature);
+    return new FeatureModificationExecutionResult(ExecutionAction.DELETED, this.inputFeature, this.version, this.author);
   }
 
   /**
@@ -472,6 +502,10 @@ class FeatureWriter {
     return !!this.loadFeature(id, "HEAD", context);
   }
 
+  newEmptyFeature() {
+    return {type: "Feature"};
+  }
+
   loadFeature(id, version = "HEAD", context = this.context) {
     if (version == "HEAD" && context == this.context && this.headFeature) //NOTE: Only cache for the defaults
       return this.headFeature;
@@ -481,8 +515,14 @@ class FeatureWriter {
       return null;
 
     let res = this._loadFeature(id, version, this._targetTable(context));
-    if (context == "DEFAULT" && !res.length)
+    if (context == "DEFAULT" && !res.length) {
       res = this._loadFeature(id, version, this.extendedTable);
+      if (!res.length && this.extendedTableL2)
+        res = this._loadFeature(id, version, this.extendedTableL2);
+    }
+    else if (context == "SUPER" && !res.length && this.extendedTableL2)
+      res = this._loadFeature(id, version, this.extendedTableL2);
+
 
     if (!res.length)
       return null;
@@ -491,11 +531,10 @@ class FeatureWriter {
       feature.id = res[0].id;
       feature.geometry = res[0].geo;
       feature.properties[XYZ_NS].version = res[0].version;
-      feature.properties[XYZ_NS].author = res[0].author;
       if (feature.geometry != null)
         delete feature.geometry.crs; //TODO: What is crs?!
       //Cache the HEAD-feature in case its needed later again
-      if (version == "HEAD")
+      if (version == "HEAD" && context == this.context) //NOTE: Only cache for the defaults
         this.headFeature = feature;
       return feature;
     }
@@ -621,14 +660,28 @@ class FeatureWriter {
     return target;
   }
 
+  removeNullValues(obj) {
+    for (let key in obj)
+      if (obj[key] === null)
+        delete obj[key];
+      else if (!Array.isArray(obj[key]) && typeof obj[key] == "object")
+        this.removeNullValues(obj[key]);
+  }
+
+  _randomAlphaNumeric(length) {
+    let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    return [...Array(length)].reduce(c => c + alphabet[~~(Math.random() * alphabet.length)], "");
+  }
+
   enrichFeature() {
     let feature = this.inputFeature;
 
-    feature.id = feature.id || Math.random().toString(36).slice(2, 10);
+    feature.id = feature.id || this._randomAlphaNumeric(16);
     feature.type = feature.type || "Feature";
     delete feature.bbox;
     feature.properties = feature.properties || {};
     feature.properties[XYZ_NS] = feature.properties[XYZ_NS] || {};
+    this.featureHooks && this.featureHooks.forEach(featureHook => featureHook(feature));
   }
 
   enrichTimestamps(feature, isCreation = false) {
@@ -692,6 +745,7 @@ class FeatureWriter {
    */
   _insertHistoryRow() {
     //TODO: Check if it makes sense to get the previous creation timestamp by loading the feature in case the operation != "I" / "H" (rather than doing the in-lined SELECT
+    //TODO: Improve performance by reading geo inside JS and then pass it separately and use TEXT
     this.enrichTimestamps(this.inputFeature, true);
     plv8.execute(`INSERT INTO "${this.schema}"."${this._targetTable()}"
                       (id, version, operation, author, jsondata, geo)
@@ -703,12 +757,12 @@ class FeatureWriter {
                                         (SELECT jsondata->'properties'->'${XYZ_NS}'->'createdAt' FROM "${this.schema}"."${this._targetTable()}" WHERE id = $1 AND next_version = $2::BIGINT))
                           END,
                           CASE
-                              WHEN ($5::JSONB)->'geometry' IS NULL THEN NULL
-                              ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON(($5::JSONB)->'geometry')), false) END)`,
-        this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature);
+                              WHEN $6::JSONB IS NULL THEN NULL
+                              ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false) END)`,
+        this.inputFeature.id, this.version, this.operation, this.author, this.inputFeature, this.inputFeature.geometry);
 
     //FIXME: Extract written creation timestamp if applicable
-    return new FeatureModificationExecutionResult(ExecutionAction.fromOperation[this.operation], this.inputFeature);
+    return new FeatureModificationExecutionResult(ExecutionAction.fromOperation[this.operation], this.inputFeature, this.version, this.author);
   }
 
   /**
@@ -732,7 +786,7 @@ class FeatureWriter {
                            SET next_version = $1
                            WHERE id = $2
                              AND next_version = $3::BIGINT
-                             AND version = $4
+                             AND (version = $4 OR operation = 'D' AND version < $1)
                            RETURNING *`, this.version, this.inputFeature.id, MAX_BIG_INT, this.baseVersion);
     else
       return plv8.execute(`UPDATE "${this.schema}"."${this._targetTable()}"
@@ -755,11 +809,12 @@ class FeatureWriter {
                               author = EXCLUDED.author,
                               jsondata = jsonb_set(EXCLUDED.jsondata, '{properties, ${XYZ_NS}, createdAt}',
                                      tbl.jsondata->'properties'->'${XYZ_NS}'->'createdAt'),
-                              geo = xyz_reduce_precision(EXCLUDED.geo, false)` : this.onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
+                              geo = EXCLUDED.geo` : this.onExists == "RETAIN" ? " ON CONFLICT(id, next_version) DO NOTHING" : "";
 
     let sql = `INSERT INTO "${this.schema}"."${this._targetTable()}" AS tbl
                         (id, version, operation, author, jsondata, geo)
-                        VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false)) ${onConflict}
+                        VALUES ($1, $2, $3, $4, $5::JSONB - 'geometry', CASE WHEN $6::JSONB IS NULL THEN NULL
+                            ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($6::JSONB)), false) END) ${onConflict}
                         RETURNING (jsondata->'properties'->'${XYZ_NS}'->'createdAt') as created_at, operation`;
 
     //sql += " RETURNING COALESCE(jsonb_set(jsondata,'{geometry}',ST_ASGeojson(geo)::JSONB) as feature)";
@@ -770,13 +825,13 @@ class FeatureWriter {
         this.operation,
         this.author,
         this.inputFeature,
-        this.inputFeature.geometry
+        this.inputFeature.geometry //TODO: Use TEXT
     );
 
     if (writtenRow[0]?.operation == "U")
       //Inject createdAt
       this.inputFeature.properties[XYZ_NS].createdAt = writtenRow[0].created_at[0];
-    return new FeatureModificationExecutionResult(ExecutionAction.fromOperation[writtenRow[0]?.operation], this.inputFeature);
+    return new FeatureModificationExecutionResult(ExecutionAction.fromOperation[writtenRow[0]?.operation], this.inputFeature, this.version, this.author);
   }
 
   /**
@@ -791,7 +846,7 @@ class FeatureWriter {
                              author    = $3,
                              jsondata  = jsonb_set($4::JSONB - 'geometry', '{properties, ${XYZ_NS}, createdAt}',
                                                    tbl.jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt'),
-                             geo       = xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)), false)
+                             geo       = CASE WHEN $5::JSONB IS NULL THEN NULL ELSE xyz_reduce_precision(ST_Force3D(ST_GeomFromGeoJSON($5::JSONB)), false) END
                          WHERE id = $6
                            AND version = $7
                          RETURNING (jsondata -> 'properties' -> '${XYZ_NS}' -> 'createdAt') as created_at, operation`,
@@ -799,11 +854,11 @@ class FeatureWriter {
         "U" /*TODO set version operation*/,
         this.author,
         this.inputFeature,
-        this.inputFeature.geometry,
+        this.inputFeature.geometry, //TODO: Use TEXT
         this.inputFeature.id,
         this.baseVersion);
 
-    return !writtenRows.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, this.inputFeature);
+    return !writtenRows.length ? null : new FeatureModificationExecutionResult(ExecutionAction.UPDATED, this.inputFeature, this.version, this.author);
   }
 
   static combineResults(featureCollections) {
@@ -830,10 +885,10 @@ class FeatureWriter {
   /**
    * @returns {FeatureCollection}
    */
-  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = FeatureWriter.getNextVersion()) {
+  static writeFeatures(inputFeatures, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, version = FeatureWriter.getNextVersion()) {
     let result = this.newFeatureCollection();
     for (let feature of inputFeatures) {
-      let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial).writeFeature();
+      let execution = new FeatureWriter(feature, version, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks).writeFeature();
       if (execution != null) {
         if (execution.action != ExecutionAction.DELETED)
           result.features.push(execution.feature);
@@ -859,16 +914,17 @@ class FeatureWriter {
   static writeFeatureModifications(featureModifications, author, version = FeatureWriter.getNextVersion()) {
     let featureCollections = featureModifications.map(modification => FeatureWriter.writeFeatures(this.toFeatureList(modification),
         author, modification.updateStrategy.onExists, modification.updateStrategy.onNotExists,
-        modification.updateStrategy.onVersionConflict, modification.updateStrategy.onMergeConflict, modification.partialUpdates, version));
+        modification.updateStrategy.onVersionConflict, modification.updateStrategy.onMergeConflict, modification.partialUpdates,
+        modification.featureHooks && modification.featureHooks.map(hook => eval(hook)), version));
     return this.combineResults(featureCollections);
   }
 
   /**
    * @returns {FeatureCollection}
    */
-  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, version = undefined) {
+  static writeFeature(inputFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, featureHooks, version = undefined) {
     return FeatureWriter.writeFeatures([inputFeature], author, onExists, onNotExists, onVersionConflict, onMergeConflict,
-        isPartial, version);
+        isPartial, featureHooks, version);
   }
 }
 
@@ -890,9 +946,15 @@ class FeatureModificationExecutionResult {
   action;
   feature;
 
-  constructor(action, feature) {
+  constructor(action, feature, version, author) {
     this.action = action;
     this.feature = feature;
+    this.enrichResultFeature(version, author);
+  }
+
+  enrichResultFeature(version, author) {
+    this.feature.properties[XYZ_NS].version = version;
+    this.feature.properties[XYZ_NS].author = author;
   }
 }
 
