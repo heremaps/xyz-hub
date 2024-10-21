@@ -69,7 +69,7 @@ $BODY$
       else
         throw error;
     }
-$BODY$ LANGUAGE plv8 IMMUTABLE;
+$BODY$ LANGUAGE plv8 VOLATILE;
 
 /**
  * @public
@@ -86,4 +86,4 @@ CREATE OR REPLACE FUNCTION write_feature(input_feature TEXT, author TEXT, on_exi
       throw new Error("Parameter input_feature must not be null.");
 
     return writeFeatures(`[${input_feature}]`, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, version, return_result);
-$BODY$ LANGUAGE plv8 IMMUTABLE;
+$BODY$ LANGUAGE plv8 VOLATILE;
