@@ -21,11 +21,11 @@ package com.here.xyz.test;
 
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import java.util.List;
 
 public class SQLITBase {
-
   protected static final String PG_HOST = "localhost";
   protected static final String PG_DB = "postgres";
   protected static final String PG_USER = "postgres";
@@ -37,7 +37,7 @@ public class SQLITBase {
       .withUser(PG_USER)
       .withPassword(PG_PW)
       .withDbMaxPoolSize(2)
-      .withSearchPath(List.of("common", "feature_writer"));
+      .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub")));
 
   protected static DataSourceProvider getDataSourceProvider() {
     return new PooledDataSources(DB_SETTINGS);

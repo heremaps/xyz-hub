@@ -51,6 +51,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -69,11 +70,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class DatabaseHandler extends StorageConnector {
-    /**TODO:
-     * shift xyz_ext.sql and h3Core.sql to own folder and avoid double installation.
-     * Currently we are using common.sql in hub-service AND job-service. So we need the installation on both ends.
-     */
-    private static final String SCRIPT_RESOURCE_PATH = "/sql";
+    //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
+    private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub"));
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
     private static final Logger logger = LogManager.getLogger();
     private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
@@ -111,8 +109,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         dbSettings = new DatabaseSettings(connectorId,
             ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
             .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
-            .withScriptResourcePaths(List.of(SCRIPT_RESOURCE_PATH));
-        //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
+            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;

@@ -27,6 +27,7 @@ import com.here.xyz.util.db.pg.Script;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -107,7 +108,7 @@ public class DatabaseSettings extends Payload {
     private int port = 5432;
     private String applicationName;
     private List<String> searchPath;
-    private List<String> scriptResourcePaths;
+    private List<ScriptResourcePath> scriptResourcePaths;
 
     /**
      * Connection Pool settings
@@ -301,15 +302,15 @@ public class DatabaseSettings extends Payload {
         return this;
     }
 
-    public List<String> getScriptResourcePaths() {
+    public List<ScriptResourcePath> getScriptResourcePaths() {
         return scriptResourcePaths;
     }
 
-    public void setScriptResourcePaths(List<String> scriptResourcePaths) {
+    public void setScriptResourcePaths(List<ScriptResourcePath> scriptResourcePaths) {
         this.scriptResourcePaths = scriptResourcePaths;
     }
 
-    public DatabaseSettings withScriptResourcePaths(List<String> scriptResourcePaths) {
+    public DatabaseSettings withScriptResourcePaths(List<ScriptResourcePath> scriptResourcePaths) {
         setScriptResourcePaths(scriptResourcePaths);
         return this;
     }
@@ -478,11 +479,11 @@ public class DatabaseSettings extends Payload {
         if (scriptResourcePaths == null || scriptResourcePaths.isEmpty())
             return;
 
-        String softwareVersion = FunctionRuntime.getInstance().getSoftwareVersion();
+        String softwareVersion = FunctionRuntime.getInstance() == null ? null : FunctionRuntime.getInstance().getSoftwareVersion();
         if (!sqlScripts.containsKey(getId())) {
             logger.info("Checking scripts for connector {} ...", getId());
             try (DataSourceProvider dataSourceProvider = new StaticDataSources(this)) {
-                for (String scriptResourcePath : scriptResourcePaths) {
+                for (ScriptResourcePath scriptResourcePath : scriptResourcePaths) {
                     List<Script> scripts = Script.loadScripts(scriptResourcePath, dataSourceProvider, softwareVersion);
                     sqlScripts.put(getId(), scripts);
                     scripts.forEach(script -> {
@@ -498,7 +499,9 @@ public class DatabaseSettings extends Payload {
                 logger.error("Error checking / installing scripts.", e);
             }
         }
-        setSearchPath(sqlScripts.get(getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList());
+        List<String> extendedSearchPath = new ArrayList<>(getSearchPath() == null ? List.of() : getSearchPath());
+        extendedSearchPath.addAll(sqlScripts.get(getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList());
+        setSearchPath(extendedSearchPath);
     }
 
     /**
@@ -508,6 +511,12 @@ public class DatabaseSettings extends Payload {
         if (!initialized) {
             initialized = true;
             checkScripts();
+        }
+    }
+
+    public record ScriptResourcePath(String path, String schemaPrefix) {
+        public ScriptResourcePath(String path) {
+            this(path, null);
         }
     }
 }
