@@ -52,7 +52,7 @@ services:
             - "dynamodb"
             - "postgres"
             - "aws-localstack"
-        command: java -cp xyz-job-service.jar com.here.xyz.jobs.service.JobService
+        command: java -cp xyz-job-service-fat.jar com.here.xyz.jobs.service.JobService
     postgres:
         image: "xyz-postgres"
         build:
