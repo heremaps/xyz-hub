@@ -128,4 +128,16 @@ public class StepGraph implements StepExecution {
     setParallel(parallel);
     return this;
   }
+
+  public StepGraph findConnectedSubGraph(StepGraph other) {
+    StepExecution currentNode = executions.get(0);
+    StepExecution currentOtherNode = other.executions.get(0);
+    StepGraph subGraph = new StepGraph();
+
+    if (isEquivalentTo(other))
+      return this;
+    for (StepExecution execution : executions) {}
+
+    return subGraph;
+  }
 }
