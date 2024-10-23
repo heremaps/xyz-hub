@@ -37,9 +37,7 @@ BEGIN
             'SELECT * from aws_s3.query_export_to_s3( '
                 ||' ''%1$s'', '
                 ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
-                ||' NULL,'
                 ||' %5$L )',
-
             format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', REPLACE(content_query, $x$'$x$, $x$''$x$)),
             s3_bucket,
             s3_path,
