@@ -62,7 +62,7 @@ import org.xbill.DNS.Record;
 import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
-  private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs"), new ScriptResourcePath("/jobs"));
+  private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs", "common"), new ScriptResourcePath("/jobs"));
   private static final Logger logger = LogManager.getLogger();
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");

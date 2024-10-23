@@ -71,7 +71,7 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class DatabaseHandler extends StorageConnector {
     //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
-    private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub"));
+    private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub", "common"));
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
     private static final Logger logger = LogManager.getLogger();
     private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";

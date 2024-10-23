@@ -181,7 +181,7 @@ public class Script {
   }
 
   private static SQLQuery buildSetCurrentSearchPathQuery(String targetSchema) {
-    return new SQLQuery("SET search_path = ${currentSearchPath}")
+    return new SQLQuery("SET search_path = ${currentSearchPath}, \"public\"")
         .withVariable("currentSearchPath", targetSchema);
   }
 
@@ -270,10 +270,11 @@ public class Script {
     }).stream().filter(filePath -> filePath.startsWith(resourceFolder)).toList();
   }
 
-  private static List<String> scanResourceFolder(String resourceFolder, String fileSuffix) throws IOException {
+  private static List<String> scanResourceFolder(ScriptResourcePath scriptResourcePath, String fileSuffix) throws IOException {
+    String resourceFolder = scriptResourcePath.path();
     //TODO: Remove this workaround once the actual implementation of this method supports scanning folders inside a JAR
     if ("/sql".equals(resourceFolder))
-      return scanResourceFolderWA(resourceFolder, fileSuffix);
+      return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.initScript());
 
     final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
     if (folderResource == null)
@@ -284,10 +285,23 @@ public class Script {
     String file;
     while ((file = reader.readLine()) != null)
       files.add(file);
-    return files.stream()
+    return ensureInitScriptIsFirst(files.stream()
         .filter(fileName -> fileName.endsWith(fileSuffix))
         .map(fileName -> resourceFolder + File.separator + fileName)
-        .toList();
+        .toList(), scriptResourcePath.initScript());
+  }
+
+  private static List<String> ensureInitScriptIsFirst(List<String> scriptPaths, String initScript) {
+    if (initScript == null)
+      return scriptPaths;
+    String initScriptPath = scriptPaths.stream().filter(scriptPath -> scriptPath.contains(initScript)).findFirst().orElse(null);
+    if (initScriptPath == null)
+      return scriptPaths;
+
+    scriptPaths = new ArrayList<>(scriptPaths);
+    scriptPaths.remove(initScriptPath);
+    scriptPaths.add(0, initScriptPath);
+    return scriptPaths;
   }
 
   private String loadScriptContent() throws IOException {
@@ -305,13 +319,13 @@ public class Script {
    */
   public static List<Script> loadScripts(ScriptResourcePath scriptsResourcePath, DataSourceProvider dataSourceProvider, String scriptsVersion)
       throws IOException, URISyntaxException {
-    return scanResourceFolder(scriptsResourcePath.path(), ".sql").stream()
+    return scanResourceFolder(scriptsResourcePath, ".sql").stream()
         .map(scriptLocation -> new Script(scriptLocation, dataSourceProvider, scriptsVersion, scriptsResourcePath.schemaPrefix()))
         .collect(Collectors.toUnmodifiableList());
   }
 
   private static List<Script> loadJsScripts(String scriptsResourcePath) throws IOException {
-    return scanResourceFolder(scriptsResourcePath, ".js").stream()
+    return scanResourceFolder(new ScriptResourcePath(scriptsResourcePath), ".js").stream()
         .map(scriptLocation -> new Script(scriptLocation, null, "0.0.0"))
         .toList();
   }

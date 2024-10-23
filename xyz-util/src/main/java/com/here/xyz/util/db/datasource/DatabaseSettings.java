@@ -485,7 +485,10 @@ public class DatabaseSettings extends Payload {
             try (DataSourceProvider dataSourceProvider = new StaticDataSources(this)) {
                 for (ScriptResourcePath scriptResourcePath : scriptResourcePaths) {
                     List<Script> scripts = Script.loadScripts(scriptResourcePath, dataSourceProvider, softwareVersion);
-                    sqlScripts.put(getId(), scripts);
+                    if (!sqlScripts.containsKey(getId()))
+                        sqlScripts.put(getId(), new ArrayList<>(scripts));
+                    else
+                        sqlScripts.get(getId()).addAll(scripts);
                     scripts.forEach(script -> {
                         script.install();
                         script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
@@ -514,9 +517,13 @@ public class DatabaseSettings extends Payload {
         }
     }
 
-    public record ScriptResourcePath(String path, String schemaPrefix) {
+    public record ScriptResourcePath(String path, String schemaPrefix, String initScript) {
         public ScriptResourcePath(String path) {
             this(path, null);
+        }
+
+        public ScriptResourcePath(String path, String schemaPrefix) {
+            this(path, schemaPrefix, null);
         }
     }
 }

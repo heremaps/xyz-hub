@@ -37,7 +37,7 @@ public class SQLITBase {
       .withUser(PG_USER)
       .withPassword(PG_PW)
       .withDbMaxPoolSize(2)
-      .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub")));
+      .withScriptResourcePaths(List.of(new ScriptResourcePath("/sql", "hub", "common")));
 
   protected static DataSourceProvider getDataSourceProvider() {
     return new PooledDataSources(DB_SETTINGS);
