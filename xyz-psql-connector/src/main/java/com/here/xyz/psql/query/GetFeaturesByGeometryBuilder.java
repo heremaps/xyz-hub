@@ -31,6 +31,7 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
+import java.util.Map;
 
 public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByGeometryInput> {
   private SQLQuery additionalFilterFragment;
@@ -41,6 +42,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       //TODO: Remove that workaround when refactoring is complete
       GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
           .withSpace(input.spaceId)
+          .withConnectorParams(input.connectorParams)
           .withParams(XyzSerializable.toMap(getConnectorParameters()))
           .withVersionsToKeep(input.versionsToKeep)
           .withContext(input.context)
@@ -66,6 +68,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
 
   public record GetFeaturesByGeometryInput(
       String spaceId,
+      Map<String, Object> connectorParams,
       SpaceContext context,
       int versionsToKeep,
       Ref ref,
