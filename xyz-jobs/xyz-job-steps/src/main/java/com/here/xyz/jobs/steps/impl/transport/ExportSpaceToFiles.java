@@ -375,7 +375,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
         .withDataSourceProvider(requestResource(db(), 0));
 
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
-        getSpaceId(),
+        getRootTableName(space()),
         context == null ? EXTENSION : context,
         space().getVersionsToKeep(),
         versionRef,
