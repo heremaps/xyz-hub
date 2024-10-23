@@ -155,6 +155,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
         .withQueryFragment("stepQuery", stepQuery)
+        .withContext(stepQuery.getContext())
         .withQueryFragment("successCallback", buildSuccessCallbackQuery())
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
   }
