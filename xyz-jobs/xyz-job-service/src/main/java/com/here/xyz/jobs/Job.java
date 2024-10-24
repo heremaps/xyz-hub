@@ -60,6 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -98,7 +99,7 @@ public class Job implements XyzSerializable {
 
   private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
-  private static final long DEFAULT_JOB_TTL = 4 * 7 * 24 * 3600 * 1000; //4 weeks
+  private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(4 * 7); //4 weeks
 
   /**
    * Creates a new Job.
