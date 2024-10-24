@@ -26,6 +26,8 @@ import com.here.xyz.responses.StatisticsResponse;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+
 import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 
 public class ImportStepTest extends StepTest {
@@ -99,6 +101,41 @@ public class ImportStepTest extends StepTest {
 
     uploadFiles(JOB_ID, FILE_COUNT, FEATURE_COUNT, Format.GEOJSON);
     LambdaBasedStep step = new ImportFilesToSpace()
+            .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
+            .withSpaceId(SPACE_ID);
+
+    sendLambdaStepRequestBlock(step);
+
+    StatisticsResponse statsAfter = getStatistics(SPACE_ID);
+    Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());
+  }
+
+  @Test
+  public void testImportFilesToSpaceStepWithGEOJson() throws Exception {
+    //Gets executed SYNC
+    executeImportStep(Format.GEOJSON);
+  }
+
+  @Test
+  public void testImportFilesToSpaceStepWithCSV_Json_WKB() throws Exception {
+    //Gets executed ASYNC
+    executeImportStep(Format.CSV_JSON_WKB);
+  }
+
+  @Test
+  public void testImportFilesToSpaceStepWithCSV_GeoJson() throws Exception {
+    //Gets executed ASYNC
+    executeImportStep(Format.CSV_GEOJSON);
+  }
+
+
+  private void executeImportStep(Format format) throws IOException, InterruptedException {
+    StatisticsResponse statsBefore = getStatistics(SPACE_ID);
+    Assertions.assertEquals(0L, (Object) statsBefore.getCount().getValue());
+
+    uploadFiles(JOB_ID, FILE_COUNT, FEATURE_COUNT, format);
+    LambdaBasedStep step = new ImportFilesToSpace()
+            .withFormat(format)
             .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
             .withSpaceId(SPACE_ID);
 
