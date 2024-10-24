@@ -77,9 +77,9 @@ public abstract class DatasetDescription implements Typed {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Space<T extends Space> extends Identifiable<T> implements FilteringSource<T>, VersionedSource<T> {
-    @JsonView({Public.class})
+    @JsonView({Public.class, Static.class})
     private Filters filters;
-    @JsonView({Public.class})
+    @JsonView({Public.class, Static.class})
     private Ref versionRef;
 
     @Override
