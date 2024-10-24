@@ -60,7 +60,7 @@ public class ExportStepTest extends ExportTestBase {
     public void testExportSpaceToFilesStepWithPropertyFilter() throws Exception {
         String propertiesQuery = URLEncoder.encode("p.description=\"Point\"", StandardCharsets.UTF_8);
         executeExportStepAndCheckResults(SPACE_ID, null, null,
-                PropertiesQuery.fromString(propertiesQuery), null, "/search?"+propertiesQuery);
+                PropertiesQuery.fromString(propertiesQuery), null, "/search?" + propertiesQuery);
     }
 
     @Test
