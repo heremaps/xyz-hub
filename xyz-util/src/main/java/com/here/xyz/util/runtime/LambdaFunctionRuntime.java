@@ -82,6 +82,8 @@ public class LambdaFunctionRuntime extends FunctionRuntime {
     try {
       if (version == null)
         return false;
+      if (version.contains("SNAPSHOT"))
+        return false;
       Integer.parseInt(version.substring(0, 1));
       return version.contains(".");
     }
