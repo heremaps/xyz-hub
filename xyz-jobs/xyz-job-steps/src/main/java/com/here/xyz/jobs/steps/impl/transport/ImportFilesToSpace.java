@@ -33,11 +33,11 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VA
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
@@ -204,7 +204,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public int getTimeoutSeconds() {
     //return ResourceAndTimeCalculator.getInstance().calculateImportTimeoutSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
-    return 24 * 3600;
+    return 3 * 24 * 3600;
   }
 
   @Override

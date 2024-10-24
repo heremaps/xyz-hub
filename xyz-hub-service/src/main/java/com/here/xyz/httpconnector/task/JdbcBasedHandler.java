@@ -49,8 +49,8 @@ public abstract class JdbcBasedHandler {
   }
 
   private Future<JdbcClient> createClient(String connectorId) {
-    return dbSettingsForConnector(connectorId)
-        .compose(dbSettings -> Future.succeededFuture(new JdbcClient(new PooledDataSources(dbSettings.withSearchPath(List.of("common")))).withQueueing(true)));
+    return dbSettingsForConnector(connectorId)                                                                  //TODO: Check why Maintenance service needs common schema
+        .compose(dbSettings -> Future.succeededFuture(new JdbcClient(new PooledDataSources(dbSettings.withSearchPath(List.of("hub.common")))).withQueueing(true)));
   }
 
   private Future<DatabaseSettings> dbSettingsForConnector(String connectorId) {

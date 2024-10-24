@@ -98,7 +98,7 @@ public class Job implements XyzSerializable {
 
   private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
-  private static final long DEFAULT_JOB_TTL = 2 * 7 * 24 * 3600 * 1000; //2 weeks
+  private static final long DEFAULT_JOB_TTL = 4 * 7 * 24 * 3600 * 1000; //4 weeks
 
   /**
    * Creates a new Job.

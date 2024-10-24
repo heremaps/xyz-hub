@@ -19,6 +19,7 @@
 
 package com.here.xyz.util.db.pg;
 
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -30,8 +31,7 @@ public class LockHelper {
     boolean previousCommitState = connection.getAutoCommit();
     connection.setAutoCommit(true);
     try (Statement stmt = connection.createStatement()) {
-      ResultSet rs = stmt.executeQuery("SELECT pg_" + (lock && !block ? "try_" : "") + "advisory_"
-          + (lock ? "" : "un") + "lock(('x' || left(md5('" + key + "'), 15))::bit(60)::bigint)");
+      ResultSet rs = stmt.executeQuery(buildLockQuery(key, lock, block, "SELECT").toExecutableQueryString());
       if (!block && rs.next())
         return rs.getBoolean(1);
       return false;
@@ -39,6 +39,19 @@ public class LockHelper {
     finally {
       connection.setAutoCommit(previousCommitState);
     }
+  }
+
+  private static SQLQuery buildLockQuery(String key, boolean lock, boolean block, String executionKeyWord) {
+    return new SQLQuery(executionKeyWord + " pg_" + (lock && !block ? "try_" : "") + "advisory_"
+        + (lock ? "" : "un") + "lock(('x' || left(md5('" + key + "'), 15))::bit(60)::bigint);");
+  }
+
+  public static SQLQuery buildAdvisoryLockQuery(String key) {
+    return buildLockQuery(key, true, true, "PERFORM");
+  }
+
+  public static SQLQuery buildAdvisoryUnlockQuery(String key) {
+    return buildLockQuery(key, false, true, "PERFORM");
   }
 
   public static void advisoryLock(String key, Connection connection) throws SQLException {
