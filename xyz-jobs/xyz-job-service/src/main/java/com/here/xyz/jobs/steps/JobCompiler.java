@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.steps.compiler.ExportToFiles;
+import com.here.xyz.jobs.steps.compiler.CopySpaceToSpace;
 import com.here.xyz.jobs.steps.compiler.ImportFromFiles;
 import com.here.xyz.jobs.steps.compiler.JobCompilationInterceptor;
 import com.here.xyz.util.Async;
@@ -40,7 +41,8 @@ public class JobCompiler {
   static {
     registerCompilationInterceptor(ImportFromFiles.class);
     registerCompilationInterceptor(ExportToFiles.class);
-    //registerCompilationInterceptor(CopySpaceToSpace.class);
+    //registerCompilationInterceptor(_CopySpaceToSpace.class);
+    registerCompilationInterceptor(CopySpaceToSpace.class);
   }
 
   public Future<StepGraph> compile(Job job) {

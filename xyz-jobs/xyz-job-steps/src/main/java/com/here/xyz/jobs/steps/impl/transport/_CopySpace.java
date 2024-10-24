@@ -42,8 +42,6 @@ import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -75,7 +73,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * - add i/o report
  * - move out parsePropertiesQuery functions
  */
-public class CopySpace extends SpaceBasedStep<CopySpace> {
+public class _CopySpace extends SpaceBasedStep<_CopySpace> {
   private static final Logger logger = LogManager.getLogger();
 
   @JsonView({Internal.class, Static.class})
@@ -92,6 +90,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
+
+  private final int PSEUDO_NEXT_VERSION = 0;
 
   //Existing Space in which we copy to
   private String targetSpaceId;
@@ -113,7 +113,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.geometry = geometry;
   }
 
-  public CopySpace withGeometry(Geometry geometry) {
+  public _CopySpace withGeometry(Geometry geometry) {
     setGeometry(geometry);
     return this;
   }
@@ -126,7 +126,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.radius = radius;
   }
 
-  public CopySpace withRadius(int radius) {
+  public _CopySpace withRadius(int radius) {
     setRadius(radius);
     return this;
   }
@@ -139,7 +139,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.clipOnFilterGeometry = clipOnFilterGeometry;
   }
 
-  public CopySpace withClipOnFilterGeometry(boolean clipOnFilterGeometry) {
+  public _CopySpace withClipOnFilterGeometry(boolean clipOnFilterGeometry) {
     setClipOnFilterGeometry(clipOnFilterGeometry);
     return this;
   }
@@ -152,7 +152,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.propertyFilter = propertyFilter;
   }
 
-  public CopySpace withPropertyFilter(String propertyFilter) {
+  public _CopySpace withPropertyFilter(String propertyFilter) {
     setPropertyFilter(propertyFilter);
     return this;
   }
@@ -165,7 +165,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.sourceVersionRef = sourceVersionRef;
   }
 
-  public CopySpace withSourceVersionRef(Ref sourceVersionRef) {
+  public _CopySpace withSourceVersionRef(Ref sourceVersionRef) {
     setSourceVersionRef(sourceVersionRef);
     return this;
   }
@@ -178,7 +178,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.targetSpaceId = targetSpaceId;
   }
 
-  public CopySpace withTargetSpaceId(String targetSpaceId) {
+  public _CopySpace withTargetSpaceId(String targetSpaceId) {
     setTargetSpaceId(targetSpaceId);
     return this;
   }
@@ -283,10 +283,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info( "Loading space config for target-space " + getTargetSpaceId());
     Space targetSpace = loadSpace(getTargetSpaceId());
     logger.info("Getting storage database for space  "+getSpaceId());
-  //  Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
+    Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
 
     //@TODO: Add ACU calculation
-//    runWriteQueryAsync(buildCopySpaceNextVersionUpdate(getSchema(db), getRootTableName(targetSpace)), db, 0, false);
+    runWriteQueryAsync(buildCopySpaceNextVersionUpdate(getSchema(db), getRootTableName(targetSpace)), db, 0, false);
   }
 
   @Override
@@ -302,31 +302,65 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info("Copy - onAsyncSuccess");
   }
 
-  private SQLQuery buildCopySpaceQuery(String schema, String sourceTableName, Space sourceSpace, String targetTableName, boolean isEnableHashedSpaceIdActivated, boolean targetVersioningEnabled) throws SQLException {
-
-    final Map<String, Object> queryContext = new HashMap<>(Map.of(
-      "schema", schema,
-      "table", targetTableName,
-      "context", "'DEFAULT'" ,
-      "historyEnabled", targetVersioningEnabled
-  ));
-    
+  private SQLQuery buildCopySpaceQuery(String schema, String sourceTableName, Space sourceSpace, String targetTableName,
+              boolean isEnableHashedSpaceIdActivated, boolean targetVersioningEnabled)
+          throws SQLException {
     return new SQLQuery(
             """      
               WITH ins_data as
-              (
-               select write_feature( (idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json))::text, idata.author, null, null , null, null, false, (SELECT nextval('${schema}.${versionSequenceName}')), false)                     
-               from
+              (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
+              SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id,
+                     (SELECT nextval('${schema}.${versionSequenceName}')) AS version,
+                     CASE WHEN edata.id isnull THEN max_bigint() ELSE ${{pseudoNextVersion}} END as next_version
+              FROM
                 (${{contentQuery}} ) idata
+                LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint())
+                RETURNING id, version, (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint as bytes_size
+              ),
+              upd_data as
+              (UPDATE ${schema}.${table}
+                 SET next_version = (SELECT version FROM ins_data LIMIT 1)
+               WHERE ${{targetVersioningEnabled}}
+                  AND next_version = max_bigint()
+                  AND id IN (SELECT id FROM ins_data)
+                  AND version < (SELECT version FROM ins_data LIMIT 1)
+                RETURNING id, version
+              ),
+              del_data AS
+              (DELETE FROM ${schema}.${table}
+                WHERE not ${{targetVersioningEnabled}}
+                  AND id IN (SELECT id FROM ins_data)
+                  AND version < (SELECT version FROM ins_data LIMIT 1)
+                RETURNING id, version
               )
-              select count(1) into dummy_output from ins_data
+              --SELECT count(1) AS rows_uploaded, sum(bytes_size)::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded,
+              --      (SELECT count(1) FROM upd_data) AS version_updated,
+              --      (SELECT count(1) FROM del_data) AS version_deleted
+              --FROM ins_data l
+              SELECT 1 INTO dummy_output FROM del_data
             """
-    )
-    .withVariable("schema", schema)
-    .withVariable("versionSequenceName", targetTableName + "_version_seq")
-    .withQueryFragment("contentQuery", buildCopyContentQuery(sourceSpace, isEnableHashedSpaceIdActivated))
-    .withContext( queryContext );
-    
+    ).withVariable("schema", schema)
+            .withVariable("table", targetTableName)
+            .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
+            .withVariable("versionSequenceName", targetTableName + "_version_seq")
+            .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" )
+            .withQueryFragment("contentQuery", buildCopyContentQuery(sourceSpace, isEnableHashedSpaceIdActivated));
+  }
+
+  private SQLQuery buildCopySpaceNextVersionUpdate(String schema, String targetTableName) throws SQLException {
+    /* adjust next_version to max_bigint(), except in case of concurrency set it to concurrent inserted version */
+    //TODO: case of extern concurency && same id in source & target && non-versiond layer a duplicate id can occure with next_version = concurrent_inserted.version
+    return new SQLQuery(
+            """
+              UPDATE
+               ${schema}.${table} t
+               set next_version = coalesce(( select version from ${schema}.${table} i where i.id = t.id and i.next_version = max_bigint() ), max_bigint())
+              where
+               next_version = ${{pseudoNextVersion}}
+            """
+    ).withVariable("schema", schema)
+            .withVariable("table", targetTableName)
+            .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" );
   }
 
   private SQLQuery buildCopyContentQuery(Space space, boolean isEnableHashedSpaceIdActivated) throws SQLException {
