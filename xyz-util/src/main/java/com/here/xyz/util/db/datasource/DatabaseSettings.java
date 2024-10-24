@@ -504,6 +504,7 @@ public class DatabaseSettings extends Payload {
         }
         List<String> extendedSearchPath = new ArrayList<>(getSearchPath() == null ? List.of() : getSearchPath());
         extendedSearchPath.addAll(sqlScripts.get(getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList());
+        logger.info("Set searchPath for connector {} to... {}", getId(), extendedSearchPath);
         setSearchPath(extendedSearchPath);
     }
 
