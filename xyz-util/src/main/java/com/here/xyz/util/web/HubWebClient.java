@@ -130,6 +130,14 @@ public class HubWebClient extends XyzWebClient {
         .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
   }
 
+  public void deleteFeatures(String spaceId, List<String> featureIds) throws WebClientException {
+    String idList = "?id="+String.join(",id=", featureIds);
+    request(HttpRequest.newBuilder()
+            .DELETE()
+            .uri(uri("/spaces/" + spaceId + "/features" + idList))
+            .header(CONTENT_TYPE, JSON_UTF_8.toString()));
+  }
+
   public XyzResponse postFeatures(String spaceId, FeatureCollection fc, Map<String, String> queryParams) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()

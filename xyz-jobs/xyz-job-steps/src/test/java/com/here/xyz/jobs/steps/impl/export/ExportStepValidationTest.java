@@ -17,10 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl;
+package com.here.xyz.jobs.steps.impl.export;
 
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;

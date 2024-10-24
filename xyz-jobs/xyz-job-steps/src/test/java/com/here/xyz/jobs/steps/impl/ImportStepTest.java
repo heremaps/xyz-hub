@@ -102,10 +102,7 @@ public class ImportStepTest extends StepTest {
             .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
             .withSpaceId(SPACE_ID);
 
-    sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
-    Thread.sleep(2000);
-    //TODO: switch back to simulation if test issue is fixed
-//    sendLambdaStepRequestBlock(step);
+    sendLambdaStepRequestBlock(step);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
     Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());
