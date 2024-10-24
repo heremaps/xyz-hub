@@ -40,7 +40,7 @@ public class Filters {
   @JsonView({Internal.class, Static.class})
   private String propertyFilterAsString;
 
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private SpatialFilter spatialFilter;
 
   @JsonView({Public.class, Static.class})

@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.datasets;
 
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
@@ -28,6 +29,8 @@ import java.util.stream.Collectors;
 public class Spaces<T extends Spaces> extends DatasetDescription implements FilteringSource<T>, CombinedDatasetDescription<Space> {
 
   private List<String> spaceIds;
+
+  @JsonView({Public.class, Static.class})
   private Filters filters;
 
   public List<String> getSpaceIds() {
