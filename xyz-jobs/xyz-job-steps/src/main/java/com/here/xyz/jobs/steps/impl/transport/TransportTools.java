@@ -164,7 +164,7 @@ public class TransportTools {
             "stepId", stepId,
             "schema", schema,
             "table", table,
-            "context", superTable != null ? "'DEFAULT'" : "NULL",
+            "context", superTable != null ? "DEFAULT" : "NULL",
             "historyEnabled", historyEnabled
     ));
 
