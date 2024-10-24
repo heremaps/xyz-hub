@@ -18,6 +18,9 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '17'
+      - name: Add hosts to /etc/hosts
+        run: |
+          sudo echo "127.0.0.1 dynamodb postgres.local postgres postgres.replica" | sudo tee -a /etc/hosts
       - name: Start the XYZ Hub stack
         run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
       - name: Deploy StepLambda for Job API

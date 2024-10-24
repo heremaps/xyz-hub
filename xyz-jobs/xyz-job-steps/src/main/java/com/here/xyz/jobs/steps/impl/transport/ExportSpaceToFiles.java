@@ -376,6 +376,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
         getSpaceId(),
+        hubWebClient().loadConnector(space().getStorage().getId()).params,
         context == null ? EXTENSION : context,
         space().getVersionsToKeep(),
         versionRef,

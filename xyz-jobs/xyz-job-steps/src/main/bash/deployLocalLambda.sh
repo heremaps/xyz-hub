@@ -21,10 +21,10 @@
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
-targetPathRel="../../../target"
+relativeTargetPath="../../../target"
 
 if [ "$HOSTNAME" = "localstack" ]; then
-  targetPathRel="../job-steps/target"
+  relativeTargetPath="../job-steps/target"
 fi
 
 #Check if the localstack is up and running
@@ -36,7 +36,7 @@ fi
 
 scriptBasePath="$(dirname $(realpath $0))"
 
-cd ${scriptBasePath}/${targetPathRel}
+cd ${scriptBasePath}/${relativeTargetPath}
 
 rm -rf lib > /dev/null 2>&1
 mkdir lib

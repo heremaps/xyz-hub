@@ -33,6 +33,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
@@ -177,16 +178,25 @@ public class StepTestBase {
 
   protected StatisticsResponse getStatistics(String spaceId) {
     try {
-      return hubWebClient.loadSpaceStatistics(spaceId, ContextAwareEvent.SpaceContext.EXTENSION);
+      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.EXTENSION);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
     return null;
   }
 
-  protected FeatureCollection getFeaturesFromSmallSpace(String spaceId, String propertyFilter, boolean force2D) {
+  protected FeatureCollection getFeaturesFromSmallSpace(String spaceId ,String propertyFilter, boolean force2D) {
     try {
-      return hubWebClient.getFeaturesFromSmallSpace(spaceId, ContextAwareEvent.SpaceContext.EXTENSION, propertyFilter, force2D);
+      return hubWebClient.getFeaturesFromSmallSpace(spaceId, SpaceContext.EXTENSION, propertyFilter, force2D);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+    return null;
+  }
+
+  protected FeatureCollection getFeaturesFromSmallSpace(String spaceId, ContextAwareEvent.SpaceContext context, String propertyFilter, boolean force2D) {
+    try {
+      return hubWebClient.getFeaturesFromSmallSpace(spaceId, context, propertyFilter, force2D);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
@@ -205,6 +215,14 @@ public class StepTestBase {
   protected void putFeatureCollectionToSpace(String spaceId, FeatureCollection fc) {
     try {
       hubWebClient.putFeaturesWithoutResponse(spaceId, fc);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
+  protected void deleteFeaturesInSpace(String spaceId, List<String> ids) {
+    try {
+      hubWebClient.deleteFeatures(spaceId, ids);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }

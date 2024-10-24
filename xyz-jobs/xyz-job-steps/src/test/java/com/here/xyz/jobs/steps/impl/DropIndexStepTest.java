@@ -33,7 +33,7 @@ public class DropIndexStepTest extends StepTest {
     Assertions.assertTrue(listExistingIndexes(SPACE_ID).size() > 0);
 
     LambdaBasedStep step = new DropIndexes().withSpaceId(SPACE_ID);
-    sendLambdaStepRequest(step, START_EXECUTION, false);
+    sendLambdaStepRequest(step, START_EXECUTION, true);
     sleep(1000);
 
     Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());

@@ -35,6 +35,7 @@ import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.HubWebClientAsync;
@@ -61,7 +62,7 @@ import org.xbill.DNS.Record;
 import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
-  private static final String SCRIPT_RESOURCE_PATH = "/sql";
+  private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs", "common"), new ScriptResourcePath("/jobs", "jobs"));
   private static final Logger logger = LogManager.getLogger();
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
@@ -115,7 +116,7 @@ public class Database extends ExecutionResource {
     if (dbSettings == null)
       dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
           .withApplicationName("JobFramework")
-          .withScriptResourcePaths(List.of(SCRIPT_RESOURCE_PATH));
+          .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
     dbSettings.setStatementTimeoutSeconds(600);
     return dbSettings;
   }
@@ -210,7 +211,7 @@ public class Database extends ExecutionResource {
         fixLocalDbHosts(connectorDbSettingsMap);
 
         DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap)
-            .withScriptResourcePaths(List.of(SCRIPT_RESOURCE_PATH));
+            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
         String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
 

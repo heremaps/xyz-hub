@@ -22,10 +22,12 @@ package com.here.xyz.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
 public class SQLQueryIT extends SQLITBase {
@@ -246,5 +248,55 @@ public class SQLQueryIT extends SQLITBase {
         dropTmpTable(dsp);
       }
     }
+  }
+
+  @Test
+  public void runConcurrentQueriesWithLock() throws Exception {
+    SQLQuery concurrentQuery = new SQLQuery("""
+        DO $$
+        BEGIN
+          PERFORM pg_advisory_lock(12345);
+          PERFORM pg_sleep(1);
+          IF (SELECT count(1) FROM "SQLQueryIT") = 0 THEN
+            INSERT INTO "SQLQueryIT" VALUES ('test');
+          END IF;
+          PERFORM pg_advisory_unlock(12345);
+        END$$;
+        """);
+
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        dropTmpTable(dsp);
+        createTmpTable(dsp);
+        CompletableFuture f1 = runQueryInThread(concurrentQuery, dsp);
+        CompletableFuture f2 = runQueryInThread(concurrentQuery, dsp);
+
+        CompletableFuture.allOf(f1, f2).get();
+
+        assertEquals(1, (int) new SQLQuery("SELECT count(1) FROM \"SQLQueryIT\"").run(dsp, rs -> rs.next() ? rs.getInt(1) : 0));
+      }
+      finally {
+        dropTmpTable(dsp);
+      }
+    }
+  }
+
+  private static CompletableFuture runQueryInThread(SQLQuery query, DataSourceProvider dsp) {
+    CompletableFuture future = new CompletableFuture();
+    new Thread(() -> {
+      try {
+        query.write(dsp);
+        future.complete(null);
+      }
+      catch (SQLException e) {
+        if (e.getCause() != null) {
+          e.getCause().printStackTrace();
+          if (e.getCause() instanceof SQLException sqlException)
+            System.out.println("Code: " + sqlException.getSQLState());
+        }
+        fail(e.getMessage());
+      }
+    }).start();
+    return future;
   }
 }
