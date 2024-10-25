@@ -39,9 +39,7 @@ public class CreateIndexStepTest extends StepTest {
 
         LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(GEO);
 
-        sendLambdaStepRequest(step, START_EXECUTION, true);
-        //Index Creation takes time
-        sleep(1000);
+        sendLambdaStepRequestBlock(step, true);
 
         List<String> indexes = listExistingIndexes(SPACE_ID);
         Assertions.assertEquals(1, indexes.size());
