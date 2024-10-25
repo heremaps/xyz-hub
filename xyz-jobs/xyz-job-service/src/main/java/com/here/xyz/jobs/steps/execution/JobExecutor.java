@@ -70,7 +70,9 @@ public abstract class JobExecutor implements Initializable {
 
   public final Future<Void> startExecution(Job job, String formerExecutionId) {
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
-    return mayExecute(job)
+    return Future.succeededFuture()
+        .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
+        .compose(v -> mayExecute(job))
         .compose(executionAllowed -> {
           if (!executionAllowed)
             //The Job remains in PENDING state and will be checked later again if it may be executed
@@ -294,6 +296,30 @@ public abstract class JobExecutor implements Initializable {
                       job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             }));
+  }
+
+  private static Future<Void> reuseExistingJobIfPossible(Job job) {
+    return JobConfigClient.getInstance().loadJobs(job.getResourceKey())
+        .compose(candidates -> shrinkGraphByReusingOtherGraph(job, candidates.stream()
+            .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
+            .map(candidate -> candidate.getSteps())
+            .max(Comparator.comparingInt(graph -> graph.size())) //Take the candidate with the largest matching subgraph
+            .orElse(null)));
+  }
+
+  private static Future<Void> shrinkGraphByReusingOtherGraph(Job job, StepGraph reusedGraph) {
+    if (reusedGraph == null || reusedGraph.isEmpty())
+      return Future.succeededFuture();
+
+    StepGraph shrunkGraph = new StepGraph().withParallel(true);
+    calculateShrunkForest(job, reusedGraph).stream().forEach(partialGraph -> shrunkGraph.addExecution(partialGraph));
+
+    return job.withSteps(shrunkGraph).store();
+  }
+
+  private static List<StepGraph> calculateShrunkForest(Job job, StepGraph reusedGraph) {
+    //TODO:
+    return null;
   }
 
   public static void shutdown() throws InterruptedException {

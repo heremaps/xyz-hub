@@ -346,6 +346,23 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   public abstract boolean validate() throws ValidationException;
 
+  /**
+   * Should be overridden in subclasses to enable the possibility to check whether two steps of two different StepGraphs
+   * are equivalent in their actions and their outcome.
+   * That means that the other step would produce exactly the same outputs
+   * for the provided inputs and step-parameters / step-fields (step-settings).
+   *
+   * Not overriding this method for a step, means that this step will never be found to be equivalent to some other provided step.
+   * That could be the case if a step implementation cannot guarantee to provide the same outputs again by any condition.
+   *
+   * @param other The step of a different StepGraph
+   * @return `true` only if this step and the provided ones produce the same outputs for the same inputs & settings
+   */
+  @Override
+  public boolean isEquivalentTo(StepExecution other) {
+    return false;
+  }
+
   public String getId() {
     return id;
   }
