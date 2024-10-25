@@ -139,7 +139,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    * @return The wrapped query. A query that takes care of reporting the state back to this implementation asynchronously.
    */
   private SQLQuery wrapQuery(SQLQuery stepQuery) {
-    return new SQLQuery("""
+
+    SQLQuery wrappedQuery = new SQLQuery("""
         DO
         $wrapped$
         DECLARE
@@ -155,9 +156,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withQueryFragment("jobId", getJobId())
         .withQueryFragment("stepId", getId())
         .withQueryFragment("stepQuery", stepQuery)
-        .withContext(stepQuery.getContext())
         .withQueryFragment("successCallback", buildSuccessCallbackQuery())
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
+
+    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext()); 
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
