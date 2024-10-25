@@ -19,6 +19,8 @@
 
 package com.here.xyz.test;
 
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -255,14 +257,16 @@ public class SQLQueryIT extends SQLITBase {
     SQLQuery concurrentQuery = new SQLQuery("""
         DO $$
         BEGIN
-          PERFORM pg_advisory_lock(12345);
+          ${{advisoryLock}}
           PERFORM pg_sleep(1);
           IF (SELECT count(1) FROM "SQLQueryIT") = 0 THEN
             INSERT INTO "SQLQueryIT" VALUES ('test');
           END IF;
-          PERFORM pg_advisory_unlock(12345);
+          ${{advisoryUnlock}}
         END$$;
-        """);
+        """)
+        .withQueryFragment("advisoryLock", buildAdvisoryLockQuery("someKey"))
+        .withQueryFragment("advisoryUnlock", buildAdvisoryUnlockQuery("someKey"));
 
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {

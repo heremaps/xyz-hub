@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 public class DatabaseSettings extends Payload {
     private static final Logger logger = LogManager.getLogger();
     private static final int SCRIPT_VERSIONS_TO_KEEP = 5;
-    private Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
+    private static Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
     private volatile boolean initialized = false;
 
     /**

@@ -100,7 +100,3 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
-
-/**
- * Script installation test!
- */
