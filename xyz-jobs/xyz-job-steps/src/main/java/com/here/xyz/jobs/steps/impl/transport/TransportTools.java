@@ -85,8 +85,10 @@ public class TransportTools {
     for (S3DataFile input : fileList) {
       if (input instanceof UploadUrl || input instanceof DownloadUrl) {
         JsonObject data = new JsonObject()
-                .put("compressed", input.isCompressed())
-                .put("filesize", input.getByteSize());
+          .put("compressed", input.isCompressed());
+
+        if(input instanceof UploadUrl)
+          data.put("filesize", input.getByteSize());
 
         queryList.add(
                 new SQLQuery("""                
@@ -130,28 +132,6 @@ public class TransportTools {
               WHEN state = 'RUNNING' THEN 'SUBMITTED'
             END
           WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
-        """)
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step.getId()));
-  }
-
-  protected static SQLQuery buildProgressQuery(String schema, Step step) {
-    return new SQLQuery("""
-          SELECT 
-          	COALESCE(processed_bytes/overall_bytes, 0) as progress,
-          	COALESCE(processed_bytes,0) as processed_bytes,
-            	COALESCE(finished_cnt,0) as finished_cnt,
-            	COALESCE(failed_cnt,0) as failed_cnt
-            FROM(
-            	SELECT
-                  (SELECT sum((data->'filesize')::bigint ) FROM ${schema}.${table}) as overall_bytes,
-                  sum((data->'filesize')::bigint ) as processed_bytes,
-                  sum((state = 'FINISHED')::int) as finished_cnt,
-                  sum((state = 'FAILED')::int) as failed_cnt
-                FROM ${schema}.${table}
-              	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
-            	   AND state IN ('FINISHED','FAILED')
-            )A          
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(step.getId()));
