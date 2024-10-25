@@ -28,7 +28,5 @@ import com.here.xyz.Typed;
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 public interface StepExecution extends Typed {
-  default boolean isEquivalentTo(StepExecution other) {
-    return true;
-  }
+  boolean isEquivalentTo(StepExecution other);
 }
