@@ -70,9 +70,9 @@ public class CopySpaceStepsTest extends StepTest {
                                .withSpaceId(SrcSpc).withSourceVersionRef(new Ref("HEAD"))
                                .withTargetSpaceId( TrgSpc );
           
-    sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, false);
-
-    sleep(2000);
+    sendLambdaStepRequestBlock(step);
+//    sendLambdaStepRequest(step, LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION, true);
+//    sleep(2000);
 
     StatisticsResponse statsAfter = getStatistics(TrgSpc);
     assertEquals(6L, (Object) statsAfter.getCount().getValue());

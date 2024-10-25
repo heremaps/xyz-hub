@@ -43,7 +43,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -302,15 +302,11 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info("Copy - onAsyncSuccess");
   }
 
+
   private SQLQuery buildCopySpaceQuery(String schema, String sourceTableName, Space sourceSpace, String targetTableName, boolean isEnableHashedSpaceIdActivated, boolean targetVersioningEnabled) throws SQLException {
 
-    final Map<String, Object> queryContext = new HashMap<>(Map.of(
-      "schema", schema,
-      "table", targetTableName,
-      "context", "'DEFAULT'" ,
-      "historyEnabled", targetVersioningEnabled
-  ));
-    
+    final Map<String, Object> queryContext = createQueryContext(getId(), schema, targetTableName, targetVersioningEnabled, null);    
+ 
     return new SQLQuery(
             """      
               WITH ins_data as
@@ -322,10 +318,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
               select count(1) into dummy_output from ins_data
             """
     )
+    .withContext( queryContext )
     .withVariable("schema", schema)
     .withVariable("versionSequenceName", targetTableName + "_version_seq")
-    .withQueryFragment("contentQuery", buildCopyContentQuery(sourceSpace, isEnableHashedSpaceIdActivated))
-    .withContext( queryContext );
+    .withQueryFragment("contentQuery", buildCopyContentQuery(sourceSpace, isEnableHashedSpaceIdActivated));
     
   }
 
