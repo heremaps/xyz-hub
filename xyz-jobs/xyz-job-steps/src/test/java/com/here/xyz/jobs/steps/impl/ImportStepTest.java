@@ -104,7 +104,7 @@ public class ImportStepTest extends StepTest {
             .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
             .withSpaceId(SPACE_ID);
 
-    sendLambdaStepRequestBlock(step);
+    sendLambdaStepRequestBlock(step ,true);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
     Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());
@@ -139,7 +139,7 @@ public class ImportStepTest extends StepTest {
             .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
             .withSpaceId(SPACE_ID);
 
-    sendLambdaStepRequestBlock(step);
+    sendLambdaStepRequestBlock(step, true);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
     Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());

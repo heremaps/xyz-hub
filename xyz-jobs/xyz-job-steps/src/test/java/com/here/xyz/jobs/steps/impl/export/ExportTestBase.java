@@ -43,7 +43,7 @@ public class ExportTestBase extends StepTest {
             step.withVersionRef(versionRef);
 
         //Send Lambda Requests
-        sendLambdaStepRequestBlock(step);
+        sendLambdaStepRequestBlock(step, true);
         checkOutputs(allExpectedFeatures, step.loadOutputs(true));
     }
 

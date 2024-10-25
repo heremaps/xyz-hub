@@ -880,13 +880,14 @@ public class SQLQuery {
    * @param labelValue
    * @return Whether a running query exists with the specified label
    */
-  private static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
+  public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
       throws SQLException {
     return new SQLQuery("""
         SELECT 1 FROM pg_stat_activity
           WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()
         """)
         .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
+        .withLoggingEnabled(false)
         .run(dataSourceProvider, rs -> rs.next(), useReplica);
   }
 
