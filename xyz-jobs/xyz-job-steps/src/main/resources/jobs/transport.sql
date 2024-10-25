@@ -256,9 +256,8 @@ BEGIN
         RETURN;
     ELSE
         PERFORM context(ctx);
-        IF work_item ->> 'state' = 'RETRY' OR work_item ->> 'state' = 'LAST_ONES_RUNNING' THEN
+        IF work_item ->> 'state' = 'RETRY' THEN
             -- Received a RETRY
-            PERFORM pg_sleep(10);
             PERFORM asyncify(format('CALL execute_transfer(%1$L, %2$L, %3$L, %4$L );',
                                     format,
                                     success_callback,
