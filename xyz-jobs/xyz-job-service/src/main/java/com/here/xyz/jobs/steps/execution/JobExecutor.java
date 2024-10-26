@@ -298,12 +298,22 @@ public abstract class JobExecutor implements Initializable {
             }));
   }
 
+  /**
+   * Tries to find other existing jobs, that are completed and that already performed parts of the
+   * tasks that the provided job would have to perform.
+   * If such jobs are found, the provided job's StepGraph will re-use these parts of the already executed
+   * job and will be shrunk accordingly to lower its execution time and save cost.
+   *
+   * @param job The new job that is about to be started
+   * @return An empty future (NOTE: If the job's graph was adjusted / shrunk, it will be also stored)
+   */
   private static Future<Void> reuseExistingJobIfPossible(Job job) {
     return JobConfigClient.getInstance().loadJobs(job.getResourceKey())
         .compose(candidates -> shrinkGraphByReusingOtherGraph(job, candidates.stream()
             .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
-            .map(candidate -> candidate.getSteps())
-            .max(Comparator.comparingInt(graph -> graph.size())) //Take the candidate with the largest matching subgraph
+            .map(candidate -> candidate.getSteps().findConnectedEquivalentSubGraph(job.getSteps()))
+            .filter(candidateGraph -> !candidateGraph.isEmpty())
+            .max(Comparator.comparingInt(candidateGraph -> candidateGraph.size())) //Take the candidate with the largest matching subgraph
             .orElse(null)));
   }
 
