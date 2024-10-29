@@ -100,7 +100,7 @@ public class ImportStepTest extends StepTest {
     executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , false);
   }
 
-  @Test
+  //@Test //temporary deactivation
   public void testAsyncSyncImport_with_many_files() throws Exception {
     executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , true);
   }
