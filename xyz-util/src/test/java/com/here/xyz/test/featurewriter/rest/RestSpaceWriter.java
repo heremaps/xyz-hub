@@ -19,7 +19,6 @@
 
 package com.here.xyz.test.featurewriter.rest;
 
-import static com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict.REPLACE;
 import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
 import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
 import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
@@ -36,6 +35,10 @@ import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -131,7 +134,7 @@ public class RestSpaceWriter extends SpaceWriter {
     if (onExists != null && onVersionConflict == null)
       queryParams.put("e", onExists.toString());
     if (onVersionConflict != null) {
-      if (onExists != null && onVersionConflict == REPLACE)
+      if (onExists != null && onVersionConflict == OnVersionConflict.REPLACE)
         //onExists has priority
         queryParams.put("e", onExists.toString());
       else

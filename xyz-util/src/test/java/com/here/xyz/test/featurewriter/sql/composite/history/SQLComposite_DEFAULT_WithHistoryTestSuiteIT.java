@@ -31,10 +31,10 @@ import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
 import static com.here.xyz.util.db.pg.SQLError.MERGE_CONFLICT_ERROR;
 import static com.here.xyz.util.db.pg.SQLError.VERSION_CONFLICT_ERROR;
 
-import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnMergeConflict;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.test.featurewriter.sql.noncomposite.history.SQLNonCompositeWithHistoryTestSuiteIT;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
