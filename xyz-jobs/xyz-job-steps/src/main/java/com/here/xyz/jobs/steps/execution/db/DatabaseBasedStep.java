@@ -238,7 +238,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
        .withQueryFragment("rmtUsr", dbSettings.getUser())
        .withQueryFragment("rmtPwd", dbSettings.getPassword());
        
-
      return contentQuery;
   }
 

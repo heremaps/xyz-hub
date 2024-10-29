@@ -32,7 +32,6 @@ import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpace;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByGeometry;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByProperties;
-import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -42,9 +41,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,6 +55,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
@@ -188,10 +186,18 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
+      List<Load> rList  = new ArrayList<>();
+      Space sourceSpace = loadSpace(getSpaceId());
+      Space targetSpace = loadSpace(getTargetSpaceId());
 
-      return List.of(new Load().withResource(db).withEstimatedVirtualUnits(calculateNeededAcus()),
-              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+      rList.add( new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
+                           .withEstimatedVirtualUnits(calculateNeededAcus()) );
+      
+      if( isRemoteCopy(sourceSpace, targetSpace) )
+       rList.add( new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
+                            .withEstimatedVirtualUnits(calculateNeededAcus()) );
+
+      return rList;                            
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -312,6 +318,24 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     } 
   }
 
+  private Database loadDatabaseReaderElseWriter(String name) 
+  {
+    try{ return loadDatabase(name,DatabaseRole.READER); }
+    catch( RuntimeException rt )
+    { if(!(rt.getCause() instanceof NoSuchElementException) )
+       throw rt;
+    }
+
+    return loadDatabase(name,DatabaseRole.WRITER);
+  }
+
+  private boolean isRemoteCopy(Space sourceSpace, Space targetSpace)
+  {
+    String sourceStorage = sourceSpace.getStorage().getId(),
+           targetStorage = targetSpace.getStorage().getId();
+    return !sourceStorage.equals( targetStorage );
+  }
+
   private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace) throws SQLException {
 
     String sourceStorage = sourceSpace.getStorage().getId(),
@@ -327,12 +351,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     
     SQLQuery contentQuery = buildCopyContentQuery(sourceSpace);
 
-/*test dbg
-    contentQuery = buildCopyQueryRemoteSpace( loadDatabase(sourceSpace.getStorage().getId(),DatabaseRole.WRITER), contentQuery );
-*/      
-
-    if( !sourceStorage.equals( targetStorage ) )
-     contentQuery = buildCopyQueryRemoteSpace( loadDatabase(sourceSpace.getStorage().getId(),DatabaseRole.READER), contentQuery );
+    if( isRemoteCopy(sourceSpace,targetSpace ) )
+     contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()), contentQuery );
       
     return new SQLQuery(
             """      
