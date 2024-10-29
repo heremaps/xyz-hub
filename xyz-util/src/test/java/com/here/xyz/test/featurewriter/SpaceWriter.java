@@ -30,6 +30,10 @@ import static org.junit.Assert.assertFalse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.test.SQLITBase;
@@ -70,8 +74,8 @@ public abstract class SpaceWriter extends SQLITBase {
   public abstract void cleanSpaceResources() throws Exception;
 
   public void writeFeature(Feature modifiedFeature, String author, OnExists onExists, OnNotExists onNotExists,
-      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
-      boolean isHistoryActive, SQLError expectedError) throws Exception {
+                           OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
+                           boolean isHistoryActive, SQLError expectedError) throws Exception {
     try {
       writeFeature(modifiedFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
           spaceContext, isHistoryActive);
@@ -170,32 +174,6 @@ public abstract class SpaceWriter extends SQLITBase {
       });
     }
     return null;
-  }
-
-  public enum OnExists {
-    DELETE,
-    REPLACE, //Default
-    RETAIN,
-    ERROR
-  }
-
-  public enum OnNotExists {
-    CREATE, //Default
-    RETAIN,
-    ERROR
-  }
-
-  public enum OnVersionConflict {
-    MERGE, //Default for WRITE
-    REPLACE, //Default for DELETE
-    RETAIN,
-    ERROR
-  }
-
-  public enum OnMergeConflict {
-    REPLACE,
-    RETAIN,
-    ERROR //Default
   }
 
   public enum Operation {

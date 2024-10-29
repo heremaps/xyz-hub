@@ -326,11 +326,11 @@ public class StepTestBase {
           throws IOException {
     //Generate N Files with M features
     for (int i = 0; i < uploadFileCount; i++)
-      uploadInputFile(jobId, ContentCreator.generateImportFileContent(format, featureCountPerFile));
+      uploadInputFile(jobId, ContentCreator.generateImportFileContent(format, featureCountPerFile), S3ContentType.APPLICATION_JSON);
   }
 
-  private void uploadInputFile(String jobId , byte[] bytes) throws IOException {
-    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, bytes, false);
+  public void uploadInputFile(String jobId , byte[] bytes, S3ContentType contentType) throws IOException {
+    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), contentType, bytes, false);
   }
 
   protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {

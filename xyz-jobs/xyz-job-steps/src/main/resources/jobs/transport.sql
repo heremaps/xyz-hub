@@ -68,6 +68,18 @@ $BODY$;
 /**
  *..
  */
+CREATE OR REPLACE FUNCTION get_stepid_from_work_table(trigger_tbl REGCLASS)
+RETURNS TEXT
+    LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN
+    RETURN trim(trailing '_trigger_tbl' from substring(trigger_tbl::TEXT from length('job_data_') + 1));
+END;
+$BODY$;
+
+/**
+ *..
+ */
 CREATE OR REPLACE FUNCTION get_work_table_name(schema TEXT, step_id TEXT)
     RETURNS REGCLASS
     LANGUAGE 'plpgsql'
@@ -315,96 +327,6 @@ BEGIN
 END;
 $BODY$;
 
--- Export related:
-
-CREATE OR REPLACE FUNCTION export_to_s3_perform(content_query TEXT, s3_bucket TEXT, s3_path TEXT, s3_region TEXT)
-    RETURNS void
-    LANGUAGE 'plpgsql'
-AS $BODY$
-DECLARE
-    export_statistics RECORD;
-    config RECORD;
-    ctx JSONB;
-BEGIN
-    SELECT context() into ctx;
-
-    SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
-
-    EXECUTE format(
-            'SELECT * from aws_s3.query_export_to_s3( '
-                ||' ''%1$s'', '
-                ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
-                ||' %5$L )',
-            format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', REPLACE(content_query, $x$'$x$, $x$''$x$)),
-            s3_bucket,
-            s3_path,
-            s3_region,
-            REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
-            )INTO export_statistics;
-
-    -- Mark item as successfully imported. Store import_statistics.
-    EXECUTE format('UPDATE %1$s '
-                       ||'set state = %2$L, '
-                       ||'execution_count = execution_count + 1, '
-                       ||'data = data || %3$L '
-                       ||'WHERE s3_path = %4$L ',
-                   get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
-                   'FINISHED',
-                   json_build_object('export_statistics', export_statistics),
-                   s3_path);
-END;
-$BODY$;
-
--- Import related:
-/**
- * Enriches Feature - uses in plain trigger function
- */
-CREATE OR REPLACE FUNCTION import_from_s3_enrich_feature(IN jsondata JSONB, geo geometry(GeometryZ,4326))
-    RETURNS TABLE(new_jsondata JSONB, new_geo geometry(GeometryZ,4326), new_operation character, new_id TEXT)
-AS $BODY$
-DECLARE
-    fid TEXT := jsondata->>'id';
-    createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
-    --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
-    meta JSONB := format(
-            '{
-                 "createdAt": %s,
-                 "updatedAt": %s
-            }', createdAt, createdAt
-                  );
-BEGIN
-    IF fid IS NULL THEN
-        fid = xyz_random_string(10);
-        jsondata := (jsondata || format('{"id": "%s"}', fid)::JSONB);
-    END IF;
-
-    -- Remove bbox on root
-    jsondata := jsondata - 'bbox';
-
-    -- Inject type
-    jsondata := jsonb_set(jsondata, '{type}', '"Feature"');
-
-    -- Inject meta
-    jsondata := jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', meta);
-
-    IF jsondata->'geometry' IS NOT NULL THEN
-        -- GeoJson Feature Import
-        new_geo := ST_Force3D(ST_GeomFromGeoJSON(jsondata->'geometry'));
-        jsondata := jsondata - 'geometry';
-    ELSE
-        new_geo := ST_Force3D(geo);
-    END IF;
-
-    new_geo := xyz_reduce_precision(new_geo, false);
-    new_jsondata := jsondata;
-    new_operation := 'I';
-    new_id := fid;
-
-    RETURN NEXT;
-END
-$BODY$
-    LANGUAGE plpgsql IMMUTABLE;
-
 /**
  * Enriches Feature - uses in plain trigger function
  */
@@ -498,56 +420,49 @@ DECLARE
     target_table TEXT := TG_ARGV[12];
     featureCount INT := 0;
     updated_rows INT;
+    updateStrategy JSONB;
 BEGIN
+    updateStrategy = jsonb_build_object('onExists', CASE WHEN onExists = 'null' THEN null ELSE onExists END,
+                               'onNotExists', CASE WHEN onNotExists = 'null' THEN null ELSE onNotExists END,
+                               'onVersionConflict', CASE WHEN onVersionConflict = 'null' THEN null ELSE onVersionConflict END,
+                               'onMergeConflict', CASE WHEN onMergeConflict = 'null' THEN null ELSE onMergeConflict END
+            );
     --TODO: check how to use asyncify instead
     PERFORM context(
-            jsonb_build_object('schema', TG_TABLE_SCHEMA,
+            jsonb_build_object(
+                               'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
+                               'schema', TG_TABLE_SCHEMA,
                                'table', target_table,
                                'historyEnabled', historyEnabled,
                                'context', CASE WHEN context = 'null' THEN null ELSE context END,
                                'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
             )
-            );
+    );
 
     IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
         --TODO: Extend feature_writer with possibility to provide geometry
-        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo))::JSONB, false));
-        SELECT write_feature(NEW.jsondata::TEXT,
-                             author,
-                             onExists,
-                             onNotExists,
-                             onVersionConflict,
-                             onMergeConflict,
-                             isPartial,
-                             currentVersion,
-                             false
-               )->'count' INTO featureCount;
+        NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo)), false)::JSONB);
+        SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
+                       "featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]},
+								"partialUpdates":"$fd$ || isPartial || $fd$"}]$fd$,
+                                  author
+                   )::JSONB->'count' INTO featureCount;
     END IF;
 
     IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
         IF entityPerLine = 'Feature' THEN
-            SELECT write_feature( NEW.jsondata,
-                                  author,
-                                  onExists,
-                                  onNotExists,
-                                  onVersionConflict,
-                                  onMergeConflict,
-                                  isPartial,
-                                  currentVersion,
-                                  false
-                   )->'count' INTO featureCount;
+            SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
+								"featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]},
+								"partialUpdates":"$fd$ || isPartial || $fd$"}]$fd$,
+                                  author                                                                    
+                   )::JSONB->'count' INTO featureCount;
         ELSE
             --TODO: Extend feature_writer with possibility to provide featureCollection
-            SELECT write_features((NEW.jsondata::JSONB->'features')::TEXT,
-                                  author,
-                                  onExists,
-                                  onNotExists,
-                                  onVersionConflict,
-                                  onMergeConflict,
-                                  isPartial,
-                                  currentVersion,
-                                  false
-                   )->'count' INTO featureCount;
+            SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
+                       "featureData":{"type":"FeatureCollection","features": $fd$ || (NEW.jsondata::JSONB->'features')::TEXT || $fd$},
+								"partialUpdates":"$fd$ || isPartial || $fd$"}]$fd$,
+                                 author
+                   )::JSONB->'count' INTO featureCount;
         END IF;
     END IF;
 
@@ -620,3 +535,93 @@ EXCEPTION
                        s3_path);
 END;
 $BODY$;
+
+-- Export related:
+
+CREATE OR REPLACE FUNCTION export_to_s3_perform(content_query TEXT, s3_bucket TEXT, s3_path TEXT, s3_region TEXT)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+AS $BODY$
+DECLARE
+    export_statistics RECORD;
+    config RECORD;
+    ctx JSONB;
+BEGIN
+    SELECT context() into ctx;
+
+    SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
+
+    EXECUTE format(
+            'SELECT * from aws_s3.query_export_to_s3( '
+                ||' ''%1$s'', '
+                ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
+                ||' %5$L )',
+            format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', REPLACE(content_query, $x$'$x$, $x$''$x$)),
+            s3_bucket,
+            s3_path,
+            s3_region,
+            REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
+            )INTO export_statistics;
+
+    -- Mark item as successfully imported. Store import_statistics.
+    EXECUTE format('UPDATE %1$s '
+                       ||'set state = %2$L, '
+                       ||'execution_count = execution_count + 1, '
+                       ||'data = data || %3$L '
+                       ||'WHERE s3_path = %4$L ',
+                   get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
+                   'FINISHED',
+                   json_build_object('export_statistics', export_statistics),
+                   s3_path);
+END;
+$BODY$;
+
+-- Import related:
+/**
+ * Enriches Feature - uses in plain trigger function
+ */
+CREATE OR REPLACE FUNCTION import_from_s3_enrich_feature(IN jsondata JSONB, geo geometry(GeometryZ,4326))
+    RETURNS TABLE(new_jsondata JSONB, new_geo geometry(GeometryZ,4326), new_operation character, new_id TEXT)
+AS $BODY$
+DECLARE
+    fid TEXT := jsondata->>'id';
+    createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+    --TODO: Align with featureWriter. Currently we are also writing version and author there into the metadata.
+    meta JSONB := format(
+            '{
+                 "createdAt": %s,
+                 "updatedAt": %s
+            }', createdAt, createdAt
+                  );
+BEGIN
+    IF fid IS NULL THEN
+        fid = xyz_random_string(10);
+        jsondata := (jsondata || format('{"id": "%s"}', fid)::JSONB);
+    END IF;
+
+    -- Remove bbox on root
+    jsondata := jsondata - 'bbox';
+
+    -- Inject type
+    jsondata := jsonb_set(jsondata, '{type}', '"Feature"');
+
+    -- Inject meta
+    jsondata := jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', meta);
+
+    IF jsondata->'geometry' IS NOT NULL THEN
+        -- GeoJson Feature Import
+        new_geo := ST_Force3D(ST_GeomFromGeoJSON(jsondata->'geometry'));
+        jsondata := jsondata - 'geometry';
+    ELSE
+        new_geo := ST_Force3D(geo);
+    END IF;
+
+    new_geo := xyz_reduce_precision(new_geo, false);
+    new_jsondata := jsondata;
+    new_operation := 'I';
+    new_id := fid;
+
+    RETURN NEXT;
+END
+$BODY$
+    LANGUAGE plpgsql IMMUTABLE;

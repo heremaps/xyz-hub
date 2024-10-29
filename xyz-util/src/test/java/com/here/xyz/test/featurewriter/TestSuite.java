@@ -24,7 +24,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.test.featurewriter.SpaceWriter.DEFAULT_AUTHOR;
 import static com.here.xyz.test.featurewriter.SpaceWriter.OTHER_AUTHOR;
-import static com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict.MERGE;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.D;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.H;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.I;
@@ -48,10 +47,10 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnMergeConflict;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.Operation;
 import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
 import com.here.xyz.util.db.pg.SQLError;
@@ -494,7 +493,7 @@ public abstract class TestSuite {
 
       if (onVersionConflict != null && !baseVersionMatch) {
         desiredActions.add(toHumanReadable(onVersionConflict) + "OnVersionConflict");
-        if (conflictingAttributes && onVersionConflict == MERGE && conflictingAttributes && onMergeConflict != null)
+        if (conflictingAttributes && onVersionConflict == OnVersionConflict.MERGE && conflictingAttributes && onMergeConflict != null)
           desiredActions.add(toHumanReadable(onMergeConflict) + "OnMergeConflict");
       }
 
@@ -514,7 +513,7 @@ public abstract class TestSuite {
 
       if (!baseVersionMatch) {
         String conflict = "conflictingChange";
-        if (onVersionConflict == MERGE && conflictingAttributes)
+        if (onVersionConflict == OnVersionConflict.MERGE && conflictingAttributes)
           conflict += "WithAttributesConflict";
         featureConditions.add(conflict);
       }
@@ -545,6 +544,7 @@ public abstract class TestSuite {
         case REPLACE -> "Replace";
         case RETAIN -> "DoNothing";
         case ERROR -> "ThrowError";
+        case DELETE -> "Delete";
       };
     }
 
