@@ -61,6 +61,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
   private static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
   private static final long MIN_SERVICE_CACHE_INTERVAL_MILLIS = TimeUnit.DAYS.toMillis(1);
+  private Connector resolvedStorageConnector;
 
   /**
    * Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
@@ -93,6 +94,18 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   public static Future<Space> resolveSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId);
+  }
+
+  @JsonIgnore
+  public Connector getResolvedStorageConnector() {
+    if (resolvedStorageConnector == null)
+      throw new NullPointerException("Resolved storage connector is null");
+    return resolvedStorageConnector;
+  }
+
+  public Future<Connector> resolveStorage(Marker marker) {
+    return resolveConnector(marker, getStorage().getId())
+        .compose(connector -> Future.succeededFuture(resolvedStorageConnector = connector));
   }
 
   public static Future<Connector> resolveConnector(Marker marker, String connectorId) {

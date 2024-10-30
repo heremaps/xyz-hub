@@ -298,7 +298,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     }
 
     return new SQLQuery("(SELECT "
-        + "CASE WHEN prj_build ?? 'properties' THEN prj_build "
+        + "CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build "
         + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
         + "END "
         + "FROM prj_build(#{selection}, " + jsonDataWithVersion + ")) AS jsondata")

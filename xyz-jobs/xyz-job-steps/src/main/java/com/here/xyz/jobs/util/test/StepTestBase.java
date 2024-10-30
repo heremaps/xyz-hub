@@ -25,7 +25,6 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepReques
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
-import static java.lang.Thread.sleep;
 import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -285,10 +284,23 @@ public class StepTestBase {
             .build());
   }
 
-  protected void sendLambdaStepRequestBlock(LambdaBasedStep step) throws IOException, InterruptedException {
-    sendLambdaStepRequest(step, START_EXECUTION, true);
-    sleep(500);
-    sendLambdaStepRequest(step, SUCCESS_CALLBACK,true);
+  protected void sendLambdaStepRequestBlock(LambdaBasedStep step, boolean simulate) throws IOException, InterruptedException {
+    sendLambdaStepRequest(step, START_EXECUTION, simulate);
+    DataSourceProvider dsp = getDataSourceProvider();
+
+    while (true) {
+      Thread.sleep(500);
+      try {
+        boolean running = SQLQuery.isRunning(dsp, false, "jobId", step.getJobId());
+        if(!running)
+          break;
+      }catch (SQLException e) {
+        break;
+      }
+    }
+
+    if(simulate)
+      sendLambdaStepRequest(step, SUCCESS_CALLBACK, true);
   }
 
   protected void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType, boolean simulate) throws IOException {
@@ -314,11 +326,11 @@ public class StepTestBase {
           throws IOException {
     //Generate N Files with M features
     for (int i = 0; i < uploadFileCount; i++)
-      uploadInputFile(jobId, ContentCreator.generateImportFileContent(format, featureCountPerFile));
+      uploadInputFile(jobId, ContentCreator.generateImportFileContent(format, featureCountPerFile), S3ContentType.APPLICATION_JSON);
   }
 
-  private void uploadInputFile(String jobId , byte[] bytes) throws IOException {
-    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), S3ContentType.APPLICATION_JSON, bytes, false);
+  public void uploadInputFile(String jobId , byte[] bytes, S3ContentType contentType) throws IOException {
+    uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), contentType, bytes, false);
   }
 
   protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {

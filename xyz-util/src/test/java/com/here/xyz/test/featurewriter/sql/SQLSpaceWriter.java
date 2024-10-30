@@ -25,15 +25,24 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQ
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.test.SQLITBase;
 import com.here.xyz.test.featurewriter.SpaceWriter;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.SQLError;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class SQLSpaceWriter extends SpaceWriter {
 
@@ -73,10 +82,10 @@ public class SQLSpaceWriter extends SpaceWriter {
   }
 
   @Override
-  protected void writeFeatures(List<Feature> featureList, String author, SpaceWriter.OnExists onExists,
-      SpaceWriter.OnNotExists onNotExists, SpaceWriter.OnVersionConflict onVersionConflict,
-      SpaceWriter.OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled,
-      SpaceWriter.SQLError expectedErrorCode) throws Exception {
+  protected void writeFeatures(List<Feature> featureList, String author, OnExists onExists,
+      OnNotExists onNotExists, OnVersionConflict onVersionConflict,
+      OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext, boolean historyEnabled,
+      SQLError expectedErrorCode) throws Exception {
     runWriteFeatureQuery(featureList, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial, spaceContext,
         historyEnabled);
   }
@@ -104,15 +113,16 @@ public class SQLSpaceWriter extends SpaceWriter {
     if (composite)
       queryContext.put("extendedTable", superSpaceId());
 
-    SQLQuery writeFeaturesQuery = new SQLQuery("SELECT write_features(#{featureList}::TEXT, #{author}::TEXT, #{onExists},"
-        + "#{onNotExists}, #{onVersionConflict}, #{onMergeConflict}, #{isPartial}::BOOLEAN);").withNamedParameter("featureList",
-            XyzSerializable.serialize(featureList)).withNamedParameter("author", author)
-        .withNamedParameter("onExists", onExists != null ? onExists.toString() : null)
-        .withNamedParameter("onNotExists", onNotExists != null ? onNotExists.toString() : null)
-        .withNamedParameter("onVersionConflict", onVersionConflict != null ? onVersionConflict.toString() : null)
-        .withNamedParameter("onMergeConflict", onMergeConflict != null ? onMergeConflict.toString() : null)
-        .withNamedParameter("isPartial", isPartial)
+    WriteFeaturesEvent.Modification modification = new
+            WriteFeaturesEvent.Modification()
+            .withFeatureData(new FeatureCollection().withFeatures(featureList))
+            .withUpdateStrategy(new UpdateStrategy(onExists, onNotExists, onVersionConflict, onMergeConflict))
+            .withPartialUpdates(isPartial);
+
+    return new SQLQuery("SELECT write_features(#{featureModificationList}, #{author}, #{responseDataExpected});")
+        .withNamedParameter("featureModificationList", XyzSerializable.serialize(Set.of(modification)))
+        .withNamedParameter("author", author)
+        .withNamedParameter("responseDataExpected", true)
         .withContext(queryContext);
-    return writeFeaturesQuery;
   }
 }

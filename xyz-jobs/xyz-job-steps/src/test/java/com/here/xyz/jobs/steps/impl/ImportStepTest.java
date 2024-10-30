@@ -19,21 +19,21 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+
+import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.responses.StatisticsResponse;
+import java.io.IOException;
+
+import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
-
 public class ImportStepTest extends StepTest {
-  private static final int FILE_COUNT = 2;
-  private static final int FEATURE_COUNT = 10;
-
   /**
     Test Format`s
       * CSV_JSON_WKB
@@ -94,54 +94,120 @@ public class ImportStepTest extends StepTest {
     Test Resume
    */
 
+  /** Import in Empty Layer + Entity: Feature */
   @Test
-  public void testImportFilesToSpaceStep() throws Exception {
-    StatisticsResponse statsBefore = getStatistics(SPACE_ID);
-    Assertions.assertEquals(0L, (Object) statsBefore.getCount().getValue());
+  public void testSyncImport_with_many_files() throws Exception {
+    executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , false);
+  }
 
-    uploadFiles(JOB_ID, FILE_COUNT, FEATURE_COUNT, Format.GEOJSON);
-    LambdaBasedStep step = new ImportFilesToSpace()
-            .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
-            .withSpaceId(SPACE_ID);
-
-    sendLambdaStepRequestBlock(step);
-
-    StatisticsResponse statsAfter = getStatistics(SPACE_ID);
-    Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());
+  //@Test //temporary deactivation
+  public void testAsyncSyncImport_with_many_files() throws Exception {
+    executeImportStepWithManyFiles(Format.GEOJSON, 10, 2 , true);
   }
 
   @Test
-  public void testImportFilesToSpaceStepWithGEOJson() throws Exception {
+  public void testImport_inEmpty_GEOJSON_Entity_Feature() throws Exception {
     //Gets executed SYNC
-    executeImportStep(Format.GEOJSON);
+    executeImportStep(Format.GEOJSON, 0, EntityPerLine.Feature, false);
   }
 
   @Test
-  public void testImportFilesToSpaceStepWithCSV_Json_WKB() throws Exception {
-    //Gets executed ASYNC
-    executeImportStep(Format.CSV_JSON_WKB);
+  public void testImport_inEmpty_CSV_JSON_WKB_Entity_Feature() throws Exception {
+    //CSV_JSON_WKB gets always executed ASYNC
+    executeImportStep(Format.CSV_JSON_WKB, 0, EntityPerLine.Feature, true);
   }
 
   @Test
-  public void testImportFilesToSpaceStepWithCSV_GeoJson() throws Exception {
-    //Gets executed ASYNC
-    executeImportStep(Format.CSV_GEOJSON);
+  public void testImport_inEmpty_CSV_GEOJSON_Entity_Feature() throws Exception {
+    //CSV_GEOJSON gets always executed ASYNC
+    executeImportStep(Format.CSV_GEOJSON, 0, EntityPerLine.Feature, true);
   }
 
+  /** Import in NON-Empty Layer + Entity: Feature */
+  @Test
+  public void testImport_inNonEmpty_GEOJSON_Entity_Feature() throws Exception {
+    int existingFeatureCount = 10;
+    //CSV_JSON_WKB gets always executed ASYNC
+    putRandomFeatureCollectionToSpace(SPACE_ID, existingFeatureCount);
+    executeImportStep(Format.GEOJSON, existingFeatureCount, EntityPerLine.Feature, true);
+  }
 
-  private void executeImportStep(Format format) throws IOException, InterruptedException {
+  @Test
+  public void testImport_inNonEmpty_CSV_JSON_WKB_Entity_Feature() throws Exception {
+    int existingFeatureCount = 10;
+    //Gets executed ASYNC
+    putRandomFeatureCollectionToSpace(SPACE_ID, existingFeatureCount);
+    executeImportStep(Format.CSV_JSON_WKB, existingFeatureCount, EntityPerLine.Feature, true);
+  }
+
+  /** Import in NON-Empty Layer + Entity: FeatureCollection */
+  @Test
+  public void testImport_inNonEmpty_GEOJSON_Entity_FeatureCollection() throws Exception {
+    int existingFeatureCount = 10;
+    putRandomFeatureCollectionToSpace(SPACE_ID, existingFeatureCount);
+    executeImportStep(Format.GEOJSON, existingFeatureCount, EntityPerLine.FeatureCollection, true);
+  }
+
+  @Test
+  public void testImport_inNonEmpty_CSV_GEOJSON_Entity_FeatureCollection() throws Exception {
+    Assertions.assertThrows(BaseHttpServerVerticle.ValidationException.class, () -> new ImportFilesToSpace()
+            .withFormat(Format.CSV_JSON_WKB)
+            .withEntityPerLine(EntityPerLine.FeatureCollection)
+            .withSpaceId(SPACE_ID).validate());
+  }
+
+  private void executeImportStep(Format format, int featureCountSource,
+                                 ImportFilesToSpace.EntityPerLine entityPerLine, boolean runAsync) throws IOException, InterruptedException {
     StatisticsResponse statsBefore = getStatistics(SPACE_ID);
-    Assertions.assertEquals(0L, (Object) statsBefore.getCount().getValue());
+    if(featureCountSource == 0)
+      Assertions.assertEquals(0L, statsBefore.getCount().getValue());
+    else
+      Assertions.assertEquals(Long.valueOf(featureCountSource), statsBefore.getCount().getValue());
 
-    uploadFiles(JOB_ID, FILE_COUNT, FEATURE_COUNT, format);
+    String fileExtension = switch(format) {
+      case GEOJSON -> ".geojson";
+      case CSV_JSON_WKB -> ".csvwkb";
+      case CSV_GEOJSON ->  ".csvgeojson";
+    };
+
+    if (entityPerLine == EntityPerLine.FeatureCollection)
+      fileExtension += "fc";
+
+    S3ContentType contentType = format == Format.GEOJSON ? S3ContentType.APPLICATION_JSON : S3ContentType.TEXT_CSV;
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file1" + fileExtension)), contentType);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2" + fileExtension)), contentType);
+
     LambdaBasedStep step = new ImportFilesToSpace()
             .withFormat(format)
+            .withEntityPerLine(entityPerLine)
             .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
             .withSpaceId(SPACE_ID);
 
-    sendLambdaStepRequestBlock(step);
+    if(runAsync)
+      step.setUncompressedUploadBytesEstimation(1024 * 1024 * 1024);
+
+    sendLambdaStepRequestBlock(step, true);
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
-    Assertions.assertEquals(Long.valueOf(FILE_COUNT * FEATURE_COUNT), statsAfter.getCount().getValue());
+
+    //We have 2 files with 20 features each.
+    Assertions.assertEquals(Long.valueOf(40 + featureCountSource), statsAfter.getCount().getValue());
+  }
+
+  private void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
+
+    uploadFiles(JOB_ID, fileCount, featureCountPerFile, format);
+    LambdaBasedStep step = new ImportFilesToSpace()
+            .withFormat(format)
+            .withSpaceId(SPACE_ID);
+
+    if(runAsync)
+      //Triggers async execution with max threads
+      step.setUncompressedUploadBytesEstimation(1024 * 1024 * 1024);
+
+    sendLambdaStepRequestBlock(step ,true);
+
+    StatisticsResponse statsAfter = getStatistics(SPACE_ID);
+    Assertions.assertEquals(Long.valueOf(fileCount * featureCountPerFile), statsAfter.getCount().getValue());
   }
 }

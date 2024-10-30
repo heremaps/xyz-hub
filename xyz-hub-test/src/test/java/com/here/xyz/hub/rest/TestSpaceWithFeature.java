@@ -19,8 +19,10 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -250,7 +252,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     for (int i = 0; i < 50; i++) {
 
         FeatureCollection f = new FeatureCollection();
-        for (int j = 0; j < 200; j++) 
+        for (int j = 0; j < 200; j++)
           try {
             f.getFeatures().add(new Feature().withProperties(new Properties().with("ticketPrice", 200 * i + j))
                 .withGeometry(new Point().withCoordinates(new PointCoordinates(i, j % 90))));
@@ -454,13 +456,13 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     postFeature(spaceId, feature, authProfile, false);
   }
 
-  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean withConflictDetection) {
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean versionConflictDetection) {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(authProfile))
         .body(feature.serialize())
         .when()
-        .post("/spaces/" + spaceId + "/features?conflictDetection=" + withConflictDetection)
+        .post("/spaces/" + spaceId + "/features?conflictDetection=" + versionConflictDetection)
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo(feature.getId()));
@@ -514,4 +516,37 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
 
+  private String constructFeatureModificationList(Feature feature, String ifNotExists, String ifExists, String conflictResolution) {
+    return "{"
+        + "    \"type\": \"FeatureModificationList\","
+        + "    \"modifications\": ["
+        + "        {"
+        + "            \"type\": \"FeatureModification\","
+        + "            \"onFeatureNotExists\": \"" + ifNotExists + "\","
+        + "            \"onFeatureExists\": \"" + ifExists + "\","
+        + (conflictResolution != null ? "            \"onMergeConflict\": \"" + conflictResolution + "\"," : "")
+        + "            \"featureData\": " + new FeatureCollection().withFeatures(List.of(feature)).serialize()
+        + "        }"
+        + "    ]"
+        + "}";
+  }
+
+  protected ValidatableResponse writeFeature(Feature feature, String ifNotExists, String ifExists, String conflictResolution) {
+    return writeFeature(feature, ifNotExists, ifExists, conflictResolution, false);
+  }
+
+  protected ValidatableResponse writeFeature(Feature feature, String ifNotExists, String ifExists, boolean versionConflictDetection) {
+    return writeFeature(feature, ifNotExists, ifExists, null, versionConflictDetection);
+  }
+
+  protected ValidatableResponse writeFeature(Feature feature, String ifNotExists, String ifExists, String conflictResolution,
+      boolean versionConflictDetection) {
+    return given()
+        .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
+        .headers(getAuthHeaders(ACCESS_ALL))
+        .body(constructFeatureModificationList(feature, ifNotExists, ifExists, conflictResolution))
+        .when()
+        .post(getSpacesPath() + "/" + getSpaceId() + "/features?conflictDetection=" + versionConflictDetection)
+        .then();
+  }
 }

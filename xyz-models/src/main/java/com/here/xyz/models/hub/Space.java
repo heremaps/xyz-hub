@@ -20,6 +20,7 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -788,8 +789,9 @@ public class Space {
   }
 
   public static class Extension implements XyzSerializable {
-
     private String spaceId;
+    @JsonIgnore
+    public Space resolvedSpace;
 
     public String getSpaceId() {
       return spaceId;

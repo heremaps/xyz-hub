@@ -24,7 +24,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EX
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
@@ -428,6 +427,30 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
             .withVariable("schema", getSchema(db()))
             .withVariable("tmpTable", getTemporaryJobTableName(getId()))
             .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getId()));
+  }
+
+  private SQLQuery buildProgressQuery(String schema, ExportSpaceToFiles step) {
+    return new SQLQuery("""
+          SELECT
+          	    COALESCE((overall_cnt-submitted_cnt)::FLOAT/overall_cnt, 0) as progress,
+          	    COALESCE(processed_bytes,0) as processed_bytes,
+            	COALESCE(finished_cnt,0) as finished_cnt,
+            	COALESCE(failed_cnt,0) as failed_cnt
+            FROM(
+            	SELECT
+                  (SELECT sum((data->'export_statistics'->'bytes_uploaded')::bigint ) FROM ${schema}.${table}) as overall_bytes,
+                  sum((data->'export_statistics'->'bytes_uploaded')::bigint ) as processed_bytes,
+                  sum((1)::int) as overall_cnt,
+                  sum((state = 'SUBMITTED')::int) as submitted_cnt,
+                  sum((state = 'FINISHED')::int) as finished_cnt,
+                  sum((state = 'FAILED')::int) as failed_cnt
+                FROM ${schema}.${table}
+              	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
+            	   AND state IN ('FINISHED','FAILED')
+            )A
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {

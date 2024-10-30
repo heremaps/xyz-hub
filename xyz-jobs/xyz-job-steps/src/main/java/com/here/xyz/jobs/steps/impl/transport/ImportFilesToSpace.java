@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
@@ -33,7 +33,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VA
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildProgressQuery;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
@@ -46,7 +45,9 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
@@ -514,7 +515,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
         CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
-          FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}(
+          FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}(
              ${{author}},
              ${{spaceVersion}},
              false, --isPartial
@@ -588,36 +589,54 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return createQueryContext(getId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
   }
 
-  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
-    SQLQuery writeFeaturesQuery = new SQLQuery("""
-        SELECT write_features(
-          #{featureList},
-          #{author},
-          #{onExists},
-          #{onNotExists},
-          #{onVersionConflict},
-          #{onMergeConflict},
-          #{isPartial},
-          #{version},
-          #{returnResult}
-        );""")
-        .withNamedParameter("featureList", featureList)
-        .withNamedParameter("author", space().getOwner())
-        .withNamedParameter("onExists", updateStrategy.onExists() == null ? null : updateStrategy.onExists().toString())
-        .withNamedParameter("onNotExists", updateStrategy.onNotExists() == null ? null : updateStrategy.onNotExists().toString())
-        .withNamedParameter("onVersionConflict",
-            updateStrategy.onVersionConflict() == null ? null : updateStrategy.onVersionConflict().toString())
-        .withNamedParameter("onMergeConflict",
-            updateStrategy.onMergeConflict() == null ? null : updateStrategy.onMergeConflict().toString())
-        .withNamedParameter("isPartial", false)
-        .withNamedParameter("version", targetVersion)
-        .withNamedParameter("returnResult", false)
-        .withContext(getQueryContext());
+  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException, JsonProcessingException {
+    String writeFeatureModifications = """
+        [{
+         "updateStrategy": #updateStrategy#,
+        "featureData": {"type": "FeatureCollection", "features": #input_features#},
+        "partialUpdates": "#is_partial#"
+        }]
+     """.replaceAll("#updateStrategy#" , XyzSerializable.serialize(
+             new UpdateStrategy(updateStrategy.onExists(), updateStrategy.onNotExists(), updateStrategy.onVersionConflict(),
+                     updateStrategy.onMergeConflict())))
+        .replaceAll("#input_features#" , featureList)
+        .replaceAll("#is_partial#" , "false");
 
-    return writeFeaturesQuery;
+      return new SQLQuery("""
+        SELECT write_features(
+          #{featureModifications},
+          #{author},
+          #{returnResult},
+          #{version}
+        );""")
+            .withNamedParameter("featureModifications", writeFeatureModifications)
+            .withNamedParameter("author", space().getOwner())
+            .withNamedParameter("returnResult", false)
+            .withNamedParameter("version", targetVersion)
+            .withContext(getQueryContext());
   }
 
-
+  private SQLQuery buildProgressQuery(String schema, ImportFilesToSpace step) {
+    return new SQLQuery("""
+          SELECT
+          	    COALESCE(processed_bytes/overall_bytes, 0) as progress,
+          	    COALESCE(processed_bytes,0) as processed_bytes,
+            	COALESCE(finished_cnt,0) as finished_cnt,
+            	COALESCE(failed_cnt,0) as failed_cnt
+            FROM(
+            	SELECT
+                  (SELECT sum((data->'filesize')::bigint ) FROM ${schema}.${table}) as overall_bytes,
+                  sum((data->'filesize')::bigint ) as processed_bytes,
+                  sum((state = 'FINISHED')::int) as finished_cnt,
+                  sum((state = 'FAILED')::int) as failed_cnt
+                FROM ${schema}.${table}
+              	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
+            	   AND state IN ('FINISHED','FAILED')
+            )A
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
+  }
 
   private double calculateNeededAcus(int threadCount) {
     double neededACUs;

@@ -29,6 +29,8 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -271,21 +273,22 @@ public class Script {
   private static List<String> scanResourceFolder(ScriptResourcePath scriptResourcePath, String fileSuffix) throws IOException {
     String resourceFolder = scriptResourcePath.path();
     //TODO: Remove this workaround once the actual implementation of this method supports scanning folders inside a JAR
-    return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.initScript());
+    if ("/sql".equals(resourceFolder) || "/jobs".equals(resourceFolder))
+      return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.initScript());
 
-    //final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
-    //if (folderResource == null)
-    //  throw new FileNotFoundException("Resource folder " + resourceFolder + " was not found and can not be scanned for scripts.");
-    //BufferedReader reader = new BufferedReader(new InputStreamReader(folderResource));
-    //
-    //List<String> files = new ArrayList<>();
-    //String file;
-    //while ((file = reader.readLine()) != null)
-    //  files.add(file);
-    //return ensureInitScriptIsFirst(files.stream()
-    //    .filter(fileName -> fileName.endsWith(fileSuffix))
-    //    .map(fileName -> resourceFolder + File.separator + fileName)
-    //    .toList(), scriptResourcePath.initScript());
+    final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
+    if (folderResource == null)
+      throw new FileNotFoundException("Resource folder " + resourceFolder + " was not found and can not be scanned for scripts.");
+    BufferedReader reader = new BufferedReader(new InputStreamReader(folderResource));
+
+    List<String> files = new ArrayList<>();
+    String file;
+    while ((file = reader.readLine()) != null)
+      files.add(file);
+    return ensureInitScriptIsFirst(files.stream()
+        .filter(fileName -> fileName.endsWith(fileSuffix))
+        .map(fileName -> resourceFolder + File.separator + fileName)
+        .toList(), scriptResourcePath.initScript());
   }
 
   private static List<String> ensureInitScriptIsFirst(List<String> scriptPaths, String initScript) {

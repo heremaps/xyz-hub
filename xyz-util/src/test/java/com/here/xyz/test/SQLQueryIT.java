@@ -19,6 +19,8 @@
 
 package com.here.xyz.test;
 
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -27,6 +29,7 @@ import static org.junit.Assert.fail;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 
@@ -251,18 +254,34 @@ public class SQLQueryIT extends SQLITBase {
   }
 
   @Test
+  public void runQueryWithContext() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      String key = "someKey";
+      String value = "someValue";
+
+      SQLQuery query = new SQLQuery("SELECT context()->>#{key};")
+          .withContext(Map.of(key, value))
+          .withNamedParameter("key", key);
+
+      assertEquals(value, query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
+    }
+  }
+
+  @Test
   public void runConcurrentQueriesWithLock() throws Exception {
     SQLQuery concurrentQuery = new SQLQuery("""
         DO $$
         BEGIN
-          PERFORM pg_advisory_lock(12345);
+          ${{advisoryLock}}
           PERFORM pg_sleep(1);
           IF (SELECT count(1) FROM "SQLQueryIT") = 0 THEN
             INSERT INTO "SQLQueryIT" VALUES ('test');
           END IF;
-          PERFORM pg_advisory_unlock(12345);
+          ${{advisoryUnlock}}
         END$$;
-        """);
+        """)
+        .withQueryFragment("advisoryLock", buildAdvisoryLockQuery("someKey"))
+        .withQueryFragment("advisoryUnlock", buildAdvisoryUnlockQuery("someKey"));
 
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {

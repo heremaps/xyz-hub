@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.events.Event;
+import com.here.xyz.models.hub.FeatureModificationList;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.Hasher;
 import java.io.BufferedInputStream;
@@ -43,7 +44,8 @@ import java.util.zip.ZipException;
     @JsonSubTypes.Type(value = Event.class),
     @JsonSubTypes.Type(value = XyzResponse.class),
     @JsonSubTypes.Type(value = ChangeNotification.class),
-    @JsonSubTypes.Type(value = FeatureChange.class)
+    @JsonSubTypes.Type(value = FeatureChange.class),
+    @JsonSubTypes.Type(value = FeatureModificationList.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Payload implements Typed {

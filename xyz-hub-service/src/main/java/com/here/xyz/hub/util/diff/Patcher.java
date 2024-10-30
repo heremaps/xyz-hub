@@ -24,6 +24,7 @@ import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Difference.Insert;
 import com.here.xyz.hub.util.diff.Difference.Remove;
 import com.here.xyz.hub.util.diff.Difference.Update;
+import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -601,23 +602,6 @@ public class Patcher {
 
     MergeConflictException(String msg) {
       super(msg);
-    }
-  }
-
-  public enum ConflictResolution{
-    ERROR,
-    RETAIN,
-    REPLACE;
-
-    public static ConflictResolution of(String value) {
-      if (value == null) {
-        return null;
-      }
-      try {
-        return valueOf(value.toUpperCase());
-      } catch (IllegalArgumentException e) {
-        return null;
-      }
     }
   }
 }

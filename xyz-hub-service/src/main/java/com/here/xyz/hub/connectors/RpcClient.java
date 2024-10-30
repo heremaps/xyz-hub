@@ -28,6 +28,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
 
@@ -394,10 +395,12 @@ public class RpcClient {
           errorResponse.getErrorMessage());
 
       switch (errorResponse.getError()) {
+        case NOT_FOUND:
+          throw new HttpException(NOT_FOUND, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case NOT_IMPLEMENTED:
           throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.", errorResponse.getErrorDetails());
         case CONFLICT:
-          throw new HttpException(CONFLICT, "A conflict occurred when writing a feature: " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
+          throw new HttpException(CONFLICT, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case FORBIDDEN:
           throw new HttpException(FORBIDDEN, "The user is not authorized.", errorResponse.getErrorDetails());
         case TOO_MANY_REQUESTS:
@@ -629,12 +632,10 @@ public class RpcClient {
   public static class RpcContext {
     private int requestSize = -1;
     private int responseSize = -1;
+    private String requesterId;
     private volatile boolean cancelled = false;
 
     private final Connector connector;
-
-    private String requesterId;
-
     private FunctionCall functionCall;
 
     public RpcContext(Connector connector) {
@@ -672,16 +673,16 @@ public class RpcClient {
       return this;
     }
 
+    public Connector getConnector() {
+      return connector;
+    }
+
     public String getRequesterId() {
       return requesterId;
     }
 
     public void setRequesterId(String requesterId) {
       this.requesterId = requesterId;
-    }
-
-    public Connector getConnector() {
-      return connector;
     }
   }
 

@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,15 +50,12 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
     createSpaceWithVersionsToKeep(DELTA, 1000);
     makeComposite(DELTA, BASE);
 
-    postFeature(BASE, newFeature(), AuthProfile.ACCESS_OWNER_1_ADMIN);
+    postFeature(BASE, newFeature(), ACCESS_ALL);
 
-    postFeature(DELTA, newFeature(), AuthProfile.ACCESS_OWNER_1_ADMIN, true);
+    postFeature(DELTA, newFeature(), ACCESS_ALL);
     postFeature(DELTA, newFeature()
             .withGeometry(new Point().withCoordinates(new PointCoordinates(50,50)))
-            .withProperties(new Properties().with("key2", "value2")),
-        AuthProfile.ACCESS_OWNER_1_ADMIN,
-        true
-    );
+            .withProperties(new Properties().with("key2", "value2")), ACCESS_ALL);
   }
 
   @After
@@ -105,8 +103,7 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
     getFeature(DELTA, "f1", 4, "DEFAULT", 200);
     getFeature(DELTA, "f1", 4, 200);
     //Write another new version of the feature (creates version 4)
-    postFeature(DELTA, newFeature().withProperties(new Properties().with("key3", "value3")), AuthProfile.ACCESS_OWNER_1_ADMIN,
-        true);
+    postFeature(DELTA, newFeature().withProperties(new Properties().with("key3", "value3")), ACCESS_ALL);
     //Check that version 3 is still only accessible through context DEFAULT
     getFeature(DELTA, "f1", 4, "EXTENSION", 404);
     getFeature(DELTA, "f1", 4, "DEFAULT", 200);
@@ -120,7 +117,7 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
   @Test
   public void testGetFeatureVersionStar() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + DELTA + "/features/f1?version=*")
         .then()

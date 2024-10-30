@@ -23,8 +23,9 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -545,6 +546,10 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContain) throws IOException, InterruptedException {
+        return downloadAndCheck(urls, List.of(expectedByteSize), expectedFeatureCount, csvMustContain);
+    }
+
+    protected static String downloadAndCheck(List<URL> urls, List<Integer> expectedByteSizes, Integer expectedFeatureCount, List<String> csvMustContain) throws IOException, InterruptedException {
         String result = "";
         boolean isGeojson = false;
         long totalByteSize = 0;
@@ -571,8 +576,11 @@ public class JobApiIT extends TestSpaceWithFeature {
             result += new String(bos.toByteArray(), StandardCharsets.UTF_8);
         }
 
-        if(expectedByteSize != null)
-            assertEquals(expectedByteSize.intValue(), totalByteSize);
+        if (expectedByteSizes != null && !expectedByteSizes.isEmpty())
+            if (expectedByteSizes.size() > 1)
+                assertThat((int) totalByteSize, anyOf(equalTo(expectedByteSizes.get(0)), equalTo(expectedByteSizes.get(1))));
+            else
+                assertEquals(expectedByteSizes.get(0).intValue(), totalByteSize);
 
 
         if(expectedFeatureCount != null)
@@ -589,10 +597,15 @@ public class JobApiIT extends TestSpaceWithFeature {
 
     protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContain,
         Integer expectedTileCount) throws IOException, InterruptedException {
+        downloadAndCheckFC(urls, List.of(expectedByteSize), expectedFeatureCount, csvMustContain, expectedTileCount);
+    }
+
+    protected static void downloadAndCheckFC(List<URL> urls, List<Integer> expectedByteSizes, int expectedFeatureCount, List<String> csvMustContain,
+        Integer expectedTileCount) throws IOException, InterruptedException {
         List<String> tileIds = new ArrayList<>();
         int featureCount = 0;
 
-        String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContain);
+        String result = downloadAndCheck(urls, expectedByteSizes, 0, csvMustContain);
 
         for (String fc64: result.split("\n")) {
             String s[] = fc64.split(",");
