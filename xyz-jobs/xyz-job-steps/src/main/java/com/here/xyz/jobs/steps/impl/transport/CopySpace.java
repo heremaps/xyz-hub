@@ -42,6 +42,8 @@ import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -355,20 +357,28 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
      contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()), contentQuery );
       
     return new SQLQuery(
-            """      
-              WITH ins_data as
-              (
-               select write_feature( (idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json))::text, idata.author, null, null , null, null, false, (SELECT nextval('${schema}.${versionSequenceName}')), false)                     
-               from
-                ( ${{contentQuery}} ) idata
-              )
-              select count(1) into dummy_output from ins_data
-            """
+/**/
+  """
+    WITH ins_data as
+    (
+      select
+       write_features(
+        jsonb_build_array(
+         jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
+                            'partialUpdates',false,
+                            'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_build_array( idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json)))))::text,
+        idata.author,false,(SELECT nextval('${schema}.${versionSequenceName}')))
+      from
+      ( ${{contentQuery}} ) idata
     )
-    .withContext( queryContext )
-    .withVariable("schema", targetSchema)
-    .withVariable("versionSequenceName", targetTable + "_version_seq")
-    .withQueryFragment("contentQuery", contentQuery);
+    select count(1) into dummy_output from ins_data
+  """
+/**/              
+        )
+        .withContext( queryContext )
+        .withVariable("schema", targetSchema)
+        .withVariable("versionSequenceName", targetTable + "_version_seq")
+        .withQueryFragment("contentQuery", contentQuery);
     
   }
 

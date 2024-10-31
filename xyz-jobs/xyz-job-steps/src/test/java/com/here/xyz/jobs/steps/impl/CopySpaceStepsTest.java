@@ -71,8 +71,8 @@ public class CopySpaceStepsTest extends StepTest {
 
   
 
-  @ParameterizedTest
-@ValueSource(booleans = {false/*,true*/})
+@ParameterizedTest
+@ValueSource(booleans = {false,true})
   public void testCopySpaceToSpaceStep( boolean testRemoteDb) throws Exception {
 
     String targetSpace = !testRemoteDb ? TrgSpc : TrgRmtSpc;
@@ -85,7 +85,7 @@ public class CopySpaceStepsTest extends StepTest {
                                .withSpaceId(SrcSpc).withSourceVersionRef(new Ref("HEAD"))
                                .withTargetSpaceId( targetSpace );
           
-    sendLambdaStepRequestBlock(step, true);
+    sendLambdaStepRequestBlock(step,  true);
 
     StatisticsResponse statsAfter = getStatistics(targetSpace);
     assertEquals(6L, (Object) statsAfter.getCount().getValue());
