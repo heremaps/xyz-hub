@@ -41,7 +41,6 @@ public class JobCompiler {
   static {
     registerCompilationInterceptor(ImportFromFiles.class);
     registerCompilationInterceptor(ExportToFiles.class);
-    //registerCompilationInterceptor(_CopySpaceToSpace.class);
     registerCompilationInterceptor(CopySpaceToSpace.class);
   }
 
