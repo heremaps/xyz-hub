@@ -53,8 +53,8 @@ public class CopySpaceStepsTest extends StepTest {
       createSpace(new Space().withId(TrgRmtSpc).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(OtherCntr)),false);
 
       //write features source
-      putRandomFeatureCollectionToSpace(SrcSpc, 2);
-      putRandomFeatureCollectionToSpace(SrcSpc, 2);
+      putRandomFeatureCollectionToSpace(SrcSpc, 20);
+      putRandomFeatureCollectionToSpace(SrcSpc, 20);
       //write features target - non-empty-space
       putRandomFeatureCollectionToSpace(TrgSpc, 2);
 
@@ -72,7 +72,7 @@ public class CopySpaceStepsTest extends StepTest {
   
 
 @ParameterizedTest
-@ValueSource(booleans = {false,true})
+@ValueSource(booleans = {false, true})
   public void testCopySpaceToSpaceStep( boolean testRemoteDb) throws Exception {
 
     String targetSpace = !testRemoteDb ? TrgSpc : TrgRmtSpc;
@@ -88,7 +88,7 @@ public class CopySpaceStepsTest extends StepTest {
     sendLambdaStepRequestBlock(step,  true);
 
     StatisticsResponse statsAfter = getStatistics(targetSpace);
-    assertEquals(6L, (Object) statsAfter.getCount().getValue());
+    assertEquals(42L, (Object) statsAfter.getCount().getValue());
   }
 
 }

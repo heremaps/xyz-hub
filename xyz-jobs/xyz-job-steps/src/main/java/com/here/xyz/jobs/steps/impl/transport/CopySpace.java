@@ -345,6 +345,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
            targetSchema = getSchema( loadDatabase(targetSpace.getStorage().getId(), WRITER) ), 
            targetTable  = _getRootTableName(targetSpace);
 
+    int maxBlkSize = 7;
+
     final Map<String, Object> queryContext = 
       createQueryContext(getId(), 
                          targetSchema, 
@@ -362,22 +364,28 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     WITH ins_data as
     (
       select
-       write_features(
-        jsonb_build_array(
-         jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
-                            'partialUpdates',false,
-                            'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_build_array( idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json)))))::text,
-        idata.author,false,(SELECT nextval('${schema}.${versionSequenceName}')))
+        write_features(
+         jsonb_build_array(
+           jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
+                              'partialUpdates',false,
+                              'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text
+        ,iidata.author,false,(SELECT nextval('${schema}.${versionSequenceName}')))
       from
-      ( ${{contentQuery}} ) idata
+      (
+       select (row_number() over ())/${{maxblksize}} as rn, idata.author, idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json) as feature
+       from
+       ( ${{contentQuery}} ) idata
+      ) iidata
+      group by rn, author
     )
     select count(1) into dummy_output from ins_data
   """
-/**/              
+/**/
         )
         .withContext( queryContext )
         .withVariable("schema", targetSchema)
         .withVariable("versionSequenceName", targetTable + "_version_seq")
+        .withQueryFragment("maxblksize",""+ maxBlkSize)
         .withQueryFragment("contentQuery", contentQuery);
     
   }
