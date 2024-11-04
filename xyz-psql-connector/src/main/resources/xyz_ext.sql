@@ -110,7 +110,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 202
+ select 203
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -129,7 +129,7 @@ BEGIN
    RETURN geo;
   end if;
 
-  sgeo := ST_SnapToGrid(geo, 0.00000001); -- ST_ReducePrecision(geo, 0.00000001);
+  sgeo := st_geomfromtext(st_astext(ST_SnapToGrid(geo, 0.00000001),8)); -- ST_ReducePrecision(geo, 0.00000001);
 
   IF GeometryType(sgeo) = GeometryType(geo) THEN
    RETURN sgeo;  -- only if type did not changed
