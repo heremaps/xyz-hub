@@ -80,7 +80,7 @@ public class ChangesetApi extends SpaceBasedApi {
     long version = getVersionFromPathParam(context);
     IterateChangesetsEvent event = buildIterateChangesetsEvent(context, version, version);
     //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
-    SpaceConnectorBasedHandler.execute(getMarker(context),
+    SpaceConnectorBasedHandler.<IterateChangesetsEvent,ChangesetCollection>execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
         .onSuccess(result -> {
           ChangesetCollection changesets = (ChangesetCollection) result;
