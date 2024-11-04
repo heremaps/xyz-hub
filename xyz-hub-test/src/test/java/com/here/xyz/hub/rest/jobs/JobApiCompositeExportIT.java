@@ -63,7 +63,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
             add("id5");
             add("id6");
             add("id7");
-            add("01010000A0E6100000F1F91F681EE23C40FCAA9EC4CEE939400000000000000000");
+            add("01010000A0E6100000F0F91F681EE23C40FBAA9EC4CEE939400000000000000000");
         }};
 
     private static List<String> l1ChangesContentTILEID_FC_B64 = new ArrayList<>(){
