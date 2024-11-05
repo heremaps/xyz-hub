@@ -129,7 +129,7 @@ BEGIN
    RETURN geo;
   end if;
 
-  sgeo := st_geomfromtext(st_astext(ST_SnapToGrid(geo, 0.00000001),8)); -- ST_ReducePrecision(geo, 0.00000001);
+  sgeo := st_geomfromtext(st_astext(ST_SnapToGrid(geo, 0.00000001),8),4326); -- ST_ReducePrecision(geo, 0.00000001);
 
   IF GeometryType(sgeo) = GeometryType(geo) THEN
    RETURN sgeo;  -- only if type did not changed
