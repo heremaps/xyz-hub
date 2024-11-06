@@ -720,7 +720,7 @@ public class JDBCExporter extends JdbcBasedHandler {
           }
 
          case PARTITIONED_JSON_WKB :
-         case PARTITIONID_FC_B64   :
+         case PARTITIONID_FC_B64   : 
          {
             String partQry =
                          csvFormat == PARTITIONID_FC_B64
@@ -735,13 +735,14 @@ public class JDBCExporter extends JdbcBasedHandler {
                               + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
                               + "from ( ${{contentQuery}}) X" )
                        /* PARTITIONED_JSON_WKB */
+                       /*TODO:  "st_geomfromtext(st_astext(geo,8))" conversion is a tmp solution for export of wkb, should be removed on later releases when all geom in db are aligned to 8 digit prec. */
                             : ( isForCompositeContentDetection
                               ? "select jsondata->>'id' as id, "
                               + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) when true then jsondata else null::jsonb end as jsondata,"
-                              + " geo "
+                              + " st_geomfromtext(st_astext(geo,8),4326) as geo "
                               + "from ( ${{contentQuery}}) X"
-                              : "select jsondata->>'id' as id, jsondata, geo "
-                              + "from ( ${{contentQuery}}) X" );
+                              : "select jsondata->>'id' as id, jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo "
+                              + "from ( ${{contentQuery}}) X" );  
 
            if( partitionByPropertyValue )
            {
@@ -773,7 +774,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                     +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, jsondata, geo "
                     +"   from iidata "
                     +" )   "
-                    +" select id, jsondata, geo from iiidata "
+                    +" select id, jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo from iiidata "
                   );
            }
 
@@ -789,7 +790,8 @@ public class JDBCExporter extends JdbcBasedHandler {
             default:
             {
               // JSON_WKB, DOWNLOAD
-              contentQuery = new SQLQuery("SELECT jsondata, geo FROM (${{innerContentQuery}}) contentQuery")
+              /*TODO:  "st_geomfromtext(st_astext(geo,8))" conversion is a tmp solution for export of wkb, should be removed on later releases when all geom in db are aligned to 8 digit prec. */
+              contentQuery = new SQLQuery("SELECT jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo FROM (${{innerContentQuery}}) contentQuery")
                   .withQueryFragment("innerContentQuery", contentQuery);
                 return queryToText(contentQuery,"vc" + cFlag);
             }
