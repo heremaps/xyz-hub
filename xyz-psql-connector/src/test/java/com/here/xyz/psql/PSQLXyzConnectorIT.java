@@ -24,11 +24,11 @@ import static org.junit.Assert.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.Test;
@@ -47,7 +47,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     HealthCheckEvent event = new HealthCheckEvent()
         .withConnectorParams(connectorParams);
 
-    String phrase = ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE);
+    String phrase = FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE);
     DatabaseSettings dbSettings = new DatabaseSettings(getClass().getSimpleName(),
         ECPSTool.decryptToMap(phrase, XyzSerializable.fromMap(connectorParams, ConnectorParameters.class).getEcps()));
 

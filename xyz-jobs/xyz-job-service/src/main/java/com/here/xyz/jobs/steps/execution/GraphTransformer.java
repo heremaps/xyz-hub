@@ -25,6 +25,7 @@ import static com.here.xyz.util.Random.randomAlpha;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.service.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -204,10 +205,21 @@ public class GraphTransformer {
   private NamedState<TaskState.Builder> compile(Step<?> step, State.Builder previousState) {
     NamedState<TaskState.Builder> state = new NamedState<>(step.getClass().getSimpleName() + "." + step.getId(),
         TaskState.builder());
-    if (step instanceof LambdaBasedStep lambdaStep)
+
+    if (step instanceof RunEmrJob emrStep) {
+      if( Config.instance.LOCALSTACK_ENDPOINT == null)
+        compile(emrStep, state);
+      else {
+        //Inject defaults for local execution
+        emrStep.setSparkParams( "--add-exports=java.base/java.nio=ALL-UNNAMED "
+                + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
+                + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
+                + "--add-exports=java.base/java.util=ALL-UNNAMED " + emrStep.getSparkParams());
+        compile((LambdaBasedStep<?>) emrStep, state);
+      }
+    }
+    else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
-    else if (step instanceof RunEmrJob emrStep)
-      compile(emrStep, state);
     else
       throw new NotImplementedException("The provided step implementation (" + step.getClass().getSimpleName() + ") is not supported.");
     //TODO: Add other implementations here (e.g. EcsBasedStep)

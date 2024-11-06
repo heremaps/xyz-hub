@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     if (event.getBbox().widthInDegree(false) >= (360d / 4d) || event.getBbox().heightInDegree() >= (180d / 4d)) //Is it a "big" query?
       //Check if Properties are indexed
-      checkCanSearchFor(event, getDataSourceProvider());
+      checkCanSearchFor(event);
 
     SQLQuery query = super.buildQuery(event);
 
@@ -116,7 +116,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
            (${{dataQuery}}) data , tile t 
           ) 
           select ST_AsMVT( mvtdata , #{spaceIdOrTableName} ) as bin from mvtdata where mgeo is not null 
-        """              
+        """
           )
           .withQueryFragment("bounds", new SQLQuery(hereTile == null ? "st_transform(${{tileBbox}}, 3857)" : "${{tileBbox}}")
           .withQueryFragment("tileBbox", buildGeoFilterFromBbox(tileBbox)))

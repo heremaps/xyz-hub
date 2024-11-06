@@ -24,7 +24,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.test.featurewriter.SpaceWriter.DEFAULT_AUTHOR;
 import static com.here.xyz.test.featurewriter.SpaceWriter.OTHER_AUTHOR;
-import static com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict.MERGE;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.D;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.H;
 import static com.here.xyz.test.featurewriter.SpaceWriter.Operation.I;
@@ -34,6 +33,7 @@ import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.DELETE;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.INSERT;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.NONE;
 import static com.here.xyz.test.featurewriter.TestSuite.TableOperation.UPDATE;
+import static com.here.xyz.util.db.pg.SQLError.UNKNOWN;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -47,13 +47,13 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnExists;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnMergeConflict;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnNotExists;
-import com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.test.featurewriter.SpaceWriter.Operation;
-import com.here.xyz.test.featurewriter.SpaceWriter.SQLError;
 import com.here.xyz.test.featurewriter.sql.SQLSpaceWriter;
+import com.here.xyz.util.db.pg.SQLError;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -264,7 +264,7 @@ public abstract class TestSuite {
     catch (SQLException e) {
       thrownError = SQLError.fromErrorCode(e.getSQLState());
       //Rethrow the exception if it was not one of the expected ones
-      if (thrownError == null)
+      if (thrownError == UNKNOWN)
         throw e;
     }
 
@@ -493,7 +493,7 @@ public abstract class TestSuite {
 
       if (onVersionConflict != null && !baseVersionMatch) {
         desiredActions.add(toHumanReadable(onVersionConflict) + "OnVersionConflict");
-        if (conflictingAttributes && onVersionConflict == MERGE && conflictingAttributes && onMergeConflict != null)
+        if (conflictingAttributes && onVersionConflict == OnVersionConflict.MERGE && conflictingAttributes && onMergeConflict != null)
           desiredActions.add(toHumanReadable(onMergeConflict) + "OnMergeConflict");
       }
 
@@ -513,7 +513,7 @@ public abstract class TestSuite {
 
       if (!baseVersionMatch) {
         String conflict = "conflictingChange";
-        if (onVersionConflict == MERGE && conflictingAttributes)
+        if (onVersionConflict == OnVersionConflict.MERGE && conflictingAttributes)
           conflict += "WithAttributesConflict";
         featureConditions.add(conflict);
       }
@@ -544,6 +544,7 @@ public abstract class TestSuite {
         case REPLACE -> "Replace";
         case RETAIN -> "DoNothing";
         case ERROR -> "ThrowError";
+        case DELETE -> "Delete";
       };
     }
 

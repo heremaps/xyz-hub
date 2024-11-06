@@ -52,15 +52,17 @@ import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
-import com.here.xyz.hub.task.ModifyOp.IfExists;
-import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.C2;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
-import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
+import com.here.xyz.models.hub.FeatureModificationList.IfExists;
+import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
+import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.ext.web.RoutingContext;
@@ -367,9 +369,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
         final FeatureCollection collection = (FeatureCollection) response;
         final List<Feature> features = collection.getFeatures();
 
-        if (features.size() == 1)
+        if (features.size() == 1) {
+          Geometry geometry = features.get(0).getGeometry();
+          GeometryValidator.validateGeometry(geometry, getEvent().getRadius());
           getEvent().setGeometry(features.get(0).getGeometry());
-
+        }
         callback.call(this);
       }
       catch (Exception e) {

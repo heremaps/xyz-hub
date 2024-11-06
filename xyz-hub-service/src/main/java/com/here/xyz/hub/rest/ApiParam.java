@@ -53,53 +53,6 @@ public class ApiParam {
       "f.tags", "properties.@ns:com:here:xyz.tags"
   );
 
-  private static Object getConvertedValue(String rawValue) {
-    // Boolean
-    if (rawValue.equals("true")) {
-      return true;
-    }
-    if (rawValue.equals("false")) {
-      return false;
-    }
-    // Long
-    try {
-      return Long.parseLong(rawValue);
-    } catch (NumberFormatException ignored) {
-    }
-    // Double
-    try {
-      return Double.parseDouble(rawValue);
-    } catch (NumberFormatException ignored) {
-    }
-
-    if (rawValue.length() > 2 && rawValue.charAt(0) == '"' && rawValue.charAt(rawValue.length() - 1) == '"') {
-      return rawValue.substring(1, rawValue.length() - 1);
-    }
-
-    if (rawValue.length() > 2 && rawValue.charAt(0) == '\'' && rawValue.charAt(rawValue.length() - 1) == '\'') {
-      return rawValue.substring(1, rawValue.length() - 1);
-    }
-
-    if(rawValue.equalsIgnoreCase(".null"))
-      return null;
-
-    // String
-    return rawValue;
-  }
-
-  public static String getConvertedKey(String rawKey) {
-    if (rawKey.startsWith("p."))
-      return rawKey.replaceFirst("p.", "properties.");
-
-    String replacement = SEARCH_KEY_REPLACEMENTS.get(rawKey);
-
-    //Allow root property search by using f.<key>
-    if (replacement == null && rawKey.startsWith(F_PREFIX))
-      return rawKey.substring(2);
-
-    return replacement;
-  }
-
   public static class Header {
 
   }
@@ -339,7 +292,7 @@ public class ApiParam {
     static PropertiesQuery getSpacePropertiesQuery(RoutingContext context, String param) {
       PropertiesQuery propertyQuery = context.get("propertyQuery");
       if (propertyQuery == null) {
-        propertyQuery = parsePropertiesQuery(context.request().query(), param, true);
+        propertyQuery = PropertiesQuery.fromString(context.request().query(), param, true);
         context.put("propertyQuery", propertyQuery);
       }
       return propertyQuery;
@@ -351,7 +304,7 @@ public class ApiParam {
     static PropertiesQuery getPropertiesQuery(RoutingContext context) {
       PropertiesQuery propertyQuery = context.get("propertyQuery");
       if (propertyQuery == null) {
-        propertyQuery = parsePropertiesQuery(context.request().query(), "", false);
+        propertyQuery = PropertiesQuery.fromString(context.request().query(), "", false);
         context.put("propertyQuery", propertyQuery);
       }
       return propertyQuery;
@@ -402,84 +355,6 @@ public class ApiParam {
       return null;
     }
 
-    public static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
-      if (query == null || query.length() == 0)
-        return null;
-
-      PropertyQueryList pql = new PropertyQueryList();
-      Stream.of(query.split("&"))
-          .map(queryParam -> queryParam.startsWith("tags=") ? transformLegacyTags(queryParam) : queryParam)
-          .filter(queryParam -> queryParam.startsWith("p.") || queryParam.startsWith(F_PREFIX) || spaceProperties)
-          .forEach(keyValuePair -> {
-            PropertyQuery propertyQuery = new PropertyQuery();
-
-            String operatorComma = "-#:comma:#-";
-            try {
-              keyValuePair = keyValuePair.replaceAll(",", operatorComma);
-              keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
-            } catch (UnsupportedEncodingException e) {
-              e.printStackTrace();
-            }
-
-            int position=0;
-            String op=null;
-
-            //store "main" operator. Needed for such cases foo=bar-->test
-            for (String shortOperator : QueryOperation.inputRepresentations()) {
-              int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
-              if (currentPositionOfOp != -1) {
-                if(
-                  // feature properties query
-                  (!spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ))) ||
-                  // space properties query
-                  (keyValuePair.substring(0,currentPositionOfOp).equals(property) && spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() )))
-                ) {
-                  op = shortOperator;
-                  position = currentPositionOfOp;
-                }
-              }
-            }
-
-            if (op != null) {
-                String[] keyVal = new String[] {
-                    keyValuePair.substring(0, position).replaceAll(operatorComma,","),
-                    keyValuePair.substring(position + op.length())
-                };
-                //Cut from API-Gateway appended "="
-                if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("="))
-                  keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
-
-                propertyQuery.setKey(spaceProperties ? keyVal[0] : getConvertedKey(keyVal[0]));
-                propertyQuery.setOperation(QueryOperation.fromInputRepresentation(op));
-                String[] rawValues = keyVal[1].split(operatorComma);
-
-                ArrayList<Object> values = new ArrayList<>();
-                for (String rawValue : rawValues)
-                    values.add(getConvertedValue(rawValue));
-
-                propertyQuery.setValues(values);
-                pql.add(propertyQuery);
-              }
-          });
-
-      PropertiesQuery pq = new PropertiesQuery();
-      pq.add(pql);
-
-      if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0)
-        return null;
-
-      return pq;
-    }
-
-    private static String transformLegacyTags(String legacyTagsQuery) {
-      String[] tagQueryParts = legacyTagsQuery.split("=");
-      if (tagQueryParts.length != 2)
-        return legacyTagsQuery;
-      String tags = tagQueryParts[1];
-
-      return F_PREFIX + "tags" + "=cs=" + tags;
-    }
-
     static Map<String, Object> getAdditionalParams(RoutingContext context, String type) throws Exception{
       Map<String, Object> clusteringParams = context.get(type);
 
@@ -514,13 +389,13 @@ public class ApiParam {
                     return;
                   }
                   String key = keyVal[0].substring(paramPrefix.length());
-                  Object value =  getConvertedValue(keyVal[1]);
+                  Object value = PropertiesQuery.getConvertedValue(keyVal[1]);
                   try {
                     validateAdditionalParams(type,key,value);
                   }catch (Exception e){
                     throw new RuntimeException(e.getMessage());
                   }
-                  cp.put(keyVal[0].substring(paramPrefix.length()), getConvertedValue(keyVal[1]));
+                  cp.put(keyVal[0].substring(paramPrefix.length()), PropertiesQuery.getConvertedValue(keyVal[1]));
                 }
               });
 

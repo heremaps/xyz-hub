@@ -19,7 +19,6 @@
 
 package com.here.xyz.util.db.datasource;
 
-import com.here.xyz.util.db.DatabaseSettings;
 import javax.sql.DataSource;
 
 public abstract class DataSourceProvider implements AutoCloseable {
@@ -28,6 +27,8 @@ public abstract class DataSourceProvider implements AutoCloseable {
 
   public DataSourceProvider(DatabaseSettings dbSettings) {
     this.dbSettings = dbSettings;
+    if (dbSettings != null)
+      dbSettings.init();
   }
 
   public abstract DataSource getReader();

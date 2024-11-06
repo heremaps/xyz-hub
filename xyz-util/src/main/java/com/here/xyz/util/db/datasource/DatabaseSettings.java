@@ -17,16 +17,28 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.util.db;
+package com.here.xyz.util.db.datasource;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.db.pg.Script;
+import com.here.xyz.util.runtime.FunctionRuntime;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class DatabaseSettings extends Payload {
+    private static final Logger logger = LogManager.getLogger();
+    private static final int SCRIPT_VERSIONS_TO_KEEP = 5;
+    private static Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
+    private volatile boolean initialized = false;
 
     /**
      * A constant that is normally used as environment variable name for the host.
@@ -96,6 +108,7 @@ public class DatabaseSettings extends Payload {
     private int port = 5432;
     private String applicationName;
     private List<String> searchPath;
+    private List<ScriptResourcePath> scriptResourcePaths;
 
     /**
      * Connection Pool settings
@@ -289,6 +302,19 @@ public class DatabaseSettings extends Payload {
         return this;
     }
 
+    public List<ScriptResourcePath> getScriptResourcePaths() {
+        return scriptResourcePaths;
+    }
+
+    public void setScriptResourcePaths(List<ScriptResourcePath> scriptResourcePaths) {
+        this.scriptResourcePaths = scriptResourcePaths;
+    }
+
+    public DatabaseSettings withScriptResourcePaths(List<ScriptResourcePath> scriptResourcePaths) {
+        setScriptResourcePaths(scriptResourcePaths);
+        return this;
+    }
+
     public int getDbInitialPoolSize() {
         return dbInitialPoolSize;
     }
@@ -443,5 +469,62 @@ public class DatabaseSettings extends Payload {
             + "schema='" + getSchema() + "', "
             + "port=" + getPort()
             + "}";
+    }
+
+    /**
+     * Checks whether the latest version of all SQL scripts is installed on the DB and set all script schemas for
+     * the use in the search path.
+     */
+    private synchronized void checkScripts() {
+        if (scriptResourcePaths == null || scriptResourcePaths.isEmpty())
+            return;
+
+        String softwareVersion = FunctionRuntime.getInstance() == null ? null : FunctionRuntime.getInstance().getSoftwareVersion();
+        if (!sqlScripts.containsKey(getId())) {
+            logger.info("Checking scripts for connector {} ...", getId());
+            try (DataSourceProvider dataSourceProvider = new StaticDataSources(this)) {
+                for (ScriptResourcePath scriptResourcePath : scriptResourcePaths) {
+                    List<Script> scripts = Script.loadScripts(scriptResourcePath, dataSourceProvider, softwareVersion);
+                    if (!sqlScripts.containsKey(getId()))
+                        sqlScripts.put(getId(), new ArrayList<>(scripts));
+                    else
+                        sqlScripts.get(getId()).addAll(scripts);
+                    scripts.forEach(script -> {
+                        script.install();
+                        script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
+                    });
+                }
+            }
+            catch (IOException | URISyntaxException e) {
+                throw new RuntimeException("Error reading script resources.", e);
+            }
+            catch (Exception e) {
+                logger.error("Error checking / installing scripts.", e);
+            }
+        }
+        List<String> extendedSearchPath = new ArrayList<>(getSearchPath() == null ? List.of() : getSearchPath());
+        extendedSearchPath.addAll(sqlScripts.get(getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList());
+        logger.info("Set searchPath for connector {} to... {}", getId(), extendedSearchPath);
+        setSearchPath(extendedSearchPath);
+    }
+
+    /**
+     * Must be called whenever this DatabaseSettings objects is used to initialize a new {@link DataSourceProvider}.
+     */
+    void init() {
+        if (!initialized) {
+            initialized = true;
+            checkScripts();
+        }
+    }
+
+    public record ScriptResourcePath(String path, String schemaPrefix, String initScript) {
+        public ScriptResourcePath(String path) {
+            this(path, null);
+        }
+
+        public ScriptResourcePath(String path, String schemaPrefix) {
+            this(path, schemaPrefix, null);
+        }
     }
 }

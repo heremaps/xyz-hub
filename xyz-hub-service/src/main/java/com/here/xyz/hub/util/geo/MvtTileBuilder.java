@@ -20,12 +20,13 @@
 package com.here.xyz.hub.util.geo;
 
 
-import static com.here.xyz.hub.util.geo.GeoTools.WEB_MERCATOR_EPSG;
-import static com.here.xyz.hub.util.geo.GeoTools.WGS84_EPSG;
+import static com.here.xyz.util.geo.GeoTools.WEB_MERCATOR_EPSG;
+import static com.here.xyz.util.geo.GeoTools.WGS84_EPSG;
 
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.util.geo.GeoTools;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.VectorTile.Tile;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;

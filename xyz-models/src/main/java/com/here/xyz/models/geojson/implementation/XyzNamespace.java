@@ -135,7 +135,7 @@ public class XyzNamespace implements XyzSerializable {
    * @see [https://tools.ietf.org/html/rfc3986#section-2.2]
    */
   @SuppressWarnings("WeakerAccess")
-  public static void fixNormalizedTags(final List<String> tags) {
+  public static List<String> fixNormalizedTags(final List<String> tags) {
     int j = 0;
     StringBuilder sb = null;
     while (j < tags.size()) {
@@ -177,6 +177,7 @@ public class XyzNamespace implements XyzSerializable {
         j++;
       }
     }
+    return tags;
   }
 
   @SuppressWarnings("unused")

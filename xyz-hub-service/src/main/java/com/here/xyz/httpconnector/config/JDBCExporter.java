@@ -27,6 +27,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
+import static com.here.xyz.models.hub.Ref.HEAD;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
@@ -37,20 +38,17 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.query.ExportSpace;
 import com.here.xyz.httpconnector.config.query.ExportSpaceByGeometry;
 import com.here.xyz.httpconnector.config.query.ExportSpaceByProperties;
-import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
-import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.JdbcClient;
 import com.here.xyz.util.db.SQLQuery;
@@ -163,12 +161,12 @@ public class JDBCExporter extends JdbcBasedHandler {
 ////// get filters from source space
     if( job.getSource() != null && job.getSource() instanceof Space )
     { Filters f = ((Space) job.getSource()).getFilters();
-      propertyFilter = ( f == null ? null : f.getPropertyFilter() );
+      propertyFilter = ( f == null ? null : f.getPropertyFilterAsString() );
       spatialFilter = ( f == null ? null : f.getSpatialFilter() );
     }
 ////// if filters not provided by source space the get filter from job (legacy behaviour)
     if( propertyFilter == null )
-     propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
+     propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilterAsString());
 
     if( spatialFilter == null )
      spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
@@ -183,10 +181,10 @@ public class JDBCExporter extends JdbcBasedHandler {
       if( event.getParams() != null && event.getParams().get("versionsToKeep") != null )
        event.setVersionsToKeep((int) event.getParams().get("versionsToKeep") ); // -> forcing "...AND next_version = maxBigInt..." in query
 
-      event.setRef( job.getTargetVersion() == null ? new Ref("HEAD") : new Ref(job.getTargetVersion()) );
+      event.setRef( job.getTargetVersion() == null ? new Ref(HEAD) : new Ref(job.getTargetVersion()) );
 
       if (propertyFilter != null) {
-          PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
+          PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
           event.setPropertiesQuery(propertyQueryLists);
       }
 
@@ -198,7 +196,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
     try {
 
-      return ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+      return getQueryRunner(client, spatialFilter, event)
           //TODO: Why not selecting the feature id / geo here?
           //FIXME: Do not select operation / author as part of the "property-selection"-fragment
           .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
@@ -271,13 +269,13 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
     public Future<ExportStatistic> executeExport(Export job, String s3Bucket, String s3Path, String s3Region) {
-      logger.info("job[{}] Execute Export-legacy csvFormat({}) ParamCompositeMode({}) PartitionKey({})", job.getId(), job.getCsvFormat(), job.readParamCompositeMode(), job.getPartitionKey() ); 
-      
+      logger.info("job[{}] Execute Export-legacy csvFormat({}) ParamCompositeMode({}) PartitionKey({})", job.getId(), job.getCsvFormat(), job.readParamCompositeMode(), job.getPartitionKey() );
+
       return getClient(job.getTargetConnector())
           .compose(client -> {
             String schema = getDbSettings(job.getTargetConnector()).getSchema();
             try {
-              String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
+              String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilterAsString());
               SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery;
 
@@ -331,7 +329,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                       Is used for incremental exports (tiles) - here we have to export modified tiles.
                       Those tiles we need to calculate separately
                        */
-                      boolean isIncrementalExport =   job.isIncrementalMode() 
+                      boolean isIncrementalExport =   job.isIncrementalMode()
                                                    || isIncrementalExportNonComposite(job.getCsvFormat(), job.getTargetVersion(), compositeCalculation) ;
 
                       final SQLQuery qkQuery = ( compositeCalculation || isIncrementalExport )
@@ -490,7 +488,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                                               String s3Bucket, String s3Path, String s3FilePrefix, String s3Region,
                                               boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
 
-        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilterAsString());
         SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export";
@@ -522,7 +520,7 @@ public class JDBCExporter extends JdbcBasedHandler {
     private SQLQuery buildPartIdVMLExportQuery(JdbcClient client, Export j, String schema, String s3Bucket, String s3Path, String s3FilePrefix,
         String s3Region, boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
         //Generic partition
-        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilterAsString());
         SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
@@ -548,7 +546,7 @@ public class JDBCExporter extends JdbcBasedHandler {
     private SQLQuery buildVMLExportQuery(JdbcClient client, Export j, String schema, String s3Bucket, String s3Path, String s3Region, String parentQk,
         SQLQuery qkTileQry) throws SQLException {
         //Tiled export
-        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilterAsString());
         SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
@@ -558,7 +556,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         if (targetVersion != null)
         { Ref ref = new Ref(targetVersion);
           if( ref.isRange() )
-           targetVersion = "" + ref.getToVersion();
+           targetVersion = "" + ref.getEndVersion();
         }
        /* incremental */
 
@@ -616,7 +614,7 @@ public class JDBCExporter extends JdbcBasedHandler {
     }
 
     private SQLQuery generateFilteredExportQuery(JdbcClient client, String schema, String spaceId, String propertyFilter,
-        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, 
+        SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition,
         boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull, boolean isIncrementalExport
         )
         throws SQLException {
@@ -653,7 +651,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                     { extStashed = ext;
                       params.remove("extends"); // needs to be removed and restored later on s.'DS-587'
                                                     // except in case of L2 extends
-                    }  
+                    }
                 }
                 context = ContextAwareEvent.SpaceContext.DEFAULT;
             }
@@ -664,7 +662,7 @@ public class JDBCExporter extends JdbcBasedHandler {
             event.setRef(new Ref(targetVersion));
 
         if (propertyFilter != null) {
-            PropertiesQuery propertyQueryLists = HApiParam.Query.parsePropertiesQuery(propertyFilter, "", false);
+            PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
             event.setPropertiesQuery(propertyQueryLists);
         }
 
@@ -687,7 +685,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                  contentQueryByPropertyValue = null;
 
       try {
-        final ExportSpace queryRunner = (ExportSpace) getQueryRunner(client, spatialFilter, event);
+        final ExportSpace queryRunner = getQueryRunner(client, spatialFilter, event);
 
         if (customWhereCondition != null && (csvFormat != PARTITIONID_FC_B64 || partitionByFeatureId))
           queryRunner.withCustomWhereClause(customWhereCondition);
@@ -698,7 +696,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
           if (partitionByPropertyValue && isForCompositeContentDetection) {
             event.setContext(ctxStashed);
-            contentQueryByPropertyValue = ((ExportSpace) getQueryRunner(client, spatialFilter, event))
+            contentQueryByPropertyValue = getQueryRunner(client, spatialFilter, event)
                 .withGeoOverride(buildGeoFragment(spatialFilter))
                 .buildQuery(event);
           }
@@ -722,7 +720,7 @@ public class JDBCExporter extends JdbcBasedHandler {
           }
 
          case PARTITIONED_JSON_WKB :
-         case PARTITIONID_FC_B64   :
+         case PARTITIONID_FC_B64   : 
          {
             String partQry =
                          csvFormat == PARTITIONID_FC_B64
@@ -737,17 +735,18 @@ public class JDBCExporter extends JdbcBasedHandler {
                               + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
                               + "from ( ${{contentQuery}}) X" )
                        /* PARTITIONED_JSON_WKB */
+                       /*TODO:  "st_geomfromtext(st_astext(geo,8))" conversion is a tmp solution for export of wkb, should be removed on later releases when all geom in db are aligned to 8 digit prec. */
                             : ( isForCompositeContentDetection
                               ? "select jsondata->>'id' as id, "
                               + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) when true then jsondata else null::jsonb end as jsondata,"
-                              + " geo "
+                              + " st_geomfromtext(st_astext(geo,8),4326) as geo "
                               + "from ( ${{contentQuery}}) X"
-                              : "select jsondata->>'id' as id, jsondata, geo "
-                              + "from ( ${{contentQuery}}) X" );
+                              : "select jsondata->>'id' as id, jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo "
+                              + "from ( ${{contentQuery}}) X" );  
 
            if( partitionByPropertyValue )
            {
-              String converted = ApiParam.getConvertedKey(partitionKey);
+              String converted = PropertiesQuery.getConvertedKey(partitionKey);
               partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
               //TODO: Simplify / structure the following query blob
               partQry =
@@ -775,7 +774,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                     +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, jsondata, geo "
                     +"   from iidata "
                     +" )   "
-                    +" select id, jsondata, geo from iiidata "
+                    +" select id, jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo from iiidata "
                   );
            }
 
@@ -791,7 +790,8 @@ public class JDBCExporter extends JdbcBasedHandler {
             default:
             {
               // JSON_WKB, DOWNLOAD
-              contentQuery = new SQLQuery("SELECT jsondata, geo FROM (${{innerContentQuery}}) contentQuery")
+              /*TODO:  "st_geomfromtext(st_astext(geo,8))" conversion is a tmp solution for export of wkb, should be removed on later releases when all geom in db are aligned to 8 digit prec. */
+              contentQuery = new SQLQuery("SELECT jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo FROM (${{innerContentQuery}}) contentQuery")
                   .withQueryFragment("innerContentQuery", contentQuery);
                 return queryToText(contentQuery,"vc" + cFlag);
             }
@@ -801,7 +801,7 @@ public class JDBCExporter extends JdbcBasedHandler {
 
   private static SQLQuery buildGeoFragment(SpatialFilter spatialFilter) {
     if (spatialFilter != null && spatialFilter.isClipped()) {
-     if( spatialFilter.getRadius() != 0 ) 
+     if( spatialFilter.getRadius() != 0 )
       return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(st_force3d(ST_GeomFromText(#{wktGeometry}))::geography, #{radius})::geometry) as geo")
           .withNamedParameter("wktGeometry", WKTHelper.geometryToWKT2d(spatialFilter.getGeometry()))
           .withNamedParameter("radius", spatialFilter.getRadius());
@@ -813,9 +813,9 @@ public class JDBCExporter extends JdbcBasedHandler {
         return new SQLQuery("geo");
   }
 
-  private static SearchForFeatures getQueryRunner(JdbcClient client, SpatialFilter spatialFilter, GetFeaturesByGeometryEvent event)
+  private static ExportSpace getQueryRunner(JdbcClient client, SpatialFilter spatialFilter, GetFeaturesByGeometryEvent event)
       throws SQLException, ErrorResponseException {
-    SearchForFeatures queryRunner;
+    ExportSpace queryRunner;
     if (spatialFilter == null)
       queryRunner = new ExportSpaceByProperties(event);
     else

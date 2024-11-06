@@ -53,6 +53,7 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.Random;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -62,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -498,7 +498,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         FeatureCollection collection = new FeatureCollection();
 
         List<String> pKeys = Stream.generate(() ->
-                RandomStringUtils.randomAlphanumeric(10)).limit(3).collect(Collectors.toList());
+                Random.randomAlphaNumeric(10)).limit(3).collect(Collectors.toList());
 
         collection.setFeatures(new ArrayList<>());
         collection.getFeatures().addAll(
@@ -507,7 +507,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                             .withGeometry(
                                     new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)))
                             .withProperties(new Properties().withXyzNamespace(xyzNamespace));
-                    pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
+                    pKeys.forEach(p -> f.getProperties().put(p, Random.randomAlphaNumeric(8)));
                     return f;
                 }).limit(11000).collect(Collectors.toList()));
 

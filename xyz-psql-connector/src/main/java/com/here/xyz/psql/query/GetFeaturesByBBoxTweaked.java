@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,9 +62,9 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     isMvtRequested = isMvtRequested(event);
     Map<String, Object> tweakParams = getTweakParams(event);
-    
+
     SQLQuery query;
-          
+
     super.buildQuery(event); // force "geoFilter" to be not null, fixes fragment is null error when mvt is requested with mode=viz
 
     switch (event.getTweakType().toLowerCase()) {
@@ -274,7 +274,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
    String tweaksGeoSql = clipProjGeom(bbox,"geo");
    tweaksGeoSql = map2MvtGeom( event, bbox, tweaksGeoSql );
    //convert to geojson
-   tweaksGeoSql = ( bConvertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d), '(?i)nan', '0', 'g')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
+   tweaksGeoSql = ( bConvertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d), 'nan', '0', 'gi')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                         : DhString.format( getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql ) );
 
    return generateCombinedQueryTweaks(event, tweakQuery , tweaksGeoSql, bTestTweaksGeoIfNull, tblSampleRatio, bSortByHashedValue );
@@ -422,7 +422,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
        default: break;
      }
      //convert to geojson
-     tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'(?i)nan', '0', 'g')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
+     tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan', '0', 'gi')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                           : DhString.format( getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql) );
    }
 
@@ -442,7 +442,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
      else if ( strength <= 80 ) {                           minGeoHashLenForLineMerge = 4; } //medhigh
 
      if( "geo".equals(tweaksGeoSql) ) // formal, just in case
-      tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'(?i)nan', '0', 'g')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
+      tweaksGeoSql = ( convertGeo2Geojson ? DhString.format("REGEXP_REPLACE(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan', '0', 'gi')",tweaksGeoSql,GEOMETRY_DECIMAL_DIGITS)
                                            : DhString.format(getForceMode(event.isForce2D()) + "( %s )",tweaksGeoSql) );
 
      if( convertGeo2Geojson )

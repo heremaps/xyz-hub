@@ -20,7 +20,7 @@
 package com.here.xyz.jobs.steps.execution.db;
 
 import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
-import com.here.xyz.util.db.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import java.util.Map;
 
 public class SingleDatabaseSettings extends DatabaseSettings {

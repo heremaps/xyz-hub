@@ -24,8 +24,9 @@ import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
 import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.psql.factory.MaintenanceSQL;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.StaticDataSources;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,7 +50,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 202;
+    public static final int XYZ_EXT_VERSION = 203;
 
     public static final int H3_CORE_VERSION = 108;
 
@@ -64,8 +65,8 @@ public class DatabaseMaintainer {
             .setSocketTimeout(1 * 1000)
             .build();
 
-    public DatabaseMaintainer(DataSourceProvider dataSourceProvider, DatabaseSettings dbSettings, ConnectorParameters connectorParameters, String maintenanceEndpoint) {
-        this.dataSourceProvider = dataSourceProvider;
+    public DatabaseMaintainer(DatabaseSettings dbSettings, ConnectorParameters connectorParameters, String maintenanceEndpoint) {
+        this.dataSourceProvider = new StaticDataSources(dbSettings);
         this.dbSettings = dbSettings;
         this.connectorParameters = connectorParameters;
         this.maintenanceEndpoint = maintenanceEndpoint;

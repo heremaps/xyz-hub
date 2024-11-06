@@ -17,36 +17,30 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.datasets.space;
+package com.here.xyz.util.db.pg;
 
-public record UpdateStrategy(OnExists onExists, OnNotExists onNotExists, OnVersionConflict onVersionConflict,
-    OnMergeConflict onMergeConflict) {
-  public static final UpdateStrategy DEFAULT_UPDATE_STRATEGY = new UpdateStrategy(OnExists.REPLACE, OnNotExists.CREATE,null,
-      null);
+import java.util.Arrays;
 
-  public enum OnExists {
-    DELETE,
-    REPLACE,
-    RETAIN,
-    ERROR
+public enum SQLError {
+  ILLEGAL_ARGUMENT("XYZ40"),
+  FEATURE_EXISTS("XYZ20"),
+  FEATURE_NOT_EXISTS("XYZ44"),
+  MERGE_CONFLICT_ERROR("XYZ48"),
+  VERSION_CONFLICT_ERROR("XYZ49"),
+  XYZ_EXCEPTION("XYZ50"),
+  UNKNOWN("");
+
+  public final String errorCode;
+
+  SQLError(String errorCode) {
+    this.errorCode = errorCode;
   }
 
-  public enum OnNotExists {
-    CREATE,
-    RETAIN,
-    ERROR
+  public String getErrorCode() {
+    return errorCode;
   }
 
-  public enum OnVersionConflict {
-    MERGE,
-    REPLACE,
-    RETAIN,
-    ERROR
-  }
-
-  public enum OnMergeConflict {
-    REPLACE,
-    RETAIN,
-    ERROR //Default
+  public static SQLError fromErrorCode(String errorCode) {
+    return Arrays.stream(values()).filter(error -> error.errorCode.equals(errorCode)).findFirst().orElse(UNKNOWN);
   }
 }

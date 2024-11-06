@@ -49,15 +49,15 @@ import com.here.xyz.hub.task.FeatureTask.GetStatistics;
 import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
-import com.here.xyz.hub.util.geo.GeoTools;
+import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByBBoxClustered;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
@@ -228,17 +228,14 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withContext(spaceContext)
           .withRef(getRef(context));
 
-
-       if( event.getGeometry() != null && !( (event.getGeometry() instanceof Point) && event.getRadius() == 0 ) )
-       { boolean bCrossDateLine = false;
-         try
-         { bCrossDateLine = GeoTools.geometryCrossesDateline(event.getGeometry(), event.getRadius()); }
-         catch (Exception e)
-         { throw new HttpException(BAD_REQUEST,e.getMessage()); }
-
-         if( bCrossDateLine )
-          throw new HttpException(BAD_REQUEST, "Invalid arguments! geometry filter intersects with antimeridian");
-       }
+      try {
+        //If a h3 reference got provided - we do not need to validate the Geometry
+        //If there is a referenced feature - the geometry validation happens in FeatureTask - after the geometry is resolved.
+        if(h3Index == null && refFeatureId == null && refSpaceId == null)
+          GeometryValidator.validateGeometry(event.getGeometry(), event.getRadius());
+      }catch (GeometryValidator.GeometryException e){
+        throw new HttpException(BAD_REQUEST ,e.getMessage());
+      }
 
       final GeometryQuery task = new GeometryQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
       task.execute(this::sendResponse, this::sendErrorResponse);

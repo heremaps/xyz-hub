@@ -19,11 +19,10 @@
 
 package com.here.xyz.test.featurewriter.rest;
 
-import static com.here.xyz.test.featurewriter.SpaceWriter.OnVersionConflict.REPLACE;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.FEATURE_NOT_EXISTS;
-import static com.here.xyz.test.featurewriter.SpaceWriter.SQLError.MERGE_CONFLICT_ERROR;
 import static com.here.xyz.test.featurewriter.TestSuite.TEST_FEATURE_ID;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.FEATURE_NOT_EXISTS;
+import static com.here.xyz.util.db.pg.SQLError.MERGE_CONFLICT_ERROR;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -32,9 +31,14 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.test.featurewriter.SpaceWriter;
+import com.here.xyz.util.db.pg.SQLError;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -98,15 +102,16 @@ public class RestSpaceWriter extends SpaceWriter {
           generateQueryParams(onExists, onNotExists, onVersionConflict, onMergeConflict, spaceContext));
     }
     catch (ErrorResponseException e) {
+      Map<String, Object> responseBody = XyzSerializable.deserialize(e.getErrorResponse().body(), Map.class);
+      String errorMessage = (String) responseBody.get("errorMessage");
       switch (e.getErrorResponse().statusCode()) {
+        case 404:
+          throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
         case 409: {
-          Map<String, Object> responseBody = XyzSerializable.deserialize(e.getErrorResponse().body(), Map.class);
-          //FIXME: respond with correct status codes in hub (e.g. not exists => 404)
-          String errorMessage = (String) responseBody.get("errorMessage");
           switch (errorMessage) {
-            case "The record does not exist.":
+            case "The record does not exist.", "ERROR: Feature with ID " + TEST_FEATURE_ID + " not exists!":
               throw new SQLException(errorMessage, FEATURE_NOT_EXISTS.errorCode, e);
-            case "The record {" + TEST_FEATURE_ID + "} exists.":
+            case "The record {" + TEST_FEATURE_ID + "} exists.", "ERROR: Feature with ID " + TEST_FEATURE_ID + " exists!":
               throw new SQLException(errorMessage, FEATURE_EXISTS.errorCode, e);
             case "Conflict while merging someConflictingValue with someValue":
               throw new SQLException(errorMessage, MERGE_CONFLICT_ERROR.errorCode, e);
@@ -129,7 +134,7 @@ public class RestSpaceWriter extends SpaceWriter {
     if (onExists != null && onVersionConflict == null)
       queryParams.put("e", onExists.toString());
     if (onVersionConflict != null) {
-      if (onExists != null && onVersionConflict == REPLACE)
+      if (onExists != null && onVersionConflict == OnVersionConflict.REPLACE)
         //onExists has priority
         queryParams.put("e", onExists.toString());
       else

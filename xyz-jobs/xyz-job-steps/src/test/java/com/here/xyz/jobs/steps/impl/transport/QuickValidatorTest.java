@@ -19,8 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.jobs.steps.TestSteps.S3ContentType.APPLICATION_JSON;
-import static com.here.xyz.jobs.steps.TestSteps.S3ContentType.TEXT_CSV;
+import static com.here.xyz.jobs.util.test.StepTestBase.S3ContentType.APPLICATION_JSON;
+import static com.here.xyz.jobs.util.test.StepTestBase.S3ContentType.TEXT_CSV;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
@@ -31,7 +31,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.TestSteps;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
+import com.here.xyz.jobs.util.test.StepTestBase;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
@@ -42,7 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class QuickValidatorTest extends TestSteps {
+public class QuickValidatorTest extends StepTestBase {
 
   private static String TEST_PREFIX = "validation-test/";
 

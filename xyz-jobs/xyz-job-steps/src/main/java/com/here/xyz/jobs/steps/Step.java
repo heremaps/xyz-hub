@@ -83,6 +83,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Internal.class, Static.class})
   private boolean useSystemInput;
   @JsonView({Internal.class, Static.class})
+  private boolean useSystemOutput;
+  @JsonView({Internal.class, Static.class})
   private Set<String> inputStepIds;
 
   /**
@@ -442,6 +444,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public T withUseSystemInput(boolean useSystemInput) {
     setUseSystemInput(useSystemInput);
+    return (T) this;
+  }
+
+  public boolean isUseSystemOutput() {
+    return useSystemOutput;
+  }
+
+  public void setUseSystemOutput(boolean useSystemOutput) {
+    this.useSystemOutput = useSystemOutput;
+  }
+
+  public T withUseSystemOutput(boolean useSystemOutput) {
+    setUseSystemOutput(useSystemOutput);
     return (T) this;
   }
 

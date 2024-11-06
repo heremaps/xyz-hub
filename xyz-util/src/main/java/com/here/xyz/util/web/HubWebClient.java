@@ -36,10 +36,12 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+
+import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -128,6 +130,14 @@ public class HubWebClient extends XyzWebClient {
         .method("PUT", BodyPublishers.ofByteArray(XyzSerializable.serialize(fc).getBytes())));
   }
 
+  public void deleteFeatures(String spaceId, List<String> featureIds) throws WebClientException {
+    String idList = "?id="+String.join(",id=", featureIds);
+    request(HttpRequest.newBuilder()
+            .DELETE()
+            .uri(uri("/spaces/" + spaceId + "/features" + idList))
+            .header(CONTENT_TYPE, JSON_UTF_8.toString()));
+  }
+
   public XyzResponse postFeatures(String spaceId, FeatureCollection fc, Map<String, String> queryParams) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
@@ -156,6 +166,30 @@ public class HubWebClient extends XyzWebClient {
     try {
       return deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/spaces/" + spaceId + "/statistics" + (context == null ? "" : "?context=" + context)))).body(), StatisticsResponse.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public FeatureCollection getFeaturesFromSmallSpace(String spaceId, SpaceContext context, String propertyFilter, boolean force2D) throws WebClientException {
+    try {
+      String filters = "?" + (context != null ? "&context=" + context : "")
+                      + (force2D ? "&force2D=" + force2D : "")
+                      + (propertyFilter != null ? "&" + URLEncoder.encode(propertyFilter, StandardCharsets.UTF_8) : "");
+
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/search" + filters ))).body(), FeatureCollection.class);
+    }
+    catch (JsonProcessingException e) {
+      throw new WebClientException("Error deserializing response", e);
+    }
+  }
+
+  public FeatureCollection customReadFeaturesQuery(String spaceId, String customPath) throws WebClientException {
+    try {
+      return deserialize(request(HttpRequest.newBuilder()
+              .uri(uri("/spaces/" + spaceId + "/"+ customPath))).body(), FeatureCollection.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);

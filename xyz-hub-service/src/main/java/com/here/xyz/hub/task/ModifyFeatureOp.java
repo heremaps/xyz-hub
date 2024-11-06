@@ -28,9 +28,11 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
-import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
+import com.here.xyz.models.hub.FeatureModificationList.IfExists;
+import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
@@ -70,12 +72,10 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     final List<FeatureEntry> result = new ArrayList<>();
     for (Map<String, Object> fm : featureModifications) {
       IfNotExists ne =
-          fm.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.of((String) fm.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
-      IfExists e = fm.get(ON_FEATURE_EXISTS) instanceof String ? IfExists.of((String) fm.get(ON_FEATURE_EXISTS)) : ifExists;
+          fm.get(ON_FEATURE_NOT_EXISTS) instanceof String ? IfNotExists.from((String) fm.get(ON_FEATURE_NOT_EXISTS)) : ifNotExists;
+      IfExists e = fm.get(ON_FEATURE_EXISTS) instanceof String ? IfExists.from((String) fm.get(ON_FEATURE_EXISTS)) : ifExists;
       ConflictResolution cr = fm.get(ON_MERGE_CONFLICT) instanceof String ?
-          ConflictResolution.of((String) fm.get(ON_MERGE_CONFLICT)) : conflictResolution;
-
-      validateDefaultParams(ne, e, cr);
+          ConflictResolution.from((String) fm.get(ON_MERGE_CONFLICT)) : conflictResolution;
 
       List<String> featureIds = (List<String>) fm.get("featureIds");
       Map<String, Object> featureCollection = (Map<String, Object>) fm.get("featureData");
@@ -91,20 +91,6 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     }
 
     return result;
-  }
-
-  private static void validateDefaultParams(IfNotExists ne, IfExists e, ConflictResolution cr) throws HttpException {
-    if (ne == null) {
-      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid value provided for parameter onFeatureNotExists");
-    }
-
-    if (e == null) {
-      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid value provided for parameter onFeatureExists");
-    }
-
-    if (cr == null) {
-      throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Invalid value provided for parameter onMergeConflict");
-    }
   }
 
   private static List<Map<String, Object>> idsToFeatures(List<String> featureIds) {

@@ -30,14 +30,18 @@ import static org.junit.Assert.assertFalse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.test.SQLITBase;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.pg.SQLError;
 import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -70,8 +74,8 @@ public abstract class SpaceWriter extends SQLITBase {
   public abstract void cleanSpaceResources() throws Exception;
 
   public void writeFeature(Feature modifiedFeature, String author, OnExists onExists, OnNotExists onNotExists,
-      OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
-      boolean isHistoryActive, SQLError expectedError) throws Exception {
+                           OnVersionConflict onVersionConflict, OnMergeConflict onMergeConflict, boolean isPartial, SpaceContext spaceContext,
+                           boolean isHistoryActive, SQLError expectedError) throws Exception {
     try {
       writeFeature(modifiedFeature, author, onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial,
           spaceContext, isHistoryActive);
@@ -170,59 +174,6 @@ public abstract class SpaceWriter extends SQLITBase {
       });
     }
     return null;
-  }
-
-  private static final Map<String, SQLError> SQLErrorLookup = new HashMap<>();
-
-  public enum SQLError {
-    ILLEGAL_ARGUMENT("XYZ40"),
-    FEATURE_EXISTS("XYZ20"),
-    FEATURE_NOT_EXISTS("XYZ44"),
-    MERGE_CONFLICT_ERROR("XYZ48"),
-    VERSION_CONFLICT_ERROR("XYZ49"),
-    XYZ_EXCEPTION("XYZ50");
-
-
-    public final String errorCode;
-
-    SQLError(String errorCode) {
-      this.errorCode = errorCode;
-      SQLErrorLookup.put(errorCode, this);
-    }
-
-    public String getErrorCode() {
-      return errorCode;
-    }
-
-    public static SQLError fromErrorCode(String errorCode) {
-      return SQLErrorLookup.get(errorCode);
-    }
-  }
-
-  public enum OnExists {
-    DELETE,
-    REPLACE, //Default
-    RETAIN,
-    ERROR
-  }
-
-  public enum OnNotExists {
-    CREATE, //Default
-    RETAIN,
-    ERROR
-  }
-
-  public enum OnVersionConflict {
-    MERGE, //Default for WRITE
-    REPLACE, //Default for DELETE
-    RETAIN,
-    ERROR
-  }
-
-  public enum OnMergeConflict {
-    REPLACE,
-    RETAIN,
-    ERROR //Default
   }
 
   public enum Operation {

@@ -20,9 +20,11 @@
 package com.here.xyz.psql.tools;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.*;
-import org.apache.commons.lang3.RandomStringUtils;
-
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,7 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class FeatureGenerator {
-    protected static Random RANDOM = new Random();
+    protected static final Random RANDOM = new Random();
 
     public static Feature generateFeature(XyzNamespace xyzNamespace, List<String> propertyKeys) {
         propertyKeys = propertyKeys == null ? Collections.emptyList() : propertyKeys;
@@ -40,7 +42,7 @@ public class FeatureGenerator {
                 .withGeometry(
                         new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)))
                 .withProperties(propertyKeys.stream().reduce(new Properties().withXyzNamespace(xyzNamespace), (properties, k) -> {
-                    properties.put(k, RandomStringUtils.randomAlphanumeric(3));
+                    properties.put(k, com.here.xyz.util.Random.randomAlphaNumeric(3));
                     return properties;
                 }, (a, b) -> a));
     }
@@ -48,7 +50,7 @@ public class FeatureGenerator {
     public static FeatureCollection get11kFeatureCollection() throws Exception {
         final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
         final List<String> propertyKeys = Stream.generate(() ->
-                RandomStringUtils.randomAlphanumeric(10)).limit(3).collect(Collectors.toList());
+            com.here.xyz.util.Random.randomAlphaNumeric(10)).limit(3).collect(Collectors.toList());
 
         FeatureCollection collection = new FeatureCollection();
         collection.setFeatures(new ArrayList<>());

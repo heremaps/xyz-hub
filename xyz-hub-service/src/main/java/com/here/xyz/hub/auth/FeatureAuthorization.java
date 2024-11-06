@@ -19,11 +19,14 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.hub.auth.XyzHubActionMatrix.DELETE_FEATURES;
+import static com.here.xyz.hub.auth.XyzHubActionMatrix.UPDATE_FEATURES;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.getJWT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
@@ -31,6 +34,8 @@ import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.hub.jwt.ActionMatrix;
 import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
+import io.vertx.ext.web.RoutingContext;
 
 public class FeatureAuthorization extends Authorization {
 
@@ -41,6 +46,20 @@ public class FeatureAuthorization extends Authorization {
     } else {
       authorizeReadQuery(task, callback);
     }
+  }
+
+  public static void authorizeWrite(RoutingContext context, Space space, boolean isDelete) throws HttpException {
+    final ActionMatrix tokenRights = getXyzHubMatrix(getJWT(context));
+    final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
+
+    //CREATE & UPDATE == WRITE
+    if (!isDelete && !requestRights.containsKey(UPDATE_FEATURES))
+      requestRights.updateFeatures(XyzHubAttributeMap.forValues(space.getOwner(), space.getId(), space.getPackages()));
+    //DELETE
+    else if (isDelete && !requestRights.containsKey(DELETE_FEATURES))
+      requestRights.deleteFeatures(XyzHubAttributeMap.forValues(space.getOwner(), space.getId(), space.getPackages()));
+
+    evaluateRights(LogUtil.getMarker(context), requestRights, tokenRights);
   }
 
   /**
@@ -90,10 +109,10 @@ public class FeatureAuthorization extends Authorization {
     else if (!requestRights.containsKey(XyzHubActionMatrix.CREATE_FEATURES) && task.modifyOp.isCreate())
       requestRights.createFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
     //UPDATE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.UPDATE_FEATURES) && task.modifyOp.isUpdate())
+    else if (!requestRights.containsKey(UPDATE_FEATURES) && task.modifyOp.isUpdate())
       requestRights.updateFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
     //DELETE
-    else if (!requestRights.containsKey(XyzHubActionMatrix.DELETE_FEATURES) && task.modifyOp.isDelete())
+    else if (!requestRights.containsKey(DELETE_FEATURES) && task.modifyOp.isDelete())
       requestRights.deleteFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
 
     evaluateRights(requestRights, tokenRights, task, callback);

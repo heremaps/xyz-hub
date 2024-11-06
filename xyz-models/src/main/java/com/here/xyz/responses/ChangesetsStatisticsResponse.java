@@ -24,6 +24,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class ChangesetsStatisticsResponse extends XyzResponse<ChangesetsStatisticsResponse> {
   private Long minVersion;
   private Long maxVersion;
+  @JsonInclude
+  public final String DEPRECATION_NOTE = "This endpoint is deprecated and will be removed in the next releases. "
+      + "Please use '{resource}/statistics' instead of '{resource}/changesets/statistics'.";
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   private Long minTagVersion;

@@ -24,9 +24,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.pg.Script;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class SQLScriptsIT extends SQLITBase {
   public void installScriptsFromResourceFolder() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       //Install all scripts residing in the resource folder "sqlSamples"
-      List<Script> scripts = Script.loadScripts("/sqlSamples", dsp, "1.0.1");
+      List<Script> scripts = Script.loadScripts(new ScriptResourcePath("/sqlSamples"), dsp, "1.0.1");
       scripts.forEach(script -> script.install());
     }
 

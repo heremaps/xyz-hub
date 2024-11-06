@@ -48,6 +48,7 @@ import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -75,7 +76,8 @@ import software.amazon.awssdk.services.sfn.model.SendTaskSuccessRequest;
 import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = DatabaseBasedStep.class)
+    @JsonSubTypes.Type(value = DatabaseBasedStep.class),
+    @JsonSubTypes.Type(value = RunEmrJob.class)
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
   private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
@@ -117,6 +119,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void startExecution() throws Exception {
     updateState(RUNNING);
+
     switch (getExecutionMode()) {
       case SYNC -> {
         if (isResume())
@@ -358,6 +361,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void synchronizeStepState() {
+    if(isSimulation)
+      return;
     //NOTE: For steps that are part of a pipeline job, do not synchronize the state
     if (isPipeline())
       return;
@@ -479,6 +484,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         }
         //Read the incoming request
         request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
+
+        new LambdaFunctionRuntime(context, request.getStep().getGlobalStepId());
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");

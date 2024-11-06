@@ -35,6 +35,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import io.vertx.core.json.Json;
 import org.junit.After;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ErrorResponseTestIT extends TestSpaceWithFeature {
@@ -167,6 +168,7 @@ public class ErrorResponseTestIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore("Deprecated functionality")
   public void testFailedEntries() {
     cleanUpId = "x-failing";
     given().
@@ -193,6 +195,7 @@ public class ErrorResponseTestIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore("Deprecated functionality")
   public void testErrorAndFailed() {
     cleanUpId = "x-failing";
     given().
@@ -220,6 +223,7 @@ public class ErrorResponseTestIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore("Deprecated functionality")
   public void testsExceptionPreProcessor() {
     cleanUpId = "x-failing";
     given().

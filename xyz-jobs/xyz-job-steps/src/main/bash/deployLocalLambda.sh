@@ -21,10 +21,10 @@
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
-targetPathRel="../../../target"
+relativeTargetPath="../../../target"
 
 if [ "$HOSTNAME" = "localstack" ]; then
-  targetPathRel="../job-steps/target"
+  relativeTargetPath="../job-steps/target"
 fi
 
 #Check if the localstack is up and running
@@ -36,13 +36,13 @@ fi
 
 scriptBasePath="$(dirname $(realpath $0))"
 
-cd ${scriptBasePath}/${targetPathRel}
+cd ${scriptBasePath}/${relativeTargetPath}
 
 rm -rf lib > /dev/null 2>&1
 mkdir lib
 cp ./xyz-job-steps-fat.jar lib
-chown -R 1000:1000 lib
 zip -r xyz-job-steps.zip lib
+chmod -R 777 lib xyz-job-steps.zip
 
 #Delete a potentially existing old local Lambda Function with the same name
 aws --endpoint $LOCAL_STACK_HOST lambda delete-function \

@@ -20,32 +20,38 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.jobs.datasets.space.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.CREATE_TMP_TABLE;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.EXECUTE_IMPORT;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.FILL_TMP_TABLE;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RESET_SUCCESS_MARKER;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Phase.RETRIEVE_NEW_VERSION;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryTriggerTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.datasets.space.UpdateStrategy;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
-import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -57,19 +63,14 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
-import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.locationtech.jts.io.ParseException;
 
 
@@ -79,16 +80,13 @@ import org.locationtech.jts.io.ParseException;
  */
 public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
-  private static final Logger logger = LogManager.getLogger();
-  private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024l;
+  private static final long MAX_INPUT_BYTES_FOR_NON_EMPTY_IMPORT = 10 * 1024 * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_SYNC_IMPORT = 100 * 1024 * 1024;
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1 * 1024 * 1024 * 1024;
   private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 5_000_000;
   private static final int MAX_DB_THREAD_COUNT = 15;
 
   private Format format = GEOJSON;
-
-  private Phase phase;
 
   @JsonView({Internal.class, Static.class})
   private double overallNeededAcus = -1;
@@ -110,13 +108,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @JsonView({Internal.class, Static.class})
   private EntityPerLine entityPerLine = Feature;
-
-  @JsonIgnore
-  private Space space;
-  @JsonIgnore
-  private Space superSpace;
-  @JsonIgnore
-  private Database db;
 
   public Format getFormat() {
     return format;
@@ -214,7 +205,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public int getTimeoutSeconds() {
     //return ResourceAndTimeCalculator.getInstance().calculateImportTimeoutSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
-    return 24 * 3600;
+    return 3 * 24 * 3600;
   }
 
   @Override
@@ -222,7 +213,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
       estimatedSeconds = ResourceAndTimeCalculator.getInstance()
           .calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
-      logger.info("[{}] Import estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
+      infoLog(JOB_EXECUTOR, this, "Calculated estimatedSeconds: "+estimatedSeconds );
     }
     return estimatedSeconds;
   }
@@ -257,7 +248,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   public boolean validate() throws ValidationException {
     super.validate();
     try {
-      logAndSetPhase(Phase.VALIDATE);
+      infoLog(JOB_VALIDATE, this);
       //Check if the space is actually existing
       Space space = space();
       if(space.isReadOnly())
@@ -286,28 +277,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return true;
   }
 
-  private void logAndSetPhase(Phase newPhase, String... messages) {
-    if (newPhase != null)
-      phase = newPhase;
-    logger.info("[{}@{}] ON/INTO '{}' {}", getGlobalStepId(), getPhase(), getSpaceId(), messages.length > 0 ? messages : "");
-  }
-
-  private Space space() throws WebClientException {
-    if (space == null) {
-      log("Loading space config for space " + getSpaceId());
-      space = loadSpace(getSpaceId());
-    }
-    return space;
-  }
-
-  public Phase getPhase() {
-    return phase;
-  }
-
-  private void log(String... messages) {
-    logAndSetPhase(null, messages);
-  }
-
   @Override
   public void execute()
       throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
@@ -318,19 +287,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (getExecutionMode() == SYNC)
       syncExecution();
     else {
-      log("Importing input files for job " + getJobId() + " into space " + getSpaceId() + " ...");
-
       //TODO: Move resume logic into #resume()
       if (!isResume) {
-        logAndSetPhase(Phase.SET_READONLY);
+        infoLog(STEP_EXECUTE, this, "Set ReadOnly");
         hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
 
-        logAndSetPhase(RETRIEVE_NEW_VERSION);
+        infoLog(STEP_EXECUTE, this,"Retrieve new version");
         long newVersion = increaseVersionSequence();
 
-        logAndSetPhase(Phase.CREATE_TRIGGER);     //FIXME: Use owner of the job
+        infoLog(STEP_EXECUTE, this,"Create TriggerTable and Trigger");
         //Create Temp-ImportTable to avoid deserialization of JSON and fix missing row count
-        runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space.getOwner(), newVersion), db(), 0);
+        runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space().getOwner(), newVersion), db(), 0);
       }
 
       createAndFillTemporaryJobTable();
@@ -340,23 +307,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               MAX_DB_THREAD_COUNT);
       double neededAcusForOneThread = calculateNeededAcus(1);
 
-      logAndSetPhase(EXECUTE_IMPORT);
-
       for (int i = 1; i <= calculatedThreadCount; i++) {
-        logAndSetPhase(EXECUTE_IMPORT, "Start Import Thread number " + i);
-        runReadQueryAsync(buildImportQueryBlock(), db(), neededAcusForOneThread, false);
+        infoLog(STEP_EXECUTE, this,"Start Import Thread number " + i);
+        runReadQueryAsync(buildImportQuery(), db(), neededAcusForOneThread, false);
       }
     }
   }
 
   private void syncExecution() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     //TODO: Support resume
-    logAndSetPhase(RETRIEVE_NEW_VERSION);
+    infoLog(STEP_EXECUTE, this,"Retrieve new version");
     long newVersion = increaseVersionSequence();
     long featureCount = 0;
 
     for (S3DataFile input : loadStepInputs()) {
-      logger.info("[{}] Sync write from {} to {}", getGlobalStepId(), input.getS3Key(), getSpaceId());
+      infoLog(STEP_EXECUTE, this,"Sync write of file:"+ input.getS3Key());
       featureCount += syncWriteFileToSpace(input, newVersion);
     }
     registerOutputs(List.of(new FeatureStatistics().withFeatureCount(featureCount).withByteSize(getUncompressedUploadBytesEstimation())),
@@ -404,42 +369,25 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     });
   }
 
-  private Space superSpace() throws WebClientException {
-    if (superSpace == null) {
-      log("Loading space config for super-space " + getSpaceId());
-      if (space().getExtension() == null)
-        throw new IllegalStateException("The space does not extend some other space. Could not load the super space.");
-      superSpace = loadSpace(space().getExtension().getSpaceId());
-    }
-    return superSpace;
-  }
-
-  private Database db() throws WebClientException {
-    if (db == null) {
-      log("Loading storage database for space " + getSpaceId());
-      db = loadDatabase(space().getStorage().getId(), WRITER);
-    }
-    return db;
-  }
-
   private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
-      logAndSetPhase(RESET_SUCCESS_MARKER);
-      runWriteQuerySync(resetSuccessMarkerAndRunningOnes(getSchema(db)), db, 0);
+      infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
+      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnesStatement(getSchema(db()) ,this), db(), 0);
     }
     else {
-      logAndSetPhase(CREATE_TMP_TABLE);
-      runWriteQuerySync(buildTemporaryTableForImportQuery(getSchema(db)), db, 0);
+      infoLog(STEP_EXECUTE, this,"Create temporary job table");
+      runWriteQuerySync(buildTemporaryJobTableCreateStatement(getSchema(db()), this), db(), 0);
 
-      logAndSetPhase(FILL_TMP_TABLE);
-      fillTemporaryTableWithInputs(db, loadStepInputs(), bucketRegion());
+      infoLog(STEP_EXECUTE, this,"Fill temporary job table");
+      runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
+              loadStepInputs(), bucketRegion(),this)), db(), 0 );
     }
   }
 
   @Override
   protected void onStateCheck() {
     try {
-      runReadQuerySync(buildProgressQuery(getSchema(db())), db(), 0,
+      runReadQuerySync(buildProgressQuery(getSchema(db()), this), db(), 0,
           rs -> {
             rs.next();
 
@@ -450,14 +398,14 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
             getStatus().setEstimatedProgress(progress);
 
-            log("Progress[" + progress + "] => "
-                + " processedBytes:" + processedBytes + " ,finishedCnt:" + finishedCnt + " ,failedCnt:" + failedCnt);
+            infoLog(STEP_ON_STATE_CHECK,this,"Progress[" + progress + "] => " + " processedBytes:"
+                    + processedBytes + " ,finishedCnt:" + finishedCnt + " ,failedCnt:" + failedCnt);
             return progress;
           });
     }
     catch (Exception e) {
       //TODO: What to do? Only log? Report Status is not that important. Further Ignore "table does not exists error" - report 0 in this case.
-      logger.error(e);
+      errorLog(STEP_ON_STATE_CHECK, this, e);
     }
   }
 
@@ -465,20 +413,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   protected void onAsyncSuccess() throws WebClientException,
       SQLException, TooManyResourcesClaimed, IOException {
     try {
-
-      logAndSetPhase(Phase.RETRIEVE_STATISTICS);
       FeatureStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
           0, rs -> rs.next()
               ? new FeatureStatistics().withFeatureCount(rs.getLong("imported_rows")).withByteSize(rs.getLong("imported_bytes"))
               : new FeatureStatistics());
 
-      log("Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
-      logAndSetPhase(Phase.WRITE_STATISTICS);
+      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
       registerOutputs(List.of(statistics), true);
 
       cleanUpDbRelatedResources();
 
-      logAndSetPhase(Phase.RELEASE_READONLY);
+      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Release READONLY");
       hubWebClient().patchSpace(getSpaceId(), Map.of(
           "readOnly", false,
           "contentUpdatedAt", Core.currentTimeMillis()
@@ -489,7 +434,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
       //TODO: Find out the cases in which that could happen and prevent it from happening
       if (e.getSQLState() != null && e.getSQLState().equals("42P01")) {
-        log("_job_data table got already deleted!");
+        errorLog(STEP_ON_ASYNC_SUCCESS, this, e, "_job_data table got already deleted!");
         return;
       }
       throw e;
@@ -497,9 +442,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private void cleanUpDbRelatedResources() throws TooManyResourcesClaimed, SQLException, WebClientException {
-    logAndSetPhase(Phase.DROP_TMP_TABLE);
-    runWriteQuerySync(buildDropTemporaryTableForImportQuery(), db(), 0);
-    runWriteQuerySync(buildDropTemporaryTriggerTableForImportQuery(), db(), 0);
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Clean up database resources");
+    runBatchWriteQuerySync(SQLQuery.batchOf(
+            buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())),
+            buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryTriggerTableName(getId()))
+    ), db(), 0);
   }
 
   @Override
@@ -523,79 +470,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     _execute(true);
   }
 
-  private SQLQuery buildTemporaryTableForImportQuery(String schema) {
-    return new SQLQuery("""
-        CREATE TABLE IF NOT EXISTS ${schema}.${table}
-               (
-                    s3_bucket text NOT NULL,
-                    s3_path text NOT NULL,
-                    s3_region text NOT NULL,
-                    state text NOT NULL, --jobtype
-                    execution_count int DEFAULT 0, --amount of retries
-                    data jsonb COMPRESSION lz4, --statistic data
-                    i SERIAL,
-                    CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
-               );
-        """)
-        .withVariable("table", getTemporaryJobTableName(this))
-        .withVariable("schema", schema)
-        .withVariable("primaryKey", getTemporaryJobTableName(this) + "_primKey");
-  }
-
-  private void fillTemporaryTableWithInputs(Database db, List<S3DataFile> inputs, String bucketRegion)
-      throws SQLException, TooManyResourcesClaimed {
-    List<SQLQuery> queryList = new ArrayList<>();
-    for (S3DataFile input : inputs) {
-      if (input instanceof UploadUrl uploadUrl) {
-        JsonObject data = new JsonObject()
-            .put("compressed", uploadUrl.isCompressed())
-            .put("filesize", uploadUrl.getByteSize());
-
-        queryList.add(
-            new SQLQuery("""                
-                    INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
-                        VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
-                        ON CONFLICT (s3_path) DO NOTHING;
-                """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-                .withVariable("schema", getSchema(db))
-                .withVariable("table", getTemporaryJobTableName(this))
-                .withNamedParameter("s3Key", input.getS3Key())
-                .withNamedParameter("bucketName", input.getS3Bucket())
-                .withNamedParameter("bucketRegion", bucketRegion)
-                .withNamedParameter("state", "SUBMITTED")
-                .withNamedParameter("data", data.toString())
-        );
-      }
-    }
-    //Add final entry
-    queryList.add(
-        new SQLQuery("""                
-                INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
-                    VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
-                    ON CONFLICT (s3_path) DO NOTHING;
-            """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-            .withVariable("schema", getSchema(db))
-            .withVariable("table", getTemporaryJobTableName(this))
-            .withNamedParameter("s3Key", "SUCCESS_MARKER")
-            .withNamedParameter("bucketName", "SUCCESS_MARKER")
-            .withNamedParameter("state", "SUCCESS_MARKER")
-            .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
-            .withNamedParameter("data", "{}"));
-    runBatchWriteQuerySync(SQLQuery.batchOf(queryList), db, 0);
-  }
-
-  private SQLQuery buildDropTemporaryTableForImportQuery() throws WebClientException {
-    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-        .withVariable("table", getTemporaryJobTableName(this))
-        .withVariable("schema", getSchema(db()));
-  }
-
-  private SQLQuery buildDropTemporaryTriggerTableForImportQuery() throws WebClientException {
-    return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this))
-        .withVariable("schema", getSchema(db()));
-  }
-
   private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {
     String tableFields =
         "jsondata TEXT, "
@@ -604,7 +478,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}} )")
         .withQueryFragment("tableFields", tableFields)
         .withVariable("schema", getSchema(db()))
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   private SQLQuery buildCreateImportTrigger(String targetAuthor, long newVersion) throws WebClientException {
@@ -621,27 +495,27 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildCreateImportTriggerForEmptyLayer(String targetAuthor, long targetSpaceVersion) throws WebClientException {
-    String triggerFunction = "xyz_import_trigger_for_empty_layer";
+    String triggerFunction = "import_from_s3_trigger_for_empty_layer";
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
-        + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
+        + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
         .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
         .withQueryFragment("author", targetAuthor)
-        .withQueryFragment("targetTable", getRootTableName(space))
+        .withQueryFragment("targetTable", getRootTableName(space()))
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("schema", getSchema(db()))
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   private SQLQuery buildCreateImportTriggerForNonEmptyLayer(String author, long newVersion) throws WebClientException {
-    String triggerFunction = "xyz_import_trigger_for_non_empty_layer";
+    String triggerFunction = "import_from_s3_trigger_for_non_empty_layer";
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
 
     //TODO: Check if we can forward the whole transaction to the FeatureWriter rather than doing it for each row
     return new SQLQuery("""
         CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} 
-          FOR EACH ROW EXECUTE PROCEDURE ${schema}.${triggerFunction}(
+          FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}(
              ${{author}},
              ${{spaceVersion}},
              false, --isPartial
@@ -670,10 +544,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .withQueryFragment("extendedTable", superTable == null ? "NULL" : "'" + superTable + "'")
         .withQueryFragment("format", format.toString())
         .withQueryFragment("entityPerLine", entityPerLine.toString())
-        .withQueryFragment("targetTable", getRootTableName(space))
+        .withQueryFragment("targetTable", getRootTableName(space()))
         .withVariable("schema", getSchema(db()))
         .withVariable("triggerFunction", triggerFunction)
-        .withVariable("table", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
   //TODO: Move to XyzSpaceTableHelper or so (it's the nth time we have that implemented somewhere)
@@ -692,15 +566,61 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               WHERE POSITION('SUCCESS_MARKER' in state) = 0;
         """)
         .withVariable("schema", getSchema(db()))
-        .withVariable("tmpTable", getTemporaryJobTableName(this))
-        .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(this));
+        .withVariable("tmpTable", getTemporaryJobTableName(getId()))
+        .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getId()));
   }
 
-  private SQLQuery buildProgressQuery(String schema) {
+  private SQLQuery buildImportQuery() throws WebClientException {
+
+    SQLQuery successQuery = buildSuccessCallbackQuery();
+    SQLQuery failureQuery = buildFailureCallbackQuery();
+
+    return new SQLQuery(
+            "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}');")
+            .withContext(getQueryContext())
+            .withAsyncProcedure(true)
+            .withNamedParameter("format", format.toString())
+            .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
+            .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"));
+  }
+
+  private Map<String, Object> getQueryContext() throws WebClientException {
+    String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
+    return createQueryContext(getId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
+  }
+
+  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException, JsonProcessingException {
+    String writeFeatureModifications = """
+        [{
+         "updateStrategy": #updateStrategy#,
+        "featureData": {"type": "FeatureCollection", "features": #input_features#},
+        "partialUpdates": "#is_partial#"
+        }]
+     """.replaceAll("#updateStrategy#" , XyzSerializable.serialize(
+             new UpdateStrategy(updateStrategy.onExists(), updateStrategy.onNotExists(), updateStrategy.onVersionConflict(),
+                     updateStrategy.onMergeConflict())))
+        .replaceAll("#input_features#" , featureList)
+        .replaceAll("#is_partial#" , "false");
+
+      return new SQLQuery("""
+        SELECT write_features(
+          #{featureModifications},
+          #{author},
+          #{returnResult},
+          #{version}
+        );""")
+            .withNamedParameter("featureModifications", writeFeatureModifications)
+            .withNamedParameter("author", space().getOwner())
+            .withNamedParameter("returnResult", false)
+            .withNamedParameter("version", targetVersion)
+            .withContext(getQueryContext());
+  }
+
+  private SQLQuery buildProgressQuery(String schema, ImportFilesToSpace step) {
     return new SQLQuery("""
-          SELECT 
-          	COALESCE(processed_bytes/overall_bytes, 0) as progress,
-          	COALESCE(processed_bytes,0) as processed_bytes,
+          SELECT
+          	    COALESCE(processed_bytes/overall_bytes, 0) as progress,
+          	    COALESCE(processed_bytes,0) as processed_bytes,
             	COALESCE(finished_cnt,0) as finished_cnt,
             	COALESCE(failed_cnt,0) as failed_cnt
             FROM(
@@ -712,97 +632,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
                 FROM ${schema}.${table}
               	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
             	   AND state IN ('FINISHED','FAILED')
-            )A          
+            )A
         """)
-        .withVariable("schema", schema)
-        .withVariable("table", getTemporaryJobTableName(this));
-  }
-
-  private SQLQuery buildImportQuery() throws WebClientException {
-
-    String schema = getSchema(db());
-    SQLQuery successQuery = buildSuccessCallbackQuery();
-    SQLQuery failureQuery = buildFailureCallbackQuery();
-    return new SQLQuery(
-        "CALL xyz_import_start(#{schema}, #{temporary_tbl}::regclass, #{target_tbl}::regclass, #{format}, '${{successQuery}}', '${{failureQuery}}');")
-        .withAsyncProcedure(true)
-        .withNamedParameter("schema", schema)
-        .withNamedParameter("target_tbl", schema + ".\"" + TransportTools.getTemporaryTriggerTableName(this) + "\"")
-        .withNamedParameter("temporary_tbl", schema + ".\"" + (getTemporaryJobTableName(this)) + "\"")
-        .withNamedParameter("format", format.toString())
-        .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
-        .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
-        .withContext(getQueryContext());
-  }
-
-  private SQLQuery buildImportQueryBlock() throws WebClientException {
-    /**
-     * TODO:
-     * The idea was to uses context with asyncify. The integration in "_create_asyncify_query_block" (same
-     * principal as with xzy.password) has not worked. If we find a solution with asyncify we can use the block
-     * query - if not, we can simply use buildImportQuery()
-     */
-    return new SQLQuery("${{importQuery}}")
-        .withAsyncProcedure(true)
-        .withQueryFragment("importQuery", buildImportQuery());
-  }
-
-  private Map<String, Object> getQueryContext() throws WebClientException {
-    String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-
-    final Map<String, Object> queryContext = new HashMap<>(Map.of(
-        "schema", getSchema(db()),
-        "table", getRootTableName(space()),
-        "context", superTable != null ? "'DEFAULT'" : "NULL",
-        "historyEnabled", (space().getVersionsToKeep() > 1)
-    ));
-
-    if (superTable != null)
-      queryContext.put("extendedTable", superTable);
-    return queryContext;
-  }
-
-  private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException {
-    SQLQuery writeFeaturesQuery = new SQLQuery("""
-        SELECT write_features(
-          #{featureList},
-          #{author},
-          #{onExists},
-          #{onNotExists},
-          #{onVersionConflict},
-          #{onMergeConflict},
-          #{isPartial},
-          #{version},
-          #{returnResult}
-        );""")
-        .withNamedParameter("featureList", featureList)
-        .withNamedParameter("author", space.getOwner())
-        .withNamedParameter("onExists", updateStrategy.onExists() == null ? null : updateStrategy.onExists().toString())
-        .withNamedParameter("onNotExists", updateStrategy.onNotExists() == null ? null : updateStrategy.onNotExists().toString())
-        .withNamedParameter("onVersionConflict",
-            updateStrategy.onVersionConflict() == null ? null : updateStrategy.onVersionConflict().toString())
-        .withNamedParameter("onMergeConflict",
-            updateStrategy.onMergeConflict() == null ? null : updateStrategy.onMergeConflict().toString())
-        .withNamedParameter("isPartial", false)
-        .withNamedParameter("version", targetVersion)
-        .withNamedParameter("returnResult", false)
-        .withContext(getQueryContext());
-
-    return writeFeaturesQuery;
-  }
-
-  private SQLQuery resetSuccessMarkerAndRunningOnes(String schema) {
-    return new SQLQuery("""
-        UPDATE ${schema}.${table}
-          SET state =
-            CASE
-              WHEN state = 'SUCCESS_MARKER_RUNNING' THEN 'SUCCESS_MARKER'
-              WHEN state = 'RUNNING' THEN 'SUBMITTED'
-            END
-          WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
-        """)
-        .withVariable("schema", schema)
-        .withVariable("table", getTemporaryJobTableName(this));
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   private double calculateNeededAcus(int threadCount) {
@@ -817,8 +650,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
         getUncompressedUploadBytesEstimation(), fileCount, threadCount);
 
-    logAndSetPhase(Phase.CALCULATE_ACUS,
-        "expectedMemoryConsumption: " + getUncompressedUploadBytesEstimation() + " => neededACUs:" + neededACUs);
+    infoLog(JOB_EXECUTOR, this, "Calculated ACUS: expectedMemoryConsumption: "
+            + getUncompressedUploadBytesEstimation() + " => neededACUs:" + neededACUs);
     return neededACUs;
   }
 
@@ -832,22 +665,5 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     CSV_GEOJSON,
     CSV_JSON_WKB,
     GEOJSON;
-  }
-
-  public enum Phase {
-    VALIDATE,
-    CALCULATE_ACUS,
-    SET_READONLY,
-    RETRIEVE_NEW_VERSION,
-    CREATE_TRIGGER,
-    CREATE_TMP_TABLE,
-    RESET_SUCCESS_MARKER,
-    FILL_TMP_TABLE,
-    EXECUTE_IMPORT,
-    RETRIEVE_STATISTICS,
-    WRITE_STATISTICS,
-    DROP_TRIGGER,
-    DROP_TMP_TABLE,
-    RELEASE_READONLY;
   }
 }

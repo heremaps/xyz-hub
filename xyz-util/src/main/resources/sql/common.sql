@@ -18,6 +18,29 @@
  */
 
 /**
+ * Install required extensions
+ */
+DO $installExtensions$
+    BEGIN
+        CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
+        CREATE EXTENSION IF NOT EXISTS postgis_topology;
+        CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
+        CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;
+        BEGIN
+            CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Not able to install plpython3u extension';
+        END;
+        CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
+        BEGIN
+            CREATE EXTENSION IF NOT EXISTS aws_lambda CASCADE;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Not able to install aws_lambda extension';
+        END;
+    END;
+$installExtensions$;
+
+/**
  * Returns a context field's value.
  */
 CREATE OR REPLACE FUNCTION context(key TEXT) RETURNS JSONB AS $BODY$
@@ -32,7 +55,7 @@ $BODY$ LANGUAGE plpgsql VOLATILE;
  */
 CREATE OR REPLACE FUNCTION context(context JSONB) RETURNS VOID AS $BODY$
 BEGIN
-    PERFORM set_config('xyz.queryContext', context::TEXT, true);
+    PERFORM set_config('xyz.queryContext', context::TEXT, false);
 END
 $BODY$ LANGUAGE plpgsql VOLATILE;
 
@@ -55,3 +78,25 @@ BEGIN
     PERFORM context(jsonb_set(context(), ARRAY[key], to_jsonb(value), true));
 END
 $BODY$ LANGUAGE plpgsql VOLATILE;
+
+/**
+ * This function can be used to write logs, if we run in Async mode.
+ */
+CREATE OR REPLACE FUNCTION write_log(log_msg text, log_source text, log_level text DEFAULT 'INFO') RETURNS VOID AS
+$BODY$
+DECLARE
+BEGIN
+--     CREATE TABLE IF NOT EXISTS common."logs"
+--     (
+--         pid integer,
+--         ts TIMESTAMP,
+--         log text ,
+--         level text ,
+--         source text
+--     );
+
+    INSERT INTO common.logs(pid, ts, log , level , source)
+				VALUES (pg_backend_pid(), NOW(), log_msg, log_source, log_level);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;

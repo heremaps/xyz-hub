@@ -21,9 +21,9 @@ package com.here.xyz.hub.config.jdbc;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.Service;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.JdbcClient;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;

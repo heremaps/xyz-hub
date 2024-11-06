@@ -1521,7 +1521,7 @@ components:
       name: endVersion
       in: query
       description: Defines the end of the version-range [version <= endVersion].
-      required: true
+      required: false
       schema:
         type: integer
     EndVersionNotRequired:
@@ -1869,7 +1869,7 @@ components:
       name: startVersion
       in: query
       description: Defines the start of the version-range [version >= startVersion].
-      required: true
+      required: false
       schema:
         type: integer
     StartVersionNotRequired:

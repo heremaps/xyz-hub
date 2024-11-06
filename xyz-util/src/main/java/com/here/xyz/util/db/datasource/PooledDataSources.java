@@ -19,7 +19,6 @@
 
 package com.here.xyz.util.db.datasource;
 
-import com.here.xyz.util.db.DatabaseSettings;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.sql.Connection;

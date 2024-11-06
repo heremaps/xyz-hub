@@ -47,6 +47,7 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = SpaceBasedStep.class)
 })
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
+
   private static final Logger logger = LogManager.getLogger();
   private double claimedAcuLoad;
   @JsonView(Internal.class)
