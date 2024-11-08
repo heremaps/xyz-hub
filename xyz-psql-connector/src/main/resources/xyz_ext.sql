@@ -110,7 +110,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 203
+ select 204
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -3934,6 +3934,13 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 
+CREATE OR REPLACE FUNCTION _strip_conversion( tileqry_with_geo text ) -- temp workaround to fix sideefect slowing down tilequery DS-758
+	RETURNS text AS
+$$
+ select replace(tileqry_with_geo,'st_geomfromtext(st_astext(geo,8),4326) as geo','geo')
+$$
+LANGUAGE sql IMMUTABLE;
+
 
 create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer, base64enc boolean, clipped boolean, includeEmpty boolean)
  returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
@@ -3963,7 +3970,7 @@ begin
           indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
                                exp_build_sql_inhabited_txt.mlevel as mlevel,
                                exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                               coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+                               _strip_conversion(coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
         ibuckets as
@@ -3981,7 +3988,7 @@ begin
           indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
                                exp_build_sql_inhabited_txt.mlevel as mlevel,
                                exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                               coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+                               _strip_conversion(coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
         ibuckets as
@@ -4025,7 +4032,7 @@ begin
           indata   as ( select exp2_build_sql_inhabited_txt.iqk as iqk,
                                exp2_build_sql_inhabited_txt.mlevel as mlevel,
                                exp2_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                               coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+                               _strip_conversion(coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp2_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
         ibuckets as
@@ -4043,7 +4050,7 @@ begin
           indata   as ( select exp2_build_sql_inhabited_txt.iqk as iqk,
                                exp2_build_sql_inhabited_txt.mlevel as mlevel,
                                exp2_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                               coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+                               _strip_conversion(coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp2_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
         ibuckets as
