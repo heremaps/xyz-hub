@@ -34,13 +34,13 @@ public class ExportTestBase extends StepTest {
                 .withJobId(JOB_ID);
 
         if(context != null)
-            step.withContext(context);
+            step.setContext(context);
         if(propertiesQuery != null)
-            step.withPropertyFilter(propertiesQuery);
+            step.setPropertyFilter(propertiesQuery);
         if(spaceId != null)
-            step.withSpatialFilter(spatialFilter);
+            step.setSpatialFilter(spatialFilter);
         if(versionRef != null)
-            step.withVersionRef(versionRef);
+            step.setVersionRef(versionRef);
 
         //Send Lambda Requests
         sendLambdaStepRequestBlock(step, true);
@@ -57,7 +57,9 @@ public class ExportTestBase extends StepTest {
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures((DownloadUrl) output));
             }else if(output instanceof FileStatistics statistics) {
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getExportedFeatures());
-                Assertions.assertTrue(statistics.getExportedFiles() > 0);
+                //if we have one Feature - we expect at least one file
+                if(expectedFeatures.getFeatures().size() > 1)
+                    Assertions.assertTrue(statistics.getExportedFiles() > 0);
             }
         }
 

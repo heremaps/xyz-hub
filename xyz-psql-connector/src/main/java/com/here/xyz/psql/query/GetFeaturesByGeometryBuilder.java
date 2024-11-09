@@ -21,7 +21,6 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
 
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -43,7 +42,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
           .withSpace(input.spaceId)
           .withConnectorParams(input.connectorParams)
-          .withParams(XyzSerializable.toMap(getConnectorParameters()))
+          .withParams(input.spaceParams)
           .withVersionsToKeep(input.versionsToKeep)
           .withContext(input.context)
           .withRef(input.ref)
@@ -69,6 +68,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
   public record GetFeaturesByGeometryInput(
       String spaceId,
       Map<String, Object> connectorParams,
+      Map<String, Object> spaceParams,
       SpaceContext context,
       int versionsToKeep,
       Ref ref,
