@@ -22,6 +22,7 @@ package com.here.xyz.jobs.datasets.filters;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.util.geo.GeometryValidator.GeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -30,13 +31,13 @@ import com.here.xyz.util.service.BaseHttpServerVerticle;
 
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class SpatialFilter {
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private Geometry geometry;
 
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private int radius;
 
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private boolean clip;
 
   public Geometry getGeometry() {
