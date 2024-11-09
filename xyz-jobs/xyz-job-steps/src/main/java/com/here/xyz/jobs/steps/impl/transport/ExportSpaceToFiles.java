@@ -19,7 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
@@ -84,10 +85,13 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   private Format format = Format.GEOJSON;
 
+  @JsonView({Internal.class, Static.class})
   private SpatialFilter spatialFilter;
+  @JsonView({Internal.class, Static.class})
   private PropertiesQuery propertyFilter;
+  @JsonView({Internal.class, Static.class})
   private SpaceContext context;
-
+  @JsonView({Internal.class, Static.class})
   private Ref versionRef;
 
   /**
@@ -143,7 +147,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   public SpaceContext getContext() {
-    return context == null ? EXTENSION :context;
+    return this.context;
   }
 
   public void setContext(SpaceContext context) {
@@ -372,11 +376,14 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private String generateFilteredExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(db(), 0));
+    if(context == SUPER)
+      space().switchToSuper(superSpace().getId());
 
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
-        getSpaceId(),
+        space().getId(),
         hubWebClient().loadConnector(space().getStorage().getId()).params,
-        context == null ? EXTENSION : context,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        context == null ? DEFAULT : context,
         space().getVersionsToKeep(),
         versionRef,
         spatialFilter != null ? spatialFilter.getGeometry() : null,
