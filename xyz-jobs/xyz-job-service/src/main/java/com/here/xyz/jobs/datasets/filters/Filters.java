@@ -32,9 +32,11 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.util.Hasher;
 
+import java.util.ArrayList;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Filters {
-  @JsonView({Public.class})
+  @JsonView({Public.class, Static.class})
   private PropertiesQuery propertyFilter;
   //TODO: Remove after V1 got shutdown
   @JsonView({Internal.class, Static.class})
@@ -51,8 +53,9 @@ public class Filters {
   }
 
   public void setPropertyFilter(Object propertyFilter) {
-    if (propertyFilter instanceof PropertiesQuery propFilter)
-      this.propertyFilter = propFilter;
+    if (propertyFilter instanceof ArrayList propFilter){
+      this.propertyFilter = new PropertiesQuery(propFilter);
+    }
     else if (propertyFilter instanceof String propFilter) {
       this.propertyFilter = PropertiesQuery.fromString(propFilter);
       this.propertyFilterAsString = propFilter;

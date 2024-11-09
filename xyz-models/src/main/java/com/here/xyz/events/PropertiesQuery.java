@@ -24,6 +24,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,12 @@ public class PropertiesQuery extends ArrayList<PropertyQueryList> {
           "f.updatedAt", "properties.@ns:com:here:xyz.updatedAt",
           "f.tags", "properties.@ns:com:here:xyz.tags"
   );
+
+  public PropertiesQuery() {}
+
+  public PropertiesQuery(Collection<? extends PropertyQueryList> c) {
+    super(c);
+  }
 
   public PropertiesQuery filterOutNamedProperty(String... propertyNames) {
     if (propertyNames == null || propertyNames.length == 0) return this;
