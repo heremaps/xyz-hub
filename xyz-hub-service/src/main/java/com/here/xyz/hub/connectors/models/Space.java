@@ -143,23 +143,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
                 Future.succeededFuture(resolveCompositeParams(extendedSpace)));
   }
 
-  public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
-    if (getExtension() == null)
-      return Collections.emptyMap();
-    //Storage params are taken from the input and then resolved based on the extensions
-    final Map<String, Object> extendsMap = getExtension().toMap();
-
-    //TODO: Remove this once Job-API was fixed to configure that on job-level
-    if (extendedSpace != null && extendedSpace.isReadOnly())
-      extendsMap.put("readOnly", true);
-
-    //Check if the extended space itself is extending some other space (2-level extension)
-    if (extendedSpace != null && extendedSpace.getExtension() != null)
-      //Get the extension definition from the extended space and add it to this one additionally
-      extendsMap.put("extends", extendedSpace.getExtension().toMap());
-    return Collections.singletonMap("extends", extendsMap);
-  }
-
   @JsonView(Internal.class)
   @SuppressWarnings("unused")
   public CacheProfile getAutoCacheProfile() {
