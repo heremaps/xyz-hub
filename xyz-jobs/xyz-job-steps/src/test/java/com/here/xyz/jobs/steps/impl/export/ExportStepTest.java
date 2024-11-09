@@ -51,20 +51,20 @@ public class ExportStepTest extends ExportTestBase {
     }
 
     @Test
-    public void testExportSpaceToFilesStepUnfiltered() throws Exception {
+    public void exportUnfiltered() throws Exception {
         executeExportStepAndCheckResults(SPACE_ID, null, null, null, null,
                 "/search");
     }
 
     @Test
-    public void testExportSpaceToFilesStepWithPropertyFilter() throws Exception {
+    public void exportWithPropertyFilter() throws Exception {
         String propertiesQuery = URLEncoder.encode("p.description=\"Point\"", StandardCharsets.UTF_8);
         executeExportStepAndCheckResults(SPACE_ID, null, null,
                 PropertiesQuery.fromString(propertiesQuery), null, "/search?" + propertiesQuery);
     }
 
     @Test
-    public void testExportSpaceToFilesStepWithSpatialFilter() throws Exception {
+    public void exportStepWithSpatialFilter() throws Exception {
         SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(
                         new Point().withCoordinates(new PointCoordinates(8.6709594,50.102964))
@@ -77,7 +77,7 @@ public class ExportStepTest extends ExportTestBase {
     }
 
     @Test
-    public void testExportSpaceToFilesStepWithSpatialAndPropertyFilter() throws Exception {
+    public void exportWithSpatialAndPropertyFilter() throws Exception {
         String propertiesQuery = URLEncoder.encode("p.description=\"Point\"", StandardCharsets.UTF_8);
         String hubQuery = "spatial?lat=50.102964&lon=8.6709594&clip=true&radius=55000&"
             + propertiesQuery;
