@@ -284,7 +284,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
 
     //@TODO: Add ACU calculation
-     runWriteQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace), db, calculateNeededAcus(), true);
+    
+    runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace), db, calculateNeededAcus(), true);
 
   }
 
