@@ -110,7 +110,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 204
+ select 205
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -3969,7 +3969,7 @@ begin
          with
           indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
                                exp_build_sql_inhabited_txt.mlevel as mlevel,
-                               exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
+                               _strip_conversion(exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
                                _strip_conversion(coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
@@ -3987,7 +3987,7 @@ begin
          with
           indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
                                exp_build_sql_inhabited_txt.mlevel as mlevel,
-                               exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
+                               _strip_conversion(exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
                                _strip_conversion(coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
@@ -4031,7 +4031,7 @@ begin
          with
           indata   as ( select exp2_build_sql_inhabited_txt.iqk as iqk,
                                exp2_build_sql_inhabited_txt.mlevel as mlevel,
-                               exp2_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
+                               _strip_conversion(exp2_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
                                _strip_conversion(coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp2_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
@@ -4049,7 +4049,7 @@ begin
          with
           indata   as ( select exp2_build_sql_inhabited_txt.iqk as iqk,
                                exp2_build_sql_inhabited_txt.mlevel as mlevel,
-                               exp2_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
+                               _strip_conversion(exp2_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_export_data,
                                _strip_conversion(coalesce( exp2_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp2_build_sql_inhabited_txt.sql_with_jsondata_geo)) as sql_qks,
                                exp2_build_sql_inhabited_txt.max_tiles as max_tiles
                       ),
@@ -4059,7 +4059,7 @@ begin
             group by rr.bucket, rr.tiles_total
         )
         select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, jsondata, geo from qk_s_get_featurelist_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_clipped,v_includeEmpty) as s3sql
+		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo from qk_s_get_featurelist_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_clipped,v_includeEmpty) as s3sql
         from ibuckets l, indata r
         order by bucket;
     end if;
@@ -4159,7 +4159,7 @@ declare
 	cnt bigint;
 begin
 	if esitmated_count IS null then
-		 execute format('select count(1) from (%1$s) q1', sql_with_jsondata_geo ) into cnt;
+		 execute format('select count(1) from (%1$s) q1', _strip_conversion(sql_with_jsondata_geo) ) into cnt;
     else
 		cnt := esitmated_count;
     end if;
@@ -4245,7 +4245,7 @@ begin
     end if;
 
     return query select coalesce( ARRAY_AGG(qk), ARRAY[''] )  from (
-        select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbllist, sql_with_jsondata_geo
+        select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbllist, _strip_conversion(sql_with_jsondata_geo)
     ) order by weight DESC) a;
 end
 $BODY$;
