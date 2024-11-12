@@ -41,6 +41,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
@@ -520,10 +521,9 @@ public class Job implements XyzSerializable {
 
   @JsonView(Static.class)
   public String getResourceKey() {
-    //TODO: Identify when to use the key from source vs from target
-    if (getTarget() == null)
-      return null;
-    return getTarget().getKey();
+    //Always use key from the source except when the source is Files
+    if(getSource() == null) return null;
+    return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
   }
 
   public String getDescription() {

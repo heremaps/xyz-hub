@@ -33,6 +33,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -720,6 +721,28 @@ public class Space {
       setAlt(alt);
       return this;
     }
+  }
+
+  public void switchToSuper(String superSpaceId){
+    id = superSpaceId;
+    extension = null;
+  }
+
+  public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
+    if (getExtension() == null)
+      return Collections.emptyMap();
+    //Storage params are taken from the input and then resolved based on the extensions
+    final Map<String, Object> extendsMap = getExtension().toMap();
+
+    //TODO: Remove this once Job-API was fixed to configure that on job-level
+    if (extendedSpace != null && extendedSpace.isReadOnly())
+      extendsMap.put("readOnly", true);
+
+    //Check if the extended space itself is extending some other space (2-level extension)
+    if (extendedSpace != null && extendedSpace.getExtension() != null)
+      //Get the extension definition from the extended space and add it to this one additionally
+      extendsMap.put("extends", extendedSpace.getExtension().toMap());
+    return Collections.singletonMap("extends", extendsMap);
   }
 
   public static class License {

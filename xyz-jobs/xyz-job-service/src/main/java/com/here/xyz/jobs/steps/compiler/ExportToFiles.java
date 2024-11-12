@@ -24,6 +24,7 @@ import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
 
 import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
@@ -48,41 +49,45 @@ public class ExportToFiles implements JobCompilationInterceptor {
   @Override
   public CompilationStepGraph compile(Job job) {
     Space source = (Space) job.getSource();
-    resolveVersionRef(source);
-    String spaceId = source.getId();
-
-    ExportSpaceToFiles exportToFilesStep = new ExportSpaceToFiles()
-        .withSpaceId(spaceId)
-        .withJobId(job.getId())
-        .withSpatialFilter(source.getFilters() != null ? source.getFilters().getSpatialFilter() : null)
-        .withPropertyFilter(source.getFilters() != null ? source.getFilters().getPropertyFilter() : null)
-        .withContext(source.getFilters() != null ? source.getFilters().getContext() : null)
-        .withVersionRef(source.getVersionRef() != null ? source.getVersionRef() : null);
-
-    return compileImportSteps(exportToFilesStep);
+    return compileSteps(source.getId(), job.getId(), source.getFilters(), source.getVersionRef());
   }
 
-  public static CompilationStepGraph compileImportSteps(ExportSpaceToFiles exportToFilesStep) {
+  public static CompilationStepGraph compileSteps(String spaceId, String jobId, Filters filters, Ref versionRef) {
     return (CompilationStepGraph) new CompilationStepGraph()
-        .addExecution(exportToFilesStep);
+            .addExecution(compileExportStep(spaceId, jobId, filters, versionRef, false, true));
   }
 
-  private void resolveVersionRef(Space sourceSpace) {
-    if(sourceSpace.getVersionRef() == null || sourceSpace.getVersionRef().isRange())
-      return;
+  public static ExportSpaceToFiles compileExportStep(String spaceId, String jobId, Filters filters, Ref versionRef, boolean useSystemOutput, boolean addStatistics) {
+    versionRef = resolveVersionRef(spaceId, versionRef);
+    return new ExportSpaceToFiles()
+                    .withSpaceId(spaceId)
+                    .withJobId(jobId)
+                    .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
+                    .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
+                    .withContext(filters != null ? filters.getContext() : null)
+                    .withVersionRef(versionRef)
+                    .withUseSystemOutput(useSystemOutput)
+                    .withAddStatisticsToUserOutput(addStatistics);
+  }
+
+  private static Ref resolveVersionRef(String spaceId, Ref versionRef) {
+    if(versionRef == null || versionRef.isRange())
+      return versionRef;
 
     try {
-      if (sourceSpace.getVersionRef().isHead()) {
-        StatisticsResponse statisticsResponse = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(sourceSpace.getId());
-        sourceSpace.setVersionRef(new Ref(statisticsResponse.getMaxVersion().getValue()));
-      } else if (sourceSpace.getVersionRef().isTag()) {
-        long version = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(sourceSpace.getId(), sourceSpace.getVersionRef().getTag()).getVersion();
+      Long resolvedVersion = null;
+      if (versionRef.isHead()) {
+        StatisticsResponse statisticsResponse = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId);
+        resolvedVersion = statisticsResponse.getMaxVersion().getValue();
+      } else if (versionRef.isTag()) {
+        long version = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getTag()).getVersion();
         if (version >= 0) {
-          sourceSpace.setVersionRef(new Ref(version));
+          resolvedVersion = version;
         }
       }
-    }catch (Exception e) {
-      throw new JobCompiler.CompilationError("Unable to resolve '" + sourceSpace.getVersionRef() + "' VersionRef!");
+      return resolvedVersion == null ? versionRef : new Ref(resolvedVersion);
+    } catch (Exception e) {
+      throw new JobCompiler.CompilationError("Unable to resolve '" + versionRef + "' VersionRef!");
     }
   }
 }
