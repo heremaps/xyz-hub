@@ -357,8 +357,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       }
       fileContent.append("]");
 
-      //FIXME: Use correct ACU load + remove batchOf
-      return runBatchWriteQuerySync(SQLQuery.batchOf(buildFeatureWriterQuery(fileContent.toString(), newVersion)), db(), 0)[0];
+      return runReadQuerySync(buildFeatureWriterQuery(fileContent.toString(), newVersion), db(),  0, rs -> {
+        rs.next();
+        return rs.getInt("count");
+      });
     }
   }
 
@@ -603,7 +605,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         .replaceAll("#is_partial#" , "false");
 
       return new SQLQuery("""
-        SELECT write_features(
+        SELECT (write_features::JSONB->>'count')::INT as count from write_features(
           #{featureModifications},
           #{author},
           #{returnResult},
