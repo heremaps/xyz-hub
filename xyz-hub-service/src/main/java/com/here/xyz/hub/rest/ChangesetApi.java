@@ -36,6 +36,7 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.SpaceConnectorBasedHandler;
 import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.service.HttpException;
@@ -83,11 +84,12 @@ public class ChangesetApi extends SpaceBasedApi {
     SpaceConnectorBasedHandler.<IterateChangesetsEvent,ChangesetCollection>execute(getMarker(context),
             space -> Authorization.authorizeManageSpacesRights(context, space.getId(), space.getOwner()).map(space), event)
         .onSuccess(result -> {
-          ChangesetCollection changesets = (ChangesetCollection) result;
-          if (changesets.getVersions().isEmpty())
-            sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
-          else
-            sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
+            ChangesetCollection changesets = (ChangesetCollection) result;
+            if (changesets.getVersions().isEmpty())
+             sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
+            else
+             sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
+
         })
         .onFailure(t -> sendErrorResponse(context, t));
   }

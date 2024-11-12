@@ -29,11 +29,15 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -139,7 +143,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    * @return The wrapped query. A query that takes care of reporting the state back to this implementation asynchronously.
    */
   private SQLQuery wrapQuery(SQLQuery stepQuery) {
-    return new SQLQuery("""
+
+    SQLQuery wrappedQuery = new SQLQuery("""
         DO
         $wrapped$
         DECLARE
@@ -157,6 +162,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withQueryFragment("stepQuery", stepQuery)
         .withQueryFragment("successCallback", buildSuccessCallbackQuery())
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
+
+    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext()); 
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
@@ -209,6 +216,32 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   protected final String getSchema(Database db) {
     return db.getDatabaseSettings().getSchema();
   }
+
+  protected SQLQuery buildCopyQueryRemoteSpace( Database remoteDb, SQLQuery contentQuery) {
+
+      DatabaseSettings dbSettings = remoteDb.getDatabaseSettings();
+      
+      contentQuery = 
+       new SQLQuery(
+          """
+            select t.* 
+            from 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+                    $iqry$ select jsondata, author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
+                  ) 
+            as t( jsondata jsonb, author text, geo geometry )
+           """
+       )
+       .withQueryFragment("innerContentQuery", contentQuery)
+       .withQueryFragment("rmtHost", dbSettings.getHost())
+       .withQueryFragment("rmtDb", dbSettings.getDb())
+       .withQueryFragment("rmtUsr", dbSettings.getUser())
+       .withQueryFragment("rmtPwd", dbSettings.getPassword());
+       
+     return contentQuery;
+  }
+
+
 
   @Override
   public void cancel() throws Exception {

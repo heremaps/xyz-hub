@@ -26,12 +26,12 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.jobs.steps.execution.db.Database;
-import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpace;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByGeometry;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByProperties;
+import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -42,9 +42,6 @@ import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -57,7 +54,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
@@ -77,7 +73,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * - add i/o report
  * - move out parsePropertiesQuery functions
  */
-public class CopySpace extends SpaceBasedStep<CopySpace> {
+public class _CopySpace extends SpaceBasedStep<_CopySpace> {
   private static final Logger logger = LogManager.getLogger();
 
   @JsonView({Internal.class, Static.class})
@@ -94,6 +90,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
+
+  private final int PSEUDO_NEXT_VERSION = 0;
 
   //Existing Space in which we copy to
   private String targetSpaceId;
@@ -115,7 +113,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.geometry = geometry;
   }
 
-  public CopySpace withGeometry(Geometry geometry) {
+  public _CopySpace withGeometry(Geometry geometry) {
     setGeometry(geometry);
     return this;
   }
@@ -128,7 +126,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.radius = radius;
   }
 
-  public CopySpace withRadius(int radius) {
+  public _CopySpace withRadius(int radius) {
     setRadius(radius);
     return this;
   }
@@ -141,7 +139,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.clipOnFilterGeometry = clipOnFilterGeometry;
   }
 
-  public CopySpace withClipOnFilterGeometry(boolean clipOnFilterGeometry) {
+  public _CopySpace withClipOnFilterGeometry(boolean clipOnFilterGeometry) {
     setClipOnFilterGeometry(clipOnFilterGeometry);
     return this;
   }
@@ -154,7 +152,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.propertyFilter = propertyFilter;
   }
 
-  public CopySpace withPropertyFilter(String propertyFilter) {
+  public _CopySpace withPropertyFilter(String propertyFilter) {
     setPropertyFilter(propertyFilter);
     return this;
   }
@@ -167,7 +165,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.sourceVersionRef = sourceVersionRef;
   }
 
-  public CopySpace withSourceVersionRef(Ref sourceVersionRef) {
+  public _CopySpace withSourceVersionRef(Ref sourceVersionRef) {
     setSourceVersionRef(sourceVersionRef);
     return this;
   }
@@ -180,7 +178,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     this.targetSpaceId = targetSpaceId;
   }
 
-  public CopySpace withTargetSpaceId(String targetSpaceId) {
+  public _CopySpace withTargetSpaceId(String targetSpaceId) {
     setTargetSpaceId(targetSpaceId);
     return this;
   }
@@ -188,18 +186,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      List<Load> rList  = new ArrayList<>();
-      Space sourceSpace = loadSpace(getSpaceId());
-      Space targetSpace = loadSpace(getTargetSpaceId());
+      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
 
-      rList.add( new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
-                           .withEstimatedVirtualUnits(calculateNeededAcus()) );
-      
-      if( isRemoteCopy(sourceSpace, targetSpace) )
-       rList.add( new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
-                            .withEstimatedVirtualUnits(calculateNeededAcus()) );
-
-      return rList;                            
+      return List.of(new Load().withResource(db).withEstimatedVirtualUnits(calculateNeededAcus()),
+              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -279,14 +269,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     logger.info( "Loading space config for target-space " + getTargetSpaceId());
     Space targetSpace = loadSpace(getTargetSpaceId());
-
     logger.info("Getting storage database for space  "+getSpaceId());
-    Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
+    Database db = loadDatabase(sourceSpace.getStorage().getId(), WRITER);
 
     //@TODO: Add ACU calculation
-    
-    runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace), db, calculateNeededAcus(), true);
-
+    runWriteQueryAsync(buildCopySpaceQuery(getSchema(db), getRootTableName(sourceSpace), sourceSpace, getRootTableName(targetSpace),
+            isEnableHashedSpaceIdActivated(sourceSpace), sourceSpace.getVersionsToKeep() > 1), db, calculateNeededAcus(), true);
   }
 
   @Override
@@ -295,10 +283,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info( "Loading space config for target-space " + getTargetSpaceId());
     Space targetSpace = loadSpace(getTargetSpaceId());
     logger.info("Getting storage database for space  "+getSpaceId());
-  //  Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
+    Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
 
     //@TODO: Add ACU calculation
-//    runWriteQueryAsync(buildCopySpaceNextVersionUpdate(getSchema(db), getRootTableName(targetSpace)), db, 0, false);
+    runWriteQueryAsync(buildCopySpaceNextVersionUpdate(getSchema(db), getRootTableName(targetSpace)), db, 0, false);
   }
 
   @Override
@@ -314,92 +302,70 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info("Copy - onAsyncSuccess");
   }
 
-  private String _getRootTableName(Space targetSpace) throws SQLException
-  { try { return getRootTableName(targetSpace); } 
-    catch (WebClientException e) {
-      throw new SQLException(e);
-    } 
-  }
-
-  private Database loadDatabaseReaderElseWriter(String name) 
-  {
-    try{ return loadDatabase(name,DatabaseRole.READER); }
-    catch( RuntimeException rt )
-    { if(!(rt.getCause() instanceof NoSuchElementException) )
-       throw rt;
-    }
-
-    return loadDatabase(name,DatabaseRole.WRITER);
-  }
-
-  private boolean isRemoteCopy(Space sourceSpace, Space targetSpace)
-  {
-    String sourceStorage = sourceSpace.getStorage().getId(),
-           targetStorage = targetSpace.getStorage().getId();
-    return !sourceStorage.equals( targetStorage );
-  }
-
-  private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace) throws SQLException {
-
-    String sourceStorageId = sourceSpace.getStorage().getId(),
-           targetStorageId = targetSpace.getStorage().getId(), 
-           targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ), 
-           targetTable  = _getRootTableName(targetSpace);
-
-    int maxBlkSize = 7;
-
-    final Map<String, Object> queryContext = 
-      createQueryContext(getId(), 
-                         targetSchema, 
-                         targetTable, 
-                         targetSpace.getVersionsToKeep() > 1, null);
-    
-    SQLQuery contentQuery = buildCopyContentQuery(sourceSpace);
-
-    if( isRemoteCopy(sourceSpace,targetSpace ) )
-     contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceStorageId), contentQuery );
-      
+  private SQLQuery buildCopySpaceQuery(String schema, String sourceTableName, Space sourceSpace, String targetTableName,
+              boolean isEnableHashedSpaceIdActivated, boolean targetVersioningEnabled)
+          throws SQLException {
     return new SQLQuery(
-/**/
-  """
-    WITH ins_data as
-    (
-      select
-        write_features(
-         jsonb_build_array(
-           jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
-                              'partialUpdates',false,
-                              'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text
-        ,iidata.author,false,(SELECT nextval('${schema}.${versionSequenceName}')))
-      from
-      (
-       select (row_number() over ())/${{maxblksize}} as rn, idata.author, idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json) as feature
-       from
-       ( ${{contentQuery}} ) idata
-      ) iidata
-      group by rn, author
-    )
-    select count(1) into dummy_output from ins_data
-  """
-/**/
-        )
-        .withContext( queryContext )
-        .withVariable("schema", targetSchema)
-        .withVariable("versionSequenceName", targetTable + "_version_seq")
-        .withQueryFragment("maxblksize",""+ maxBlkSize)
-        .withQueryFragment("contentQuery", contentQuery);
-    
+            """      
+              WITH ins_data as
+              (INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version, next_version )
+              SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id,
+                     (SELECT nextval('${schema}.${versionSequenceName}')) AS version,
+                     CASE WHEN edata.id isnull THEN max_bigint() ELSE ${{pseudoNextVersion}} END as next_version
+              FROM
+                (${{contentQuery}} ) idata
+                LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint())
+                RETURNING id, version, (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint as bytes_size
+              ),
+              upd_data as
+              (UPDATE ${schema}.${table}
+                 SET next_version = (SELECT version FROM ins_data LIMIT 1)
+               WHERE ${{targetVersioningEnabled}}
+                  AND next_version = max_bigint()
+                  AND id IN (SELECT id FROM ins_data)
+                  AND version < (SELECT version FROM ins_data LIMIT 1)
+                RETURNING id, version
+              ),
+              del_data AS
+              (DELETE FROM ${schema}.${table}
+                WHERE not ${{targetVersioningEnabled}}
+                  AND id IN (SELECT id FROM ins_data)
+                  AND version < (SELECT version FROM ins_data LIMIT 1)
+                RETURNING id, version
+              )
+              --SELECT count(1) AS rows_uploaded, sum(bytes_size)::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded,
+              --      (SELECT count(1) FROM upd_data) AS version_updated,
+              --      (SELECT count(1) FROM del_data) AS version_deleted
+              --FROM ins_data l
+              SELECT 1 INTO dummy_output FROM del_data
+            """
+    ).withVariable("schema", schema)
+            .withVariable("table", targetTableName)
+            .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
+            .withVariable("versionSequenceName", targetTableName + "_version_seq")
+            .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" )
+            .withQueryFragment("contentQuery", buildCopyContentQuery(sourceSpace, isEnableHashedSpaceIdActivated));
   }
 
-  boolean _isEnableHashedSpaceIdActivated(Space space) throws SQLException
-  {   
-    try { return isEnableHashedSpaceIdActivated(space); } 
-    catch (WebClientException e) {
-      throw new SQLException(e);
-    }
+  private SQLQuery buildCopySpaceNextVersionUpdate(String schema, String targetTableName) throws SQLException {
+    /* adjust next_version to max_bigint(), except in case of concurrency set it to concurrent inserted version */
+    //TODO: case of extern concurency && same id in source & target && non-versiond layer a duplicate id can occure with next_version = concurrent_inserted.version
+    return new SQLQuery(
+            """
+              UPDATE
+               ${schema}.${table} t
+               set next_version = coalesce(( select version from ${schema}.${table} i where i.id = t.id and i.next_version = max_bigint() ), max_bigint())
+              where
+               next_version = ${{pseudoNextVersion}}
+            """
+    ).withVariable("schema", schema)
+            .withVariable("table", targetTableName)
+            .withQueryFragment("pseudoNextVersion", PSEUDO_NEXT_VERSION + "" );
   }
 
-  private SQLQuery buildCopyContentQuery(Space space) throws SQLException {
+  private SQLQuery buildCopyContentQuery(Space space, boolean isEnableHashedSpaceIdActivated) throws SQLException {
+    //@TODO - we need the information of
+    boolean enableHashedSpaceId = false;
 
     GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
             .withSpace(space.getId())
@@ -407,7 +373,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
             .withVersionsToKeep(space.getVersionsToKeep())
             .withRef(sourceVersionRef)
             .withContext(EXTENSION)
-            .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", _isEnableHashedSpaceIdActivated(space) ));
+            .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", isEnableHashedSpaceIdActivated));
 
     if (propertyFilter != null) {
       PropertiesQuery propertyQueryLists = parsePropertiesQuery(propertyFilter, "", false);

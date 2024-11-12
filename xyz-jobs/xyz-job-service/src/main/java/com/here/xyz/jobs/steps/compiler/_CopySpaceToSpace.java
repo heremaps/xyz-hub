@@ -24,20 +24,14 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
-import com.here.xyz.jobs.steps.impl.transport.CopySpace;
+import com.here.xyz.jobs.steps.impl.transport._CopySpace;
 import com.here.xyz.models.hub.Ref;
 
-public class CopySpaceToSpace implements JobCompilationInterceptor {
-  
-  protected boolean validSubType( String subType )
-  { return "Space".equals(subType); }
+public class _CopySpaceToSpace implements JobCompilationInterceptor {
 
   @Override
   public boolean chooseMe(Job job) {
-    return    job.getSource() instanceof DatasetDescription.Space
-           && validSubType( job.getSource().getClass().getSimpleName() )
-           && job.getTarget() instanceof DatasetDescription.Space
-           && validSubType( job.getTarget().getClass().getSimpleName() );
+    return job.getSource() instanceof DatasetDescription.Space && job.getTarget() instanceof DatasetDescription.Space;
   }
 
   @Override
@@ -45,10 +39,10 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
     final String sourceSpaceId = job.getSource().getKey();
     final String targetSpaceId = job.getTarget().getKey();
 
-    Filters filters = ((DatasetDescription.Space<?>) job.getSource()).getFilters();
-    Ref versionRef = ((DatasetDescription.Space<?>) job.getSource()).getVersionRef();
+    Filters filters = ((DatasetDescription.Space) job.getSource()).getFilters();
+    Ref versionRef = ((DatasetDescription.Space) job.getSource()).getVersionRef();
 
-    CopySpace copySpaceStep = new CopySpace()
+    _CopySpace copySpaceStep = new _CopySpace()
             .withSpaceId(sourceSpaceId)
             .withTargetSpaceId(targetSpaceId)
             .withSourceVersionRef(versionRef);

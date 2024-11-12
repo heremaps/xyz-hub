@@ -1062,8 +1062,10 @@ public class SQLQuery {
 
   private Object executeQuery(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
     SQLQuery query = prepareFinalQuery(executionContext);
+
     if (context != null)
       handler = new Ignore1stResultSet(handler);
+
     final List<?> results = getRunner(dataSource, executionContext).execute(query.text(), handler, query.parameters().toArray());
     return results.size() <= 1 ? results.get(0) : results.get(results.size() - 1);
   }
@@ -1262,7 +1264,8 @@ public class SQLQuery {
     public Object handle(ResultSet rs) throws SQLException {
       if (!calledBefore) {
         calledBefore = true;
-        return null;
+          //TODO: using runWriteQueryAsync together with using query context throws NPE due to returned null value
+        return null; 
       }
       return originalHandler.handle(rs);
     }
