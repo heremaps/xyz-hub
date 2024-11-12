@@ -341,9 +341,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace) throws SQLException {
 
-    String sourceStorage = sourceSpace.getStorage().getId(),
-           targetStorage = targetSpace.getStorage().getId(), 
-           targetSchema = getSchema( loadDatabase(targetSpace.getStorage().getId(), WRITER) ), 
+    String sourceStorageId = sourceSpace.getStorage().getId(),
+           targetStorageId = targetSpace.getStorage().getId(), 
+           targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ), 
            targetTable  = _getRootTableName(targetSpace);
 
     int maxBlkSize = 7;
@@ -357,7 +357,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     SQLQuery contentQuery = buildCopyContentQuery(sourceSpace);
 
     if( isRemoteCopy(sourceSpace,targetSpace ) )
-     contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()), contentQuery );
+     contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceStorageId), contentQuery );
       
     return new SQLQuery(
 /**/
