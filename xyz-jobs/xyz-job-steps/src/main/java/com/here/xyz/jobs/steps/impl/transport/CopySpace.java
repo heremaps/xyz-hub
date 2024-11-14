@@ -194,8 +194,15 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
       rList.add( new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
                            .withEstimatedVirtualUnits(calculateNeededAcus()) );
-      
-      if( isRemoteCopy(sourceSpace, targetSpace) )
+
+      boolean bRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);                               
+
+      logger.info("[{}] Copy remote({}) {} -> {}", getGlobalStepId(), 
+                                                           bRemoteCopy, 
+                                                           sourceSpace.getStorage().getId(), 
+                                                           targetSpace.getStorage().getId() );
+
+      if( bRemoteCopy )
        rList.add( new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
                             .withEstimatedVirtualUnits(calculateNeededAcus()) );
 
@@ -292,13 +299,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   protected void onAsyncSuccess() throws WebClientException,
           SQLException, TooManyResourcesClaimed, IOException {
-    logger.info( "Loading space config for target-space " + getTargetSpaceId());
-    Space targetSpace = loadSpace(getTargetSpaceId());
-    logger.info("Getting storage database for space  "+getSpaceId());
-  //  Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
 
-    //@TODO: Add ACU calculation
-//    runWriteQueryAsync(buildCopySpaceNextVersionUpdate(getSchema(db), getRootTableName(targetSpace)), db, 0, false);
+    logger.info("[{}] AsyncSuccess Copy {} -> {}", getGlobalStepId(), getSpaceId() , getTargetSpaceId());
+
   }
 
   @Override
@@ -346,7 +349,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
            targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ), 
            targetTable  = _getRootTableName(targetSpace);
 
-    int maxBlkSize = 7;
+    int maxBlkSize = 1000;
 
     final Map<String, Object> queryContext = 
       createQueryContext(getId(), 
@@ -370,7 +373,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
            jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
                               'partialUpdates',false,
                               'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text
-        ,iidata.author,false,(SELECT nextval('${schema}.${versionSequenceName}')))
+         ,iidata.author,false,(SELECT nextval('${schema}.${versionSequenceName}'))
+        ) as wfresult
       from
       (
        select (row_number() over ())/${{maxblksize}} as rn, idata.author, idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json) as feature
@@ -379,7 +383,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       ) iidata
       group by rn, author
     )
-    select count(1) into dummy_output from ins_data
+    select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
   """
 /**/
         )
@@ -602,9 +606,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return pq;
   }
 
-  private double calculateNeededAcus() {
-    overallNeededAcus =  overallNeededAcus != -1 ? overallNeededAcus : ResourceAndTimeCalculator.getInstance()
-            .calculateNeededAcusFromByteSize(getUncompressedUploadBytesEstimation());
-    return overallNeededAcus;
+  private double calculateNeededAcus() { 
+    return 0.5;
   }
 }
