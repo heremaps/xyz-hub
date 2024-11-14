@@ -461,8 +461,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   private SearchForFeatures getQueryRunner(GetFeaturesByGeometryEvent event) throws SQLException,
           ErrorResponseException, TooManyResourcesClaimed, WebClientException {
+            
     Space sourceSpace = loadSpace(getSpaceId());
-    Database db = loadDatabase(sourceSpace.getStorage().getId(), WRITER);
+    Database db = loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
 
     SearchForFeatures queryRunner;
     if (geometry == null)
