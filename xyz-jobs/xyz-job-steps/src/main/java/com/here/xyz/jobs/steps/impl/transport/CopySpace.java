@@ -205,15 +205,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
                                                            bRemoteCopy, rList.size(),
                                                            sourceSpace.getStorage().getId(), 
                                                            targetSpace.getStorage().getId() );
-
-      for (Load ld : rList) 
-       if( ld == null )
-        logger.info("[{}] null resource listed", getGlobalStepId());
-       else if ( ld.getResource() instanceof Database db)
-        logger.info("[{}] db resource {} listed", getGlobalStepId(), db.getName());
-       else 
-        logger.info("[{}] resource {} listed", getGlobalStepId(), ld.getResource().toString());
-
+                                                           
       return rList;                            
     }
     catch (WebClientException e) {
@@ -422,7 +414,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
             .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", _isEnableHashedSpaceIdActivated(space) ));
 
     if (propertyFilter != null) {
-      PropertiesQuery propertyQueryLists = parsePropertiesQuery(propertyFilter, "", false);
+      PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
       event.setPropertiesQuery(propertyQueryLists);
     }
 
@@ -473,146 +465,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     queryRunner.setDataSourceProvider(requestResource(db,0));
     return queryRunner;
-  }
-
-  //** @TODO: Taken from ApiParam - extract it from there and shift to tools */
-  private static Map<String, PropertyQuery.QueryOperation> operators = new HashMap<String, PropertyQuery.QueryOperation>() {{
-    put("!=", PropertyQuery.QueryOperation.NOT_EQUALS);
-    put(">=", PropertyQuery.QueryOperation.GREATER_THAN_OR_EQUALS);
-    put("=gte=", PropertyQuery.QueryOperation.GREATER_THAN_OR_EQUALS);
-    put("<=", PropertyQuery.QueryOperation.LESS_THAN_OR_EQUALS);
-    put("=lte=", PropertyQuery.QueryOperation.LESS_THAN_OR_EQUALS);
-    put(">", PropertyQuery.QueryOperation.GREATER_THAN);
-    put("=gt=", PropertyQuery.QueryOperation.GREATER_THAN);
-    put("<", PropertyQuery.QueryOperation.LESS_THAN);
-    put("=lt=", PropertyQuery.QueryOperation.LESS_THAN);
-    put("=", PropertyQuery.QueryOperation.EQUALS);
-    put("@>", PropertyQuery.QueryOperation.CONTAINS);
-    put("=cs=", PropertyQuery.QueryOperation.CONTAINS);
-  }};
-
-  private static List<String> shortOperators = new ArrayList<>(operators.keySet());
-
-  public static String getConvertedKey(String rawKey) {
-    if (rawKey.startsWith("p.")) {
-      return rawKey.replaceFirst("p.", "properties.");
-    }
-    Map<String, String> keyReplacements = new HashMap<String, String>() {{
-      put("f.id", "id");
-      put("f.createdAt", "properties.@ns:com:here:xyz.createdAt");
-      put("f.updatedAt", "properties.@ns:com:here:xyz.updatedAt");
-    }};
-
-    String replacement = keyReplacements.get(rawKey);
-
-    /** Allow root property search f.foo */
-    if(replacement == null && rawKey.startsWith("f."))
-      return rawKey.substring(2);
-
-    return replacement;
-  }
-
-  private static Object getConvertedValue(String rawValue) {
-    // Boolean
-    if (rawValue.equals("true")) {
-      return true;
-    }
-    if (rawValue.equals("false")) {
-      return false;
-    }
-    // Long
-    try {
-      return Long.parseLong(rawValue);
-    } catch (NumberFormatException ignored) {
-    }
-    // Double
-    try {
-      return Double.parseDouble(rawValue);
-    } catch (NumberFormatException ignored) {
-    }
-
-    if (rawValue.length() > 2 && rawValue.charAt(0) == '"' && rawValue.charAt(rawValue.length() - 1) == '"') {
-      return rawValue.substring(1, rawValue.length() - 1);
-    }
-
-    if (rawValue.length() > 2 && rawValue.charAt(0) == '\'' && rawValue.charAt(rawValue.length() - 1) == '\'') {
-      return rawValue.substring(1, rawValue.length() - 1);
-    }
-
-    if(rawValue.equalsIgnoreCase(".null"))
-      return null;
-
-    // String
-    return rawValue;
-  }
-
-  public static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
-    if (query == null || query.length() == 0) {
-      return null;
-    }
-
-    PropertyQueryList pql = new PropertyQueryList();
-    Stream.of(query.split("&"))
-            .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
-            .forEach(keyValuePair -> {
-              PropertyQuery propertyQuery = new PropertyQuery();
-
-              String operatorComma = "-#:comma:#-";
-              try {
-                keyValuePair = keyValuePair.replaceAll(",", operatorComma);
-                keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
-              } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-              }
-
-              int position=0;
-              String op=null;
-
-              /** store "main" operator. Needed for such cases foo=bar-->test*/
-              for (String shortOperator : shortOperators) {
-                int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
-                if (currentPositionOfOp != -1) {
-                  if(
-                    // feature properties query
-                          (!spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ))) ||
-                                  // space properties query
-                                  (keyValuePair.substring(0,currentPositionOfOp).equals(property) && spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() )))
-                  ) {
-                    op = shortOperator;
-                    position = currentPositionOfOp;
-                  }
-                }
-              }
-
-              if(op != null){
-                String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma,","),
-                        keyValuePair.substring(position + op.length())
-                };
-                /** Cut from API-Gateway appended "=" */
-                if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("=")) {
-                  keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
-                }
-
-                propertyQuery.setKey(spaceProperties ? keyVal[0] : getConvertedKey(keyVal[0]));
-                propertyQuery.setOperation(operators.get(op));
-                String[] rawValues = keyVal[1].split( operatorComma );
-
-                ArrayList<Object> values = new ArrayList<>();
-                for (String rawValue : rawValues) {
-                  values.add(getConvertedValue(rawValue));
-                }
-                propertyQuery.setValues(values);
-                pql.add(propertyQuery);
-              }
-            });
-
-    PropertiesQuery pq = new PropertiesQuery();
-    pq.add(pql);
-
-    if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0) {
-      return null;
-    }
-    return pq;
   }
 
   private double calculateNeededAcus() { 

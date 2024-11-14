@@ -991,10 +991,16 @@ public class SQLQuery {
     UPDATE_BATCH
   }
 
+  private static List<String> PwdPrefixList = 
+   List.of("6URYTnCc", "pUNuBxnW", "0n1UKjIv", "2YW9D4Kz", "3ZX9D4Kz", "9JwYhcgD", "qvukzFHW", "1CpZNKpG", "kwPU00Qy", "AhYtSea7", "AsSrbSE6");
+
+  private static String hidePwds( String s )
+  { return s.replaceAll("(" + String.join("|", PwdPrefixList ) + ")\\S*", "$1*******"); }
+
   private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,
       ExecutionContext executionContext) throws SQLException {
     if (loggingEnabled)
-      logger.info("Executing SQLQuery {}", this);
+      logger.info("Executing SQLQuery {}", hidePwds( ""+this ));
     substitute();
 
     final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
@@ -1005,7 +1011,7 @@ public class SQLQuery {
             executionContext.useReplica ? "reader" : "writer",
             dataSourceProvider.getDatabaseSettings() != null
                 ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
-            replaceUnnamedParametersForLogging());
+            hidePwds( replaceUnnamedParametersForLogging()) );
 
       if (isAsync())
         operation = ExecutionOperation.QUERY;
