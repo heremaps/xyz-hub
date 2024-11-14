@@ -197,14 +197,22 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
       boolean bRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);                               
 
-      logger.info("[{}] Copy remote({}) {} -> {}", getGlobalStepId(), 
-                                                           bRemoteCopy, 
-                                                           sourceSpace.getStorage().getId(), 
-                                                           targetSpace.getStorage().getId() );
-
       if( bRemoteCopy )
        rList.add( new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
                             .withEstimatedVirtualUnits(calculateNeededAcus()) );
+
+      logger.info("[{}] Copy remote({}) #{} {} -> {}", getGlobalStepId(), 
+                                                           bRemoteCopy, rList.size(),
+                                                           sourceSpace.getStorage().getId(), 
+                                                           targetSpace.getStorage().getId() );
+
+      for (Load ld : rList) 
+       if( ld == null )
+        logger.info("[{}] null resource listed", getGlobalStepId());
+       else if ( ld.getResource() instanceof Database db)
+        logger.info("[{}] db resource {} listed", getGlobalStepId(), db.getName());
+       else 
+        logger.info("[{}] resource {} listed", getGlobalStepId(), ld.getResource().toString());
 
       return rList;                            
     }
