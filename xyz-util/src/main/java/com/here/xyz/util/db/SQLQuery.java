@@ -992,7 +992,7 @@ public class SQLQuery {
   }
 
   private static List<String> PwdPrefixList = 
-   List.of("6URYTnCc", "pUNuBxnW", "0n1UKjIv", "2YW9D4Kz", "3ZX9D4Kz", "9JwYhcgD", "qvukzFHW", "1CpZNKpG", "kwPU00Qy", "AhYtSea7", "AsSrbSE6");
+   List.of("6URYTnCc", "pUNuBxnW", "JELgvJWS", "0n1UKjIv", "2YW9D4Kz", "3ZX9D4Kz", "9JwYhcgD", "qvukzFHW", "1CpZNKpG", "kwPU00Qy", "AhYtSea7", "AsSrbSE6");
 
   private static String hidePwds( String s )
   { return s.replaceAll("(" + String.join("|", PwdPrefixList ) + ")\\w*", "$1*******"); }
