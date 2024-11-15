@@ -306,9 +306,11 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   protected final DataSourceProvider requestResource(Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed {
     Map<ExecutionResource, Double> neededResources = getAggregatedNeededResources();
+    
     if (!neededResources.containsKey(db) || claimedAcuLoad + estimatedMaxAcuLoad > neededResources.get(db))
       throw new TooManyResourcesClaimed("Step " + getId() + " tried to claim further " + estimatedMaxAcuLoad + " ACUs, "
-          + claimedAcuLoad + "/" + neededResources.get(db) + " have been claimed before.");
+          + claimedAcuLoad + "/" + ( neededResources.containsKey(db) ? neededResources.get(db) : "missing[" + db.getName() + "]" )
+          + " have been claimed before.");
 
     claimedAcuLoad += estimatedMaxAcuLoad;
     return db.getDataSources();

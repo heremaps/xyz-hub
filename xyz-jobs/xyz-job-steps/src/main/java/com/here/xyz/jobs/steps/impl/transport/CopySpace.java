@@ -194,10 +194,17 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
       rList.add( new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
                            .withEstimatedVirtualUnits(calculateNeededAcus()) );
-      
-      if( isRemoteCopy(sourceSpace, targetSpace) )
+
+      boolean bRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);                               
+
+      if( bRemoteCopy )
        rList.add( new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
                             .withEstimatedVirtualUnits(calculateNeededAcus()) );
+
+      logger.info("[{}] Copy remote({}) #{} {} -> {}", getGlobalStepId(), 
+                                                           bRemoteCopy, rList.size(),
+                                                           sourceSpace.getStorage().getId(), 
+                                                           targetSpace.getStorage().getId() );
 
       return rList;                            
     }
@@ -292,13 +299,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   protected void onAsyncSuccess() throws WebClientException,
           SQLException, TooManyResourcesClaimed, IOException {
-    logger.info( "Loading space config for target-space " + getTargetSpaceId());
-    Space targetSpace = loadSpace(getTargetSpaceId());
-    logger.info("Getting storage database for space  "+getSpaceId());
-  //  Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
 
-    //@TODO: Add ACU calculation
-//    runWriteQueryAsync(buildCopySpaceNextVersionUpdate(getSchema(db), getRootTableName(targetSpace)), db, 0, false);
+    logger.info("[{}] AsyncSuccess Copy {} -> {}", getGlobalStepId(), getSpaceId() , getTargetSpaceId());
+
   }
 
   @Override
@@ -346,7 +349,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
            targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ), 
            targetTable  = _getRootTableName(targetSpace);
 
-    int maxBlkSize = 7;
+    int maxBlkSize = 1000;
 
     final Map<String, Object> queryContext = 
       createQueryContext(getId(), 
@@ -370,7 +373,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
            jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
                               'partialUpdates',false,
                               'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text
-        ,iidata.author,false,(SELECT nextval('${schema}.${versionSequenceName}')))
+         ,iidata.author,false,(SELECT nextval('${schema}.${versionSequenceName}'))
+        ) as wfresult
       from
       (
        select (row_number() over ())/${{maxblksize}} as rn, idata.author, idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json) as feature
@@ -379,7 +383,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       ) iidata
       group by rn, author
     )
-    select count(1) into dummy_output from ins_data
+    select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
   """
 /**/
         )
@@ -410,7 +414,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
             .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", _isEnableHashedSpaceIdActivated(space) ));
 
     if (propertyFilter != null) {
-      PropertiesQuery propertyQueryLists = parsePropertiesQuery(propertyFilter, "", false);
+      PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
       event.setPropertiesQuery(propertyQueryLists);
     }
 
@@ -421,11 +425,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
 
     try {
-      return ((ExportSpace)getQueryRunner(event))
+      return ((ExportSpace) getQueryRunner(event))
               //TODO: Why not selecting the feature id / geo here?
               //FIXME: Do not select operation / author as part of the "property-selection"-fragment
-              .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
-              .withGeoOverride(buildGeoFragment())
+              .withSelectionOverride(new SQLQuery("jsondata, author"))
               .buildQuery(event);
     }
     catch (Exception e) {
@@ -433,24 +436,11 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
   }
 
-  private SQLQuery buildGeoFragment() {
-    if (geometry != null && clipOnFilterGeometry) {
-      if( radius != -1 )
-        return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo")
-                .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(geometry))
-                .withNamedParameter("radius", radius);
-      else
-        return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometry} ),4326 )) as geo")
-                .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(geometry));
-    }
-    else
-      return new SQLQuery("geo");
-  }
-
   private SearchForFeatures getQueryRunner(GetFeaturesByGeometryEvent event) throws SQLException,
           ErrorResponseException, TooManyResourcesClaimed, WebClientException {
+            
     Space sourceSpace = loadSpace(getSpaceId());
-    Database db = loadDatabase(sourceSpace.getStorage().getId(), WRITER);
+    Database db = loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
 
     SearchForFeatures queryRunner;
     if (geometry == null)
@@ -462,149 +452,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return queryRunner;
   }
 
-  //** @TODO: Taken from ApiParam - extract it from there and shift to tools */
-  private static Map<String, PropertyQuery.QueryOperation> operators = new HashMap<String, PropertyQuery.QueryOperation>() {{
-    put("!=", PropertyQuery.QueryOperation.NOT_EQUALS);
-    put(">=", PropertyQuery.QueryOperation.GREATER_THAN_OR_EQUALS);
-    put("=gte=", PropertyQuery.QueryOperation.GREATER_THAN_OR_EQUALS);
-    put("<=", PropertyQuery.QueryOperation.LESS_THAN_OR_EQUALS);
-    put("=lte=", PropertyQuery.QueryOperation.LESS_THAN_OR_EQUALS);
-    put(">", PropertyQuery.QueryOperation.GREATER_THAN);
-    put("=gt=", PropertyQuery.QueryOperation.GREATER_THAN);
-    put("<", PropertyQuery.QueryOperation.LESS_THAN);
-    put("=lt=", PropertyQuery.QueryOperation.LESS_THAN);
-    put("=", PropertyQuery.QueryOperation.EQUALS);
-    put("@>", PropertyQuery.QueryOperation.CONTAINS);
-    put("=cs=", PropertyQuery.QueryOperation.CONTAINS);
-  }};
-
-  private static List<String> shortOperators = new ArrayList<>(operators.keySet());
-
-  public static String getConvertedKey(String rawKey) {
-    if (rawKey.startsWith("p.")) {
-      return rawKey.replaceFirst("p.", "properties.");
-    }
-    Map<String, String> keyReplacements = new HashMap<String, String>() {{
-      put("f.id", "id");
-      put("f.createdAt", "properties.@ns:com:here:xyz.createdAt");
-      put("f.updatedAt", "properties.@ns:com:here:xyz.updatedAt");
-    }};
-
-    String replacement = keyReplacements.get(rawKey);
-
-    /** Allow root property search f.foo */
-    if(replacement == null && rawKey.startsWith("f."))
-      return rawKey.substring(2);
-
-    return replacement;
-  }
-
-  private static Object getConvertedValue(String rawValue) {
-    // Boolean
-    if (rawValue.equals("true")) {
-      return true;
-    }
-    if (rawValue.equals("false")) {
-      return false;
-    }
-    // Long
-    try {
-      return Long.parseLong(rawValue);
-    } catch (NumberFormatException ignored) {
-    }
-    // Double
-    try {
-      return Double.parseDouble(rawValue);
-    } catch (NumberFormatException ignored) {
-    }
-
-    if (rawValue.length() > 2 && rawValue.charAt(0) == '"' && rawValue.charAt(rawValue.length() - 1) == '"') {
-      return rawValue.substring(1, rawValue.length() - 1);
-    }
-
-    if (rawValue.length() > 2 && rawValue.charAt(0) == '\'' && rawValue.charAt(rawValue.length() - 1) == '\'') {
-      return rawValue.substring(1, rawValue.length() - 1);
-    }
-
-    if(rawValue.equalsIgnoreCase(".null"))
-      return null;
-
-    // String
-    return rawValue;
-  }
-
-  public static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
-    if (query == null || query.length() == 0) {
-      return null;
-    }
-
-    PropertyQueryList pql = new PropertyQueryList();
-    Stream.of(query.split("&"))
-            .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
-            .forEach(keyValuePair -> {
-              PropertyQuery propertyQuery = new PropertyQuery();
-
-              String operatorComma = "-#:comma:#-";
-              try {
-                keyValuePair = keyValuePair.replaceAll(",", operatorComma);
-                keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
-              } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-              }
-
-              int position=0;
-              String op=null;
-
-              /** store "main" operator. Needed for such cases foo=bar-->test*/
-              for (String shortOperator : shortOperators) {
-                int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
-                if (currentPositionOfOp != -1) {
-                  if(
-                    // feature properties query
-                          (!spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() ))) ||
-                                  // space properties query
-                                  (keyValuePair.substring(0,currentPositionOfOp).equals(property) && spaceProperties && (op == null || currentPositionOfOp < position || ( currentPositionOfOp == position && op.length() < shortOperator.length() )))
-                  ) {
-                    op = shortOperator;
-                    position = currentPositionOfOp;
-                  }
-                }
-              }
-
-              if(op != null){
-                String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma,","),
-                        keyValuePair.substring(position + op.length())
-                };
-                /** Cut from API-Gateway appended "=" */
-                if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("=")) {
-                  keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
-                }
-
-                propertyQuery.setKey(spaceProperties ? keyVal[0] : getConvertedKey(keyVal[0]));
-                propertyQuery.setOperation(operators.get(op));
-                String[] rawValues = keyVal[1].split( operatorComma );
-
-                ArrayList<Object> values = new ArrayList<>();
-                for (String rawValue : rawValues) {
-                  values.add(getConvertedValue(rawValue));
-                }
-                propertyQuery.setValues(values);
-                pql.add(propertyQuery);
-              }
-            });
-
-    PropertiesQuery pq = new PropertiesQuery();
-    pq.add(pql);
-
-    if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0) {
-      return null;
-    }
-    return pq;
-  }
-
-  private double calculateNeededAcus() {
-    overallNeededAcus =  overallNeededAcus != -1 ? overallNeededAcus : ResourceAndTimeCalculator.getInstance()
-            .calculateNeededAcusFromByteSize(getUncompressedUploadBytesEstimation());
-    return overallNeededAcus;
+  private double calculateNeededAcus() { 
+    return 0.5;
   }
 }
