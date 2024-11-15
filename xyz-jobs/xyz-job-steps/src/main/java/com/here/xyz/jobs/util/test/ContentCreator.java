@@ -48,6 +48,21 @@ public class ContentCreator {
         return fc;
     }
 
+    public static FeatureCollection generateRandomFeatureCollection(int featureCnt,float xmin, float ymin, float xmax, float ymax) {
+        FeatureCollection fc = new FeatureCollection();
+        Random random = new Random();
+
+        try {
+            for (int i = 0; i < featureCnt; i++)
+                fc.getFeatures().add(new Feature().withProperties(new Properties().with("test", i).with("all","common"))
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( (xmin + random.nextFloat() * (xmax - xmin)), 
+                                                                                        (ymin + random.nextFloat() * (ymax - ymin))))));
+        }catch (JsonProcessingException e){}
+
+        return fc;
+    }
+
+
     public static Feature getFeatureFromCSVLine(String csvLine) throws JsonProcessingException {
         return XyzSerializable.deserialize( csvLine.substring(1, csvLine.lastIndexOf(",") -1 ).replaceAll("'\"","\""), Feature.class);
     }

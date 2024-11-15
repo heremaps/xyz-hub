@@ -235,6 +235,15 @@ public class StepTestBase {
     }
   }
 
+  protected void putRandomFeatureCollectionToSpace(String spaceId, int featureCount ,float xmin, float ymin, float xmax, float ymax)
+  {
+    try {
+      hubWebClient.putFeaturesWithoutResponse(spaceId, ContentCreator.generateRandomFeatureCollection(featureCount,xmin,ymin,xmax,ymax));
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
   protected List<String> listExistingIndexes(String spaceId) throws SQLException {
     return new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
             .withNamedParameter("schema", SCHEMA)

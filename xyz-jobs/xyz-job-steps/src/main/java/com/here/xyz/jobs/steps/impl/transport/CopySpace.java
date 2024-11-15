@@ -205,7 +205,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
                                                            bRemoteCopy, rList.size(),
                                                            sourceSpace.getStorage().getId(), 
                                                            targetSpace.getStorage().getId() );
-                                                           
+
       return rList;                            
     }
     catch (WebClientException e) {
@@ -425,30 +425,15 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
 
     try {
-      return ((ExportSpace)getQueryRunner(event))
+      return ((ExportSpace) getQueryRunner(event))
               //TODO: Why not selecting the feature id / geo here?
               //FIXME: Do not select operation / author as part of the "property-selection"-fragment
-              .withSelectionOverride(new SQLQuery("jsondata, operation, author"))
-              .withGeoOverride(buildGeoFragment())
+              .withSelectionOverride(new SQLQuery("jsondata, author"))
               .buildQuery(event);
     }
     catch (Exception e) {
       throw new SQLException(e);
     }
-  }
-
-  private SQLQuery buildGeoFragment() {
-    if (geometry != null && clipOnFilterGeometry) {
-      if( radius != -1 )
-        return new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo")
-                .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(geometry))
-                .withNamedParameter("radius", radius);
-      else
-        return new SQLQuery("ST_Intersection(ST_MakeValid(geo), st_setsrid( ST_GeomFromText( #{wktGeometry} ),4326 )) as geo")
-                .withNamedParameter("wktGeometry", WKTHelper.geometryToWKB(geometry));
-    }
-    else
-      return new SQLQuery("geo");
   }
 
   private SearchForFeatures getQueryRunner(GetFeaturesByGeometryEvent event) throws SQLException,
