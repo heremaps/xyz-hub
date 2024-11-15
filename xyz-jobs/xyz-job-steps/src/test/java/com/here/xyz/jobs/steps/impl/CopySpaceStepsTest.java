@@ -100,15 +100,15 @@ public class CopySpaceStepsTest extends StepTest {
         Arguments.of(false,null,false,null),
         Arguments.of(false,null,false,propertyFilter),
         Arguments.of(false, spatialSearchGeom,false,null),
-        Arguments.of(false, spatialSearchGeom,false,propertyFilter),
         Arguments.of(false, spatialSearchGeom,true,null),
+        Arguments.of(false, spatialSearchGeom,false,propertyFilter),
         Arguments.of(false, spatialSearchGeom,true,propertyFilter),
         
         Arguments.of(true,null,false,null),
         Arguments.of(true,null,false,propertyFilter),
         Arguments.of(true, spatialSearchGeom,false,null),
-        Arguments.of(true, spatialSearchGeom,false,propertyFilter),
         Arguments.of(true, spatialSearchGeom,true,null),
+        Arguments.of(true, spatialSearchGeom,false,propertyFilter),
         Arguments.of(true, spatialSearchGeom,true,propertyFilter)
     );
   }
