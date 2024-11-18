@@ -113,4 +113,18 @@ public class SpatialFilter {
       throw new BaseHttpServerVerticle.ValidationException(e.getMessage());
     }
   }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true; // Check for reference equality
+    }
+    if (obj == null || getClass() != obj.getClass()) {
+      return false; // Check for null and type compatibility
+    }
+    SpatialFilter other = (SpatialFilter) obj;
+    return radius == other.radius &&
+            clip == other.clip &&
+            (geometry == null ? other.geometry == null : geometry.getJTSGeometry().equals(other.geometry.getJTSGeometry())); // Compare fields
+  }
 }
