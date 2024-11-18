@@ -250,7 +250,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       throw new ValidationException("Source = Target!");
 
     try {
-      StatisticsResponse sourceStatistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
+//???
+      Space sourceSpace = loadSpace(getSpaceId());
+      boolean isExtended = sourceSpace.getExtension() != null;
+      StatisticsResponse sourceStatistics = loadSpaceStatistics(getSpaceId(), isExtended ? EXTENSION : null);
       estimatedSourceFeatureCount = sourceStatistics.getCount().getValue();
       estimatedSourceByteSize = sourceStatistics.getDataSize().getValue();
     }catch (WebClientException e) {
@@ -258,7 +261,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
 
     try {
-      StatisticsResponse targetStatistics = loadSpaceStatistics(getTargetSpaceId(), EXTENSION);
+//???
+      Space targetSpace = loadSpace(getSpaceId());
+      boolean isExtended = targetSpace.getExtension() != null;
+      StatisticsResponse targetStatistics = loadSpaceStatistics(getTargetSpaceId(), isExtended ? EXTENSION : null);
       estimatedTargetFeatureCount = targetStatistics.getCount().getValue();
     }catch (WebClientException e) {
       throw new ValidationException("Error loading target space \"" + getTargetSpaceId() + "\"", e);
@@ -284,8 +290,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return true;
   }
 
-  @JsonView({Internal.class, Static.class})
-  private StatisticsResponse statistics = null;
+//  @JsonView({Internal.class, Static.class})
+//  private StatisticsResponse statistics = null;
 
   @Override
   public void execute() throws Exception {
