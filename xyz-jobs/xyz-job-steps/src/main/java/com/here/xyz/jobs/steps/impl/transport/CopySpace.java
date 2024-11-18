@@ -342,6 +342,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return !sourceStorage.equals( targetStorage );
   }
 
+  private boolean isRemoteCopy() throws WebClientException
+  { Space sourceSpace = loadSpace(getSpaceId());
+    Space targetSpace = loadSpace(getTargetSpaceId());
+    return isRemoteCopy(sourceSpace, targetSpace);
+  }
+
   private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace) throws SQLException {
 
     String sourceStorageId = sourceSpace.getStorage().getId(),
@@ -440,7 +446,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
           ErrorResponseException, TooManyResourcesClaimed, WebClientException {
             
     Space sourceSpace = loadSpace(getSpaceId());
-    Database db = loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
+    
+    Database db = !isRemoteCopy() 
+     ? loadDatabase(sourceSpace.getStorage().getId(), WRITER )
+     : loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
 
     SearchForFeatures queryRunner;
     if (geometry == null)
