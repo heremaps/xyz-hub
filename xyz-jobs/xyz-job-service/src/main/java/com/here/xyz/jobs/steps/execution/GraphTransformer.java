@@ -112,6 +112,41 @@ public class GraphTransformer {
     }
   }
 
+  /**
+   * Removes all {@code DelegateOutputsPseudoStep} instances from the given {@code StepGraph},
+   * returning a new {@code StepGraph} containing only the relevant steps.
+   *
+   * <p>This method recursively traverses the given {@code StepGraph}. If a nested {@code StepGraph}
+   * contains non-{@code DelegateOutputsPseudoStep} instances, it is cleaned and added to the new graph.
+   * Any {@code StepGraph} or {@code StepExecution} containing only {@code DelegateOutputsPseudoStep}
+   * instances is excluded from the result.</p>
+   *
+   * <p>The returned graph is a new instance and does not modify the original input {@code StepGraph}.</p>
+   *
+   * @param stepGraph the input {@code StepGraph} to be cleaned.
+   * @return a new {@code StepGraph} with all {@code DelegateOutputsPseudoStep} instances removed.
+   */
+  protected StepGraph pruneDelegateOutputSteps(StepGraph stepGraph){
+    StepGraph newGraph = new StepGraph(); // Create a new StepGraph instance
+
+    for (StepExecution stepExecution : stepGraph.getExecutions()) {
+      if (stepExecution instanceof StepGraph graph) {
+        // Recursively clean and add the nested StepGraph
+        StepGraph cleanedGraph = pruneDelegateOutputSteps(graph);
+
+        // Add the cleaned StepGraph only if it contains non-DelegateOutputsPseudoSteps
+        if (cleanedGraph.getExecutions().stream()
+                .anyMatch(exec -> !(exec instanceof DelegateOutputsPseudoStep))) {
+          newGraph.getExecutions().add(cleanedGraph);
+        }
+      } else if (!(stepExecution instanceof DelegateOutputsPseudoStep)) {
+        // Add non-DelegateOutputsPseudoStep directly
+        newGraph.getExecutions().add(stepExecution);
+      }
+    }
+    return newGraph;
+  }
+
   protected String compileToStateMachine(String stateMachineDescription, StepGraph stepGraph) {
     StateMachine.Builder machineBuilder = StateMachine.builder()
         .comment(stateMachineDescription)
@@ -125,8 +160,10 @@ public class GraphTransformer {
       machineBuilder.state(parallelState.stateName, parallelState.stateBuilder);
     }
     else {
+      //delete all DelegateOutputSteps from Graph
+      final List<NamedState> sequentialStates = compileExecutions(
+              pruneDelegateOutputSteps(stepGraph).getExecutions(), null);
       //The top-level graph is sequential, compile all steps into the according states and add them
-      final List<NamedState> sequentialStates = compileExecutions(stepGraph.getExecutions(), null);
       sequentialStates.forEach(state -> machineBuilder.state(state.stateName, state.stateBuilder));
       firstState = sequentialStates.get(0);
       lastState = sequentialStates.get(sequentialStates.size() - 1);
@@ -193,11 +230,14 @@ public class GraphTransformer {
           //It's a sequential subgraph so compile all elements to states and add them
           states.addAll(compileExecutions(sg.getExecutions(), previousState));
       }
-      else
+      else {
         //It's a step, compile it into a state & add it to the map
-        states.add(compile((Step<?>) execution, previousState));
+        NamedState<TaskState.Builder> compile = compile((Step<?>) execution, previousState);
+        if(compile != null)
+          states.add(compile((Step<?>) execution, previousState));
+      }
 
-      previousState = states.get(states.size() - 1).stateBuilder;
+      previousState = states.size() > 0 ? states.get(states.size() - 1).stateBuilder : null;
     }
     return states;
   }
@@ -220,6 +260,8 @@ public class GraphTransformer {
     }
     else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
+    else if (step instanceof DelegateOutputsPseudoStep)
+      return null;
     else
       throw new NotImplementedException("The provided step implementation (" + step.getClass().getSimpleName() + ") is not supported.");
     //TODO: Add other implementations here (e.g. EcsBasedStep)
