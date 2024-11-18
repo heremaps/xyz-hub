@@ -154,15 +154,18 @@ public class GraphTransformer {
 
     NamedState firstState;
     NamedState lastState;
+
+    //delete all DelegateOutputSteps from Graph
+    StepGraph prunedStepGraph = pruneDelegateOutputSteps(stepGraph);
+
     if (stepGraph.isParallel()) {
       //The top-level graph is parallel, compile it into a single ParallelState and add it
-      NamedState parallelState = firstState = lastState = compileToParallelState(stepGraph, null);
+      NamedState parallelState = firstState = lastState = compileToParallelState(prunedStepGraph, null);
       machineBuilder.state(parallelState.stateName, parallelState.stateBuilder);
     }
     else {
-      //delete all DelegateOutputSteps from Graph
-      final List<NamedState> sequentialStates = compileExecutions(
-              pruneDelegateOutputSteps(stepGraph).getExecutions(), null);
+
+      final List<NamedState> sequentialStates = compileExecutions(prunedStepGraph.getExecutions(), null);
       //The top-level graph is sequential, compile all steps into the according states and add them
       sequentialStates.forEach(state -> machineBuilder.state(state.stateName, state.stateBuilder));
       firstState = sequentialStates.get(0);
