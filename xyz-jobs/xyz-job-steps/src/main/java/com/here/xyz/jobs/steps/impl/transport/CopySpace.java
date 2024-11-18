@@ -310,7 +310,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     for( int threadId = 0; threadId < threadCount; threadId++ )
     { //@TODO: Add ACU calculation
      infoLog(STEP_EXECUTE, this,String.format("Start ImlCopy thread number: %d/%d", threadId, threadCount )); 
-     runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace,threadCount, threadId), db, calculateNeededAcus(), true);
+     runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace,threadCount, threadId), db, calculateNeededAcus()/threadCount, true);
     }
 
   }
