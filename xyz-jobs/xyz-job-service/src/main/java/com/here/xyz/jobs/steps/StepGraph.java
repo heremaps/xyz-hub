@@ -164,7 +164,7 @@ public class StepGraph implements StepExecution {
 
     if (isEquivalentTo(other))
       return this;
-    for (int i = 0; i < executions.size(); i++) {
+    for (int i = 0; i < Math.min(executions.size(), other.getExecutions().size()); i++) {
       currentNode = executions.get(i);
       currentOtherNode = other.executions.get(i);
       if (currentNode instanceof StepGraph currentSubGraph && currentOtherNode instanceof StepGraph currentOtherSubGraph) {
@@ -182,22 +182,6 @@ public class StepGraph implements StepExecution {
     return subGraph;
   }
 
-  private static StepExecution createPseudoNode(StepExecution previousNode) {
-    if (previousNode instanceof StepGraph previousNodeGraph) {
-      if (previousNodeGraph.isParallel())
-        //Create a pseudo node for each previous node in the preceding parallel graph
-        return new StepGraph()
-            .withParallel(true)
-            .withExecutions(previousNodeGraph.executions.stream().map(prevNode -> createPseudoNode(prevNode)).toList());
-
-      //Get the last node of the sequential previous graph and create a pseudo node for it
-      return createPseudoNode(previousNodeGraph.executions.get(previousNodeGraph.executions.size() - 1));
-    }
-
-    Step previousStep = (Step) previousNode;
-    return new DelegateOutputsPseudoStep(previousStep.getJobId(), previousStep.getId());
-  }
-
   /**
    * Returns `true` if this graph is the empty graph and does not contain any executions.
    * @return `true` if this graph does not contain any executions
@@ -213,61 +197,5 @@ public class StepGraph implements StepExecution {
    */
   public int size() {
     return (int) stepStream().count();
-  }
-
-  /**
-   * NOTE: This step implementation is a placeholder step, that will be used by the JobExecutor to inject outputs of a formerly run
-   * job into the StepGraph of this job.
-   * This step depicts a step of the formerly run job that was found to be a predecessor of the step at the border of the re-usable subgraph
-   * of the formerly run StepGraph that was cut out because it matched a part of the new job's StepGraph.
-   * This pseudo step creates a link to the new Job's StepGraph and the old step's outputs.
-   * That way the succeeding Step(s) of the new StepGraph can access the outputs that have been produced by the old step.
-   */
-  private static class DelegateOutputsPseudoStep extends Step<DelegateOutputsPseudoStep> {
-    private String delegateJobId; //The old job ID
-    private String delegateStepId; //The old step ID
-
-    DelegateOutputsPseudoStep(String delegateJobId, String delegateStepId) {
-      this.delegateJobId = delegateJobId;
-      this.delegateStepId = delegateStepId;
-    }
-
-    @Override
-    public List<Load> getNeededResources() {
-      return List.of();
-    }
-
-    @Override
-    public int getTimeoutSeconds() {
-      return 0;
-    }
-
-    @Override
-    public int getEstimatedExecutionSeconds() {
-      return 0;
-    }
-
-    @Override
-    public String getDescription() {
-      return "A pseudo step that just delegates outputs of a Step of another StepGraph into this StepGraph";
-    }
-
-    @Override
-    public void execute() throws Exception {
-      throw new IllegalAccessException("This method should never be called");
-    }
-
-    @Override
-    public void resume() throws Exception {
-      execute();
-    }
-
-    @Override
-    public void cancel() throws Exception {}
-
-    @Override
-    public boolean validate() throws ValidationException {
-      return true;
-    }
   }
 }

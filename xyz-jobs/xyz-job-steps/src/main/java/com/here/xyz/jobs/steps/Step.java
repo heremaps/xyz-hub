@@ -33,6 +33,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.steps.execution.DelegateOutputsPseudoStep;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.execution.RunEmrJob;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -58,7 +59,8 @@ import org.apache.logging.log4j.Logger;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = LambdaBasedStep.class),
-    @JsonSubTypes.Type(value = RunEmrJob.class)
+    @JsonSubTypes.Type(value = RunEmrJob.class),
+    @JsonSubTypes.Type(value = DelegateOutputsPseudoStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
@@ -201,7 +203,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   private List<Output> loadStepOutputs(Set<String> stepIds, boolean userOutput) {
     Set<String> s3Prefixes = stepIds.stream()
-            .map(stepId -> Output.stepOutputS3Prefix(jobId, stepId, userOutput, false))
+            .map(stepId -> {
+              //Inject jobId for reusability
+              String jId = jobId;
+              String sId = stepId;
+              if(stepId.indexOf(":") != -1){
+                jId = stepId.substring(0, stepId.indexOf(":"));
+                sId = stepId.substring(stepId.indexOf(":") + 1);
+              }
+              return Output.stepOutputS3Prefix(jId, sId, userOutput, false);
+            })
             .collect(Collectors.toSet());
     return loadOutputs(s3Prefixes);
   }
@@ -487,7 +498,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   public void setInputStepIds(Set<String> inputStepIds) {
-    this.inputStepIds = inputStepIds;
+    this.inputStepIds = inputStepIds.stream()
+            .map(stepId -> stepId.contains(":") ? stepId : jobId + ":" + stepId)
+            .collect(Collectors.toSet());
   }
 
   public T withInputStepIds(Set<String> inputStepIds) {

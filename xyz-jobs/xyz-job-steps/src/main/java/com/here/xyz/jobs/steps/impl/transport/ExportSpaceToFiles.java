@@ -40,6 +40,7 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.S3DataFile;
+import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -203,6 +204,25 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     }catch (Exception e){
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  public boolean isEquivalentTo(StepExecution other) {
+    if(other instanceof ExportSpaceToFiles) {
+      try {
+        if(((ExportSpaceToFiles) other).getSpaceId().equals(getSpaceId())
+            && ((ExportSpaceToFiles) other).format == format
+            && ((ExportSpaceToFiles) other).context == context
+            && ((ExportSpaceToFiles) other).versionRef == versionRef
+            && ((ExportSpaceToFiles) other).spatialFilter == spatialFilter
+            && ((ExportSpaceToFiles) other).propertyFilter == propertyFilter
+            && ((ExportSpaceToFiles) other).isUseSystemOutput() == isUseSystemOutput())
+          return true;
+      }catch (Exception e){
+        throw new RuntimeException(e);
+      }
+    }
+    return false;
   }
 
   @Override
