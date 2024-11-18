@@ -128,7 +128,9 @@ public class CopySpaceStepsTest extends StepTest {
                                .withGeometry( geo ).withClipOnFilterGeometry(clip)
                                .withPropertyFilter(propertyFilter)
                                .withTargetSpaceId( targetSpace );
-          
+    
+    int xeqSecs = step.getEstimatedExecutionSeconds();
+
     sendLambdaStepRequestBlock(step,  true);
 
     StatisticsResponse statsAfter = getStatistics(targetSpace);

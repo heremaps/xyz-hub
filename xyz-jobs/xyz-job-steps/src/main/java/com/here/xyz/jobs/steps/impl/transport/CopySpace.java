@@ -23,8 +23,6 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -34,7 +32,6 @@ import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByGeometry;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByProperties;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -44,22 +41,20 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.stream.Stream;
-
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
@@ -215,18 +210,28 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    //@TODO: Implement
-    return 15 * 3600;
+    
+    return 24 * 3600;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance()
-              .calculateImportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation(), getExecutionMode());
+
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateCopyTimeInSeconds(getSpaceId(), getTargetSpaceId(), 
+                                                                                            estimatedSourceFeatureCount, estimatedTargetFeatureCount , 
+                                                                                            getExecutionMode());
+                                                                                            
       logger.info("[{}] Copy estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
     }
-    return 0;
+    return estimatedSeconds;
+  }
+
+  private double calculateNeededAcus() { 
+    overallNeededAcus =  overallNeededAcus != -1 
+                         ? overallNeededAcus 
+                         : ResourceAndTimeCalculator.getInstance().calculateNeededCopyAcus(estimatedSourceFeatureCount);
+    return overallNeededAcus;
   }
 
   @Override
@@ -279,6 +284,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return true;
   }
 
+  @JsonView({Internal.class, Static.class})
+  private StatisticsResponse statistics = null;
+
   @Override
   public void execute() throws Exception {
     logger.info( "Loading space config for source-space "+getSpaceId());
@@ -290,9 +298,14 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info("Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
 
-    //@TODO: Add ACU calculation
+    int PARALLELIZTATION_MIN_THRESHOLD = 10000, PARALLELIZTATION_THREAD_COUNT = 3,
+        threadCount = estimatedSourceFeatureCount > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
     
-    runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace), db, calculateNeededAcus(), true);
+    for( int threadId = 0; threadId < threadCount; threadId++ )
+    { //@TODO: Add ACU calculation
+     infoLog(STEP_EXECUTE, this,String.format("Start ImlCopy thread number: %d/%d", threadId, threadCount )); 
+     runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace,threadCount, threadId), db, calculateNeededAcus(), true);
+    }
 
   }
 
@@ -348,7 +361,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return isRemoteCopy(sourceSpace, targetSpace);
   }
 
-  private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace) throws SQLException {
+  private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace, int threadCount, int threadId) throws SQLException {
 
     String sourceStorageId = sourceSpace.getStorage().getId(),
            targetStorageId = targetSpace.getStorage().getId(), 
@@ -363,7 +376,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
                          targetTable, 
                          targetSpace.getVersionsToKeep() > 1, null);
     
-    SQLQuery contentQuery = buildCopyContentQuery(sourceSpace);
+    SQLQuery contentQuery = buildCopyContentQuery(sourceSpace, threadCount, threadId);
 
     if( isRemoteCopy(sourceSpace,targetSpace ) )
      contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceStorageId), contentQuery );
@@ -409,7 +422,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
   }
 
-  private SQLQuery buildCopyContentQuery(Space space) throws SQLException {
+  private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException {
 
     GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
             .withSpace(space.getId())
@@ -430,11 +443,19 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       if(radius != -1) event.setRadius(radius);
     }
 
+    if( threadCount <= 1 ) 
+    { threadCount = 1; threadId = 0; }
+
+    SQLQuery threadCondition = new SQLQuery(" AND (( i % #{threadCount} ) = #{threadNumber})")
+        .withNamedParameter("threadCount", threadCount)
+        .withNamedParameter("threadNumber", threadId);
+
     try {
       return ((ExportSpace) getQueryRunner(event))
               //TODO: Why not selecting the feature id / geo here?
               //FIXME: Do not select operation / author as part of the "property-selection"-fragment
               .withSelectionOverride(new SQLQuery("jsondata, author"))
+              .withCustomWhereClause(threadCondition)
               .buildQuery(event);
     }
     catch (Exception e) {
@@ -446,7 +467,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
           ErrorResponseException, TooManyResourcesClaimed, WebClientException {
             
     Space sourceSpace = loadSpace(getSpaceId());
-    
+
     Database db = !isRemoteCopy() 
      ? loadDatabase(sourceSpace.getStorage().getId(), WRITER )
      : loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
@@ -461,7 +482,4 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return queryRunner;
   }
 
-  private double calculateNeededAcus() { 
-    return 0.5;
-  }
 }
