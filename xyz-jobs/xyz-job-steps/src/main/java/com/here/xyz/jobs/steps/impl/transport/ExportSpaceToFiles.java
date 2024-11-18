@@ -213,9 +213,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
         if(((ExportSpaceToFiles) other).getSpaceId().equals(getSpaceId())
             && ((ExportSpaceToFiles) other).format == format
             && ((ExportSpaceToFiles) other).context == context
-            && ((ExportSpaceToFiles) other).versionRef == versionRef
-            && ((ExportSpaceToFiles) other).spatialFilter == spatialFilter
-            && ((ExportSpaceToFiles) other).propertyFilter == propertyFilter
+            && (((ExportSpaceToFiles) other).versionRef == null || ((ExportSpaceToFiles) other).versionRef.equals(versionRef))
+            && (((ExportSpaceToFiles) other).spatialFilter == null || ((ExportSpaceToFiles) other).spatialFilter.equals(spatialFilter))
+            && (((ExportSpaceToFiles) other).propertyFilter == null || ((ExportSpaceToFiles) other).propertyFilter.equals(propertyFilter))
             && ((ExportSpaceToFiles) other).isUseSystemOutput() == isUseSystemOutput())
           return true;
       }catch (Exception e){
