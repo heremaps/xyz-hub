@@ -90,6 +90,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
+  @JsonView({Internal.class, Static.class})
+  private int[] threadInfo = {0,1};  // [threadId, threadCount]
+
   //Existing Space in which we copy to
   private String targetSpaceId;
 
@@ -99,7 +102,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private boolean clipOnFilterGeometry;
 
   //Content-Filters
-  private String propertyFilter;
+  private PropertiesQuery propertyFilter;
   private Ref sourceVersionRef;
 
   public Geometry getGeometry() {
@@ -141,18 +144,19 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return this;
   }
 
-  public String getPropertyFilter() {
+  public PropertiesQuery getPropertyFilter() {
     return propertyFilter;
   }
 
-  public void setPropertyFilter(String propertyFilter) {
+  public void setPropertyFilter(PropertiesQuery propertyFilter) {
     this.propertyFilter = propertyFilter;
   }
 
-  public CopySpace withPropertyFilter(String propertyFilter) {
+  public CopySpace withPropertyFilter(PropertiesQuery propertyFilter){
     setPropertyFilter(propertyFilter);
     return this;
   }
+
 
   public Ref getSourceVersionRef() {
     return sourceVersionRef;
@@ -179,6 +183,20 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     setTargetSpaceId(targetSpaceId);
     return this;
   }
+
+  public int[] getThreadInfo() {
+    return threadInfo;
+  }
+
+  public void setThreadInfo(int[] threadInfo) {
+    this.threadInfo = threadInfo;
+  }
+
+  public CopySpace withThreadInfo(int[] threadInfo) {
+    setThreadInfo( threadInfo );
+    return this;
+  }
+
 
   @Override
   public List<Load> getNeededResources() {
@@ -290,9 +308,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return true;
   }
 
-//  @JsonView({Internal.class, Static.class})
-//  private StatisticsResponse statistics = null;
-
   @Override
   public void execute() throws Exception {
     logger.info( "Loading space config for source-space "+getSpaceId());
@@ -304,14 +319,11 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info("Getting storage database for space  "+getSpaceId());
     Database db = loadDatabase(targetSpace.getStorage().getId(), WRITER);
 
-    int PARALLELIZTATION_MIN_THRESHOLD = 10000, PARALLELIZTATION_THREAD_COUNT = 3,
-        threadCount = estimatedSourceFeatureCount > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
-    
-    for( int threadId = 0; threadId < threadCount; threadId++ )
-    { //@TODO: Add ACU calculation
+    int threadId = getThreadInfo()[0],
+        threadCount = getThreadInfo()[1];
+
      infoLog(STEP_EXECUTE, this,String.format("Start ImlCopy thread number: %d/%d", threadId, threadCount )); 
      runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace,threadCount, threadId), db, calculateNeededAcus()/threadCount, true);
-    }
 
   }
 
@@ -436,12 +448,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
             .withVersionsToKeep(space.getVersionsToKeep())
             .withRef(sourceVersionRef)
             .withContext(EXTENSION)
+            .withPropertiesQuery(propertyFilter)
             .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", _isEnableHashedSpaceIdActivated(space) ));
-
-    if (propertyFilter != null) {
-      PropertiesQuery propertyQueryLists = PropertiesQuery.fromString(propertyFilter, "", false);
-      event.setPropertiesQuery(propertyQueryLists);
-    }
 
     if (geometry != null) {
       event.setGeometry(geometry);

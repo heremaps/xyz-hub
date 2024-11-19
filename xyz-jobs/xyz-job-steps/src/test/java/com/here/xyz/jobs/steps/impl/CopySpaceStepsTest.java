@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
@@ -44,6 +45,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static java.lang.Thread.sleep;
 import static org.junit.Assert.assertEquals;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.stream.Stream;
 
@@ -126,7 +129,7 @@ public class CopySpaceStepsTest extends StepTest {
     LambdaBasedStep step = new CopySpace()
                                .withSpaceId(SrcSpc).withSourceVersionRef(new Ref("HEAD"))
                                .withGeometry( geo ).withClipOnFilterGeometry(clip)
-                               .withPropertyFilter(propertyFilter)
+                               .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
                                .withTargetSpaceId( targetSpace );
     
     int xeqSecs = step.getEstimatedExecutionSeconds();
