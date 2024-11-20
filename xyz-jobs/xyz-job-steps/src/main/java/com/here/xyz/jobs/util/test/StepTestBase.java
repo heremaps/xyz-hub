@@ -82,7 +82,7 @@ import software.amazon.awssdk.services.lambda.model.InvokeRequest;
 public class StepTestBase {
   private static final Logger logger = LogManager.getLogger();
   protected String SPACE_ID =  getClass().getSimpleName() + "_" + randomAlpha(5);
-  protected String JOB_ID =  getClass().getSimpleName() + "_" + randomAlpha(5);
+  protected String JOB_ID =  generateJobId();
 
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final HubWebClient hubWebClient;
@@ -114,6 +114,10 @@ public class StepTestBase {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public String generateJobId(){
+    return getClass().getSimpleName() + "_" + randomAlpha(5);
   }
 
   public enum S3ContentType {

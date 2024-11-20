@@ -210,6 +210,11 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   public boolean isEquivalentTo(StepExecution other) {
     if(other instanceof ExportSpaceToFiles) {
       try {
+        /**
+         * TODO:
+         * - only allow spaces which are readOnly
+         * - deal with compositeSpaces which have a readOnly Base-Layer
+         */
         if(((ExportSpaceToFiles) other).getSpaceId().equals(getSpaceId())
             && ((ExportSpaceToFiles) other).format == format
             && ((ExportSpaceToFiles) other).context == context

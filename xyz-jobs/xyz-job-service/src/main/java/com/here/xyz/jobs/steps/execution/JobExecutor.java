@@ -341,6 +341,7 @@ public abstract class JobExecutor implements Initializable {
             if(allStepsSucceeded) {
               //All Steps are already succeeded - Reused Graph matches new Graph.
               job.getStatus().setState(SUCCEEDED);
+              job.getStatus().setSucceededSteps(job.getStatus().getOverallStepCount());
             }
             return job.withSteps(shrunkGraph).store();
           }
@@ -352,35 +353,11 @@ public abstract class JobExecutor implements Initializable {
     if (reusedGraph == null || reusedGraph.isEmpty())
       return Future.succeededFuture();
 
-    StepGraph shrunkGraph = new StepGraph().withParallel(false);
-    calculateShrunkForest(job, reusedGraph)
-            .stream()
-            .forEach(partialGraph -> shrunkGraph.addExecution(partialGraph));
+    StepGraph shrunkGraph = new StepGraph()
+            .withParallel(reusedGraph.isParallel())
+            .withExecutions(calculateShrunkForest(job, reusedGraph));
 
     return Future.succeededFuture(shrunkGraph);
-  }
-
-  /**
-   * Replaces reused Steps in current graph (parentList) with DelegateOutPutSteps.
-   *
-   * @param execution StepExecution of current graph
-   * @param reusedExecution StepExecution of reused graph
-   * @param parentList List of StepExecutions of current graph - gets adjusted.
-   * @param index
-   */
-  private static void replaceStepsWithDelegateOutputSteps(StepExecution execution, StepExecution reusedExecution, List<StepExecution> parentList, int index) {
-    if (execution instanceof StepGraph graph) {
-      for (int i = 0; i < graph.getExecutions().size(); i++) {
-        if(((StepGraph) reusedExecution).getExecutions().size() > i)
-          replaceStepsWithDelegateOutputSteps(graph.getExecutions().get(i),
-                ((StepGraph) reusedExecution).getExecutions().get(i),
-                graph.getExecutions(), i);
-      }
-    } else if (execution instanceof Step) {
-      // Replace the execution in the parent list
-      parentList.set(index, new DelegateOutputsPseudoStep(((Step) reusedExecution).getJobId(),
-              ((Step) reusedExecution).getId()));
-    }
   }
 
   /**
@@ -423,7 +400,7 @@ public abstract class JobExecutor implements Initializable {
    * @return a list containing a single {@code StepGraph} object that represents the updated execution graph
    *         with reusable portions replaced and dependencies adjusted.
    */
-  private static List<StepGraph> calculateShrunkForest(Job job, StepGraph reusedGraph) {
+  private static List<StepExecution> calculateShrunkForest(Job job, StepGraph reusedGraph) {
     List<StepExecution> executions = job.getSteps().getExecutions();
     //Replace all executions, which can get reused form reusedGraph, in current graph with DelegateOutputSteps.
     replaceWithDelegateOutputSteps(executions, reusedGraph.getExecutions());
@@ -455,7 +432,7 @@ public abstract class JobExecutor implements Initializable {
               job.getId(), stepIdsOfLastReusedNodes, jobIdLastReusedNode);
     }
 
-    return List.of(new StepGraph().withParallel(false).withExecutions(executions));
+    return executions;
   }
 
   /**
@@ -524,7 +501,7 @@ public abstract class JobExecutor implements Initializable {
    *                      This may be a {@code Step} or a {@code StepGraph}.
    * @return a list of {@code Step} objects representing all leaf nodes in the execution graph.
    */
-  private static List<Step> getAllLeafExecutionNodes(StepExecution executionNode) {
+  public static List<Step> getAllLeafExecutionNodes(StepExecution executionNode) {
     List<Step> leafNodes = new ArrayList<>();
 
     if (executionNode instanceof StepGraph graph) {

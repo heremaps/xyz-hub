@@ -65,8 +65,14 @@ public class JobTestBase extends StepTestBase {
         delete("/jobs/" + jobId );
     }
 
-    public static RuntimeStatus getJobStatus(String jobId) throws IOException, InterruptedException {
+    public static Map getJob(String jobId, boolean useAdminEndpoint) throws IOException, InterruptedException {
         logger.info("Get job ...");
+        HttpResponse<byte[]> jobResponse = get((useAdminEndpoint ? "/admin" : "/") +"/jobs/" + jobId);
+        return XyzSerializable.deserialize(jobResponse.body(), new TypeReference<Map>() {});
+    }
+
+    public static RuntimeStatus getJobStatus(String jobId) throws IOException, InterruptedException {
+        logger.info("Get job status...");
         HttpResponse<byte[]> statusResponse = get("/jobs/" + jobId + "/status");
         return XyzSerializable.deserialize(statusResponse.body(), RuntimeStatus.class);
     }
