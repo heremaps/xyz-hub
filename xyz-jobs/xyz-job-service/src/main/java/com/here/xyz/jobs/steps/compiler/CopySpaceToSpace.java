@@ -47,7 +47,18 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
            && validSubType( job.getTarget().getClass().getSimpleName() );
   }
 
-
+  private int threadCountCalc( long sourceFeatureCount, long targetFeatureCount )
+  {
+    long PARALLELIZTATION_THRESHOLD = 100000;
+    int PARALLELIZTATION_THREAD_MAX = 8;
+    
+    if( sourceFeatureCount <=  1 * PARALLELIZTATION_THRESHOLD ) return 1;
+    if( sourceFeatureCount <=  3 * PARALLELIZTATION_THRESHOLD ) return 2;
+    if( sourceFeatureCount <=  7 * PARALLELIZTATION_THRESHOLD ) return 3;
+    if( sourceFeatureCount <=  9 * PARALLELIZTATION_THRESHOLD ) return 4;
+    if( sourceFeatureCount <= 15 * PARALLELIZTATION_THRESHOLD ) return 5;
+    return PARALLELIZTATION_THREAD_MAX; 
+  }
 
   @Override
   public CompilationStepGraph compile(Job job) {
@@ -67,8 +78,7 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
     long sourceFeatureCount = sourceStatistics.getCount().getValue(),
          targetFeatureCount = targetStatistics.getCount().getValue();
 
-    int PARALLELIZTATION_MIN_THRESHOLD = 10000, PARALLELIZTATION_THREAD_COUNT = 3,
-        threadCount = sourceFeatureCount > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
+    int threadCount = threadCountCalc(sourceFeatureCount, targetFeatureCount);
 
     Filters filters = ((DatasetDescription.Space<?>) job.getSource()).getFilters();
     Ref versionRef = ((DatasetDescription.Space<?>) job.getSource()).getVersionRef();
