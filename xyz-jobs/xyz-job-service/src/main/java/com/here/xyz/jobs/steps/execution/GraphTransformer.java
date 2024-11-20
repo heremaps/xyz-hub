@@ -127,7 +127,7 @@ public class GraphTransformer {
    * @return a new {@code StepGraph} with all {@code DelegateOutputsPseudoStep} instances removed.
    */
   protected StepGraph pruneDelegateOutputSteps(StepGraph stepGraph){
-    StepGraph newGraph = new StepGraph(); // Create a new StepGraph instance
+    StepGraph newGraph = new StepGraph().withParallel(stepGraph.isParallel()); // Create a new StepGraph instance
 
     for (StepExecution stepExecution : stepGraph.getExecutions()) {
       if (stepExecution instanceof StepGraph graph) {
@@ -158,7 +158,7 @@ public class GraphTransformer {
     //delete all DelegateOutputSteps from Graph
     StepGraph prunedStepGraph = pruneDelegateOutputSteps(stepGraph);
 
-    if (stepGraph.isParallel()) {
+    if (prunedStepGraph.isParallel()) {
       //The top-level graph is parallel, compile it into a single ParallelState and add it
       NamedState parallelState = firstState = lastState = compileToParallelState(prunedStepGraph, null);
       machineBuilder.state(parallelState.stateName, parallelState.stateBuilder);
