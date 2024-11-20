@@ -54,9 +54,8 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
     
     if( sourceFeatureCount <=  1 * PARALLELIZTATION_THRESHOLD ) return 1;
     if( sourceFeatureCount <=  3 * PARALLELIZTATION_THRESHOLD ) return 2;
-    if( sourceFeatureCount <=  7 * PARALLELIZTATION_THRESHOLD ) return 3;
-    if( sourceFeatureCount <=  9 * PARALLELIZTATION_THRESHOLD ) return 4;
-    if( sourceFeatureCount <= 15 * PARALLELIZTATION_THRESHOLD ) return 5;
+    if( sourceFeatureCount <= 12 * PARALLELIZTATION_THRESHOLD ) return 3;
+    if( sourceFeatureCount <= 24 * PARALLELIZTATION_THRESHOLD ) return 6;
     return PARALLELIZTATION_THREAD_MAX; 
   }
 
