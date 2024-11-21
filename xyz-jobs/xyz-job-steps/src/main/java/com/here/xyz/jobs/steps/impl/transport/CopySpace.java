@@ -93,6 +93,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @JsonView({Internal.class, Static.class})
   private int[] threadInfo = {0,1};  // [threadId, threadCount]
 
+  @JsonView({Internal.class, Static.class})
+  private long version = 0; 
+
   //Existing Space in which we copy to
   private String targetSpaceId;
 
@@ -194,6 +197,19 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   public CopySpace withThreadInfo(int[] threadInfo) {
     setThreadInfo( threadInfo );
+    return this;
+  }
+
+  public long getVersion() {
+    return version;
+  }
+
+  public void setVersion(long version) {
+    this.version = version;
+  }
+
+  public CopySpace withVersion(long version) {
+    setVersion(version);
     return this;
   }
 
@@ -308,6 +324,28 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return true;
   }
 
+  public long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
+
+    Space targetSpace   = loadSpace(getTargetSpaceId());
+    Database targetDb   = loadDatabase(targetSpace.getStorage().getId(), WRITER);
+    String targetSchema = getSchema( targetDb ), 
+            targetTable = _getRootTableName(targetSpace);
+
+    SQLQuery incVersionSql = new SQLQuery("SELECT nextval('${schema}.${versionSequenceName}')")
+                                  .withVariable("schema", targetSchema)
+                                  .withVariable("versionSequenceName", targetTable + "_version_seq");
+
+                                
+    long newVersion = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
+      rs.next();
+      return rs.getLong(1);
+    });
+
+    setVersion( newVersion );
+    return newVersion;
+  }
+
+  
   @Override
   public void execute() throws Exception {
     logger.info( "Loading space config for source-space "+getSpaceId());
@@ -399,6 +437,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if( isRemoteCopy(sourceSpace,targetSpace ) )
      contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceStorageId), contentQuery );
       
+     SQLQuery versionToBeUsed = getVersion() > 0 ? new SQLQuery(""+getVersion())
+                                                 : new SQLQuery("(SELECT nextval('${schema}.${versionSequenceName}'))")
+                                                        .withVariable("schema", targetSchema)
+                                                        .withVariable("versionSequenceName", targetTable + "_version_seq");
+                   
+
     return new SQLQuery(
 /**/
   """
@@ -410,11 +454,11 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
            jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
                               'partialUpdates',false,
                               'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text
-         ,iidata.author,false,(SELECT nextval('${schema}.${versionSequenceName}'))
+         ,iidata.author,false,${{versionToBeUsed}}
         ) as wfresult
       from
       (
-       select (row_number() over ())/${{maxblksize}} as rn, idata.author, idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json) as feature
+       select ((row_number() over ())-1)/${{maxblksize}} as rn, idata.author, idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json) as feature
        from
        ( ${{contentQuery}} ) idata
       ) iidata
@@ -425,9 +469,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 /**/
         )
         .withContext( queryContext )
-        .withVariable("schema", targetSchema)
-        .withVariable("versionSequenceName", targetTable + "_version_seq")
         .withQueryFragment("maxblksize",""+ maxBlkSize)
+        .withQueryFragment("versionToBeUsed", versionToBeUsed )
         .withQueryFragment("contentQuery", contentQuery);
     
   }

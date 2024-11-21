@@ -24,10 +24,10 @@ import java.sql.SQLException;
 
 public class CopyJobTestIT extends JobTestBase {
 
-  static private String SrcSpc    = "testCopy-Source-07", 
-                        TrgSpc    = "testCopy-Target-07",
+  static private String SrcSpc    = "testCopy-Source-09", 
+                        TrgSpc    = "testCopy-Target-09",
                         OtherCntr = "psql_db2_hashed",
-                        //TrgRmtSpc = "testCopy-Target-07-remote",
+                        //TrgRmtSpc = "testCopy-Target-09-remote",
                         propertyFilter = "p.all=common";
          
   static private Polygon spatialSearchGeom;

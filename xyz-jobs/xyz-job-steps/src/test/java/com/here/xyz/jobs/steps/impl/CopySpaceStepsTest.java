@@ -127,6 +127,7 @@ public class CopySpaceStepsTest extends StepTest {
     assertEquals(2L, (Object) statsBefore.getCount().getValue());
 
     LambdaBasedStep step = new CopySpace()
+                               //.withVersion(7499)
                                .withSpaceId(SrcSpc).withSourceVersionRef(new Ref("HEAD"))
                                .withGeometry( geo ).withClipOnFilterGeometry(clip)
                                .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
