@@ -181,7 +181,7 @@ public class StepTestBase {
 
   protected StatisticsResponse getStatistics(String spaceId) {
     try {
-      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.EXTENSION);
+      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.EXTENSION, true);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }

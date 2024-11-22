@@ -192,7 +192,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
+      statistics = spaceStatistics(context, true);
       overallNeededAcus = overallNeededAcus != -1 ?
               overallNeededAcus : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
@@ -206,16 +206,48 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     }
   }
 
+  /**
+   * Determines whether this {@code ExportSpaceToFiles} step execution is equivalent to another step execution.
+   *
+   * <p>Equivalence is defined based on the following conditions:
+   * <ul>
+   *   <li>The other step execution must also be an instance of {@code ExportSpaceToFiles}.</li>
+   *   <li>The space associated with this step must be in read-only mode.</li>
+   *   <li>The maximum version of the space's statistics must match the current maximum version.</li>
+   *   <li>The following properties must be equal between the two instances:
+   *     <ul>
+   *       <li>Space ID</li>
+   *       <li>Format</li>
+   *       <li>Context</li>
+   *       <li>Version reference (if not null)</li>
+   *       <li>Spatial filter (if not null)</li>
+   *       <li>Property filter (if not null)</li>
+   *       <li>System output usage flag</li>
+   *     </ul>
+   *   </li>
+   * </ul>
+   *
+   * @param other The other {@link StepExecution} to compare against.
+   * @return {@code true} if the other step execution is equivalent to this one; {@code false} otherwise.
+   * @throws RuntimeException If an exception occurs while fetching space statistics or comparing values.
+   */
   @Override
   public boolean isEquivalentTo(StepExecution other) {
     if(other instanceof ExportSpaceToFiles) {
       try {
         /**
          * TODO:
-         * - only allow spaces which are readOnly
          * - deal with compositeSpaces which have a readOnly Base-Layer
+         * - check how to deal with TTL (keepUntil)!
          */
+        //space needs to be in readOnly mode
+        if(!space().isReadOnly())
+          return false;
+
+        long currentMaxVersion = spaceStatistics(context, true).getMaxVersion().getValue();
+
         if(((ExportSpaceToFiles) other).getSpaceId().equals(getSpaceId())
+            && currentMaxVersion == statistics.getMaxVersion().getValue()
             && ((ExportSpaceToFiles) other).format == format
             && ((ExportSpaceToFiles) other).context == context
             && (((ExportSpaceToFiles) other).versionRef == null || ((ExportSpaceToFiles) other).versionRef.equals(versionRef))
@@ -260,7 +292,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     super.validate();
 
     try {
-      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
+      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
 
       //Validate input Geometry
       if(this.spatialFilter != null)
@@ -304,7 +336,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
+    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
     calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
 
     List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
