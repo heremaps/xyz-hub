@@ -1,12 +1,22 @@
 package com.here.xyz.jobs.steps.execution;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+
 /**
  * NOTE: This step implementation is a placeholder step, that will be used by the JobExecutor to inject outputs of a formerly run
  * job into the StepGraph of this job.
@@ -17,16 +27,23 @@ import java.util.List;
  */
 
 public class DelegateOutputsPseudoStep extends Step<DelegateOutputsPseudoStep> {
+    private static final Logger logger = LogManager.getLogger();
+
     @JsonView({Internal.class, Static.class})
     private String delegateJobId; //The old job ID
     @JsonView({Internal.class, Static.class})
     private String delegateStepId; //The old step ID
+    @JsonView({Internal.class, Static.class})
+    private String targetJobId; //The current job ID
 
     DelegateOutputsPseudoStep(){}
 
-    DelegateOutputsPseudoStep(String delegateJobId, String delegateStepId) {
+    DelegateOutputsPseudoStep(String delegateJobId, String delegateStepId, String targetJobId) {
         this.delegateJobId = delegateJobId;
         this.delegateStepId = delegateStepId;
+        this.targetJobId = targetJobId;
+
+        addJobReferenceToDelegatedJob(delegateJobId, targetJobId);
     }
 
     @Override
@@ -80,5 +97,50 @@ public class DelegateOutputsPseudoStep extends Step<DelegateOutputsPseudoStep> {
     @Override
     public boolean validate() throws BaseHttpServerVerticle.ValidationException {
         return true;
+    }
+
+    public static String referenceMetaS3Key(String jobId) {
+        return jobId + "/meta/referencing_jobs.json";
+    }
+
+    public static void saveReferenceMetadata(String jobId, ReferenceMetadata metadata) throws IOException {
+        if (metadata != null) {
+            S3Client.getInstance().putObject(referenceMetaS3Key(jobId), "application/json", metadata.serialize());
+        }
+    }
+
+    public static ReferenceMetadata loadReferenceMetadata(String delegateJobId) throws IOException {
+        try {
+            return XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(referenceMetaS3Key(delegateJobId)),
+                    ReferenceMetadata.class);
+        } catch (AmazonS3Exception e) {
+            if (e.getStatusCode() == 404) {
+                return ReferenceMetadata.empty();
+            }
+            throw e;
+        }
+    }
+
+    private static void addJobReferenceToDelegatedJob(String delegateJobId, String jobIdToReference) {
+        try {
+            ReferenceMetadata metadata = loadReferenceMetadata(delegateJobId);
+
+            if(metadata == null)
+                metadata = new ReferenceMetadata(Set.of(jobIdToReference));
+            else
+                metadata.referencingJobs().add(jobIdToReference);
+
+            saveReferenceMetadata(delegateJobId, metadata);
+        } catch (IOException e) {
+            logger.error("Error handling ReferenceMetadata for job {}.", delegateJobId, e);
+            throw new RuntimeException("Not able to add reference to delegate job!");
+        }
+    }
+
+    public record ReferenceMetadata(@JsonProperty Set<String> referencingJobs) implements XyzSerializable {
+        // Static factory method for an "empty constructor"
+        public static ReferenceMetadata empty() {
+            return new ReferenceMetadata(new HashSet<>());
+        }
     }
 }

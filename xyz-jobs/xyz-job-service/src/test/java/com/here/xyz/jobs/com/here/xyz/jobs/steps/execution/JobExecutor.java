@@ -12,6 +12,8 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -26,9 +28,16 @@ public class JobExecutor {
     private static final String SOURCE_ID2 = "SOURCE_2";
 
     {
-        new Config();
-        Config.instance.PARALLEL_STEPS_SUPPORTED = true;
-        Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
+        try {
+            new Config();
+            Config.instance.PARALLEL_STEPS_SUPPORTED = true;
+            Config.instance.JOBS_DYNAMODB_TABLE_ARN = "arn:aws:dynamodb:localhost:000000008000:table/xyz-jobs-local";
+            Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
+            Config.instance.JOBS_S3_BUCKET = "test-bucket";
+            Config.instance.AWS_REGION = "us-east-1";
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test

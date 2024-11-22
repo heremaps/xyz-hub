@@ -178,7 +178,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (targetTableFeatureCount == -1 && getSpaceId() != null) {
       StatisticsResponse statistics;
       try {
-        statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
+        statistics = loadSpaceStatistics(getSpaceId(), EXTENSION, true);
         targetTableFeatureCount = statistics.getCount().getValue();
       }
       catch (WebClientException e) {
