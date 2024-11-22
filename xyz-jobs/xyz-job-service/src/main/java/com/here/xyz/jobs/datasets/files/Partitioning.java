@@ -22,10 +22,12 @@ package com.here.xyz.jobs.datasets.files;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.datasets.files.Partitioning.FeatureKey;
+import com.here.xyz.jobs.datasets.files.Partitioning.Tile;
 import com.here.xyz.jobs.datasets.files.Partitioning.Tiles;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Tiles.class, name = "Tiles"),
+    @JsonSubTypes.Type(value = Tile.class, name = "Tile"),
     @JsonSubTypes.Type(value = FeatureKey.class, name = "FeatureKey")
 })
 public abstract class Partitioning implements Typed {
@@ -87,6 +89,42 @@ public abstract class Partitioning implements Typed {
     @Override
     public String toBWCPartitionKey() {
       return getKey();
+    }
+  }
+
+  public static class Tile extends Partitioning {
+    private int level = 12;
+    private boolean clip;
+
+    public int getLevel() {
+      return level;
+    }
+
+    public void setLevel(int level) {
+      this.level = level;
+    }
+
+    public Tile withLevel(int level) {
+      setLevel(level);
+      return this;
+    }
+
+    public boolean isClip() {
+      return clip;
+    }
+
+    public void setClip(boolean clip) {
+      this.clip = clip;
+    }
+
+    public Tile withClip(boolean clip) {
+      setClip(clip);
+      return this;
+    }
+
+    @Override
+    public String toBWCPartitionKey() {
+      return "tile";
     }
   }
 }
