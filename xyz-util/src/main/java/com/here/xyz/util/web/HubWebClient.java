@@ -162,6 +162,10 @@ public class HubWebClient extends XyzWebClient {
             .uri(uri("/spaces/" + spaceId)));
   }
 
+  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
+    return loadSpaceStatistics(spaceId, context, false);
+  }
+
   public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
