@@ -30,6 +30,7 @@ import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
+import com.here.xyz.jobs.steps.impl.transport.IncrementVersionSpace;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -77,6 +78,10 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
       throw new JobCompiler.CompilationError(errMsg);
     }
 
+    IncrementVersionSpace incrementVersionSpace = new IncrementVersionSpace().withSpaceId(targetSpaceId);
+    CompilationStepGraph startGraph = new CompilationStepGraph();
+    startGraph.addExecution(incrementVersionSpace); 
+
     long sourceFeatureCount = sourceStatistics.getCount().getValue(),
          targetFeatureCount = targetStatistics.getCount().getValue();
 
@@ -90,26 +95,15 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
 
     CompilationStepGraph cGraph = new CompilationStepGraph();
     
-    long versionToUse = -1;
-
     for( int threadId = 0; threadId < threadCount; threadId++)
     {
       CopySpace copySpaceStep = new CopySpace()
-
               .withSpaceId(sourceSpaceId)
               .withTargetSpaceId(targetSpaceId)
               .withSourceVersionRef(versionRef)
               .withPropertyFilter(propertyFilter)
               .withThreadInfo(new int[]{ threadId, threadCount })
               .withJobId(job.getId());
-
-      if( versionToUse > 0 )
-       copySpaceStep.setVersion(versionToUse);
-      else 
-       try { versionToUse = copySpaceStep.setVersionToNextInSequence(); } 
-       catch (SQLException | TooManyResourcesClaimed | WebClientException e) 
-       { throw new JobCompiler.CompilationError("Unable to retrive next version available",e);
-       }
 
       if (spatialFilter != null) {
         copySpaceStep.setGeometry(spatialFilter.getGeometry());
@@ -120,6 +114,7 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
       cGraph.addExecution(copySpaceStep).withParallel(true);
     }
 
-    return cGraph;
+    startGraph.addExecution(cGraph);
+    return startGraph;
   }
 }

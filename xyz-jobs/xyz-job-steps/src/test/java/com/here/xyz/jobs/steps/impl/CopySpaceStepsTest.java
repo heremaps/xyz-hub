@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.impl;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
+import com.here.xyz.jobs.steps.impl.transport.IncrementVersionSpace;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
@@ -140,5 +141,21 @@ public class CopySpaceStepsTest extends StepTest {
     StatisticsResponse statsAfter = getStatistics(targetSpace);
     assertEquals(42L, (Object) statsAfter.getCount().getValue());
  }
+
+ @Test
+ public void testIncrementVersionSpaceStep( ) throws Exception {
+
+  String targetSpace = TrgSpc;
+  
+  LambdaBasedStep step = new IncrementVersionSpace()
+                             .withSpaceId(SrcSpc);
+  
+  int xeqSecs = step.getEstimatedExecutionSeconds();
+
+  sendLambdaStepRequestBlock(step,  true);
+
+  assertEquals(3L, ((IncrementVersionSpace) step).getFetchedVersion());
+}
+
 
 }

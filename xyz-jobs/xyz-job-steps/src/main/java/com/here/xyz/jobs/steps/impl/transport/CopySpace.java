@@ -30,6 +30,8 @@ import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpace;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByGeometry;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByProperties;
+import com.here.xyz.jobs.steps.outputs.FetchedVersions;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -324,6 +326,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return true;
   }
 
+/*
   public long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
 
     Space targetSpace   = loadSpace(getTargetSpaceId());
@@ -344,10 +347,17 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     setVersion( newVersion );
     return newVersion;
   }
-
+*/
   
   @Override
   public void execute() throws Exception {
+
+    for(Output<?> output : loadPreviousOutputs(false) )
+     if( output instanceof FetchedVersions f )
+      setVersion( f.getFetchtedSequence() );
+
+    logger.info( "Using fetched version "+ getVersion());
+
     logger.info( "Loading space config for source-space "+getSpaceId());
     Space sourceSpace = loadSpace(getSpaceId());
 
