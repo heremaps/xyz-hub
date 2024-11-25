@@ -5,8 +5,11 @@ import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.datasets.filters.Filters;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
@@ -17,6 +20,7 @@ public class ExportJobTestIT extends JobTest {
     public void setUp() {
         super.setUp();
         putRandomFeatureCollectionToSpace(SPACE_ID, featureCount);
+//        patchSpace(SPACE_ID, Map.of("readOnly", true));
     }
 
     @Test
@@ -38,8 +42,18 @@ public class ExportJobTestIT extends JobTest {
         createSelfRunningJob(exportJob2);
         checkJobReusage(exportJob1, exportJob2, featureCount, true);
 
-        deleteJob(exportJob1.getId());
+        boolean exceptionRaised = false;
+        try{
+            deleteJob(exportJob1.getId());
+        }catch (RuntimeException e){
+            //Job can not get deleted due to references to job2
+            exceptionRaised = true;
+        }
+        Assertions.assertTrue(exceptionRaised);
+
+        //delete in correct order
         deleteJob(exportJob2.getId());
+        deleteJob(exportJob1.getId());
     }
 
     @Test

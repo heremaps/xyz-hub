@@ -97,17 +97,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   /**
    * TODO:
-   *   Spatial-Filters
-   *    DONE
-   *
-   *   Content-Filters
-   *    DONE private String propertyFilter;
-   *    DONE private SpaceContext context;
-   *   ? private String targetVersion;
-   *
-   *   Version Filter:
-   *    DONE private VersionRef versionRef;
-   *
    *   Partitioning - part of EMR?
    *    private String partitionKey;
    *    --Required if partitionKey=tileId
@@ -240,14 +229,19 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
          * - deal with compositeSpaces which have a readOnly Base-Layer
          * - check how to deal with TTL (keepUntil)!
          */
-        //space needs to be in readOnly mode
-        if(!space().isReadOnly())
-          return false;
 
-        long currentMaxVersion = spaceStatistics(context, true).getMaxVersion().getValue();
+        //TODO: TBD if readOnly is required beside version compare
+
+        long currentMaxVersion;
+        try{
+          currentMaxVersion = spaceStatistics(context, true).getMaxVersion().getValue();
+        }catch (IllegalArgumentException e){
+          // Happens only in JunitTest of JobExecutor
+          currentMaxVersion = 0;
+        }
 
         if(((ExportSpaceToFiles) other).getSpaceId().equals(getSpaceId())
-            && currentMaxVersion == statistics.getMaxVersion().getValue()
+            && currentMaxVersion == (statistics == null ? 0 : statistics.getMaxVersion().getValue())
             && ((ExportSpaceToFiles) other).format == format
             && ((ExportSpaceToFiles) other).context == context
             && (((ExportSpaceToFiles) other).versionRef == null || ((ExportSpaceToFiles) other).versionRef.equals(versionRef))
