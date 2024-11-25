@@ -41,8 +41,6 @@ import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
@@ -250,12 +248,17 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return 24 * 3600;
   }
 
+  private int getThreadPartitions()
+  { int usedThreadPartitions = getThreadInfo() != null ? getThreadInfo()[1] : 1;
+    return usedThreadPartitions;
+  }
+
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
 
       estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateCopyTimeInSeconds(getSpaceId(), getTargetSpaceId(), 
-                                                                                            estimatedSourceFeatureCount, estimatedTargetFeatureCount , 
+                                                                                            estimatedSourceFeatureCount / getThreadPartitions(), estimatedTargetFeatureCount , 
                                                                                             getExecutionMode());
                                                                                             
       logger.info("[{}] Copy estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
@@ -266,7 +269,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private double calculateNeededAcus() { 
     overallNeededAcus =  overallNeededAcus != -1 
                          ? overallNeededAcus 
-                         : ResourceAndTimeCalculator.getInstance().calculateNeededCopyAcus(estimatedSourceFeatureCount);
+                         : ResourceAndTimeCalculator.getInstance().calculateNeededCopyAcus(estimatedSourceFeatureCount / getThreadPartitions() );
     return overallNeededAcus;
   }
 
@@ -326,29 +329,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return true;
   }
 
-/*
-  public long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
-
-    Space targetSpace   = loadSpace(getTargetSpaceId());
-    Database targetDb   = loadDatabase(targetSpace.getStorage().getId(), WRITER);
-    String targetSchema = getSchema( targetDb ), 
-            targetTable = _getRootTableName(targetSpace);
-
-    SQLQuery incVersionSql = new SQLQuery("SELECT nextval('${schema}.${versionSequenceName}')")
-                                  .withVariable("schema", targetSchema)
-                                  .withVariable("versionSequenceName", targetTable + "_version_seq");
-
-                                
-    long newVersion = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
-      rs.next();
-      return rs.getLong(1);
-    });
-
-    setVersion( newVersion );
-    return newVersion;
-  }
-*/
-  
   @Override
   public void execute() throws Exception {
 

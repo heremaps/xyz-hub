@@ -23,6 +23,8 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.IncrementVersionSpace;
+import com.here.xyz.jobs.steps.outputs.FetchedVersions;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
@@ -49,6 +51,7 @@ import static org.junit.Assert.assertEquals;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.stream.Stream;
 
 public class CopySpaceStepsTest extends StepTest {
@@ -132,7 +135,8 @@ public class CopySpaceStepsTest extends StepTest {
                                .withSpaceId(SrcSpc).withSourceVersionRef(new Ref("HEAD"))
                                .withGeometry( geo ).withClipOnFilterGeometry(clip)
                                .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
-                               .withTargetSpaceId( targetSpace );
+                               .withTargetSpaceId( targetSpace )
+                               .withJobId( JOB_ID );
     
     int xeqSecs = step.getEstimatedExecutionSeconds();
 
@@ -148,14 +152,22 @@ public class CopySpaceStepsTest extends StepTest {
   String targetSpace = TrgSpc;
   
   LambdaBasedStep step = new IncrementVersionSpace()
-                             .withSpaceId(SrcSpc);
+                             .withSpaceId(SrcSpc)
+                             .withJobId( JOB_ID );
   
   int xeqSecs = step.getEstimatedExecutionSeconds();
 
   sendLambdaStepRequestBlock(step,  true);
 
-  assertEquals(3L, ((IncrementVersionSpace) step).getFetchedVersion());
-}
+  List<?> outputs = step.loadOutputs(false);
+
+  long fetchedVersion = -1;
+  for( Object output : outputs)
+   if( output instanceof FetchedVersions f )
+    fetchedVersion = f.getFetchtedSequence();
+    
+  assertEquals(3L, fetchedVersion);
+ }
 
 
 }
