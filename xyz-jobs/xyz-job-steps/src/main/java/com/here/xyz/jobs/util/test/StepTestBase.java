@@ -163,6 +163,14 @@ public class StepTestBase {
     return null;
   }
 
+  protected void patchSpace(String spaceId, Map<String,Object> spaceUpdates) {
+    try {
+      hubWebClient.patchSpace(spaceId, spaceUpdates);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
   protected void createTag(String spaceId, Tag tag) {
     try {
       hubWebClient.postTag(spaceId, tag);
