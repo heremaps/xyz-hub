@@ -335,6 +335,7 @@ public abstract class JobExecutor implements Initializable {
             .max(Comparator.comparingInt(candidateGraph -> candidateGraph.size())) //Take the candidate with the largest matching subgraph
             .orElse(null)))
         .compose(shrunkGraph ->{
+          //Todo: move out
           if(shrunkGraph != null){
             boolean allStepsSucceeded = shrunkGraph.stepStream().allMatch(s -> s.getStatus().getState().equals(SUCCEEDED));
 
@@ -476,9 +477,20 @@ public abstract class JobExecutor implements Initializable {
                   stepId -> step.getInputStepIds().add(jobIdLastReusedNode + ":" + stepId)
           );
         }
+        /*
+         * TODO: It could be that other implementations have other references which we need to update. Target
+         *  should be a generic implementation - without the need to adjust this function accordingly.
+         */
+        // Replace ScriptParams
+        if (executionNode instanceof RunEmrJob emr){
+          //Replace source - which potentially have references to delegated steps
+          String patchedSource = emr.getScriptParams().get(0).replaceAll(newJobId+"/" + "[^/]+", jobIdLastReusedNode +"/"+ stepIdsOfLastReusedNodes.iterator().next());
+          emr.getScriptParams().set(0, patchedSource);
+        }
       }
     }
   }
+
   private static Step getFirstExecutionNode(StepExecution executionNode) {
     if (executionNode instanceof StepGraph previousNodeGraph) {
       //Get the first node of the graph
