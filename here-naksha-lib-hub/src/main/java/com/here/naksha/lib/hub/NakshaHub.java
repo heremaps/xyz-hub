@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.hub;
 
+import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.models.PluginCache.getStorageConstructor;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
@@ -25,6 +26,7 @@ import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesBy
 import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdsRequest;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.upsertFeaturesRequest;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
+import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.naksha.lib.core.*;
@@ -35,19 +37,16 @@ import com.here.naksha.lib.core.models.ExtensionConfig;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
-import com.here.naksha.lib.core.models.storage.EExecutedOp;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.ForwardCursor;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
-import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.extmanager.ExtensionManager;
@@ -56,9 +55,9 @@ import com.here.naksha.lib.extmanager.helpers.AmazonS3Helper;
 import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlStorage;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
+
+import java.util.*;
+
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -97,6 +96,11 @@ public class NakshaHub implements INaksha {
    * Singleton instance of Extension Manager, which is responsible to manage Naksha extensions cache
    */
   protected @NotNull IExtensionManager extensionManager;
+
+  /**
+   * The extensionId property path in handler json.
+   */
+  protected static final String[] EXTN_ID_PROP_PATH = {"extensionId"};
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NakshaHub(
@@ -239,7 +243,7 @@ public class NakshaHub implements INaksha {
       } else {
         try {
           List<NakshaHubConfig> nakshaHubConfigs =
-              ResultHelper.readFeaturesFromResult(rdResult, NakshaHubConfig.class);
+              readFeaturesFromResult(rdResult, NakshaHubConfig.class);
           for (final NakshaHubConfig cfg : nakshaHubConfigs) {
             if (cfg.getId().equals(configId)) {
               customDbCfg = cfg;
@@ -292,28 +296,57 @@ public class NakshaHub implements INaksha {
 
   @Override
   public @NotNull ExtensionConfig getExtensionConfig() {
+    // Create ReadFeatures Request to read all handlers where extensionId not null from Admin DB
+    final NakshaContext nakshaContext = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());
+    final ReadFeatures request = new ReadFeatures(EVENT_HANDLERS);
+    final PRef pref = RequestHelper.pRefFromPropPath(EXTN_ID_PROP_PATH);
+    POp notNullCondition = POp.exists(pref);
+    request.setPropertyOp(notNullCondition);
+
+    final Result rdResult;
+    try (IReadSession readSession = getAdminStorage().newReadSession(nakshaContext, false)) {
+      rdResult = readSession.execute(request);
+    } catch (Exception e) {
+      logger.error("Failed during reading extension handler configurations from collections {}. ", request.getCollections(), e);
+      throw new RuntimeException("Failed reading extension handler configurations", e);
+    }
+    final List<EventHandler> eventHandlers;
+    try {
+      eventHandlers = readFeaturesFromResult(rdResult, EventHandler.class);
+    } catch (NoCursor e) {
+      logger.error("NoCursor exception encountered", e);
+      throw new RuntimeException("Failed to open cursor", e);
+    }
+
+    Set<String> extensionIds = new HashSet<>();
+    for (EventHandler eventHandler : eventHandlers) {
+      String extensionId = eventHandler.getExtensionId();
+      if (extensionId != null && extensionId.contains(":")) {
+        extensionIds.add(extensionId);
+      } else {
+        logger.error("Environment is missing for an extension Id");
+      }
+    }
+
     final ExtensionConfigParams extensionConfigParams = nakshaHubConfig.extensionConfigParams;
     if (!extensionConfigParams.extensionRootPath.startsWith("s3://"))
       throw new UnsupportedOperationException(
           "ExtensionRootPath must be a valid s3 bucket url which should be prefixed with s3://");
 
-    List<Extension> extList = loadExtensionConfigFromS3(extensionConfigParams.getExtensionRootPath());
+    List<Extension> extList = loadExtensionConfigFromS3(extensionConfigParams.getExtensionRootPath(), extensionIds);
     return new ExtensionConfig(
         System.currentTimeMillis() + extensionConfigParams.getIntervalMs(),
         extList,
-        extensionConfigParams.getWhiteListClasses(),
-        this.nakshaHubConfig.env.toLowerCase());
+        extensionConfigParams.getWhiteListClasses());
   }
 
-  private List<Extension> loadExtensionConfigFromS3(String extensionRootPath) {
+  private List<Extension> loadExtensionConfigFromS3(String extensionRootPath, Set<String> extensionIds) {
     AmazonS3Helper s3Helper = new AmazonS3Helper();
-    final String bucketName = s3Helper.getS3Uri(extensionRootPath).bucket().get();
-
-    List<String> list = s3Helper.listKeysInBucket(extensionRootPath);
     List<Extension> extList = new ArrayList<>();
-    list.stream().forEach(extensionPath -> {
-      String filePath =
-          "s3://" + bucketName + "/" + extensionPath + "latest-" + nakshaHubConfig.env.toLowerCase() + ".txt";
+    extensionIds.forEach(extensionId -> {
+      String env = extensionId.split(":")[0];
+      String extensionIdWotEnv = extensionId.split(":")[1];
+      String filePath = extensionRootPath + extensionIdWotEnv + "/" + "latest-" + env.toLowerCase() + ".txt";
       String version;
       try {
         version = s3Helper.getFileContent(filePath);
@@ -322,11 +355,8 @@ public class NakshaHub implements INaksha {
         return;
       }
 
-      String bits[] = extensionPath.split("/");
-      String extensionId = bits[bits.length - 1];
-
-      filePath = "s3://" + bucketName + "/" + extensionPath + extensionId + "-" + version + "."
-          + nakshaHubConfig.env.toLowerCase().toLowerCase() + ".json";
+      filePath = extensionRootPath + extensionIdWotEnv + "/" + extensionIdWotEnv + "-" + version + "."
+              + env.toLowerCase() + ".json";
       String exJson;
       try {
         exJson = s3Helper.getFileContent(filePath);
@@ -337,6 +367,7 @@ public class NakshaHub implements INaksha {
       Extension extension;
       try {
         extension = new ObjectMapper().readValue(exJson, Extension.class);
+        extension.setEnv(env);
         extList.add(extension);
       } catch (Exception e) {
         logger.error("Failed to convert extension meta data to Extension object. {} ", exJson, e);

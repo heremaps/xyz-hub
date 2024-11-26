@@ -26,14 +26,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Uri;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest.Builder;
-import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
 
 public class AmazonS3Helper implements FileClient {
   private static S3Client s3Client;
@@ -91,20 +88,6 @@ public class AmazonS3Helper implements FileClient {
       }
       return stringBuilder.toString();
     }
-  }
-
-  public List<String> listKeysInBucket(String url) {
-    S3Uri fileUri = getS3Uri(url);
-    String delimiter = "/";
-
-    ListObjectsRequest.Builder listObjectsRequestBuilder =
-        ListObjectsRequest.builder().bucket(fileUri.bucket().get()).delimiter(delimiter);
-
-    if (fileUri.key().isPresent())
-      listObjectsRequestBuilder.prefix(fileUri.key().get());
-
-    ListObjectsResponse response = getS3Client().listObjects(listObjectsRequestBuilder.build());
-    return response.commonPrefixes().stream().map(cm -> cm.prefix()).toList();
   }
 
   public S3Uri getS3Uri(String url) {

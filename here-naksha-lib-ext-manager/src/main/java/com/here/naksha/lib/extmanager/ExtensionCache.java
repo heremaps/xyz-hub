@@ -83,9 +83,10 @@ public class ExtensionCache {
       publishIntoCache(result, extensionConfig);
     });
 
-    // Removing existing extension which has been removed from the configuration
-    List<String> extIds =
-        extensionConfig.getExtensions().stream().map(Extension::getId).toList();
+    // Removing existing extension which has been removed from the configuration.
+    List<String> extIds = extensionConfig.getExtensions().stream()
+        .map(extension -> extension.getEnv() + ":" + extension.getId())
+        .toList();
 
     for (String key : loaderCache.keySet()) {
       if (!extIds.contains(key)) {
@@ -100,6 +101,7 @@ public class ExtensionCache {
   private void publishIntoCache(KVPair<Extension, File> result, ExtensionConfig extensionConfig) {
     if (result != null && result.getValue() != null) {
       final Extension extension = result.getKey();
+      final String extensionIdWthEnv = extension.getEnv() + ":" + extension.getId();
       final File jarFile = result.getValue();
       ClassLoader loader;
       try {
@@ -121,7 +123,7 @@ public class ExtensionCache {
           logger.error(
               "Failed to instantiate class {} for extension {} ",
               extension.getInitClassName(),
-              extension.getId(),
+              extensionIdWthEnv,
               e);
           return;
         }
@@ -129,21 +131,22 @@ public class ExtensionCache {
       if (!isNullOrEmpty(extension.getInitClassName()))
         logger.info(
             "Extension {} initialization using initClassName {} done successfully.",
-            extension.getId(),
+            extensionIdWthEnv,
             extension.getInitClassName());
-      loaderCache.put(extension.getId(), new KVPair<Extension, ClassLoader>(extension, loader));
-      PluginCache.removeExtensionCache(extension.getId());
+      loaderCache.put(extensionIdWthEnv, new KVPair<Extension, ClassLoader>(extension, loader));
+      PluginCache.removeExtensionCache(extensionIdWthEnv);
       logger.info(
           "Extension id={}, version={} is successfully loaded into the cache, using Jar at {} for env={}.",
-          extension.getId(),
+          extensionIdWthEnv,
           extension.getVersion(),
           extension.getUrl().substring(extension.getUrl().lastIndexOf("/") + 1),
-          extensionConfig.getEnv());
+          extension.getEnv());
     }
   }
 
   private boolean isLoaderMappingExist(Extension extension) {
-    KVPair<Extension, ClassLoader> existingMapping = loaderCache.get(extension.getId());
+    final String extensionIdWthEnv = extension.getEnv() + ":" + extension.getId();
+    KVPair<Extension, ClassLoader> existingMapping = loaderCache.get(extensionIdWthEnv);
     if (existingMapping == null) return false;
 
     final Extension exExtension = existingMapping.getKey();

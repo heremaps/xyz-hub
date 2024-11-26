@@ -36,6 +36,7 @@ public class Extension extends XyzFeature {
   public static final String URL = "url";
   public static final String VERSION = "version";
   public static final String INIT_CLASS_NAME = "initClassName";
+  public static final String ENV = "env";
 
   @JsonProperty(URL)
   String url;
@@ -45,6 +46,9 @@ public class Extension extends XyzFeature {
 
   @JsonProperty(INIT_CLASS_NAME)
   String initClassName;
+
+  @JsonProperty(ENV)
+  String env;
 
   /**
    * Create an extension.
@@ -77,5 +81,13 @@ public class Extension extends XyzFeature {
 
   public String getInitClassName() {
     return initClassName;
+  }
+
+  public void setEnv(String env) {
+    this.env = env;
+  }
+
+  public String getEnv() {
+    return env;
   }
 }

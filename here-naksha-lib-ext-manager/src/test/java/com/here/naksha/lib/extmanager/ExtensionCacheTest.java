@@ -76,7 +76,7 @@ public class ExtensionCacheTest extends BaseSetup {
       extensionCache.buildExtensionCache(extensionConfig);
       Assertions.assertEquals(2,extensionCache.getCacheLength());
 
-      ClassLoader loader=extensionCache.getClassLoaderById(extensionConfig.getExtensions().get(0).getId());
+      ClassLoader loader=extensionCache.getClassLoaderById(extensionConfig.getExtensions().get(0).getEnv()+":"+extensionConfig.getExtensions().get(0).getId());
       Assertions.assertNotNull(loader);
       Assertions.assertEquals(classLoader,loader);
     }

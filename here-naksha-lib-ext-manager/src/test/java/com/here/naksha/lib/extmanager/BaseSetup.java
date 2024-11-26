@@ -25,6 +25,6 @@ public class BaseSetup {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-    return new ExtensionConfig(System.currentTimeMillis() + 6000, list,whitelistUrls,"test");
+    return new ExtensionConfig(System.currentTimeMillis() + 6000, list,whitelistUrls);
   }
 }
