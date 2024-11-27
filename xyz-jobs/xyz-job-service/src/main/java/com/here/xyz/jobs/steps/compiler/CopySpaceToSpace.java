@@ -19,7 +19,7 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
-import java.sql.SQLException;
+import java.util.Set;
 
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.Job;
@@ -30,10 +30,9 @@ import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
-import com.here.xyz.jobs.steps.impl.transport.IncrementVersionSpace;
-import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -78,9 +77,10 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
       throw new JobCompiler.CompilationError(errMsg);
     }
 
-    IncrementVersionSpace incrementVersionSpace = new IncrementVersionSpace().withSpaceId(targetSpaceId);
+    CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(job.getId());
+
     CompilationStepGraph startGraph = new CompilationStepGraph();
-    startGraph.addExecution(incrementVersionSpace); 
+    startGraph.addExecution(preCopySpace); 
 
     long sourceFeatureCount = sourceStatistics.getCount().getValue(),
          targetFeatureCount = targetStatistics.getCount().getValue();
@@ -115,6 +115,12 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
     }
 
     startGraph.addExecution(cGraph);
+
+    CopySpacePost postCopySpace = new CopySpacePost().withSpaceId(targetSpaceId)
+                                                     .withJobId(job.getId());
+
+    startGraph.addExecution(postCopySpace);
+
     return startGraph;
   }
 }

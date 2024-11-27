@@ -36,7 +36,9 @@ import org.apache.logging.log4j.Logger;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.FetchedVersions;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
@@ -55,7 +57,7 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
  * - add i/o report
  * - move out parsePropertiesQuery functions
  */
-public class IncrementVersionSpace extends SpaceBasedStep<IncrementVersionSpace> {
+public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   private static final Logger logger = LogManager.getLogger();
 
   @JsonView({Internal.class, Static.class})
@@ -124,24 +126,30 @@ public class IncrementVersionSpace extends SpaceBasedStep<IncrementVersionSpace>
     return true;
   }
 
-  private long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
+  private FeatureStatistics getCopiedFeatures(long fetchedVersion) throws SQLException, TooManyResourcesClaimed, WebClientException {
 
     Space targetSpace   = loadSpace(getSpaceId());
     Database targetDb   = loadDatabase(targetSpace.getStorage().getId(), WRITER);
     String targetSchema = getSchema( targetDb ), 
             targetTable = getRootTableName(targetSpace);
 
-    SQLQuery incVersionSql = new SQLQuery("SELECT nextval('${schema}.${versionSequenceName}')")
-                                  .withVariable("schema", targetSchema)
-                                  .withVariable("versionSequenceName", targetTable + "_version_seq");
+    SQLQuery incVersionSql = new SQLQuery(
+              """
+                select count(1), coalesce( sum( (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint ), 0::bigint )
+                from ${schema}.${table} 
+                where version = ${{fetchedVersion}} 
+              """)
+                .withVariable("schema", targetSchema)
+                .withVariable("table", targetTable)
+                .withQueryFragment("fetchedVersion",""+fetchedVersion);
 
-                                
-    long newVersion = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
-      rs.next();
-      return rs.getLong(1);
+     FeatureStatistics statistics = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
+       return rs.next()
+              ? new FeatureStatistics().withFeatureCount(rs.getLong(1)).withByteSize(rs.getLong(2))
+              : new FeatureStatistics();
     });
 
-    return newVersion;
+    return statistics;
   }
 
   @Override
@@ -150,15 +158,21 @@ public class IncrementVersionSpace extends SpaceBasedStep<IncrementVersionSpace>
   }
 
 
-
   @Override
   public void execute() throws Exception {
 
-     infoLog(STEP_EXECUTE, this,String.format("fetch next version for %s", getSpaceId() )); 
-     fetchedVersion = setVersionToNextInSequence();
+    long fetchedVersion = 0;
 
-     registerOutputs(List.of( new FetchedVersions().withFetchtedSequence(fetchedVersion) ), false);
-     
+    for(Output<?> output : loadPreviousOutputs(false) )
+     if( output instanceof FetchedVersions f )
+      fetchedVersion = f.getFetchtedSequence();
+
+    infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion ,getSpaceId() )); 
+
+    FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
+
+    infoLog(STEP_EXECUTE, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+    registerOutputs(List.of(statistics), true);
   }
 
   @Override
@@ -172,14 +186,14 @@ public class IncrementVersionSpace extends SpaceBasedStep<IncrementVersionSpace>
   @Override
   protected void onStateCheck() {
     //@TODO: Implement
-    logger.info("IncVersion - onStateCheck");
+    logger.info("ImlCopy.Post - onStateCheck");
     getStatus().setEstimatedProgress(0.2f);
   }
 
   @Override
   public void resume() throws Exception {
     //@TODO: Implement
-    logger.info("IncVersion - onAsyncSuccess");
+    logger.info("ImlCopy.Post - onAsyncSuccess");
   }
 
 
