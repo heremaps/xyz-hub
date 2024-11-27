@@ -309,8 +309,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       throw new ValidationException("Error loading target space \"" + getTargetSpaceId() + "\"", e);
     }
 
-    if (estimatedSourceFeatureCount == 0)
-      throw new ValidationException("Source Space is empty!");
+    //TODO: step succeed fast
+    //if (estimatedSourceFeatureCount == 0)
+    //  throw new ValidationException("Source Space is empty!");
 
     sourceVersionRef = sourceVersionRef == null ? new Ref("HEAD") : sourceVersionRef;
 
