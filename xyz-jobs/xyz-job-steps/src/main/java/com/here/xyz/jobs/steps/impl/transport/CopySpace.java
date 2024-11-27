@@ -41,6 +41,8 @@ import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
@@ -289,7 +291,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       throw new ValidationException("Source = Target!");
 
     try {
-//???
       Space sourceSpace = loadSpace(getSpaceId());
       boolean isExtended = sourceSpace.getExtension() != null;
       StatisticsResponse sourceStatistics = loadSpaceStatistics(getSpaceId(), isExtended ? EXTENSION : null);
@@ -300,7 +301,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
 
     try {
-//???
       Space targetSpace = loadSpace(getSpaceId());
       boolean isExtended = targetSpace.getExtension() != null;
       StatisticsResponse targetStatistics = loadSpaceStatistics(getTargetSpaceId(), isExtended ? EXTENSION : null);
@@ -336,7 +336,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
      if( output instanceof FetchedVersions f )
       setVersion( f.getFetchtedSequence() );
 
-    logger.info( "Using fetched version "+ getVersion());
+    if( getVersion() > 0)
+    { logger.info( "Using fetched version "+ getVersion());
+      registerOutputs(List.of( new FetchedVersions().withFetchtedSequence(getVersion()) ), false);
+    }
 
     logger.info( "Loading space config for source-space "+getSpaceId());
     Space sourceSpace = loadSpace(getSpaceId());

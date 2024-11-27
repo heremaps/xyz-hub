@@ -21,14 +21,16 @@ import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
 
 public class CopyJobTestIT extends JobTestBase {
 
   static private String SrcSpc    = "testCopy-Source-09", 
-                        TrgSpc    = "testCopy-Target-09",
-                        OtherCntr = "psql_db2_hashed",
+                        TrgSpc    = "testCopy-Target-09";
+                        //OtherCntr = "psql_db2_hashed",
                         //TrgRmtSpc = "testCopy-Target-09-remote",
-                        propertyFilter = "p.all=common";
+                        //propertyFilter = "p.all=common";
          
   static private Polygon spatialSearchGeom;
   static private float xmin = 7.0f, ymin = 50.0f, xmax = 7.1f, ymax = 50.1f;
@@ -91,7 +93,14 @@ public class CopyJobTestIT extends JobTestBase {
         createSelfRunningJob(copyJob);
 
         checkSucceededJob(copyJob);
-        deleteJob(copyJob.getId());
+
+       List<Map> l =  getJobOutputs(copyJob.getId());
+
+       Assertions.assertEquals( 1, l.size() );
+
+       Assertions.assertEquals( 40, l.get(0).get("featureCount") );
+
+       deleteJob(copyJob.getId());
  }
 
 }
