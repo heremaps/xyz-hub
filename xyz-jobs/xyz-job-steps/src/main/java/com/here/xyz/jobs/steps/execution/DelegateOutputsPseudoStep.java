@@ -1,6 +1,7 @@
 package com.here.xyz.jobs.steps.execution;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
@@ -30,20 +31,23 @@ public class DelegateOutputsPseudoStep extends Step<DelegateOutputsPseudoStep> {
     private static final Logger logger = LogManager.getLogger();
 
     @JsonView({Internal.class, Static.class})
-    private String delegateJobId; //The old job ID
+    private String delegateJobId; //The old job ID which gets reused
     @JsonView({Internal.class, Static.class})
-    private String delegateStepId; //The old step ID
+    private String delegateStepId; //The old step ID which gets reused
     @JsonView({Internal.class, Static.class})
-    private String targetJobId; //The current job ID
+    private String originalJobId; //The current job ID
+    @JsonView({Internal.class, Static.class})
+    private String originalStepId; //The current job ID
 
     DelegateOutputsPseudoStep(){}
 
-    DelegateOutputsPseudoStep(String delegateJobId, String delegateStepId, String targetJobId) {
+    DelegateOutputsPseudoStep(String delegateJobId, String delegateStepId, String originalJobId, String originalStepId) {
         this.delegateJobId = delegateJobId;
         this.delegateStepId = delegateStepId;
-        this.targetJobId = targetJobId;
+        this.originalJobId = originalJobId;
+        this.originalStepId = originalStepId;
 
-        addJobReferenceToDelegatedJob(delegateJobId, targetJobId);
+        addJobReferenceToDelegatedJob(delegateJobId, originalJobId);
     }
 
     @Override
@@ -54,6 +58,20 @@ public class DelegateOutputsPseudoStep extends Step<DelegateOutputsPseudoStep> {
     @Override
     public String getId(){
         return delegateStepId;
+    }
+
+    public String getOriginalJobId(){
+        return originalJobId;
+    }
+
+    public String getOriginalStepId(){
+        return originalStepId;
+    }
+
+    //first old path / second new path
+    @JsonIgnore
+    public String[] getReplacementPathForFiles(){
+        return new String[]{ originalJobId +"/"+ originalStepId , delegateJobId +"/"+ delegateStepId };
     }
 
     @Override
@@ -97,6 +115,11 @@ public class DelegateOutputsPseudoStep extends Step<DelegateOutputsPseudoStep> {
     @Override
     public boolean validate() throws BaseHttpServerVerticle.ValidationException {
         return true;
+    }
+
+    @Override
+    public void deleteOutputs(){
+        //DelegateOutputs Steps are not permitted to delete outputs
     }
 
     public static String referenceMetaS3Key(String jobId) {

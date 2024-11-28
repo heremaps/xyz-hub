@@ -46,6 +46,7 @@ import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;
+import com.here.xyz.jobs.steps.outputs.ResourceHint;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -243,7 +244,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
         if(((ExportSpaceToFiles) other).getSpaceId().equals(getSpaceId())
             && currentMaxVersion == (statistics == null ? 0 : statistics.getMaxVersion().getValue())
             && ((ExportSpaceToFiles) other).format == format
-            && ((ExportSpaceToFiles) other).context == context
+            && (((ExportSpaceToFiles) other).context == context || (space().getExtension() == null && ((ExportSpaceToFiles) other).context == null && context == SUPER ))
             && (((ExportSpaceToFiles) other).versionRef == null || ((ExportSpaceToFiles) other).versionRef.equals(versionRef))
             && (((ExportSpaceToFiles) other).spatialFilter == null || ((ExportSpaceToFiles) other).spatialFilter.equals(spatialFilter))
             && (((ExportSpaceToFiles) other).propertyFilter == null || ((ExportSpaceToFiles) other).propertyFilter.equals(propertyFilter))
@@ -363,6 +364,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getExportedBytes() + " files=" + statistics.getExportedFiles());
     if(addStatisticsToUserOutput)
       registerOutputs(List.of(statistics), true);
+
+    registerOutputs(List.of(new ResourceHint().withLayerName(getSpaceId()).withSpaceContext(context)), false);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
