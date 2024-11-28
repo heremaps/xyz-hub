@@ -128,6 +128,7 @@ public class GraphTransformer {
    */
   protected StepGraph pruneDelegateOutputSteps(StepGraph stepGraph){
     StepGraph newGraph = new StepGraph().withParallel(stepGraph.isParallel()); // Create a new StepGraph instance
+    List<String[]> replacements = new ArrayList();
 
     for (StepExecution stepExecution : stepGraph.getExecutions()) {
       if (stepExecution instanceof StepGraph graph) {
@@ -142,8 +143,11 @@ public class GraphTransformer {
       } else if (!(stepExecution instanceof DelegateOutputsPseudoStep)) {
         // Add non-DelegateOutputsPseudoStep directly
         newGraph.getExecutions().add(stepExecution);
+      } else if (stepExecution instanceof DelegateOutputsPseudoStep delegateStep) {
+        replacements.add(delegateStep.getReplacementPathForFiles());
       }
     }
+
     return newGraph;
   }
 
@@ -155,7 +159,6 @@ public class GraphTransformer {
     NamedState firstState;
     NamedState lastState;
 
-    //delete all DelegateOutputSteps from Graph
     StepGraph prunedStepGraph = pruneDelegateOutputSteps(stepGraph);
 
     if (prunedStepGraph.isParallel()) {

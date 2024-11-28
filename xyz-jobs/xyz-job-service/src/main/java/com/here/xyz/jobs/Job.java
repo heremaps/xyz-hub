@@ -44,6 +44,7 @@ import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -57,8 +58,11 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 
@@ -107,6 +111,8 @@ public class Job implements XyzSerializable {
   private String executionId;
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
+  @JsonView(Static.class)
+  private String extendedResourceKey;
 
   private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -594,6 +600,25 @@ public class Job implements XyzSerializable {
     //Always use key from the source except when the source is Files
     if(getSource() == null) return null;
     return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
+  }
+
+  public String getExtendedResourceKey(){
+    if(this.extendedResourceKey != null)
+      return this.extendedResourceKey;
+
+    String key = getResourceKey();
+    if(key == null) return null;
+    //in case of composite spaces add base layer as resource
+
+    try {
+      Space.Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(key).getExtension();
+      if(extension != null) {
+        this.extendedResourceKey = extension.getSpaceId();
+      }
+    } catch (XyzWebClient.WebClientException e) {
+      throw new RuntimeException(e);
+    }
+    return this.extendedResourceKey;
   }
 
   public String getDescription() {

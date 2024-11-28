@@ -76,6 +76,13 @@ public abstract class JobConfigClient implements Initializable {
    */
   public abstract Future<List<Job>> loadJobs(String resourceKey, State state);
 
+  /**
+   * Load all jobs related to a specified resourceKey OR extendedResourceKey (e.g., space ID) that are having the specified state.
+   * @param resourceKey
+   * @return
+   */
+  public abstract Future<List<Job>> loadJobs(String resourceKey, String extendedResourceKey, State state);
+
   public abstract Future<Void> storeJob(Job job);
 
   /**

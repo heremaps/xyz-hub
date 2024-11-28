@@ -72,7 +72,7 @@ public class ExportToFiles implements JobCompilationInterceptor {
                     .withOutputMetadata(outputMetadata);
   }
 
-  private static Ref resolveVersionRef(String spaceId, Ref versionRef) {
+  public static Ref resolveVersionRef(String spaceId, Ref versionRef) {
     if(versionRef == null || versionRef.isRange())
       return versionRef;
 

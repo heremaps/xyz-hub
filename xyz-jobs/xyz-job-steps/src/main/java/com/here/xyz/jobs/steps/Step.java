@@ -207,9 +207,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
               //Inject jobId for reusability
               String jId = jobId;
               String sId = stepId;
-              if(stepId.indexOf(":") != -1){
-                jId = stepId.substring(0, stepId.indexOf(":"));
-                sId = stepId.substring(stepId.indexOf(":") + 1);
+              if(stepId.indexOf(".") != -1){
+                jId = stepId.substring(0, stepId.indexOf("."));
+                sId = stepId.substring(stepId.indexOf(".") + 1);
               }
               return Output.stepOutputS3Prefix(jId, sId, userOutput, false);
             })
@@ -499,7 +499,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public void setInputStepIds(Set<String> inputStepIds) {
     this.inputStepIds = inputStepIds.stream()
-            .map(stepId -> stepId.contains(":") ? stepId : jobId + ":" + stepId)
+            .map(stepId -> stepId.contains(".") ? stepId : jobId + "." + stepId)
             .collect(Collectors.toSet());
   }
 

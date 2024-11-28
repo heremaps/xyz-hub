@@ -327,7 +327,7 @@ public abstract class JobExecutor implements Initializable {
   private static Future<Void> reuseExistingJobIfPossible(Job job) {
     if(job.getResourceKey() == null)
       return Future.succeededFuture();
-    return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), SUCCEEDED)
+    return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), job.getExtendedResourceKey(), SUCCEEDED)
         .compose(candidates -> shrinkGraphByReusingOtherGraph(job, candidates.stream()
             .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
             .map(candidate -> candidate.getSteps().findConnectedEquivalentSubGraph(job.getSteps()))
@@ -358,6 +358,13 @@ public abstract class JobExecutor implements Initializable {
             .withParallel(reusedGraph.isParallel())
             .withExecutions(calculateShrunkForest(job, reusedGraph));
 
+    /**
+     * TODO: It could be that other implementations have other references which we need to update. Target
+     *  should be a generic implementation - without the need to adjust this function accordingly.
+     */
+    //if we have delegate we need to update references for EMR
+    emrParamReplacement(shrunkGraph, collectDelegateReplacements(shrunkGraph));
+
     return Future.succeededFuture(shrunkGraph);
   }
 
@@ -378,7 +385,8 @@ public abstract class JobExecutor implements Initializable {
         replaceWithDelegateOutputSteps(graph.getExecutions(), reusedGraph.getExecutions());
       } else if (execution instanceof Step step && reusedExecution instanceof Step reusedStep) {
         // Replace the execution with DelegateOutputsPseudoStep
-        executions.set(i, new DelegateOutputsPseudoStep(reusedStep.getJobId(), reusedStep.getId(), ((Step<?>) execution).getJobId() ));
+        executions.set(i, new DelegateOutputsPseudoStep(reusedStep.getJobId(), reusedStep.getId(), ((Step<?>) execution).getJobId(),
+                ((Step<?>) execution).getId() ));
       }
     }
   }
@@ -477,16 +485,41 @@ public abstract class JobExecutor implements Initializable {
                   stepId -> step.getInputStepIds().add(jobIdLastReusedNode + ":" + stepId)
           );
         }
-        /*
-         * TODO: It could be that other implementations have other references which we need to update. Target
-         *  should be a generic implementation - without the need to adjust this function accordingly.
-         */
-        // Replace ScriptParams
-        if (executionNode instanceof RunEmrJob emr){
-          //Replace source - which potentially have references to delegated steps
-          String patchedSource = emr.getScriptParams().get(0).replaceAll(newJobId+"/" + "[^/]+", jobIdLastReusedNode +"/"+ stepIdsOfLastReusedNodes.iterator().next());
-          emr.getScriptParams().set(0, patchedSource);
+      }
+    }
+  }
+
+  private static List<String[]> collectDelegateReplacements(StepGraph stepGraph) {
+    List<String[]> replacements = new ArrayList<>();
+
+    for (StepExecution stepExecution : stepGraph.getExecutions()) {
+      if (stepExecution instanceof StepGraph graph) {
+        // Recursively collect replacements from nested StepGraphs
+        replacements.addAll(collectDelegateReplacements(graph));
+      } else if (stepExecution instanceof DelegateOutputsPseudoStep delegateStep) {
+        // Add the replacement paths from DelegateOutputsPseudoStep
+        replacements.add(delegateStep.getReplacementPathForFiles());
+      }
+    }
+
+    return replacements;
+  }
+
+  protected static void emrParamReplacement(StepGraph stepGraph, List<String[]> replacements){
+    for (StepExecution stepExecution : stepGraph.getExecutions()) {
+      if (stepExecution instanceof StepGraph graph) {
+        emrParamReplacement(graph, replacements);
+      } else if (stepExecution instanceof RunEmrJob emr) {
+        List<String> scriptParams = emr.getScriptParams();
+        for (int i = 0; i < scriptParams.size(); i++) {
+          String param = scriptParams.get(i);
+
+          for (String[] replacement : replacements) {
+            param = param.replaceAll(replacement[0], replacement[1]);
+          }
+          scriptParams.set(i, param);
         }
+        emr.setScriptParams(scriptParams);
       }
     }
   }

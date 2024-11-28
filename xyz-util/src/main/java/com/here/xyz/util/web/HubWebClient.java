@@ -99,6 +99,14 @@ public class HubWebClient extends XyzWebClient {
     }
   }
 
+  public String loadExtendedSpace(String spaceId) throws WebClientException {
+    Space space = loadSpace(spaceId);
+    if(space == null || space.getExtension() == null)
+      return null;
+    else
+      return space.getExtension().getSpaceId();
+  }
+
   public Space createSpace(String spaceId, String title) throws WebClientException {
     return createSpace(new Space().withId(spaceId).withTitle(title));
   }

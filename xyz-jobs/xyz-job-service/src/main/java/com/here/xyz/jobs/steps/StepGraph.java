@@ -164,6 +164,9 @@ public class StepGraph implements StepExecution {
 
     if (isEquivalentTo(other))
       return this;
+
+    //TODO: other.executions has multiple parallel steps - this.executions only one.
+    // Than we have to check each of the parallel steps if they fit to the  this.execution
     for (int i = 0; i < Math.min(executions.size(), other.getExecutions().size()); i++) {
       currentNode = executions.get(i);
       currentOtherNode = other.executions.get(i);
