@@ -43,7 +43,7 @@ public class ExportToFiles implements JobCompilationInterceptor {
   @Override
   public boolean chooseMe(Job job) {
     return job.getTarget() instanceof Files
-            && allowedSourceTypes.contains(job.getSource().getClass())
+            && job.getSource().getClass().getSimpleName().equalsIgnoreCase("Space")
             && ((Files<?>) job.getTarget()).getOutputSettings().getFormat() instanceof GeoJson;
   }
 
