@@ -39,6 +39,7 @@ import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.FetchedVersions;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
@@ -78,6 +79,18 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   @JsonView({Internal.class, Static.class})
   private long fetchedVersion = 0;
 
+  @JsonView({Internal.class, Static.class})
+  private long copiedByteSize = 0;
+
+
+  public long getCopiedByteSize() {
+    return copiedByteSize;
+  }
+
+  public void setCopiedByteSize(long copiedByteSize) {
+    this.copiedByteSize = copiedByteSize;
+  }
+
   public long getFetchedVersion() {
     return fetchedVersion;
   }
@@ -90,6 +103,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
       rList.add( new Load().withResource(loadDatabase(sourceSpace.getStorage().getId(), WRITER))
                            .withEstimatedVirtualUnits(calculateNeededAcus()) );
+
+      rList.add( new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getCopiedByteSize()) ); // billing, reporting
 
       logger.info("[{}] IncVersion #{} {}", getGlobalStepId(), 
                                                            rList.size(),
@@ -173,6 +188,9 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
     infoLog(STEP_EXECUTE, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
     registerOutputs(List.of(statistics), true);
+
+    setCopiedByteSize( statistics.getByteSize() );
+    
   }
 
   @Override
