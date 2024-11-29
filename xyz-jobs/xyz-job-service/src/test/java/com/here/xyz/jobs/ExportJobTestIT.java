@@ -42,6 +42,8 @@ public class ExportJobTestIT extends JobTest {
         createSelfRunningJob(exportJob2);
         checkJobReusage(exportJob1, exportJob2, featureCount, true);
 
+        //inactive cause we allow the deletion currently
+        /**
         boolean exceptionRaised = false;
         try{
             deleteJob(exportJob1.getId());
@@ -49,7 +51,7 @@ public class ExportJobTestIT extends JobTest {
             //Job can not get deleted due to references to job2
             exceptionRaised = true;
         }
-        Assertions.assertTrue(exceptionRaised);
+        Assertions.assertTrue(exceptionRaised);*/
 
         //delete in correct order
         deleteJob(exportJob2.getId());
