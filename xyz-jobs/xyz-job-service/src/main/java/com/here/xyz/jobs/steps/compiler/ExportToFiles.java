@@ -34,6 +34,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class ExportToFiles implements JobCompilationInterceptor {
@@ -49,15 +50,15 @@ public class ExportToFiles implements JobCompilationInterceptor {
   @Override
   public CompilationStepGraph compile(Job job) {
     Space source = (Space) job.getSource();
-    return compileSteps(source.getId(), job.getId(), source.getFilters(), source.getVersionRef());
+    return compileSteps(source.getId(), job.getId(), source.getFilters(), source.getVersionRef(), null);
   }
 
-  public static CompilationStepGraph compileSteps(String spaceId, String jobId, Filters filters, Ref versionRef) {
+  public static CompilationStepGraph compileSteps(String spaceId, String jobId, Filters filters, Ref versionRef, Map<String, String> outputMetadata) {
     return (CompilationStepGraph) new CompilationStepGraph()
-            .addExecution(compileExportStep(spaceId, jobId, filters, versionRef, false, true));
+            .addExecution(compileExportStep(spaceId, jobId, filters, versionRef, false, true, outputMetadata));
   }
 
-  public static ExportSpaceToFiles compileExportStep(String spaceId, String jobId, Filters filters, Ref versionRef, boolean useSystemOutput, boolean addStatistics) {
+  public static ExportSpaceToFiles compileExportStep(String spaceId, String jobId, Filters filters, Ref versionRef, boolean useSystemOutput, boolean addStatistics, Map<String, String> outputMetadata) {
     versionRef = resolveVersionRef(spaceId, versionRef);
     return new ExportSpaceToFiles()
                     .withSpaceId(spaceId)
@@ -67,7 +68,8 @@ public class ExportToFiles implements JobCompilationInterceptor {
                     .withContext(filters != null ? filters.getContext() : null)
                     .withVersionRef(versionRef)
                     .withUseSystemOutput(useSystemOutput)
-                    .withAddStatisticsToUserOutput(addStatistics);
+                    .withAddStatisticsToUserOutput(addStatistics)
+                    .withOutputMetadata(outputMetadata);
   }
 
   private static Ref resolveVersionRef(String spaceId, Ref versionRef) {
