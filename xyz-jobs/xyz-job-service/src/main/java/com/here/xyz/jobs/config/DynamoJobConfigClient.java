@@ -98,7 +98,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
-  public Future<List<Job>> loadJobs(String resourceKey, String extendedResourceKey) {
+  public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey) {
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
 
@@ -112,10 +112,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
                       )
               );
 
-      // If extendedResourceKey is provided, query it too
-      if (extendedResourceKey != null) {
+      // If secondaryResourceKey is provided, query it too
+      if (secondaryResourceKey != null) {
         jobTable.getIndex("resourceKey-index")
-                .query("resourceKey", extendedResourceKey)
+                .query("resourceKey", secondaryResourceKey)
                 .pages()
                 .forEach(page ->
                         page.forEach(jobItem -> {
@@ -156,10 +156,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<List<Job>> loadJobs(String resourceKey, String extendedResourceKey, State state) {
+  public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey, State state) {
     if (resourceKey != null)
       //TODO: Use an index with hash- *and* range-key
-      return loadJobs(resourceKey, extendedResourceKey).map(jobs -> jobs.stream().filter(job -> state == null || job.getStatus().getState() == state).toList());
+      return loadJobs(resourceKey, secondaryResourceKey).map(jobs -> jobs.stream().filter(job -> state == null || job.getStatus().getState() == state).toList());
     else if (state != null)
       return loadJobs(state);
     else
@@ -270,8 +270,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
       logger.info("DynamoDB running locally, initializing Jobs table.");
       try {
         List<IndexDefinition> indexes = List.of(new IndexDefinition("resourceKey"), new IndexDefinition("state"),
-                new IndexDefinition("extendedResourceKey"));
-        dynamoClient.createTable(jobTable.getTableName(), "id:S,resourceKey:S,extendedResourceKey:S,state:S", "id", indexes, "keepUntil");
+                new IndexDefinition("secondaryResourceKey"));
+        dynamoClient.createTable(jobTable.getTableName(), "id:S,resourceKey:S,secondaryResourceKey:S,state:S", "id", indexes, "keepUntil");
         //TODO: Register a dynamo stream (also in CFN) to ensure we're getting informed when a job expires
       }
       catch (Exception e) {
