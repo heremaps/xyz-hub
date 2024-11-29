@@ -123,7 +123,7 @@ public class JobExecutor {
                     Assertions.assertEquals(new HashSet<>(List.of(execution1.getId()))
                             , execution2.getPreviousStepIds());
                     //Check if inputStepIds are set correct (+ linked to reused job)
-                    Assertions.assertEquals(new HashSet<>(List.of(JOB_ID1 +":"+ exportStep.getId()))
+                    Assertions.assertEquals(new HashSet<>(List.of(JOB_ID1 +"."+ exportStep.getId()))
                             , execution2.getInputStepIds());
                 }
         );
