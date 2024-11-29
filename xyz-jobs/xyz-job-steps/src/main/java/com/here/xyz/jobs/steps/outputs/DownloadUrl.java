@@ -47,7 +47,6 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
   }
 
   @Override
-  @JsonIgnore
   public boolean isCompressed() {
     return false;
   }

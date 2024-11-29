@@ -87,7 +87,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Internal.class, Static.class})
   private Set<String> inputStepIds;
   @JsonView({Internal.class, Static.class})
-  private Map<String, String> metadata;
+  private Map<String, String> outputMetadata;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -214,11 +214,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
                     .stream()
                     .filter(s3ObjectSummary -> s3ObjectSummary.getSize() > 0)
                     .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
-                            ? ModelBasedOutput.load(s3ObjectSummary.getKey(), metadata)
+                            ? ModelBasedOutput.load(s3ObjectSummary.getKey(), outputMetadata)
                             : new DownloadUrl()
                                   .withS3Key(s3ObjectSummary.getKey())
                                   .withByteSize(s3ObjectSummary.getSize())
-                                  .withMetadata(metadata)))
+                                  .withMetadata(outputMetadata)))
             .collect(Collectors.toList());
   }
 
@@ -478,16 +478,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return (T) this;
   }
 
-  public Map<String, String> getMetadata() {
-    return metadata;
+  public Map<String, String> getOutputMetadata() {
+    return outputMetadata;
   }
 
-  public void setMetadata(Map<String, String> metadata) {
-    this.metadata = metadata;
+  public void setOutputMetadata(Map<String, String> outputMetadata) {
+    this.outputMetadata = outputMetadata;
   }
 
-  public T withMetadata(Map<String, String> metadata) {
-    setMetadata(metadata);
+  public T withOutputMetadata(Map<String, String> metadata) {
+    setOutputMetadata(metadata);
     return (T) this;
   }
 

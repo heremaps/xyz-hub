@@ -53,12 +53,12 @@ public class ExportToFiles implements JobCompilationInterceptor {
     return compileSteps(source.getId(), job.getId(), source.getFilters(), source.getVersionRef(), null);
   }
 
-  public static CompilationStepGraph compileSteps(String spaceId, String jobId, Filters filters, Ref versionRef, Map<String, String> metadata) {
+  public static CompilationStepGraph compileSteps(String spaceId, String jobId, Filters filters, Ref versionRef, Map<String, String> outputMetadata) {
     return (CompilationStepGraph) new CompilationStepGraph()
-            .addExecution(compileExportStep(spaceId, jobId, filters, versionRef, false, true, metadata));
+            .addExecution(compileExportStep(spaceId, jobId, filters, versionRef, false, true, outputMetadata));
   }
 
-  public static ExportSpaceToFiles compileExportStep(String spaceId, String jobId, Filters filters, Ref versionRef, boolean useSystemOutput, boolean addStatistics, Map<String, String> metadata) {
+  public static ExportSpaceToFiles compileExportStep(String spaceId, String jobId, Filters filters, Ref versionRef, boolean useSystemOutput, boolean addStatistics, Map<String, String> outputMetadata) {
     versionRef = resolveVersionRef(spaceId, versionRef);
     return new ExportSpaceToFiles()
                     .withSpaceId(spaceId)
@@ -69,7 +69,7 @@ public class ExportToFiles implements JobCompilationInterceptor {
                     .withVersionRef(versionRef)
                     .withUseSystemOutput(useSystemOutput)
                     .withAddStatisticsToUserOutput(addStatistics)
-                    .withMetadata(metadata);
+                    .withOutputMetadata(outputMetadata);
   }
 
   private static Ref resolveVersionRef(String spaceId, Ref versionRef) {
