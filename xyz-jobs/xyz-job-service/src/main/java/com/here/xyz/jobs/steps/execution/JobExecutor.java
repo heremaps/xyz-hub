@@ -327,7 +327,7 @@ public abstract class JobExecutor implements Initializable {
   private static Future<Void> reuseExistingJobIfPossible(Job job) {
     if(job.getResourceKey() == null)
       return Future.succeededFuture();
-    return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), job.getExtendedResourceKey(), SUCCEEDED)
+    return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), job.getSecondaryResourceKey(), SUCCEEDED)
         .compose(candidates -> shrinkGraphByReusingOtherGraph(job, candidates.stream()
             .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
             .map(candidate -> candidate.getSteps().findConnectedEquivalentSubGraph(job.getSteps()))

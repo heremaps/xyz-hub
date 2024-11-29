@@ -33,7 +33,6 @@ import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.util.Random.randomAlpha;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -57,7 +56,6 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
-import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
@@ -112,7 +110,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
   @JsonView(Static.class)
-  private String extendedResourceKey;
+  private String secondaryResourceKey;
 
   private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -432,17 +430,32 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
-    //Delete StateMachine if still existing
     return getReferencingJobs(getId())
-        .compose(ids -> updateReferences(getId(), ids))
-        .compose(ids -> ids.isEmpty() ? Future.succeededFuture() :
-                Future.failedFuture(new IllegalStateException("Job can not be deleted as it has referenced Jobs: "+ ids)))
-        .compose(f -> JobExecutor.getInstance().deleteExecution(getExecutionId()))
-        //Delete the inputs of this job
-        .compose(b -> deleteInputs())
-        //Delete the outputs of all involved steps
-        .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
-            .mapEmpty());
+            .compose(ids -> updateReferences(getId(), ids))
+            .compose(ids -> {
+              if (ids.isEmpty()) {
+                return Future.succeededFuture(); // No references, continue.
+              } else {
+                return Future.failedFuture(new SkipExecutionException("Job cannot be deleted as it has referenced jobs: " + ids));
+              }
+            })
+            .compose(f -> JobExecutor.getInstance().deleteExecution(getExecutionId()))
+            .compose(b -> deleteInputs())
+            .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step))))
+            .recover(err -> {
+              //TODO: Remove this workaround, which leads into stale s3 files
+              if (err instanceof SkipExecutionException) {
+                //Skiped deletion.
+                return Future.succeededFuture();
+              }
+              return Future.failedFuture(err);
+            }).mapEmpty();
+  }
+
+  private class SkipExecutionException extends RuntimeException {
+    public SkipExecutionException(String message) {
+      super(message);
+    }
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {
@@ -602,9 +615,9 @@ public class Job implements XyzSerializable {
     return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
   }
 
-  public String getExtendedResourceKey(){
-    if(this.extendedResourceKey != null)
-      return this.extendedResourceKey;
+  public String getSecondaryResourceKey(){
+    if(this.secondaryResourceKey != null)
+      return this.secondaryResourceKey;
 
     String key = getResourceKey();
     if(key == null) return null;
@@ -613,12 +626,12 @@ public class Job implements XyzSerializable {
     try {
       Space.Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(key).getExtension();
       if(extension != null) {
-        this.extendedResourceKey = extension.getSpaceId();
+        this.secondaryResourceKey = extension.getSpaceId();
       }
     } catch (XyzWebClient.WebClientException e) {
       throw new RuntimeException(e);
     }
-    return this.extendedResourceKey;
+    return this.secondaryResourceKey;
   }
 
   public String getDescription() {
