@@ -83,7 +83,11 @@ public abstract class AbstractHttpServerVerticle extends BaseHttpServerVerticle 
           }
         }
       }
-      context.next();
+      try{ context.next(); }
+      catch(IllegalArgumentException e)
+      { sendErrorResponse(context, new HttpException(BAD_REQUEST,"", e));
+        return;
+      }
     };
   }
 

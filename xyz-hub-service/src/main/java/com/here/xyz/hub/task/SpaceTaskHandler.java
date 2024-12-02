@@ -699,8 +699,11 @@ public class SpaceTaskHandler {
     Space.resolveConnector(marker, space.getStorage().getId())
         .onSuccess(connector -> RpcClient.getInstanceFor(connector).execute(marker, event, ar -> {
           ChangesetsStatisticsResponse response = (ChangesetsStatisticsResponse) ar.result();
-          space.setReadOnlyHeadVersion(response.getMaxVersion());
-          p.complete();
+          if( response != null )
+          { space.setReadOnlyHeadVersion(response.getMaxVersion());
+            p.complete();
+          }
+          else p.fail("failed to get Changeset statistics");
         }))
         .onFailure(p::fail);
     return p.future();

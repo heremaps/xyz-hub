@@ -196,7 +196,16 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     logger.info(marker, "Deleting space ID: {}", spaceId);
     return get(marker, spaceId)
         .onFailure(t -> logger.error(marker, "Failure to get space ID: {} during space deletion", spaceId, t))
-        .onSuccess(space -> logger.info(marker, "Space ID: {} has been retrieved", space.getId()))
+        .compose(space -> {
+          if (space == null) {
+              String errMsg = String.format("Space ID: %s is null after retrieval during space deletion", spaceId);
+              logger.error(marker,errMsg);
+              return Future.failedFuture(errMsg);
+          } else {
+              logger.info(marker, "Space ID: {} has been retrieved", space.getId());
+              return Future.succeededFuture(space);
+          }
+        })
         .compose(space -> deleteSpaceFromPackages(marker, space).map(space))
         .compose(space -> {
           Promise<Space> p = Promise.promise();
