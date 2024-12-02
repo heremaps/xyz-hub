@@ -629,7 +629,9 @@ public class Job implements XyzSerializable {
         this.secondaryResourceKey = extension.getSpaceId();
       }
     } catch (XyzWebClient.WebClientException e) {
-      throw new RuntimeException(e);
+      //Ignore if space is not present anymore
+      if(!(e instanceof XyzWebClient.ErrorResponseException er && er.getStatusCode() == 404))
+        throw new RuntimeException(e);
     }
     return this.secondaryResourceKey;
   }
