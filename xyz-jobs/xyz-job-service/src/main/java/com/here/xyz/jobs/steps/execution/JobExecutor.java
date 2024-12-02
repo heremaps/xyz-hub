@@ -386,7 +386,7 @@ public abstract class JobExecutor implements Initializable {
       } else if (execution instanceof Step step && reusedExecution instanceof Step reusedStep) {
         // Replace the execution with DelegateOutputsPseudoStep
         executions.set(i, new DelegateOutputsPseudoStep(reusedStep.getJobId(), reusedStep.getId(), ((Step<?>) execution).getJobId(),
-                ((Step<?>) execution).getId() ));
+                ((Step<?>) execution).getId()).withOutputMetadata(reusedStep.getOutputMetadata()));
       }
     }
   }
