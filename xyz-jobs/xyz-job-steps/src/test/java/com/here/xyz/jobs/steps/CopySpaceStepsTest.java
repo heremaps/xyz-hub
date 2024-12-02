@@ -17,15 +17,21 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.impl;
+package com.here.xyz.jobs.steps;
+
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
+import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.FetchedVersions;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
@@ -35,32 +41,28 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
-
+import java.sql.SQLException;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.sql.SQLException;
-import java.util.List;
-import java.util.stream.Stream;
 
 public class CopySpaceStepsTest extends StepTest {
 
-  static private String SrcSpc    = "testCopy-Source-07", 
+  static private String SrcSpc    = "testCopy-Source-07",
                         TrgSpc    = "testCopy-Target-07",
                         OtherCntr = "psql_db2_hashed",
                         TrgRmtSpc = "testCopy-Target-07-remote",
                         propertyFilter = "p.all=common";
-         
+
   static private Polygon spatialSearchGeom;
   static private float xmin = 7.0f, ymin = 50.0f, xmax = 7.1f, ymax = 50.1f;
   static {
-   
+
    LinearRingCoordinates lrc = new LinearRingCoordinates();
    lrc.add(new Position(xmin, ymin));
    lrc.add(new Position(xmax, ymin));
@@ -105,7 +107,7 @@ public class CopySpaceStepsTest extends StepTest {
         Arguments.of(false, spatialSearchGeom,true,null),
         Arguments.of(false, spatialSearchGeom,false,propertyFilter),
         Arguments.of(false, spatialSearchGeom,true,propertyFilter),
-        
+
         Arguments.of(true,null,false,null),
         Arguments.of(true,null,false,propertyFilter),
         Arguments.of(true, spatialSearchGeom,false,null),
@@ -120,7 +122,7 @@ public class CopySpaceStepsTest extends StepTest {
   public void copySpace( boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter) throws Exception {
 
     String targetSpace = !testRemoteDb ? TrgSpc : TrgRmtSpc;
-    
+
     StatisticsResponse statsBefore = getStatistics(targetSpace);
 
     assertEquals(2L, (Object) statsBefore.getCount().getValue());
@@ -132,7 +134,7 @@ public class CopySpaceStepsTest extends StepTest {
                                .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
                                .withTargetSpaceId( targetSpace )
                                .withJobId( JOB_ID );
-    
+
     sendLambdaStepRequestBlock(step,  true);
 
     StatisticsResponse statsAfter = getStatistics(targetSpace);
@@ -145,16 +147,16 @@ public class CopySpaceStepsTest extends StepTest {
   LambdaBasedStep step = new CopySpacePre()
                              .withSpaceId(SrcSpc)
                              .withJobId( JOB_ID );
-  
+
   sendLambdaStepRequestBlock(step,  true);
 
-  List<?> outputs = step.loadOutputs(false);
+  List<?> outputs = step.loadOutputs(SYSTEM);
 
   long fetchedVersion = -1;
   for( Object output : outputs)
-   if( output instanceof FetchedVersions f )
-    fetchedVersion = f.getFetchtedSequence();
-    
+   if( output instanceof CreatedVersion f )
+    fetchedVersion = f.getVersion();
+
   assertEquals(3L, fetchedVersion);
  }
 
@@ -164,18 +166,18 @@ public class CopySpaceStepsTest extends StepTest {
   LambdaBasedStep step = new CopySpacePost()
                              .withSpaceId(SrcSpc)
                              .withJobId( JOB_ID );
-  
+
   sendLambdaStepRequestBlock(step,  true);
 
-  List<?> outputs = step.loadOutputs(true);
+  List<?> outputs = step.loadOutputs(USER);
 
   FeatureStatistics featureStatistics = null;
 
   for( Object output : outputs)
    if( output instanceof FeatureStatistics ftstat )
     featureStatistics = ftstat;
-  
-  assertTrue(   featureStatistics != null 
+
+  assertTrue(   featureStatistics != null
              && featureStatistics.getFeatureCount() == 0
              && featureStatistics.getByteSize() == 0 );
  }

@@ -20,30 +20,32 @@
 package com.here.xyz.jobs.steps.compiler;
 
 import java.util.Map;
-import java.util.Set;
+import static com.here.xyz.jobs.steps.impl.transport.CopySpacePre.VERSION;
 
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
+import com.here.xyz.jobs.steps.Step.InputSet;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.util.List;
 
 public class SpaceCopy implements JobCompilationInterceptor {
-  
   protected boolean validSubType( String subType )
-  { return "Space".equals(subType); }
+  { return Space.class.getSimpleName().equals(subType); }
 
   @Override
   public boolean chooseMe(Job job) {
@@ -57,23 +59,23 @@ public class SpaceCopy implements JobCompilationInterceptor {
   {
     long PARALLELIZTATION_THRESHOLD = 100000;
     int PARALLELIZTATION_THREAD_MAX = 8;
-    
+
     if( sourceFeatureCount <=  1 * PARALLELIZTATION_THRESHOLD ) return 1;
     if( sourceFeatureCount <=  3 * PARALLELIZTATION_THRESHOLD ) return 2;
     if( sourceFeatureCount <= 12 * PARALLELIZTATION_THRESHOLD ) return 3;
     if( sourceFeatureCount <= 24 * PARALLELIZTATION_THRESHOLD ) return 6;
-    return PARALLELIZTATION_THREAD_MAX; 
+    return PARALLELIZTATION_THREAD_MAX;
   }
 
- 
+
   private static StatisticsResponse _loadSpaceStatistics(String spaceId) throws WebClientException
   {
    Space sourceSpace = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
    boolean isExtended = sourceSpace.getExtension() != null;
-   return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);  
+   return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);
   }
 
-  public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef, String targetType) 
+  public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef, String targetType)
   {
     final String sourceSpaceId = sourceId,
                  targetSpaceId = targetId;
@@ -90,7 +92,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
     CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(jobId);
 
     CompilationStepGraph startGraph = new CompilationStepGraph();
-    startGraph.addExecution(preCopySpace); 
+    startGraph.addExecution(preCopySpace);
 
     long sourceFeatureCount = sourceStatistics.getCount().getValue(),
          targetFeatureCount = targetStatistics.getCount().getValue();
@@ -101,16 +103,17 @@ public class SpaceCopy implements JobCompilationInterceptor {
     PropertiesQuery propertyFilter = filters != null ? filters.getPropertyFilter() : null;
 
     CompilationStepGraph cGraph = new CompilationStepGraph();
-    
+
     for( int threadId = 0; threadId < threadCount; threadId++)
     {
       CopySpace copySpaceStep = new CopySpace()
-              .withSpaceId(sourceSpaceId)
-              .withTargetSpaceId(targetSpaceId)
-              .withSourceVersionRef(versionRef)
-              .withPropertyFilter(propertyFilter)
-              .withThreadInfo(new int[]{ threadId, threadCount })
-              .withJobId(jobId);
+          .withSpaceId(sourceSpaceId)
+          .withTargetSpaceId(targetSpaceId)
+          .withSourceVersionRef(versionRef)
+          .withPropertyFilter(propertyFilter)
+          .withThreadInfo(new int[]{ threadId, threadCount })
+          .withJobId(jobId)
+          .withInputSets(List.of(new InputSet(preCopySpace.getId(), VERSION)));
 
       if (spatialFilter != null) {
         copySpaceStep.setGeometry(spatialFilter.getGeometry());
@@ -123,21 +126,23 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
     startGraph.addExecution(cGraph);
 
-    CopySpacePost postCopySpace = new CopySpacePost().withSpaceId(targetSpaceId)
-                                                     .withJobId(jobId)
-                                                     .withOutputMetadata(Map.of(targetType, targetSpaceId));
+    CopySpacePost postCopySpace = new CopySpacePost()
+        .withSpaceId(targetSpaceId)
+        .withJobId(jobId)
+                                                     .withOutputMetadata(Map.of(targetType, targetSpaceId))
+        .withInputSets(List.of(new InputSet(preCopySpace.getId(), VERSION)));
 
     startGraph.addExecution(postCopySpace);
 
     return startGraph;
- 
+
   }
 
   @Override
   public CompilationStepGraph compile(Job job) {
 
-    return compileSteps(job.getSource().getKey(), 
-                        job.getTarget().getKey(), 
+    return compileSteps(job.getSource().getKey(),
+                        job.getTarget().getKey(),
                         job.getId(),
                         ((DatasetDescription.Space<?>) job.getSource()).getFilters(),
                         ((DatasetDescription.Space<?>) job.getSource()).getVersionRef(),

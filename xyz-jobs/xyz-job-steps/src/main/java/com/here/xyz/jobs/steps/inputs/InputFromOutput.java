@@ -17,22 +17,24 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.jobs.steps.outputs;
+package com.here.xyz.jobs.steps.inputs;
 
-public class FetchedVersions extends ModelBasedOutput {
-    private long fetchtedSequence;
+import com.here.xyz.jobs.steps.outputs.Output;
 
-    public long getFetchtedSequence() {
-        return fetchtedSequence;
-    }
+//TODO: Remove that workaround once the inputs & outputs were streamlined to one single inheritance chain
+public class InputFromOutput extends ModelBasedInput {
+  private Output delegate;
 
-    public void setFetchtedSequence(long fetchtedSequence) {
-        this.fetchtedSequence = fetchtedSequence;
-    }
+  public Output getDelegate() {
+    return delegate;
+  }
 
-    public FetchedVersions withFetchtedSequence(long fetchtedSequence) {
-        setFetchtedSequence(fetchtedSequence);
-        return this;
-    }
+  public void setDelegate(Output delegate) {
+    this.delegate = delegate;
+  }
 
+  public InputFromOutput withDelegate(Output delegate) {
+    setDelegate(delegate);
+    return this;
+  }
 }

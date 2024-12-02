@@ -49,6 +49,10 @@ public abstract class Output<T extends Output> implements Typed {
     return stepS3Prefix + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
   }
 
+  public static String stepOutputS3Prefix(String jobId, String stepId, String name) {
+    return jobId + "/" + stepId + "/outputs/" + name;
+  }
+
   @JsonAnyGetter
   public Map<String, String> getMetadata() {
     return metadata;

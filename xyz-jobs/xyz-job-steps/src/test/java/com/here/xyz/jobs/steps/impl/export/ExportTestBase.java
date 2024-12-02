@@ -11,12 +11,11 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
-import org.junit.jupiter.api.Assertions;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Assertions;
 
 public class ExportTestBase extends StepTest {
 
@@ -44,7 +43,7 @@ public class ExportTestBase extends StepTest {
 
         //Send Lambda Requests
         sendLambdaStepRequestBlock(step, true);
-        checkOutputs(allExpectedFeatures, step.loadOutputs(true));
+        checkOutputs(allExpectedFeatures, step.loadUserOutputs());
     }
 
     protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> outputs) throws IOException {

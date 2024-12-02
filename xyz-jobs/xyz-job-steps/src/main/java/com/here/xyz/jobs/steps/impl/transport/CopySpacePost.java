@@ -19,10 +19,10 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 
 import java.io.IOException;
@@ -33,13 +33,14 @@ import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.inputs.InputFromOutput;
+import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.FetchedVersions;
-import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -48,6 +49,12 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
@@ -61,7 +68,9 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
  * - move out parsePropertiesQuery functions
  */
 public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
+
   private static final Logger logger = LogManager.getLogger();
+  public static final String STATISTICS = "statistics";
 
   @JsonView({Internal.class, Static.class})
   private double overallNeededAcus = -1;
@@ -79,10 +88,9 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private long fetchedVersion = 0;
-
-  @JsonView({Internal.class, Static.class})
   private long copiedByteSize = 0;
+
+  protected List<OutputSet> outputSets = List.of(new OutputSet(STATISTICS, SYSTEM));
 
   public long getCopiedByteSize() {
     return copiedByteSize;
@@ -90,10 +98,6 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
   public void setCopiedByteSize(long copiedByteSize) {
     this.copiedByteSize = copiedByteSize;
-  }
-
-  public long getFetchedVersion() {
-    return fetchedVersion;
   }
 
   @Override
@@ -107,11 +111,11 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
       rList.add( new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getCopiedByteSize()) ); // billing, reporting
 
-      logger.info("[{}] IncVersion #{} {}", getGlobalStepId(), 
+      logger.info("[{}] IncVersion #{} {}", getGlobalStepId(),
                                                            rList.size(),
                                                            sourceSpace.getStorage().getId() );
 
-      return rList;                            
+      return rList;
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -146,7 +150,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
     Space targetSpace   = loadSpace(getSpaceId());
     Database targetDb   = loadDatabase(targetSpace.getStorage().getId(), WRITER);
-    String targetSchema = getSchema( targetDb ), 
+    String targetSchema = getSchema( targetDb ),
             targetTable = getRootTableName(targetSpace);
 
     SQLQuery incVersionSql = new SQLQuery(
@@ -173,36 +177,34 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
    return SYNC;
   }
 
-
   @Override
   public void execute() throws Exception {
+    long fetchedVersion = _getCreatedVersion();
 
-    long fetchedVersion = 0;
-
-    for(Output<?> output : loadPreviousOutputs(false) )
-     if( output instanceof FetchedVersions f )
-      fetchedVersion = f.getFetchtedSequence();
-
-    infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId() )); 
+    infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId() ));
 
     FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
 
     infoLog(STEP_EXECUTE, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
-    registerOutputs(List.of(statistics), true);
+    registerOutputs(List.of(statistics), STATISTICS);
 
     setCopiedByteSize( statistics.getByteSize() );
- 
-    if( statistics.getFeatureCount() > 0 )
+if( statistics.getFeatureCount() > 0 )
      hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
-    
+
+  }
+
+  //TODO: Remove that workaround once the 3 copy steps were properly merged into one step again
+  long _getCreatedVersion() {
+    for (InputFromOutput input : (List<InputFromOutput>)(List<?>) loadInputs(InputFromOutput.class))
+      if (input.getDelegate() instanceof CreatedVersion f)
+        return f.getVersion();
+    return 0;
   }
 
   @Override
-  protected void onAsyncSuccess() throws WebClientException,
-          SQLException, TooManyResourcesClaimed, IOException {
-
+  protected void onAsyncSuccess() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     logger.info("[{}] AsyncSuccess IncVersion {} ", getGlobalStepId(), getSpaceId());
-
   }
 
   @Override
@@ -217,6 +219,4 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     //@TODO: Implement
     logger.info("ImlCopy.Post - onAsyncSuccess");
   }
-
-
 }

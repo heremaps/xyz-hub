@@ -10,13 +10,12 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * NOTE: This step implementation is a placeholder step, that will be used by the JobExecutor to inject outputs of a formerly run
@@ -48,6 +47,14 @@ public class DelegateOutputsPseudoStep extends Step<DelegateOutputsPseudoStep> {
         this.originalStepId = originalStepId;
 
         addJobReferenceToDelegatedJob(delegateJobId, originalJobId);
+    }
+
+    public String getDelegateJobId() {
+        return delegateJobId;
+    }
+
+    public String getDelegateStepId() {
+        return delegateStepId;
     }
 
     @Override

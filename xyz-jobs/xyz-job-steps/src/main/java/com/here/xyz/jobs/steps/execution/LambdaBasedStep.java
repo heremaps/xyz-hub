@@ -450,8 +450,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   @Override
-  protected List<Input> loadInputs() {
-    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs();
+  protected List<Input> loadInputs(Class<? extends Input>... inputTypes) {
+    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs(inputTypes);
   }
 
   public enum ExecutionMode {

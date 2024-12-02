@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
@@ -75,7 +76,8 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withSpaceId(spaceId)
         .withFormat(importStepFormat)
         .withEntityPerLine(getEntityPerLine(sourceFormat))
-        .withJobId(job.getId());
+        .withJobId(job.getId())
+        .withInputSets(List.of(USER_INPUTS.get()));
 
     if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
       //Perform only the import Step
@@ -109,7 +111,8 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   private EntityPerLine getEntityPerLine(FileFormat format) {
     return EntityPerLine.valueOf((format instanceof GeoJson geoJson
-        ? geoJson.getEntityPerLine() : ((Csv) format).getEntityPerLine()).toString());
+        ? geoJson.getEntityPerLine()
+        : ((Csv) format).getEntityPerLine()).toString());
   }
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<Index> indices) {

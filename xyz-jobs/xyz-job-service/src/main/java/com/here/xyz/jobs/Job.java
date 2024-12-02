@@ -57,14 +57,12 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -579,7 +577,7 @@ public class Job implements XyzSerializable {
 
   public Future<List<Output>> loadOutputs() {
     return ASYNC.run(() -> steps.stepStream()
-        .map(step -> (List<Output>) step.loadOutputs(true))
+        .map(step -> (List<Output>) step.loadUserOutputs())
         .flatMap(ol -> ol.stream())
         .collect(Collectors.toList()));
   }

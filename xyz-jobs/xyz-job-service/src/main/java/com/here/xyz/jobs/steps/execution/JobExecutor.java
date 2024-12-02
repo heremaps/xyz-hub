@@ -25,6 +25,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.GraphFusionTool.resolveReusedInputs;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -360,9 +361,9 @@ public abstract class JobExecutor implements Initializable {
 
     /**
      * TODO: It could be that other implementations have other references which we need to update. Target
-     *  should be a generic implementation - without the need to adjust this function accordingly.
+     *  should be a generic implementation - without the need to adjust this function specifically.
      */
-    //if we have delegate we need to update references for EMR
+    //if we have delegate, we need to update references for EMR
     emrParamReplacement(shrunkGraph, collectDelegateReplacements(shrunkGraph));
 
     return Future.succeededFuture(shrunkGraph);
@@ -385,8 +386,8 @@ public abstract class JobExecutor implements Initializable {
       }
       else if (execution instanceof Step step && reusedExecution instanceof Step reusedStep) {
         // Replace the execution with DelegateOutputsPseudoStep
-        executions.set(i, new DelegateOutputsPseudoStep(reusedStep.getJobId(), reusedStep.getId(), ((Step<?>) execution).getJobId(),
-                ((Step<?>) execution).getId()).withOutputMetadata(reusedStep.getOutputMetadata()));
+        executions.set(i, new DelegateOutputsPseudoStep(reusedStep.getJobId(), reusedStep.getId(), step.getJobId(), step.getId())
+            .withOutputMetadata(reusedStep.getOutputMetadata()));
       }
     }
   }
@@ -413,32 +414,30 @@ public abstract class JobExecutor implements Initializable {
     List<StepExecution> executions = job.getSteps().getExecutions();
     //Replace all executions, which can get reused form reusedGraph, in current graph with DelegateOutputSteps.
     replaceWithDelegateOutputSteps(executions, reusedGraph.getExecutions());
+    resolveReusedInputs(job.getSteps());
+    //TODO: Move re-weaving of previousStepIds into first traversal implementation
 
     int sizeReusedGraph = reusedGraph.getExecutions().size();
     int sizeResultGraph = executions.size();
 
-    if(sizeResultGraph > sizeReusedGraph) {
+    if (sizeResultGraph > sizeReusedGraph) {
       //patch first item and build link to reused Graph
       Step firstNewExecutionNode = getFirstExecutionNode(executions.get(sizeReusedGraph));
       //get last nodes (leafs) of reusedGraph
-      List<Step> lastExecutionNodesOfReusedGraph = getAllLeafExecutionNodes(reusedGraph.getExecutions().get((reusedGraph.getExecutions()).size() - 1));
+      List<Step> lastExecutionNodesOfReusedGraph = getAllLeafExecutionNodes(reusedGraph.getExecutions()
+          .get((reusedGraph.getExecutions()).size() - 1));
 
-      //get previousStepIds of nodes which comes after the reused Graph
-      Set<String> previousStepIdsOfFirstNewNode = firstNewExecutionNode.getPreviousStepIds().isEmpty() ?
-        null : firstNewExecutionNode.getPreviousStepIds();
-
-      //get jobId of reusedGraph
-      String jobIdLastReusedNode = lastExecutionNodesOfReusedGraph.get(0).getJobId();
+      //get previousStepIds of nodes that come after the reused Graph
+      Set<String> previousStepIdsOfFirstNewNode = firstNewExecutionNode.getPreviousStepIds().isEmpty()
+          ? null
+          : firstNewExecutionNode.getPreviousStepIds();
 
       //get all stepIds of last nodes (leafs) of reusedGraph
       Set<String> stepIdsOfLastReusedNodes = new HashSet<>();
-      lastExecutionNodesOfReusedGraph.forEach(
-              step -> stepIdsOfLastReusedNodes.add(step.getId())
-      );
+      lastExecutionNodesOfReusedGraph.forEach(step -> stepIdsOfLastReusedNodes.add(step.getId()));
 
       //update ExecutionDependencies of current graph - goal is reusability of outputs of reused steps
-      updateExecutionDependencies(executions, previousStepIdsOfFirstNewNode,
-              job.getId(), stepIdsOfLastReusedNodes, jobIdLastReusedNode);
+      updateExecutionDependencies(executions, previousStepIdsOfFirstNewNode, stepIdsOfLastReusedNodes);
     }
 
     return executions;
@@ -460,33 +459,21 @@ public abstract class JobExecutor implements Initializable {
    *
    * @param executions the list of {@code StepExecution} objects to be updated, which may include nested {@code StepGraph} instances.
    * @param previousStepIdsOfFirstNewNode the set of previous step IDs from the first new execution node, used for replacement.
-   * @param newJobId the job ID of the new graph, used to construct new input step IDs.
    * @param stepIdsOfLastReusedNodes the set of step IDs from the leaf nodes of the reused graph, used to replace previous step IDs.
-   * @param jobIdLastReusedNode the job ID of the reused graph, used to construct new input step IDs.
    */
-  private static void updateExecutionDependencies(
-          List<StepExecution> executions, Set<String> previousStepIdsOfFirstNewNode,
-          String newJobId, Set<String> stepIdsOfLastReusedNodes, String jobIdLastReusedNode) {
+  private static void updateExecutionDependencies(List<StepExecution> executions, Set<String> previousStepIdsOfFirstNewNode,
+      Set<String> stepIdsOfLastReusedNodes) {
     for (StepExecution executionNode : executions) {
       if (executionNode instanceof StepGraph graph) {
-        // Recursive injection for nested StepGraph
-        updateExecutionDependencies(graph.getExecutions(), previousStepIdsOfFirstNewNode, newJobId, stepIdsOfLastReusedNodes, jobIdLastReusedNode);
-      } else if (executionNode instanceof Step<?> step) {
+        //Recursive injection for nested StepGraph
+        updateExecutionDependencies(graph.getExecutions(), previousStepIdsOfFirstNewNode, stepIdsOfLastReusedNodes);
+      }
+      else if (executionNode instanceof Step<?> step) {
         if(previousStepIdsOfFirstNewNode == null)
           continue;
-        // Replace previous StepIds
-        if (!step.getPreviousStepIds().isEmpty() && step.getPreviousStepIds().removeAll(previousStepIdsOfFirstNewNode)) {
+        //Replace previous StepIds
+        if (!step.getPreviousStepIds().isEmpty() && step.getPreviousStepIds().removeAll(previousStepIdsOfFirstNewNode))
           step.getPreviousStepIds().addAll(stepIdsOfLastReusedNodes);
-        }
-        // Replace InputStepIds
-        if (step.getInputStepIds() != null && step.getInputStepIds().removeAll(
-                previousStepIdsOfFirstNewNode.stream()
-                        .map(id -> newJobId + ":" + id)
-                        .collect(Collectors.toSet()))) {
-          stepIdsOfLastReusedNodes.forEach(
-                  stepId -> step.getInputStepIds().add(jobIdLastReusedNode + ":" + stepId)
-          );
-        }
       }
     }
   }
