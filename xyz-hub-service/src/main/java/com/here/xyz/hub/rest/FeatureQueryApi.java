@@ -338,13 +338,12 @@ public class FeatureQueryApi extends SpaceBasedApi {
       try {
         WebMercatorTile tileAddress = null;
         HQuad hereTileAddress = null;
-        if ("tms".equals(tileType)) {
-          tileAddress = WebMercatorTile.forTMS(tileId);
-        } else if ("web".equals(tileType)) {
-          tileAddress = WebMercatorTile.forWeb(tileId);
-        } else if ("quadkey".equals(tileType)) {
-          tileAddress = WebMercatorTile.forQuadkey(tileId);
-        } else if ("here".equals(tileType)) {
+
+        switch( tileType ) {
+         case "tms"     : tileAddress = WebMercatorTile.forTMS(tileId); break;
+         case "web"     : tileAddress = WebMercatorTile.forWeb(tileId); break;
+         case "quadkey" : tileAddress = WebMercatorTile.forQuadkey(tileId); break;
+         case "here" : 
           if (tileId.contains("_")) {
             String[] levelRowColumnArray = tileId.split("_");
             if (levelRowColumnArray.length == 3) {
@@ -358,6 +357,10 @@ public class FeatureQueryApi extends SpaceBasedApi {
           } else {
             hereTileAddress = new HQuad(tileId, Service.configuration.USE_BASE_4_H_TILES);
           }
+          break;
+         
+         default:
+          throw new HttpException(BAD_REQUEST, String.format("Invalid path argument {type} of tile request '%s' != [tms,web,quadkey,here]",tileType));
         }
 
         if (tileAddress != null) {
@@ -373,7 +376,10 @@ public class FeatureQueryApi extends SpaceBasedApi {
           event.setX(hereTileAddress.x);
           event.setY(hereTileAddress.y);
           event.setQuadkey(hereTileAddress.quadkey);
-        }
+        } 
+        else
+         throw new IllegalArgumentException();
+
       } catch (IllegalArgumentException e) {
         throw new HttpException(BAD_REQUEST, "Invalid argument tileId.");
       }
