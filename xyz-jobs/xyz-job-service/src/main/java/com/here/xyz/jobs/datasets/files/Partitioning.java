@@ -19,15 +19,15 @@
 
 package com.here.xyz.jobs.datasets.files;
 
+import static com.here.xyz.jobs.datasets.files.Partitioning.TileMatchMode.INTERSECTION;
+
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.datasets.files.Partitioning.FeatureKey;
-import com.here.xyz.jobs.datasets.files.Partitioning.Tile;
 import com.here.xyz.jobs.datasets.files.Partitioning.Tiles;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Tiles.class, name = "Tiles"),
-    @JsonSubTypes.Type(value = Tile.class, name = "Tile"),
     @JsonSubTypes.Type(value = FeatureKey.class, name = "FeatureKey")
 })
 public abstract class Partitioning implements Typed {
@@ -37,6 +37,7 @@ public abstract class Partitioning implements Typed {
   public static class Tiles extends Partitioning {
     private int level = 12;
     private boolean clip;
+    private TileMatchMode matchMode = INTERSECTION;
 
     public int getLevel() {
       return level;
@@ -64,9 +65,25 @@ public abstract class Partitioning implements Typed {
       return this;
     }
 
+    public TileMatchMode getMatchMode() {
+      return matchMode;
+    }
+
+    public void setMatchMode(TileMatchMode matchMode) {
+      this.matchMode = matchMode;
+    }
+
+    public Tiles withMatchMode(TileMatchMode matchMode) {
+      setMatchMode(matchMode);
+      return this;
+    }
+
     @Override
     public String toBWCPartitionKey() {
-      return "tileid";
+      return switch (matchMode) {
+        case INTERSECTION -> "tiles";
+        case REFERENCE_POINT -> "tile";
+      };
     }
   }
 
@@ -92,39 +109,16 @@ public abstract class Partitioning implements Typed {
     }
   }
 
-  public static class Tile extends Partitioning {
-    private int level = 12;
-    private boolean clip;
+  public enum TileMatchMode {
+    /**
+     * Indicates that the feature will be added to all tiles that intersect with it.
+     */
+    INTERSECTION,
 
-    public int getLevel() {
-      return level;
-    }
-
-    public void setLevel(int level) {
-      this.level = level;
-    }
-
-    public Tile withLevel(int level) {
-      setLevel(level);
-      return this;
-    }
-
-    public boolean isClip() {
-      return clip;
-    }
-
-    public void setClip(boolean clip) {
-      this.clip = clip;
-    }
-
-    public Tile withClip(boolean clip) {
-      setClip(clip);
-      return this;
-    }
-
-    @Override
-    public String toBWCPartitionKey() {
-      return "tile";
-    }
+    /**
+     * Indicates that the feature will be added to exactly the tile that contains the feature's reference point.
+     * The reference point is the most southern-west point of the feature's geometry.
+     */
+    REFERENCE_POINT
   }
 }
