@@ -283,6 +283,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   public boolean validate() throws ValidationException {
     super.validate();
 
+    if(versionRef == null)
+      throw new ValidationException("Version ref is required.");
+
     if (versionRef.isAllVersions())
       throw new ValidationException("It is not supported to export all versions at once.");
 
