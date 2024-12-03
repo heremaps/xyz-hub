@@ -38,6 +38,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.StepExecution;
@@ -61,6 +62,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -223,34 +225,35 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
    */
   @Override
   public boolean isEquivalentTo(StepExecution other) {
-    if(other instanceof ExportSpaceToFiles) {
+    if (other instanceof ExportSpaceToFiles otherExport) {
       try {
         /**
          * TODO:
          * - deal with compositeSpaces which have a readOnly Base-Layer
-         * - check how to deal with TTL (keepUntil)!
          */
 
         //TODO: TBD if readOnly is required beside version compare
 
         long currentMaxVersion;
-        try{
+        try {
           currentMaxVersion = spaceStatistics(context, true).getMaxVersion().getValue();
-        }catch (IllegalArgumentException e){
-          // Happens only in JunitTest of JobExecutor
+        }
+        catch (IllegalArgumentException e) {
+          //Happens only in JunitTest of JobExecutor
           currentMaxVersion = 0;
         }
 
-        if(((ExportSpaceToFiles) other).getSpaceId().equals(getSpaceId())
-            && currentMaxVersion == (statistics == null ? 0 : statistics.getMaxVersion().getValue())
-            && ((ExportSpaceToFiles) other).format == format
-            && (((ExportSpaceToFiles) other).context == context || (space().getExtension() == null && ((ExportSpaceToFiles) other).context == null && context == SUPER ))
-            && (((ExportSpaceToFiles) other).versionRef == null || ((ExportSpaceToFiles) other).versionRef.equals(versionRef))
-            && (((ExportSpaceToFiles) other).spatialFilter == null || ((ExportSpaceToFiles) other).spatialFilter.equals(spatialFilter))
-            && (((ExportSpaceToFiles) other).propertyFilter == null || ((ExportSpaceToFiles) other).propertyFilter.equals(propertyFilter))
-            && ((ExportSpaceToFiles) other).isUseSystemOutput() == isUseSystemOutput())
+        if (Objects.equals(otherExport.getSpaceId(), getSpaceId())
+            && Objects.equals(otherExport.versionRef, versionRef)
+            && currentMaxVersion == (statistics == null ? 0 : statistics.getMaxVersion().getValue()) //TODO: Remove that check once the versionRef gets updated in #prepare() to the resolved max version
+            && otherExport.format == format
+            && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
+            && Objects.equals(otherExport.spatialFilter, spatialFilter)
+            && Objects.equals(otherExport.propertyFilter, propertyFilter)
+            && otherExport.isUseSystemOutput() == isUseSystemOutput()) //TODO: Remove this after outputs re-design was merged
           return true;
-      }catch (Exception e){
+      }
+      catch (Exception e){
         throw new RuntimeException(e);
       }
     }
@@ -283,39 +286,66 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   @Override
+  public void prepare(String owner, JobClientInfo ownerAuth) {
+    //Resolve the ref to an actual version
+    if (versionRef.isTag()) {
+      try {
+        setVersionRef(new Ref(hubWebClient().loadTag(getSpaceId(), versionRef.getTag()).getVersion()));
+      }
+      catch (WebClientException e) {
+        throw new IllegalArgumentException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);
+      }
+    }
+    else if (versionRef.isHead()) {
+      try {
+        setVersionRef(new Ref(spaceStatistics(context, true).getMaxVersion().getValue()));
+      }
+      catch (WebClientException e) {
+        throw new IllegalArgumentException("Unable to resolve HEAD version of " + getSpaceId(), e);
+      }
+    }
+  }
+
+  @Override
   public boolean validate() throws ValidationException {
     super.validate();
+
+    if (versionRef.isAllVersions())
+      throw new ValidationException("It is not supported to export all versions at once.");
+
+    if (versionRef.isRange())
+      throw new ValidationException("It is currently not supported to export changesets.");
 
     try {
       statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
 
       //Validate input Geometry
-      if(this.spatialFilter != null)
+      if (this.spatialFilter != null)
         this.spatialFilter.validateSpatialFilter();
 
       //Validate versionRef
-      if(this.versionRef == null)
+      if (this.versionRef == null)
         return true;
 
       Long minSpaceVersion = statistics.getMinVersion().getValue();
       Long maxSpaceVersion = statistics.getMaxVersion().getValue();
 
-      if(this.versionRef.isSingleVersion()){
-        if(this.versionRef.getVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '"+
-                  minSpaceVersion+"'!");
-        if(this.versionRef.getVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '"+
-                  maxSpaceVersion+"'!");
-      }else if(this.versionRef.isRange()){
-        if(this.versionRef.getStartVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '"+
-                  minSpaceVersion+"'!");
-        if(this.versionRef.getEndVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '"+
-                  maxSpaceVersion+"'!");
+      if (this.versionRef.isSingleVersion()) {
+        if (this.versionRef.getVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
+              minSpaceVersion + "'!");
+        if (this.versionRef.getVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
+              maxSpaceVersion + "'!");
       }
-
+      else if (this.versionRef.isRange()) {
+        if (this.versionRef.getStartVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
+              minSpaceVersion + "'!");
+        if (this.versionRef.getEndVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
+              maxSpaceVersion + "'!");
+      }
 
       //TODO: Check if property validation is needed - in sense of searchableProperties
 //      if(statistics.getCount().getValue() > 1_000_000 && getPropertyFilter() != null){

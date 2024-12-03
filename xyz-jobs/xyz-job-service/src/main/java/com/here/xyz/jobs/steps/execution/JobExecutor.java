@@ -375,15 +375,15 @@ public abstract class JobExecutor implements Initializable {
    * @param executions  StepExecutions of current Graph
    * @param reusedExecutions StepExecutions which should get reused
    */
-  private static void replaceWithDelegateOutputSteps(
-          List<StepExecution> executions, List<StepExecution> reusedExecutions) {
+  private static void replaceWithDelegateOutputSteps(List<StepExecution> executions, List<StepExecution> reusedExecutions) {
     for (int i = 0; i < reusedExecutions.size(); i++) {
       StepExecution execution = executions.get(i);
       StepExecution reusedExecution = reusedExecutions.get(i);
 
       if (execution instanceof StepGraph graph && reusedExecution instanceof StepGraph reusedGraph) {
         replaceWithDelegateOutputSteps(graph.getExecutions(), reusedGraph.getExecutions());
-      } else if (execution instanceof Step step && reusedExecution instanceof Step reusedStep) {
+      }
+      else if (execution instanceof Step step && reusedExecution instanceof Step reusedStep) {
         // Replace the execution with DelegateOutputsPseudoStep
         executions.set(i, new DelegateOutputsPseudoStep(reusedStep.getJobId(), reusedStep.getId(), ((Step<?>) execution).getJobId(),
                 ((Step<?>) execution).getId()).withOutputMetadata(reusedStep.getOutputMetadata()));
