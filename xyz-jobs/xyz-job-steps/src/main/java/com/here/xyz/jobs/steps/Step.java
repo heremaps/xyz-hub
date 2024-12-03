@@ -337,6 +337,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     S3Client.getInstance().deleteFolder(stepS3Prefix());
   }
 
+  /**
+   * Will be called right after the job compilation, but juts before the step validation call.
+   *
+   * @param owner
+   * @param ownerAuth
+   */
   public void prepare(String owner, JobClientInfo ownerAuth) {
     //Nothing to do by default. May be overridden.
   }

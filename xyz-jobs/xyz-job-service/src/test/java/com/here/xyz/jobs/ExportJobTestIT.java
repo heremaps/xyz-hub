@@ -1,17 +1,14 @@
 package com.here.xyz.jobs;
 
+import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
+
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.datasets.filters.Filters;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.Map;
-
-import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
 public class ExportJobTestIT extends JobTest {
     private final int featureCount = 50;
@@ -20,7 +17,10 @@ public class ExportJobTestIT extends JobTest {
     public void setUp() {
         super.setUp();
         putRandomFeatureCollectionToSpace(SPACE_ID, featureCount);
-//        patchSpace(SPACE_ID, Map.of("readOnly", true));
+    }
+
+    public void cleanup() {
+        //TODO: Cleanup the created job
     }
 
     @Test

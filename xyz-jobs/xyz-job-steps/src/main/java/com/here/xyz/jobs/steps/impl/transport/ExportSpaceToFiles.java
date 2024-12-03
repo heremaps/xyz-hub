@@ -227,25 +227,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   public boolean isEquivalentTo(StepExecution other) {
     if (other instanceof ExportSpaceToFiles otherExport) {
       try {
-        /**
-         * TODO:
-         * - deal with compositeSpaces which have a readOnly Base-Layer
-         */
-
-        //TODO: TBD if readOnly is required beside version compare
-
-        long currentMaxVersion;
-        try {
-          currentMaxVersion = spaceStatistics(context, true).getMaxVersion().getValue();
-        }
-        catch (IllegalArgumentException e) {
-          //Happens only in JunitTest of JobExecutor
-          currentMaxVersion = 0;
-        }
-
         if (Objects.equals(otherExport.getSpaceId(), getSpaceId())
             && Objects.equals(otherExport.versionRef, versionRef)
-            && currentMaxVersion == (statistics == null ? 0 : statistics.getMaxVersion().getValue()) //TODO: Remove that check once the versionRef gets updated in #prepare() to the resolved max version
             && otherExport.format == format
             && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
             && Objects.equals(otherExport.spatialFilter, spatialFilter)
