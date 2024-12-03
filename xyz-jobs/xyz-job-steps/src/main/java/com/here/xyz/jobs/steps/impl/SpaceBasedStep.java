@@ -30,11 +30,11 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.CopySpace;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.CopySpace;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
@@ -113,7 +113,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
-    return hubWebClient().loadSpaceStatistics(spaceId, context, true);
+    return hubWebClient().loadSpaceStatistics(spaceId, context, false);
   }
 
   protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {

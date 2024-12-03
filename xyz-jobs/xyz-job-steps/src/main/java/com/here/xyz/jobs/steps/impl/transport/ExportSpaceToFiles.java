@@ -170,8 +170,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return this;
   }
 
-  @JsonView({Internal.class, Static.class})
-  private StatisticsResponse statistics = null;
+  @JsonView({Internal.class})
+  private StatisticsResponse statistics = null; //TODO: Move caching into HubWebClient
 
   @Override
   public List<Load> getNeededResources() {
@@ -201,7 +201,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
    *   <li>The following properties must be equal between the two instances:
    *     <ul>
    *       <li>Space ID</li>
-   *       <li>Format</li>
    *       <li>Context</li>
    *       <li>Version reference (if not null)</li>
    *       <li>Spatial filter (if not null)</li>
@@ -213,7 +212,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
    *
    * @param other The other {@link StepExecution} to compare against.
    * @return {@code true} if the other step execution is equivalent to this one; {@code false} otherwise.
-   * @throws RuntimeException If an exception occurs while fetching space statistics or comparing values.
+   * @throws RuntimeException If an exception occurs while comparing values.
    */
   @Override
   public boolean isEquivalentTo(StepExecution other) {
