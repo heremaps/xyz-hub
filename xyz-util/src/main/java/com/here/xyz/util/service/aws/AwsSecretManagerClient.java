@@ -10,6 +10,7 @@ import com.amazonaws.services.secretsmanager.model.GetSecretValueRequest;
 import com.amazonaws.services.secretsmanager.model.GetSecretValueResult;
 import io.vertx.core.json.JsonObject;
 
+@Deprecated
 public class AwsSecretManagerClient {
     private final String region;
     private final String endpointOverride;
@@ -27,7 +28,7 @@ public class AwsSecretManagerClient {
 
         if (endpointOverride != null)
             builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpointOverride, region))
-                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
+                    .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
 
         this.client = builder.build();
     }

@@ -296,6 +296,12 @@
       <artifactId>aws-java-sdk-secretsmanager</artifactId>
     </dependency>
 
+    <!-- AWS SDKs v2 -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>secretsmanager</artifactId>
+    </dependency>
+
     <!-- For Job API only -->
     <dependency>
       <artifactId>aws-java-sdk-emrserverless</artifactId>

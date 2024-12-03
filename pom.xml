@@ -443,6 +443,13 @@
         <version>${aws-sdk-version}</version>
       </dependency>
 
+      <!-- AWS SDKs v2 -->
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>secretsmanager</artifactId>
+        <version>${aws-sdk2-version}</version>
+      </dependency>
+
       <!-- For Job API only -->
       <dependency>
         <artifactId>aws-java-sdk-emrserverless</artifactId>
