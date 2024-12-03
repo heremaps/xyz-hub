@@ -87,8 +87,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @JsonView({Internal.class, Static.class})
   private boolean addStatisticsToUserOutput = true;
 
-  private Format format = Format.GEOJSON;
-
   @JsonView({Internal.class, Static.class})
   private SpatialFilter spatialFilter;
   @JsonView({Internal.class, Static.class})
@@ -106,12 +104,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
    *      private Integer targetLevel;
    *      private boolean clipOnPartitions;
    */
-
-  public enum Format {
-    CSV_JSON_WKB,
-    CSV_PARTITIONED_JSON_WKB,
-    GEOJSON;
-  }
 
   public SpatialFilter getSpatialFilter() {
     return spatialFilter;
@@ -229,7 +221,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       try {
         if (Objects.equals(otherExport.getSpaceId(), getSpaceId())
             && Objects.equals(otherExport.versionRef, versionRef)
-            && otherExport.format == format
             && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
             && Objects.equals(otherExport.spatialFilter, spatialFilter)
             && Objects.equals(otherExport.propertyFilter, propertyFilter)
@@ -419,7 +410,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     List<S3DataFile> urlList = new ArrayList<>();
 
     for (int i = 1; i <= calculatedThreadCount; i++) {
-      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(!isUseSystemOutput(),false) + "/" + i + "/" + UUID.randomUUID()));
+      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(!isUseSystemOutput(),false) + "/"
+              + i + "/" + UUID.randomUUID() + ".json"));
     }
 
     return urlList;
@@ -480,7 +472,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                     "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}', #{contentQuery});")
                     .withContext(getQueryContext())
                     .withAsyncProcedure(true)
-                    .withNamedParameter("format", format.toString())
+                    .withNamedParameter("format", "GEOJSON")
                     .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
                     .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
                     .withNamedParameter("contentQuery", exportSelectString);
