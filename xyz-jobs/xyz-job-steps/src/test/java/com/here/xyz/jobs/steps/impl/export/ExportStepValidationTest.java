@@ -60,6 +60,7 @@ public class ExportStepValidationTest extends StepTest {
                 .withClip(true);
 
         LambdaBasedStep step = new ExportSpaceToFiles()
+                .withVersionRef(new Ref(5))
                 .withSpatialFilter(spatialFilter)
                 .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
