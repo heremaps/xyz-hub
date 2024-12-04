@@ -371,8 +371,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     if(addStatisticsToUserOutput)
       registerOutputs(List.of(statistics), true);
 
-    registerOutputs(List.of(new ResourceHint().withLayerName(getSpaceId()).withSpaceContext(context)), false);
-
     infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
   }
