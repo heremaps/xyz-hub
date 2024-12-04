@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
+import java.util.Map;
 import java.util.Set;
 
 import com.here.xyz.events.PropertiesQuery;
@@ -37,7 +38,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-public class CopySpaceToSpace implements JobCompilationInterceptor {
+public class SpaceCopy implements JobCompilationInterceptor {
   
   protected boolean validSubType( String subType )
   { return "Space".equals(subType); }
@@ -50,7 +51,7 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
            && validSubType( job.getTarget().getClass().getSimpleName() );
   }
 
-  private int threadCountCalc( long sourceFeatureCount, long targetFeatureCount )
+  private static int threadCountCalc( long sourceFeatureCount, long targetFeatureCount )
   {
     long PARALLELIZTATION_THRESHOLD = 100000;
     int PARALLELIZTATION_THREAD_MAX = 8;
@@ -62,22 +63,21 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
     return PARALLELIZTATION_THREAD_MAX; 
   }
 
-  @Override
-  public CompilationStepGraph compile(Job job) {
-    final String sourceSpaceId = job.getSource().getKey();
-    final String targetSpaceId = job.getTarget().getKey();
-
+  public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef) 
+  {
+    final String sourceSpaceId = sourceId,
+                 targetSpaceId = targetId;
 
     StatisticsResponse sourceStatistics = null, targetStatistics = null;
     try {
       sourceStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(sourceSpaceId);
       targetStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(targetSpaceId);
     } catch (WebClientException e) {
-      String errMsg = String.format("Unable to get Staistics for %s", sourceStatistics != null ? sourceSpaceId : targetSpaceId );
+      String errMsg = String.format("Unable to get Staistics for %s", sourceStatistics == null ? sourceSpaceId : targetSpaceId );
       throw new JobCompiler.CompilationError(errMsg);
     }
 
-    CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(job.getId());
+    CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(jobId);
 
     CompilationStepGraph startGraph = new CompilationStepGraph();
     startGraph.addExecution(preCopySpace); 
@@ -86,9 +86,6 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
          targetFeatureCount = targetStatistics.getCount().getValue();
 
     int threadCount = threadCountCalc(sourceFeatureCount, targetFeatureCount);
-
-    Filters filters = ((DatasetDescription.Space<?>) job.getSource()).getFilters();
-    Ref versionRef = ((DatasetDescription.Space<?>) job.getSource()).getVersionRef();
 
     SpatialFilter spatialFilter = filters != null ? filters.getSpatialFilter() : null;
     PropertiesQuery propertyFilter = filters != null ? filters.getPropertyFilter() : null;
@@ -103,7 +100,7 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
               .withSourceVersionRef(versionRef)
               .withPropertyFilter(propertyFilter)
               .withThreadInfo(new int[]{ threadId, threadCount })
-              .withJobId(job.getId());
+              .withJobId(jobId);
 
       if (spatialFilter != null) {
         copySpaceStep.setGeometry(spatialFilter.getGeometry());
@@ -117,10 +114,22 @@ public class CopySpaceToSpace implements JobCompilationInterceptor {
     startGraph.addExecution(cGraph);
 
     CopySpacePost postCopySpace = new CopySpacePost().withSpaceId(targetSpaceId)
-                                                     .withJobId(job.getId());
+                                                     .withJobId(jobId);
 
     startGraph.addExecution(postCopySpace);
 
     return startGraph;
+ 
+  }
+
+  @Override
+  public CompilationStepGraph compile(Job job) {
+
+    return compileSteps(job.getSource().getKey(), 
+                        job.getTarget().getKey(), 
+                        job.getId(), 
+                        ((DatasetDescription.Space<?>) job.getSource()).getFilters(),
+                        ((DatasetDescription.Space<?>) job.getSource()).getVersionRef() );
+
   }
 }
