@@ -29,6 +29,7 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
   private static final long MAX_LIMIT = 100_000L;
 
   private long limit = DEFAULT_LIMIT;
+  public boolean ignoreMaxLimit = false;
 
   public long getLimit() {
     return limit;
@@ -36,7 +37,7 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
 
   @SuppressWarnings("WeakerAccess")
   public void setLimit(long limit) {
-    this.limit = Math.max(1L, Math.min(limit, MAX_LIMIT));
+    this.limit = ignoreMaxLimit ? Long.MAX_VALUE : Math.max(1L, Math.min(limit, MAX_LIMIT));
   }
 
   @SuppressWarnings("unused")
