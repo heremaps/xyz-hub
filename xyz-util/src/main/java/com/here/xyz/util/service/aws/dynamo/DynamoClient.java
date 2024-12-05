@@ -55,142 +55,142 @@ import org.apache.logging.log4j.Logger;
 
 public class DynamoClient {
 
-  private static final Logger logger = LogManager.getLogger();
-  private static final Long READ_CAPACITY_UNITS = 5L;
-  private static final Long WRITE_CAPACITY_UNITS = 5L;
-  private static final String INDEX_SUFFIX = "-index";
-  private static final String HYPHEN = "-";
+    private static final Logger logger = LogManager.getLogger();
+    private static final Long READ_CAPACITY_UNITS = 5L;
+    private static final Long WRITE_CAPACITY_UNITS = 5L;
+    private static final String INDEX_SUFFIX = "-index";
+    private static final String HYPHEN = "-";
 
 
-  public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
+    public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
 
-  public final AmazonDynamoDBAsync client; //TODO: Make private once DynamoSpaceConfigClient has been refactored
-  public final String tableName;
-  public final DynamoDB db;
-  private final ARN arn;
+    public final AmazonDynamoDBAsync client; //TODO: Make private once DynamoSpaceConfigClient has been refactored
+    public final String tableName;
+    public final DynamoDB db;
+    private final ARN arn;
 
-  public DynamoClient(String tableArn, String endpointOverride) {
-    arn = new ARN(tableArn);
+    public DynamoClient(String tableArn, String endpointOverride) {
+        arn = new ARN(tableArn);
 
-    final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
+        final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
 
-    if (isLocal()) {
-      if (endpointOverride == null) {
-        builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
-        final String endpoint = "http://" + arn.getRegion() + ":" + Integer.parseInt(arn.getAccountId());
-        builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, "US-WEST-1"));
-      }
-      else
-        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpointOverride, "eu-west-1"))
-                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
+        if (isLocal()) {
+            if (endpointOverride == null) {
+                builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
+                final String endpoint = "http://" + arn.getRegion() + ":" + Integer.parseInt(arn.getAccountId());
+                builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, "US-WEST-1"));
+            }
+            else
+                builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpointOverride, "eu-west-1"))
+                        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
+        }
+        else
+            builder.setRegion(arn.getRegion());
+
+        client = builder.build();
+        db = new DynamoDB(client);
+        tableName = new ARN(tableArn).getResourceWithoutType();
     }
-    else
-      builder.setRegion(arn.getRegion());
 
-    client = builder.build();
-    db = new DynamoDB(client);
-    tableName = new ARN(tableArn).getResourceWithoutType();
-  }
-
-  public Table getTable() {
-    return db.getTable(tableName);
-  }
-
-  public void createTable(String tableName, String attributes, String keys, List<IndexDefinition> indexes, String ttl) {
-    try {
-      // required
-      final List<AttributeDefinition> attList = new ArrayList<>();
-      for (String s : attributes.split(",")) {
-        attList.add(new AttributeDefinition(s.split(":")[0], s.split(":")[1]));
-      }
-
-      // required
-      final List<KeySchemaElement> keyList = new ArrayList<>();
-      for (String s : keys.split(",")) {
-        keyList.add(new KeySchemaElement(s, keyList.isEmpty() ? KeyType.HASH : KeyType.RANGE));
-      }
-
-
-      CreateTableRequest req = new CreateTableRequest()
-          .withTableName(tableName)
-          .withAttributeDefinitions(attList)
-          .withKeySchema(keyList)
-          .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L));
-
-      // optional
-      if (!CollectionUtils.isNullOrEmpty(indexes)) {
-        final List<GlobalSecondaryIndex> gsiList = indexes.stream().map(this::createGSI).toList();
-        req = req.withGlobalSecondaryIndexes(gsiList);
-      }
-
-      db.createTable(req);
-
-      if (ttl != null) {
-        client.updateTimeToLive(new UpdateTimeToLiveRequest().withTableName(tableName)
-            .withTimeToLiveSpecification(new TimeToLiveSpecification().withAttributeName(ttl).withEnabled(true)));
-      }
-    } catch (ResourceInUseException e) {
-      logger.info("Table {} already exists, skipping creation", tableName);
+    public Table getTable() {
+        return db.getTable(tableName);
     }
-  }
 
-  public boolean isLocal() {
-    return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
-  }
+    public void createTable(String tableName, String attributes, String keys, List<IndexDefinition> indexes, String ttl) {
+        try {
+            // required
+            final List<AttributeDefinition> attList = new ArrayList<>();
+            for (String s : attributes.split(",")) {
+                attList.add(new AttributeDefinition(s.split(":")[0], s.split(":")[1]));
+            }
 
-  public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
-    return DynamoClient.dynamoWorkers.executeBlocking(future -> {
-      try {
-        future.complete(executeStatementSync(request));
-      }
-      catch (Exception e) {
-        future.fail(e);
-      }
-    });
-  }
+            // required
+            final List<KeySchemaElement> keyList = new ArrayList<>();
+            for (String s : keys.split(",")) {
+                keyList.add(new KeySchemaElement(s, keyList.isEmpty() ? KeyType.HASH : KeyType.RANGE));
+            }
 
-  public List<Map<String, AttributeValue>> executeStatementSync(ExecuteStatementRequest request) {
-    ExecuteStatementResult result = client.executeStatement(request);
-    List<Map<String, AttributeValue>> items = result.getItems();
 
-    while (result.getNextToken() != null) {
-      result = client.executeStatement(request.withNextToken(result.getNextToken()));
-      items.addAll(result.getItems());
+            CreateTableRequest req = new CreateTableRequest()
+                    .withTableName(tableName)
+                    .withAttributeDefinitions(attList)
+                    .withKeySchema(keyList)
+                    .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L));
+
+            // optional
+            if (!CollectionUtils.isNullOrEmpty(indexes)) {
+                final List<GlobalSecondaryIndex> gsiList = indexes.stream().map(this::createGSI).toList();
+                req = req.withGlobalSecondaryIndexes(gsiList);
+            }
+
+            db.createTable(req);
+
+            if (ttl != null) {
+                client.updateTimeToLive(new UpdateTimeToLiveRequest().withTableName(tableName)
+                        .withTimeToLiveSpecification(new TimeToLiveSpecification().withAttributeName(ttl).withEnabled(true)));
+            }
+        } catch (ResourceInUseException e) {
+            logger.info("Table {} already exists, skipping creation", tableName);
+        }
     }
-    return items;
-  }
 
-  @FunctionalInterface
-  public interface ThrowingSupplier<R> {
-    R supply() throws Exception;
-  }
+    public boolean isLocal() {
+        return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
+    }
 
-  public <R> Future<R> executeQueryAsync(ThrowingSupplier<R> commandExecution) {
-    return DynamoClient.dynamoWorkers.executeBlocking(
-        promise -> {
-          try {
-              promise.complete(commandExecution.supply());
+    public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
+        return DynamoClient.dynamoWorkers.executeBlocking(future -> {
+            try {
+                future.complete(executeStatementSync(request));
             }
             catch (Exception e) {
-              promise.fail(e);
+                future.fail(e);
             }
         });
-  }
-
-  private GlobalSecondaryIndex createGSI(IndexDefinition indexDefinition) {
-    List<KeySchemaElement> keySchema = new ArrayList<>();
-    keySchema.add(new KeySchemaElement(indexDefinition.getHashKey(), KeyType.HASH));
-    if(indexDefinition.getRangeKey() != null) {
-      keySchema.add(new KeySchemaElement(indexDefinition.getRangeKey(), KeyType.RANGE));
     }
-    String indexName = indexDefinition.getRangeKey() != null ?
-            indexDefinition.getHashKey().concat(HYPHEN).concat(indexDefinition.getRangeKey()).concat(INDEX_SUFFIX) :
-            indexDefinition.getHashKey().concat(INDEX_SUFFIX);
 
-    return new GlobalSecondaryIndex()
-            .withIndexName(indexName)
-            .withKeySchema(keySchema)
-            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-            .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
-  }
+    public List<Map<String, AttributeValue>> executeStatementSync(ExecuteStatementRequest request) {
+        ExecuteStatementResult result = client.executeStatement(request);
+        List<Map<String, AttributeValue>> items = result.getItems();
+
+        while (result.getNextToken() != null) {
+            result = client.executeStatement(request.withNextToken(result.getNextToken()));
+            items.addAll(result.getItems());
+        }
+        return items;
+    }
+
+    @FunctionalInterface
+    public interface ThrowingSupplier<R> {
+        R supply() throws Exception;
+    }
+
+    public <R> Future<R> executeQueryAsync(ThrowingSupplier<R> commandExecution) {
+        return DynamoClient.dynamoWorkers.executeBlocking(
+                promise -> {
+                    try {
+                        promise.complete(commandExecution.supply());
+                    }
+                    catch (Exception e) {
+                        promise.fail(e);
+                    }
+                });
+    }
+
+    private GlobalSecondaryIndex createGSI(IndexDefinition indexDefinition) {
+        List<KeySchemaElement> keySchema = new ArrayList<>();
+        keySchema.add(new KeySchemaElement(indexDefinition.getHashKey(), KeyType.HASH));
+        if(indexDefinition.getRangeKey() != null) {
+            keySchema.add(new KeySchemaElement(indexDefinition.getRangeKey(), KeyType.RANGE));
+        }
+        String indexName = indexDefinition.getRangeKey() != null ?
+                indexDefinition.getHashKey().concat(HYPHEN).concat(indexDefinition.getRangeKey()).concat(INDEX_SUFFIX) :
+                indexDefinition.getHashKey().concat(INDEX_SUFFIX);
+
+        return new GlobalSecondaryIndex()
+                .withIndexName(indexName)
+                .withKeySchema(keySchema)
+                .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
+                .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
+    }
 }
