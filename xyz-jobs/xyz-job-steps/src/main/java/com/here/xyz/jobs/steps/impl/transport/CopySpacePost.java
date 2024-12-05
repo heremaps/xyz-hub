@@ -184,9 +184,13 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
      if( output instanceof FetchedVersions f )
       fetchedVersion = f.getFetchtedSequence();
 
-    infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion ,getSpaceId() )); 
+    infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId() )); 
+
+    String spaceId = getSpaceId(),
+           layerId = spaceId.substring(spaceId.lastIndexOf(':')+1);
 
     FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
+    statistics.withMetadata("Layer", layerId);
 
     infoLog(STEP_EXECUTE, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
     registerOutputs(List.of(statistics), true);

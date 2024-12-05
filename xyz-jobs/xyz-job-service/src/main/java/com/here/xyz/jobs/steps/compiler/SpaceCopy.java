@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.filters.Filters;
@@ -70,8 +71,8 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
     StatisticsResponse sourceStatistics = null, targetStatistics = null;
     try {
-      sourceStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(sourceSpaceId);
-      targetStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(targetSpaceId);
+      sourceStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(sourceSpaceId,SpaceContext.EXTENSION);
+      targetStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(targetSpaceId,SpaceContext.EXTENSION);
     } catch (WebClientException e) {
       String errMsg = String.format("Unable to get Staistics for %s", sourceStatistics == null ? sourceSpaceId : targetSpaceId );
       throw new JobCompiler.CompilationError(errMsg);
