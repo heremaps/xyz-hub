@@ -68,8 +68,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.zip.GZIPInputStream;
 import org.locationtech.jts.io.ParseException;
 
@@ -318,14 +323,34 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     //TODO: Support resume
     infoLog(STEP_EXECUTE, this,"Retrieve new version");
     long newVersion = increaseVersionSequence();
-    long featureCount = 0;
 
+    ExecutorService exec = Executors.newFixedThreadPool(5);
+    List<Future<FeatureStatistics>> resultFutures = new ArrayList<>();
+
+    //Execute the sync for each import file in parallel
     for (S3DataFile input : loadStepInputs()) {
-      infoLog(STEP_EXECUTE, this,"Sync write of file:"+ input.getS3Key());
-      featureCount += syncWriteFileToSpace(input, newVersion);
+      resultFutures.add(exec.submit(() -> {
+        long writtenFeatureCount = syncWriteFileToSpace(input, newVersion);
+        return new FeatureStatistics().withFeatureCount(writtenFeatureCount).withByteSize(input.getByteSize());
+      }));
     }
-    registerOutputs(List.of(new FeatureStatistics().withFeatureCount(featureCount).withByteSize(getUncompressedUploadBytesEstimation())),
-        true);
+
+    //Wait for the futures and aggregate the result statistics into one FeatureStatistics object
+    FeatureStatistics resultOutput = new FeatureStatistics();
+    for (Future<FeatureStatistics> future : resultFutures) {
+      try {
+        resultOutput
+            .withFeatureCount(resultOutput.getFeatureCount() + future.get().getFeatureCount())
+            .withByteSize(resultOutput.getByteSize() + future.get().getByteSize());
+      }
+      catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    exec.shutdown();
+
+    registerOutputs(List.of(resultOutput), true);
   }
 
   /**
@@ -335,8 +360,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
    * @param newVersion The new space version being created by this import
    * @return The number of features that have been written
    */
-  private int syncWriteFileToSpace(S3DataFile input, long newVersion)
-      throws IOException, WebClientException, SQLException, TooManyResourcesClaimed {
+  private int syncWriteFileToSpace(S3DataFile input, long newVersion) throws IOException, WebClientException, SQLException,
+      TooManyResourcesClaimed {
+    infoLog(STEP_EXECUTE, this,"Start sync write of file " + input.getS3Key() + " ...");
     final S3Client s3Client = S3Client.getInstance(input.getS3Bucket());
 
     InputStream inputStream = s3Client.streamObjectContent(input.getS3Key());
@@ -357,10 +383,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       }
       fileContent.append("]");
 
-      return runReadQuerySync(buildFeatureWriterQuery(fileContent.toString(), newVersion), db(),  0, rs -> {
+      int writtenFeatureCount = runReadQuerySync(buildFeatureWriterQuery(fileContent.toString(), newVersion), db(),  0, rs -> {
         rs.next();
         return rs.getInt("count");
       });
+
+      infoLog(STEP_EXECUTE, this,"Completed sync write of file " + input.getS3Key() + ". Written features: "
+          + writtenFeatureCount + ", input bytes: " + input.getByteSize());
+
+      return writtenFeatureCount;
     }
   }
 

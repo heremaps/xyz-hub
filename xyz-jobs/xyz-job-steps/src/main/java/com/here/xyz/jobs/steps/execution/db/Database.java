@@ -211,6 +211,7 @@ public class Database extends ExecutionResource {
         fixLocalDbHosts(connectorDbSettingsMap);
 
         DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap)
+            .withDbMaxPoolSize(10)
             .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
         String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
