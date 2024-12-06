@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.filters.Filters;
@@ -34,6 +35,7 @@ import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -63,6 +65,14 @@ public class SpaceCopy implements JobCompilationInterceptor {
     return PARALLELIZTATION_THREAD_MAX; 
   }
 
+ 
+  private static StatisticsResponse _loadSpaceStatistics(String spaceId) throws WebClientException
+  {
+   Space sourceSpace = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
+   boolean isExtended = sourceSpace.getExtension() != null;
+   return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);  
+  }
+
   public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef) 
   {
     final String sourceSpaceId = sourceId,
@@ -70,8 +80,8 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
     StatisticsResponse sourceStatistics = null, targetStatistics = null;
     try {
-      sourceStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(sourceSpaceId);
-      targetStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(targetSpaceId);
+      sourceStatistics = _loadSpaceStatistics(sourceSpaceId);
+      targetStatistics = _loadSpaceStatistics(targetSpaceId);
     } catch (WebClientException e) {
       String errMsg = String.format("Unable to get Staistics for %s", sourceStatistics == null ? sourceSpaceId : targetSpaceId );
       throw new JobCompiler.CompilationError(errMsg);
