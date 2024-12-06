@@ -35,6 +35,7 @@ import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -64,6 +65,14 @@ public class SpaceCopy implements JobCompilationInterceptor {
     return PARALLELIZTATION_THREAD_MAX; 
   }
 
+ 
+  private static StatisticsResponse _loadSpaceStatistics(String spaceId) throws WebClientException
+  {
+   Space sourceSpace = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
+   boolean isExtended = sourceSpace.getExtension() != null;
+   return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);  
+  }
+
   public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef) 
   {
     final String sourceSpaceId = sourceId,
@@ -71,8 +80,8 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
     StatisticsResponse sourceStatistics = null, targetStatistics = null;
     try {
-      sourceStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(sourceSpaceId,SpaceContext.EXTENSION);
-      targetStatistics = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(targetSpaceId,SpaceContext.EXTENSION);
+      sourceStatistics = _loadSpaceStatistics(sourceSpaceId);
+      targetStatistics = _loadSpaceStatistics(targetSpaceId);
     } catch (WebClientException e) {
       String errMsg = String.format("Unable to get Staistics for %s", sourceStatistics == null ? sourceSpaceId : targetSpaceId );
       throw new JobCompiler.CompilationError(errMsg);
