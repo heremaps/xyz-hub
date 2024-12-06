@@ -186,6 +186,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
     infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId() )); 
 
+    //TODO: move to platformBase  spaceId vs. LayerId
     String spaceId = getSpaceId(),
            layerId = spaceId.substring(spaceId.lastIndexOf(':')+1);
 
@@ -197,7 +198,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
     setCopiedByteSize( statistics.getByteSize() );
  
-    hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+    if( statistics.getFeatureCount() > 0 )
+     hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
     
   }
 
