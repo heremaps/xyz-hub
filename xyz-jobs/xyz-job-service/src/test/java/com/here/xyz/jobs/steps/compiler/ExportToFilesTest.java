@@ -13,6 +13,7 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,14 +33,14 @@ public class ExportToFilesTest extends JobTest {
     }
 
     @Test
-    public void testResolveHeadVersion(){
+    public void testResolveHeadVersion() throws BaseHttpServerVerticle.ValidationException {
         CompilationStepGraph graph = new ExportToFiles().compile(buildExportJobWithVersionRef(new Ref("HEAD")));
         final ExportSpaceToFiles exportSpaceToFilesStep = getAndPrepareStep(graph);
         //HEAD should point to version 3
         Assertions.assertEquals(3, exportSpaceToFilesStep.getVersionRef().getVersion());
     }
 
-    private static ExportSpaceToFiles getAndPrepareStep(CompilationStepGraph graph) {
+    private static ExportSpaceToFiles getAndPrepareStep(CompilationStepGraph graph) throws BaseHttpServerVerticle.ValidationException {
         final ExportSpaceToFiles exportSpaceToFilesStep = (ExportSpaceToFiles) graph.getExecutions().get(0);
         exportSpaceToFilesStep.prepare(null, null);
         return exportSpaceToFilesStep;
@@ -53,7 +54,7 @@ public class ExportToFilesTest extends JobTest {
     }
 
     @Test
-    public void testResolveExistingTag(){
+    public void testResolveExistingTag() throws BaseHttpServerVerticle.ValidationException {
         String tagName = "TAG1";
         int tagVersion = 2;
 

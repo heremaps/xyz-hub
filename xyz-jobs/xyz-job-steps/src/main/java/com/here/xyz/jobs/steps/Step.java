@@ -343,7 +343,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param owner
    * @param ownerAuth
    */
-  public void prepare(String owner, JobClientInfo ownerAuth) {
+  public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
     //Nothing to do by default. May be overridden.
   }
 
