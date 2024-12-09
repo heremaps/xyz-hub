@@ -84,6 +84,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   @JsonView({Internal.class, Static.class})
   private long copiedByteSize = 0;
 
+  @JsonView({Internal.class, Static.class})
+  private String targetType = "Space";
 
   public long getCopiedByteSize() {
     return copiedByteSize;
@@ -96,6 +98,20 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   public long getFetchedVersion() {
     return fetchedVersion;
   }
+
+  public String getTargetType() {
+    return targetType;
+  }
+
+  public void setTargetType(String targetType) {
+    this.targetType = targetType;
+  }
+
+  public CopySpacePost withTargetType(String targetType) {
+    setTargetType( targetType );
+    return this;
+  }
+
 
   @Override
   public List<Load> getNeededResources() {
@@ -186,12 +202,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
     infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId() )); 
 
-    //TODO: move to platformBase  spaceId vs. LayerId
-    String spaceId = getSpaceId(),
-           layerId = spaceId.substring(spaceId.lastIndexOf(':')+1);
-
     FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
-    statistics.withMetadata("Layer", layerId);
+    statistics.withMetadata( getTargetType(), getSpaceId() );  // key = [Layer(iml)|Space(xyz)] 
 
     infoLog(STEP_EXECUTE, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
     registerOutputs(List.of(statistics), true);

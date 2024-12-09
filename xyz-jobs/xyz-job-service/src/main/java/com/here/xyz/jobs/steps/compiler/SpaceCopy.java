@@ -73,7 +73,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
    return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);  
   }
 
-  public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef) 
+  public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef, String targetType) 
   {
     final String sourceSpaceId = sourceId,
                  targetSpaceId = targetId;
@@ -124,7 +124,8 @@ public class SpaceCopy implements JobCompilationInterceptor {
     startGraph.addExecution(cGraph);
 
     CopySpacePost postCopySpace = new CopySpacePost().withSpaceId(targetSpaceId)
-                                                     .withJobId(jobId);
+                                                     .withJobId(jobId)
+                                                     .withTargetType(targetType);
 
     startGraph.addExecution(postCopySpace);
 
@@ -137,9 +138,10 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
     return compileSteps(job.getSource().getKey(), 
                         job.getTarget().getKey(), 
-                        job.getId(), 
+                        job.getId(),
                         ((DatasetDescription.Space<?>) job.getSource()).getFilters(),
-                        ((DatasetDescription.Space<?>) job.getSource()).getVersionRef() );
+                        ((DatasetDescription.Space<?>) job.getSource()).getVersionRef(),
+                        job.getTarget().getClass().getSimpleName() );
 
   }
 }
