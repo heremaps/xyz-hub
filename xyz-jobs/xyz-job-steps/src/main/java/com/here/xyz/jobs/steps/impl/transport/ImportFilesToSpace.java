@@ -256,7 +256,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       infoLog(JOB_VALIDATE, this);
       //Check if the space is actually existing
       Space space = space();
-      if(space.isReadOnly())
+      if (space.isReadOnly())
         throw new ValidationException("Data can not be written to target " + space.getId() + " as it is in read-only mode.");
 
       if (entityPerLine == FeatureCollection && format == CSV_JSON_WKB)
@@ -294,9 +294,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     else {
       //TODO: Move resume logic into #resume()
       if (!isResume) {
-        infoLog(STEP_EXECUTE, this, "Set ReadOnly");
-        hubWebClient().patchSpace(getSpaceId(), Map.of("readOnly", true));
-
         infoLog(STEP_EXECUTE, this,"Retrieve new version");
         long newVersion = increaseVersionSequence();
 
@@ -456,11 +453,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       cleanUpDbRelatedResources();
 
-      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Release READONLY");
-      hubWebClient().patchSpace(getSpaceId(), Map.of(
-          "readOnly", false,
-          "contentUpdatedAt", Core.currentTimeMillis()
-      ));
+      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Set contentUpdatedAt on target space");
+      hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
 
     }
     catch (SQLException e) {
