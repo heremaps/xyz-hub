@@ -47,7 +47,6 @@ import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;
-import com.here.xyz.jobs.steps.outputs.ResourceHint;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -74,6 +73,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   public static final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
+  //Defines how large the area of a defined spatialFilter can be
+  private static final double MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 2500;
 
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount = -1;
@@ -259,14 +260,18 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   @Override
-  public void prepare(String owner, JobClientInfo ownerAuth) {
+  public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
+    if(versionRef == null)
+      throw new ValidationException("Version ref is required.");
+
+    validateSpaceExists();
     //Resolve the ref to an actual version
     if (versionRef.isTag()) {
       try {
         setVersionRef(new Ref(hubWebClient().loadTag(getSpaceId(), versionRef.getTag()).getVersion()));
       }
       catch (WebClientException e) {
-        throw new IllegalArgumentException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);
+        throw new ValidationException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);
       }
     }
     else if (versionRef.isHead()) {
@@ -274,7 +279,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
         setVersionRef(new Ref(spaceStatistics(context, true).getMaxVersion().getValue()));
       }
       catch (WebClientException e) {
-        throw new IllegalArgumentException("Unable to resolve HEAD version of " + getSpaceId(), e);
+        throw new ValidationException("Unable to resolve HEAD version of " + getSpaceId(), e);
       }
     }
   }
@@ -282,9 +287,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public boolean validate() throws ValidationException {
     super.validate();
-
-    if(versionRef == null)
-      throw new ValidationException("Version ref is required.");
 
     if (versionRef.isAllVersions())
       throw new ValidationException("It is not supported to export all versions at once.");
@@ -296,8 +298,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
 
       //Validate input Geometry
-      if (this.spatialFilter != null)
-        this.spatialFilter.validateSpatialFilter();
+      if (this.spatialFilter != null) {
+        spatialFilter.validateSpatialFilter();
+      }
 
       //Validate versionRef
       if (this.versionRef == null)
