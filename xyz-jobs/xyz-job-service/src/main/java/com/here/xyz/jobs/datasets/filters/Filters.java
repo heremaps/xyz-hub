@@ -25,6 +25,8 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Internal;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
@@ -54,7 +56,11 @@ public class Filters {
 
   public void setPropertyFilter(Object propertyFilter) {
     if (propertyFilter instanceof ArrayList propFilter){
-      this.propertyFilter = new PropertiesQuery(propFilter);
+        try {
+            this.propertyFilter = XyzSerializable.deserialize(XyzSerializable.serialize(propFilter), PropertiesQuery.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
     else if (propertyFilter instanceof String propFilter) {
       this.propertyFilter = PropertiesQuery.fromString(propFilter);

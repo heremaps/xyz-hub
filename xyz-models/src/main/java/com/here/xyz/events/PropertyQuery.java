@@ -21,6 +21,8 @@ package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.XyzSerializable;
+
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +31,7 @@ import java.util.stream.Collectors;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "PropertyQuery")
-public class PropertyQuery {
+public class PropertyQuery implements XyzSerializable {
 
   private String key;
   private QueryOperation operation;
@@ -173,7 +175,20 @@ public class PropertyQuery {
           if (!thisValue.equals(new BigDecimal((Long) otherValue))) {
             return false;
           }
-        } else if (!thisValue.equals(otherValue)) {
+        }
+        // Convert Integer to Long and BigDecimal
+        else if (thisValue instanceof Integer && otherValue instanceof BigDecimal) {
+          if (!new BigDecimal((Integer) thisValue).equals(otherValue)) {
+            return false;
+          }
+        }
+        // Convert BigDecimal to Integer and compare
+        else if (thisValue instanceof BigDecimal && otherValue instanceof Integer) {
+          if (!thisValue.equals(new BigDecimal((Integer) otherValue))) {
+            return false;
+          }
+        }
+        else if (!thisValue.equals(otherValue)) {
           return false; // If the values are not equal, return false
         }
       }
