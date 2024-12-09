@@ -118,10 +118,9 @@ public class StorageStatisticsProvider {
 
   private static Future<StorageStatistics> fetchFromStorage(Marker marker, Connector storage, List<String> spaceIds) {
 
-    int concurrentRequests = spaceIds.size() > MAX_CONCURRENT_REQUEST_COUNT * MAX_SPACE_BATCH_SIZE ? MAX_CONCURRENT_REQUEST_COUNT
-            : spaceIds.size() / MAX_SPACE_BATCH_SIZE;
+    int targetSize = spaceIds.size() > MAX_CONCURRENT_REQUEST_COUNT * MAX_SPACE_BATCH_SIZE
+            ? (int) Math.ceil((double) spaceIds.size() / MAX_CONCURRENT_REQUEST_COUNT) : MAX_SPACE_BATCH_SIZE;
 
-    int targetSize = (int) Math.ceil((float) spaceIds.size() / (float) concurrentRequests);
     return CompositeFuture.all(Lists.partition(spaceIds, targetSize)
             .stream()
             .map(batchSpaceIds -> fetchFromStorageInBatches(marker, storage, batchSpaceIds))
