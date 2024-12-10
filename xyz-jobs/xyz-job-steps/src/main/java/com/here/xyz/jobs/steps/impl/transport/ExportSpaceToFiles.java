@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
@@ -56,7 +57,12 @@ import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometr
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import org.geotools.api.referencing.FactoryException;
+import org.locationtech.jts.geom.Geometry;
+
+import javax.xml.crypto.dsig.TransformException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +80,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
   //Defines how large the area of a defined spatialFilter can be
-  private static final double MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 2500;
+  //If a point is defined - the maximum radius can be 17898 meters
+  private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
 
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount = -1;
@@ -300,6 +307,18 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       //Validate input Geometry
       if (this.spatialFilter != null) {
         spatialFilter.validateSpatialFilter();
+        try {
+          Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry((spatialFilter.getGeometry().getJTSGeometry()),
+                  spatialFilter.getRadius());
+          int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
+          if(GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
+            throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
+              + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
+          }
+        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException e) {
+          errorLog(JOB_VALIDATE, this, e, "Invalid Filter provided!");
+          throw new ValidationException("Invalid SpatialFilter!");
+        }
       }
 
       //Validate versionRef

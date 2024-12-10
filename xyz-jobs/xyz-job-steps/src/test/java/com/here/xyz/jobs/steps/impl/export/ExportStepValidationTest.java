@@ -26,8 +26,15 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -60,7 +67,46 @@ public class ExportStepValidationTest extends StepTest {
                 .withClip(true);
 
         LambdaBasedStep step = new ExportSpaceToFiles()
-                .withVersionRef(new Ref(5))
+                .withVersionRef(new Ref(1))
+                .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
+                .withJobId(JOB_ID);
+
+        //Check ExceptionType - Geometry is null, leads into ValidationError
+        Assertions.assertThrows(ValidationException.class, () -> step.validate());
+    }
+
+    @Test
+    public void testSpatialPointFilterWhichIsToLarge() throws InvalidGeometryException {
+        SpatialFilter spatialFilter = new SpatialFilter()
+                .withGeometry(new Point().withCoordinates(new PointCoordinates(50 ,8)))
+                .withRadius(17899);
+
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withVersionRef(new Ref(1))
+                .withSpatialFilter(spatialFilter)
+                .withSpaceId(SPACE_ID)
+                .withJobId(JOB_ID);
+
+        Assertions.assertThrows(ValidationException.class, () -> step.validate());
+    }
+
+    @Test
+    public void testSpatialBBOXFilterWhichIsToLarge() throws InvalidGeometryException {
+        PolygonCoordinates bbox = new PolygonCoordinates();
+        LinearRingCoordinates rC = new LinearRingCoordinates();
+        rC.add(new Position(14.381642124745554, 59.549930961654525)); // Bottom-left
+        rC.add(new Position(14.381642124745554, 58.87408545972943));  // Bottom-right
+        rC.add(new Position(15.589007766807157, 58.87408545972943));  // Top-right
+        rC.add(new Position(15.589007766807157, 59.549930961654525)); // Top-left
+        rC.add(new Position(14.381642124745554, 59.549930961654525)); // Close the ring
+        bbox.add(rC);
+
+        SpatialFilter spatialFilter = new SpatialFilter()
+                .withGeometry(new Polygon().withCoordinates(bbox));
+
+        LambdaBasedStep step = new ExportSpaceToFiles()
+                .withVersionRef(new Ref(1))
                 .withSpatialFilter(spatialFilter)
                 .withSpaceId(SPACE_ID)
                 .withJobId(JOB_ID);
