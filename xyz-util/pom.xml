@@ -149,6 +149,10 @@
       <artifactId>gt-main</artifactId>
       <groupId>org.geotools</groupId>
     </dependency>
+    <dependency>
+      <groupId>org.geotools</groupId>
+      <artifactId>gt-epsg-hsql</artifactId>
+    </dependency>
 
     <!-- Cache -->
     <dependency>
