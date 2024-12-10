@@ -141,7 +141,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
                         job.getId(),
                         ((DatasetDescription.Space<?>) job.getSource()).getFilters(),
                         ((DatasetDescription.Space<?>) job.getSource()).getVersionRef(),
-                        job.getTarget().getClass().getSimpleName() );
+                        "Space" );
 
   }
 }
