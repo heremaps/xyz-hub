@@ -875,6 +875,11 @@ public class FeatureTaskHandler {
 
             task.space = space;
 
+            // ignore composite params resolution when the query is for ModifySubscription
+            if (task instanceof FeatureTask.ModifySubscriptionQuery) {
+              return Future.succeededFuture(space);
+            }
+
             //Inject the extension-map
             return space.resolveCompositeParams(task.getMarker())
                 .compose(resolvedExtensions -> {
