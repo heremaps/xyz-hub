@@ -50,7 +50,7 @@ public class ExportToFilesTest extends JobTest {
     public void testResolveNotExistingTag(){
         CompilationStepGraph graph = new ExportToFiles().compile(buildExportJobWithVersionRef(new Ref("NA")));
         //NA not exists - should fail
-        Assertions.assertThrows(IllegalArgumentException.class, () -> getAndPrepareStep(graph));
+        Assertions.assertThrows(BaseHttpServerVerticle.ValidationException.class, () -> getAndPrepareStep(graph));
     }
 
     @Test
