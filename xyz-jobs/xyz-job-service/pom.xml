@@ -86,18 +86,6 @@
         </exclusion>
       </exclusions>
     </dependency>
-
-    <!-- AWS SDKs v2 -->
-    <dependency>
-      <artifactId>secretsmanager</artifactId>
-      <groupId>software.amazon.awssdk</groupId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
     <!--
       NOTE: The order of the following two dependencies matters
       "sfn" should be chosen over "stepfunctions" by the class loader.
