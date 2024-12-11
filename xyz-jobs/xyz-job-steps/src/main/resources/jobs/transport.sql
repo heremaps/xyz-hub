@@ -444,7 +444,7 @@ BEGIN
         NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo)), false)::JSONB);
         SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
                        "featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]},
-								"partialUpdates":"$fd$ || isPartial || $fd$"}]$fd$,
+								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
                                   author
                    )::JSONB->'count' INTO featureCount;
     END IF;
@@ -453,14 +453,14 @@ BEGIN
         IF entityPerLine = 'Feature' THEN
             SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
 								"featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]},
-								"partialUpdates":"$fd$ || isPartial || $fd$"}]$fd$,
+								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
                                   author                                                                    
                    )::JSONB->'count' INTO featureCount;
         ELSE
             --TODO: Extend feature_writer with possibility to provide featureCollection
             SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
                        "featureData":{"type":"FeatureCollection","features": $fd$ || (NEW.jsondata::JSONB->'features')::TEXT || $fd$},
-								"partialUpdates":"$fd$ || isPartial || $fd$"}]$fd$,
+								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
                                  author
                    )::JSONB->'count' INTO featureCount;
         END IF;
