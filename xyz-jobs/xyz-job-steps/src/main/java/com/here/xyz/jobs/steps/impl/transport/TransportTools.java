@@ -123,15 +123,21 @@ public class TransportTools {
     return queryList;
   }
 
-  protected static SQLQuery buildResetSuccessMarkerAndRunningOnesStatement(String schema, Step step) {
+  protected static SQLQuery buildResetJobTableItemsForResumeStatement(String schema, Step step) {
     return new SQLQuery("""
         UPDATE ${schema}.${table}
           SET state =
             CASE
               WHEN state = 'SUCCESS_MARKER_RUNNING' THEN 'SUCCESS_MARKER'
               WHEN state = 'RUNNING' THEN 'SUBMITTED'
-            END
-          WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING');
+              WHEN state = 'FAILED' THEN 'SUBMITTED'
+            END,
+              execution_count =
+                 CASE
+                   WHEN execution_count = 2 THEN 1
+                   ELSE execution_count
+                 END
+          WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING', 'FAILED');
         """)
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(step.getId()));
