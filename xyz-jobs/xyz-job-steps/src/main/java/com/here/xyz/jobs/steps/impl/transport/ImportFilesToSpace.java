@@ -227,9 +227,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public ExecutionMode getExecutionMode() {
     //CSV is not supported in SYNC mode
-    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
-      return ASYNC;
-    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+//    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
+//      return ASYNC;
+//    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+    //TODO: Fix ConnectionPool issue caused from threading in syncExecution()
+    return ASYNC;
   }
 
   @Override
