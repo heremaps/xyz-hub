@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.execution;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepExecution;
@@ -28,7 +29,7 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.List;
 
 public class DelegateStep extends Step<DelegateStep> {
-  @JsonIgnore
+  @JsonView({Internal.class, Static.class})
   private final Step<?> delegate;
   @JsonIgnore
   private final Step<?> delegator;
