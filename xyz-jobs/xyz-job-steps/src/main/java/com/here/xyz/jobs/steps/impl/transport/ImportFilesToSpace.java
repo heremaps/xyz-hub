@@ -265,6 +265,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       infoLog(JOB_VALIDATE, this);
       //Check if the space is actually existing
       Space space = space();
+      if (!space.isActive())
+        throw new ValidationException("Data can not be written to target " + space.getId() + " as it is inactive.");
+
       if (space.isReadOnly())
         throw new ValidationException("Data can not be written to target " + space.getId() + " as it is in read-only mode.");
 
