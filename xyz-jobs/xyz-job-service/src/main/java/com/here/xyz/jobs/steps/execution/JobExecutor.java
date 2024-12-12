@@ -472,6 +472,8 @@ public abstract class JobExecutor implements Initializable {
         // Recursive injection for nested StepGraph
         updateExecutionDependencies(graph.getExecutions(), previousStepIdsOfFirstNewNode, newJobId, stepIdsOfLastReusedNodes, jobIdLastReusedNode);
       } else if (executionNode instanceof Step<?> step) {
+        if(previousStepIdsOfFirstNewNode == null)
+          continue;
         // Replace previous StepIds
         if (!step.getPreviousStepIds().isEmpty() && step.getPreviousStepIds().removeAll(previousStepIdsOfFirstNewNode)) {
           step.getPreviousStepIds().addAll(stepIdsOfLastReusedNodes);
