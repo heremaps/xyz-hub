@@ -63,6 +63,7 @@ public class GraphFusionTool {
    * @return A graph that is equivalent to the new step graph, but contains as many DelegateSteps as possible
    */
   private static CompilationStepGraph replaceByDelegations(StepGraph newStepGraph, StepGraph oldStepGraph) {
+    //TODO: Handle different parallelities correctly? Also what about stepgraphs of size 1
     if (newStepGraph.isParallel() != oldStepGraph.isParallel())
       return null;
     return newStepGraph.isParallel()
@@ -79,6 +80,7 @@ public class GraphFusionTool {
    */
   private static CompilationStepGraph replaceByDelegationsSequentially(StepGraph newStepGraph, StepGraph oldStepGraph) {
     CompilationStepGraph result = new CompilationStepGraph();
+    //TODO: Take into account the length of the step graphs
     for (int i = 0; i < Math.min(newStepGraph.getExecutions().size(), oldStepGraph.getExecutions().size()); i++) {
       StepExecution newExecution = newStepGraph.getExecutions().get(i);
       StepExecution oldExecution = oldStepGraph.getExecutions().get(i);
@@ -113,9 +115,12 @@ public class GraphFusionTool {
       StepExecution largestMatchingBranch = null;
       for (StepExecution oldBranch : oldStepGraph.getExecutions()) {
         StepExecution branchCandidate = replaceByDelegationsAsFarAsPossible(newBranch, oldBranch);
-        if (matchCount(branchCandidate) > maxMatchCount)
+        int matchCount = matchCount(branchCandidate);
+        if (matchCount > maxMatchCount) {
+          maxMatchCount = matchCount;
           //A better match was found
           largestMatchingBranch = branchCandidate;
+        }
       }
 
       if (largestMatchingBranch == null)
@@ -142,6 +147,7 @@ public class GraphFusionTool {
     else if (newBranch instanceof Step newStep && oldBranch instanceof Step oldStep) {
       return newStep.isEquivalentTo(oldStep) ? delegateToOldStep(newStep, oldStep) : newStep;
     }
+    //TODO: Compare also graphs with only one step to one step
     else
       return newBranch;
   }

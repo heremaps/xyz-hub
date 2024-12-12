@@ -22,7 +22,7 @@ package com.here.xyz.jobs.steps.execution.fusion;
 import com.here.xyz.jobs.steps.StepExecution;
 import java.util.Objects;
 
-public class SimpleTestStep extends TestStep {
+public class SimpleTestStep<T extends SimpleTestStep> extends TestStep<T> {
 
   //Some step parameters that can differ per graph and influence the equivalence
   public String paramA;

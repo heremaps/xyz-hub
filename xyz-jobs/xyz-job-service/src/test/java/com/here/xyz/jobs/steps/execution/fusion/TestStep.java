@@ -24,7 +24,7 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.List;
 
-public abstract class TestStep extends Step<TestStep> {
+public abstract class TestStep<T extends TestStep> extends Step<T> {
 
   @Override
   public List<Load> getNeededResources() {
