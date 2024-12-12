@@ -29,50 +29,49 @@ import java.util.List;
 
 public class DelegateStep extends Step<DelegateStep> {
   @JsonIgnore
-  private Step<?> delegate;
+  private final Step<?> delegate;
   @JsonIgnore
-  private Step<?> delegator;
+  private final Step<?> delegator;
   private RuntimeInfo status = new RuntimeInfo();
+
+  //Only needed for deserialization purposes
+  private DelegateStep() {
+    this.delegator = null;
+    this.delegate = null;
+  }
+
+  public DelegateStep(Step<?> delegate, Step<?> delegator) {
+    this.delegator = delegator;
+    this.delegate = delegate;
+    setInputSets(delegator.getInputSets());
+    setOutputMetadata(delegate.getOutputMetadata());
+
+    //Create the delegating output-sets by copying them from the delegate step but keep the visibility of each counterpart of the compiled (new) step
+    outputSets = delegate.getOutputSets().stream().map(delegateOutputSet -> {
+      OutputSet compiledOutputSet = delegator.getOutputSets().stream().filter(outputSet -> outputSet.name.equals(delegateOutputSet.name)).findFirst().get();
+      return new OutputSet(delegateOutputSet, delegate.getJobId(), delegate.getId(), compiledOutputSet.visibility);
+    }).toList();
+  }
 
   public Step<?> getDelegate() {
     return delegate;
-  }
-
-  public void setDelegate(Step<?> delegate) {
-    this.delegate = delegate;
-    setOutputMetadata(delegate.getOutputMetadata());
-    outputSets = delegate.getOutputSets();
-  }
-
-  public DelegateStep withDelegate(Step<?> delegate) {
-    setDelegate(delegate);
-    return this;
   }
 
   public Step<?> getDelegator() {
     return delegator;
   }
 
-  public void setDelegator(Step<?> delegator) {
-    this.delegator = delegator;
-  }
-
-  public DelegateStep withDelegator(Step<?> delegator) {
-    setDelegator(delegator);
-    return this;
-  }
-
   @Override
   public String getJobId() {
     if (getDelegator() == null)
-      return "delegator";
+      return "<delegatorJob>";
     return getDelegator().getJobId();
   }
 
   @Override
   public String getId() {
     if (getDelegator() == null)
-      return "delegator";
+      return "<delegatorStep>";
     return getDelegator().getId();
   }
 

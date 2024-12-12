@@ -45,9 +45,13 @@ public class GraphFusionTool {
 
   protected static StepGraph fuseGraphs(String newJobId, StepGraph newGraph, StepGraph oldGraph) {
     CompilationStepGraph fusedGraph = replaceByDelegations(newGraph, oldGraph);
-    //TODO: replace previous step relations?
-    //TODO: replace InputSets accordingly
-    return fusedGraph.enrich(newJobId);
+
+    //Replace previous step relations (previousStepIds)
+    fusedGraph.enrich(newJobId);
+
+    //Replace InputSets accordingly for new steps that should re-use outputs of old steps as inputs
+    resolveReusedInputs(fusedGraph);
+    return fusedGraph;
   }
 
   /**
@@ -150,7 +154,7 @@ public class GraphFusionTool {
    * @return
    */
   private static DelegateStep delegateToOldStep(Step newStep, Step oldStep) {
-    return new DelegateStep().withDelegate(oldStep).withDelegator(newStep);
+    return new DelegateStep(oldStep, newStep);
   }
 
   /**
@@ -165,7 +169,7 @@ public class GraphFusionTool {
   }
 
   /**
-   * Resolves all output-assignments of the graph that is currently being fused by re-weaving the re-used outputs with the
+   * Resolves all output-to-input assignments of the graph that is currently being fused by re-weaving the re-used outputs with the
    * consuming steps.
    * That is being done by overwriting the {@link InputSet}s of the consuming steps with the new references of the according
    * {@link DelegateStep}s.
@@ -186,12 +190,12 @@ public class GraphFusionTool {
   private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
     List<InputSet> newInputSets = new ArrayList<>();
     for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
-      if (compiledInputSet.stepId() == null || !(containingStepGraph.getStep(compiledInputSet.stepId()) instanceof DelegateOutputsPseudoStep replacementStep))
-        //NOTE: stepId == null refers to the USER inputs
+      if (compiledInputSet.stepId() == null || !(containingStepGraph.getStep(compiledInputSet.stepId()) instanceof DelegateStep replacementStep))
+        //NOTE: stepId == null on an InputSet refers to the USER-inputs
         newInputSets.add(compiledInputSet);
       else
         //Now we know that inputSet is one that should be replaced by one that is pointing to the outputs of the old graph
-        newInputSets.add(new InputSet(replacementStep.getDelegateJobId(), replacementStep.getDelegateStepId(), compiledInputSet.name()));
+        newInputSets.add(new InputSet(replacementStep.getDelegate().getJobId(), replacementStep.getDelegate().getId(), compiledInputSet.name()));
     }
     step.setInputSets(newInputSets);
   }

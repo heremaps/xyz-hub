@@ -25,7 +25,6 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.steps.execution.GraphFusionTool.resolveReusedInputs;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -33,6 +32,7 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.Step.InputSet;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
@@ -441,6 +441,38 @@ public abstract class JobExecutor implements Initializable {
     }
 
     return executions;
+  }
+
+  /**
+   * Resolves all output-to-input assignments of the graph that is currently being fused by re-weaving the re-used outputs with the
+   * consuming steps.
+   * That is being done by overwriting the {@link InputSet}s of the consuming steps with the new references of the according
+   * {@link DelegateOutputsPseudoStep}s.
+   * Should be only called for a graph **after** performing all delegation-replacements.
+   *
+   * @param graph
+   */
+  static void resolveReusedInputs(StepGraph graph) {
+    graph.stepStream().forEach(step -> resolveReusedInputs(step, graph));
+  }
+
+  /**
+   * Resolves the inputSets of a new step that is potentially consuming outputs of an old step referenced by a {@link DelegateStep}.
+   *
+   * @param step
+   * @param containingStepGraph
+   */
+  private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
+    List<InputSet> newInputSets = new ArrayList<>();
+    for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
+      if (compiledInputSet.stepId() == null || !(containingStepGraph.getStep(compiledInputSet.stepId()) instanceof DelegateOutputsPseudoStep replacementStep))
+        //NOTE: stepId == null on an InputSet refers to the USER-inputs
+        newInputSets.add(compiledInputSet);
+      else
+        //Now we know that inputSet is one that should be replaced by one that is pointing to the outputs of the old graph
+        newInputSets.add(new InputSet(replacementStep.getDelegateJobId(), replacementStep.getDelegateStepId(), compiledInputSet.name()));
+    }
+    step.setInputSets(newInputSets);
   }
 
   /**

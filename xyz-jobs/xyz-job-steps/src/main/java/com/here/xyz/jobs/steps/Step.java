@@ -618,7 +618,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   @JsonInclude(Include.NON_DEFAULT)
-  protected static class OutputSet {
+  public static class OutputSet {
     private String jobId;
     private String stepId;
     public String name;
@@ -633,6 +633,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
     public OutputSet(String name, Visibility visibility) {
       this(name, visibility, ".json");
+    }
+
+    public OutputSet(OutputSet other, String jobId, String stepId, Visibility visibility) {
+      this(other.name, visibility, other.fileSuffix);
+      this.jobId = jobId;
+      this.stepId = stepId;
     }
 
     public String getJobId() {

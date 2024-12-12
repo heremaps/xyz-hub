@@ -142,10 +142,19 @@ public class StepGraph implements StepExecution {
         || executions.size() != otherGraph.executions.size())
       return false;
 
-    //FIXME: If this StepGraph is a parallel one, the order of the executions should not matter. In that case it simply matters, that for each execution there *exists* an equivalent execution in otherGraph
-    for (int i = 0; i < executions.size(); i++)
-      if (!executions.get(i).isEquivalentTo(otherGraph.executions.get(i)))
-        return false;
+    if (isParallel()) {
+      for (int i = 0; i < executions.size(); i++) {
+        final StepExecution execution = executions.get(i);
+        //FIXME: Do not allow that one matching branch from the other graph can be matched by further executions of this graph
+        if (!otherGraph.getExecutions().stream().anyMatch(otherExecution -> execution.isEquivalentTo(otherExecution)))
+          return false;
+      }
+    }
+    else {
+      for (int i = 0; i < executions.size(); i++)
+        if (!executions.get(i).isEquivalentTo(otherGraph.executions.get(i)))
+          return false;
+    }
     return true;
   }
 
