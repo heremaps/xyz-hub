@@ -19,14 +19,12 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
-import java.util.Map;
 import static com.here.xyz.jobs.steps.impl.transport.CopySpacePre.VERSION;
 
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
-import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
@@ -42,6 +40,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.List;
+import java.util.Map;
 
 public class SpaceCopy implements JobCompilationInterceptor {
   protected boolean validSubType( String subType )
