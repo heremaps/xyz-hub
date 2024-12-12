@@ -23,11 +23,13 @@ import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 
 import java.util.List;
 
-public class SimpleTestStepWithOutput extends SimpleTestStep {
+public class SimpleTestStepWithOutput extends SimpleTestStep<SimpleTestStepWithOutput> {
   public static final String SOME_OUTPUT = "someOutput";
 
-  //Define which outputs are produced by this step
-  protected List<OutputSet> outputSets = List.of(new OutputSet(SOME_OUTPUT, USER));
+  {
+    //Define which outputs are produced by this step
+    outputSets = List.of(new OutputSet(SOME_OUTPUT, USER));
+  }
 
   public SimpleTestStepWithOutput(String paramA, String paramB, String paramC) {
     super(paramA, paramB, paramC);

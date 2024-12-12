@@ -74,7 +74,9 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
-  protected List<OutputSet> outputSets = List.of(new OutputSet(VERSION, SYSTEM));
+  {
+    outputSets = List.of(new OutputSet(VERSION, SYSTEM));
+  }
 
   @Override
   public List<Load> getNeededResources() {

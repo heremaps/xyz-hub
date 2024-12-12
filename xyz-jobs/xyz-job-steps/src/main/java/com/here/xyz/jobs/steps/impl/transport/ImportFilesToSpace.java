@@ -117,7 +117,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private EntityPerLine entityPerLine = Feature;
 
-  protected List<OutputSet> outputSets = List.of(new OutputSet(STATISTICS, USER));
+  {
+    outputSets = List.of(new OutputSet(STATISTICS, USER));
+  }
 
   public Format getFormat() {
     return format;

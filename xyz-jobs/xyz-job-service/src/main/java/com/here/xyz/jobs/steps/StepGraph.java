@@ -23,8 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.jobs.service.Config;
-import com.here.xyz.jobs.steps.resources.Load;
-import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;

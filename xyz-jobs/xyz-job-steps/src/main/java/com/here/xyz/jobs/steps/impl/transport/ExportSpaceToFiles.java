@@ -104,10 +104,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @JsonView({Internal.class, Static.class})
   private Ref versionRef;
 
-  protected List<OutputSet> outputSets = List.of(
-      new OutputSet(STATISTICS, USER),
-      new OutputSet(EXPORTED_DATA, USER)
-  );
+  {
+    outputSets = List.of(
+        new OutputSet(STATISTICS, USER),
+        new OutputSet(EXPORTED_DATA, USER)
+    );
+  }
 
   /**
    * TODO:

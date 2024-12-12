@@ -90,7 +90,9 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   @JsonView({Internal.class, Static.class})
   private long copiedByteSize = 0;
 
-  protected List<OutputSet> outputSets = List.of(new OutputSet(STATISTICS, SYSTEM));
+  {
+    outputSets = List.of(new OutputSet(STATISTICS, SYSTEM));
+  }
 
   public long getCopiedByteSize() {
     return copiedByteSize;
