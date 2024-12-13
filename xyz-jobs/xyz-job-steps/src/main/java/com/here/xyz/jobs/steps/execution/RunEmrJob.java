@@ -19,10 +19,12 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -57,7 +59,6 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private String jarUrl;
   private List<String> scriptParams;
   private String sparkParams;
-  private boolean inputsExpected;
 
   @Override
   public List<Load> getNeededResources() {
@@ -171,7 +172,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (scriptParams.size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
 
-    return !isInputsExpected() || currentInputsCount(Input.class) > 0;
+    return !isUserInputsExpected() || currentInputsCount(Input.class) > 0;
   }
 
   public String getApplicationId() {
@@ -239,17 +240,9 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return this;
   }
 
-  public boolean isInputsExpected() {
-    return inputsExpected;
-  }
-
-  public void setInputsExpected(boolean inputsExpected) {
-    this.inputsExpected = inputsExpected;
-  }
-
-  public RunEmrJob withInputsExpected(boolean inputsExpected) {
-    setInputsExpected(inputsExpected);
-    return this;
+  @JsonIgnore
+  private boolean isUserInputsExpected() {
+    return getInputSets().stream().anyMatch(inputSet -> USER_INPUTS.equals(inputSet));
   }
 
   private String getLocalTmpPath(String s3Path) {
