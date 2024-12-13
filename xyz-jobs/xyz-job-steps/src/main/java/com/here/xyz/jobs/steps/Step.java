@@ -215,7 +215,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loadStepOutputs(getOutputSet(outputSetName));
   }
 
-  protected OutputSet getOutputSet(String outputSetName) {
+  public OutputSet getOutputSet(String outputSetName) {
     try {
       return outputSets.stream().filter(set -> set.name.equals(outputSetName)).findFirst().get();
     }
@@ -562,15 +562,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   public T withInputSets(List<InputSet> inputSets) {
     setInputSets(inputSets);
     return (T) this;
-  }
-
-  protected InputSet getInputSet(String name) {
-    try {
-      return getInputSets().stream().filter(inputSet -> Objects.equals(inputSet.name, name)).findFirst().get();
-    }
-    catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set with name \"" + (name == null ? "<USER-INPUTS>" : name) + "\" exists in step \"" + getId() + "\"");
-    }
   }
 
   public T withOutputSetVisibility(String outputSetName, Visibility visibility) {

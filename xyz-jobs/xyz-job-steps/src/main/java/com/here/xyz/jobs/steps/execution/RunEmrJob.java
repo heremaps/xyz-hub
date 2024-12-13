@@ -43,6 +43,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -53,7 +55,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private static final Logger logger = LogManager.getLogger();
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
   private static final String INPUT_SET_REF_SUFFIX = "}";
-  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile("\\$\\{inputSet:([a-zA-Z0-9_=-]+)\\}");
+  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile("\\$\\{inputSet:([a-zA-Z0-9._=-]+)\\}");
   public static final String USER_REF = "USER";
 
   private String applicationId;
@@ -373,8 +375,33 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (!getInputSets().contains(inputSet))
       throw new IllegalArgumentException("The provided inputSet is not a part of this EMR step.");
 
-    String referenceName = inputSet.name() == null ? USER_REF : inputSet.name();
-    return INPUT_SET_REF_PREFIX + referenceName + INPUT_SET_REF_SUFFIX;
+    return toInputSetReference(inputSet);
+  }
+
+  public static String toInputSetReference(InputSet inputSet) {
+    return INPUT_SET_REF_PREFIX + toReferenceIdentifier(inputSet) + INPUT_SET_REF_SUFFIX;
+  }
+
+  private static String toReferenceIdentifier(InputSet inputSet) {
+    return inputSet.name() == null ? USER_REF : (inputSet.stepId() + "." + inputSet.name());
+  }
+
+  private InputSet fromReferenceIdentifier(String referenceIdentifier) {
+    return USER_REF.equals(referenceIdentifier) ? null
+        : getInputSet(referenceIdentifier.substring(0, referenceIdentifier.indexOf(".")),
+            referenceIdentifier.substring(referenceIdentifier.indexOf(".") + 1));
+  }
+
+  protected InputSet getInputSet(String stepId, String name) {
+    try {
+      return getInputSets().stream()
+          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.stepId(), stepId))
+          .findFirst()
+          .get();
+    }
+    catch (NoSuchElementException e) {
+      throw new IllegalArgumentException("No input set with name \"" + (name == null ? "<USER-INPUTS>" : name) + "\" exists in step \"" + getId() + "\"");
+    }
   }
 
   List<String> getResolvedScriptParams() {
@@ -384,7 +411,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   private String replaceInputSetReferences(String scriptParam) {
     return INPUT_SET_REF_PATTERN.matcher(scriptParam)
-        .replaceAll(match -> toS3Uri(getInputSet(USER_REF.equals(match.group(1)) ? null : match.group(1)).toS3Path(getJobId())));
+        .replaceAll(match -> toS3Uri(fromReferenceIdentifier(match.group(1)).toS3Path(getJobId())));
   }
 
   private String toS3Uri(String s3Path) {
