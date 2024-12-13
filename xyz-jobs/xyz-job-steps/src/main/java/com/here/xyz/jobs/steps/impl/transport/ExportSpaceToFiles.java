@@ -76,7 +76,7 @@ import java.util.UUID;
  */
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   //Defines how many features a source layer need to have to start parallelization.
-  public static final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
+  public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
   //Defines how large the area of a defined spatialFilter can be
