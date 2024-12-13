@@ -30,11 +30,11 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.CopySpace;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
+import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.CopySpace;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
-import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
@@ -70,6 +70,9 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   @JsonIgnore
   protected Space superSpace;
+
+  @JsonIgnore
+  protected StatisticsResponse spaceStatistics;
 
   public String getSpaceId() {
     return spaceId;
@@ -110,7 +113,11 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
-    return hubWebClient().loadSpaceStatistics(spaceId, context);
+    return hubWebClient().loadSpaceStatistics(spaceId, context, false);
+  }
+
+  protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
+    return hubWebClient().loadSpaceStatistics(spaceId, context, skipCache);
   }
 
   protected Tag loadTag(String spaceId, String tagId) throws WebClientException {
@@ -135,6 +142,14 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
       space = loadSpace(getSpaceId());
     }
     return space;
+  }
+
+  protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {
+    if (spaceStatistics == null) {
+      logger.info("[{}] Loading statistics for space {}.", getGlobalStepId(), getSpaceId());
+      spaceStatistics = loadSpaceStatistics(getSpaceId(), context, skipCache);
+    }
+    return spaceStatistics;
   }
 
   protected Space superSpace() throws WebClientException {

@@ -31,6 +31,7 @@ import org.geotools.api.referencing.operation.MathTransform;
 import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
+import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
@@ -230,4 +231,61 @@ public class GeoTools {
     return (r1 || r2) && r3; 
  }
 
+  /**
+   * Computes the MathTransform objects required to transform between the given geometry's coordinate reference system (CRS)
+   * and the WGS84 CRS.
+   *
+   * @param geometry the input geometry whose CRS transformations are needed.
+   * @return an array of MathTransform objects where:
+   *         - the first element transforms from the geometry's CRS to WGS84,
+   *         - the second element transforms from WGS84 to the geometry's CRS.
+   * @throws FactoryException if there is an error creating the CRS or the MathTransform.
+   * @throws javax.xml.crypto.dsig.TransformException if there is an error with CRS transformation.
+   */
+  private static MathTransform[] getTransforms(Geometry geometry) throws FactoryException {
+    String code = "AUTO:42001," + geometry.getCentroid().getCoordinate().x + "," + geometry.getCentroid().getCoordinate().y;
+    CoordinateReferenceSystem auto = CRS.decode(code);
+
+    MathTransform fromTransform = CRS.findMathTransform(auto, DefaultGeographicCRS.WGS84);
+    MathTransform toTransform = CRS.findMathTransform(DefaultGeographicCRS.WGS84, auto);
+
+    return new MathTransform[] {fromTransform, toTransform};
+  }
+
+  /**
+   * Applies a buffer operation on a geometry, with the buffer distance specified in meters.
+   * The operation uses a projection to approximate the geometry in a Cartesian coordinate system.
+   *
+   * @param geometry the input geometry to which the buffer is applied.
+   * @param distanceInMeters the buffer distance in meters.
+   * @return the buffered geometry after transforming back to the original CRS.
+   * @throws FactoryException if there is an error creating the CRS or the MathTransform.
+   * @throws javax.xml.crypto.dsig.TransformException if there is an error with CRS transformation.
+   * @throws TransformException if there is an error applying the coordinate transformation.
+   */
+  public static Geometry applyBufferInMetersToGeometry(Geometry geometry, double distanceInMeters)
+          throws FactoryException, javax.xml.crypto.dsig.TransformException, TransformException {
+    MathTransform[] transforms = getTransforms(geometry);
+    Geometry pGeom = JTS.transform(geometry, transforms[1]);
+    Geometry pBufferedGeom = pGeom.buffer(distanceInMeters);
+
+    return JTS.transform(pBufferedGeom, transforms[0]);
+  }
+
+  /**
+   * Computes the area of a given geometry in square kilometers.
+   * The operation uses a projection to approximate the geometry in a Cartesian coordinate system.
+   *
+   * @param geometry the input geometry whose area is to be computed.
+   * @return the area of the geometry in square kilometers.
+   * @throws FactoryException if there is an error creating the CRS or the MathTransform.
+   * @throws javax.xml.crypto.dsig.TransformException if there is an error with CRS transformation.
+   * @throws TransformException if there is an error applying the coordinate transformation.
+   */
+  public static double getAreaInSquareKilometersFromGeometry(Geometry geometry)
+          throws FactoryException, javax.xml.crypto.dsig.TransformException, TransformException {
+    MathTransform[] transforms = getTransforms(geometry);
+    Geometry pGeom = JTS.transform(geometry, transforms[1]);
+    return pGeom.getArea() / 1_000_000;
+  }
 }

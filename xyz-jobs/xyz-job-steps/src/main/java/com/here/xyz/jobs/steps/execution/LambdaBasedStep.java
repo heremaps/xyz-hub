@@ -176,6 +176,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
 
     try {
+      logger.info("[{}] unregister StateCheckTrigger {}", getStateCheckRuleName(), getGlobalStepId());
       //List all targets
       List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(
               ListTargetsByRuleRequest.builder().rule(getStateCheckRuleName()).build())
@@ -191,6 +192,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
     }
     catch (ResourceNotFoundException e) {
+      logger.error("[{}] unregister StateCheckTrigger failed! {}", getStateCheckRuleName(), getGlobalStepId(), e);
       //Ignore the exception, as the rule is not existing (yet)
     }
   }

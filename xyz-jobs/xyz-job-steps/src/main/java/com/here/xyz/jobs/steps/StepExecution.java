@@ -27,4 +27,6 @@ import com.here.xyz.Typed;
     @JsonSubTypes.Type(value = Step.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
-public interface StepExecution extends Typed {}
+public interface StepExecution extends Typed {
+  boolean isEquivalentTo(StepExecution other);
+}

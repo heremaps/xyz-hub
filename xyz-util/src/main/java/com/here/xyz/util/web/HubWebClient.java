@@ -99,6 +99,14 @@ public class HubWebClient extends XyzWebClient {
     }
   }
 
+  public String loadExtendedSpace(String spaceId) throws WebClientException {
+    Space space = loadSpace(spaceId);
+    if(space == null || space.getExtension() == null)
+      return null;
+    else
+      return space.getExtension().getSpaceId();
+  }
+
   public Space createSpace(String spaceId, String title) throws WebClientException {
     return createSpace(new Space().withId(spaceId).withTitle(title));
   }
@@ -163,9 +171,14 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
+    return loadSpaceStatistics(spaceId, context, false);
+  }
+
+  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
     try {
       return deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/spaces/" + spaceId + "/statistics" + (context == null ? "" : "?context=" + context)))).body(), StatisticsResponse.class);
+          .uri(uri("/spaces/" + spaceId + "/statistics?skipCache="+skipCache
+                  + (context == null ? "" : "&context=" + context)))).body(), StatisticsResponse.class);
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
@@ -197,7 +210,7 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public StatisticsResponse loadSpaceStatistics(String spaceId) throws WebClientException {
-    return loadSpaceStatistics(spaceId, null);
+    return loadSpaceStatistics(spaceId, null, true);
   }
 
   public Connector loadConnector(String connectorId) throws WebClientException {

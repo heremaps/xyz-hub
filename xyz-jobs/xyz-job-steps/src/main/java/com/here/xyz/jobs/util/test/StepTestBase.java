@@ -82,7 +82,7 @@ import software.amazon.awssdk.services.lambda.model.InvokeRequest;
 public class StepTestBase {
   private static final Logger logger = LogManager.getLogger();
   protected String SPACE_ID =  getClass().getSimpleName() + "_" + randomAlpha(5);
-  protected String JOB_ID =  getClass().getSimpleName() + "_" + randomAlpha(5);
+  protected String JOB_ID =  generateJobId();
 
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final HubWebClient hubWebClient;
@@ -114,6 +114,10 @@ public class StepTestBase {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public String generateJobId(){
+    return getClass().getSimpleName() + "_" + randomAlpha(5);
   }
 
   public enum S3ContentType {
@@ -159,6 +163,14 @@ public class StepTestBase {
     return null;
   }
 
+  protected void patchSpace(String spaceId, Map<String,Object> spaceUpdates) {
+    try {
+      hubWebClient.patchSpace(spaceId, spaceUpdates);
+    } catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
   protected void createTag(String spaceId, Tag tag) {
     try {
       hubWebClient.postTag(spaceId, tag);
@@ -177,7 +189,7 @@ public class StepTestBase {
 
   protected StatisticsResponse getStatistics(String spaceId) {
     try {
-      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.EXTENSION);
+      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.EXTENSION, true);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }

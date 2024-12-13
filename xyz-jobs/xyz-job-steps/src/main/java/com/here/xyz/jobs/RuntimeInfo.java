@@ -219,7 +219,7 @@ public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
         NONE, new State[]{null}, //Allows all transitions at initialization. Needed to allow proper deserialization into the POJO.
         NOT_READY, new State[]{SUBMITTED, FAILED},
         SUBMITTED, new State[]{PENDING, CANCELLING, FAILED},
-        PENDING, new State[]{RUNNING, CANCELLING, FAILED},
+        PENDING, new State[]{RUNNING, CANCELLING, SUCCEEDED, FAILED},
         RESUMING, new State[]{PENDING, CANCELLING, FAILED},
         RUNNING, new State[]{SUCCEEDED, CANCELLING, FAILED},
         CANCELLING, new State[]{CANCELLED, FAILED},

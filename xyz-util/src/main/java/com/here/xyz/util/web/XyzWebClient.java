@@ -94,13 +94,20 @@ public abstract class XyzWebClient {
 
   public static class ErrorResponseException extends WebClientException {
     private HttpResponse<byte[]> errorResponse;
+    private int statusCode;
+
     public ErrorResponseException(HttpResponse<byte[]> errorResponse) {
       super("Received error response with status code " + errorResponse.statusCode() + " response body:\n" + new String(errorResponse.body()));
       this.errorResponse = errorResponse;
+      this.statusCode = errorResponse.statusCode();
     }
 
     public HttpResponse<byte[]> getErrorResponse() {
       return errorResponse;
+    }
+
+    public int getStatusCode() {
+      return statusCode;
     }
   }
 }

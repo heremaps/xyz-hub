@@ -189,7 +189,7 @@ BEGIN
                     work_item ->> 's3_path',
                     work_item ->> 's3_region',
                     format,
-                    (work_item -> 'filesize')::BIGINT);
+                    CASE WHEN (work_item -> 'filesize') = 'null'::jsonb THEN 0 ELSE (work_item -> 'filesize')::BIGINT END);
     ELSE
         PERFORM export_to_s3_perform(content_query, (work_item ->> 's3_bucket'), (work_item ->> 's3_path'), (work_item ->> 's3_region'));
     END IF;

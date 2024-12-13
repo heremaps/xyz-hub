@@ -33,6 +33,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.steps.execution.DelegateOutputsPseudoStep;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.execution.RunEmrJob;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -58,7 +59,8 @@ import org.apache.logging.log4j.Logger;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = LambdaBasedStep.class),
-    @JsonSubTypes.Type(value = RunEmrJob.class)
+    @JsonSubTypes.Type(value = RunEmrJob.class),
+    @JsonSubTypes.Type(value = DelegateOutputsPseudoStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
@@ -201,7 +203,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   private List<Output> loadStepOutputs(Set<String> stepIds, boolean userOutput) {
     Set<String> s3Prefixes = stepIds.stream()
-            .map(stepId -> Output.stepOutputS3Prefix(jobId, stepId, userOutput, false))
+            .map(stepId -> {
+              //Inject jobId for reusability
+              String jId = jobId;
+              String sId = stepId;
+              if(stepId.indexOf(".") != -1){
+                jId = stepId.substring(0, stepId.indexOf("."));
+                sId = stepId.substring(stepId.indexOf(".") + 1);
+              }
+              return Output.stepOutputS3Prefix(jId, sId, userOutput, false);
+            })
             .collect(Collectors.toSet());
     return loadOutputs(s3Prefixes);
   }
@@ -326,7 +337,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     S3Client.getInstance().deleteFolder(stepS3Prefix());
   }
 
-  public void prepare(String owner, JobClientInfo ownerAuth) {
+  /**
+   * Will be called right after the job compilation, but juts before the step validation call.
+   *
+   * @param owner
+   * @param ownerAuth
+   */
+  public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
     //Nothing to do by default. May be overridden.
   }
 
@@ -345,6 +362,23 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @throws ValidationException If one or multiple parameters of the step are invalid
    */
   public abstract boolean validate() throws ValidationException;
+
+  /**
+   * Should be overridden in subclasses to enable the possibility to check whether two steps of two different StepGraphs
+   * are equivalent in their actions and their outcome.
+   * That means that the other step would produce exactly the same outputs
+   * for the provided inputs and step-parameters / step-fields (step-settings).
+   *
+   * Not overriding this method for a step, means that this step will never be found to be equivalent to some other provided step.
+   * That could be the case if a step implementation cannot guarantee to provide the same outputs again by any condition.
+   *
+   * @param other The step of a different StepGraph
+   * @return `true` only if this step and the provided ones produce the same outputs for the same inputs & settings
+   */
+  @Override
+  public boolean isEquivalentTo(StepExecution other) {
+    return false;
+  }
 
   public String getId() {
     return id;
@@ -470,7 +504,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   public void setInputStepIds(Set<String> inputStepIds) {
-    this.inputStepIds = inputStepIds;
+    this.inputStepIds = inputStepIds.stream()
+            .map(stepId -> stepId.contains(".") ? stepId : jobId + "." + stepId)
+            .collect(Collectors.toSet());
   }
 
   public T withInputStepIds(Set<String> inputStepIds) {
