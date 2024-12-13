@@ -25,6 +25,8 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
+import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -41,7 +43,6 @@ import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -77,10 +78,16 @@ public abstract class JobExecutor implements Initializable {
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
     return Future.succeededFuture()
         .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
-        .compose(v -> mayExecute(job))
-        .compose(executionAllowed -> {
-          if (!executionAllowed)
-            //The Job remains in PENDING state and will be checked later again if it may be executed
+        .compose(v -> needsExecution(job))
+        .compose(executionNeeded -> executionNeeded ? mayExecute(job) : Future.succeededFuture(false))
+        .compose(shouldExecute -> {
+          if (!shouldExecute)
+            /*
+            Two different cases:
+            1. The job is complete already because all its steps are re-using old steps. In that case, the job is succeeded already.
+            2. The job may currently not be executed because of short resources.
+              It remains in PENDING state and will be checked later again if it may be executed.
+             */
             return Future.succeededFuture();
 
           //Update the job status atomically to RUNNING to make sure no other node will try to start it.
@@ -125,7 +132,7 @@ public abstract class JobExecutor implements Initializable {
           .compose(pendingJobs -> {
             Future<Void> taskChain = Future.succeededFuture();
             try {
-              pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
+              pendingJobs.sort(comparingLong(Job::getCreatedAt));
               logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
               if (stopRequested)
                 return Future.succeededFuture();
@@ -176,7 +183,7 @@ public abstract class JobExecutor implements Initializable {
 
           //NOTE: The following is an algorithm that only provides a very rough estimation of the start time
           for (Job pendingJob : pendingJobs) {
-            Job earliestCompletingJob = activeJobs.stream().min(Comparator.comparingLong(job -> job.getStatus().getEstimatedEndTime())).get();
+            Job earliestCompletingJob = activeJobs.stream().min(comparingLong(job -> job.getStatus().getEstimatedEndTime())).get();
             long estimatedStartTime = earliestCompletingJob.getStatus().getEstimatedEndTime();
             pendingJob.getStatus()
                 .withEstimatedStartTime(estimatedStartTime)
@@ -316,6 +323,19 @@ public abstract class JobExecutor implements Initializable {
             }));
   }
 
+  private Future<Boolean> needsExecution(Job job) {
+    return Future.succeededFuture()
+        .compose(v -> {
+          if (job.getSteps().stepStream().anyMatch(step -> !step.getStatus().getState().equals(SUCCEEDED)))
+            return Future.succeededFuture(true);
+
+          //All Steps are already succeeded - No need to execute the job
+          job.getStatus().setState(SUCCEEDED);
+          job.getStatus().setSucceededSteps(job.getStatus().getOverallStepCount());
+          return job.store().map(false);
+        });
+  }
+
   /**
    * Tries to find other existing jobs, that are completed and that already performed parts of the
    * tasks that the provided job would have to perform.
@@ -326,31 +346,23 @@ public abstract class JobExecutor implements Initializable {
    * @return An empty future (NOTE: If the job's graph was adjusted / shrunk, it will be also stored)
    */
   private static Future<Void> reuseExistingJobIfPossible(Job job) {
-    if(job.getResourceKey() == null)
+    if (job.getResourceKey() == null || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
       return Future.succeededFuture();
     return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), job.getSecondaryResourceKey(), SUCCEEDED)
-        .compose(candidates -> shrinkGraphByReusingOtherGraph(job, candidates.stream()
+        .compose(candidates -> Future.succeededFuture(candidates.stream()
             .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
-            .map(candidate -> candidate.getSteps().findConnectedEquivalentSubGraph(job.getSteps()))
-            .filter(candidateGraph -> !candidateGraph.isEmpty())
-            .max(Comparator.comparingInt(candidateGraph -> candidateGraph.size())) //Take the candidate with the largest matching subgraph
+            .map(candidate -> fuseGraphs(job, candidate.getSteps()))
+            .max(comparingLong(candidateGraph -> candidateGraph.stepStream().filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
             .orElse(null)))
-        .compose(shrunkGraph ->{
-          //Todo: move out
-          if(shrunkGraph != null){
-            boolean allStepsSucceeded = shrunkGraph.stepStream().allMatch(s -> s.getStatus().getState().equals(SUCCEEDED));
-
-            if(allStepsSucceeded) {
-              //All Steps are already succeeded - Reused Graph matches new Graph.
-              job.getStatus().setState(SUCCEEDED);
-              job.getStatus().setSucceededSteps(job.getStatus().getOverallStepCount());
-            }
-            return job.withSteps(shrunkGraph).store();
-          }
-          return Future.succeededFuture();
-        });
+        .compose(newGraphWithReusedSteps -> newGraphWithReusedSteps == null
+            ? Future.succeededFuture()
+            : job.withSteps(newGraphWithReusedSteps).store());
   }
 
+  //TODO: emrParamReplacement(shrunkGraph, collectDelegateReplacements(shrunkGraph)); ... Use InputSets instead?
+
+  //TODO: Use new fuseGraphs() method instead for the tests
+  @Deprecated
   public static Future<StepGraph> shrinkGraphByReusingOtherGraph(Job job, StepGraph reusedGraph) {
     if (reusedGraph == null || reusedGraph.isEmpty())
       return Future.succeededFuture();
@@ -376,6 +388,7 @@ public abstract class JobExecutor implements Initializable {
    * @param executions  StepExecutions of current Graph
    * @param reusedExecutions StepExecutions which should get reused
    */
+  @Deprecated
   private static void replaceWithDelegateOutputSteps(List<StepExecution> executions, List<StepExecution> reusedExecutions) {
     for (int i = 0; i < reusedExecutions.size(); i++) {
       StepExecution execution = executions.get(i);
@@ -410,6 +423,7 @@ public abstract class JobExecutor implements Initializable {
    * @return a list containing a single {@code StepGraph} object that represents the updated execution graph
    *         with reusable portions replaced and dependencies adjusted.
    */
+  @Deprecated
   private static List<StepExecution> calculateShrunkForest(Job job, StepGraph reusedGraph) {
     List<StepExecution> executions = job.getSteps().getExecutions();
     //Replace all executions, which can get reused form reusedGraph, in current graph with DelegateOutputSteps.
@@ -452,6 +466,7 @@ public abstract class JobExecutor implements Initializable {
    *
    * @param graph
    */
+  @Deprecated
   static void resolveReusedInputs(StepGraph graph) {
     graph.stepStream().forEach(step -> resolveReusedInputs(step, graph));
   }
@@ -462,6 +477,7 @@ public abstract class JobExecutor implements Initializable {
    * @param step
    * @param containingStepGraph
    */
+  @Deprecated
   private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
     List<InputSet> newInputSets = new ArrayList<>();
     for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
@@ -493,6 +509,7 @@ public abstract class JobExecutor implements Initializable {
    * @param previousStepIdsOfFirstNewNode the set of previous step IDs from the first new execution node, used for replacement.
    * @param stepIdsOfLastReusedNodes the set of step IDs from the leaf nodes of the reused graph, used to replace previous step IDs.
    */
+  @Deprecated
   private static void updateExecutionDependencies(List<StepExecution> executions, Set<String> previousStepIdsOfFirstNewNode,
       Set<String> stepIdsOfLastReusedNodes) {
     for (StepExecution executionNode : executions) {
@@ -510,6 +527,7 @@ public abstract class JobExecutor implements Initializable {
     }
   }
 
+  @Deprecated
   private static List<String[]> collectDelegateReplacements(StepGraph stepGraph) {
     List<String[]> replacements = new ArrayList<>();
 
@@ -526,25 +544,25 @@ public abstract class JobExecutor implements Initializable {
     return replacements;
   }
 
-  protected static void emrParamReplacement(StepGraph stepGraph, List<String[]> replacements){
-    for (StepExecution stepExecution : stepGraph.getExecutions()) {
-      if (stepExecution instanceof StepGraph graph) {
-        emrParamReplacement(graph, replacements);
-      } else if (stepExecution instanceof RunEmrJob emr) {
-        List<String> scriptParams = emr.getScriptParams();
+  @Deprecated
+  protected static void emrParamReplacement(StepGraph stepGraph, List<String[]> replacements) {
+    stepGraph.stepStream().forEach(step -> {
+      if (step instanceof RunEmrJob emrJobStep) {
+        List<String> scriptParams = emrJobStep.getScriptParams();
         for (int i = 0; i < scriptParams.size(); i++) {
           String param = scriptParams.get(i);
 
-          for (String[] replacement : replacements) {
+          for (String[] replacement : replacements)
             param = param.replaceAll(replacement[0], replacement[1]);
-          }
+
           scriptParams.set(i, param);
         }
-        emr.setScriptParams(scriptParams);
+        emrJobStep.setScriptParams(scriptParams);
       }
-    }
+    });
   }
 
+  @Deprecated
   private static Step getFirstExecutionNode(StepExecution executionNode) {
     if (executionNode instanceof StepGraph previousNodeGraph) {
       //Get the first node of the graph
@@ -567,6 +585,7 @@ public abstract class JobExecutor implements Initializable {
    *                      This may be a {@code Step} or a {@code StepGraph}.
    * @return a list of {@code Step} objects representing all leaf nodes in the execution graph.
    */
+  @Deprecated
   public static List<Step> getAllLeafExecutionNodes(StepExecution executionNode) {
     List<Step> leafNodes = new ArrayList<>();
 

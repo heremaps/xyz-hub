@@ -49,12 +49,22 @@ public class GraphFusionTests {
   public static final String SOME_CONSUMER = "SomeConsumer";
   public static final String NEW_JOB_ID = "newJob";
   public static final String OLD_JOB_ID = "oldJob";
-  private static final boolean printGraphs = true;
+
+  private static final boolean printGraphs = false;
 
   static {
     new Config();
     Config.instance.PARALLEL_STEPS_SUPPORTED = true;
   }
+
+  /*
+  TODO: Add edge case tests:
+
+  - compare one single step with one graph that only has a single step (both directions)
+  - compare different length of sequential graphs (both direction)
+  - compare different length of sequential branches (both direction)
+  - compare graphs which have different parallelity
+   */
 
   @Test
   public void simpleSequentialGraphFullyReusable() {
@@ -100,8 +110,6 @@ public class GraphFusionTests {
     checkInputs(fusedGraph, newGraph);
     checkOutputs(fusedGraph, OLD_JOB_ID);
   }
-
-  //TODO: FIXME forward the inputs of the producer to the correct consumer for all graphs in the following tests
 
   @Test
   public void simpleSequentialGraphNotReusable() {

@@ -60,16 +60,15 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import org.geotools.api.referencing.FactoryException;
-import org.locationtech.jts.geom.Geometry;
-
-import javax.xml.crypto.dsig.TransformException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import javax.xml.crypto.dsig.TransformException;
+import org.geotools.api.referencing.FactoryException;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space.
@@ -219,7 +218,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public boolean isEquivalentTo(StepExecution other) {
     if (!(other instanceof ExportSpaceToFiles otherExport))
-      return false;
+      return super.isEquivalentTo(other);
 
     try {
       return Objects.equals(otherExport.getSpaceId(), getSpaceId())
@@ -228,7 +227,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
           && Objects.equals(otherExport.spatialFilter, spatialFilter)
           && Objects.equals(otherExport.propertyFilter, propertyFilter);
     }
-    catch (Exception e){
+    catch (Exception e) {
       throw new RuntimeException(e);
     }
   }

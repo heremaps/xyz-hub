@@ -137,9 +137,15 @@ public class StepGraph implements StepExecution {
    */
   @Override
   public boolean isEquivalentTo(StepExecution other) {
+    if (other instanceof Step otherStep)
+      if (executions.size() == 1)
+        return executions.get(0).isEquivalentTo(otherStep);
+      else
+        return false;
+
     if (!(other instanceof StepGraph otherGraph)
-        || otherGraph.isParallel() != isParallel()
-        || executions.size() != otherGraph.executions.size())
+        || executions.size() != otherGraph.executions.size()
+        || otherGraph.isParallel() != isParallel() && executions.size() > 1) //NOTE: For graphs with 0 or 1 executions, the parallelity has no effect
       return false;
 
     if (isParallel()) {

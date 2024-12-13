@@ -236,18 +236,18 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   private List<Output> loadOutputs(Set<String> s3Prefixes) {
     return s3Prefixes
+        .stream()
+        //TODO: Scan the different folders in parallel
+        .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
             .stream()
-            //TODO: Scan the different folders in parallel
-            .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
-                    .stream()
-                    .filter(s3ObjectSummary -> s3ObjectSummary.getSize() > 0)
-                    .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
-                            ? ModelBasedOutput.load(s3ObjectSummary.getKey(), outputMetadata)
-                            : new DownloadUrl()
-                                  .withS3Key(s3ObjectSummary.getKey())
-                                  .withByteSize(s3ObjectSummary.getSize())
-                                  .withMetadata(outputMetadata)))
-            .collect(Collectors.toList());
+            .filter(s3ObjectSummary -> s3ObjectSummary.getSize() > 0)
+            .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
+                ? ModelBasedOutput.load(s3ObjectSummary.getKey(), outputMetadata)
+                : new DownloadUrl()
+                    .withS3Key(s3ObjectSummary.getKey())
+                    .withByteSize(s3ObjectSummary.getSize())
+                    .withMetadata(outputMetadata)))
+        .collect(Collectors.toList());
   }
 
   /**
@@ -289,7 +289,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *  job that ran earlier.
    * @return All inputs from the specified InputSet
    */
-  private List<Output> loadInputs(InputSet inputSet) {
+  protected List<Output> loadInputs(InputSet inputSet) {
     return loadOutputs(Set.of(inputSet.toS3Path(jobId)));
   }
 
@@ -438,7 +438,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    */
   @Override
   public boolean isEquivalentTo(StepExecution other) {
-    return other instanceof DelegateStep ? other.isEquivalentTo(this) : false;
+    return !(other instanceof Step) || other instanceof DelegateStep ? other.isEquivalentTo(this) : false;
   }
 
   public String getId() {
