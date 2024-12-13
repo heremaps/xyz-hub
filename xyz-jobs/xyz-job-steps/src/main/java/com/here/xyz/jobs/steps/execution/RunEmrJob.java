@@ -23,6 +23,7 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
@@ -41,11 +42,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private static final Logger logger = LogManager.getLogger();
+  private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
+  private static final String INPUT_SET_REF_SUFFIX = "}";
+  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile("\\$\\{inputSet:([0-9]+)\\}");
 
   private String applicationId;
   private String executionRoleArn;
@@ -77,6 +82,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   //Gets only executed when running locally (see GraphTransformer)
   @Override
   public void execute() throws Exception {
+    List<String> scriptParams = new ArrayList<>(getResolvedScriptParams());
+
     //Create the local target directory in which EMR writes the output
     String localTmpOutputsFolder = createLocalFolder(S3Client.getKeyFromS3Uri(scriptParams.get(1)), true);
     String s3TargetDir = scriptParams.get(1);
@@ -358,5 +365,26 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   public void setOutputSets(List<OutputSet> outputSets) {
     this.outputSets = outputSets;
+  }
+
+  public String inputSetReference(InputSet inputSet) {
+    int inputSetIndex = getInputSets().indexOf(inputSet);
+    if (inputSetIndex == -1)
+      throw new IllegalArgumentException("The provided inputSet is not a part of this EMR step.");
+    return INPUT_SET_REF_PREFIX + inputSetIndex + INPUT_SET_REF_SUFFIX;
+  }
+
+  List<String> getResolvedScriptParams() {
+    //Replace potential inputSet references within the script params
+    return getScriptParams().stream().map(scriptParam -> replaceInputSetReferences(scriptParam)).toList();
+  }
+
+  private String replaceInputSetReferences(String scriptParam) {
+    return INPUT_SET_REF_PATTERN.matcher(scriptParam)
+        .replaceAll(match -> toS3Uri(getInputSets().get(Integer.parseInt(match.group(1))).toS3Path(getJobId())));
+  }
+
+  private String toS3Uri(String s3Path) {
+    return "s3://" + Config.instance.JOBS_S3_BUCKET + "/" + s3Path + "/";
   }
 }

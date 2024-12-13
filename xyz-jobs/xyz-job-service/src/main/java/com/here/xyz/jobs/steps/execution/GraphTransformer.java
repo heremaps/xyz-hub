@@ -51,7 +51,7 @@ import software.amazon.awssdk.services.stepfunctions.builder.states.TaskState;
 public class GraphTransformer {
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
   private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
-  private static final String EMR_JOB_NAME_PREFIX = "step:";
+  public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 36 * 3600; //36h
   private static final int MIN_STEP_TIMEOUT_SECONDS = 5 * 60;
   private static final int STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS = 3 * 60; //3min
@@ -242,19 +242,8 @@ public class GraphTransformer {
   private NamedState<TaskState.Builder> compile(Step<?> step, State.Builder previousState) {
     NamedState<TaskState.Builder> state = new NamedState<>(step.getClass().getSimpleName() + "." + step.getId(),
         TaskState.builder());
-
-    if (step instanceof RunEmrJob emrStep) {
-      if (Config.instance.LOCALSTACK_ENDPOINT == null)
-        compile(emrStep, state);
-      else {
-        //Inject defaults for local execution
-        emrStep.setSparkParams("--add-exports=java.base/java.nio=ALL-UNNAMED "
-                + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
-                + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
-                + "--add-exports=java.base/java.util=ALL-UNNAMED " + emrStep.getSparkParams());
-        compile((LambdaBasedStep<?>) emrStep, state);
-      }
-    }
+    if (step instanceof RunEmrJob emrStep)
+      compile(emrStep, state);
     else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
     else
@@ -305,6 +294,17 @@ public class GraphTransformer {
   }
 
   private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
+    if (Config.instance.LOCALSTACK_ENDPOINT != null) {
+      //Inject defaults for local execution
+      emrStep.setSparkParams("--add-exports=java.base/java.nio=ALL-UNNAMED "
+          + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
+          + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
+          + "--add-exports=java.base/java.util=ALL-UNNAMED "
+          + emrStep.getSparkParams());
+      compile((LambdaBasedStep<?>) emrStep, state);
+      return;
+    }
+
     taskParametersLookup.put(state.stateName, Map.of(
         "Name", EMR_JOB_NAME_PREFIX + emrStep.getGlobalStepId(),
         "ApplicationId", emrStep.getApplicationId(),
@@ -312,7 +312,7 @@ public class GraphTransformer {
         "JobDriver", Map.of(
             "SparkSubmit", Map.of(
                 "EntryPoint", emrStep.getJarUrl(),
-                "EntryPointArguments", emrStep.getScriptParams(),
+                "EntryPointArguments", emrStep.getResolvedScriptParams(),
                 "SparkSubmitParameters", emrStep.getSparkParams()
             )
         )
