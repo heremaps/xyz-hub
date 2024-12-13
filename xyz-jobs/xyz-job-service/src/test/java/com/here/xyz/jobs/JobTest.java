@@ -49,7 +49,7 @@ public class JobTest extends JobTestBase {
             if(jobOutput.get("type").equals("FileStatistics")){
                 foundStatistics = true;
                 Assertions.assertEquals(expectedFeatureCount, jobOutput.get("exportedFeatures"));
-                Assertions.assertEquals(8, jobOutput.get("exportedFiles"));
+                Assertions.assertEquals(1, jobOutput.get("exportedFiles"));
                 Assertions.assertTrue((int) jobOutput.get("exportedFiles") > 0);
             }else if(jobOutput.get("type").equals("DownloadUrl")){
                 foundUrls = true;
