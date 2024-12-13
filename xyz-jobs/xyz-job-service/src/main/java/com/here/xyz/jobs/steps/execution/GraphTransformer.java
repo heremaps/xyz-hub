@@ -113,63 +113,57 @@ public class GraphTransformer {
   }
 
   /**
-   * Removes all {@code DelegateOutputsPseudoStep} instances from the given {@code StepGraph},
+   * Removes all {@link DelegateStep} instances from the given {@code StepGraph},
    * returning a new {@code StepGraph} containing only the relevant steps.
    *
    * <p>This method recursively traverses the given {@code StepGraph}. If a nested {@code StepGraph}
-   * contains non-{@code DelegateOutputsPseudoStep} instances, it is cleaned and added to the new graph.
-   * Any {@code StepGraph} or {@code StepExecution} containing only {@code DelegateOutputsPseudoStep}
+   * contains non-{@link DelegateStep} instances, it is cleaned and added to the new graph.
+   * Any {@code StepGraph} or {@link StepExecution} containing only {@link DelegateStep}
    * instances is excluded from the result.</p>
    *
-   * <p>The returned graph is a new instance and does not modify the original input {@code StepGraph}.</p>
+   * <p>The returned graph is a new instance and does not modify the original input {@link StepGraph}.</p>
    *
-   * @param stepGraph the input {@code StepGraph} to be cleaned.
-   * @return a new {@code StepGraph} with all {@code DelegateOutputsPseudoStep} instances removed.
+   * @param stepGraph the input {@link StepGraph} to be cleaned.
+   * @return a new {@link StepGraph} with all {@link DelegateStep} instances removed.
    */
-  protected StepGraph pruneDelegateOutputSteps(StepGraph stepGraph){
-    StepGraph newGraph = new StepGraph().withParallel(stepGraph.isParallel()); // Create a new StepGraph instance
-    List<String[]> replacements = new ArrayList();
+  protected StepGraph pruneDelegateSteps(StepGraph stepGraph) {
+    //Create a new StepGraph instance for the pruned result
+    StepGraph result = new StepGraph().withParallel(stepGraph.isParallel());
 
     for (StepExecution stepExecution : stepGraph.getExecutions()) {
-      if (stepExecution instanceof StepGraph graph) {
-        // Recursively clean and add the nested StepGraph
-        StepGraph cleanedGraph = pruneDelegateOutputSteps(graph);
+      if (stepExecution instanceof StepGraph subGraph) {
+        //Recursively prune and add the nested StepGraph
+        StepGraph prunedSubGraph = pruneDelegateSteps(subGraph);
 
-        // Add the cleaned StepGraph only if it contains non-DelegateOutputsPseudoSteps
-        if (cleanedGraph.getExecutions().stream()
-                .anyMatch(exec -> !(exec instanceof DelegateOutputsPseudoStep))) {
-          newGraph.getExecutions().add(cleanedGraph);
-        }
-      } else if (!(stepExecution instanceof DelegateOutputsPseudoStep)) {
-        // Add non-DelegateOutputsPseudoStep directly
-        newGraph.getExecutions().add(stepExecution);
-      } else if (stepExecution instanceof DelegateOutputsPseudoStep delegateStep) {
-        replacements.add(delegateStep.getReplacementPathForFiles());
+        //Add the pruned StepGraph only if it is not empty
+        if (!prunedSubGraph.isEmpty())
+          result.getExecutions().add(prunedSubGraph);
       }
+      else if (!(stepExecution instanceof DelegateStep))
+        //Add only non-DelegateSteps
+        result.getExecutions().add(stepExecution);
     }
 
-    return newGraph;
+    return result;
   }
 
   protected String compileToStateMachine(String stateMachineDescription, StepGraph stepGraph) {
+    stepGraph = pruneDelegateSteps(stepGraph);
+
     StateMachine.Builder machineBuilder = StateMachine.builder()
         .comment(stateMachineDescription)
         .timeoutSeconds(STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS);
 
     NamedState firstState;
     NamedState lastState;
-
-    StepGraph prunedStepGraph = pruneDelegateOutputSteps(stepGraph);
-
-    if (prunedStepGraph.isParallel()) {
+    if (stepGraph.isParallel()) {
       //The top-level graph is parallel, compile it into a single ParallelState and add it
-      NamedState parallelState = firstState = lastState = compileToParallelState(prunedStepGraph, null);
+      NamedState parallelState = firstState = lastState = compileToParallelState(stepGraph, null);
       machineBuilder.state(parallelState.stateName, parallelState.stateBuilder);
     }
     else {
-
-      final List<NamedState> sequentialStates = compileExecutions(prunedStepGraph.getExecutions(), null);
       //The top-level graph is sequential, compile all steps into the according states and add them
+      final List<NamedState> sequentialStates = compileExecutions(stepGraph.getExecutions(), null);
       sequentialStates.forEach(state -> machineBuilder.state(state.stateName, state.stateBuilder));
       firstState = sequentialStates.get(0);
       lastState = sequentialStates.get(sequentialStates.size() - 1);
@@ -236,14 +230,11 @@ public class GraphTransformer {
           //It's a sequential subgraph so compile all elements to states and add them
           states.addAll(compileExecutions(sg.getExecutions(), previousState));
       }
-      else {
+      else
         //It's a step, compile it into a state & add it to the map
-        NamedState<TaskState.Builder> compile = compile((Step<?>) execution, previousState);
-        if(compile != null)
-          states.add(compile((Step<?>) execution, previousState));
-      }
+        states.add(compile((Step<?>) execution, previousState));
 
-      previousState = states.size() > 0 ? states.get(states.size() - 1).stateBuilder : null;
+      previousState = states.get(states.size() - 1).stateBuilder;
     }
     return states;
   }
@@ -253,11 +244,11 @@ public class GraphTransformer {
         TaskState.builder());
 
     if (step instanceof RunEmrJob emrStep) {
-      if( Config.instance.LOCALSTACK_ENDPOINT == null)
+      if (Config.instance.LOCALSTACK_ENDPOINT == null)
         compile(emrStep, state);
       else {
         //Inject defaults for local execution
-        emrStep.setSparkParams( "--add-exports=java.base/java.nio=ALL-UNNAMED "
+        emrStep.setSparkParams("--add-exports=java.base/java.nio=ALL-UNNAMED "
                 + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
                 + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
                 + "--add-exports=java.base/java.util=ALL-UNNAMED " + emrStep.getSparkParams());
@@ -266,8 +257,6 @@ public class GraphTransformer {
     }
     else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
-    else if (step instanceof DelegateOutputsPseudoStep)
-      return null;
     else
       throw new NotImplementedException("The provided step implementation (" + step.getClass().getSimpleName() + ") is not supported.");
     //TODO: Add other implementations here (e.g. EcsBasedStep)

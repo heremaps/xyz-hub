@@ -204,7 +204,7 @@ public class StepGraph implements StepExecution {
    */
   @JsonIgnore
   public boolean isEmpty() {
-    return executions.isEmpty();
+    return stepStream().count() == 0;
   }
 
   /**
