@@ -49,10 +49,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
+
   private static final Logger logger = LogManager.getLogger();
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
   private static final String INPUT_SET_REF_SUFFIX = "}";
-  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile("\\$\\{inputSet:([0-9]+)\\}");
+  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile("\\$\\{inputSet:([a-zA-Z0-9_=-]+)\\}");
+  public static final String USER_REF = "USER";
 
   private String applicationId;
   private String executionRoleArn;
@@ -356,15 +358,23 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return SYNC;
   }
 
+  //Increase the visibility of that method, because for the native EMR integration it's actually necessary to define the expected outputs in the compilers
+  @Override
   public void setOutputSets(List<OutputSet> outputSets) {
-    this.outputSets = outputSets;
+    super.setOutputSets(outputSets);
+  }
+
+  public RunEmrJob withOutputSets(List<OutputSet> outputSets) {
+    setOutputSets(outputSets);
+    return this;
   }
 
   public String inputSetReference(InputSet inputSet) {
-    int inputSetIndex = getInputSets().indexOf(inputSet);
-    if (inputSetIndex == -1)
+    if (!getInputSets().contains(inputSet))
       throw new IllegalArgumentException("The provided inputSet is not a part of this EMR step.");
-    return INPUT_SET_REF_PREFIX + inputSetIndex + INPUT_SET_REF_SUFFIX;
+
+    String referenceName = inputSet.name() == null ? USER_REF : inputSet.name();
+    return INPUT_SET_REF_PREFIX + referenceName + INPUT_SET_REF_SUFFIX;
   }
 
   List<String> getResolvedScriptParams() {
@@ -374,7 +384,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   private String replaceInputSetReferences(String scriptParam) {
     return INPUT_SET_REF_PATTERN.matcher(scriptParam)
-        .replaceAll(match -> toS3Uri(getInputSets().get(Integer.parseInt(match.group(1))).toS3Path(getJobId())));
+        .replaceAll(match -> toS3Uri(getInputSet(USER_REF.equals(match.group(1)) ? null : match.group(1)).toS3Path(getJobId())));
   }
 
   private String toS3Uri(String s3Path) {
