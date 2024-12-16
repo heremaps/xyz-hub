@@ -81,14 +81,14 @@ public class ExportStepTest extends ExportTestBase {
     @Test
     public void exportWithSpatialAndPropertyFilter() throws Exception {
         String propertiesQuery = URLEncoder.encode("p.description=\"Point\"", StandardCharsets.UTF_8);
-        String hubQuery = "spatial?lat=50.102964&lon=8.6709594&clip=true&radius=55000&"
+        String hubQuery = "spatial?lat=50.102964&lon=8.6709594&clip=true&radius=5500&"
             + propertiesQuery;
 
         SpatialFilter spatialFilter = new SpatialFilter()
                 .withGeometry(
                         new Point().withCoordinates(new PointCoordinates(8.6709594,50.102964))
                 )
-                .withRadius(55000)
+                .withRadius(5500)
                 .withClip(true);
 
         executeExportStepAndCheckResults(SPACE_ID, null, spatialFilter,
