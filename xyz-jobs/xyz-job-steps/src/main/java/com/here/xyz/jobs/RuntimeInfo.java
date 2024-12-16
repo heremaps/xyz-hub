@@ -205,8 +205,8 @@ public class RuntimeInfo<T extends RuntimeInfo> implements XyzSerializable {
   public enum State {
     NONE, //The initial state of all RuntimeInfo objects. This state is not a valid state and must be overwritten (e.g., by deserialization immediately after the creation of the RuntimeInfo object)
     NOT_READY, //The task is not ready to be submitted to the execution system yet. Not all pre-conditions are met.
-    SUBMITTED, //The task is ready for execution, all needed information was provided.
-    PENDING, //The task is waiting to get executed by the target system. That could be dependent by execution resources to become available.
+    SUBMITTED, //The task is ready for execution, all necessary information was provided.
+    PENDING, //The task is waiting to get executed by the target system. That could be dependent on execution resources to become available.
     RESUMING, //The task is preparing for a re-execution after a failure or cancellation.
     RUNNING, //The task is executing.
     CANCELLING, //The task is in the process of cancellation. Target systems are getting informed about that and resources are cleaned up.

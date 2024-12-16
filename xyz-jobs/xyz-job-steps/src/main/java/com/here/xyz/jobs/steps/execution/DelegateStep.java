@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.RuntimeInfo;
@@ -78,6 +80,8 @@ public class DelegateStep extends Step<DelegateStep> {
 
   @Override
   public RuntimeInfo getStatus() {
+    if (status.getState() != SUCCEEDED)
+      status.setState(SUCCEEDED);
     return status;
   }
 
