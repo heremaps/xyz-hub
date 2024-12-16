@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.steps;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.outputs.Output.MODEL_BASED_PREFIX;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
 
@@ -171,8 +170,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param outputSet The output set for which to register the outputs
    */
   protected void registerOutputs(List<Output> outputs, OutputSet outputSet) throws IOException {
-    for (int i = 0; i < outputs.size(); i++)
-      outputs.get(i).store(toS3Path(outputSet) + "/" + UUID.randomUUID() + outputSet.fileSuffix);
+    for (int i = 0; i < outputs.size(); i++) {
+      final Output output = outputs.get(i);
+      if (outputSet.modelBased && !(output instanceof ModelBasedOutput))
+        throw new IllegalArgumentException("Can not register output of type " + output.getClass().getSimpleName() + " as the output set "
+            + outputSet.name + " does not accept model based outputs.");
+      if (!outputSet.modelBased && output instanceof ModelBasedOutput)
+        throw new IllegalArgumentException("Can not register output of type " + output.getClass().getSimpleName() + " as the output set "
+            + outputSet.name + " does only accept model based outputs.");
+      output.store(toS3Path(outputSet) + "/" + UUID.randomUUID() + outputSet.fileSuffix);
+    }
   }
 
   public List<Output> loadUserOutputs() {
@@ -206,17 +213,17 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return The outputs that have been registered for the specified outputSet (so far).
    */
   private List<Output> loadStepOutputs(OutputSet outputSet) {
-    return loadOutputs(Set.of(toS3Path(outputSet)));
+    return loadOutputs(Set.of(toS3Path(outputSet)), outputSet.modelBased);
   }
 
-  private List<Output> loadOutputs(Set<String> s3Prefixes) {
+  private List<Output> loadOutputs(Set<String> s3Prefixes, boolean modelBased) {
     return s3Prefixes
         .stream()
         //TODO: Scan the different folders in parallel
         .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
             .stream()
             .filter(s3ObjectSummary -> s3ObjectSummary.getSize() > 0)
-            .map(s3ObjectSummary -> s3ObjectSummary.getKey().contains(MODEL_BASED_PREFIX)
+            .map(s3ObjectSummary -> modelBased
                 ? ModelBasedOutput.load(s3ObjectSummary.getKey(), outputMetadata)
                 : new DownloadUrl()
                     .withS3Key(s3ObjectSummary.getKey())
@@ -265,7 +272,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return All inputs from the specified InputSet
    */
   protected List<Output> loadInputs(InputSet inputSet) {
-    return loadOutputs(Set.of(inputSet.toS3Path(jobId)));
+    return loadOutputs(Set.of(inputSet.toS3Path(jobId)), inputSet.modelBased());
   }
 
   private static List<Input> filterInputs(List<Input> inputs, Class<? extends Input>[] inputTypes) {
@@ -560,13 +567,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
 
   /**
-   * Use this constructor to reference the outputs of a previously executed step or one
-   * that belongs to a different job than the one the consuming step belongs to.
-   * @param jobId
-   * @param stepId
-   * @param name
+   * Use this constructor to reference the outputs of a step belonging to a different job than the one the consuming step belongs to.
+   * @param jobId The other job's id
+   * @param stepId The step ID of the step producing the outputs
+   * @param name The name for the set of outputs to be produced
    */
-  public record InputSet(String jobId, String stepId, String name) {
+  public record InputSet(String jobId, String stepId, String name, boolean modelBased) {
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
 
     /**
@@ -574,15 +580,20 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
      * @param stepId
      * @param name
      */
-    public InputSet(String stepId, String name) {
-      this(null, stepId, name);
+    public InputSet(String stepId, String name, boolean modelBased) {
+      this(null, stepId, name, modelBased);
+    }
+
+    public InputSet(OutputSet outputSetOfOtherStep) {
+      this(outputSetOfOtherStep.getStepId(), outputSetOfOtherStep.name, outputSetOfOtherStep.modelBased);
     }
 
     /**
      * Use this constructor to depict the global / user inputs of the same job the consuming step belongs to.
      */
     public InputSet() {
-      this(null, null, null);
+      //TODO: Currently only non-modelbased user inputs are supported
+      this(null, null, null, false);
     }
 
     public String toS3Path(String consumerJobId) {
@@ -606,6 +617,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     public String name;
     public Visibility visibility;
     public String fileSuffix;
+    public boolean modelBased;
+
+    private OutputSet() {} //NOTE: Only needed for deserialization purposes
 
     protected OutputSet(String name, Visibility visibility, String fileSuffix) {
       this.name = name;
@@ -613,12 +627,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this.fileSuffix = fileSuffix;
     }
 
-    public OutputSet(String name, Visibility visibility) {
+    public OutputSet(String name, Visibility visibility, boolean modelBased) {
       this(name, visibility, ".json");
+      this.modelBased = modelBased;
     }
 
     public OutputSet(OutputSet other, String jobId, String stepId, Visibility visibility) {
       this(other.name, visibility, other.fileSuffix);
+      this.modelBased = other.modelBased;
       this.jobId = jobId;
       this.stepId = stepId;
     }

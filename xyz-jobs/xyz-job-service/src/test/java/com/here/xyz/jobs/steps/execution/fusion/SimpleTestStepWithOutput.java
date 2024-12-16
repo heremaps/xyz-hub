@@ -28,7 +28,7 @@ public class SimpleTestStepWithOutput extends SimpleTestStep<SimpleTestStepWithO
 
   {
     //Define which outputs are produced by this step
-    outputSets = List.of(new OutputSet(SOME_OUTPUT, USER));
+    setOutputSets(List.of(new OutputSet(SOME_OUTPUT, USER, false)));
   }
 
   public SimpleTestStepWithOutput(String paramA, String paramB, String paramC) {

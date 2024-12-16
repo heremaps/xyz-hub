@@ -112,7 +112,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
           .withPropertyFilter(propertyFilter)
           .withThreadInfo(new int[]{ threadId, threadCount })
           .withJobId(jobId)
-          .withInputSets(List.of(new InputSet(preCopySpace.getId(), VERSION)));
+          .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
       if (spatialFilter != null) {
         copySpaceStep.setGeometry(spatialFilter.getGeometry());
@@ -128,8 +128,8 @@ public class SpaceCopy implements JobCompilationInterceptor {
     CopySpacePost postCopySpace = new CopySpacePost()
         .withSpaceId(targetSpaceId)
         .withJobId(jobId)
-                                                     .withOutputMetadata(Map.of(targetType, targetSpaceId))
-        .withInputSets(List.of(new InputSet(preCopySpace.getId(), VERSION)));
+        .withOutputMetadata(Map.of(targetType, targetSpaceId))
+        .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
     startGraph.addExecution(postCopySpace);
 

@@ -486,7 +486,8 @@ public abstract class JobExecutor implements Initializable {
         newInputSets.add(compiledInputSet);
       else
         //Now we know that inputSet is one that should be replaced by one that is pointing to the outputs of the old graph
-        newInputSets.add(new InputSet(replacementStep.getDelegateJobId(), replacementStep.getDelegateStepId(), compiledInputSet.name()));
+        newInputSets.add(new InputSet(replacementStep.getDelegateJobId(), replacementStep.getDelegateStepId(), compiledInputSet.name(),
+            compiledInputSet.modelBased()));
     }
     step.setInputSets(newInputSets);
   }

@@ -283,6 +283,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
    * @return Local path of tmp directory
    */
   private String copyFolderFromS3ToLocal(String s3Path) {
+    //TODO: Use inputs loading of framework instead
     List<S3ObjectSummary> s3ObjectSummaries = S3Client.getInstance().scanFolder(s3Path);
 
     for (S3ObjectSummary s3ObjectSummary : s3ObjectSummaries) {

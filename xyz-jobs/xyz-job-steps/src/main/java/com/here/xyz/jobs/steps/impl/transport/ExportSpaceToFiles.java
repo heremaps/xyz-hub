@@ -104,10 +104,10 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private Ref versionRef;
 
   {
-    outputSets = List.of(
-        new OutputSet(STATISTICS, USER),
-        new OutputSet(EXPORTED_DATA, USER)
-    );
+    setOutputSets(List.of(
+        new OutputSet(STATISTICS, USER, true),
+        new OutputSet(EXPORTED_DATA, USER, false)
+    ));
   }
 
   /**

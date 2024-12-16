@@ -431,7 +431,7 @@ public class JobExecutorTests {
             .withSpaceId(sourceId)
             .withJobId(jobId);
         if (inputStepIds != null)
-          importFilesToSpace.setInputSets(inputStepIds.stream().map(stepId -> new InputSet(stepId, EXPORTED_DATA)).toList());
+          importFilesToSpace.setInputSets(inputStepIds.stream().map(stepId -> new InputSet(stepId, EXPORTED_DATA, false)).toList());
 
         yield importFilesToSpace;
       }

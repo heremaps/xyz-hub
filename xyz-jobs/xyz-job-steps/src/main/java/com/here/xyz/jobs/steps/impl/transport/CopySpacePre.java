@@ -75,7 +75,7 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
   private int estimatedSeconds = -1;
 
   {
-    outputSets = List.of(new OutputSet(VERSION, SYSTEM));
+    setOutputSets(List.of(new OutputSet(VERSION, SYSTEM, true)));
   }
 
   @Override

@@ -26,7 +26,6 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.AS
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
@@ -118,7 +117,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private EntityPerLine entityPerLine = Feature;
 
   {
-    outputSets = List.of(new OutputSet(STATISTICS, USER));
+    setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
 
   public Format getFormat() {
