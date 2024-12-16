@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.impl;
 
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
@@ -180,11 +181,12 @@ public class ImportStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2" + fileExtension)), contentType);
 
     LambdaBasedStep step = new ImportFilesToSpace()
-            .withJobId(JOB_ID)
-            .withFormat(format)
-            .withEntityPerLine(entityPerLine)
-            .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
-            .withSpaceId(SPACE_ID);
+        .withJobId(JOB_ID)
+        .withFormat(format)
+        .withEntityPerLine(entityPerLine)
+        .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
+        .withSpaceId(SPACE_ID)
+        .withInputSets(List.of(USER_INPUTS.get()));
 
     if(runAsync)
       step.setUncompressedUploadBytesEstimation(1024 * 1024 * 1024);

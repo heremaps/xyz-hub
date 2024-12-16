@@ -48,6 +48,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
@@ -306,6 +307,14 @@ public class StepTestBase {
   }
 
   protected void sendLambdaStepRequestBlock(LambdaBasedStep step, boolean simulate) throws IOException, InterruptedException {
+    try {
+      if (!step.validate())
+        throw new IllegalStateException("The step " + step.getGlobalStepId() + " of type " + step.getClass().getSimpleName() + " is not ready for execution yet");
+    }
+    catch (ValidationException e) {
+      throw new RuntimeException("Validation exception: " + e.getMessage(), e);
+    }
+
     sendLambdaStepRequest(step, START_EXECUTION, simulate);
     DataSourceProvider dsp = getDataSourceProvider();
 

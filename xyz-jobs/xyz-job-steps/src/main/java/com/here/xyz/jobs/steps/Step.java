@@ -276,6 +276,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   private static List<Input> filterInputs(List<Input> inputs, Class<? extends Input>[] inputTypes) {
+    if (inputTypes.length == 0)
+      return inputs;
     return inputs.stream()
         .filter(input -> Arrays.stream(inputTypes)
             .anyMatch(inputType -> input.getClass().isAssignableFrom(inputType)))
