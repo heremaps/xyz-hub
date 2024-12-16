@@ -53,10 +53,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public class CopySpaceStepsTest extends StepTest {
 
-  static private String SrcSpc    = "testCopy-Source-07",
-                        TrgSpc    = "testCopy-Target-07",
-                        OtherCntr = "psql_db2_hashed",
-                        TrgRmtSpc = "testCopy-Target-07-remote",
+  static private String sourceSpace = "testCopy-Source-07",
+                        targetSpace = "testCopy-Target-07",
+                        otherConnector = "psql_db2_hashed",
+                        targetRemoteSpace = "testCopy-Target-07-remote",
                         propertyFilter = "p.all=common";
 
   static private Polygon spatialSearchGeom;
@@ -78,25 +78,25 @@ public class CopySpaceStepsTest extends StepTest {
   @BeforeEach
   public void setup() throws SQLException {
       cleanup();
-      createSpace(new Space().withId(SrcSpc).withVersionsToKeep(100),false);
-      createSpace(new Space().withId(TrgSpc).withVersionsToKeep(100),false);
-      createSpace(new Space().withId(TrgRmtSpc).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(OtherCntr)),false);
+      createSpace(new Space().withId(sourceSpace).withVersionsToKeep(100),false);
+      createSpace(new Space().withId(targetSpace).withVersionsToKeep(100),false);
+      createSpace(new Space().withId(targetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnector)),false);
 
       //write features source
-      putRandomFeatureCollectionToSpace(SrcSpc, 20,xmin,ymin,xmax,ymax);
-      putRandomFeatureCollectionToSpace(SrcSpc, 20,xmin,ymin,xmax,ymax);
+      putRandomFeatureCollectionToSpace(sourceSpace, 20,xmin,ymin,xmax,ymax);
+      putRandomFeatureCollectionToSpace(sourceSpace, 20,xmin,ymin,xmax,ymax);
       //write features target - non-empty-space
-      putRandomFeatureCollectionToSpace(TrgSpc, 2,xmin,ymin,xmax,ymax);
+      putRandomFeatureCollectionToSpace(targetSpace, 2,xmin,ymin,xmax,ymax);
 
-      putRandomFeatureCollectionToSpace(TrgRmtSpc, 2,xmin,ymin,xmax,ymax);
+      putRandomFeatureCollectionToSpace(targetRemoteSpace, 2,xmin,ymin,xmax,ymax);
 
   }
 
   @AfterEach
   public void cleanup() throws SQLException {
-    deleteSpace(SrcSpc);
-    deleteSpace(TrgSpc);
-    deleteSpace(TrgRmtSpc);
+    deleteSpace(sourceSpace);
+    deleteSpace(targetSpace);
+    deleteSpace(targetRemoteSpace);
   }
 
   private static Stream<Arguments> provideParameters() {
@@ -121,7 +121,7 @@ public class CopySpaceStepsTest extends StepTest {
 @MethodSource("provideParameters")
   public void copySpace( boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter) throws Exception {
 
-    String targetSpace = !testRemoteDb ? TrgSpc : TrgRmtSpc;
+    String targetSpace = !testRemoteDb ? CopySpaceStepsTest.targetSpace : targetRemoteSpace;
 
     StatisticsResponse statsBefore = getStatistics(targetSpace);
 
@@ -129,7 +129,7 @@ public class CopySpaceStepsTest extends StepTest {
 
     LambdaBasedStep step = new CopySpace()
                                //.withVersion(7499)
-                               .withSpaceId(SrcSpc).withSourceVersionRef(new Ref("HEAD"))
+                               .withSpaceId(sourceSpace).withSourceVersionRef(new Ref("HEAD"))
                                .withGeometry( geo ).withClipOnFilterGeometry(clip)
                                .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
                                .withTargetSpaceId( targetSpace )
@@ -145,7 +145,7 @@ public class CopySpaceStepsTest extends StepTest {
  public void copySpacePre( ) throws Exception {
 
   LambdaBasedStep step = new CopySpacePre()
-                             .withSpaceId(SrcSpc)
+                             .withSpaceId(sourceSpace)
                              .withJobId( JOB_ID );
 
   sendLambdaStepRequestBlock(step,  true);
@@ -160,26 +160,24 @@ public class CopySpaceStepsTest extends StepTest {
   assertEquals(3L, fetchedVersion);
  }
 
- @Test
- public void copySpacePost( ) throws Exception {
+  @Test
+  public void copySpacePost() throws Exception {
+    LambdaBasedStep step = new CopySpacePost()
+        .withSpaceId(sourceSpace)
+        .withJobId(JOB_ID);
 
-  LambdaBasedStep step = new CopySpacePost()
-                             .withSpaceId(SrcSpc)
-                             .withJobId( JOB_ID );
+    sendLambdaStepRequestBlock(step, true);
 
-  sendLambdaStepRequestBlock(step,  true);
+    List<?> outputs = step.loadOutputs(USER);
 
-  List<?> outputs = step.loadOutputs(USER);
+    FeatureStatistics featureStatistics = null;
 
-  FeatureStatistics featureStatistics = null;
+    for (Object output : outputs)
+      if (output instanceof FeatureStatistics statistics)
+        featureStatistics = statistics;
 
-  for( Object output : outputs)
-   if( output instanceof FeatureStatistics ftstat )
-    featureStatistics = ftstat;
-
-  assertTrue(   featureStatistics != null
-             && featureStatistics.getFeatureCount() == 0
-             && featureStatistics.getByteSize() == 0 );
- }
-
+    assertTrue(featureStatistics != null
+        && featureStatistics.getFeatureCount() == 0
+        && featureStatistics.getByteSize() == 0);
+  }
 }
