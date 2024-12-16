@@ -201,12 +201,12 @@ public class ImportStepTest extends StepTest {
   }
 
   private void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
-
     uploadFiles(JOB_ID, fileCount, featureCountPerFile, format);
     LambdaBasedStep step = new ImportFilesToSpace()
-            .withJobId(JOB_ID)
-            .withFormat(format)
-            .withSpaceId(SPACE_ID);
+        .withJobId(JOB_ID)
+        .withFormat(format)
+        .withSpaceId(SPACE_ID)
+        .withInputSets(List.of(USER_INPUTS.get()));
 
     if(runAsync)
       //Triggers async execution with max threads
