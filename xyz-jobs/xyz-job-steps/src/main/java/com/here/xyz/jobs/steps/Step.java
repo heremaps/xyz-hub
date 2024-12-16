@@ -68,6 +68,7 @@ import org.apache.logging.log4j.Logger;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = LambdaBasedStep.class),
     @JsonSubTypes.Type(value = RunEmrJob.class),
+    @JsonSubTypes.Type(value = DelegateStep.class),
     @JsonSubTypes.Type(value = DelegateOutputsPseudoStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -530,6 +531,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return new ArrayList<>(outputSets);
   }
 
+  @JsonIgnore
   protected void setOutputSets(List<OutputSet> outputSets) {
     outputSets.forEach(outputSet -> outputSet.setStepId(getId()));
     this.outputSets = outputSets;
