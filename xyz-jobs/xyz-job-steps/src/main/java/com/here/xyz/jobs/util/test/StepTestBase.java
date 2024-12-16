@@ -308,6 +308,7 @@ public class StepTestBase {
 
   protected void sendLambdaStepRequestBlock(LambdaBasedStep step, boolean simulate) throws IOException, InterruptedException {
     try {
+      step.prepare(null, null);
       if (!step.validate())
         throw new IllegalStateException("The step " + step.getGlobalStepId() + " of type " + step.getClass().getSimpleName() + " is not ready for execution yet");
     }
