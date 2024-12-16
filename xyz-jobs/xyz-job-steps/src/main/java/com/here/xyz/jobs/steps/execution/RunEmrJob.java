@@ -138,7 +138,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       throw new RuntimeException("Local EMR execution failed with exit code " + exitCode + ". Please check the logs.");
 
     //Upload EMR files, which are stored locally
-    uploadEMRResulstToS3(new File(localTmpOutputsFolder), S3Client.getKeyFromS3Uri(s3TargetDir));
+    uploadEMRResultsToS3(new File(localTmpOutputsFolder), S3Client.getKeyFromS3Uri(s3TargetDir));
   }
 
   @Override
@@ -322,7 +322,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getLocalTmpPath(s3Path);
   }
 
-  private void uploadEMRResulstToS3(File emrOutputDir, String s3TargetPath) throws IOException {
+  private void uploadEMRResultsToS3(File emrOutputDir, String s3TargetPath) throws IOException {
     if (emrOutputDir.exists() && emrOutputDir.isDirectory()) {
       File[] files = emrOutputDir.listFiles();
 
@@ -332,10 +332,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       }
 
       for (File file : files) {
-        //TODO: check why this happens
+        //TODO: check why this happens & skip _SUCCESS
         if (file.getPath().endsWith("crc"))
           continue;
-        //TODO: skip _SUCCESS?
+
+        if(file.isDirectory()) {
+          logger.info("Folder detected {} ", file);
+          uploadEMRResultsToS3(file, s3TargetPath + file.getName());
+          continue;
+        }
 
         logger.info("Store local file {} to {} ", file, s3TargetPath);
         //TODO: Check if this is the correct content-type
