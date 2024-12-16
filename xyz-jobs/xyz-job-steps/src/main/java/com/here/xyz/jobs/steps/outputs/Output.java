@@ -41,14 +41,6 @@ public abstract class Output<T extends Output> implements Typed {
 
   public abstract void store(String s3Key) throws IOException;
 
-  public static String stepOutputS3Prefix(String jobId, String stepId, boolean userOutput, boolean onlyModelBased) {
-    return stepOutputS3Prefix(jobId + "/" + stepId, userOutput, onlyModelBased);
-  }
-
-  public static String stepOutputS3Prefix(String stepS3Prefix, boolean userOutput, boolean onlyModelBased) {
-    return stepS3Prefix + "/outputs" + (userOutput ? "/user" : "/system") + (onlyModelBased ? MODEL_BASED_PREFIX : "");
-  }
-
   public static String stepOutputS3Prefix(String jobId, String stepId, String name) {
     return jobId + "/" + stepId + "/outputs/" + name;
   }

@@ -146,37 +146,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonIgnore
   public abstract int getEstimatedExecutionSeconds();
 
-  protected String bucketName() {
-    return Config.instance.JOBS_S3_BUCKET;
-  }
-
   protected String bucketRegion() {
     return Config.instance.AWS_REGION; //TODO: Get from bucket accordingly
   }
 
   private String stepS3Prefix() {
     return jobId + "/" + getId();
-  }
-
-  private Set<String> previousS3Prefixes() {
-    return getPreviousStepIds().stream().map(previousStepId -> jobId + "/" + previousStepId).collect(Collectors.toSet());
-  }
-
-  protected final String inputS3Prefix() {
-    return Input.inputS3Prefix(jobId);
-  }
-
-  protected final String outputS3Prefix(boolean userOutput, boolean onlyModelBased) {
-    return outputS3Prefix(stepS3Prefix(), userOutput, onlyModelBased);
-  }
-
-  protected final String outputS3Prefix(String stepS3Prefix, boolean userOutput, boolean onlyModelBased) {
-    return Output.stepOutputS3Prefix(stepS3Prefix, userOutput, onlyModelBased);
-  }
-
-  protected final Set<String> previousOutputS3Prefixes(boolean userOutput, boolean onlyModelBased) {
-    return previousS3Prefixes().stream().map(previousStepPrefix -> outputS3Prefix(previousStepPrefix, userOutput, onlyModelBased))
-        .collect(Collectors.toSet());
   }
 
   protected void registerOutputs(List<Output> outputs, String outputSetName) throws IOException {
@@ -585,7 +560,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
 
   /**
-   * Use this constructor to reference the outputs of a step belonging to a different job than the one the consuming step belongs to.
+   * Use this constructor to reference the outputs of a previously executed step or one
+   * that belongs to a different job than the one the consuming step belongs to.
    * @param jobId
    * @param stepId
    * @param name
@@ -612,6 +588,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     public String toS3Path(String consumerJobId) {
       String jobId = this.jobId != null ? this.jobId : consumerJobId;
       if (stepId == null)
+        //This input-set depicts the user inputs
         return Input.inputS3Prefix(jobId);
       return Output.stepOutputS3Prefix(jobId, stepId, name);
     }
