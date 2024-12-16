@@ -46,6 +46,11 @@ public abstract class SyncLambdaStep extends LambdaBasedStep<SyncLambdaStep> {
   }
 
   @Override
+  public int getTimeoutSeconds() {
+    return 900 - 10; //Maximum lambda timeout with some buffer
+  }
+
+  @Override
   public void resume() throws Exception {
     execute();
   }
