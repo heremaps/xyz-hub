@@ -406,7 +406,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
           .get();
     }
     catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set with name \"" + (name == null ? "<USER-INPUTS>" : name) + "\" exists in step \"" + getId() + "\"");
+      throw new IllegalArgumentException("No input set \"" + (name == null ? "<USER-INPUTS>" : stepId + "." + name) + "\" exists in step \"" + getId() + "\"");
     }
   }
 
