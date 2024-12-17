@@ -41,7 +41,9 @@ import com.here.xyz.jobs.steps.execution.fusion.SimpleTestStepWithOutput;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junitpioneer.jupiter.cartesian.CartesianTest;
+import org.junitpioneer.jupiter.cartesian.CartesianTest.Values;
 
 public class GraphFusionTests {
   public static final String SOME_EXPORT = "SomeExport";
@@ -57,14 +59,41 @@ public class GraphFusionTests {
     Config.instance.PARALLEL_STEPS_SUPPORTED = true;
   }
 
-  /*
-  TODO: Add edge case tests:
+  @CartesianTest
+  public void singletonGraphReusable(@Values(booleans = {true, false}) boolean oldIsWrapped, @Values(booleans = {true, false}) boolean oldIsParallel, @Values(booleans = {true, false}) boolean newIsParallel) {
+    Step oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldIsWrapped ? createGraph(oldIsParallel, oldProducer) : oldProducer);
 
-  - compare one single step with one graph that only has a single step (both directions)
-  - compare different length of sequential graphs (both direction)
-  - compare different length of sequential branches (both direction)
-  - compare graphs which have different parallelity
-   */
+    SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph newGraph = sequential(NEW_JOB_ID, oldIsWrapped ? newProducer : createGraph(newIsParallel, newProducer));
+
+    StepGraph fusedGraph = fuse(newGraph, oldGraph);
+
+    assertEquals(1, fusedGraph.size());
+    assertTrue(fusedGraph.stepStream().allMatch(step -> step instanceof DelegateStep));
+    assertTrue(oldGraph.isEquivalentTo(newGraph));
+    assertTrue(fusedGraph.isEquivalentTo(oldGraph));
+    checkInputs(fusedGraph, newGraph);
+    checkOutputs(fusedGraph, OLD_JOB_ID);
+  }
+
+  @CartesianTest
+  public void singletonGraphNotReusable(@Values(booleans = {true, false}) boolean oldIsWrapped, @Values(booleans = {true, false}) boolean oldIsParallel, @Values(booleans = {true, false}) boolean newIsParallel) {
+    Step oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldIsWrapped ? createGraph(oldIsParallel, oldProducer) : oldProducer);
+
+    SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput(SOME_OTHER_EXPORT);
+    StepGraph newGraph = sequential(NEW_JOB_ID, oldIsWrapped ? newProducer : createGraph(newIsParallel, newProducer));
+
+    StepGraph fusedGraph = fuse(newGraph, oldGraph);
+
+    assertEquals(1, fusedGraph.size());
+    assertTrue(fusedGraph.getExecutions().stream().noneMatch(step -> step instanceof DelegateStep));
+    assertFalse(oldGraph.isEquivalentTo(newGraph));
+    assertFalse(fusedGraph.isEquivalentTo(oldGraph));
+    checkInputs(fusedGraph, newGraph);
+    checkOutputs(fusedGraph, OLD_JOB_ID);
+  }
 
   @Test
   public void simpleSequentialGraphFullyReusable() {
@@ -301,6 +330,46 @@ public class GraphFusionTests {
     checkOutputs(fusedGraph, OLD_JOB_ID);
   }
 
+  @CartesianTest
+  public void newComplexGraphPartiallyReusable(@Values(booleans = {true, false}) boolean oldIsComplex) {
+    SimpleTestStepWithOutput simpleProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    SimpleTestStep simpleConsumer = new SimpleTestStep(SOME_CONSUMER);
+    StepGraph simpleGraph = sequential(
+        simpleProducer,
+        step(simpleConsumer, inputsOf(simpleProducer))
+    );
+
+    SimpleTestStepWithOutput complexProducer1 = new SimpleTestStepWithOutput(SOME_EXPORT);
+    SimpleTestStepWithOutput complexProducer2 = new SimpleTestStepWithOutput(SOME_OTHER_EXPORT);
+    SimpleTestStep complexConsumer = new SimpleTestStep(SOME_CONSUMER);
+    StepGraph complexGraph = sequential(
+        parallel(complexProducer1, complexProducer2),
+        step(complexConsumer, inputsOf(complexProducer1, complexProducer2))
+    );
+
+    StepGraph oldGraph = ((CompilationStepGraph) (oldIsComplex ? complexGraph : simpleGraph)).enrich(OLD_JOB_ID);
+    StepGraph newGraph = ((CompilationStepGraph) (oldIsComplex ? simpleGraph : complexGraph)).enrich(NEW_JOB_ID);
+
+    StepGraph fusedGraph = fuse(newGraph, oldGraph);
+
+    assertEquals(newGraph.size(), fusedGraph.size());
+    assertEquals(1, fusedGraph.stepStream().filter(step -> step instanceof DelegateStep).count());
+    assertTrue(fusedGraph.getStep(oldIsComplex ? simpleProducer.getId() : complexProducer1.getId()) instanceof DelegateStep);
+    checkInputs(fusedGraph, newGraph);
+    checkOutputs(fusedGraph, OLD_JOB_ID);
+  }
+
+  /*
+  TODO: Add edge case tests:
+
+  - compare different length of sequential graphs (both direction)
+  - compare different length of sequential branches (both direction)
+  - compare graphs which have different parallelity
+   */
+
+  //------------------------------ Helper Methods -------------------------------------------------
+
+
   private static StepGraph fuse(StepGraph newGraph, StepGraph oldGraph) {
     StepGraph fusedGraph = fuseGraphs(NEW_JOB_ID, newGraph, oldGraph);
     printGraphs(oldGraph, newGraph, fusedGraph);
@@ -364,23 +433,24 @@ public class GraphFusionTests {
   }
 
   private static StepGraph parallel(String jobId, StepExecution... steps) {
-    return ((CompilationStepGraph) createGraph(steps).withParallel(true)).enrich(jobId);
+    return createGraph(true, steps).enrich(jobId);
   }
 
   private static StepGraph parallel(StepExecution... steps) {
-    return ((CompilationStepGraph) createGraph(steps).withParallel(true));
+    return createGraph(true, steps);
   }
 
   private static StepGraph sequential(String jobId, StepExecution... steps) {
-    return createGraph(steps).enrich(jobId);
+    return createGraph(false, steps).enrich(jobId);
   }
 
   private static StepGraph sequential(StepExecution... steps) {
-    return createGraph(steps);
+    return createGraph(false, steps);
   }
 
-  private static CompilationStepGraph createGraph(StepExecution[] steps) {
+  private static CompilationStepGraph createGraph(boolean parallel, StepExecution... steps) {
     return (CompilationStepGraph) new CompilationStepGraph()
+        .withParallel(parallel)
         .withExecutions(Arrays.stream(steps).collect(Collectors.toList()));
   }
 

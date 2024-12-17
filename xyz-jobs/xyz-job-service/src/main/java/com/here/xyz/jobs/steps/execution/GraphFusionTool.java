@@ -65,15 +65,12 @@ public class GraphFusionTool {
   private static CompilationStepGraph replaceByDelegations(StepGraph newStepGraph, StepGraph oldStepGraph) {
     if (newStepGraph.isParallel() != oldStepGraph.isParallel()) {
       if (newStepGraph.isParallel())
-        //Just wrap the sequential old graph into a parallel one and continue
-        oldStepGraph = new StepGraph().withParallel(true).withExecutions(List.of(oldStepGraph));
+        //Wrap the sequential old graph into a parallel one and continue
+        oldStepGraph = wrap(oldStepGraph, true);
       else
         //Wrap the sequential new graph into a parallel one, do replacements parallel, and unwrap the result again
-      //TODO: Handle returned single-steps
-        return (CompilationStepGraph) unwrap(replaceByDelegationsParallelly(new StepGraph().withParallel(true).withExecutions(List.of(newStepGraph)), oldStepGraph));
+        return (CompilationStepGraph) unwrap(replaceByDelegationsParallelly(wrap(newStepGraph, true), oldStepGraph));
     }
-    if (newStepGraph.isParallel() != oldStepGraph.isParallel() && !(newStepGraph.getExecutions().size() == 1 && oldStepGraph.getExecutions().size() == 1))
-      return (CompilationStepGraph) new CompilationStepGraph().withParallel(newStepGraph.isParallel()).withExecutions(newStepGraph.getExecutions());
     return newStepGraph.isParallel()
         ? replaceByDelegationsParallelly(newStepGraph, oldStepGraph) : replaceByDelegationsSequentially(newStepGraph, oldStepGraph);
   }
@@ -92,23 +89,33 @@ public class GraphFusionTool {
       StepExecution newExecution = newStepGraph.getExecutions().get(i);
       StepExecution oldExecution = oldStepGraph.getExecutions().get(i);
 
-      if (newExecution instanceof StepGraph newSubGraph && oldExecution instanceof StepGraph oldSubGraph)
-        result.addExecution(replaceByDelegations(newSubGraph, oldSubGraph));
-      else if (oldExecution.isEquivalentTo(newExecution))
-        //Replace the new execution by a pseudo delegating step that has a reference to the old step
-        //NOTE: Even if one of the executions is a step, it could be that the other one is a StepGraph containing one step
-        result.addExecution(replaceByDelegationsInBranch(newExecution, oldExecution));
-      else {
-        //Keep all further (remaining) new executions as they are
-        result.getExecutions().addAll(newStepGraph.getExecutions().subList(i, newStepGraph.getExecutions().size()));
+      //Replace the new execution by a pseudo delegating step that has a reference to the old step
+      //NOTE: Even if one of the executions is a step, it could be that the other one is a StepGraph containing one step
+      result.addExecution(replaceByDelegationsInExecution(newExecution, oldExecution));
+
+      if (!oldExecution.isEquivalentTo(newExecution))
+        //Keep all further (remaining) new executions of the sequential graph as they are (see below)
         break;
-      }
     }
     //In case the new graph was longer than the old graph, add the rest of the steps
     if (result.getExecutions().size() < newStepGraph.getExecutions().size())
       result.getExecutions().addAll(newStepGraph.getExecutions().subList(result.getExecutions().size(), newStepGraph.getExecutions().size()));
 
     return result;
+  }
+
+  private static CompilationStepGraph replaceByDelegation(StepGraph newStepGraph, Step oldStep) {
+    if (newStepGraph.isParallel())
+      return replaceByDelegationsParallelly(newStepGraph, wrap(oldStep, true));
+    else
+      return replaceByDelegationsSequentially(newStepGraph, wrap(oldStep, false));
+  }
+
+  private static Step replaceByDelegation(Step newStep, StepGraph oldStepGraph) {
+    if (oldStepGraph.isParallel())
+      return (Step) unwrap(replaceByDelegationsParallelly(wrap(newStep, true), oldStepGraph));
+    else
+      return (Step) unwrap(replaceByDelegationsSequentially(wrap(newStep, false), oldStepGraph));
   }
 
   /**
@@ -126,7 +133,7 @@ public class GraphFusionTool {
       int maxMatchCount = 0;
       StepExecution largestMatchingBranch = null;
       for (StepExecution oldBranch : oldStepGraph.getExecutions()) {
-        StepExecution branchCandidate = replaceByDelegationsInBranch(newBranch, oldBranch);
+        StepExecution branchCandidate = replaceByDelegationsInExecution(newBranch, oldBranch);
         int matchCount = matchCount(branchCandidate);
         if (matchCount > maxMatchCount) {
           maxMatchCount = matchCount;
@@ -145,24 +152,28 @@ public class GraphFusionTool {
   }
 
   /**
-   * Performs the replacements for one parallel branch. (That could be one step or a graph)
+   * Performs the replacements for an execution. (That could be one step or a graph)
    * @see #replaceByDelegations(StepGraph, StepGraph)
    *
-   * @param newBranch
-   * @param oldBranch
+   * @param newExecution
+   * @param oldExecution
    * @return
    */
-  private static StepExecution replaceByDelegationsInBranch(StepExecution newBranch, StepExecution oldBranch) {
-    if (newBranch instanceof StepGraph newBranchGraph && oldBranch instanceof StepGraph oldBranchGraph)
-      return replaceByDelegations(newBranchGraph, oldBranchGraph);
-    else if (newBranch instanceof Step newStep && oldBranch instanceof Step oldStep)
+  private static StepExecution replaceByDelegationsInExecution(StepExecution newExecution, StepExecution oldExecution) {
+    if (newExecution instanceof StepGraph newGraph && oldExecution instanceof StepGraph oldGraph)
+      return replaceByDelegations(newGraph, oldGraph);
+    else if (newExecution instanceof Step newStep && oldExecution instanceof Step oldStep)
       return newStep.isEquivalentTo(oldStep) ? delegateToOldStep(newStep, oldStep) : newStep;
-    //NOTE: The following is an edge-case which applies when comparing a step to a graph with only one execution
-    else if (newBranch instanceof StepGraph newBranchGraph && newBranchGraph.getExecutions().size() == 1
-        || oldBranch instanceof StepGraph oldBranchGraph && oldBranchGraph.getExecutions().size() == 1)
-      return replaceByDelegationsInBranch(unwrap(newBranch), unwrap(oldBranch));
+    else if (newExecution instanceof StepGraph newGraph)
+      return replaceByDelegation(newGraph, (Step) oldExecution);
+    else if (oldExecution instanceof StepGraph oldGraph)
+      return replaceByDelegation((Step) newExecution, oldGraph);
     else
-      return newBranch;
+      return newExecution;
+  }
+
+  private static StepGraph wrap(StepExecution execution, boolean parallel) {
+    return new StepGraph().withParallel(parallel).addExecution(execution);
   }
 
   /**
