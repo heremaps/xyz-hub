@@ -174,7 +174,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (scriptParams.size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
 
-    return validateUserInputs();
+    return !isUserInputsExpected() || checkIfUserInputsArePresent();
   }
 
   public String getApplicationId() {

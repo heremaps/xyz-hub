@@ -281,11 +281,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    if(validateUserInputs() == false)
-      return false;
-
-    //Quick-validate the first UploadUrl that is found in the inputs
-    ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
+    if(isUserInputsExpected()){
+      if(checkIfUserInputsArePresent() == false)
+        return false;
+      //Quick-validate the first UploadUrl that is found in the inputs
+      ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
+    }
 
     return true;
   }

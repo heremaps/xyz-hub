@@ -572,11 +572,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   protected boolean isUserInputsExpected() {
-    return getInputSets().stream().anyMatch(inputSet -> USER_INPUTS.get().equals(inputSet)) || currentInputsCount(Input.class) > 0;
+    return getInputSets().stream().anyMatch(inputSet -> USER_INPUTS.get().equals(inputSet));
   }
 
-  protected boolean validateUserInputs() {
-    return !isUserInputsExpected() || currentInputsCount(Input.class) > 0;
+  protected boolean checkIfUserInputsArePresent() {
+    return currentInputsCount(Input.class) > 0;
   }
 
   /**
