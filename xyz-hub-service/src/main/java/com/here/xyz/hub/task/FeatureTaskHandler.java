@@ -49,7 +49,6 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -875,6 +874,11 @@ public class FeatureTaskHandler {
             }
 
             task.space = space;
+
+            // ignore composite params resolution when the query is for ModifySubscription
+            if (task instanceof FeatureTask.ModifySubscriptionQuery) {
+              return Future.succeededFuture(space);
+            }
 
             //Inject the extension-map
             return space.resolveCompositeParams(task.getMarker())
