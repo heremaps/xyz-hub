@@ -393,7 +393,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   private InputSet fromReferenceIdentifier(String referenceIdentifier) {
-    return USER_REF.equals(referenceIdentifier) ? null
+    return USER_REF.equals(referenceIdentifier) ? getInputSet(null, null)
         : getInputSet(referenceIdentifier.substring(0, referenceIdentifier.indexOf(".")),
             referenceIdentifier.substring(referenceIdentifier.indexOf(".") + 1));
   }
