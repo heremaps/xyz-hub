@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps;
 
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
@@ -569,6 +570,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return (T) this;
   }
 
+  @JsonIgnore
+  protected boolean isUserInputsExpected() {
+    return getInputSets().stream().anyMatch(inputSet -> USER_INPUTS.get().equals(inputSet)) || currentInputsCount(Input.class) > 0;
+  }
+
+  protected boolean validateUserInputs() {
+    return !isUserInputsExpected() || currentInputsCount(Input.class) > 0;
+  }
 
   /**
    * Use this constructor to reference the outputs of a step belonging to a different job than the one the consuming step belongs to.

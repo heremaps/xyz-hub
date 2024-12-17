@@ -19,18 +19,16 @@
 
 package com.here.xyz.jobs.steps.execution;
 
-import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -47,8 +45,8 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
@@ -176,7 +174,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (scriptParams.size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
 
-    return !isUserInputsExpected() || currentInputsCount(Input.class) > 0;
+    return validateUserInputs();
   }
 
   public String getApplicationId() {
@@ -242,11 +240,6 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public RunEmrJob withSparkParams(String sparkParams) {
     setSparkParams(sparkParams);
     return this;
-  }
-
-  @JsonIgnore
-  private boolean isUserInputsExpected() {
-    return getInputSets().stream().anyMatch(inputSet -> USER_INPUTS.equals(inputSet));
   }
 
   private String getLocalTmpPath(String s3Path) {
