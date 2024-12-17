@@ -19,16 +19,16 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
+
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -45,8 +45,8 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
-
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
@@ -174,7 +174,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (scriptParams.size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
 
-    return !isUserInputsExpected() || checkIfUserInputsArePresent();
+    return !isUserInputsExpected() || isUserInputsPresent(Input.class);
   }
 
   public String getApplicationId() {

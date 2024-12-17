@@ -67,14 +67,14 @@ public class DelegateStep extends Step<DelegateStep> {
   @Override
   public String getJobId() {
     if (getDelegator() == null)
-      return "<delegatorJob>";
+      return super.getJobId();
     return getDelegator().getJobId();
   }
 
   @Override
   public String getId() {
     if (getDelegator() == null)
-      return "<delegatorStep>";
+      return super.getId();
     return getDelegator().getId();
   }
 

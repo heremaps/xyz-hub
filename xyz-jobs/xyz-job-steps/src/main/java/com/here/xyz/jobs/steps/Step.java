@@ -575,8 +575,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return getInputSets().stream().anyMatch(inputSet -> USER_INPUTS.get().equals(inputSet));
   }
 
-  protected boolean checkIfUserInputsArePresent() {
-    return currentInputsCount(Input.class) > 0;
+  @JsonIgnore
+  protected boolean isUserInputsPresent(Class<? extends Input> inputType) {
+    return currentInputsCount(inputType) > 0;
   }
 
   /**
