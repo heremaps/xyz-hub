@@ -237,6 +237,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   /**
    * NOTE: Calling this method may block the execution for some time, depending on the number of inputs to be listed.
    * That's the case because the metadata for each input has to be requested separately.
+   * TODO: Remove loading the native S3 metadata mentioned above
    *
    * Loads the inputs of this step.
    * That could be inputs being provided by the user or outputs of prior steps.
@@ -249,31 +250,53 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     if (inputs == null) {
       inputs = new LinkedList<>();
       for (InputSet inputSet : inputSets) {
-        if (inputSet.stepId == null && inputSet.name == null)
-          inputs.addAll(Input.loadInputs(getJobId()));
-        else if (inputSet.stepId == null)
-          throw new IllegalArgumentException("Incorrect input was provided: Missing source step ID");
-        else if (inputSet.name == null)
-          throw new IllegalArgumentException("Incorrect input was provided: Missing referenced output name");
-        else {
-          //TODO: load the different inputSets in parallel
-          inputs.addAll(loadInputs(inputSet).stream().map(output -> transformToInput(output)).toList());
-        }
+        //TODO: load the different inputSets in parallel
+        inputs.addAll(loadInputs(inputSet));
       }
     }
     return filterInputs(inputs, inputTypes);
   }
 
   /**
-   * Loads the inputs of the specified inputSet.
+   * Loads the inputs for the specified {@link InputSet} of this step.
+   * That could be inputs being provided by the user or outputs of prior steps.
+   * The result will only contain inputs that match (one of) the provided input type(s).
+   *
+   * @return All inputs for the specified {@link InputSet} of this step, filtered by the specified input type(s).
+   */
+  protected List<Input> loadInputs(InputSet inputSet, Class<? extends Input>... inputTypes) {
+    return filterInputs(loadInputs(inputSet), inputTypes);
+  }
+
+  /**
+   * Loads the inputs of a previous step for the specified {@link InputSet}.
+   * This is an internal helper method that should never be called directly by any implementing subclass.
+   *
+   * @param inputSet
+   * @return All inputs from the specified InputSet
+   */
+  private List<Input> loadInputs(InputSet inputSet) {
+    if (inputSet.stepId == null && inputSet.name == null)
+      return Input.loadInputs(getJobId());
+    else if (inputSet.stepId == null)
+      throw new IllegalArgumentException("Incorrect input was provided: Missing source step ID");
+    else if (inputSet.name == null)
+      throw new IllegalArgumentException("Incorrect input was provided: Missing referenced output name");
+    else {
+      return loadOutputsFor(inputSet).stream().map(output -> transformToInput(output)).toList();
+    }
+  }
+
+  /**
+   * Loads the outputs of a previous step for the specified inputSet.
    * This is an internal helper method that should never be called directly by any implementing subclass.
    *
    * @param inputSet The inputSet from which to load the inputs.
    *  That inputSet can depict the user inputs or the outputs of a previous step in the same job or in another succeeded
    *  job that ran earlier.
-   * @return All inputs from the specified InputSet
+   * @return All outputs for the specified InputSet
    */
-  protected List<Output> loadInputs(InputSet inputSet) {
+  private List<Output> loadOutputsFor(InputSet inputSet) {
     return loadOutputs(Set.of(inputSet.toS3Path(jobId)), inputSet.modelBased());
   }
 

@@ -35,6 +35,7 @@ public class InputFromOutput extends ModelBasedInput {
 
   public InputFromOutput withDelegate(Output delegate) {
     setDelegate(delegate);
+    setMetadata(delegate.getMetadata());
     return this;
   }
 }

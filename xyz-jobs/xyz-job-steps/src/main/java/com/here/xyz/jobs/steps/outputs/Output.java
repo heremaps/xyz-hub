@@ -19,23 +19,16 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.here.xyz.Typed;
+import com.here.xyz.jobs.steps.payloads.StepPayload;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DownloadUrl.class, name = "DownloadUrl"),
     @JsonSubTypes.Type(value = ModelBasedOutput.class, name = "ModelBasedOutput")
 })
-public abstract class Output<T extends Output> implements Typed {
-  public static final String MODEL_BASED_PREFIX = "/modelBased";
-  @JsonAnySetter
-  private Map<String, String> metadata;
+public abstract class Output<T extends Output> extends StepPayload<T> {
   @JsonIgnore
   private String s3Key;
 
@@ -43,20 +36,6 @@ public abstract class Output<T extends Output> implements Typed {
 
   public static String stepOutputS3Prefix(String jobId, String stepId, String name) {
     return jobId + "/" + stepId + "/outputs/" + name;
-  }
-
-  @JsonAnyGetter
-  public Map<String, String> getMetadata() {
-    return metadata;
-  }
-
-  public void setMetadata(Map<String, String> metadata) {
-    this.metadata = metadata;
-  }
-
-  public T withMetadata(Map<String, String> metadata) {
-    setMetadata(metadata);
-    return (T) this;
   }
 
   public String getS3Key() {
@@ -70,17 +49,5 @@ public abstract class Output<T extends Output> implements Typed {
   public T withS3Key(String s3Key) {
     setS3Key(s3Key);
     return (T) this;
-  }
-
-  public T withMetadata(String key, String value) {
-    if (getMetadata() == null)
-      setMetadata(new HashMap<>());
-    getMetadata().put(key, value);
-    return (T) this;
-  }
-
-  @JsonIgnore
-  protected boolean hasMetadata() {
-    return false;
   }
 }
