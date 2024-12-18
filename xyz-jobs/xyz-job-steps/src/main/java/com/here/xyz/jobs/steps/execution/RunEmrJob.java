@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
+import static java.util.regex.Matcher.quoteReplacement;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -417,13 +418,13 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
         referenceIdentifier -> toS3Uri(fromReferenceIdentifier(referenceIdentifier).toS3Path(getJobId())));
   }
 
-  String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
+  static String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
     return INPUT_SET_REF_PATTERN.matcher(scriptParam)
         .replaceAll(match -> {
           String replacement = mapper.apply(match.group(1));
           if (replacement == null)
-            return match.group();
-          return replacement;
+            return quoteReplacement(match.group());
+          return quoteReplacement(replacement);
         });
   }
 
