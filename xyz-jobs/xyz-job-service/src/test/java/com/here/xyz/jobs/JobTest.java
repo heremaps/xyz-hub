@@ -10,14 +10,10 @@ import java.util.List;
 import java.util.Map;
 
 public class JobTest extends JobTestBase {
-    @BeforeEach
-    public void setUp() {
-        createSpace(SPACE_ID);
-    }
 
     @AfterEach
-    public void tearDown() {
-        deleteSpace(SPACE_ID);
+    public void tearDown() throws IOException, InterruptedException {
+        cleanResources();
     }
 
     protected void checkSucceededJob(Job exportJob, int expectedFeatureCount) throws IOException, InterruptedException {

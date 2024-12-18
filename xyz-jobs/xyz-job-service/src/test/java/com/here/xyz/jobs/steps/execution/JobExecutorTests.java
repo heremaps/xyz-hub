@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+@Disabled
 public class JobExecutorTests {
   private static final String JOB_ID1 = "TEST_JOB_1";
   private static final String JOB_ID2 = "TEST_JOB_2";

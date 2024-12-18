@@ -5,6 +5,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeStatus;
+import com.here.xyz.models.hub.Space;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -16,8 +17,10 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +31,8 @@ import static java.net.http.HttpClient.Redirect.NORMAL;
 
 public class JobTestBase extends StepTestBase {
     private static final Logger logger = LogManager.getLogger();
+    protected Set<String> createdJobs = new HashSet<>();
+    protected Set<String> createdSpaces = new HashSet<>();
 
     /** Job-Api related */
     public static String createJob(Job job) throws IOException, InterruptedException {
@@ -160,9 +165,23 @@ public class JobTestBase extends StepTestBase {
             throw new RuntimeException("Error uploading file, got status code " + connection.getResponseCode());
     }
 
+    @Override
+    protected Space createSpace(String spaceId){
+        createdSpaces.add(spaceId);
+        return super.createSpace(spaceId);
+    }
+
+    @Override
+    protected Space createSpace(Space space, boolean force) {
+        createdSpaces.add(space.getId());
+        return super.createSpace(space, force);
+    }
+
     protected void createSelfRunningJob(Job job) throws Exception {
         /** Create Job - expect autostart */
         createJob(job);
+        createdJobs.add(job.getId());
+
         /** Wait till Job reached final state */
         pollJobStatus(job.getId());
     }
@@ -170,6 +189,8 @@ public class JobTestBase extends StepTestBase {
     protected void createAndStartJob(Job job, byte[] fileContent) throws Exception {
         /** Create Job */
         createJob(job);
+        createdJobs.add(job.getId());
+
         /** Upload content if provided */
         if(fileContent != null)
             uploadFileToJob(job.getId(), fileContent);
@@ -177,6 +198,15 @@ public class JobTestBase extends StepTestBase {
         startJob(job.getId());
         /** Wait till Job reached final state */
         pollJobStatus(job.getId());
+    }
 
+    protected void cleanResources() throws IOException, InterruptedException {
+        for(String spaceId : createdSpaces) {
+            deleteSpace(spaceId);
+        }
+
+        for(String jobId : createdJobs) {
+            deleteJob(jobId);
+        }
     }
 }

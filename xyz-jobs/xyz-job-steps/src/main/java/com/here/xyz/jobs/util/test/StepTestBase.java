@@ -190,7 +190,7 @@ public class StepTestBase {
 
   protected StatisticsResponse getStatistics(String spaceId) {
     try {
-      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.EXTENSION, true);
+      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.DEFAULT, true);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
@@ -199,7 +199,7 @@ public class StepTestBase {
 
   protected FeatureCollection getFeaturesFromSmallSpace(String spaceId ,String propertyFilter, boolean force2D) {
     try {
-      return hubWebClient.getFeaturesFromSmallSpace(spaceId, SpaceContext.EXTENSION, propertyFilter, force2D);
+      return hubWebClient.getFeaturesFromSmallSpace(spaceId, SpaceContext.DEFAULT, propertyFilter, force2D);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }

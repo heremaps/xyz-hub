@@ -57,6 +57,8 @@ public class GraphFusionTests {
   static {
     new Config();
     Config.instance.PARALLEL_STEPS_SUPPORTED = true;
+    //FIX
+    Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
   }
 
   @CartesianTest
