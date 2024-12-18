@@ -34,8 +34,6 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.jobs.steps.Step.InputSet;
-import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
@@ -43,9 +41,7 @@ import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -102,19 +98,19 @@ public abstract class JobExecutor implements Initializable {
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
-        }).onFailure( e -> {
-            //E.g.: Resource got deleted during lifetime of job!
-            logger.error("Start Execution of job '{}' is failed!", job.getId(), e);
-            job.getStatus().setState(FAILED);
-            job.storeStatus(null);
+        })
+        .onFailure(e -> {
+          //E.g.: Resource got deleted during lifetime of job!
+          logger.error("Start Execution of job '{}' is failed!", job.getId(), e);
+          job.getStatus().setState(FAILED);
+          job.storeStatus(null);
         });
   }
 
   private Future<Void> setStepsRunning(Job job) {
     job.getSteps().stepStream().forEach(step -> {
-      if(step.getStatus().getState().equals(SUCCEEDED))
-        return;
-      step.getStatus().setState(RUNNING);
+      if (!(step instanceof DelegateStep))
+        step.getStatus().setState(RUNNING);
     });
     return job.store();
   }
@@ -302,10 +298,6 @@ public abstract class JobExecutor implements Initializable {
    * @return true, if the job may be executed / enough resources are free
    */
   private Future<Boolean> mayExecute(Job job) {
-    //Job has reused a completed execution.
-    if(job.getStatus().getState() == SUCCEEDED)
-      return Future.succeededFuture(false);
-
     //Check for all needed resource loads whether they can be fulfilled
     return ResourcesRegistry.getFreeVirtualUnits()
         .map(freeVirtualUnits -> job.calculateResourceLoads().stream()
@@ -352,255 +344,12 @@ public abstract class JobExecutor implements Initializable {
         .compose(candidates -> Future.succeededFuture(candidates.stream()
             .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
             .map(candidate -> fuseGraphs(job, candidate.getSteps()))
-            .max(comparingLong(candidateGraph -> candidateGraph.stepStream().filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
+            .max(comparingLong(candidateGraph -> candidateGraph.stepStream()
+                .filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
             .orElse(null)))
         .compose(newGraphWithReusedSteps -> newGraphWithReusedSteps == null
             ? Future.succeededFuture()
             : job.withSteps(newGraphWithReusedSteps).store());
-  }
-
-  //TODO: emrParamReplacement(shrunkGraph, collectDelegateReplacements(shrunkGraph)); ... Use InputSets instead?
-
-  //TODO: Use new fuseGraphs() method instead for the tests
-  @Deprecated
-  public static Future<StepGraph> shrinkGraphByReusingOtherGraph(Job job, StepGraph reusedGraph) {
-    if (reusedGraph == null || reusedGraph.isEmpty())
-      return Future.succeededFuture();
-
-    StepGraph shrunkGraph = new StepGraph()
-            .withParallel(reusedGraph.isParallel())
-            .withExecutions(calculateShrunkForest(job, reusedGraph));
-
-    /**
-     * TODO: It could be that other implementations have other references which we need to update. Target
-     *  should be a generic implementation - without the need to adjust this function specifically.
-     */
-    //if we have delegate, we need to update references for EMR
-    emrParamReplacement(shrunkGraph, collectDelegateReplacements(shrunkGraph));
-
-    return Future.succeededFuture(shrunkGraph);
-  }
-
-  /**
-   * Replaces all StepExecutions, which could get reused, with DelegateOutputsSteps.
-   * This is required to be able to access the existing outputs.
-   *
-   * @param executions  StepExecutions of current Graph
-   * @param reusedExecutions StepExecutions which should get reused
-   */
-  @Deprecated
-  private static void replaceWithDelegateOutputSteps(List<StepExecution> executions, List<StepExecution> reusedExecutions) {
-    for (int i = 0; i < reusedExecutions.size(); i++) {
-      StepExecution execution = executions.get(i);
-      StepExecution reusedExecution = reusedExecutions.get(i);
-
-      if (execution instanceof StepGraph graph && reusedExecution instanceof StepGraph reusedGraph) {
-        replaceWithDelegateOutputSteps(graph.getExecutions(), reusedGraph.getExecutions());
-      }
-      else if (execution instanceof Step step && reusedExecution instanceof Step reusedStep) {
-        // Replace the execution with DelegateOutputsPseudoStep
-        executions.set(i, new DelegateOutputsPseudoStep(reusedStep.getJobId(), reusedStep.getId(), step.getJobId(), step.getId())
-            .withOutputMetadata(reusedStep.getOutputMetadata()));
-      }
-    }
-  }
-
-  /**
-   * Calculates a modified version of the current job's execution graph by replacing reusable
-   * portions with delegateOutputSteps and connecting new executions to the reused graph where applicable.
-   *
-   * <p>This method performs the following operations:</p>
-   * <ul>
-   *   <li>Replaces all executions in the current graph that overlap with the reused graph
-   *       by substituting them with {@code DelegateOutputsPseudoStep} instances.</li>
-   *   <li>Links the first new execution node (if present) to the leaf nodes of the reused graph.</li>
-   *   <li>Adjusts step dependencies by injecting the previous step IDs from the reused graph into
-   *       subsequent steps in the current graph.</li>
-   * </ul>
-   *
-   * @param job the current job being executed, which provides the existing execution graph.
-   * @param reusedGraph the graph containing reusable executions to be integrated into the current job's graph.
-   * @return a list containing a single {@code StepGraph} object that represents the updated execution graph
-   *         with reusable portions replaced and dependencies adjusted.
-   */
-  @Deprecated
-  private static List<StepExecution> calculateShrunkForest(Job job, StepGraph reusedGraph) {
-    List<StepExecution> executions = job.getSteps().getExecutions();
-    //Replace all executions, which can get reused form reusedGraph, in current graph with DelegateOutputSteps.
-    replaceWithDelegateOutputSteps(executions, reusedGraph.getExecutions());
-    resolveReusedInputs(job.getSteps());
-    //TODO: Move re-weaving of previousStepIds into first traversal implementation
-
-    int sizeReusedGraph = reusedGraph.getExecutions().size();
-    int sizeResultGraph = executions.size();
-
-    if (sizeResultGraph > sizeReusedGraph) {
-      //patch first item and build link to reused Graph
-      Step firstNewExecutionNode = getFirstExecutionNode(executions.get(sizeReusedGraph));
-      //get last nodes (leafs) of reusedGraph
-      List<Step> lastExecutionNodesOfReusedGraph = getAllLeafExecutionNodes(reusedGraph.getExecutions()
-          .get((reusedGraph.getExecutions()).size() - 1));
-
-      //get previousStepIds of nodes that come after the reused Graph
-      Set<String> previousStepIdsOfFirstNewNode = firstNewExecutionNode.getPreviousStepIds().isEmpty()
-          ? null
-          : firstNewExecutionNode.getPreviousStepIds();
-
-      //get all stepIds of last nodes (leafs) of reusedGraph
-      Set<String> stepIdsOfLastReusedNodes = new HashSet<>();
-      lastExecutionNodesOfReusedGraph.forEach(step -> stepIdsOfLastReusedNodes.add(step.getId()));
-
-      //update ExecutionDependencies of current graph - goal is reusability of outputs of reused steps
-      updateExecutionDependencies(executions, previousStepIdsOfFirstNewNode, stepIdsOfLastReusedNodes);
-    }
-
-    return executions;
-  }
-
-  /**
-   * Resolves all output-to-input assignments of the graph that is currently being fused by re-weaving the re-used outputs with the
-   * consuming steps.
-   * That is being done by overwriting the {@link InputSet}s of the consuming steps with the new references of the according
-   * {@link DelegateOutputsPseudoStep}s.
-   * Should be only called for a graph **after** performing all delegation-replacements.
-   *
-   * @param graph
-   */
-  @Deprecated
-  static void resolveReusedInputs(StepGraph graph) {
-    graph.stepStream().forEach(step -> resolveReusedInputs(step, graph));
-  }
-
-  /**
-   * Resolves the inputSets of a new step that is potentially consuming outputs of an old step referenced by a {@link DelegateStep}.
-   *
-   * @param step
-   * @param containingStepGraph
-   */
-  @Deprecated
-  private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
-    List<InputSet> newInputSets = new ArrayList<>();
-    for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
-      if (compiledInputSet.stepId() == null || !(containingStepGraph.getStep(compiledInputSet.stepId()) instanceof DelegateOutputsPseudoStep replacementStep))
-        //NOTE: stepId == null on an InputSet refers to the USER-inputs
-        newInputSets.add(compiledInputSet);
-      else
-        //Now we know that inputSet is one that should be replaced by one that is pointing to the outputs of the old graph
-        newInputSets.add(new InputSet(replacementStep.getDelegateJobId(), replacementStep.getDelegateStepId(), compiledInputSet.name(),
-            compiledInputSet.modelBased()));
-    }
-    step.setInputSets(newInputSets);
-  }
-
-  /**
-   * Recursively injects updated step dependencies and input step IDs into a list of step executions.
-   *
-   * <p>This method traverses a list of {@code StepExecution} objects, replacing references to reusable
-   * steps from a previous graph with updated dependencies and inputs. If a {@code StepExecution} is
-   * a {@code StepGraph}, the method processes its nested executions recursively.</p>
-   *
-   * <p>The following updates are made to each {@code Step}:</p>
-   * <ul>
-   *   <li><b>Previous Step IDs:</b> Replaces any IDs matching the previous step IDs of the reused graph
-   *   with the IDs of the last steps in the reused graph.</li>
-   *   <li><b>Input Step IDs:</b> Updates input step IDs to reference the reused graph's job ID and step IDs.</li>
-   * </ul>
-   *
-   * @param executions the list of {@code StepExecution} objects to be updated, which may include nested {@code StepGraph} instances.
-   * @param previousStepIdsOfFirstNewNode the set of previous step IDs from the first new execution node, used for replacement.
-   * @param stepIdsOfLastReusedNodes the set of step IDs from the leaf nodes of the reused graph, used to replace previous step IDs.
-   */
-  @Deprecated
-  private static void updateExecutionDependencies(List<StepExecution> executions, Set<String> previousStepIdsOfFirstNewNode,
-      Set<String> stepIdsOfLastReusedNodes) {
-    for (StepExecution executionNode : executions) {
-      if (executionNode instanceof StepGraph graph) {
-        //Recursive injection for nested StepGraph
-        updateExecutionDependencies(graph.getExecutions(), previousStepIdsOfFirstNewNode, stepIdsOfLastReusedNodes);
-      }
-      else if (executionNode instanceof Step<?> step) {
-        if(previousStepIdsOfFirstNewNode == null)
-          continue;
-        //Replace previous StepIds
-        if (!step.getPreviousStepIds().isEmpty() && step.getPreviousStepIds().removeAll(previousStepIdsOfFirstNewNode))
-          step.getPreviousStepIds().addAll(stepIdsOfLastReusedNodes);
-      }
-    }
-  }
-
-  @Deprecated
-  private static List<String[]> collectDelegateReplacements(StepGraph stepGraph) {
-    List<String[]> replacements = new ArrayList<>();
-
-    for (StepExecution stepExecution : stepGraph.getExecutions()) {
-      if (stepExecution instanceof StepGraph graph) {
-        // Recursively collect replacements from nested StepGraphs
-        replacements.addAll(collectDelegateReplacements(graph));
-      } else if (stepExecution instanceof DelegateOutputsPseudoStep delegateStep) {
-        // Add the replacement paths from DelegateOutputsPseudoStep
-        replacements.add(delegateStep.getReplacementPathForFiles());
-      }
-    }
-
-    return replacements;
-  }
-
-  @Deprecated
-  protected static void emrParamReplacement(StepGraph stepGraph, List<String[]> replacements) {
-    stepGraph.stepStream().forEach(step -> {
-      if (step instanceof RunEmrJob emrJobStep) {
-        List<String> scriptParams = emrJobStep.getScriptParams();
-        for (int i = 0; i < scriptParams.size(); i++) {
-          String param = scriptParams.get(i);
-
-          for (String[] replacement : replacements)
-            param = param.replaceAll(replacement[0], replacement[1]);
-
-          scriptParams.set(i, param);
-        }
-        emrJobStep.setScriptParams(scriptParams);
-      }
-    });
-  }
-
-  @Deprecated
-  private static Step getFirstExecutionNode(StepExecution executionNode) {
-    if (executionNode instanceof StepGraph previousNodeGraph) {
-      //Get the first node of the graph
-      return getFirstExecutionNode(previousNodeGraph.getExecutions().get(0));
-    }
-    return (Step) executionNode;
-  }
-
-  /**
-   * Recursively retrieves all leaf nodes from the given {@code StepExecution}.
-   *
-   * <p>This method traverses a hierarchy of {@code StepExecution} objects. If the execution node
-   * is a {@code StepGraph}, it recursively processes all its child executions. If the execution
-   * node is a {@code Step}, it is considered a leaf node and added to the result.</p>
-   *
-   * <p>The method ensures that all terminal steps (leaves) in a potentially nested graph
-   * structure are collected into a flat list.</p>
-   *
-   * @param executionNode the root {@code StepExecution} from which to collect all leaf nodes.
-   *                      This may be a {@code Step} or a {@code StepGraph}.
-   * @return a list of {@code Step} objects representing all leaf nodes in the execution graph.
-   */
-  @Deprecated
-  public static List<Step> getAllLeafExecutionNodes(StepExecution executionNode) {
-    List<Step> leafNodes = new ArrayList<>();
-
-    if (executionNode instanceof StepGraph graph) {
-      // Traverse all child executions in the graph
-      for (StepExecution child : graph.getExecutions()) {
-        leafNodes.addAll(getAllLeafExecutionNodes(child));
-      }
-    } else if (executionNode instanceof Step) {
-      // If it's a leaf node, add it to the list
-      leafNodes.add((Step) executionNode);
-    }
-
-    return leafNodes;
   }
 
   public static void shutdown() throws InterruptedException {

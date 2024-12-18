@@ -50,7 +50,7 @@ public class DelegateStep extends Step<DelegateStep> {
     this.delegator = delegator;
     this.delegate = delegate;
     setInputSets(delegator.getInputSets());
-    setOutputMetadata(delegate.getOutputMetadata());
+    setOutputMetadata(delegate.getOutputMetadata()); //TODO: Change this to delegator.getOutputMetadata()?
 
     //Create the delegating output-sets by copying them from the delegate step but keep the visibility of each counterpart of the compiled (new) step
     outputSets = delegate.getOutputSets().stream().map(delegateOutputSet -> {
