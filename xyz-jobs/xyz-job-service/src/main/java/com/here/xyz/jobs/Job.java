@@ -98,6 +98,8 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Public.class, Static.class})
+  private Process process;
+  @JsonView({Public.class, Static.class})
   private DatasetDescription source;
   @JsonView({Public.class, Static.class})
   private DatasetDescription target;
@@ -747,6 +749,19 @@ public class Job implements XyzSerializable {
 
   public Job withClientInfo(JobClientInfo clientInfo) {
     setClientInfo(clientInfo);
+    return this;
+  }
+
+  public Process getProcess() {
+    return process;
+  }
+
+  public void setProcess(Process process) {
+    this.process = process;
+  }
+
+  public Job withProcess(Process process) {
+    setProcess(process);
     return this;
   }
 
