@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -385,10 +386,13 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return inputSet.name() == null ? USER_REF : (inputSet.stepId() + "." + inputSet.name());
   }
 
-  private InputSet fromReferenceIdentifier(String referenceIdentifier) {
-    return USER_REF.equals(referenceIdentifier) ? getInputSet(null, null)
-        : getInputSet(referenceIdentifier.substring(0, referenceIdentifier.indexOf(".")),
-            referenceIdentifier.substring(referenceIdentifier.indexOf(".") + 1));
+  InputSet fromReferenceIdentifier(String referenceIdentifier) {
+    if (USER_REF.equals(referenceIdentifier))
+      return getInputSet(null, null);
+    else {
+      ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
+      return getInputSet(ref.stepId(), ref.name());
+    }
   }
 
   protected InputSet getInputSet(String stepId, String name) {
@@ -409,11 +413,28 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   private String replaceInputSetReferences(String scriptParam) {
+    return mapInputReferencesIn(scriptParam,
+        referenceIdentifier -> toS3Uri(fromReferenceIdentifier(referenceIdentifier).toS3Path(getJobId())));
+  }
+
+  String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
     return INPUT_SET_REF_PATTERN.matcher(scriptParam)
-        .replaceAll(match -> toS3Uri(fromReferenceIdentifier(match.group(1)).toS3Path(getJobId())));
+        .replaceAll(match -> {
+          String replacement = mapper.apply(match.group(1));
+          if (replacement == null)
+            return match.group();
+          return replacement;
+        });
   }
 
   private String toS3Uri(String s3Path) {
     return "s3://" + Config.instance.JOBS_S3_BUCKET + "/" + s3Path + "/";
+  }
+
+  record ReferenceIdentifier(String stepId, String name) {
+    public static ReferenceIdentifier fromString(String referenceIdentifier) {
+      return new ReferenceIdentifier(referenceIdentifier.substring(0, referenceIdentifier.indexOf(".")),
+          referenceIdentifier.substring(referenceIdentifier.indexOf(".") + 1));
+    }
   }
 }

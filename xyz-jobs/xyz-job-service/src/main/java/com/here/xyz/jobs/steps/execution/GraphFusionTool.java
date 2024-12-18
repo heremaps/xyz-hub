@@ -19,12 +19,15 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.execution.RunEmrJob.toInputSetReference;
+
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.Step.InputSet;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
+import com.here.xyz.jobs.steps.execution.RunEmrJob.ReferenceIdentifier;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -240,5 +243,34 @@ public class GraphFusionTool {
             compiledInputSet.modelBased()));
     }
     step.setInputSets(newInputSets);
+
+    if (step instanceof RunEmrJob emrStep)
+      updateEmrScriptParamReferences(emrStep, containingStepGraph);
+  }
+
+  private static void updateEmrScriptParamReferences(RunEmrJob runEmrJob, StepGraph containingStepGraph) {
+    runEmrJob.setScriptParams(runEmrJob.getScriptParams().stream()
+        .map(scriptParam -> runEmrJob.mapInputReferencesIn(scriptParam, referenceIdentifier -> {
+          try {
+            //Will throw an exception if the referenced inputSet is not found in the step
+            runEmrJob.fromReferenceIdentifier(referenceIdentifier);
+            //In case it was found, it means the reference is pointing to a "new" output, keep the reference as it is
+            return null;
+          }
+          catch (IllegalArgumentException e) {
+            //If the input was not found, check if the target step is a DelegateStep that contains the input set to be referenced
+            ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
+            Step referencedStep = containingStepGraph.getStep(ref.stepId());
+            if (!(referencedStep instanceof DelegateStep referencedDelegateStep))
+              /*
+              In this case, the reference cannot be dereferenced at all.
+              That could only happen if the compiler created an invalid reference.
+              Here the reference will be kept as it is, and the later execution will handle this issue by throwing the correct exception.
+               */
+              return null;
+            return toInputSetReference(runEmrJob.getInputSet(referencedDelegateStep.getDelegate().getId(), ref.name()));
+          }
+        }))
+        .toList());
   }
 }
