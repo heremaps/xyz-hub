@@ -99,6 +99,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey) {
+    if(secondaryResourceKey == null)
+      return loadJobs(resourceKey, resourceKey);
+
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
 
