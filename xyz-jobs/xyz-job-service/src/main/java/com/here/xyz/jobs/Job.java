@@ -43,6 +43,7 @@ import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
+import com.here.xyz.jobs.processes.ProcessDescription;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
@@ -98,7 +99,7 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Public.class, Static.class})
-  private Process process;
+  private ProcessDescription process;
   @JsonView({Public.class, Static.class})
   private DatasetDescription source;
   @JsonView({Public.class, Static.class})
@@ -752,15 +753,15 @@ public class Job implements XyzSerializable {
     return this;
   }
 
-  public Process getProcess() {
+  public ProcessDescription getProcess() {
     return process;
   }
 
-  public void setProcess(Process process) {
+  public void setProcess(ProcessDescription process) {
     this.process = process;
   }
 
-  public Job withProcess(Process process) {
+  public Job withProcess(ProcessDescription process) {
     setProcess(process);
     return this;
   }
