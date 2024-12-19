@@ -117,8 +117,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
       // If secondaryResourceKey is provided, query it too
       if (secondaryResourceKey != null) {
-        jobTable.getIndex("resourceKey-index")
-                .query("resourceKey", secondaryResourceKey)
+        jobTable.getIndex("secondaryResourceKey-index")
+                .query("secondaryResourceKey", secondaryResourceKey)
                 .pages()
                 .forEach(page ->
                         page.forEach(jobItem -> {
