@@ -186,7 +186,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loadOutputs(USER);
   }
 
-  protected List<Output> loadOutputs(Visibility visibility) {
+  public List<Output> loadOutputs(Visibility visibility) {
     return outputSets.stream()
         .filter(outputSet -> outputSet.visibility == visibility)
         .flatMap(outputSet -> loadStepOutputs(outputSet).stream())

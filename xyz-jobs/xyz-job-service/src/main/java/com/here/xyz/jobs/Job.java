@@ -526,7 +526,6 @@ public class Job implements XyzSerializable {
     return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
   }
 
-  //FIXME: There should not be any blocking & long-running executions in the getters for job-serialization as it will increase the load / store times
   public String getSecondaryResourceKey() {
     if (secondaryResourceKey != null)
       return secondaryResourceKey;
@@ -546,6 +545,10 @@ public class Job implements XyzSerializable {
         throw new RuntimeException(e);
     }
     return secondaryResourceKey;
+  }
+
+  private void setSecondaryResourceKey(String secondaryResourceKey) {
+    this.secondaryResourceKey = secondaryResourceKey;
   }
 
   public String getDescription() {
