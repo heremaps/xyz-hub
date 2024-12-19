@@ -173,6 +173,28 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
    return SYNC;
   }
 
+  private void sleepWithIncr(int i) { try { Thread.sleep( i * 15000 ); } catch (InterruptedException ignored) {} }
+
+  private void writeContentUpdatedAtTs() throws WebClientException
+  {
+    int nrRetries = 3;
+
+    for( int i = 0; i < nrRetries; i++)
+     try
+     { hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+       return;
+     }
+     catch( WebClientException e )
+     { logger.error("[{}] writeContentUpdatedAtTs() -> retry({}) {}", getGlobalStepId(), i+1, getSpaceId()); 
+       sleepWithIncr(i + 1);
+     }
+
+    //TODO: handle ts not updated after retries -> should throw a "retryable Exception", when available. Ignore for now.
+    logger.error("[{}] could not write contentUpadtedAt to space {}", getGlobalStepId(), getSpaceId());
+
+  }
+
+
 
   @Override
   public void execute() throws Exception {
@@ -193,7 +215,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     setCopiedByteSize( statistics.getByteSize() );
  
     if( statistics.getFeatureCount() > 0 )
-     hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+     writeContentUpdatedAtTs();
     
   }
 
