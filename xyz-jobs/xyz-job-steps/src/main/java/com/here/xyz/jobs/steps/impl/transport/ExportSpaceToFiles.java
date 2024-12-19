@@ -21,6 +21,8 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
@@ -47,7 +49,6 @@ import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -59,16 +60,15 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import org.geotools.api.referencing.FactoryException;
-import org.locationtech.jts.geom.Geometry;
-
-import javax.xml.crypto.dsig.TransformException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import javax.xml.crypto.dsig.TransformException;
+import org.geotools.api.referencing.FactoryException;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space.
@@ -79,6 +79,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
+  public static final String STATISTICS = "statistics";
+  public static final String INTERNAL_STATISTICS = "internalStatistics";
+  public static final String EXPORTED_DATA = "exportedData";
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
   private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
@@ -93,9 +96,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private boolean addStatisticsToUserOutput = true;
-
-  @JsonView({Internal.class, Static.class})
   private SpatialFilter spatialFilter;
   @JsonView({Internal.class, Static.class})
   private PropertiesQuery propertyFilter;
@@ -103,6 +103,14 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private SpaceContext context;
   @JsonView({Internal.class, Static.class})
   private Ref versionRef;
+
+  {
+    setOutputSets(List.of(
+        new OutputSet(STATISTICS, USER, true),
+        new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
+        new OutputSet(EXPORTED_DATA, USER, false)
+    ));
+  }
 
   /**
    * TODO:
@@ -165,19 +173,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return this;
   }
 
-  public boolean isAddStatisticsToUserOutput() {
-    return addStatisticsToUserOutput;
-  }
-
-  public void setAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
-    this.addStatisticsToUserOutput = addStatisticsToUserOutput;
-  }
-
-  public ExportSpaceToFiles withAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
-    setAddStatisticsToUserOutput(addStatisticsToUserOutput);
-    return this;
-  }
-
   @JsonView({Internal.class})
   private StatisticsResponse statistics = null; //TODO: Move caching into HubWebClient
 
@@ -224,21 +219,19 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
    */
   @Override
   public boolean isEquivalentTo(StepExecution other) {
-    if (other instanceof ExportSpaceToFiles otherExport) {
-      try {
-        if (Objects.equals(otherExport.getSpaceId(), getSpaceId())
-            && Objects.equals(otherExport.versionRef, versionRef)
-            && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
-            && Objects.equals(otherExport.spatialFilter, spatialFilter)
-            && Objects.equals(otherExport.propertyFilter, propertyFilter)
-            && otherExport.isUseSystemOutput() == isUseSystemOutput()) //TODO: Remove this after outputs re-design was merged
-          return true;
-      }
-      catch (Exception e){
-        throw new RuntimeException(e);
-      }
+    if (!(other instanceof ExportSpaceToFiles otherExport))
+      return super.isEquivalentTo(other);
+
+    try {
+      return Objects.equals(otherExport.getSpaceId(), getSpaceId())
+          && Objects.equals(otherExport.versionRef, versionRef)
+          && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
+          && Objects.equals(otherExport.spatialFilter, spatialFilter)
+          && Objects.equals(otherExport.propertyFilter, propertyFilter);
     }
-    return false;
+    catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -360,7 +353,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @Override
   public void execute() throws Exception {
     statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
-    calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
+    calculatedThreadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
 
     List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
     createAndFillTemporaryJobTable(s3FileNames);
@@ -381,21 +374,31 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     //TODO
     super.onAsyncSuccess();
 
-    FileStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
-            0, rs -> rs.next()
-                    ? new FileStatistics()
-                        .withBytesExported(rs.getLong("bytes_uploaded"))
-                        .withRowsExported(rs.getLong("rows_uploaded"))
-                        .withFilesCreated(rs.getInt("files_uploaded"))
-                    : new FileStatistics());
+    Statistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
+        0, rs -> rs.next()
+            ? createStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"),
+            rs.getInt("files_uploaded"))
+            : createStatistics(0, 0, 0));
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getExportedBytes() + " files=" + statistics.getExportedFiles());
-    if(addStatisticsToUserOutput)
-      registerOutputs(List.of(statistics), true);
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + statistics.published().getByteSize()
+        + " files=" + statistics.internal().getFileCount());
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
+    registerOutputs(List.of(statistics.published()), STATISTICS);
+    registerOutputs(List.of(statistics.internal()), INTERNAL_STATISTICS);
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
   }
+
+  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) throws SQLException {
+    return new Statistics(
+        //NOTE: Do not publish the file count for the user facing statistics, as it could be confusing when it comes to invisible intermediate outputs
+        new FeatureStatistics().withByteSize(byteSize).withFeatureCount(featureCount),
+        new FeatureStatistics().withFileCount(fileCount)
+    );
+  }
+
+  private record Statistics(FeatureStatistics published, FeatureStatistics internal) {}
 
   @Override
   protected boolean onAsyncFailure() {
@@ -428,13 +431,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     }
   }
 
-  private List<S3DataFile> generateS3FileNames(int cnt){
+  private List<S3DataFile> generateS3FileNames(int count) {
     List<S3DataFile> urlList = new ArrayList<>();
 
-    for (int i = 1; i <= calculatedThreadCount; i++) {
-      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(!isUseSystemOutput(),false) + "/"
-              + i + "/" + UUID.randomUUID() + ".json"));
-    }
+    for (int i = 1; i <= count; i++)
+      urlList.add(new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + i + "/" + UUID.randomUUID()
+          + ".json"));
 
     return urlList;
   }

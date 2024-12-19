@@ -15,12 +15,8 @@ public class ExportJobTestIT extends JobTest {
 
     @BeforeEach
     public void setUp() {
-        super.setUp();
+        createSpace(SPACE_ID);
         putRandomFeatureCollectionToSpace(SPACE_ID, featureCount);
-    }
-
-    public void cleanup() {
-        //TODO: Cleanup the created job
     }
 
     @Test
@@ -29,7 +25,6 @@ public class ExportJobTestIT extends JobTest {
         createSelfRunningJob(exportJob);
 
         checkSucceededJob(exportJob, featureCount);
-        deleteJob(exportJob.getId());
     }
 
     @Test
@@ -52,10 +47,6 @@ public class ExportJobTestIT extends JobTest {
             exceptionRaised = true;
         }
         Assertions.assertTrue(exceptionRaised);*/
-
-        //delete in correct order
-        deleteJob(exportJob2.getId());
-        deleteJob(exportJob1.getId());
     }
 
     @Test
@@ -68,9 +59,6 @@ public class ExportJobTestIT extends JobTest {
         Job exportJob2 = buildExportJob(generateJobId(), new Filters().withPropertyFilter("p.test<10"));
         createSelfRunningJob(exportJob2);
         checkJobReusage(exportJob1, exportJob2, 10, false);
-
-        deleteJob(exportJob1.getId());
-        deleteJob(exportJob2.getId());
     }
 
     private Job buildExportJob() {

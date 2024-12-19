@@ -20,19 +20,19 @@
 package com.here.xyz.jobs.steps.impl;
 
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
-import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.responses.StatisticsResponse;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
 import java.io.IOException;
 import java.util.List;
-
-import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -181,11 +181,12 @@ public class ImportStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(this.getClass().getResourceAsStream("/testFiles/file2" + fileExtension)), contentType);
 
     LambdaBasedStep step = new ImportFilesToSpace()
-            .withJobId(JOB_ID)
-            .withFormat(format)
-            .withEntityPerLine(entityPerLine)
-            .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
-            .withSpaceId(SPACE_ID);
+        .withJobId(JOB_ID)
+        .withFormat(format)
+        .withEntityPerLine(entityPerLine)
+        .withUpdateStrategy(DEFAULT_UPDATE_STRATEGY)
+        .withSpaceId(SPACE_ID)
+        .withInputSets(List.of(USER_INPUTS.get()));
 
     if(runAsync)
       step.setUncompressedUploadBytesEstimation(1024 * 1024 * 1024);
@@ -196,16 +197,16 @@ public class ImportStepTest extends StepTest {
 
     //We have 2 files with 20 features each.
     Assertions.assertEquals(Long.valueOf(40 + featureCountSource), statsAfter.getCount().getValue());
-    checkStatistics(40, step.loadOutputs(true));
+    checkStatistics(40, step.loadUserOutputs());
   }
 
   private void executeImportStepWithManyFiles(Format format, int fileCount, int featureCountPerFile, boolean runAsync) throws IOException, InterruptedException {
-
     uploadFiles(JOB_ID, fileCount, featureCountPerFile, format);
     LambdaBasedStep step = new ImportFilesToSpace()
-            .withJobId(JOB_ID)
-            .withFormat(format)
-            .withSpaceId(SPACE_ID);
+        .withJobId(JOB_ID)
+        .withFormat(format)
+        .withSpaceId(SPACE_ID)
+        .withInputSets(List.of(USER_INPUTS.get()));
 
     if(runAsync)
       //Triggers async execution with max threads
@@ -215,7 +216,7 @@ public class ImportStepTest extends StepTest {
 
     StatisticsResponse statsAfter = getStatistics(SPACE_ID);
     Assertions.assertEquals(Long.valueOf(fileCount * featureCountPerFile), statsAfter.getCount().getValue());
-    checkStatistics(fileCount * featureCountPerFile, step.loadOutputs(true));
+    checkStatistics(fileCount * featureCountPerFile, step.loadUserOutputs());
   }
 
   protected void checkStatistics(int expectedFeatureCount, List<Output> outputs) throws IOException {

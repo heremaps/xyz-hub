@@ -20,9 +20,11 @@
 package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
+import static java.util.regex.Matcher.quoteReplacement;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
@@ -40,20 +42,27 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.UUID;
-
+import java.util.function.Function;
+import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
+
   private static final Logger logger = LogManager.getLogger();
+  private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
+  private static final String INPUT_SET_REF_SUFFIX = "}";
+  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile("\\$\\{inputSet:([a-zA-Z0-9._=-]+)\\}");
+  public static final String USER_REF = "USER";
 
   private String applicationId;
   private String executionRoleArn;
   private String jarUrl;
   private List<String> scriptParams;
   private String sparkParams;
-  private boolean inputsExpected;
 
   @Override
   public List<Load> getNeededResources() {
@@ -78,6 +87,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   //Gets only executed when running locally (see GraphTransformer)
   @Override
   public void execute() throws Exception {
+    List<String> scriptParams = new ArrayList<>(getResolvedScriptParams());
+
     //Create the local target directory in which EMR writes the output
     String localTmpOutputsFolder = createLocalFolder(S3Client.getKeyFromS3Uri(scriptParams.get(1)), true);
     String s3TargetDir = scriptParams.get(1);
@@ -165,7 +176,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     if (scriptParams.size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
 
-    return !isInputsExpected() || currentInputsCount(Input.class) > 0;
+    return !isUserInputsExpected() || isUserInputsPresent(Input.class);
   }
 
   public String getApplicationId() {
@@ -233,19 +244,6 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return this;
   }
 
-  public boolean isInputsExpected() {
-    return inputsExpected;
-  }
-
-  public void setInputsExpected(boolean inputsExpected) {
-    this.inputsExpected = inputsExpected;
-  }
-
-  public RunEmrJob withInputsExpected(boolean inputsExpected) {
-    setInputsExpected(inputsExpected);
-    return this;
-  }
-
   private String getLocalTmpPath(String s3Path) {
     final String localRootPath = "/tmp/";
     return localRootPath + s3Path;
@@ -280,6 +278,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
    * @return Local path of tmp directory
    */
   private String copyFolderFromS3ToLocal(String s3Path) {
+    //TODO: Use inputs loading of framework instead
     List<S3ObjectSummary> s3ObjectSummaries = S3Client.getInstance().scanFolder(s3Path);
 
     for (S3ObjectSummary s3ObjectSummary : s3ObjectSummaries) {
@@ -360,5 +359,83 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   @Override
   public LambdaBasedStep.ExecutionMode getExecutionMode() {
     return SYNC;
+  }
+
+  //Increase the visibility of that method, because for the native EMR integration it's actually necessary to define the expected outputs in the compilers
+  @Override
+  public void setOutputSets(List<OutputSet> outputSets) {
+    super.setOutputSets(outputSets);
+  }
+
+  public RunEmrJob withOutputSets(List<OutputSet> outputSets) {
+    setOutputSets(outputSets);
+    return this;
+  }
+
+  public String inputSetReference(InputSet inputSet) {
+    if (!getInputSets().contains(inputSet))
+      throw new IllegalArgumentException("The provided inputSet is not a part of this EMR step.");
+
+    return toInputSetReference(inputSet);
+  }
+
+  public static String toInputSetReference(InputSet inputSet) {
+    return INPUT_SET_REF_PREFIX + toReferenceIdentifier(inputSet) + INPUT_SET_REF_SUFFIX;
+  }
+
+  private static String toReferenceIdentifier(InputSet inputSet) {
+    return inputSet.name() == null ? USER_REF : (inputSet.stepId() + "." + inputSet.name());
+  }
+
+  InputSet fromReferenceIdentifier(String referenceIdentifier) {
+    if (USER_REF.equals(referenceIdentifier))
+      return getInputSet(null, null);
+    else {
+      ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
+      return getInputSet(ref.stepId(), ref.name());
+    }
+  }
+
+  protected InputSet getInputSet(String stepId, String name) {
+    try {
+      return getInputSets().stream()
+          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.stepId(), stepId))
+          .findFirst()
+          .get();
+    }
+    catch (NoSuchElementException e) {
+      throw new IllegalArgumentException("No input set \"" + (name == null ? "<USER-INPUTS>" : stepId + "." + name) + "\" exists in step \"" + getId() + "\"");
+    }
+  }
+
+  List<String> getResolvedScriptParams() {
+    //Replace potential inputSet references within the script params
+    return getScriptParams().stream().map(scriptParam -> replaceInputSetReferences(scriptParam)).toList();
+  }
+
+  private String replaceInputSetReferences(String scriptParam) {
+    return mapInputReferencesIn(scriptParam,
+        referenceIdentifier -> toS3Uri(fromReferenceIdentifier(referenceIdentifier).toS3Path(getJobId())));
+  }
+
+  static String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
+    return INPUT_SET_REF_PATTERN.matcher(scriptParam)
+        .replaceAll(match -> {
+          String replacement = mapper.apply(match.group(1));
+          if (replacement == null)
+            return quoteReplacement(match.group());
+          return quoteReplacement(replacement);
+        });
+  }
+
+  private String toS3Uri(String s3Path) {
+    return "s3://" + Config.instance.JOBS_S3_BUCKET + "/" + s3Path + "/";
+  }
+
+  record ReferenceIdentifier(String stepId, String name) {
+    public static ReferenceIdentifier fromString(String referenceIdentifier) {
+      return new ReferenceIdentifier(referenceIdentifier.substring(0, referenceIdentifier.indexOf(".")),
+          referenceIdentifier.substring(referenceIdentifier.indexOf(".") + 1));
+    }
   }
 }

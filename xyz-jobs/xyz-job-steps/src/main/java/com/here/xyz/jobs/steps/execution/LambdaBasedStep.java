@@ -96,7 +96,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   /**
    * Contains the raw (unparsed & unresolved) pipeline input if this LambdaBasedStep belongs to a job that is a pipeline.
    * This value should not be used directly by implementing steps. Implementing steps can gather the input using the well-known
-   * method {@link #loadInputs()}. Using that method will ensure correct deserialization & resolving of the input references.
+   * method {@link #loadInputs(Class[])}. Using that method will ensure correct deserialization & resolving of the input references.
    */
   @JsonView(Internal.class)
   private Map<String, Object> pipelineInput;
@@ -450,8 +450,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   @Override
-  protected List<Input> loadInputs() {
-    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs();
+  protected List<Input> loadInputs(Class<? extends Input>... inputTypes) {
+    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs(inputTypes);
   }
 
   public enum ExecutionMode {

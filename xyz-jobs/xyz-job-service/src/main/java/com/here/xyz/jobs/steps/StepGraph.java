@@ -23,8 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.jobs.service.Config;
-import com.here.xyz.jobs.steps.resources.Load;
-import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -139,15 +137,30 @@ public class StepGraph implements StepExecution {
    */
   @Override
   public boolean isEquivalentTo(StepExecution other) {
+    if (other instanceof Step otherStep)
+      if (executions.size() == 1)
+        return executions.get(0).isEquivalentTo(otherStep);
+      else
+        return false;
+
     if (!(other instanceof StepGraph otherGraph)
-        || otherGraph.isParallel() != isParallel()
-        || executions.size() != otherGraph.executions.size())
+        || executions.size() != otherGraph.executions.size()
+        || otherGraph.isParallel() != isParallel() && executions.size() > 1) //NOTE: For graphs with 0 or 1 executions, the parallelity has no effect
       return false;
 
-    //FIXME: If this StepGraph is a parallel one, the order of the executions should not matter. In that case it simply matters, that for each execution there *exists* an equivalent execution in otherGraph
-    for (int i = 0; i < executions.size(); i++)
-      if (!executions.get(i).isEquivalentTo(otherGraph.executions.get(i)))
-        return false;
+    if (isParallel()) {
+      for (int i = 0; i < executions.size(); i++) {
+        final StepExecution execution = executions.get(i);
+        //FIXME: Do not allow that one matching branch from the other graph can be matched by further executions of this graph
+        if (!otherGraph.getExecutions().stream().anyMatch(otherExecution -> execution.isEquivalentTo(otherExecution)))
+          return false;
+      }
+    }
+    else {
+      for (int i = 0; i < executions.size(); i++)
+        if (!executions.get(i).isEquivalentTo(otherGraph.executions.get(i)))
+          return false;
+    }
     return true;
   }
 
@@ -191,7 +204,7 @@ public class StepGraph implements StepExecution {
    */
   @JsonIgnore
   public boolean isEmpty() {
-    return executions.isEmpty();
+    return stepStream().count() == 0;
   }
 
   /**

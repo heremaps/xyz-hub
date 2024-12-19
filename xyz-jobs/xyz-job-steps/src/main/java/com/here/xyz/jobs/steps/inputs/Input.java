@@ -29,9 +29,9 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.Core;
 import java.io.IOException;
@@ -52,7 +52,7 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = InputsFromJob.class, name = "InputsFromJob"),
     @JsonSubTypes.Type(value = InputsFromS3.class, name = "InputsFromS3")
 })
-public abstract class Input <T extends Input> implements Typed {
+public abstract class Input <T extends Input> extends StepPayload<T> {
   private static final Logger logger = LogManager.getLogger();
   protected long byteSize;
   protected boolean compressed;

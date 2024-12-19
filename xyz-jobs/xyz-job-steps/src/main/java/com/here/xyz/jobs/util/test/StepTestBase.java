@@ -48,6 +48,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
@@ -189,7 +190,7 @@ public class StepTestBase {
 
   protected StatisticsResponse getStatistics(String spaceId) {
     try {
-      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.EXTENSION, true);
+      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.DEFAULT, true);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
@@ -198,7 +199,7 @@ public class StepTestBase {
 
   protected FeatureCollection getFeaturesFromSmallSpace(String spaceId ,String propertyFilter, boolean force2D) {
     try {
-      return hubWebClient.getFeaturesFromSmallSpace(spaceId, SpaceContext.EXTENSION, propertyFilter, force2D);
+      return hubWebClient.getFeaturesFromSmallSpace(spaceId, SpaceContext.DEFAULT, propertyFilter, force2D);
     } catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
     }
@@ -306,6 +307,15 @@ public class StepTestBase {
   }
 
   protected void sendLambdaStepRequestBlock(LambdaBasedStep step, boolean simulate) throws IOException, InterruptedException {
+    try {
+      step.prepare(null, null);
+      if (!step.validate())
+        throw new IllegalStateException("The step " + step.getGlobalStepId() + " of type " + step.getClass().getSimpleName() + " is not ready for execution yet");
+    }
+    catch (ValidationException e) {
+      throw new RuntimeException("Validation exception: " + e.getMessage(), e);
+    }
+
     sendLambdaStepRequest(step, START_EXECUTION, simulate);
     DataSourceProvider dsp = getDataSourceProvider();
 

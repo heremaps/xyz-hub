@@ -19,27 +19,19 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-
-import java.io.IOException;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
+import com.here.xyz.jobs.steps.inputs.InputFromOutput;
+import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.FetchedVersions;
-import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -48,21 +40,24 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
  * This step fetches the next unused version from source space.
  *
- * @TODO
- * - onStateCheck
- * - resume
- * - provide output
- * - add i/o report
- * - move out parsePropertiesQuery functions
+ * @TODO - onStateCheck - resume - provide output - add i/o report - move out parsePropertiesQuery functions
  */
 public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
-  private static final Logger logger = LogManager.getLogger();
 
+  public static final String STATISTICS = "statistics";
+  private static final Logger logger = LogManager.getLogger();
   @JsonView({Internal.class, Static.class})
   private double overallNeededAcus = -1;
 
@@ -79,10 +74,37 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private long fetchedVersion = 0;
-
-  @JsonView({Internal.class, Static.class})
   private long copiedByteSize = 0;
+
+  {
+    setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
+  }
+
+  @Override
+  public List<Load> getNeededResources() {
+    try {
+      List<Load> rList = new ArrayList<>();
+      Space sourceSpace = loadSpace(getSpaceId());
+
+      rList.add(new Load().withResource(loadDatabase(sourceSpace.getStorage().getId(), WRITER))
+          .withEstimatedVirtualUnits(calculateNeededAcus()));
+
+      rList.add(new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getCopiedByteSize())); // billing, reporting
+
+      logger.info("[{}] IncVersion #{} {}", getGlobalStepId(),
+          rList.size(),
+          sourceSpace.getStorage().getId());
+
+      return rList;
+    }
+    catch (WebClientException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private double calculateNeededAcus() {
+    return 0.0;
+  }
 
   public long getCopiedByteSize() {
     return copiedByteSize;
@@ -92,42 +114,14 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     this.copiedByteSize = copiedByteSize;
   }
 
-  public long getFetchedVersion() {
-    return fetchedVersion;
-  }
-
   @Override
-  public List<Load> getNeededResources() {
-    try {
-      List<Load> rList  = new ArrayList<>();
-      Space sourceSpace = loadSpace(getSpaceId());
-
-      rList.add( new Load().withResource(loadDatabase(sourceSpace.getStorage().getId(), WRITER))
-                           .withEstimatedVirtualUnits(calculateNeededAcus()) );
-
-      rList.add( new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getCopiedByteSize()) ); // billing, reporting
-
-      logger.info("[{}] IncVersion #{} {}", getGlobalStepId(), 
-                                                           rList.size(),
-                                                           sourceSpace.getStorage().getId() );
-
-      return rList;                            
-    }
-    catch (WebClientException e) {
-      throw new RuntimeException(e);
-    }
+  public int getTimeoutSeconds() {
+    return 24 * 3600;
   }
-
-  @Override
-  public int getTimeoutSeconds() { return 24 * 3600; }
 
   @Override
   public int getEstimatedExecutionSeconds() {
     return 5;
-  }
-
-  private double calculateNeededAcus() {
-    return 0.0;
   }
 
   @Override
@@ -142,89 +136,90 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     return true;
   }
 
+  @Override
+  public ExecutionMode getExecutionMode() {
+    return SYNC;
+  }
+
+  @Override
+  public void execute() throws Exception {
+    long fetchedVersion = _getCreatedVersion();
+
+    infoLog(STEP_EXECUTE, this, String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId()));
+
+    FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
+
+    infoLog(STEP_EXECUTE, this, "Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
+    registerOutputs(List.of(statistics), STATISTICS);
+
+    setCopiedByteSize(statistics.getByteSize());
+    if (statistics.getFeatureCount() > 0)
+      writeContentUpdatedAtTs();
+  }
+
+  //TODO: Remove that workaround once the 3 copy steps were properly merged into one step again
+  long _getCreatedVersion() {
+    for (InputFromOutput input : (List<InputFromOutput>) (List<?>) loadInputs(InputFromOutput.class))
+      if (input.getDelegate() instanceof CreatedVersion f)
+        return f.getVersion();
+    return 0;
+  }
+
   private FeatureStatistics getCopiedFeatures(long fetchedVersion) throws SQLException, TooManyResourcesClaimed, WebClientException {
 
-    Space targetSpace   = loadSpace(getSpaceId());
-    Database targetDb   = loadDatabase(targetSpace.getStorage().getId(), WRITER);
-    String targetSchema = getSchema( targetDb ), 
-            targetTable = getRootTableName(targetSpace);
+    Space targetSpace = loadSpace(getSpaceId());
+    Database targetDb = loadDatabase(targetSpace.getStorage().getId(), WRITER);
+    String targetSchema = getSchema(targetDb),
+        targetTable = getRootTableName(targetSpace);
 
     SQLQuery incVersionSql = new SQLQuery(
-              """
-                select count(1), coalesce( sum( (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint ), 0::bigint )
-                from ${schema}.${table} 
-                where version = ${{fetchedVersion}} 
-              """)
-                .withVariable("schema", targetSchema)
-                .withVariable("table", targetTable)
-                .withQueryFragment("fetchedVersion",""+fetchedVersion);
+        """
+              select count(1), coalesce( sum( (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint ), 0::bigint )
+              from ${schema}.${table} 
+              where version = ${{fetchedVersion}} 
+            """)
+        .withVariable("schema", targetSchema)
+        .withVariable("table", targetTable)
+        .withQueryFragment("fetchedVersion", "" + fetchedVersion);
 
-     FeatureStatistics statistics = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
-       return rs.next()
-              ? new FeatureStatistics().withFeatureCount(rs.getLong(1)).withByteSize(rs.getLong(2))
-              : new FeatureStatistics();
+    FeatureStatistics statistics = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
+      return rs.next()
+          ? new FeatureStatistics().withFeatureCount(rs.getLong(1)).withByteSize(rs.getLong(2))
+          : new FeatureStatistics();
     });
 
     return statistics;
   }
 
-  @Override
-  public ExecutionMode getExecutionMode() {
-   return SYNC;
-  }
-
-  private void sleepWithIncr(int i) { try { Thread.sleep( i * 15000 ); } catch (InterruptedException ignored) {} }
-
-  private void writeContentUpdatedAtTs() throws WebClientException
-  {
+  private void writeContentUpdatedAtTs() throws WebClientException {
     int nrRetries = 3;
 
-    for( int i = 0; i < nrRetries; i++)
-     try
-     { hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
-       return;
-     }
-     catch( WebClientException e )
-     { logger.error("[{}] writeContentUpdatedAtTs() -> retry({}) {}", getGlobalStepId(), i+1, getSpaceId()); 
-       sleepWithIncr(i + 1);
-     }
+    for (int i = 0; i < nrRetries; i++)
+      try {
+        hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+        return;
+      }
+      catch (WebClientException e) {
+        logger.error("[{}] writeContentUpdatedAtTs() -> retry({}) {}", getGlobalStepId(), i + 1, getSpaceId());
+        sleepWithIncr(i + 1);
+      }
 
     //TODO: handle ts not updated after retries -> should throw a "retryable Exception", when available. Ignore for now.
     logger.error("[{}] could not write contentUpadtedAt to space {}", getGlobalStepId(), getSpaceId());
 
   }
 
-
-
-  @Override
-  public void execute() throws Exception {
-
-    long fetchedVersion = 0;
-
-    for(Output<?> output : loadPreviousOutputs(false) )
-     if( output instanceof FetchedVersions f )
-      fetchedVersion = f.getFetchtedSequence();
-
-    infoLog(STEP_EXECUTE, this,String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId() )); 
-
-    FeatureStatistics statistics = getCopiedFeatures(fetchedVersion);
-
-    infoLog(STEP_EXECUTE, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
-    registerOutputs(List.of(statistics), true);
-
-    setCopiedByteSize( statistics.getByteSize() );
- 
-    if( statistics.getFeatureCount() > 0 )
-     writeContentUpdatedAtTs();
-    
+  private void sleepWithIncr(int i) {
+    try {
+      Thread.sleep(i * 15000);
+    }
+    catch (InterruptedException ignored) {
+    }
   }
 
   @Override
-  protected void onAsyncSuccess() throws WebClientException,
-          SQLException, TooManyResourcesClaimed, IOException {
-
+  protected void onAsyncSuccess() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     logger.info("[{}] AsyncSuccess IncVersion {} ", getGlobalStepId(), getSpaceId());
-
   }
 
   @Override
@@ -239,6 +234,4 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     //@TODO: Implement
     logger.info("ImlCopy.Post - onAsyncSuccess");
   }
-
-
 }

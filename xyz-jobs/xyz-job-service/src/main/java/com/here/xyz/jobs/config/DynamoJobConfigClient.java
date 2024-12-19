@@ -99,6 +99,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey) {
+    if(secondaryResourceKey == null)
+      return loadJobs(resourceKey, resourceKey);
+
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
 
@@ -114,8 +117,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
       // If secondaryResourceKey is provided, query it too
       if (secondaryResourceKey != null) {
-        jobTable.getIndex("resourceKey-index")
-                .query("resourceKey", secondaryResourceKey)
+        jobTable.getIndex("secondaryResourceKey-index")
+                .query("secondaryResourceKey", secondaryResourceKey)
                 .pages()
                 .forEach(page ->
                         page.forEach(jobItem -> {

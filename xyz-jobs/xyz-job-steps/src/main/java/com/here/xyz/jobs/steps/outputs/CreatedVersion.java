@@ -19,20 +19,19 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
-public class FetchedVersions extends ModelBasedOutput {
-    private long fetchtedSequence;
+public class CreatedVersion extends ModelBasedOutput {
+    private long version;
 
-    public long getFetchtedSequence() {
-        return fetchtedSequence;
+    public long getVersion() {
+        return version;
     }
 
-    public void setFetchtedSequence(long fetchtedSequence) {
-        this.fetchtedSequence = fetchtedSequence;
+    public void setVersion(long version) {
+        this.version = version;
     }
 
-    public FetchedVersions withFetchtedSequence(long fetchtedSequence) {
-        setFetchtedSequence(fetchtedSequence);
+    public CreatedVersion withVersion(long version) {
+        setVersion(version);
         return this;
     }
-
 }

@@ -1,23 +1,17 @@
 package com.here.xyz.jobs;
 
 import com.here.xyz.jobs.util.test.JobTestBase;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 
 public class JobTest extends JobTestBase {
-    @BeforeEach
-    public void setUp() {
-        createSpace(SPACE_ID);
-    }
 
     @AfterEach
-    public void tearDown() {
-        deleteSpace(SPACE_ID);
+    public void tearDown() throws IOException, InterruptedException {
+        cleanResources();
     }
 
     protected void checkSucceededJob(Job exportJob, int expectedFeatureCount) throws IOException, InterruptedException {
@@ -46,11 +40,9 @@ public class JobTest extends JobTestBase {
 
         List<Map> jobOutputs = getJobOutputs(secondJob.getId());
         for (Map jobOutput : jobOutputs) {
-            if(jobOutput.get("type").equals("FileStatistics")){
+            if(jobOutput.get("type").equals("FeatureStatistics")){ //TODO: Use the FeatureStatistics model here instead
                 foundStatistics = true;
-                Assertions.assertEquals(expectedFeatureCount, jobOutput.get("exportedFeatures"));
-                Assertions.assertEquals(1, jobOutput.get("exportedFiles"));
-                Assertions.assertTrue((int) jobOutput.get("exportedFiles") > 0);
+                Assertions.assertEquals(expectedFeatureCount, jobOutput.get("featureCount"));
             }else if(jobOutput.get("type").equals("DownloadUrl")){
                 foundUrls = true;
                 if(expectMatch) {

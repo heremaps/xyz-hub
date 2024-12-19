@@ -43,12 +43,11 @@ import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
+import com.here.xyz.jobs.processes.ProcessDescription;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
-import com.here.xyz.jobs.steps.execution.DelegateOutputsPseudoStep;
-import com.here.xyz.jobs.steps.execution.DelegateOutputsPseudoStep.ReferenceMetadata;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
@@ -61,18 +60,13 @@ import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
-import io.vertx.core.CompositeFuture;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import io.vertx.core.Future;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -99,6 +93,8 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Public.class, Static.class})
+  private ProcessDescription process;
+  @JsonView({Public.class, Static.class})
   private DatasetDescription source;
   @JsonView({Public.class, Static.class})
   private DatasetDescription target;
@@ -115,18 +111,6 @@ public class Job implements XyzSerializable {
   private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(4 * 7); //4 weeks
-
-  public static void main(String[] args) {
-    long createdAt = 1727910277687l;
-    long keepUntil = 1728515077;
-
-    final long actual = keepUntil * 1000;
-    System.out.println("Actual keep Until  : " + actual);
-    final long expected = createdAt + DEFAULT_JOB_TTL;
-    System.out.println("Expected keep until: " + expected);
-    System.out.println("Difference: " + (expected - actual));
-
-  }
 
   /**
    * Creates a new Job.
@@ -224,15 +208,16 @@ public class Job implements XyzSerializable {
    */
   protected Future<Boolean> validate() {
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
-    return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> validateStep(step)))
-        .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(validation -> (boolean) validation)));
+    return Future.all(Job.forEach(getSteps().stepStream().toList(), step -> validateStep(step)))
+        .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
   }
 
   private static Future<Boolean> validateStep(Step step) {
     return ASYNC.run(() -> {
       boolean isReady = step.validate();
-      if (isReady && step.getStatus().getState() != SUBMITTED)
-        step.getStatus().setState(SUBMITTED);
+      State targetState = isReady ? SUBMITTED : NOT_READY;
+      if (step.getStatus().getState() != targetState)
+        step.getStatus().setState(targetState);
       return isReady;
     });
   }
@@ -416,7 +401,7 @@ public class Job implements XyzSerializable {
   }
 
   public static Future<Void> delete(String jobId) {
-      return load(jobId)
+    return load(jobId)
         //First delete all the inputs / outputs of the job
         .compose(job -> job.getStatus().getState() == RUNNING
             ? Future.failedFuture(new IllegalStateException("Job can not be deleted as it is in state RUNNING."))
@@ -430,32 +415,13 @@ public class Job implements XyzSerializable {
   E.g., when a job config was deleted due to a Dynamo TTL
    */
   public Future<Void> deleteJobResources() {
-    return getReferencingJobs(getId())
-            .compose(ids -> updateReferences(getId(), ids))
-            .compose(ids -> {
-              if (ids.isEmpty()) {
-                return Future.succeededFuture(); // No references, continue.
-              } else {
-                return Future.failedFuture(new SkipExecutionException("Job cannot be deleted as it has referenced jobs: " + ids));
-              }
-            })
-            .compose(f -> JobExecutor.getInstance().deleteExecution(getExecutionId()))
-            .compose(b -> deleteInputs())
-            .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step))))
-            .recover(err -> {
-              //TODO: Remove this workaround, which leads into stale s3 files
-              if (err instanceof SkipExecutionException) {
-                //Skiped deletion.
-                return Future.succeededFuture();
-              }
-              return Future.failedFuture(err);
-            }).mapEmpty();
-  }
-
-  private class SkipExecutionException extends RuntimeException {
-    public SkipExecutionException(String message) {
-      super(message);
-    }
+    //Delete StateMachine if still existing
+    return JobExecutor.getInstance().deleteExecution(getExecutionId())
+        //Delete the inputs of this job
+        .compose(b -> deleteInputs())
+        //Delete the outputs of all involved steps
+        .compose(v -> Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> deleteStepOutputs(step)))
+            .mapEmpty());
   }
 
   private static Future<Boolean> deleteStepOutputs(Step step) {
@@ -463,62 +429,6 @@ public class Job implements XyzSerializable {
       step.deleteOutputs();
       return null;
     });
-  }
-
-  /**
-   * Retrieve a list of referenced jobs.
-   */
-  public static Future<Set<String>> getReferencingJobs(String jobId) {
-    try {
-      ReferenceMetadata referenceMetadata = DelegateOutputsPseudoStep.loadReferenceMetadata(jobId);
-      return Future.succeededFuture(referenceMetadata.referencingJobs());
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  /**
-   * Updates the references for a given job by validating the existence of the provided IDs and saving the updated references.
-   *
-   * <p>This method performs the following steps:
-   * <ul>
-   *   <li>Checks if the provided {@code ids} set is null or empty. If so, it immediately returns a succeeded future with an empty set.</li>
-   *   <li>Uses a thread-safe set to validate the provided IDs by checking if the corresponding jobs exist.</li>
-   *   <li>If a job does not exist, the ID is removed from the set.</li>
-   *   <li>After all validations, the updated references are saved as metadata for the specified job.</li>
-   * </ul>
-   *
-   * @param jobId The ID of the job for which references are being updated. Must not be null.
-   * @param ids   A set of IDs to validate and update. May be null or empty.
-   * @return A {@link Future} that completes with the updated set of valid IDs. If {@code ids} is null or empty, the future completes with an empty set.
-   * @throws RuntimeException If an {@link IOException} occurs while saving the reference metadata.
-   */
-  public static Future<Set<String>> updateReferences(String jobId, Set<String> ids) {
-    if(ids == null || ids.isEmpty())
-      return Future.succeededFuture(new HashSet<>());
-
-    // Use a thread-safe set to collect valid IDs
-    Set<String> validIds = ConcurrentHashMap.newKeySet();
-    validIds.addAll(ids);
-
-    List<Future> futures = ids.stream()
-            .map(refJob -> load(refJob).onSuccess(job -> {
-              if (job == null) {
-                // If the job doesn't exist, remove it
-                validIds.remove(refJob);
-              }
-            }))
-            .collect(Collectors.toList());
-
-    return CompositeFuture.all(futures)
-            .compose(f -> {
-              try {
-                DelegateOutputsPseudoStep.saveReferenceMetadata(jobId, new ReferenceMetadata(validIds));
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-              return Future.succeededFuture(validIds);
-            });
   }
 
   /**
@@ -578,7 +488,7 @@ public class Job implements XyzSerializable {
 
   public Future<List<Output>> loadOutputs() {
     return ASYNC.run(() -> steps.stepStream()
-        .map(step -> (List<Output>) step.loadOutputs(true))
+        .map(step -> (List<Output>) step.loadUserOutputs())
         .flatMap(ol -> ol.stream())
         .collect(Collectors.toList()));
   }
@@ -611,29 +521,34 @@ public class Job implements XyzSerializable {
   @JsonView(Static.class)
   public String getResourceKey() {
     //Always use key from the source except when the source is Files
-    if(getSource() == null) return null;
+    if (getSource() == null)
+      return null;
     return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
   }
 
-  public String getSecondaryResourceKey(){
-    if(this.secondaryResourceKey != null)
-      return this.secondaryResourceKey;
+  public String getSecondaryResourceKey() {
+    if (secondaryResourceKey != null)
+      return secondaryResourceKey;
 
     String key = getResourceKey();
-    if(key == null) return null;
-    //in case of composite spaces add base layer as resource
+    if (key == null)
+      return null;
 
     try {
       Space.Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(key).getExtension();
-      if(extension != null) {
-        this.secondaryResourceKey = extension.getSpaceId();
-      }
-    } catch (XyzWebClient.WebClientException e) {
+      if (extension != null)
+        secondaryResourceKey = extension.getSpaceId();
+    }
+    catch (XyzWebClient.WebClientException e) {
       //Ignore if space is not present anymore
-      if(!(e instanceof XyzWebClient.ErrorResponseException er && er.getStatusCode() == 404))
+      if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
         throw new RuntimeException(e);
     }
-    return this.secondaryResourceKey;
+    return secondaryResourceKey;
+  }
+
+  private void setSecondaryResourceKey(String secondaryResourceKey) {
+    this.secondaryResourceKey = secondaryResourceKey;
   }
 
   public String getDescription() {
@@ -747,6 +662,19 @@ public class Job implements XyzSerializable {
 
   public Job withClientInfo(JobClientInfo clientInfo) {
     setClientInfo(clientInfo);
+    return this;
+  }
+
+  public ProcessDescription getProcess() {
+    return process;
+  }
+
+  public void setProcess(ProcessDescription process) {
+    this.process = process;
+  }
+
+  public Job withProcess(ProcessDescription process) {
+    setProcess(process);
     return this;
   }
 

@@ -24,7 +24,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-public class CopyJobTestIT extends JobTestBase {
+public class CopyJobTestIT extends JobTest {
 
   static private String SrcSpc    = "testCopy-Source-09", 
                         TrgSpc    = "testCopy-Target-09";
@@ -50,7 +50,6 @@ public class CopyJobTestIT extends JobTestBase {
 
   @BeforeEach
   public void setup() throws SQLException {
-      cleanup();
       createSpace(new Space().withId(SrcSpc).withVersionsToKeep(100),false);
       createSpace(new Space().withId(TrgSpc).withVersionsToKeep(100),false);
       ////createSpace(new Space().withId(TrgRmtSpc).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(OtherCntr)),false);
@@ -64,14 +63,6 @@ public class CopyJobTestIT extends JobTestBase {
       ////putRandomFeatureCollectionToSpace(TrgRmtSpc, 2,xmin,ymin,xmax,ymax);
 
   }
-
-  @AfterEach
-  public void cleanup() throws SQLException {
-    deleteSpace(SrcSpc);
-    deleteSpace(TrgSpc);
-    ////deleteSpace(TrgRmtSpc);
-  }
-
 
   protected void checkSucceededJob(Job job) throws IOException, InterruptedException {
      RuntimeStatus status = getJobStatus(job.getId());
@@ -99,8 +90,6 @@ public class CopyJobTestIT extends JobTestBase {
        Assertions.assertEquals( 1, l.size() );
 
        Assertions.assertEquals( 40, l.get(0).get("featureCount") );
-
-       deleteJob(copyJob.getId());
  }
 
 }
