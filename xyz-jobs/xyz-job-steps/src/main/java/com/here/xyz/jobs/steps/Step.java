@@ -34,7 +34,6 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.RuntimeInfo;
-import com.here.xyz.jobs.steps.execution.DelegateOutputsPseudoStep;
 import com.here.xyz.jobs.steps.execution.DelegateStep;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.execution.RunEmrJob;
@@ -69,8 +68,7 @@ import org.apache.logging.log4j.Logger;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = LambdaBasedStep.class),
     @JsonSubTypes.Type(value = RunEmrJob.class),
-    @JsonSubTypes.Type(value = DelegateStep.class),
-    @JsonSubTypes.Type(value = DelegateOutputsPseudoStep.class)
+    @JsonSubTypes.Type(value = DelegateStep.class)
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
@@ -188,7 +186,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     return loadOutputs(USER);
   }
 
-  protected List<Output> loadOutputs(Visibility visibility) {
+  public List<Output> loadOutputs(Visibility visibility) {
     return outputSets.stream()
         .filter(outputSet -> outputSet.visibility == visibility)
         .flatMap(outputSet -> loadStepOutputs(outputSet).stream())

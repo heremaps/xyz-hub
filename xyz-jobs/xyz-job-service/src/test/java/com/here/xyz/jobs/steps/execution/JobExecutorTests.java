@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.EXPORTED
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.service.Config;
@@ -36,6 +37,7 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -45,7 +47,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-@Disabled
 public class JobExecutorTests {
   private static final String JOB_ID1 = "TEST_JOB_1";
   private static final String JOB_ID2 = "TEST_JOB_2";
@@ -65,7 +66,6 @@ public class JobExecutorTests {
     }
   }
 
-  @Disabled("Disabled until the test was migrated to new GraphFusionTool")
   @Test
   public void testReuseSequentialGraph(){
     //      |   (reusable)
@@ -90,38 +90,36 @@ public class JobExecutorTests {
     //2 Steps can be reused
     assertEquals(2, connectedEquivalentSubGraph.getExecutions().size());
 
-    JobExecutor.shrinkGraphByReusingOtherGraph(
+
+
+    StepGraph graph = GraphFusionTool.fuseGraphs(
         new Job().withId(JOB_ID1).withSteps(graph2),
         connectedEquivalentSubGraph
-    ).onSuccess(graph ->
-        {
-          Step execution1 = (Step)graph.getExecutions().get(0);
-          Step execution2 = (Step)graph.getExecutions().get(1);
-          Step execution3 = (Step)graph.getExecutions().get(2);
-
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution1);
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution2);
-          assertInstanceOf(ExportSpaceToFiles.class, execution3);
-
-          //Check if previousStepId is set correct
-          assertEquals(new HashSet<>(List.of(execution2.getId()))
-              , execution3.getPreviousStepIds());
-        }
     );
+    Step execution1 = (Step)graph.getExecutions().get(0);
+    Step execution2 = (Step)graph.getExecutions().get(1);
+    Step execution3 = (Step)graph.getExecutions().get(2);
+
+    assertInstanceOf(DelegateStep.class, execution1);
+    assertInstanceOf(DelegateStep.class, execution2);
+    assertInstanceOf(ExportSpaceToFiles.class, execution3);
+
+    //Check if previousStepId is set correct
+    assertEquals(new HashSet<>(List.of(execution2.getId()))
+        , execution3.getPreviousStepIds());
   }
 
-  @Disabled("Disabled until the test was migrated to new GraphFusionTool")
   @Test
   public void testReuseSequentialGraphWithInputIds() {
     //      |   (reusable)
     //      |   (reusable)
     //      |   (not-reusable)
 
-    ExportSpaceToFiles exportStep = (ExportSpaceToFiles) stepGenerator(ExportSpaceToFiles.class, JOB_ID1, SOURCE_ID1);
+    ExportSpaceToFiles exportStep1 = (ExportSpaceToFiles) stepGenerator(ExportSpaceToFiles.class, JOB_ID1, SOURCE_ID1);
     StepGraph graph1 = new CompilationStepGraph()
         .withExecutions(List.of(
-            exportStep,
-            stepGenerator(ImportFilesToSpace.class, JOB_ID1, SOURCE_ID2, Set.of(exportStep.getId()))
+            exportStep1,
+            stepGenerator(ImportFilesToSpace.class, JOB_ID1, SOURCE_ID2, Set.of(exportStep1.getId()))
         ))
         .withParallel(false);
     ((CompilationStepGraph) graph1).enrich(JOB_ID1);
@@ -140,30 +138,29 @@ public class JobExecutorTests {
     //Only ExportStep can be reused. Imports are not implementing isEquivalentTo().
     assertEquals(1, connectedEquivalentSubGraph.getExecutions().size());
 
-    JobExecutor.shrinkGraphByReusingOtherGraph(
+    StepGraph graph = GraphFusionTool.fuseGraphs(
         new Job().withId(JOB_ID1).withSteps(graph1),
         connectedEquivalentSubGraph
-    ).onSuccess(graph -> {
-      Step execution1 = (Step) graph.getExecutions().get(0);
-      Step execution2 = (Step) graph.getExecutions().get(1);
+    );
 
-      assertInstanceOf(DelegateOutputsPseudoStep.class, execution1);
-      assertInstanceOf(ImportFilesToSpace.class, execution2);
+    Step execution1 = (Step) graph.getExecutions().get(0);
+    Step execution2 = (Step) graph.getExecutions().get(1);
 
-      //Check if previousStepIds are set correct
-      assertEquals(Set.of(execution1.getId()), execution2.getPreviousStepIds());
+    assertInstanceOf(DelegateStep.class, execution1);
+    assertInstanceOf(ImportFilesToSpace.class, execution2);
 
-      //Check if inputStepIds are set correct (+ linked to a re-used job)
-      final InputSet reusedInputSet = ((List<InputSet>) execution2.getInputSets()).stream()
-          .filter(inputSet -> Objects.equals(inputSet.name(), EXPORTED_DATA))
-          .findAny()
-          .get();
-      assertEquals(reusedInputSet.jobId(), JOB_ID1);
-      assertEquals(reusedInputSet.stepId(), exportStep.getId());
-    });
+    //Check if previousStepIds are set correct
+    assertEquals(Set.of(execution1.getId()), execution2.getPreviousStepIds());
+
+    //Check if inputStepIds are set correct (+ linked to a re-used job)
+    final InputSet reusedInputSet = ((List<InputSet>) execution2.getInputSets()).stream()
+        .filter(inputSet -> Objects.equals(inputSet.name(), EXPORTED_DATA))
+        .findAny()
+        .get();
+    assertEquals(reusedInputSet.jobId(), JOB_ID1);
+    assertEquals(reusedInputSet.stepId(), exportStep2.getId());
   }
 
-  @Disabled("Disabled until the test was migrated to new GraphFusionTool")
   @Test
   public void testReuseParallelGraph(){
     //      |(reusable)  |(reusable)  |(not-reusable)
@@ -186,29 +183,24 @@ public class JobExecutorTests {
     //2 Steps can be reused
     assertEquals(2, connectedEquivalentSubGraph.getExecutions().size());
 
-    JobExecutor.shrinkGraphByReusingOtherGraph(
+    StepGraph graph = GraphFusionTool.fuseGraphs(
         new Job().withId(JOB_ID1).withSteps(graph2),
         connectedEquivalentSubGraph
-    ).onSuccess(graph ->
-        {
-          Assertions.assertTrue(graph.isParallel());
-          Step execution1 = (Step)graph.getExecutions().get(0);
-          Step execution2 = (Step)graph.getExecutions().get(1);
-          Step execution3 = (Step)graph.getExecutions().get(2);
-
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution1);
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution2);
-          assertInstanceOf(ExportSpaceToFiles.class, execution3);
-
-          //Check if previousStepId is set correct
-          graph.getExecutions().forEach(step ->{
-            Assertions.assertTrue(((Step)step).getPreviousStepIds().isEmpty());
-          });
-        }
     );
+
+    Assertions.assertTrue(graph.isParallel());
+    Step execution1 = (Step)graph.getExecutions().get(0);
+    Step execution2 = (Step)graph.getExecutions().get(1);
+    Step execution3 = (Step)graph.getExecutions().get(2);
+
+    assertInstanceOf(DelegateStep.class, execution1);
+    assertInstanceOf(DelegateStep.class, execution2);
+    assertInstanceOf(ExportSpaceToFiles.class, execution3);
+
+    //Check if previousStepId is set correct
+    graph.getExecutions().forEach(step -> Assertions.assertTrue(((Step)step).getPreviousStepIds().isEmpty()));
   }
 
-  @Disabled("Disabled until the test was migrated to new GraphFusionTool")
   @Test
   public void testReuseParallelAndSequentialGraph(){
     //      |  |  | (all reusable)
@@ -241,28 +233,25 @@ public class JobExecutorTests {
 
     StepGraph connectedEquivalentSubGraph = graph2.findConnectedEquivalentSubGraph(graph1);
     //4 Steps can be potentially reused
-    Assertions.assertEquals(4, JobExecutor.getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
+    Assertions.assertEquals(4, getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
 
-    JobExecutor.shrinkGraphByReusingOtherGraph(
+    StepGraph graph = GraphFusionTool.fuseGraphs(
         new Job().withId(JOB_ID1).withSteps(graph2),
         connectedEquivalentSubGraph
-    ).onSuccess(graph ->
-        {
-
-          StepGraph execution1Graph = (StepGraph)graph.getExecutions().get(0);
-          Assertions.assertTrue(execution1Graph.isParallel());
-          execution1Graph.getExecutions().forEach(step -> assertInstanceOf(DelegateOutputsPseudoStep.class, step));
-
-          Step execution2 = (Step)graph.getExecutions().get(1);
-          Step execution3 = (Step)graph.getExecutions().get(2);
-
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution2);
-          assertInstanceOf(ExportSpaceToFiles.class, execution3);
-
-          //Check if previousStepId is set correct
-          assertEquals(Set.of(execution2.getId()), execution3.getPreviousStepIds());
-        }
     );
+
+    StepGraph execution1Graph = (StepGraph)graph.getExecutions().get(0);
+    Assertions.assertTrue(execution1Graph.isParallel());
+    execution1Graph.getExecutions().forEach(step -> assertInstanceOf(DelegateStep.class, step));
+
+    Step execution2 = (Step)graph.getExecutions().get(1);
+    Step execution3 = (Step)graph.getExecutions().get(2);
+
+    assertInstanceOf(DelegateStep.class, execution2);
+    assertInstanceOf(ExportSpaceToFiles.class, execution3);
+
+    //Check if previousStepId is set correct
+    assertEquals(Set.of(execution2.getId()), execution3.getPreviousStepIds());
   }
 
   //TODO: Verify if behavior is correct
@@ -288,15 +277,16 @@ public class JobExecutorTests {
 
     StepGraph connectedEquivalentSubGraph = graph2.findConnectedEquivalentSubGraph(graph1);
     //4 Steps can be potentially reused
-    Assertions.assertEquals(0, JobExecutor.getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
+    Assertions.assertEquals(0, getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
 
-    JobExecutor.shrinkGraphByReusingOtherGraph(
+    StepGraph graph = GraphFusionTool.fuseGraphs(
         new Job().withId(JOB_ID1).withSteps(graph2),
         connectedEquivalentSubGraph
-    ) .onSuccess(graph -> Assertions.assertNull(graph));
+    );
+
+    assertTrue(graph.stepStream().noneMatch(step -> step instanceof DelegateStep));
   }
 
-  @Disabled("Disabled until the test was migrated to new GraphFusionTool")
   @Test
   public void testReuseMixedGraph(){
     //    |      (reusable)
@@ -329,36 +319,32 @@ public class JobExecutorTests {
 
     StepGraph connectedEquivalentSubGraph = graph2.findConnectedEquivalentSubGraph(graph1);
     //3 Steps can be potentially reused
-    Assertions.assertEquals(3, JobExecutor.getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
+    Assertions.assertEquals(3, getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
 
-    JobExecutor.shrinkGraphByReusingOtherGraph(
+    StepGraph graph = GraphFusionTool.fuseGraphs(
         new Job().withId(JOB_ID1).withSteps(graph2),
         connectedEquivalentSubGraph
-    ).onSuccess(graph ->
-        {
-
-          Step execution1 = (Step)graph.getExecutions().get(0);
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution1);
-
-          StepGraph execution2Graph = (StepGraph)graph.getExecutions().get(1);
-          Assertions.assertTrue(execution2Graph.isParallel());
-          execution2Graph.getExecutions().forEach(step -> assertInstanceOf(DelegateOutputsPseudoStep.class, step));
-          Set<String> execution2Ids = execution2Graph.getExecutions().stream().map(stepExecution -> ((Step) stepExecution).getId()).collect(Collectors.toSet());
-
-          Step execution3 = (Step)graph.getExecutions().get(2);
-          Step execution4 = (Step)graph.getExecutions().get(3);
-
-          assertInstanceOf(ExportSpaceToFiles.class, execution3);
-          assertInstanceOf(ExportSpaceToFiles.class, execution4);
-
-          //Check if previousStepId is set correct
-          assertEquals(execution2Ids, execution3.getPreviousStepIds());
-        }
     );
+
+    Step execution1 = (Step)graph.getExecutions().get(0);
+    assertInstanceOf(DelegateStep.class, execution1);
+
+    StepGraph execution2Graph = (StepGraph)graph.getExecutions().get(1);
+    Assertions.assertTrue(execution2Graph.isParallel());
+    execution2Graph.getExecutions().forEach(step -> assertInstanceOf(DelegateStep.class, step));
+    Set<String> execution2Ids = execution2Graph.getExecutions().stream().map(stepExecution -> ((Step) stepExecution).getId()).collect(Collectors.toSet());
+
+    Step execution3 = (Step)graph.getExecutions().get(2);
+    Step execution4 = (Step)graph.getExecutions().get(3);
+
+    assertInstanceOf(ExportSpaceToFiles.class, execution3);
+    assertInstanceOf(ExportSpaceToFiles.class, execution4);
+
+    //Check if previousStepId is set correct
+    assertEquals(execution2Ids, execution3.getPreviousStepIds());
   }
 
-  @Disabled("Disabled until the test was migrated to new GraphFusionTool")
-  @Test
+  @Disabled("Check this test, IMO it's a wrong assertion that the 3rd sequential execution of the main-graph should be re-usable if the 2nd execution was not fully re-usable / not fully equivalent.")
   public void testReuseMixedGraph2() {
     //    |      (reusable)
     //   - -
@@ -389,31 +375,29 @@ public class JobExecutorTests {
 
     StepGraph connectedEquivalentSubGraph = graph2.findConnectedEquivalentSubGraph(graph1);
     //3 Steps can be potentially reused
-    Assertions.assertEquals(3, JobExecutor.getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
+    Assertions.assertEquals(3, getAllLeafExecutionNodes(connectedEquivalentSubGraph).size());
 
-    JobExecutor.shrinkGraphByReusingOtherGraph(
+    StepGraph graph = GraphFusionTool.fuseGraphs(
         new Job().withId(JOB_ID1).withSteps(graph2),
         connectedEquivalentSubGraph
-    ).onSuccess(graph ->
-        {
-
-          Step execution1 = (Step)graph.getExecutions().get(0);
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution1);
-
-          StepGraph execution2Graph = (StepGraph)graph.getExecutions().get(1);
-          Assertions.assertTrue(execution2Graph.isParallel());
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution2Graph.getExecutions().get(0));
-          assertInstanceOf(ExportSpaceToFiles.class, execution2Graph.getExecutions().get(1));
-
-          Step execution3 = (Step)graph.getExecutions().get(2);
-          assertInstanceOf(DelegateOutputsPseudoStep.class, execution3);
-
-          //Check if previousStepId is set correct
-          //TODO: verify if empty previousStepIds are ok for DelegateOutputsPseudoStep
-          Assertions.assertTrue(((Step)execution2Graph.getExecutions().get(0)).getPreviousStepIds().isEmpty());
-          assertEquals(Set.of(execution1.getId()), ((Step)execution2Graph.getExecutions().get(1)).getPreviousStepIds());
-        }
     );
+
+    Step execution1 = (Step)graph.getExecutions().get(0);
+    assertInstanceOf(DelegateStep.class, execution1);
+
+    StepGraph execution2Graph = (StepGraph)graph.getExecutions().get(1);
+    Assertions.assertTrue(execution2Graph.isParallel());
+    assertInstanceOf(DelegateStep.class, execution2Graph.getExecutions().get(0));
+    assertInstanceOf(ExportSpaceToFiles.class, execution2Graph.getExecutions().get(1));
+
+    Step execution3 = (Step)graph.getExecutions().get(2);
+    //TODO: The following assertion is incorrect IMO
+    assertInstanceOf(DelegateStep.class, execution3);
+
+    //Check if previousStepId is set correct
+    //TODO: verify if empty previousStepIds are ok for DelegateStep
+    Assertions.assertTrue(((Step)execution2Graph.getExecutions().get(0)).getPreviousStepIds().isEmpty());
+    assertEquals(Set.of(execution1.getId()), ((Step)execution2Graph.getExecutions().get(1)).getPreviousStepIds());
   }
 
   //TODO: Remove that method and simply replace all occurances by: new CompilationStepGraph().withExecutions(stepExecutions).withParallel(isParallel)
@@ -445,5 +429,35 @@ public class JobExecutorTests {
       }
       default -> throw new IllegalStateException("Unexpected value: " + stepType);
     };
+  }
+
+  /**
+   * Recursively retrieves all leaf nodes from the given {@code StepExecution}.
+   *
+   * <p>This method traverses a hierarchy of {@code StepExecution} objects. If the execution node
+   * is a {@code StepGraph}, it recursively processes all its child executions. If the execution
+   * node is a {@code Step}, it is considered a leaf node and added to the result.</p>
+   *
+   * <p>The method ensures that all terminal steps (leaves) in a potentially nested graph
+   * structure are collected into a flat list.</p>
+   *
+   * @param execution the root {@code StepExecution} from which to collect all leaf nodes.
+   *                      This may be a {@code Step} or a {@code StepGraph}.
+   * @return a list of {@code Step} objects representing all leaf nodes in the execution graph.
+   */
+  @Deprecated
+  public static List<Step> getAllLeafExecutionNodes(StepExecution execution) {
+    List<Step> leafNodes = new ArrayList<>();
+
+    if (execution instanceof StepGraph graph) {
+      //Traverse all child executions in the graph
+      for (StepExecution child : graph.getExecutions())
+        leafNodes.addAll(getAllLeafExecutionNodes(child));
+    }
+    else if (execution instanceof Step)
+      //If it's a leaf node, add it to the list
+      leafNodes.add((Step) execution);
+
+    return leafNodes;
   }
 }

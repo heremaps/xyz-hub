@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
@@ -48,7 +49,6 @@ import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -80,6 +80,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
   public static final String STATISTICS = "statistics";
+  public static final String INTERNAL_STATISTICS = "internalStatistics";
   public static final String EXPORTED_DATA = "exportedData";
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
@@ -106,6 +107,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   {
     setOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
+        new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false)
     ));
   }
@@ -372,21 +374,31 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     //TODO
     super.onAsyncSuccess();
 
-    FileStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
+    Statistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
         0, rs -> rs.next()
-            ? new FileStatistics()
-            .withBytesExported(rs.getLong("bytes_uploaded"))
-            .withRowsExported(rs.getLong("rows_uploaded"))
-            .withFilesCreated(rs.getInt("files_uploaded"))
-            : new FileStatistics());
+            ? createStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"),
+            rs.getInt("files_uploaded"))
+            : createStatistics(0, 0, 0));
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this,
-        "Job Statistics: bytes=" + statistics.getExportedBytes() + " files=" + statistics.getExportedFiles());
-    registerOutputs(List.of(statistics), STATISTICS);
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + statistics.published().getByteSize()
+        + " files=" + statistics.internal().getFileCount());
+
+    registerOutputs(List.of(statistics.published()), STATISTICS);
+    registerOutputs(List.of(statistics.internal()), INTERNAL_STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
   }
+
+  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) throws SQLException {
+    return new Statistics(
+        //NOTE: Do not publish the file count for the user facing statistics, as it could be confusing when it comes to invisible intermediate outputs
+        new FeatureStatistics().withByteSize(byteSize).withFeatureCount(featureCount),
+        new FeatureStatistics().withFileCount(fileCount)
+    );
+  }
+
+  private record Statistics(FeatureStatistics published, FeatureStatistics internal) {}
 
   @Override
   protected boolean onAsyncFailure() {

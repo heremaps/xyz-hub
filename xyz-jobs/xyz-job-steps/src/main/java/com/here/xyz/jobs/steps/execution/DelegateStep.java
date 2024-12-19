@@ -44,16 +44,25 @@ public class DelegateStep extends Step<DelegateStep> {
   }
 
   public DelegateStep(Step<?> delegate, Step<?> delegator) {
+    if (delegate instanceof DelegateStep transitiveDelegate)
+      delegate = unwrapDelegate(transitiveDelegate);
+
     this.delegator = delegator;
     this.delegate = delegate;
     setInputSets(delegator.getInputSets());
-    setOutputMetadata(delegate.getOutputMetadata());
+    setOutputMetadata(delegate.getOutputMetadata()); //TODO: Change this to delegator.getOutputMetadata()?
 
     //Create the delegating output-sets by copying them from the delegate step but keep the visibility of each counterpart of the compiled (new) step
     outputSets = delegate.getOutputSets().stream().map(delegateOutputSet -> {
       OutputSet compiledOutputSet = delegator.getOutputSets().stream().filter(outputSet -> outputSet.name.equals(delegateOutputSet.name)).findFirst().get();
-      return new OutputSet(delegateOutputSet, delegate.getJobId(), delegate.getId(), compiledOutputSet.visibility);
+      return new OutputSet(delegateOutputSet, this.delegate.getJobId(), this.delegate.getId(), compiledOutputSet.visibility);
     }).toList();
+  }
+
+  private Step unwrapDelegate(DelegateStep delegate) {
+    return delegate.getDelegate() instanceof DelegateStep transitiveDelegate
+        ? unwrapDelegate(transitiveDelegate)
+        : delegate.getDelegate();
   }
 
   public Step<?> getDelegate() {
