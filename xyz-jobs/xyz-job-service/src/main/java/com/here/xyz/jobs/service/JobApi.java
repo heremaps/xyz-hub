@@ -75,6 +75,7 @@ public class JobApi extends Api {
 
   protected void postJob(final RoutingContext context) throws HttpException {
     Job job = getJobFromBody(context);
+    logger.info(Api.getMarker(context).getName(), "Received job creation request: {}", job.serialize(true));
     job.create().submit()
         .map(res -> job)
         .recover(t -> Future.failedFuture(t instanceof CompilationError e ? new ValidationException(e.getMessage(), e) : t))
