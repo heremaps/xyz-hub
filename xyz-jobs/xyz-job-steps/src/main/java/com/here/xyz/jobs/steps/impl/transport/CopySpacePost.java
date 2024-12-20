@@ -27,6 +27,7 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_E
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
@@ -39,6 +40,7 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -116,7 +118,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 24 * 3600;
+    return 600;
   }
 
   @Override
@@ -202,6 +204,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
       catch (WebClientException e) {
         logger.error("[{}] writeContentUpdatedAtTs() -> retry({}) {}", getGlobalStepId(), i + 1, getSpaceId());
         sleepWithIncr(i + 1);
+        throw new StepException("Error while updating the final target settings.", e)
+            .withRetryable(e instanceof ErrorResponseException responseException && responseException.getErrorResponse().statusCode() == 504);
       }
 
     //TODO: handle ts not updated after retries -> should throw a "retryable Exception", when available. Ignore for now.
