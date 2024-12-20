@@ -21,11 +21,11 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_UPDATE_STRATEGY;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.Feature;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine.FeatureCollection;
-import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
@@ -33,7 +33,7 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VA
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetJobTableItemsForResumeStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
@@ -52,6 +52,7 @@ import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
+import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -90,6 +91,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private static final long MAX_INPUT_BYTES_FOR_KEEP_INDICES = 1l * 1024 * 1024 * 1024;
   private static final int MIN_FEATURE_COUNT_IN_TARGET_TABLE_FOR_KEEP_INDICES = 5_000_000;
   private static final int MAX_DB_THREAD_COUNT = 15;
+  public static final String STATISTICS = "statistics";
 
   private Format format = GEOJSON;
 
@@ -113,6 +115,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   @JsonView({Internal.class, Static.class})
   private EntityPerLine entityPerLine = Feature;
+
+  {
+    setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
+  }
 
   public Format getFormat() {
     return format;
@@ -178,7 +184,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     if (targetTableFeatureCount == -1 && getSpaceId() != null) {
       StatisticsResponse statistics;
       try {
-        statistics = loadSpaceStatistics(getSpaceId(), EXTENSION);
+        statistics = loadSpaceStatistics(getSpaceId(), EXTENSION, true);
         targetTableFeatureCount = statistics.getCount().getValue();
       }
       catch (WebClientException e) {
@@ -227,9 +233,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public ExecutionMode getExecutionMode() {
     //CSV is not supported in SYNC mode
-    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
-      return ASYNC;
-    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+//    if (format == CSV_JSON_WKB || format == CSV_GEOJSON)
+//      return ASYNC;
+//    return getUncompressedUploadBytesEstimation() > MAX_INPUT_BYTES_FOR_SYNC_IMPORT ? ASYNC : SYNC;
+    //TODO: Fix ConnectionPool issue caused from threading in syncExecution()
+    return ASYNC;
   }
 
   @Override
@@ -256,6 +264,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       infoLog(JOB_VALIDATE, this);
       //Check if the space is actually existing
       Space space = space();
+      if (!space.isActive())
+        throw new ValidationException("Data can not be written to target " + space.getId() + " as it is inactive.");
+
       if (space.isReadOnly())
         throw new ValidationException("Data can not be written to target " + space.getId() + " as it is in read-only mode.");
 
@@ -270,11 +281,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
 
-    if (!isUseSystemInput()) {
-      if (currentInputsCount(UploadUrl.class) <= 0)
-        //Inputs are missing, the step is not ready to be executed
+    if (isUserInputsExpected()) {
+      if (!isUserInputsPresent(UploadUrl.class))
         return false;
-
       //Quick-validate the first UploadUrl that is found in the inputs
       ImportFilesQuickValidator.validate(loadInputsSample(1, UploadUrl.class).get(0), format, entityPerLine);
     }
@@ -325,10 +334,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     List<Future<FeatureStatistics>> resultFutures = new ArrayList<>();
 
     //Execute the sync for each import file in parallel
-    for (S3DataFile input : loadStepInputs()) {
+    for (Input input : loadInputs(UploadUrl.class)) {
       resultFutures.add(exec.submit(() -> {
-        long writtenFeatureCount = syncWriteFileToSpace(input, newVersion);
-        return new FeatureStatistics().withFeatureCount(writtenFeatureCount).withByteSize(input.getByteSize());
+        long writtenFeatureCount = syncWriteFileToSpace((UploadUrl) input, newVersion);return new FeatureStatistics().withFeatureCount(writtenFeatureCount).withByteSize(input.getByteSize());
       }));
     }
 
@@ -347,7 +355,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     exec.shutdown();
 
-    registerOutputs(List.of(resultOutput), true);
+    registerOutputs(List.of(resultOutput), STATISTICS);
   }
 
   /**
@@ -357,7 +365,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
    * @param newVersion The new space version being created by this import
    * @return The number of features that have been written
    */
-  private int syncWriteFileToSpace(S3DataFile input, long newVersion) throws IOException, WebClientException, SQLException,
+  private int syncWriteFileToSpace(UploadUrl input, long newVersion) throws IOException, WebClientException, SQLException,
       TooManyResourcesClaimed {
     infoLog(STEP_EXECUTE, this,"Start sync write of file " + input.getS3Key() + " ...");
     final S3Client s3Client = S3Client.getInstance(input.getS3Bucket());
@@ -402,7 +410,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
-      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnesStatement(getSchema(db()) ,this), db(), 0);
+      runWriteQuerySync(buildResetJobTableItemsForResumeStatement(getSchema(db()) ,this), db(), 0);
     }
     else {
       infoLog(STEP_EXECUTE, this,"Create temporary job table");
@@ -410,7 +418,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       infoLog(STEP_EXECUTE, this,"Fill temporary job table");
       runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
-              loadStepInputs(), bucketRegion(),this)), db(), 0 );
+          (List<S3DataFile>)(List<?>) loadInputs(), bucketRegion(),this)), db(), 0 );
     }
   }
 
@@ -449,7 +457,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
               : new FeatureStatistics());
 
       infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getByteSize() + " rows=" + statistics.getFeatureCount());
-      registerOutputs(List.of(statistics), true);
+      registerOutputs(List.of(statistics), STATISTICS);
 
       cleanUpDbRelatedResources();
 

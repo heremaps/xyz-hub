@@ -19,30 +19,29 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-
-import java.io.IOException;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
-import com.here.xyz.jobs.steps.outputs.FetchedVersions;
+import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
@@ -56,7 +55,9 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
  * - move out parsePropertiesQuery functions
  */
 public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
+
   private static final Logger logger = LogManager.getLogger();
+  public static final String VERSION = "version";
 
   @JsonView({Internal.class, Static.class})
   private double overallNeededAcus = -1;
@@ -73,11 +74,8 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
 
-  @JsonView({Internal.class, Static.class})
-  private long fetchedVersion = 0;
-
-  public long getFetchedVersion() {
-    return fetchedVersion;
+  {
+    setOutputSets(List.of(new OutputSet(VERSION, SYSTEM, true)));
   }
 
   @Override
@@ -89,11 +87,11 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
       rList.add( new Load().withResource(loadDatabase(sourceSpace.getStorage().getId(), WRITER))
                            .withEstimatedVirtualUnits(calculateNeededAcus()) );
 
-      logger.info("[{}] IncVersion #{} {}", getGlobalStepId(), 
+      logger.info("[{}] IncVersion #{} {}", getGlobalStepId(),
                                                            rList.size(),
                                                            sourceSpace.getStorage().getId() );
 
-      return rList;                            
+      return rList;
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -125,17 +123,17 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
   }
 
   private long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
-
+    //TODO: Remove the following duplicated code by simply re-using GetNextVersion QueryRunner
     Space targetSpace   = loadSpace(getSpaceId());
     Database targetDb   = loadDatabase(targetSpace.getStorage().getId(), WRITER);
-    String targetSchema = getSchema( targetDb ), 
+    String targetSchema = getSchema( targetDb ),
             targetTable = getRootTableName(targetSpace);
 
     SQLQuery incVersionSql = new SQLQuery("SELECT nextval('${schema}.${versionSequenceName}')")
                                   .withVariable("schema", targetSchema)
                                   .withVariable("versionSequenceName", targetTable + "_version_seq");
 
-                                
+
     long newVersion = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
       rs.next();
       return rs.getLong(1);
@@ -153,12 +151,8 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
 
   @Override
   public void execute() throws Exception {
-
-     infoLog(STEP_EXECUTE, this,String.format("fetch next version for %s", getSpaceId() )); 
-     fetchedVersion = setVersionToNextInSequence();
-
-     registerOutputs(List.of( new FetchedVersions().withFetchtedSequence(fetchedVersion) ), false);
-     
+    infoLog(STEP_EXECUTE, this, String.format("fetch next version for %s", getSpaceId()));
+    registerOutputs(List.of(new CreatedVersion().withVersion(setVersionToNextInSequence())), VERSION);
   }
 
   @Override
@@ -181,6 +175,4 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
     //@TODO: Implement
     logger.info("ImlCopy.Pre - onAsyncSuccess");
   }
-
-
 }

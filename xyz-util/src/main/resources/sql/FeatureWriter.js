@@ -531,8 +531,7 @@ class FeatureWriter {
       feature.id = res[0].id;
       feature.geometry = res[0].geo;
       feature.properties[XYZ_NS].version = res[0].version;
-      if (feature.geometry != null)
-        delete feature.geometry.crs; //TODO: What is crs?!
+
       //Cache the HEAD-feature in case its needed later again
       if (version == "HEAD" && context == this.context) //NOTE: Only cache for the defaults
         this.headFeature = feature;
@@ -730,7 +729,7 @@ class FeatureWriter {
   }
 
   _loadFeature(id, version, table) {
-    let sql = `SELECT id, version, author, jsondata, geo::JSONB FROM "${this.schema}"."${table}"`;
+    let sql = `SELECT id, version, author, jsondata, ST_AsGeojson(geo)::JSONB FROM "${this.schema}"."${table}"`;
 
     let res = version == "HEAD"
         //next_version + operation supports head retrieval if we have multiple versions

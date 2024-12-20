@@ -51,7 +51,7 @@ import software.amazon.awssdk.services.stepfunctions.builder.states.TaskState;
 public class GraphTransformer {
   private static final String LAMBDA_INVOKE_RESOURCE = "arn:aws:states:::lambda:invoke";
   private static final String EMR_INVOKE_RESOURCE = "arn:aws:states:::emr-serverless:startJobRun.sync";
-  private static final String EMR_JOB_NAME_PREFIX = "step:";
+  public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final int STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS = 36 * 3600; //36h
   private static final int MIN_STEP_TIMEOUT_SECONDS = 5 * 60;
   private static final int STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS = 3 * 60; //3min
@@ -112,7 +112,44 @@ public class GraphTransformer {
     }
   }
 
+  /**
+   * Removes all {@link DelegateStep} instances from the given {@code StepGraph},
+   * returning a new {@code StepGraph} containing only the relevant steps.
+   *
+   * <p>This method recursively traverses the given {@code StepGraph}. If a nested {@code StepGraph}
+   * contains non-{@link DelegateStep} instances, it is cleaned and added to the new graph.
+   * Any {@code StepGraph} or {@link StepExecution} containing only {@link DelegateStep}
+   * instances is excluded from the result.</p>
+   *
+   * <p>The returned graph is a new instance and does not modify the original input {@link StepGraph}.</p>
+   *
+   * @param stepGraph the input {@link StepGraph} to be cleaned.
+   * @return a new {@link StepGraph} with all {@link DelegateStep} instances removed.
+   */
+  protected StepGraph pruneDelegateSteps(StepGraph stepGraph) {
+    //Create a new StepGraph instance for the pruned result
+    StepGraph result = new StepGraph().withParallel(stepGraph.isParallel());
+
+    for (StepExecution stepExecution : stepGraph.getExecutions()) {
+      if (stepExecution instanceof StepGraph subGraph) {
+        //Recursively prune and add the nested StepGraph
+        StepGraph prunedSubGraph = pruneDelegateSteps(subGraph);
+
+        //Add the pruned StepGraph only if it is not empty
+        if (!prunedSubGraph.isEmpty())
+          result.getExecutions().add(prunedSubGraph);
+      }
+      else if (!(stepExecution instanceof DelegateStep))
+        //Add only non-DelegateSteps
+        result.getExecutions().add(stepExecution);
+    }
+
+    return result;
+  }
+
   protected String compileToStateMachine(String stateMachineDescription, StepGraph stepGraph) {
+    stepGraph = pruneDelegateSteps(stepGraph);
+
     StateMachine.Builder machineBuilder = StateMachine.builder()
         .comment(stateMachineDescription)
         .timeoutSeconds(STATE_MACHINE_EXECUTION_TIMEOUT_SECONDS);
@@ -205,19 +242,8 @@ public class GraphTransformer {
   private NamedState<TaskState.Builder> compile(Step<?> step, State.Builder previousState) {
     NamedState<TaskState.Builder> state = new NamedState<>(step.getClass().getSimpleName() + "." + step.getId(),
         TaskState.builder());
-
-    if (step instanceof RunEmrJob emrStep) {
-      if( Config.instance.LOCALSTACK_ENDPOINT == null)
-        compile(emrStep, state);
-      else {
-        //Inject defaults for local execution
-        emrStep.setSparkParams( "--add-exports=java.base/java.nio=ALL-UNNAMED "
-                + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
-                + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
-                + "--add-exports=java.base/java.util=ALL-UNNAMED " + emrStep.getSparkParams());
-        compile((LambdaBasedStep<?>) emrStep, state);
-      }
-    }
+    if (step instanceof RunEmrJob emrStep)
+      compile(emrStep, state);
     else if (step instanceof LambdaBasedStep lambdaStep)
       compile(lambdaStep, state);
     else
@@ -268,6 +294,17 @@ public class GraphTransformer {
   }
 
   private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
+    if (Config.instance.LOCALSTACK_ENDPOINT != null) {
+      //Inject defaults for local execution
+      emrStep.setSparkParams("--add-exports=java.base/java.nio=ALL-UNNAMED "
+          + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
+          + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
+          + "--add-exports=java.base/java.util=ALL-UNNAMED "
+          + emrStep.getSparkParams());
+      compile((LambdaBasedStep<?>) emrStep, state);
+      return;
+    }
+
     taskParametersLookup.put(state.stateName, Map.of(
         "Name", EMR_JOB_NAME_PREFIX + emrStep.getGlobalStepId(),
         "ApplicationId", emrStep.getApplicationId(),
@@ -275,7 +312,7 @@ public class GraphTransformer {
         "JobDriver", Map.of(
             "SparkSubmit", Map.of(
                 "EntryPoint", emrStep.getJarUrl(),
-                "EntryPointArguments", emrStep.getScriptParams(),
+                "EntryPointArguments", emrStep.getResolvedScriptParams(),
                 "SparkSubmitParameters", emrStep.getSparkParams()
             )
         )

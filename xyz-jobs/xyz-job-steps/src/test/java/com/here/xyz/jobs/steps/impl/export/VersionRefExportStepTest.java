@@ -24,18 +24,17 @@ import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class VersionRefExportStepTest extends ExportTestBase {
 
     @BeforeEach
     public void setUp() throws Exception {
         createSpace(new Space().withId(SPACE_ID).withVersionsToKeep(10) , false);
-        //Add two new Features
+        //Add two new Features //TODO: Do not create FeatureCollections out of a String, create them using the Model instead
         FeatureCollection fc1 = XyzSerializable.deserialize("""
                 {
                      "type": "FeatureCollection",

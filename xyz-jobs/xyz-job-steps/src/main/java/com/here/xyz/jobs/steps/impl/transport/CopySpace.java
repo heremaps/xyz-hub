@@ -19,6 +19,13 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -30,8 +37,8 @@ import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpace;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByGeometry;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByProperties;
-import com.here.xyz.jobs.steps.outputs.FetchedVersions;
-import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.jobs.steps.inputs.InputFromOutput;
+import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.implementation.Geometry;
@@ -42,14 +49,6 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -57,14 +56,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This step copies the content of a source space into a target space. It is possible that the target space
- * already contains data. Space where versioning is enabled are also supported. With filters it is possible to
+ * already contains data. Spaces where history is enabled are also supported. With filters it is possible to
  * only read a dataset subset from source space.
  *
  * @TODO
@@ -74,6 +71,7 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
  * - add i/o report
  * - move out parsePropertiesQuery functions
  */
+//TODO: Merge version creation step into this step again (basically both: pre- & post-step)
 public class CopySpace extends SpaceBasedStep<CopySpace> {
   private static final Logger logger = LogManager.getLogger();
 
@@ -96,7 +94,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private int[] threadInfo = {0,1};  // [threadId, threadCount]
 
   @JsonView({Internal.class, Static.class})
-  private long version = 0; 
+  private long version = 0;
 
   //Existing Space in which we copy to
   private String targetSpaceId;
@@ -223,21 +221,19 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       Space sourceSpace = loadSpace(getSpaceId());
       Space targetSpace = loadSpace(getTargetSpaceId());
 
-      rList.add( new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
-                           .withEstimatedVirtualUnits(calculateNeededAcus()) );
+      rList.add(new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
+          .withEstimatedVirtualUnits(calculateNeededAcus()));
 
-      boolean bRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);                               
+      boolean bRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);
 
       if( bRemoteCopy )
        rList.add( new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
-                            .withEstimatedVirtualUnits(calculateNeededAcus()) );
+           .withEstimatedVirtualUnits(calculateNeededAcus()));
 
-      logger.info("[{}] Copy remote({}) #{} {} -> {}", getGlobalStepId(), 
-                                                           bRemoteCopy, rList.size(),
-                                                           sourceSpace.getStorage().getId(), 
-                                                           targetSpace.getStorage().getId() );
+      logger.info("[{}] Copy remote({}) #{} {} -> {}", getGlobalStepId(), bRemoteCopy, rList.size(), sourceSpace.getStorage().getId(),
+          targetSpace.getStorage().getId());
 
-      return rList;                            
+      return rList;
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -246,32 +242,29 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    
     return 24 * 3600;
   }
 
-  private int getThreadPartitions()
-  { int usedThreadPartitions = getThreadInfo() != null ? getThreadInfo()[1] : 1;
+  private int getThreadPartitions() {
+    int usedThreadPartitions = getThreadInfo() != null ? getThreadInfo()[1] : 1;
     return usedThreadPartitions;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateCopyTimeInSeconds(getSpaceId(), getTargetSpaceId(),
+          estimatedSourceFeatureCount / getThreadPartitions(), estimatedTargetFeatureCount, getExecutionMode());
 
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateCopyTimeInSeconds(getSpaceId(), getTargetSpaceId(), 
-                                                                                            estimatedSourceFeatureCount / getThreadPartitions(), estimatedTargetFeatureCount , 
-                                                                                            getExecutionMode());
-                                                                                            
       logger.info("[{}] Copy estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
     }
     return estimatedSeconds;
   }
 
-  private double calculateNeededAcus() { 
-    overallNeededAcus =  overallNeededAcus != -1 
-                         ? overallNeededAcus 
-                         : ResourceAndTimeCalculator.getInstance().calculateNeededCopyAcus(estimatedSourceFeatureCount / getThreadPartitions() );
+  private double calculateNeededAcus() {
+    overallNeededAcus =  overallNeededAcus != -1
+        ? overallNeededAcus
+        : ResourceAndTimeCalculator.getInstance().calculateNeededCopyAcus(estimatedSourceFeatureCount / getThreadPartitions());
     return overallNeededAcus;
   }
 
@@ -284,10 +277,9 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   public boolean validate() throws ValidationException {
     super.validate();
 
-    //@TODO: think about iml naming?
-    if(getTargetSpaceId() == null)
+    if (getTargetSpaceId() == null)
       throw new ValidationException("Target Id is missing!");
-    if(getSpaceId().equalsIgnoreCase(getTargetSpaceId()))
+    if (getSpaceId().equalsIgnoreCase(getTargetSpaceId()))
       throw new ValidationException("Source = Target!");
 
     try {
@@ -296,7 +288,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       StatisticsResponse sourceStatistics = loadSpaceStatistics(getSpaceId(), isExtended ? EXTENSION : null);
       estimatedSourceFeatureCount = sourceStatistics.getCount().getValue();
       estimatedSourceByteSize = sourceStatistics.getDataSize().getValue();
-    }catch (WebClientException e) {
+    }
+    catch (WebClientException e) {
         throw new ValidationException("Error loading source space \"" + getSpaceId() + "\"", e);
     }
 
@@ -309,20 +302,16 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       throw new ValidationException("Error loading target space \"" + getTargetSpaceId() + "\"", e);
     }
 
-    //TODO: step succeed fast
-    //if (estimatedSourceFeatureCount == 0)
-    //  throw new ValidationException("Source Space is empty!");
-
     sourceVersionRef = sourceVersionRef == null ? new Ref("HEAD") : sourceVersionRef;
 
     if(sourceVersionRef.isTag()) {
       /** Resolve version Tag - if provided */
       try {
         long version = loadTag(getSpaceId(), sourceVersionRef.getTag()).getVersion();
-        if (version >= 0) {
+        if (version >= 0)
           sourceVersionRef = new Ref(version);
-        }
-      } catch (WebClientException e) {
+      }
+      catch (WebClientException e) {
         throw new ValidationException("Error resolving versionRef \"" + sourceVersionRef.getTag()+ "\" on " + getSpaceId(), e);
       }
     }
@@ -330,17 +319,19 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return true;
   }
 
+  //TODO: Remove that workaround once the 3 copy steps were properly merged into one step again
+  long _getCreatedVersion() {
+    for (InputFromOutput input : (List<InputFromOutput>)(List<?>) loadInputs(InputFromOutput.class))
+      if (input.getDelegate() instanceof CreatedVersion f)
+        return f.getVersion();
+    return 0;
+  }
+
   @Override
   public void execute() throws Exception {
+    setVersion(_getCreatedVersion());
 
-    for(Output<?> output : loadPreviousOutputs(false) )
-     if( output instanceof FetchedVersions f )
-      setVersion( f.getFetchtedSequence() );
-
-    if( getVersion() > 0)
-    { logger.info( "Using fetched version "+ getVersion());
-      registerOutputs(List.of( new FetchedVersions().withFetchtedSequence(getVersion()) ), false);
-    }
+    logger.info("Using fetched version " + getVersion());
 
     logger.info( "Loading space config for source-space "+getSpaceId());
     Space sourceSpace = loadSpace(getSpaceId());
@@ -354,17 +345,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     int threadId = getThreadInfo()[0],
         threadCount = getThreadInfo()[1];
 
-     infoLog(STEP_EXECUTE, this,String.format("Start ImlCopy thread number: %d/%d", threadId, threadCount )); 
+     infoLog(STEP_EXECUTE, this, "Start ImlCopy thread number: " + threadId + " / " + threadCount);
      runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace,threadCount, threadId), db, calculateNeededAcus()/threadCount, true);
-
   }
 
   @Override
-  protected void onAsyncSuccess() throws WebClientException,
-          SQLException, TooManyResourcesClaimed, IOException {
-
+  protected void onAsyncSuccess() throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
     logger.info("[{}] AsyncSuccess Copy {} -> {}", getGlobalStepId(), getSpaceId() , getTargetSpaceId());
-
   }
 
   @Override
@@ -380,62 +367,54 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     logger.info("Copy - onAsyncSuccess");
   }
 
-  private String _getRootTableName(Space targetSpace) throws SQLException
-  { try { return getRootTableName(targetSpace); } 
+  private String _getRootTableName(Space targetSpace) throws SQLException {
+    try {
+      return getRootTableName(targetSpace);
+    }
     catch (WebClientException e) {
       throw new SQLException(e);
-    } 
+    }
   }
 
-  private Database loadDatabaseReaderElseWriter(String name) 
-  {
-    try{ return loadDatabase(name,DatabaseRole.READER); }
-    catch( RuntimeException rt )
-    { if(!(rt.getCause() instanceof NoSuchElementException) )
-       throw rt;
+  private Database loadDatabaseReaderElseWriter(String name) {
+    try{
+      return loadDatabase(name, DatabaseRole.READER);
+    }
+    catch( RuntimeException rt ) {
+      if (!(rt.getCause() instanceof NoSuchElementException))
+        throw rt;
     }
 
-    return loadDatabase(name,DatabaseRole.WRITER);
+    return loadDatabase(name, DatabaseRole.WRITER);
   }
 
-  private boolean isRemoteCopy(Space sourceSpace, Space targetSpace)
-  {
+  private boolean isRemoteCopy(Space sourceSpace, Space targetSpace) {
     String sourceStorage = sourceSpace.getStorage().getId(),
            targetStorage = targetSpace.getStorage().getId();
     return !sourceStorage.equals( targetStorage );
   }
 
-  private boolean isRemoteCopy() throws WebClientException
-  { Space sourceSpace = loadSpace(getSpaceId());
+  private boolean isRemoteCopy() throws WebClientException {
+    Space sourceSpace = loadSpace(getSpaceId());
     Space targetSpace = loadSpace(getTargetSpaceId());
     return isRemoteCopy(sourceSpace, targetSpace);
   }
 
   private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace, int threadCount, int threadId) throws SQLException {
-
     String sourceStorageId = sourceSpace.getStorage().getId(),
-           targetStorageId = targetSpace.getStorage().getId(), 
-           targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ), 
+           targetStorageId = targetSpace.getStorage().getId(),
+           targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ),
            targetTable  = _getRootTableName(targetSpace);
 
     int maxBlkSize = 1000;
 
-    final Map<String, Object> queryContext = 
-      createQueryContext(getId(), 
-                         targetSchema, 
-                         targetTable, 
-                         targetSpace.getVersionsToKeep() > 1, null);
-    
+    final Map<String, Object> queryContext = createQueryContext(getId(), targetSchema, targetTable, targetSpace.getVersionsToKeep() > 1,
+        null);
+
     SQLQuery contentQuery = buildCopyContentQuery(sourceSpace, threadCount, threadId);
 
-    if( isRemoteCopy(sourceSpace,targetSpace ) )
+    if (isRemoteCopy(sourceSpace,targetSpace))
      contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceStorageId), contentQuery );
-      
-     SQLQuery versionToBeUsed = getVersion() > 0 ? new SQLQuery(""+getVersion())
-                                                 : new SQLQuery("(SELECT nextval('${schema}.${versionSequenceName}'))")
-                                                        .withVariable("schema", targetSchema)
-                                                        .withVariable("versionSequenceName", targetTable + "_version_seq");
-                   
 
     return new SQLQuery(
 /**/
@@ -464,21 +443,20 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         )
         .withContext( queryContext )
         .withQueryFragment("maxblksize",""+ maxBlkSize)
-        .withQueryFragment("versionToBeUsed", versionToBeUsed )
+        .withQueryFragment("versionToBeUsed", "" + getVersion())
         .withQueryFragment("contentQuery", contentQuery);
-    
   }
 
-  boolean _isEnableHashedSpaceIdActivated(Space space) throws SQLException
-  {   
-    try { return isEnableHashedSpaceIdActivated(space); } 
+  boolean _isEnableHashedSpaceIdActivated(Space space) throws SQLException {
+    try {
+      return isEnableHashedSpaceIdActivated(space);
+    }
     catch (WebClientException e) {
       throw new SQLException(e);
     }
   }
 
   private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException {
-
     GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
             .withSpace(space.getId())
             //@TODO: verify if needed persistExport | versionsToKeep | context
@@ -494,8 +472,10 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       if(radius != -1) event.setRadius(radius);
     }
 
-    if( threadCount <= 1 ) 
-    { threadCount = 1; threadId = 0; }
+    if (threadCount <= 1) {
+      threadCount = 1;
+      threadId = 0;
+    }
 
     SQLQuery threadCondition = new SQLQuery(" AND (( i % #{threadCount} ) = #{threadNumber})")
         .withNamedParameter("threadCount", threadCount)
@@ -514,14 +494,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
   }
 
-  private SearchForFeatures getQueryRunner(GetFeaturesByGeometryEvent event) throws SQLException,
-          ErrorResponseException, TooManyResourcesClaimed, WebClientException {
-            
+  private SearchForFeatures getQueryRunner(GetFeaturesByGeometryEvent event) throws SQLException, ErrorResponseException,
+      TooManyResourcesClaimed, WebClientException {
     Space sourceSpace = loadSpace(getSpaceId());
 
-    Database db = !isRemoteCopy() 
-     ? loadDatabase(sourceSpace.getStorage().getId(), WRITER )
-     : loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
+    Database db = !isRemoteCopy()
+        ? loadDatabase(sourceSpace.getStorage().getId(), WRITER)
+        : loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
 
     SearchForFeatures queryRunner;
     if (geometry == null)

@@ -64,12 +64,12 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
     if(rs.next()){
       String maxV = rs.getString("max");
       String minV = rs.getString("min");
-      long maxVersion = (maxV == null ? -1 : Long.parseLong(maxV));
+      long maxVersion = (maxV == null ? 0 : Long.parseLong(maxV));
       //FIXME: Returned minVersion is not always correct for spaces with v2k=1
       long minVersion = (minV == null ? 0 : Long.parseLong(minV));
 
       csr.setMaxVersion(maxVersion);
-      csr.setMinVersion(maxVersion == -1 ? -1 : minVersion);
+      csr.setMinVersion(maxVersion == 0 ? 0 : minVersion);
       csr.setTagMinVersion(minTagVersion);
     }
     return csr;

@@ -21,11 +21,14 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetSuccessMarkerAndRunningOnesStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetJobTableItemsForResumeStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
@@ -35,16 +38,18 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.S3DataFile;
+import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.FileStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -54,12 +59,17 @@ import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometr
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import javax.xml.crypto.dsig.TransformException;
+import org.geotools.api.referencing.FactoryException;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space.
@@ -67,9 +77,15 @@ import java.util.UUID;
  */
 public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   //Defines how many features a source layer need to have to start parallelization.
-  public static final int PARALLELIZTATION_MIN_THRESHOLD = 10;//TODO: put back to 500k
+  public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
   //Defines how many export threads are getting used
   public static final int PARALLELIZTATION_THREAD_COUNT = 8;
+  public static final String STATISTICS = "statistics";
+  public static final String INTERNAL_STATISTICS = "internalStatistics";
+  public static final String EXPORTED_DATA = "exportedData";
+  //Defines how large the area of a defined spatialFilter can be
+  //If a point is defined - the maximum radius can be 17898 meters
+  private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
 
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount = -1;
@@ -81,11 +97,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private int estimatedSeconds = -1;
 
   @JsonView({Internal.class, Static.class})
-  private boolean addStatisticsToUserOutput = true;
-
-  private Format format = Format.GEOJSON;
-
-  @JsonView({Internal.class, Static.class})
   private SpatialFilter spatialFilter;
   @JsonView({Internal.class, Static.class})
   private PropertiesQuery propertyFilter;
@@ -94,31 +105,22 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   @JsonView({Internal.class, Static.class})
   private Ref versionRef;
 
+  {
+    setOutputSets(List.of(
+        new OutputSet(STATISTICS, USER, true),
+        new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
+        new OutputSet(EXPORTED_DATA, USER, false)
+    ));
+  }
+
   /**
    * TODO:
-   *   Spatial-Filters
-   *    DONE
-   *
-   *   Content-Filters
-   *    DONE private String propertyFilter;
-   *    DONE private SpaceContext context;
-   *   ? private String targetVersion;
-   *
-   *   Version Filter:
-   *    DONE private VersionRef versionRef;
-   *
    *   Partitioning - part of EMR?
    *    private String partitionKey;
    *    --Required if partitionKey=tileId
    *      private Integer targetLevel;
    *      private boolean clipOnPartitions;
    */
-
-  public enum Format {
-    CSV_JSON_WKB,
-    CSV_PARTITIONED_JSON_WKB,
-    GEOJSON;
-  }
 
   public SpatialFilter getSpatialFilter() {
     return spatialFilter;
@@ -172,26 +174,13 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return this;
   }
 
-  public boolean isAddStatisticsToUserOutput() {
-    return addStatisticsToUserOutput;
-  }
-
-  public void setAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
-    this.addStatisticsToUserOutput = addStatisticsToUserOutput;
-  }
-
-  public ExportSpaceToFiles withAddStatisticsToUserOutput(boolean addStatisticsToUserOutput) {
-    setAddStatisticsToUserOutput(addStatisticsToUserOutput);
-    return this;
-  }
-
-  @JsonView({Internal.class, Static.class})
-  private StatisticsResponse statistics = null;
+  @JsonIgnore
+  private StatisticsResponse statistics = null; //TODO: Move caching into HubWebClient
 
   @Override
   public List<Load> getNeededResources() {
     try {
-      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
+      statistics = spaceStatistics(context, true);
       overallNeededAcus = overallNeededAcus != -1 ?
               overallNeededAcus : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
@@ -201,6 +190,47 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }catch (Exception e){
+      throw new RuntimeException(e);
+    }
+  }
+
+  /**
+   * Determines whether this {@code ExportSpaceToFiles} step execution is equivalent to another step execution.
+   *
+   * <p>Equivalence is defined based on the following conditions:
+   * <ul>
+   *   <li>The other step execution must also be an instance of {@code ExportSpaceToFiles}.</li>
+   *   <li>The space associated with this step must be in read-only mode.</li>
+   *   <li>The maximum version of the space's statistics must match the current maximum version.</li>
+   *   <li>The following properties must be equal between the two instances:
+   *     <ul>
+   *       <li>Space ID</li>
+   *       <li>Context</li>
+   *       <li>Version reference (if not null)</li>
+   *       <li>Spatial filter (if not null)</li>
+   *       <li>Property filter (if not null)</li>
+   *       <li>System output usage flag</li>
+   *     </ul>
+   *   </li>
+   * </ul>
+   *
+   * @param other The other {@link StepExecution} to compare against.
+   * @return {@code true} if the other step execution is equivalent to this one; {@code false} otherwise.
+   * @throws RuntimeException If an exception occurs while comparing values.
+   */
+  @Override
+  public boolean isEquivalentTo(StepExecution other) {
+    if (!(other instanceof ExportSpaceToFiles otherExport))
+      return super.isEquivalentTo(other);
+
+    try {
+      return Objects.equals(otherExport.getSpaceId(), getSpaceId())
+          && Objects.equals(otherExport.versionRef, versionRef)
+          && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
+          && Objects.equals(otherExport.spatialFilter, spatialFilter)
+          && Objects.equals(otherExport.propertyFilter, propertyFilter);
+    }
+    catch (Exception e) {
       throw new RuntimeException(e);
     }
   }
@@ -231,39 +261,83 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   @Override
+  public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
+    if(versionRef == null)
+      throw new ValidationException("Version ref is required.");
+
+    validateSpaceExists();
+    //Resolve the ref to an actual version
+    if (versionRef.isTag()) {
+      try {
+        setVersionRef(new Ref(hubWebClient().loadTag(getSpaceId(), versionRef.getTag()).getVersion()));
+      }
+      catch (WebClientException e) {
+        throw new ValidationException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);
+      }
+    }
+    else if (versionRef.isHead()) {
+      try {
+        setVersionRef(new Ref(spaceStatistics(context, true).getMaxVersion().getValue()));
+      }
+      catch (WebClientException e) {
+        throw new ValidationException("Unable to resolve HEAD version of " + getSpaceId(), e);
+      }
+    }
+  }
+
+  @Override
   public boolean validate() throws ValidationException {
     super.validate();
 
+    if (versionRef.isAllVersions())
+      throw new ValidationException("It is not supported to export all versions at once.");
+
+    if (versionRef.isRange())
+      throw new ValidationException("It is currently not supported to export changesets.");
+
     try {
-      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
+      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
 
       //Validate input Geometry
-      if(this.spatialFilter != null)
-        this.spatialFilter.validateSpatialFilter();
+      if (this.spatialFilter != null) {
+        spatialFilter.validateSpatialFilter();
+        try {
+          Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry((spatialFilter.getGeometry().getJTSGeometry()),
+                  spatialFilter.getRadius());
+          int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
+          if(GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
+            throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
+              + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
+          }
+        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException e) {
+          errorLog(JOB_VALIDATE, this, e, "Invalid Filter provided!");
+          throw new ValidationException("Invalid SpatialFilter!");
+        }
+      }
 
       //Validate versionRef
-      if(this.versionRef == null)
+      if (this.versionRef == null)
         return true;
 
       Long minSpaceVersion = statistics.getMinVersion().getValue();
       Long maxSpaceVersion = statistics.getMaxVersion().getValue();
 
-      if(this.versionRef.isSingleVersion()){
-        if(this.versionRef.getVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '"+
-                  minSpaceVersion+"'!");
-        if(this.versionRef.getVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '"+
-                  maxSpaceVersion+"'!");
-      }else if(this.versionRef.isRange()){
-        if(this.versionRef.getStartVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '"+
-                  minSpaceVersion+"'!");
-        if(this.versionRef.getEndVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '"+
-                  maxSpaceVersion+"'!");
+      if (this.versionRef.isSingleVersion()) {
+        if (this.versionRef.getVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
+              minSpaceVersion + "'!");
+        if (this.versionRef.getVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
+              maxSpaceVersion + "'!");
       }
-
+      else if (this.versionRef.isRange()) {
+        if (this.versionRef.getStartVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
+              minSpaceVersion + "'!");
+        if (this.versionRef.getEndVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
+              maxSpaceVersion + "'!");
+      }
 
       //TODO: Check if property validation is needed - in sense of searchableProperties
 //      if(statistics.getCount().getValue() > 1_000_000 && getPropertyFilter() != null){
@@ -279,8 +353,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context);
-    calculatedThreadCount = (statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD) ? PARALLELIZTATION_THREAD_COUNT : 1;
+    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
+    calculatedThreadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
 
     List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
     createAndFillTemporaryJobTable(s3FileNames);
@@ -301,21 +375,31 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     //TODO
     super.onAsyncSuccess();
 
-    FileStatistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
-            0, rs -> rs.next()
-                    ? new FileStatistics()
-                        .withBytesExported(rs.getLong("bytes_uploaded"))
-                        .withRowsExported(rs.getLong("rows_uploaded"))
-                        .withFilesCreated(rs.getInt("files_uploaded"))
-                    : new FileStatistics());
+    Statistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
+        0, rs -> rs.next()
+            ? createStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"),
+            rs.getInt("files_uploaded"))
+            : createStatistics(0, 0, 0));
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Job Statistics: bytes=" + statistics.getExportedBytes() + " files=" + statistics.getExportedFiles());
-    if(addStatisticsToUserOutput)
-      registerOutputs(List.of(statistics), true);
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + statistics.published().getByteSize()
+        + " files=" + statistics.internal().getFileCount());
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this,"Cleanup temporary table");
+    registerOutputs(List.of(statistics.published()), STATISTICS);
+    registerOutputs(List.of(statistics.internal()), INTERNAL_STATISTICS);
+
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
   }
+
+  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) throws SQLException {
+    return new Statistics(
+        //NOTE: Do not publish the file count for the user facing statistics, as it could be confusing when it comes to invisible intermediate outputs
+        new FeatureStatistics().withByteSize(byteSize).withFeatureCount(featureCount),
+        new FeatureStatistics().withFileCount(fileCount)
+    );
+  }
+
+  private record Statistics(FeatureStatistics published, FeatureStatistics internal) {}
 
   @Override
   protected boolean onAsyncFailure() {
@@ -348,12 +432,12 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     }
   }
 
-  private List<S3DataFile> generateS3FileNames(int cnt){
+  private List<S3DataFile> generateS3FileNames(int count) {
     List<S3DataFile> urlList = new ArrayList<>();
 
-    for (int i = 1; i <= calculatedThreadCount; i++) {
-      urlList.add(new DownloadUrl().withS3Key(outputS3Prefix(!isUseSystemOutput(),false) + "/" + i + "/" + UUID.randomUUID()));
-    }
+    for (int i = 1; i <= count; i++)
+      urlList.add(new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + i + "/" + UUID.randomUUID()
+          + ".json"));
 
     return urlList;
   }
@@ -361,7 +445,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   private void createAndFillTemporaryJobTable(List<S3DataFile> s3FileNames) throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
-      runWriteQuerySync(buildResetSuccessMarkerAndRunningOnesStatement(getSchema(db()) ,this), db(), 0);
+      runWriteQuerySync(buildResetJobTableItemsForResumeStatement(getSchema(db()) ,this), db(), 0);
     }
     else {
       infoLog(STEP_EXECUTE, this,"Create temporary job table");
@@ -413,7 +497,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
                     "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}', #{contentQuery});")
                     .withContext(getQueryContext())
                     .withAsyncProcedure(true)
-                    .withNamedParameter("format", format.toString())
+                    .withNamedParameter("format", "GEOJSON")
                     .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
                     .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
                     .withNamedParameter("contentQuery", exportSelectString);

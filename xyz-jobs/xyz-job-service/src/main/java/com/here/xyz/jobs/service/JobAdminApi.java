@@ -26,6 +26,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
+import static com.here.xyz.jobs.steps.execution.GraphTransformer.EMR_JOB_NAME_PREFIX;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -260,7 +261,7 @@ public class JobAdminApi extends Api {
     String emrJobRunId = event.getJsonObject("detail").getString("jobRunName");
     String emrJobStatus = event.getJsonObject("detail").getString("state");
 
-    if(emrJobRunName != null && emrJobRunName.startsWith("step:")) {
+    if(emrJobRunName != null && emrJobRunName.startsWith(EMR_JOB_NAME_PREFIX)) {
       String[] globalStepId = emrJobRunName.substring(emrJobRunName.indexOf(':') + 1).split("\\.");
 
       if(globalStepId.length != 2) {

@@ -38,12 +38,14 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
@@ -73,8 +75,10 @@ public class JobApi extends Api {
 
   protected void postJob(final RoutingContext context) throws HttpException {
     Job job = getJobFromBody(context);
+    logger.info(Api.getMarker(context).getName(), "Received job creation request: {}", job.serialize(true));
     job.create().submit()
         .map(res -> job)
+        .recover(t -> Future.failedFuture(t instanceof CompilationError e ? new ValidationException(e.getMessage(), e) : t))
         .onSuccess(res -> sendResponse(context, CREATED.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }

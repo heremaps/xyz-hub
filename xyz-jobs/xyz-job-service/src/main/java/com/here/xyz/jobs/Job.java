@@ -43,6 +43,8 @@ import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
+import com.here.xyz.jobs.processes.ProcessDescription;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -53,8 +55,12 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -87,6 +93,8 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Public.class, Static.class})
+  private ProcessDescription process;
+  @JsonView({Public.class, Static.class})
   private DatasetDescription source;
   @JsonView({Public.class, Static.class})
   private DatasetDescription target;
@@ -97,22 +105,12 @@ public class Job implements XyzSerializable {
   private String executionId;
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
+  @JsonView(Static.class)
+  private String secondaryResourceKey;
 
   private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(4 * 7); //4 weeks
-
-  public static void main(String[] args) {
-    long createdAt = 1727910277687l;
-    long keepUntil = 1728515077;
-
-    final long actual = keepUntil * 1000;
-    System.out.println("Actual keep Until  : " + actual);
-    final long expected = createdAt + DEFAULT_JOB_TTL;
-    System.out.println("Expected keep until: " + expected);
-    System.out.println("Difference: " + (expected - actual));
-
-  }
 
   /**
    * Creates a new Job.
@@ -210,15 +208,16 @@ public class Job implements XyzSerializable {
    */
   protected Future<Boolean> validate() {
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
-    return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> validateStep(step)))
-        .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(validation -> (boolean) validation)));
+    return Future.all(Job.forEach(getSteps().stepStream().toList(), step -> validateStep(step)))
+        .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
   }
 
   private static Future<Boolean> validateStep(Step step) {
     return ASYNC.run(() -> {
       boolean isReady = step.validate();
-      if (isReady && step.getStatus().getState() != SUBMITTED)
-        step.getStatus().setState(SUBMITTED);
+      State targetState = isReady ? SUBMITTED : NOT_READY;
+      if (step.getStatus().getState() != targetState)
+        step.getStatus().setState(targetState);
       return isReady;
     });
   }
@@ -489,7 +488,7 @@ public class Job implements XyzSerializable {
 
   public Future<List<Output>> loadOutputs() {
     return ASYNC.run(() -> steps.stepStream()
-        .map(step -> (List<Output>) step.loadOutputs(true))
+        .map(step -> (List<Output>) step.loadUserOutputs())
         .flatMap(ol -> ol.stream())
         .collect(Collectors.toList()));
   }
@@ -522,8 +521,34 @@ public class Job implements XyzSerializable {
   @JsonView(Static.class)
   public String getResourceKey() {
     //Always use key from the source except when the source is Files
-    if(getSource() == null) return null;
+    if (getSource() == null)
+      return null;
     return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
+  }
+
+  public String getSecondaryResourceKey() {
+    if (secondaryResourceKey != null)
+      return secondaryResourceKey;
+
+    String key = getResourceKey();
+    if (key == null)
+      return null;
+
+    try {
+      Space.Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(key).getExtension();
+      if (extension != null)
+        secondaryResourceKey = extension.getSpaceId();
+    }
+    catch (XyzWebClient.WebClientException e) {
+      //Ignore if space is not present anymore
+      if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
+        throw new RuntimeException(e);
+    }
+    return secondaryResourceKey;
+  }
+
+  private void setSecondaryResourceKey(String secondaryResourceKey) {
+    this.secondaryResourceKey = secondaryResourceKey;
   }
 
   public String getDescription() {
@@ -637,6 +662,19 @@ public class Job implements XyzSerializable {
 
   public Job withClientInfo(JobClientInfo clientInfo) {
     setClientInfo(clientInfo);
+    return this;
+  }
+
+  public ProcessDescription getProcess() {
+    return process;
+  }
+
+  public void setProcess(ProcessDescription process) {
+    this.process = process;
+  }
+
+  public Job withProcess(ProcessDescription process) {
+    setProcess(process);
     return this;
   }
 

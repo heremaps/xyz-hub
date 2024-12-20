@@ -51,6 +51,8 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
           .withRadius(input.radius)
           .withClip(input.clip);
 
+      event.ignoreLimit = true;
+
       return new GetFeaturesByGeometryWithModifiedFilter(event)
           .<GetFeaturesByGeometry>withDataSourceProvider(getDataSourceProvider())
           .buildQuery(event);

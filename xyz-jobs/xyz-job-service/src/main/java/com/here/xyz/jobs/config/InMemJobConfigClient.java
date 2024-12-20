@@ -78,6 +78,21 @@ public class InMemJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey, State state) {
+    if(secondaryResourceKey == null)
+      return loadJobs(resourceKey, resourceKey, state);
+    return loadJobs().map(jobs ->
+            jobs.stream()
+                    .filter(job ->
+                            (resourceKey == null || job.getResourceKey().equals(resourceKey)
+                              || (secondaryResourceKey != null && job.getResourceKey().equals(secondaryResourceKey)))
+                            && (state == null || job.getStatus().getState() == state)
+                    )
+                    .toList()
+    );
+  }
+
+  @Override
   public Future<Void> storeJob(Job job) {
     jobMap.put(job.getId(), job);
     return Future.succeededFuture();
