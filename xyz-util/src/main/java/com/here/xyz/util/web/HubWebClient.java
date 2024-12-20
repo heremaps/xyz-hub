@@ -36,7 +36,6 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
-
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
@@ -55,6 +54,10 @@ public class HubWebClient extends XyzWebClient {
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
       .expiration(3, TimeUnit.MINUTES)
+      .build();
+  private ExpiringMap<String, StatisticsResponse> statisticsCache = ExpiringMap.builder()
+      .expirationPolicy(ExpirationPolicy.CREATED)
+      .expiration(30, TimeUnit.SECONDS)
       .build();
 
   protected HubWebClient(String baseUrl) {
@@ -176,9 +179,16 @@ public class HubWebClient extends XyzWebClient {
 
   public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
     try {
-      return deserialize(request(HttpRequest.newBuilder()
+      String cacheKey = spaceId + ":" + context;
+      StatisticsResponse statistics = statisticsCache.get(cacheKey);
+      if (statistics != null)
+        return statistics;
+
+      statistics = deserialize(request(HttpRequest.newBuilder()
           .uri(uri("/spaces/" + spaceId + "/statistics?skipCache="+skipCache
                   + (context == null ? "" : "&context=" + context)))).body(), StatisticsResponse.class);
+      statisticsCache.put(cacheKey, statistics);
+      return statistics;
     }
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
