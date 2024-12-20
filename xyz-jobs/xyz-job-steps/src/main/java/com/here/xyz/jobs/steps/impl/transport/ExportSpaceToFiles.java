@@ -38,6 +38,7 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
@@ -173,7 +174,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return this;
   }
 
-  @JsonView({Internal.class})
+  @JsonIgnore
   private StatisticsResponse statistics = null; //TODO: Move caching into HubWebClient
 
   @Override
