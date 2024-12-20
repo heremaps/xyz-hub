@@ -77,7 +77,8 @@ import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DatabaseBasedStep.class),
-    @JsonSubTypes.Type(value = RunEmrJob.class)
+    @JsonSubTypes.Type(value = RunEmrJob.class),
+    @JsonSubTypes.Type(value = SyncLambdaStep.class),
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
   private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";

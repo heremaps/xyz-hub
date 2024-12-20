@@ -656,7 +656,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
     private OutputSet() {} //NOTE: Only needed for deserialization purposes
 
-    protected OutputSet(String name, Visibility visibility, String fileSuffix) {
+    public OutputSet(String name, Visibility visibility, String fileSuffix) {
       this.name = name;
       this.visibility = visibility;
       this.fileSuffix = fileSuffix;

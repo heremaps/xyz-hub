@@ -38,6 +38,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TransportTools;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -362,6 +363,10 @@ public class StepTestBase {
 
   public void uploadInputFile(String jobId , byte[] bytes, S3ContentType contentType) throws IOException {
     uploadFileToS3(inputS3Prefix(jobId) + "/" + UUID.randomUUID(), contentType, bytes, false);
+  }
+
+  public void uploadOutputFile(String jobId, String stepId, String outputSetName, byte[] bytes, S3ContentType contentType) throws IOException {
+    uploadFileToS3(Output.stepOutputS3Prefix(jobId, stepId, outputSetName) + "/" + UUID.randomUUID(), contentType, bytes, false);
   }
 
   protected List<Feature> downloadFileAndSerializeFeatures(DownloadUrl output) throws IOException {
