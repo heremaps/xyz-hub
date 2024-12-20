@@ -99,7 +99,7 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
   }
 
   @Override
-  public int getTimeoutSeconds() { return 24 * 3600; }
+  public int getTimeoutSeconds() { return 600; }
 
   @Override
   public int getEstimatedExecutionSeconds() {

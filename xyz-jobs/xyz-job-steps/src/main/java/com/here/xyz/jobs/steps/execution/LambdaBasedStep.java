@@ -27,6 +27,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
+import static com.here.xyz.jobs.steps.execution.StepException.codeFromErrorErrorResponseException;
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
@@ -305,6 +306,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (async)
       retryable = retryable && onAsyncFailure();
 
+    if (e instanceof StepException stepException)
+      retryable = stepException.isRetryable();
+
     logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}:", getGlobalStepId(), e);
     getStatus().setFailedRetryable(retryable);
     reportFailure(e, async);
@@ -320,21 +324,23 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e != null) {
       getStatus()
           .withErrorMessage(e.getMessage())
-          .withErrorCause(e.getCause() != null ? e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage() : null);
+          .withErrorCause(e.getCause() != null ? e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage() : null)
+          .withErrorCode(e instanceof StepException stepException ? stepException.getCode() : null);
 
       if (e instanceof ErrorResponseException responseException)
-        getStatus().setErrorCode("HTTP-" + responseException.getErrorResponse().statusCode());
+        getStatus().setErrorCode(codeFromErrorErrorResponseException(responseException));
     }
 
+    //Update state & sync the status
     updateState(FAILED);
 
-    //Report failure to SFN
-    if (async)
-      reportFailureToSfn();
-
-    //Finally, log the error also to the lambda log
+    //Log the error also to the lambda log
     logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
         getStatus().getErrorCause(), getStatus().getErrorCode());
+
+    //Finally, report failure to SFN
+    if (async)
+      reportFailureToSfn();
   }
 
   private void reportFailureToSfn() {
@@ -363,23 +369,21 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void synchronizeStepState() {
-    if(isSimulation)
+    if (isSimulation) //TODO: Remove testing code
       return;
     //NOTE: For steps that are part of a pipeline job, do not synchronize the state
     if (isPipeline())
       return;
     logger.info("Synchronizing step state for {} with job service ...", getGlobalStepId());
     try {
-      //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
       JobWebClient.getInstance().postStepUpdate(this);
     }
     catch (ErrorResponseException httpError) {
       HttpResponse<byte[]> errorResponse = httpError.getErrorResponse();
       final HttpRequest failedRequest = errorResponse.request();
-      logger.error("Error updating the step state of step {} - Performing {} {}. Upstream-ID: {}, Response:\n{}",
-          getGlobalStepId(),
-          failedRequest.method(), failedRequest.uri(), errorResponse.headers().firstValue(STREAM_ID).orElse(null),
-          new String(errorResponse.body()));
+      logger.error("Error updating the step state of step {} - Performing {} {}. Upstream-ID: {}, Status-Code: {}, Response:\n{}",
+          getGlobalStepId(), failedRequest.method(), failedRequest.uri(), errorResponse.headers().firstValue(STREAM_ID).orElse(null),
+          errorResponse.statusCode(), new String(errorResponse.body()));
     }
     catch (WebClientException httpError) {
       logger.error("Error updating the step state of step {} at the job service", getGlobalStepId(), httpError);
