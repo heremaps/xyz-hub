@@ -54,6 +54,7 @@ import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
@@ -853,6 +854,11 @@ public class FeatureTaskHandler {
               return Future.succeededFuture();
             }
 
+            // ignore composite params resolution when the query is for ModifySubscription
+            if (task instanceof FeatureTask.ModifySubscriptionQuery q && q.getEvent().getOperation() == ModifySubscriptionEvent.Operation.DELETE) {
+              return Future.succeededFuture(space);
+            }
+
             if (!(task instanceof FeatureTask.ModifySpaceQuery) && !space.isActive()) {
               return Future.failedFuture(new HttpException(PRECONDITION_REQUIRED,
                   "The method is not allowed, because the resource \"" + space.getId() + "\" is not active."));
@@ -874,11 +880,6 @@ public class FeatureTaskHandler {
             }
 
             task.space = space;
-
-            // ignore composite params resolution when the query is for ModifySubscription
-            if (task instanceof FeatureTask.ModifySubscriptionQuery) {
-              return Future.succeededFuture(space);
-            }
 
             //Inject the extension-map
             return space.resolveCompositeParams(task.getMarker())
