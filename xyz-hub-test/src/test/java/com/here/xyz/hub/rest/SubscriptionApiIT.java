@@ -39,279 +39,278 @@ import org.junit.Test;
 
 public class SubscriptionApiIT extends TestSpaceWithFeature {
 
-    private static String cleanUpSpaceId = "space1";
-    private static String cleanUpSpaceId2 = "space2";
+  private static String cleanUpSpaceId = "space1";
+  private static String cleanUpSpaceId2 = "space2";
+  private static String cleanUpSpaceId3 = cleanUpSpaceId + "-ext";
+  private static String subscriptionId = "test-subscription-1";
 
-    @BeforeClass
-    public static void setupClass() {
-        removeAll();
-    }
+  @BeforeClass
+  public static void setupClass() {
+    removeAll();
+  }
 
-    @Before
-    public void setup() {
-        createSpaceWithCustomStorage(cleanUpSpaceId, "psql", null);
-        createSpaceWithVersionsToKeep(cleanUpSpaceId2, 10);
-    }
+  private static void removeAll() {
+    removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId, "test-subscription-1");
+    removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId2, "test-subscription-1");
+    removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId3, "test-subscription-1");
+    removeSpace(cleanUpSpaceId);
+    removeSpace(cleanUpSpaceId2);
+    removeSpace(cleanUpSpaceId3);
+  }
 
-    @After
-    public void teardown() {
-        removeAll();
-    }
+  public static Subscription addTestSubscription() {
+    return given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(content("/xyz/hub/createSubscription.json"))
+        .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
+        .as(Subscription.class);
+  }
 
-    private static void removeAll() {
-        removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId, "test-subscription-1");
-        removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId2, "test-subscription-1");
-        removeSpace(cleanUpSpaceId);
-        removeSpace(cleanUpSpaceId2);
-    }
+  public static ValidatableResponse addSubscription(AuthProfile authProfile, String contentFile) {
+    return given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(authProfile))
+        .body(content(contentFile))
+        .when()
+        .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
+        .then();
+  }
 
-    public static Subscription addTestSubscription() {
-        return given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .body(content("/xyz/hub/createSubscription.json"))
-                .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
-                .as(Subscription.class);
-    }
+  public static ValidatableResponse removeSubscription(AuthProfile authProfile, String spaceId, String subscriptionId) {
+    return given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(authProfile))
+        .when()
+        .delete("/spaces/" + spaceId + "/subscriptions/" + subscriptionId)
+        .then();
+  }
 
-    public static ValidatableResponse addSubscription(AuthProfile authProfile, String contentFile) {
-        return given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(authProfile))
-                .body(content(contentFile))
-                .when()
-                .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
-                .then();
-    }
-    public static ValidatableResponse removeSubscription(AuthProfile authProfile, String spaceId, String subscriptionId) {
-        return given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(authProfile))
-                .when()
-                .delete("/spaces/" + spaceId + "/subscriptions/" + subscriptionId)
-                .then();
-    }
+  @Before
+  public void setup() {
+    createSpaceWithCustomStorage(cleanUpSpaceId, "psql", null);
+    createSpaceWithVersionsToKeep(cleanUpSpaceId2, 10);
+  }
 
-    @Test
-    public void createSubscription() {
-        addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
-                .statusCode(CREATED.code())
-                .body("id", equalTo("test-subscription-1"));
-    }
+  @After
+  public void teardown() {
+    removeAll();
+  }
 
-    @Test
-    public void createSubscriptionWithAllAccess() {
-        addSubscription(AuthProfile.ACCESS_ALL, "/xyz/hub/createSubscription.json")
-                .statusCode(CREATED.code())
-                .body("id", equalTo("test-subscription-1"));
-    }
+  @Test
+  public void createSubscription() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
+        .statusCode(CREATED.code())
+        .body("id", equalTo("test-subscription-1"));
+  }
 
-    @Test
-    public void createSubscriptionWithNoAccess() {
-        addSubscription(AuthProfile.NO_ACCESS, "/xyz/hub/createSubscription.json")
-                .statusCode(FORBIDDEN.code());
-    }
+  @Test
+  public void createSubscriptionWithAllAccess() {
+    addSubscription(AuthProfile.ACCESS_ALL, "/xyz/hub/createSubscription.json")
+        .statusCode(CREATED.code())
+        .body("id", equalTo("test-subscription-1"));
+  }
 
-    @Test
-    public void createSubscriptionWithAnotherSpaceAccess() {
-        addSubscription(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
-                .statusCode(FORBIDDEN.code());
-    }
+  @Test
+  public void createSubscriptionWithNoAccess() {
+    addSubscription(AuthProfile.NO_ACCESS, "/xyz/hub/createSubscription.json")
+        .statusCode(FORBIDDEN.code());
+  }
 
-    @Test
-    public void createSubscriptionWithoutId() {
-        addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithoutId.json")
-                .statusCode(BAD_REQUEST.code());
-    }
+  @Test
+  public void createSubscriptionWithAnotherSpaceAccess() {
+    addSubscription(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
+        .statusCode(FORBIDDEN.code());
+  }
 
-    @Test
-    public void createSubscriptionWithSameId() {
-        addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
-                .statusCode(CREATED.code());
-        addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
-                .statusCode(CONFLICT.code());
-    }
+  @Test
+  public void createSubscriptionWithoutId() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscriptionWithoutId.json")
+        .statusCode(BAD_REQUEST.code());
+  }
 
-    @Test
-    public void createSubscriptionWithoutBody() {
-         given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .when()
-                .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
-                .then()
-                .statusCode(BAD_REQUEST.code());
-    }
+  @Test
+  public void createSubscriptionWithSameId() {
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
+        .statusCode(CREATED.code());
+    addSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, "/xyz/hub/createSubscription.json")
+        .statusCode(CONFLICT.code());
+  }
 
-    @Test
-    public void createSubscriptionWithPUT() {
-        String subscriptionId = "test-subscription-1";
+  @Test
+  public void createSubscriptionWithoutBody() {
+    given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+        .when()
+        .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .body(content("/xyz/hub/createSubscription.json"))
-                .when()
-                .put("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
-                .then()
-                .statusCode(OK.code())
-                .body("id", equalTo(subscriptionId));
-    }
+  @Test
+  public void createSubscriptionWithPUT() {
+    given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+        .body(content("/xyz/hub/createSubscription.json"))
+        .when()
+        .put("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo(subscriptionId));
+  }
 
-    @Test
-    public void updateSubscription() {
+  @Test
+  public void updateSubscription() {
 
-        Subscription subscription = addTestSubscription();
+    Subscription subscription = addTestSubscription();
 
-        subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
+    subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
 
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .body(subscription)
-                .when()
-                .put("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscription.getId())
-                .then()
-                .statusCode(OK.code())
-                .body("status.state", equalTo(subscription.getStatus().getState().name()));
-    }
+    given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+        .body(subscription)
+        .when()
+        .put("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscription.getId())
+        .then()
+        .statusCode(OK.code())
+        .body("status.state", equalTo(subscription.getStatus().getState().name()));
+  }
 
-    @Test
-    public void updateSubscriptionByIdWithAnotherSpaceAccess() {
-        Subscription subscription = addTestSubscription();
-        subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
+  @Test
+  public void updateSubscriptionByIdWithAnotherSpaceAccess() {
+    Subscription subscription = addTestSubscription();
+    subscription.getStatus().withState(Subscription.SubscriptionStatus.State.INACTIVE).withStateReason("Test Inactive State");
 
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES))
-                .body(subscription)
-                .when()
-                .put("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
-                .then()
-                .statusCode(FORBIDDEN.code());
-    }
+    given()
+        .accept(APPLICATION_JSON)
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES))
+        .body(subscription)
+        .when()
+        .put("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
 
-    @Test
-    public void getSubscriptionById() {
-        addTestSubscription();
+  @Test
+  public void getSubscriptionById() {
+    addTestSubscription();
 
-        String subscriptionId = "test-subscription-1";
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .when()
-                .get("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
-                .then()
-                .statusCode(OK.code())
-                .body("id", equalTo(subscriptionId));
-    }
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+        .when()
+        .get("/spaces/" + cleanUpSpaceId + "/subscriptions/" + subscriptionId)
+        .then()
+        .statusCode(OK.code())
+        .body("id", equalTo(subscriptionId));
+  }
 
-    @Test
-    public void getSubscriptionByIdWithAnotherSpaceAccess() {
-        addTestSubscription();
+  @Test
+  public void getSubscriptionByIdWithAnotherSpaceAccess() {
+    addTestSubscription();
 
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES))
-                .when()
-                .get("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
-                .then()
-                .statusCode(FORBIDDEN.code());
-    }
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES))
+        .when()
+        .get("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
 
-    @Test
-    public void getSubscriptionByIdWithoutAccess() {
-        addTestSubscription();
+  @Test
+  public void getSubscriptionByIdWithoutAccess() {
+    addTestSubscription();
 
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.NO_ACCESS))
-                .when()
-                .get("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
-                .then()
-                .statusCode(FORBIDDEN.code());
-    }
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.NO_ACCESS))
+        .when()
+        .get("/spaces/" + cleanUpSpaceId + "/subscriptions/test-subscription-1")
+        .then()
+        .statusCode(FORBIDDEN.code());
+  }
 
-    @Test
-    public void getUnknownSubscription() {
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
-                .when()
-                .get("/subscriptions/unknown")
-                .then()
-                .statusCode(NOT_FOUND.code());
-    }
+  @Test
+  public void getUnknownSubscription() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_MANAGE_OWN_CONNECTORS))
+        .when()
+        .get("/subscriptions/unknown")
+        .then()
+        .statusCode(NOT_FOUND.code());
+  }
 
-    @Test
-    public void getSubscriptionsForSpace() {
-        addTestSubscription();
+  @Test
+  public void getSubscriptionsForSpace() {
+    addTestSubscription();
 
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .when()
-                .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
-                .then()
-                .statusCode(OK.code())
-                .body("size()", is(1))
-                .body("[0].id", equalTo("test-subscription-1"));
-    }
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+        .when()
+        .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
+        .then()
+        .statusCode(OK.code())
+        .body("size()", is(1))
+        .body("[0].id", equalTo("test-subscription-1"));
+  }
 
-    @Test
-    public void getSubscriptionForSpaceWithNoSubscriptions() {
-        given()
-                .accept(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
-                .queryParam("source", "space1")
-                .when()
-                .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
-                .then()
-                .statusCode(OK.code())
-                .body("size()", is(0));
-    }
+  @Test
+  public void getSubscriptionForSpaceWithNoSubscriptions() {
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES))
+        .queryParam("source", "space1")
+        .when()
+        .get("/spaces/" + cleanUpSpaceId + "/subscriptions")
+        .then()
+        .statusCode(OK.code())
+        .body("size()", is(0));
+  }
 
-    @Test
-    public void deleteSubscription() {
-        addTestSubscription();
+  @Test
+  public void deleteSubscription() {
+    addTestSubscription();
 
-        String subscriptionId = "test-subscription-1";
-        removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
-                .statusCode(OK.code())
-                .body("id", equalTo(subscriptionId));
-    }
+    removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
+        .statusCode(OK.code())
+        .body("id", equalTo(subscriptionId));
+  }
 
-    @Test
-    public void deleteSubscriptionNotPresent() {
+  @Test
+  public void deleteSubscriptionNotPresent() {
 
-        String subscriptionId = "unknown-subscription";
-        removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
-                .statusCode(NOT_FOUND.code());
-    }
+    String subscriptionId = "unknown-subscription";
+    removeSubscription(AuthProfile.ACCESS_SPACE_1_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
+        .statusCode(NOT_FOUND.code());
+  }
 
-    @Test
-    public void deleteSubscriptionInsufficientRights() {
-        addTestSubscription();
+  @Test
+  public void deleteSubscriptionInsufficientRights() {
+    addTestSubscription();
 
-        String subscriptionId = "test-subscription-1";
-        removeSubscription(AuthProfile.NO_ACCESS, cleanUpSpaceId, subscriptionId)
-                .statusCode(FORBIDDEN.code());
-    }
+    removeSubscription(AuthProfile.NO_ACCESS, cleanUpSpaceId, subscriptionId)
+        .statusCode(FORBIDDEN.code());
+  }
 
-    @Test
-    public void deleteSubscriptionWithAnotherSpaceAccess() {
-        addTestSubscription();
+  @Test
+  public void deleteSubscriptionWithAnotherSpaceAccess() {
+    addTestSubscription();
 
-        String subscriptionId = "test-subscription-1";
-        removeSubscription(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
-                .statusCode(FORBIDDEN.code());
-    }
+    removeSubscription(AuthProfile.ACCESS_SPACE_2_MANAGE_SPACES, cleanUpSpaceId, subscriptionId)
+        .statusCode(FORBIDDEN.code());
+  }
 
   @Test
   public void testAddSubscriptionOnSpaceV2K1() {
@@ -324,7 +323,6 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         .statusCode(OK.code())
         .body("versionsToKeep", equalTo(2));
   }
-
 
   @Test
   public void testAddSubscriptionOnSpaceV2K10() {
@@ -342,5 +340,22 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("versionsToKeep", equalTo(10));
+  }
+
+  @Test
+  public void testDeleteSubscriptionOnOrphanCompositeSpace() {
+    createSpaceWithExtension(cleanUpSpaceId);
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(content("/xyz/hub/createSubscription.json"))
+        .post("/spaces/" + cleanUpSpaceId3 + "/subscriptions")
+        .then().statusCode(CREATED.code());
+
+    removeSpace(cleanUpSpaceId);
+
+    removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId3, subscriptionId)
+        .statusCode(OK.code());
   }
 }

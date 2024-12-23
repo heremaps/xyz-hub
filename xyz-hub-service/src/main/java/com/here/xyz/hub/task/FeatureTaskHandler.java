@@ -49,12 +49,12 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
@@ -852,6 +852,11 @@ public class FeatureTaskHandler {
           .compose(space -> {
             if (space == null) {
               return Future.succeededFuture();
+            }
+
+            // ignore composite params resolution when the query is for ModifySubscription
+            if (task instanceof FeatureTask.ModifySubscriptionQuery q && q.getEvent().getOperation() == ModifySubscriptionEvent.Operation.DELETE) {
+              return Future.succeededFuture(space);
             }
 
             if (!(task instanceof FeatureTask.ModifySpaceQuery) && !space.isActive()) {

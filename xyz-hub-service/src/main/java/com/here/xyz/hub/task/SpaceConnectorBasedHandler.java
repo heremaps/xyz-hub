@@ -30,6 +30,7 @@ import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
@@ -98,7 +99,7 @@ public class SpaceConnectorBasedHandler {
   private static Future<Long> getMinTag(Marker marker, String space){
       return Service.tagConfigClient.getTags(marker, space, true)
             .compose(r -> r == null ? Future.succeededFuture(null)
-                    : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
+                    : Future.succeededFuture(r.stream().mapToLong(Tag::getVersion).min())
             )
             .compose(r -> {
                 /* Return min tag of this space */
@@ -107,12 +108,8 @@ public class SpaceConnectorBasedHandler {
   }
 
   public static Future<Space> getAndValidateSpace(Marker marker, String spaceId) {
-    return getAndValidateSpace(marker, spaceId, false);
-  }
-
-  public static Future<Space> getAndValidateSpace(Marker marker, String spaceId, boolean ignoreMissingSpace) {
     return Service.spaceConfigClient.get(marker, spaceId)
-        .compose(space -> space == null && !ignoreMissingSpace
+        .compose(space -> space == null
             ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + spaceId + "' does not exist!"))
             : Future.succeededFuture(space))
         .compose(space -> space != null && !space.isActive()
