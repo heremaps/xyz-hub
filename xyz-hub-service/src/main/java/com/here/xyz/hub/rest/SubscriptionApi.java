@@ -132,7 +132,7 @@ public class SubscriptionApi extends SpaceBasedApi {
       final String spaceId = getSpaceId(context);
       final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
 
-      getAndValidateSpace(getMarker(context), spaceId, true)
+      Service.spaceConfigClient.get(getMarker(context), spaceId)
           .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
           .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
           .compose(subscription -> SubscriptionHandler.deleteSubscription(context, subscription))

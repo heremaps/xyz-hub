@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
 import static io.restassured.RestAssured.given;
@@ -352,13 +353,13 @@ public class SpaceInactiveIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void deleteSubscriptionFromInactiveSpaceNegative() {
+  public void deleteNonExistingSubscriptionFromInactiveSpaceNegative() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
         .delete(getSpacesPath() + "/" + SPACE_ID + "/subscriptions/S1")
         .then()
-        .statusCode(METHOD_NOT_ALLOWED.code());
+        .statusCode(NOT_FOUND.code());
   }
 
   @Test

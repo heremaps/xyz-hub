@@ -52,6 +52,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
   private static void removeAll() {
     removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId, "test-subscription-1");
     removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId2, "test-subscription-1");
+    removeSubscription(AuthProfile.ACCESS_ALL, cleanUpSpaceId3, "test-subscription-1");
     removeSpace(cleanUpSpaceId);
     removeSpace(cleanUpSpaceId2);
     removeSpace(cleanUpSpaceId3);
