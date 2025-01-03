@@ -1,11 +1,13 @@
 {
     "id": "cloud-config",
-    "type": "Config",
+    "type": "Feature",
     "httpPort": 7080,
     "requestBodyLimit": 25,
+    "authMode": "JWT",
+    "jwtPvtKeyPath":  "SOME_PVT_KEY_PATH",
+    "jwtPubKeyPaths": "SOME_PUB_KEY_PATHS",
     "maxParallelRequestsPerCPU": 100,
     "maxPctParallelRequestsPerActor": 25,
-    "authMode": "JWT",
     "extensionConfigParams": {
         "whitelistClasses": [ "java.*", "javax.*", "com.here.*", "jdk.internal.reflect.*", "com.sun.*", "org.w3c.dom.*", "sun.misc.*","org.locationtech.jts.*"],
         "intervalms": 30000,

@@ -158,7 +158,9 @@ subprojects {
             // excluding tests where Builder pattern gets broken by palantir
             targetExclude("src/test/**")
             encoding("UTF-8")
-            val YEAR = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy"))
+            // TODO - Disabling auto-correction to 2025 for now. Will handle via separate change.
+            //val YEAR = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy"))
+            val YEAR = 2024
             licenseHeader("""
 /*
  * Copyright (C) 2017-$YEAR HERE Europe B.V.

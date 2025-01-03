@@ -44,7 +44,7 @@ public class NakshaJwtAuthHandler extends JWTAuthHandlerImpl {
   /**
    * The master JWT used for testing.
    */
-  private final String MASTER_JWT = authProvider.generateToken(MASTER_JWT_PAYLOAD);
+  private static String MASTER_JWT = null;
 
   public NakshaJwtAuthHandler(
       @NotNull JWTAuth authProvider, @NotNull NakshaHubConfig hubConfig, @Nullable String realm) {
@@ -57,6 +57,9 @@ public class NakshaJwtAuthHandler extends JWTAuthHandlerImpl {
     if (hubConfig.authMode == AuthorizationMode.DUMMY
         && !context.request().headers().contains(HttpHeaders.AUTHORIZATION)) {
       // Use the master JWT for testing in DUMMY auth mode with no JWT provided in request
+      if (MASTER_JWT == null) {
+        MASTER_JWT = authProvider.generateToken(MASTER_JWT_PAYLOAD);
+      }
       context.request().headers().set(HttpHeaders.AUTHORIZATION, "Bearer " + MASTER_JWT);
     }
     // TODO: If compressed JWTs are supported

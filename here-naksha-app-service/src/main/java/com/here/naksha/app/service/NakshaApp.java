@@ -102,13 +102,13 @@ public final class NakshaApp extends Thread {
     err.println("Examples:");
     err.println(" ");
     err.println("    Example 1 : Start service with given config and default (local) database URL");
-    err.println("        java -jar naksha.jar default-config");
+    err.println("        java -jar naksha.jar test-config");
     err.println(" ");
     err.println("    Example 2 : Start service with given config and custom database URL");
-    err.println("        java -jar naksha.jar default-config '" + DEFAULT_URL + "'");
+    err.println("        java -jar naksha.jar test-config '" + DEFAULT_URL + "'");
     err.println(" ");
-    err.println("    Example 3 : Start service with mock config (with in-memory hub)");
-    err.println("        java -jar naksha.jar mock-config");
+    err.println("    Example 3 : Start service with custom config (using custom NAKSHA_CONFIG_PATH)");
+    err.println("        java -jar naksha.jar custom-config");
     err.println(" ");
     err.flush();
   }
@@ -220,20 +220,20 @@ public final class NakshaApp extends Thread {
     }
     this.vertx = Vertx.vertx(this.vertxOptions);
 
-    final String jwtKey;
-    final String jwtPub;
+    final List<PubSecKeyOptions> keyOptions = new ArrayList<>();
+    // read JWT pvt key
     {
-      final String path = "auth/" + config.jwtName + ".key";
-      jwtKey = readAuthKeyFile(path, NakshaHubConfig.APP_NAME);
+      final String keyContent = readAuthKeyFile(config.jwtPvtKeyPath, NakshaHubConfig.APP_NAME);
+      keyOptions.add(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(keyContent));
     }
-    {
-      final String path = "auth/" + config.jwtName + ".pub";
-      jwtPub = readAuthKeyFile(path, NakshaHubConfig.APP_NAME);
+    // read JWT pub keys
+    for (final String keyPath : config.jwtPubKeyPaths.split(",")) {
+      final String keyContent = readAuthKeyFile(keyPath, NakshaHubConfig.APP_NAME);
+      keyOptions.add(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(keyContent));
     }
     this.authOptions = new JWTAuthOptions()
         .setJWTOptions(new JWTOptions().setAlgorithm("RS256"))
-        .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtKey))
-        .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtPub));
+        .setPubSecKeys(keyOptions);
     this.authProvider = new NakshaAuthProvider(this.vertx, this.authOptions);
 
     final WebClientOptions webClientOptions = new WebClientOptions();

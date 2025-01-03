@@ -47,7 +47,6 @@ import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.extmanager.ExtensionManager;
 import com.here.naksha.lib.extmanager.IExtensionManager;
@@ -55,9 +54,7 @@ import com.here.naksha.lib.extmanager.helpers.AmazonS3Helper;
 import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlStorage;
-
 import java.util.*;
-
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -242,8 +239,7 @@ public class NakshaHub implements INaksha {
             new Exception("Unable to read custom/default config from Admin DB. " + er, er.exception));
       } else {
         try {
-          List<NakshaHubConfig> nakshaHubConfigs =
-              readFeaturesFromResult(rdResult, NakshaHubConfig.class);
+          List<NakshaHubConfig> nakshaHubConfigs = readFeaturesFromResult(rdResult, NakshaHubConfig.class);
           for (final NakshaHubConfig cfg : nakshaHubConfigs) {
             if (cfg.getId().equals(configId)) {
               customDbCfg = cfg;
@@ -307,15 +303,21 @@ public class NakshaHub implements INaksha {
     try (IReadSession readSession = getAdminStorage().newReadSession(nakshaContext, false)) {
       rdResult = readSession.execute(request);
     } catch (Exception e) {
-      logger.error("Failed during reading extension handler configurations from collections {}. ", request.getCollections(), e);
+      logger.error(
+          "Failed during reading extension handler configurations from collections {}. ",
+          request.getCollections(),
+          e);
       throw new RuntimeException("Failed reading extension handler configurations", e);
     }
     final List<EventHandler> eventHandlers;
     try {
       eventHandlers = readFeaturesFromResult(rdResult, EventHandler.class);
-    } catch (NoCursor e) {
-      logger.error("NoCursor exception encountered", e);
-      throw new RuntimeException("Failed to open cursor", e);
+    } catch (NoCursor | NoSuchElementException e) {
+      logger.info("No relevant handlers found for Extension loading", e);
+      return new ExtensionConfig(
+          System.currentTimeMillis() + nakshaHubConfig.extensionConfigParams.getIntervalMs(),
+          Collections.emptyList(),
+          null);
     }
 
     Set<String> extensionIds = new HashSet<>();
@@ -356,7 +358,7 @@ public class NakshaHub implements INaksha {
       }
 
       filePath = extensionRootPath + extensionIdWotEnv + "/" + extensionIdWotEnv + "-" + version + "."
-              + env.toLowerCase() + ".json";
+          + env.toLowerCase() + ".json";
       String exJson;
       try {
         exJson = s3Helper.getFileContent(filePath);

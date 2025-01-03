@@ -22,7 +22,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
@@ -39,7 +38,6 @@ import org.slf4j.LoggerFactory;
 /**
  * The Naksha-Hub service configuration.
  */
-@JsonTypeName(value = "Config")
 public final class NakshaHubConfig extends XyzFeature implements JsonSerializable {
 
   private static final Logger logger = LoggerFactory.getLogger(NakshaHubConfig.class);
@@ -81,21 +79,40 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
     return NakshaHub.class.getName();
   }
 
+  /**
+   * Returns a default relative path to Private Key useful for JWT signing
+   *
+   * @return The default private key path
+   */
+  public static @NotNull String defaultJwtPvtKeyPath() {
+    return "auth/jwt.key";
+  }
+
+  /**
+   * Returns default relative paths to Public Keys useful for JWT signature verification
+   *
+   * @return The default public key paths
+   */
+  public static @NotNull String defaultJwtPubKeyPaths() {
+    return "auth/jwt.pub";
+  }
+
   @JsonCreator
   NakshaHubConfig(
       @JsonProperty("id") @NotNull String id,
-      @JsonProperty("hubClassName") @Nullable String hubClassName,
-      @JsonProperty("userAgent") @Nullable String userAgent,
-      @JsonProperty("appId") @Nullable String appId,
-      @JsonProperty("author") @Nullable String author,
-      @JsonProperty("httpPort") @Nullable Integer httpPort,
-      @JsonProperty("hostname") @Nullable String hostname,
-      @JsonProperty("endpoint") @Nullable String endpoint,
-      @JsonProperty("env") @Nullable String env,
-      @JsonProperty("webRoot") @Nullable String webRoot,
+      @JsonProperty(HUB_CLASS_NAME) @Nullable String hubClassName,
+      @JsonProperty(USER_AGENT) @Nullable String userAgent,
+      @JsonProperty(APP_ID) @Nullable String appId,
+      @JsonProperty(AUTHOR) @Nullable String author,
+      @JsonProperty(HTTP_PORT) @Nullable Integer httpPort,
+      @JsonProperty(HOSTNAME) @Nullable String hostname,
+      @JsonProperty(ENDPOINT) @Nullable String endpoint,
+      @JsonProperty(ENV) @Nullable String env,
+      @JsonProperty(WEB_ROOT) @Nullable String webRoot,
       @JsonProperty(NAKSHA_AUTH) @Nullable AuthorizationMode authMode,
-      @JsonProperty("jwtName") @Nullable String jwtName,
-      @JsonProperty("debug") @Nullable Boolean debug,
+      @JsonProperty(JWT_PVT_KEY_PATH) @Nullable String jwtPvtKeyPath,
+      @JsonProperty(JWT_PUB_KEY_PATHS) @Nullable String jwtPubKeyPaths,
+      @JsonProperty(DEBUG) @Nullable Boolean debug,
       @JsonProperty("maintenanceIntervalInMins") @Nullable Integer maintenanceIntervalInMins,
       @JsonProperty("maintenanceInitialDelayInMins") @Nullable Integer maintenanceInitialDelayInMins,
       @JsonProperty("maintenancePoolCoreSize") @Nullable Integer maintenancePoolCoreSize,
@@ -107,8 +124,8 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       @JsonProperty("maxPctParallelRequestsPerActor") @Nullable Integer maxPctParallelRequestsPerActor) {
     super(id);
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {
-      logger.atError()
-          .setMessage("Invalid port in Naksha configuration: {}")
+      logger.atWarn()
+          .setMessage("Invalid port in Naksha configuration: {}, falling back to default \"8080\"")
           .addArgument(httpPort)
           .log();
       httpPort = 8080;
@@ -119,8 +136,8 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       try {
         hostname = InetAddress.getLocalHost().getHostAddress();
       } catch (UnknownHostException e) {
-        logger.atError()
-            .setMessage("Unable to resolve the hostname using Java's API.")
+        logger.atWarn()
+            .setMessage("Unable to resolve the hostname using Java's API, using default \"localhost\".")
             .setCause(e)
             .log();
         hostname = "localhost";
@@ -167,7 +184,10 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
     this.env = env;
     this.webRoot = webRoot;
     this.authMode = (authMode == null) ? AuthorizationMode.JWT : authMode;
-    this.jwtName = jwtName != null && !jwtName.isEmpty() ? jwtName : "jwt";
+    this.jwtPvtKeyPath =
+        (jwtPvtKeyPath != null && !jwtPvtKeyPath.isEmpty()) ? jwtPvtKeyPath : defaultJwtPvtKeyPath();
+    this.jwtPubKeyPaths =
+        (jwtPubKeyPaths != null && !jwtPubKeyPaths.isEmpty()) ? jwtPubKeyPaths : defaultJwtPubKeyPaths();
     this.userAgent = userAgent != null && !userAgent.isEmpty() ? userAgent : defaultAppName();
     this.debug = Boolean.TRUE.equals(debug);
     this.maintenanceIntervalInMins =
@@ -263,13 +283,25 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
   @JsonProperty(WEB_ROOT)
   public final @Nullable String webRoot;
 
-  public static final String JWT_NAME = "jwtName";
-
+  public static final String JWT_PVT_KEY_PATH = "jwtPvtKeyPath";
   /**
-   * The JWT key files to be read from the disk ({@code "~/.config/naksha/auth/$<jwtName>.(key|pub)"}).
+   * The relative path to Private key file to support JWT signing (e.g. {@code "auth/jwt.key"}).
+   * The path should be relative to the directory where config file is supplied.
+   * For example - if config file is {@code "/home/config/cloud-config.json"} then the key path {@code "auth/jwt.key"}
+   * will be considered relative to {@code "/home/config"} folder, resulting into absolute path as {@code "/home/config/auth/jwt.key}"
    */
-  @JsonProperty(JWT_NAME)
-  public final @NotNull String jwtName;
+  @JsonProperty(JWT_PVT_KEY_PATH)
+  public final @NotNull String jwtPvtKeyPath;
+
+  public static final String JWT_PUB_KEY_PATHS = "jwtPubKeyPaths";
+  /**
+   * The comma separated relative paths to Public key files to support JWT signature verification (e.g. {@code "auth/jwt.pub,auth/jwt_2.pub"}).
+   * The path should be relative to the directory where config file is supplied.
+   * For example - if config file is {@code "/home/config/cloud-config.json"} then the key path {@code "auth/jwt.pub"}
+   * will be considered relative to {@code "/home/config"} folder, resulting into absolute path as {@code "/home/config/auth/jwt.pub}"
+   */
+  @JsonProperty(JWT_PUB_KEY_PATHS)
+  public final @NotNull String jwtPubKeyPaths;
 
   public static final String USER_AGENT = "userAgent";
 

@@ -1,16 +1,13 @@
 {
   "id": "test-config",
-  "type": "Config",
+  "type": "Feature",
 
   "httpPort": 8080,
   "env": "local",
   "requestBodyLimit": 25,
   "authMode": "DUMMY",
-  "jwtName": "jwt",
-  "maintenanceInitialDelayInMins": 60,
-  "maintenanceIntervalInMins": 720,
-  "maintenancePoolCoreSize": 5,
-  "maintenancePoolMaxSize": 20,
+  "jwtPvtKeyPath":  "auth/jwt.key",
+  "jwtPubKeyPaths": "auth/jwt.pub",
   "maxParallelRequestsPerCPU": 30,
   "maxPctParallelRequestsPerActor": 100,
   "storageParams": {

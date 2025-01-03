@@ -1,6 +1,6 @@
 {
   "id": "mock-config",
-  "type": "Config",
+  "type": "Feature",
 
   "httpPort": 8080,
   "//hostname": "some-instance.aws.com",

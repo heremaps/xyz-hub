@@ -103,9 +103,9 @@ java -jar <jar-file> <config-id> <database-url>
 
 # Example 1 : Start service with test config against default Database URL (useful for local env)
 java -jar build/libs/naksha-2.0.6-all.jar test-config
-# Example 2 : Start service with given custom config and custom database URL (useful for cloud env)
+# Example 2 : Start service with given custom config (using NAKSHA_CONFIG_PATH) and custom database URL (useful for cloud env)
 java -jar build/libs/naksha-2.0.6-all.jar cloud-config 'jdbc:postgresql://localhost:5432/postgres?user=postgres&password=pswd&schema=naksha&app=naksha_local&id=naksha_admin_db'
-# Example 3 : Start service with given custom config and default (local) database URL
+# Example 3 : Start service with given custom config (using NAKSHA_CONFIG_PATH) and default (local) database URL
 java -jar build/libs/naksha-2.0.6-all.jar custom-config
 
 ```
@@ -126,17 +126,16 @@ Once application is UP, the OpenAPI specification is accessible at `http(s)://{h
 The service persists out of modules with a bootstrap code to start the service. Service provides default configuration in [default-config.json](here-naksha-lib-hub/src/main/resources/config/default-config.json).
 
 The custom (external) configuration file can be supplied by modifying environment variable or by creating the `default-config.json` file in the corresponding configuration folder.
-The exact configuration folder is platform dependent, but generally follows the [XGD user configuration directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), standard, so on Linux being by default `~/.config/naksha/v{x.x.x}/`. For Windows the files will reside in the [CSIDL_PROFILE](https://learn.microsoft.com/en-us/windows/win32/shell/csidl?redirectedfrom=MSDN) folder, by default `C:\Users\{username}\.config\naksha\v{x.x.x}\`.
-Here `{x.x.x}` is the Naksha application version (for example, if version is `2.0.7`, then path will be `...\.config\naksha\v2.0.7`)
+The exact configuration folder is platform dependent, but generally follows the [XGD user configuration directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), standard, so on Linux being by default `~/.config/naksha/`. For Windows the files will reside in the [CSIDL_PROFILE](https://learn.microsoft.com/en-us/windows/win32/shell/csidl?redirectedfrom=MSDN) folder, by default `C:\Users\{username}\.config\naksha\`.
 
-Next to this, an explicit location can be specified via the environment variable `NAKSHA_CONFIG_PATH`, this path will not be extended by the `naksha/v{x.x.x}` folder, so you can directly specify where to keep the config files. This is important when you want to start multiple versions of the service: `NAKSHA_CONFIG_PATH=~/.config/naksha/ java -jar naksha.jar {arguments}`.
+Next to this, an explicit location can be specified via the environment variable `NAKSHA_CONFIG_PATH`, this path will not be extended by the `naksha/` folder, so you can directly specify where to keep the config files. This is important when you want to start multiple versions of the service: `NAKSHA_CONFIG_PATH=~/.config/naksha/ java -jar naksha.jar {arguments}`.
 
 In the custom config file, the name of the individual properties can be set as per source code here [NakshaHubConfig](here-naksha-lib-hub/src/main/java/com/here/naksha/lib/hub/NakshaHubConfig.java).
 All properties annotated with `@JsonProperty` can be set in custom config file.
 
 Config file is loaded using `{config-id}` supplied as CLI argument, as per following precedence on file location (first match wins):
 1. using env variable `NAKSHA_CONFIG_PATH` (full path will be `$NAKSHA_CONFIG_PATH/{config-id}.json`)
-2. as per user's home directory `user.home` (full path will be `{user-home}/.config/naksha/v{x.x.x}/{config-id}.json` )
+2. as per user's home directory `user.home` (full path will be `{user-home}/.config/naksha/{config-id}.json` )
 3. as per config previously loaded in Naksha Admin Storage (PostgreSQL database)
 4. default config loaded from jar (`here-naksha-lib-hub/src/main/resources/config/default-config.json`)
 
@@ -152,6 +151,21 @@ vi $NAKSHA_CONFIG_PATH/default-config.json
 
 # Start application using above config
 java -jar naksha.jar default-config
+```
+
+The config also accepts custom RSA256 Private key and multiple Public key files (in PEM format) to support JWT signing/verification operations.
+
+* If custom Private key not provided, default will be loaded from Jar bundled resource [here-naksha-app-service/src/main/resources/auth/jwt.key](here-naksha-app-service/src/main/resources/auth/jwt.key).
+* If custom Public key not provided, default will be loaded from Jar bundled resource [here-naksha-app-service/src/main/resources/auth/jwt.pub](here-naksha-app-service/src/main/resources/auth/jwt.pub).
+
+Sample commands to generate the custom key files:
+
+```bash
+# Generate private key
+openssl genrsa -out ./custom_rsa256.key 2048
+
+# Generate public key (using above private key)
+openssl rsa -in ./custom_rsa256.key -pubout -outform PEM -out ./custom_rsa256.pub
 ```
 
 # Usage
