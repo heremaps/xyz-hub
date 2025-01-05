@@ -124,6 +124,12 @@
       <artifactId>lambda</artifactId>
     </dependency>
 
+    <!-- AWS SDKs v2 -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>secretsmanager</artifactId>
+    </dependency>
+
     <!-- DB utils -->
     <dependency>
       <groupId>com.mchange</groupId>
