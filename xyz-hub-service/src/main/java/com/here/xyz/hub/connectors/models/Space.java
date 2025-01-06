@@ -70,12 +70,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
       - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
 
   private final static long MAX_SLIDING_WINDOW = TimeUnit.DAYS.toMillis(10);
-  /**
-   * Indicates the last time the content of a space was updated.
-   */
-  @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Public.class, Static.class})
-  public long contentUpdatedAt = 0;
 
   @JsonInclude(Include.NON_DEFAULT)
   @JsonView({Public.class, Static.class})
@@ -259,22 +253,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     //For all other responses of a space which was not changed for longer time -> cache in the service *and* in the browser / CDN
     return new CacheProfile(TimeUnit.MINUTES.toMillis(3), TimeUnit.HOURS.toMillis(24), CacheProfile.MAX_SERVICE_TTL, staticTTL,
         getContentUpdatedAt());
-  }
-
-  public long getContentUpdatedAt() {
-    if (contentUpdatedAt == 0) {
-      contentUpdatedAt = getCreatedAt();
-    }
-    return contentUpdatedAt;
-  }
-
-  public void setContentUpdatedAt(long contentUpdatedAt) {
-    this.contentUpdatedAt = contentUpdatedAt;
-  }
-
-  public Space withContentUpdatedAt(long contentUpdatedAt) {
-    setContentUpdatedAt(contentUpdatedAt);
-    return this;
   }
 
   public String getRegion() {

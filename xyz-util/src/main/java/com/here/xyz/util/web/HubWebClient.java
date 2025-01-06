@@ -50,6 +50,7 @@ import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
+  public static int STATISTICS_CACHE_TTL_SECONDS = 30;
   private static Map<InstanceKey, HubWebClient> instances = new ConcurrentHashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
@@ -57,7 +58,7 @@ public class HubWebClient extends XyzWebClient {
       .build();
   private ExpiringMap<String, StatisticsResponse> statisticsCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
-      .expiration(30, TimeUnit.SECONDS)
+      .expiration(STATISTICS_CACHE_TTL_SECONDS, TimeUnit.SECONDS)
       .build();
 
   protected HubWebClient(String baseUrl) {
@@ -179,7 +180,7 @@ public class HubWebClient extends XyzWebClient {
 
   public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
     try {
-      String cacheKey = spaceId + ":" + context;
+      String cacheKey = spaceId + ":" + context + "_" + loadSpace(spaceId).getContentUpdatedAt();
       StatisticsResponse statistics = statisticsCache.get(cacheKey);
       if (statistics != null)
         return statistics;

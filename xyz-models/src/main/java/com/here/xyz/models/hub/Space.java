@@ -234,6 +234,12 @@ public class Space {
   @JsonInclude(value = Include.CUSTOM, valueFilter = IncludeFalse.class)
   @JsonView({Internal.class, Static.class})
   private boolean active = true;
+  /**
+   * Indicates the last time the content of a space was updated.
+   */
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Public.class, Static.class})
+  private long contentUpdatedAt = 0;
 
   public String getId() {
     return id;
@@ -571,6 +577,21 @@ public class Space {
 
   public Space withActive(final boolean active) {
     setActive(active);
+    return this;
+  }
+
+  public long getContentUpdatedAt() {
+    if (contentUpdatedAt == 0)
+      contentUpdatedAt = getCreatedAt();
+    return contentUpdatedAt;
+  }
+
+  public void setContentUpdatedAt(long contentUpdatedAt) {
+    this.contentUpdatedAt = contentUpdatedAt;
+  }
+
+  public Space withContentUpdatedAt(long contentUpdatedAt) {
+    setContentUpdatedAt(contentUpdatedAt);
     return this;
   }
 

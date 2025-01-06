@@ -49,7 +49,6 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
@@ -307,7 +306,7 @@ public class FeatureTaskHandler {
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
       if (task instanceof FeatureTask.ConditionalOperation) {
         long now = Core.currentTimeMillis();
-        if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
+        if (now - task.space.getContentUpdatedAt() > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
           task.space.setContentUpdatedAt(Core.currentTimeMillis());
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space)
@@ -1539,25 +1538,25 @@ public class FeatureTaskHandler {
     if (task.space.getExtension() != null) {
       SpaceContext spaceContext = task.spaceContext;
       Space.resolveSpace(task.getMarker(), task.space.getExtension().getSpaceId())
-              .onSuccess(space -> {
-                long contentUpdatedAt;
-                if (spaceContext == SUPER) {
-                  contentUpdatedAt = space.contentUpdatedAt;
-                } else if (spaceContext == DEFAULT) {
-                  contentUpdatedAt = Math.max(space.contentUpdatedAt, task.space.contentUpdatedAt);
-                } else {
-                  contentUpdatedAt = task.space.contentUpdatedAt;
-                }
-                response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
-                        .withValue(contentUpdatedAt)
-                        .withEstimated(true));
-                p.complete();
-              })
-              .onFailure(t -> p.fail(t));
-    } else {
+          .onSuccess(space -> {
+            long contentUpdatedAt;
+            if (spaceContext == SUPER)
+              contentUpdatedAt = space.getContentUpdatedAt();
+            else if (spaceContext == DEFAULT)
+              contentUpdatedAt = Math.max(space.getContentUpdatedAt(), task.space.getContentUpdatedAt());
+            else
+              contentUpdatedAt = task.space.getContentUpdatedAt();
+            response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
+                .withValue(contentUpdatedAt)
+                .withEstimated(true));
+            p.complete();
+          })
+          .onFailure(t -> p.fail(t));
+    }
+    else {
       response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
-              .withValue(task.space.contentUpdatedAt)
-              .withEstimated(true));
+          .withValue(task.space.getContentUpdatedAt())
+          .withEstimated(true));
       p.complete();
     }
     return p.future();
