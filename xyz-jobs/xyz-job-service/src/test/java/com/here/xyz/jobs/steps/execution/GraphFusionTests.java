@@ -466,7 +466,7 @@ public class GraphFusionTests {
   private static Step step(Step step, InputsOf inputs) {
     return step.withInputSets(Arrays.stream(inputs.steps)
         .flatMap(producerStep -> producerStep.getOutputSets().stream()
-            .map(outputSet -> new InputSet(producerStep.getJobId(), producerStep.getId(), ((OutputSet) outputSet).name, ((OutputSet) outputSet).modelBased))).toList());
+            .map(outputSet -> new InputSet(producerStep.getJobId(), producerStep.getId(), ((OutputSet) outputSet).name, ((OutputSet) outputSet).modelBased, producerStep.getOutputMetadata()))).toList());
   }
 
   private record InputsOf(Step... steps) {}

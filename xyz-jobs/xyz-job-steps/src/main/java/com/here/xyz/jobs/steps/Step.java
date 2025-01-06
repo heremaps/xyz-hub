@@ -281,7 +281,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     else if (inputSet.name == null)
       throw new IllegalArgumentException("Incorrect input was provided: Missing referenced output name");
     else {
-      return loadOutputsFor(inputSet).stream().map(output -> transformToInput(output)).toList();
+      return loadOutputsFor(inputSet).stream().map(output -> (Input) transformToInput(output).withMetadata(inputSet.metadata())).toList();
     }
   }
 
@@ -607,8 +607,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param stepId The step ID of the step producing the outputs
    * @param name The name for the set of outputs to be produced
    */
-  public record InputSet(String jobId, String stepId, String name, boolean modelBased) {
+  public record InputSet(String jobId, String stepId, String name, boolean modelBased, Map<String, String> metadata) {
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
+
+    public InputSet(String jobId, String stepId, String name, boolean modelBased) {
+      this(jobId, stepId, name, modelBased, null);
+    }
 
     /**
      * Use this constructor to reference the outputs of a step belonging to the same job as the consuming step.
