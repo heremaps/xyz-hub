@@ -439,7 +439,6 @@ public class Job implements XyzSerializable {
    * @return A list of overall resource-loads being reserved by this job
    */
   public List<Load> calculateResourceLoads() {
-    //TODO: Run asynchronous!
     return calculateResourceLoads(getSteps())
         .entrySet()
         .stream()
