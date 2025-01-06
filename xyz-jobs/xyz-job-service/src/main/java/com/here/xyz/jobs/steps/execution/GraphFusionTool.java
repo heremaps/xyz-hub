@@ -240,7 +240,7 @@ public class GraphFusionTool {
       else
         //Now we know that inputSet is one that should be replaced by one that is pointing to the outputs of the old graph
         newInputSets.add(new InputSet(replacementStep.getDelegate().getJobId(), replacementStep.getDelegate().getId(), compiledInputSet.name(),
-            compiledInputSet.modelBased()));
+            compiledInputSet.modelBased(), replacementStep.getDelegate().getOutputMetadata()));
     }
     step.setInputSets(newInputSets);
 

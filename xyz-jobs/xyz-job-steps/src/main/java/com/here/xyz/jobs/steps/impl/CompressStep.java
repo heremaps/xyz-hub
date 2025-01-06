@@ -7,9 +7,6 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -17,8 +14,10 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-public class CompressGeoObjects extends SyncLambdaStep {
+public class CompressStep extends SyncLambdaStep {
     public static final String COMPRESSED_DATA = "compressed-data";
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private static final String ZIP_CONTENT_TYPE = "application/zip";
@@ -86,7 +85,7 @@ public class CompressGeoObjects extends SyncLambdaStep {
             String zipEntryPath = composeFileName(input, inputSet);
 
             if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty() && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
-                String prefix = (String) input.getMetadata().getOrDefault(groupByMetadataKey, "unknown");
+                String prefix = (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default");
                 zipEntryPath = prefix + zipEntryPath;
             }
 
@@ -172,7 +171,7 @@ public class CompressGeoObjects extends SyncLambdaStep {
         this.groupByMetadataKey = value;
     }
 
-    public CompressGeoObjects withGroupByMetadataKey(String value) {
+    public CompressStep withGroupByMetadataKey(String value) {
         setGroupByMetadataKey(value);
         return this;
     }
