@@ -264,8 +264,8 @@
 
     <!-- AWS SDK -->
     <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
     </dependency>
     <dependency>
       <artifactId>aws-java-sdk-lambda</artifactId>

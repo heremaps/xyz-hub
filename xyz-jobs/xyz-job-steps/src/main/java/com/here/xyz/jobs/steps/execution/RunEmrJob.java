@@ -22,8 +22,6 @@ package com.here.xyz.jobs.steps.execution;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -49,6 +47,8 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
@@ -265,7 +265,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       jarStream.close();
     } catch (FileAlreadyExistsException e) {
       logger.info("File: '{}' already exists locally - skip download.", s3Path);
-    }catch (AmazonS3Exception e){
+    }catch (S3Exception e){
       throw new RuntimeException("Can't download File: '" + s3Path + "' for local copy!", e);
     } catch (IOException e) {
       throw new RuntimeException("Can't copy File: '" + s3Path + "'!", e);
@@ -279,11 +279,11 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
    */
   private String copyFolderFromS3ToLocal(String s3Path) {
     //TODO: Use inputs loading of framework instead
-    List<S3ObjectSummary> s3ObjectSummaries = S3Client.getInstance().scanFolder(s3Path);
+    List<S3Object> s3ObjectSummaries = S3Client.getInstance().scanFolder(s3Path);
 
-    for (S3ObjectSummary s3ObjectSummary : s3ObjectSummaries) {
-      if (!s3ObjectSummary.getKey().contains("modelBased"))
-        copyFileFromS3ToLocal(s3ObjectSummary.getKey());
+    for (S3Object s3ObjectSummary : s3ObjectSummaries) {
+      if (!s3ObjectSummary.key().contains("modelBased"))
+        copyFileFromS3ToLocal(s3ObjectSummary.key());
     }
     return getLocalTmpPath(s3Path);
   }

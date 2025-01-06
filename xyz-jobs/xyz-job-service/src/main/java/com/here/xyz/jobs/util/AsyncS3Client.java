@@ -19,10 +19,11 @@
 
 package com.here.xyz.jobs.util;
 
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.util.Async;
 import io.vertx.core.Future;
+import software.amazon.awssdk.services.s3.model.S3Object;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,7 +55,7 @@ public class AsyncS3Client extends S3Client {
     });
   }
 
-  public Future<List<S3ObjectSummary>> scanFolderAsync(String folderPath) {
+  public Future<List<S3Object>> scanFolderAsync(String folderPath) {
     return ASYNC.run(() -> scanFolder(folderPath));
   }
 }

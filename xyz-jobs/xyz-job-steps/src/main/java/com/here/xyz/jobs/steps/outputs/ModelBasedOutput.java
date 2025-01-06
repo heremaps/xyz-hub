@@ -35,7 +35,7 @@ import java.util.Map;
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
   @Override
   public void store(String s3Key) throws IOException {
-      S3Client.getInstance().putObject(s3Key, "application/json", serialize());
+      S3Client.getInstance().putObject(s3Key, "application/json", serialize().getBytes());
   }
 
   public static ModelBasedOutput load(String s3Key, Map<String, String> metadata) {

@@ -386,6 +386,17 @@
       </dependency>
 
       <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>s3</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
         <artifactId>aws-java-sdk-s3</artifactId>
         <exclusions>
           <exclusion>
@@ -413,9 +424,15 @@
         <version>${aws-sdk-version}</version>
       </dependency>
       <dependency>
-        <artifactId>aws-java-sdk-dynamodb</artifactId>
         <groupId>com.amazonaws</groupId>
+        <artifactId>aws-java-sdk-dynamodb</artifactId>
         <version>${aws-sdk-version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <artifactId>aws-java-sdk-sns</artifactId>

@@ -50,8 +50,8 @@
 
     <!-- AWS SDK -->
     <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
       <exclusions>
         <exclusion>
           <artifactId>jackson-annotations</artifactId>

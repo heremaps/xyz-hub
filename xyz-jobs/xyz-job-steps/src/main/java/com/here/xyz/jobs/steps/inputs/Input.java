@@ -23,9 +23,6 @@ import static com.here.xyz.jobs.util.S3Client.getBucketFromS3Uri;
 import static com.here.xyz.jobs.util.S3Client.getKeyFromS3Uri;
 
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -46,6 +43,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = UploadUrl.class, name = "UploadUrl"),
@@ -135,7 +136,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
       return (maxReturnSize > 0 ? inputs.unordered().limit(maxReturnSize) : inputs).toList();
     }
-    catch (IOException | AmazonS3Exception ignore) {}
+    catch (IOException | S3Exception ignore) {}
 
     final List<T> inputs = loadInputsInParallel(defaultBucket(), Input.inputS3Prefix(jobId), maxReturnSize, inputType);
     //Only write metadata of jobs which are submitted already
@@ -145,7 +146,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return inputs;
   }
 
-  static final InputsMetadata loadMetadata(String jobId) throws IOException, AmazonS3Exception {
+  static final InputsMetadata loadMetadata(String jobId) throws IOException, S3Exception {
     InputsMetadata metadata = metadataCache.get(jobId);
     if (metadata != null)
       return metadata;
@@ -165,9 +166,9 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     try {
       if (inputsCacheActive.contains(jobId))
         metadataCache.put(jobId, metadata);
-      S3Client.getInstance().putObject(inputMetaS3Key(jobId), "application/json", metadata.serialize());
+      S3Client.getInstance().putObject(inputMetaS3Key(jobId), "application/json", metadata.serialize().getBytes());
     }
-    catch (IOException e) {
+    catch (AwsServiceException | SdkClientException e) {
       logger.error("Error writing inputs metadata file for job {}.", jobId, e);
       //NOTE: Next call to this method will try it again
     }
@@ -222,8 +223,8 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   private static <T extends Input> List<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
     Stream<Input> inputsStream = S3Client.getInstance(bucketName).scanFolder(inputS3Prefix)
         .parallelStream()
-        .map(s3ObjectSummary -> createInput(defaultBucket().equals(bucketName) ? null : bucketName, s3ObjectSummary.getKey(),
-            s3ObjectSummary.getSize(), inputIsCompressed(s3ObjectSummary)))
+        .map(s3ObjectSummary -> createInput(defaultBucket().equals(bucketName) ? null : bucketName, s3ObjectSummary.key(),
+            s3ObjectSummary.size(), inputIsCompressed(s3ObjectSummary)))
         .filter(input -> input.getByteSize() > 0 && inputType.isAssignableFrom(input.getClass()));
 
     if (maxReturnSize > 0)
@@ -249,7 +250,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       metadata = loadMetadata(owningJobId);
       metadata.referencingJobs().remove(referencingJob);
     }
-    catch (AmazonS3Exception | IOException ignore) {}
+    catch (S3Exception | IOException ignore) {}
 
     //Only delete the inputs if no other job is referencing them anymore
     if (metadata == null || metadata.referencingJobs().isEmpty()) {
@@ -275,19 +276,21 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
         .withCompressed(compressed);
   }
 
-  private static boolean inputIsCompressed(S3ObjectSummary objectSummary) {
-    if (objectSummary.getKey().endsWith(".gz"))
+  private static boolean inputIsCompressed(S3Object objectSummary) {
+    if (objectSummary.key().endsWith(".gz"))
       return true;
-    if (!objectSummary.getBucketName().equals(defaultBucket()))
-      return false;
-    /*
-    NOTE:
-    For files that have been uploaded to the default bucket by the user without the compressed flag,
-    the metadata still has to be loaded for now.
-     */
-    //
-    ObjectMetadata metadata = S3Client.getInstance(objectSummary.getBucketName()).loadMetadata(objectSummary.getKey());
-    return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
+    //TODO implement check on buckets
+    return false;
+//    if (!objectSummary.getBucketName().equals(defaultBucket()))
+//      return false;
+//    /*
+//    NOTE:
+//    For files that have been uploaded to the default bucket by the user without the compressed flag,
+//    the metadata still has to be loaded for now.
+//     */
+//    //
+//    ObjectMetadata metadata = S3Client.getInstance(objectSummary.getBucketName()).loadMetadata(objectSummary.key());
+//    return metadata.getContentEncoding() != null && metadata.getContentEncoding().equalsIgnoreCase("gzip");
   }
 
   public static void activateInputsCache(String jobId) {

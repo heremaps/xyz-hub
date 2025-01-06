@@ -19,31 +19,30 @@
 
 package com.here.xyz.jobs.util;
 
-import static com.amazonaws.HttpMethod.GET;
-import static com.amazonaws.HttpMethod.PUT;
-
-import com.amazonaws.HttpMethod;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
+import com.here.xyz.util.service.aws.SecretManagerCredentialsProviderV2;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.*;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
-import java.util.Date;
-import java.util.LinkedList;
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,42 +51,49 @@ import java.util.zip.GZIPOutputStream;
 public class S3Client {
   private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
   private final String bucketName;
+  private final String region;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
 
-  //TODO: Switch to AWS SDK2
-
-  protected final AmazonS3 client;
+  private final software.amazon.awssdk.services.s3.S3Client s3Client;
+  private final S3Presigner presigner;
 
   protected S3Client(String bucketName) {
     this.bucketName = bucketName;
 
-    final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
+    final S3ClientBuilder builder = software.amazon.awssdk.services.s3.S3Client.builder()
+            .region(Region.of(Config.instance.AWS_REGION));
+    final S3Presigner.Builder presignerBuilder = S3Presigner.builder()
+            .region(Region.of(Config.instance.AWS_REGION));
 
     if (Config.instance != null && Config.instance.LOCALSTACK_ENDPOINT != null) {
-      builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-              Config.instance.LOCALSTACK_ENDPOINT.toString(), Config.instance.AWS_REGION))
-          .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
-          .withPathStyleAccessEnabled(true);
-    }
-    else if (Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
-      final String region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
-      builder.setRegion(region);
-    }
-    else {
-      String bucketRegion = getInstance().client.getBucketLocation(bucketName);
-      if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
-        throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
-      builder.setRegion(bucketRegion);
+      this.region = Config.instance.AWS_REGION;
+      builder.endpointOverride(URI.create(Config.instance.LOCALSTACK_ENDPOINT.toString()))
+              .credentialsProvider(StaticCredentialsProvider.create(
+                      AwsBasicCredentials.create("localstack", "localstack")));
+      presignerBuilder.endpointOverride(URI.create(Config.instance.LOCALSTACK_ENDPOINT.toString()))
+              .credentialsProvider(StaticCredentialsProvider.create(
+                      AwsBasicCredentials.create("localstack", "localstack")));
+    } else if (Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
+      this.region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
+    } else {
+      region = getInstance().region;
+      if (Config.instance.forbiddenSourceRegions().contains(region))
+        throw new IllegalArgumentException("Source bucket region " + region + " is not allowed.");
     }
 
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
       synchronized (S3Client.class) {
-        builder.setCredentials(new SecretManagerCredentialsProvider(Config.instance.AWS_REGION,
-           Config.instance.LOCALSTACK_ENDPOINT == null ? null : Config.instance.LOCALSTACK_ENDPOINT.toString(),
+        builder.credentialsProvider(new SecretManagerCredentialsProviderV2(Config.instance.AWS_REGION,
+                Config.instance.LOCALSTACK_ENDPOINT == null ? null : Config.instance.LOCALSTACK_ENDPOINT.toString(),
+                Config.instance.JOB_BOT_SECRET_ARN));
+        presignerBuilder.credentialsProvider(new SecretManagerCredentialsProviderV2(Config.instance.AWS_REGION,
+                Config.instance.LOCALSTACK_ENDPOINT == null ? null : Config.instance.LOCALSTACK_ENDPOINT.toString(),
                 Config.instance.JOB_BOT_SECRET_ARN));
       }
     }
-    client = builder.build();
+    this.s3Client = builder.build();
+
+    this.presigner = presignerBuilder.build();
   }
 
   public static S3Client getInstance() {
@@ -95,49 +101,61 @@ public class S3Client {
   }
 
   public static S3Client getInstance(String bucketName) {
-    if (!instances.containsKey(bucketName))
+    if (!instances.containsKey(bucketName)) {
       instances.put(bucketName, new S3Client(bucketName));
+    }
     return instances.get(bucketName);
   }
 
-  private URL generatePresignedUrl(String key, HttpMethod method) {
-    GeneratePresignedUrlRequest generatePresignedUrlRequest =
-        new GeneratePresignedUrlRequest(bucketName, key)
-            .withMethod(method)
-            .withExpiration(new Date(System.currentTimeMillis() + PRESIGNED_URL_EXPIRATION_SECONDS * 1000));
-
-    return client.generatePresignedUrl(generatePresignedUrlRequest);
-  }
-
   public URL generateDownloadURL(String key) {
-    return generatePresignedUrl(key, GET);
+    return generatePresignedUrl(key, SdkHttpMethod.GET);
   }
 
   public URL generateUploadURL(String key) {
-    return generatePresignedUrl(key, PUT);
+    return generatePresignedUrl(key, SdkHttpMethod.PUT);
   }
 
-  public List<S3ObjectSummary> scanFolder(String folderPath) {
-    ListObjectsRequest listObjects = new ListObjectsRequest()
-        .withPrefix(folderPath)
-        .withBucketName(bucketName);
+  private URL generatePresignedUrl(String key, SdkHttpMethod method) {
+    S3Presigner presigner = this.presigner;
 
-    ObjectListing objectListing = client.listObjects(listObjects);
-    List<S3ObjectSummary> summaries = new LinkedList<>(objectListing.getObjectSummaries());
-    while (objectListing.isTruncated()) {
-      objectListing = client.listNextBatchOfObjects(objectListing);
-      summaries.addAll(objectListing.getObjectSummaries());
+    if (method == SdkHttpMethod.GET) {
+      GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+              .signatureDuration(Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS))
+              .getObjectRequest(b -> b.bucket(bucketName).key(key))
+              .build();
+      return presigner.presignGetObject(presignRequest).url();
+    } else if (method == SdkHttpMethod.PUT) {
+      PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+              .signatureDuration(Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS))
+              .putObjectRequest(b -> b.bucket(bucketName).key(key))
+              .build();
+      return presigner.presignPutObject(presignRequest).url();
     }
 
-    return summaries;
+    throw new UnsupportedOperationException("Unsupported HTTP Method: " + method);
   }
 
-  public byte[] loadObjectContent(String s3Key) throws IOException {
-    return loadObjectContent(s3Key, -1, -1);
+  public List<S3Object> scanFolder(String folderPath) {
+    ListObjectsV2Request request = ListObjectsV2Request.builder()
+            .bucket(bucketName)
+            .prefix(folderPath)
+            .build();
+
+    ListObjectsV2Response response = s3Client.listObjectsV2(request);
+    return response.contents();
   }
 
-  public byte[] loadObjectContent(String s3Key, long offset, long length) throws IOException {
-    return streamObjectContent(s3Key, offset, length).readAllBytes();
+  public byte[] loadObjectContent(String s3Key) {
+    GetObjectRequest request = GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(s3Key)
+            .build();
+
+    try (InputStream inputStream = s3Client.getObject(request)) {
+      return inputStream.readAllBytes();
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to load object content for key: " + s3Key, e);
+    }
   }
 
   public InputStream streamObjectContent(String s3Key) {
@@ -145,25 +163,36 @@ public class S3Client {
   }
 
   public InputStream streamObjectContent(String s3Key, long offset, long length) {
-    GetObjectRequest getObjectRequest = new GetObjectRequest(bucketName, s3Key);
+    GetObjectRequest.Builder builder = GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(s3Key);
 
     if (offset >= 0 && length >= 0)
-      getObjectRequest.setRange(offset, length);
+      builder.range("bytes=" + offset + "-" + (offset + length - 1));
     else if (offset >= 0)
-      getObjectRequest.setRange(offset);
-    return client.getObject(getObjectRequest).getObjectContent();
+      builder.range("bytes=" + offset + "-");
+
+    return s3Client.getObject(builder.build());
   }
 
-  public void putObject(String s3Key, String contentType, String content) throws IOException {
-    putObject(s3Key, contentType, content.getBytes());
-  }
-  public void putObject(String s3Key, String contentType, byte[] content) throws IOException {
-    putObject(s3Key, contentType, content,false);
+  public void putObject(String s3Key, String contentType, byte[] content) throws AwsServiceException,
+          SdkClientException {
+    PutObjectRequest request = PutObjectRequest.builder()
+            .bucket(bucketName)
+            .key(s3Key)
+            .contentType(contentType)
+            .build();
+
+    s3Client.putObject(request, RequestBody.fromBytes(content));
   }
 
   public void putObject(String s3Key, String contentType, byte[] content, boolean gzip) throws IOException {
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentType(contentType);
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("contentType", contentType);
+
+    PutObjectRequest.Builder builder = PutObjectRequest.builder()
+            .bucket(bucketName)
+            .key(s3Key);
 
     if (gzip) {
       ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -171,27 +200,30 @@ public class S3Client {
         gzipOutputStream.write(content);
       }
 
-      metadata.setContentEncoding("gzip");
-      metadata.setContentLength(baos.size());
+      metadata.put("contentEncoding","gzip");
+      metadata.put("contentLength", String.valueOf(baos.size()));
 
-      client.putObject(new PutObjectRequest(bucketName, s3Key,
-              new ByteArrayInputStream(baos.toByteArray()), metadata));
+      builder.metadata(metadata);
+
+      s3Client.putObject(builder.build(), RequestBody.fromBytes(baos.toByteArray()));
     }
     else {
-      metadata.setContentLength(content.length);
-      client.putObject(new PutObjectRequest(bucketName, s3Key, new ByteArrayInputStream(content), metadata));
+      metadata.put("contentLength", String.valueOf(content.length));
+      s3Client.putObject(builder.build(), RequestBody.fromBytes(content));
     }
-  }
-
-  public ObjectMetadata loadMetadata(String key) {
-    return client.getObjectMetadata(bucketName, key);
   }
 
   public void deleteFolder(String folderPath) {
-    //TODO: Run partially in parallel in multiple threads
-    for (S3ObjectSummary file : scanFolder(folderPath))
-      //TODO: Delete multiple objects (batches of 1000) with one request instead
-      client.deleteObject(bucketName, file.getKey());
+    List<S3Object> objectsToDelete = scanFolder(folderPath);
+
+    for (S3Object s3Object : objectsToDelete) {
+      DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+              .bucket(bucketName)
+              .key(s3Object.key())
+              .build();
+
+      s3Client.deleteObject(deleteRequest);
+    }
   }
 
   public static String getBucketFromS3Uri(String s3Uri) {

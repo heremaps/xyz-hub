@@ -22,6 +22,7 @@ package com.here.xyz.util.service.aws.dynamo;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
@@ -40,7 +41,6 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
-import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.Core;
@@ -135,7 +135,8 @@ public class DynamoClient {
   }
 
   public boolean isLocal() {
-    return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
+    //TODO test r.getName()
+    return Arrays.stream(Regions.values()).noneMatch(r -> r.getName().equals(arn.getRegion()));
   }
 
   public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
