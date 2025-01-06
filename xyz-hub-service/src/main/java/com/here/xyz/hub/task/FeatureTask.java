@@ -57,10 +57,10 @@ import com.here.xyz.hub.task.TaskPipeline.C2;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
-import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
@@ -155,7 +155,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .putString(responseType.toString(), Charset.defaultCharset());
 
       if (!readOnlyAccess) {
-        hasher.putLong(space.contentUpdatedAt);
+        hasher.putLong(space.getContentUpdatedAt());
         if (space.getExtension() != null && extendedSpaces != null)
           extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
       }

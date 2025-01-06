@@ -38,19 +38,6 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
 
   private final Map<String, Space> spaceMap = new ConcurrentHashMap<>();
 
-  public static class Provider extends SpaceConfigClient.Provider {
-    @Override
-    public boolean chooseMe() {
-      return "test".equals(System.getProperty("scope"));
-    }
-
-
-    @Override
-    protected SpaceConfigClient getInstance() {
-      return new InMemSpaceConfigClient();
-    }
-  }
-
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
     return Future.succeededFuture(spaceMap.get(spaceId));
@@ -85,21 +72,21 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
         || selectedCondition.prefix != null && s.getId().startsWith(selectedCondition.prefix)
         || selectedCondition.shared && s.isShared();
 
-
     List<String> contentUpdatedAtList = new ArrayList<>();
     if (propsQuery != null) {
       propsQuery.forEach(conjunctions -> {
         conjunctions.forEach(conj -> {
-            conj.getValues().forEach(v -> {
-              String operator = QueryOperation.getOutputRepresentation(conj.getOperation());
-              contentUpdatedAtList.add(operator);
-              contentUpdatedAtList.add(v.toString());
-            });
+          conj.getValues().forEach(v -> {
+            String operator = QueryOperation.getOutputRepresentation(conj.getOperation());
+            contentUpdatedAtList.add(operator);
+            contentUpdatedAtList.add(v.toString());
+          });
         });
       });
     }
 
-    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery == null || contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1);
+    Predicate<Space> contentUpdatedAtFilter = space -> propsQuery == null || contentUpdatedAtOperation(space.getContentUpdatedAt(),
+        contentUpdatedAtList, 1);
 
     List<Space> spaces = spaceMap.values().stream()
         .filter(authorizationFilter)
@@ -121,31 +108,45 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
   }
 
   private boolean contentUpdatedAtOperation(long contentUpdatedAt, List<String> contentUpdatedAtList, int idx) {
-    if(idx > contentUpdatedAtList.size())
+    if (idx > contentUpdatedAtList.size())
       return false;
     else {
       switch (contentUpdatedAtList.get(0)) {
         case "=":
           return Long.toString(contentUpdatedAt).equals(contentUpdatedAtList.get(idx))
-              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx + 2);
         case "<>":
           return contentUpdatedAt != Long.parseLong(contentUpdatedAtList.get(idx))
-              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx + 2);
         case "<":
           return contentUpdatedAt < Long.parseLong(contentUpdatedAtList.get(idx))
-              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx + 2);
         case ">":
           return contentUpdatedAt > Long.parseLong(contentUpdatedAtList.get(idx))
-              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx + 2);
         case "<=":
           return contentUpdatedAt <= Long.parseLong(contentUpdatedAtList.get(idx))
-              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx + 2);
         case ">=":
           return contentUpdatedAt >= Long.parseLong(contentUpdatedAtList.get(idx))
-              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx+2);
+              || contentUpdatedAtOperation(contentUpdatedAt, contentUpdatedAtList, idx + 2);
       }
 
       return false;
+    }
+  }
+
+  public static class Provider extends SpaceConfigClient.Provider {
+
+    @Override
+    public boolean chooseMe() {
+      return "test".equals(System.getProperty("scope"));
+    }
+
+
+    @Override
+    protected SpaceConfigClient getInstance() {
+      return new InMemSpaceConfigClient();
     }
   }
 }
