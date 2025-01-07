@@ -69,11 +69,6 @@ public class FeatureAuthorization extends Authorization {
    * Authorizes a query operation.
    */
   private static <X extends FeatureTask> void authorizeReadQuery(X task, Callback<X> callback) {
-    // Skip authorization if the space is shared or the service is running without authorization.
-    if (task.space.isShared() || task.getJwt().skipAuth) {
-      callback.call(task);
-      return;
-    }
 
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
@@ -81,7 +76,11 @@ public class FeatureAuthorization extends Authorization {
       return;
     }
 
-
+    // Skip authorization if the space is shared or the service is running without authorization.
+    if (task.space.isShared() || task.getJwt().skipAuth) {
+      callback.call(task);
+      return;
+    }
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
     requestRights.readFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
