@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,9 @@ public class FeatureAuthorization extends Authorization {
   }
 
   public static void authorizeWrite(RoutingContext context, Space space, boolean isDelete) throws HttpException {
+    if(getJWT(context).skipAuth)
+      return;
+
     final ActionMatrix tokenRights = getXyzHubMatrix(getJWT(context));
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
@@ -66,17 +69,19 @@ public class FeatureAuthorization extends Authorization {
    * Authorizes a query operation.
    */
   private static <X extends FeatureTask> void authorizeReadQuery(X task, Callback<X> callback) {
+    // Skip authorization if the space is shared or the service is running without authorization.
+    if (task.space.isShared() || task.getJwt().skipAuth) {
+      callback.call(task);
+      return;
+    }
+
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
       callback.exception(new HttpException(FORBIDDEN, "Accessing features isn't possible with an anonymous token."));
       return;
     }
 
-    if (task.space.isShared()) {
-      //User is trying to read a shared space this is allowed for any authenticated user
-      callback.call(task);
-      return;
-    }
+
 
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
     requestRights.readFeatures(XyzHubAttributeMap.forValues(task.space.getOwner(), task.space.getId(), task.space.getPackages()));
@@ -92,6 +97,7 @@ public class FeatureAuthorization extends Authorization {
         requestRights.readFeatures(XyzHubAttributeMap.forValues( ((GeometryQuery)task).refSpace.getOwner(), ((GeometryQuery)task).refSpaceId , ((GeometryQuery)task).refSpace.getPackages()));
     }
 
+
     evaluateRights(requestRights, getXyzHubMatrix(task.getJwt()), task, callback);
   }
 
@@ -99,6 +105,11 @@ public class FeatureAuthorization extends Authorization {
    * Authorizes a conditional operation.
    */
   private static void authorizeConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.getJwt().skipAuth) {
+      callback.call(task);
+      return;
+    }
+
     final ActionMatrix tokenRights = getXyzHubMatrix(getJWT(task.context));
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 

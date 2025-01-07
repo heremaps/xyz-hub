@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ public abstract class Authorization {
       logger.info(marker, "Token access rights: {}", Json.encode(tokenRights));
       logger.info(marker, "Request access rights: {}", Json.encode(requestRights));
     }
+
   }
 
   static <X extends Task> void evaluateRights(ActionMatrix requestRights, ActionMatrix tokenRights, X task, Callback<X> callback) {
@@ -89,6 +90,9 @@ public abstract class Authorization {
   }
 
   public static Future<Void> authorizeManageSpacesRights(RoutingContext context, String spaceId, String owner) {
+    if( BaseHttpServerVerticle.getJWT(context).skipAuth)
+      return Future.succeededFuture();;
+
     AttributeMap attributeMap = new XyzHubAttributeMap().withValue(SPACE, spaceId);
     if (owner != null)
       attributeMap.put(OWNER, owner);
