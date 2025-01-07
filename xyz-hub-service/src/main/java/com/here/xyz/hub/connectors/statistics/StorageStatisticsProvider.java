@@ -49,7 +49,7 @@ import org.apache.logging.log4j.Marker;
 
 public class StorageStatisticsProvider {
 
-  private static final int MAX_CONCURRENT_REQUEST_COUNT = 100;
+  private static final int MAX_CONCURRENT_REQUEST_COUNT = 20;
   private static final int MAX_SPACE_BATCH_SIZE = 50;
 
   public static Future<StorageStatistics> provideStorageStatistics(Marker marker, long includeChangesSince) {
@@ -112,7 +112,8 @@ public class StorageStatisticsProvider {
 
   private static Future<StorageStatistics> fetchFromStorage(Marker marker, String storageId, List<String> spaceIds) {
     return Space.resolveConnector(marker, storageId)
-        .compose(storage -> storage.capabilities.storageUtilizationReporting ?            //Ignore if the connector can not be resolved
+        //Ignore if the connector is not active or can not be resolved
+        .compose(storage -> storage.active && storage.capabilities.storageUtilizationReporting ?
               fetchFromStorage(marker, storage, spaceIds) : Future.succeededFuture(null), t -> Future.succeededFuture(null));
   }
 
