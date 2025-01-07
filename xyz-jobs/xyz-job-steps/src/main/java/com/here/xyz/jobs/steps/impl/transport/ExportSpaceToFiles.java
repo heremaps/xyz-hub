@@ -38,7 +38,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
@@ -174,13 +173,10 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return this;
   }
 
-  @JsonIgnore
-  private StatisticsResponse statistics = null; //TODO: Move caching into HubWebClient
-
   @Override
   public List<Load> getNeededResources() {
     try {
-      statistics = spaceStatistics(context, true);
+      StatisticsResponse statistics = spaceStatistics(context, true);
       overallNeededAcus = overallNeededAcus != -1 ?
               overallNeededAcus : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
@@ -296,7 +292,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       throw new ValidationException("It is currently not supported to export changesets.");
 
     try {
-      statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
+      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
 
       //Validate input Geometry
       if (this.spatialFilter != null) {
@@ -353,7 +349,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
-    statistics = statistics != null ? statistics : loadSpaceStatistics(getSpaceId(), context, true);
+    StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
     calculatedThreadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
 
     List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
