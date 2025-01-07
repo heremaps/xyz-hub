@@ -11,9 +11,12 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,7 +25,12 @@ public class CompressStep extends SyncLambdaStep {
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private static final String ZIP_CONTENT_TYPE = "application/zip";
     private static final Logger logger = LogManager.getLogger();
+    private final Set<String> createdFolders = new HashSet<>();
 
+    /**
+     * If this field is provided and the input has the corresponding metadata key-value,
+     * we will create a folder by that key-value and place the file(s) inside it.
+     */
     @JsonView({Internal.class, Static.class})
     private String groupByMetadataKey;
 
@@ -52,7 +60,7 @@ public class CompressStep extends SyncLambdaStep {
 
     @Override
     public void execute() throws Exception {
-        // stores all data in memory, should be updated for big chunks of data
+        // stores all data in memory, which may need optimization for large data sets
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
              ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {
 
@@ -84,9 +92,16 @@ public class CompressStep extends SyncLambdaStep {
             S3Client sourceClient = S3Client.getInstance(input.getS3Bucket());
             String zipEntryPath = composeFileName(input, inputSet);
 
-            if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty() && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
-                String prefix = (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default");
-                zipEntryPath = prefix + zipEntryPath;
+            if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()
+                    && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
+                String folderName = (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default");
+
+                if (!createdFolders.contains(folderName)) {
+                    createFolderInZip(folderName, zipStream);
+                    createdFolders.add(folderName);
+                }
+
+                zipEntryPath = folderName + "/" + zipEntryPath;
             }
 
             if (sourceClient.isFolder(input.getS3Key())) {
@@ -99,6 +114,22 @@ public class CompressStep extends SyncLambdaStep {
         }
     }
 
+    /**
+     * Creates an empty folder entry in the ZIP.
+     * Example: if folderName = "myFolder", then we create the entry "myFolder/".
+     */
+    private void createFolderInZip(String folderName, ZipOutputStream zipStream) {
+        try {
+            ZipEntry folderEntry = new ZipEntry(folderName + "/");
+            zipStream.putNextEntry(folderEntry);
+            zipStream.closeEntry();
+
+            logger.info("Created folder entry '{}' in the ZIP.", folderName + "/");
+        } catch (IOException e) {
+            logger.error("Error creating folder '{}' in the ZIP. Skipping. Error: ", folderName, e);
+        }
+    }
+
     private String composeFileName(Input input, InputSet inputSet) {
         String fullPath = input.getS3Key();
         String partToCut = inputSet.toS3Path(getJobId());
@@ -106,7 +137,7 @@ public class CompressStep extends SyncLambdaStep {
         if (fullPath.startsWith(partToCut)) {
             return fullPath.substring(partToCut.length() + 1);
         } else {
-            throw new IllegalArgumentException("partToCut is not at the beginning of fullPath");
+            throw new IllegalArgumentException("partToCut is not at the beginning of fullPath: " + fullPath);
         }
     }
 
@@ -114,12 +145,12 @@ public class CompressStep extends SyncLambdaStep {
         List<String> objectKeys = sourceClient.listObjects(input.getS3Key());
 
         if (objectKeys.isEmpty()) {
-            // create an empty folder
+            // create an empty folder inside the Zip
             zipStream.putNextEntry(new ZipEntry(zipEntryPath + "/"));
             zipStream.closeEntry();
         } else {
             for (String childKey : objectKeys) {
-                // ignoring folder itself
+                // ignoring the folder itself
                 if (childKey.equals(input.getS3Key()) || childKey.equals(input.getS3Key() + "/")) {
                     continue;
                 }
