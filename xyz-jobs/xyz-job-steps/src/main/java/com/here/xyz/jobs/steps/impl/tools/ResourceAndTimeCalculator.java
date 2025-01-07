@@ -102,7 +102,7 @@ public class ResourceAndTimeCalculator implements Initializable {
         final long bytesPerThreads;
 
         if (fileCount == 0)
-            return 0;
+            fileCount = 1;
 
         //Only take into account the max parallel execution
         bytesPerThreads = uncompressedUploadBytesEstimation / fileCount * threadCount;
@@ -125,7 +125,7 @@ public class ResourceAndTimeCalculator implements Initializable {
             calculatedThreadCount = threadCnt == 0 ? 1 : threadCnt;
         }
 
-        return Math.min(calculatedThreadCount, fileCount);
+        return Math.min(calculatedThreadCount, fileCount == 0 ? 1 : fileCount);
     }
 
     //Copy Related...

@@ -311,11 +311,17 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         runBatchWriteQuerySync(buildTemporaryTriggerTableBlock(space().getOwner(), newVersion), db(), 0);
       }
 
-      createAndFillTemporaryJobTable();
+      if(!createAndFillTemporaryJobTable()) {
+        infoLog(STEP_EXECUTE, this,"No files available - nothing to do!");
+        //no Files to process simply return successfully!
+        onAsyncSuccess();
+        return;
+      }
 
       calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
           ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount,
               MAX_DB_THREAD_COUNT);
+
       double neededAcusForOneThread = calculateNeededAcus(1);
 
       for (int i = 1; i <= calculatedThreadCount; i++) {
@@ -407,7 +413,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     });
   }
 
-  private void createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
+  private boolean createAndFillTemporaryJobTable() throws SQLException, TooManyResourcesClaimed, WebClientException {
     if (isResume()) {
       infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
       runWriteQuerySync(buildResetJobTableItemsForResumeStatement(getSchema(db()) ,this), db(), 0);
@@ -417,9 +423,15 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       runWriteQuerySync(buildTemporaryJobTableCreateStatement(getSchema(db()), this), db(), 0);
 
       infoLog(STEP_EXECUTE, this,"Fill temporary job table");
+
+      List<?> inputs = loadInputs(UploadUrl.class);
       runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
-          (List<S3DataFile>)(List<?>) loadInputs(), bucketRegion(),this)), db(), 0 );
+          (List<S3DataFile>)inputs, bucketRegion(),this)), db(), 0 );
+
+      //If no Inputs are present return 0
+      return inputs.size() != 0;
     }
+    return true;
   }
 
   @Override
@@ -678,9 +690,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     if (fileCount == -1)
       fileCount = currentInputsCount(UploadUrl.class);
-
-    if (fileCount == 0)
-      return 0;
 
     neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
         getUncompressedUploadBytesEstimation(), fileCount, threadCount);
