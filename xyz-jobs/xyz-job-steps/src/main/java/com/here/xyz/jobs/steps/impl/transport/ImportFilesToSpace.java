@@ -314,7 +314,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       if(!createAndFillTemporaryJobTable()) {
         infoLog(STEP_EXECUTE, this,"No files available - nothing to do!");
         //no Files to process simply return successfully!
-        onAsyncSuccess();
+        reportAsyncSuccess();
         return;
       }
 
