@@ -3850,6 +3850,8 @@ components:
           type: string
         source:
           $ref: '#/components/schemas/DatasetDescription'
+        process:
+          $ref: '#/components/schemas/ProcessDescription'
         target:
           $ref: '#/components/schemas/DatasetDescription'
       example:
@@ -3871,3 +3873,9 @@ components:
             - Space
             - Spaces
             - Files
+    ProcessDescription:
+      type: object
+      properties:
+        type:
+          description: The type of the dataset
+          type: string
