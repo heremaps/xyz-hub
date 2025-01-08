@@ -62,14 +62,11 @@ import org.apache.logging.log4j.Logger;
 /**
  * This step copies the content of a source space into a target space. It is possible that the target space
  * already contains data. Spaces where history is enabled are also supported. With filters it is possible to
- * only read a dataset subset from source space.
+ * only copy a dataset subset from the source space.
  *
  * @TODO
  * - onStateCheck
  * - resume
- * - provide output
- * - add i/o report
- * - move out parsePropertiesQuery functions
  */
 //TODO: Merge version creation step into this step again (basically both: pre- & post-step)
 public class CopySpace extends SpaceBasedStep<CopySpace> {
@@ -213,27 +210,26 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return this;
   }
 
-
   @Override
   public List<Load> getNeededResources() {
     try {
-      List<Load> rList  = new ArrayList<>();
+      List<Load> expectedLoads = new ArrayList<>();
       Space sourceSpace = loadSpace(getSpaceId());
       Space targetSpace = loadSpace(getTargetSpaceId());
 
-      rList.add(new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
+      expectedLoads.add(new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
           .withEstimatedVirtualUnits(calculateNeededAcus()));
 
-      boolean bRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);
+      boolean isRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);
 
-      if( bRemoteCopy )
-       rList.add( new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
-           .withEstimatedVirtualUnits(calculateNeededAcus()));
+      if (isRemoteCopy)
+        expectedLoads.add(new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
+            .withEstimatedVirtualUnits(calculateNeededAcus()));
 
-      logger.info("[{}] Copy remote({}) #{} {} -> {}", getGlobalStepId(), bRemoteCopy, rList.size(), sourceSpace.getStorage().getId(),
+      logger.info("[{}] #getNeededResources() isRemoteCopy={} {} -> {}", getGlobalStepId(), isRemoteCopy, sourceSpace.getStorage().getId(),
           targetSpace.getStorage().getId());
 
-      return rList;
+      return expectedLoads;
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
@@ -246,13 +242,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   private int getThreadPartitions() {
-    int usedThreadPartitions = getThreadInfo() != null ? getThreadInfo()[1] : 1;
-    return usedThreadPartitions;
+    return getThreadInfo() != null ? getThreadInfo()[1] : 1;
   }
 
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
+                            //TODO: Inline copy-specific calculations into this class!
       estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateCopyTimeInSeconds(getSpaceId(), getTargetSpaceId(),
           estimatedSourceFeatureCount / getThreadPartitions(), estimatedTargetFeatureCount, getExecutionMode());
 
@@ -264,6 +260,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private double calculateNeededAcus() {
     overallNeededAcus =  overallNeededAcus != -1
         ? overallNeededAcus
+        //TODO: Inline copy-specific calculations into this class!
         : ResourceAndTimeCalculator.getInstance().calculateNeededCopyAcus(estimatedSourceFeatureCount / getThreadPartitions());
     return overallNeededAcus;
   }
@@ -324,7 +321,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     for (InputFromOutput input : (List<InputFromOutput>)(List<?>) loadInputs(InputFromOutput.class))
       if (input.getDelegate() instanceof CreatedVersion f)
         return f.getVersion();
-    return 0;
+    return 0; //FIXME: Rather throw an exception here?
   }
 
   @Override
@@ -364,7 +361,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   public void resume() throws Exception {
     //@TODO: Implement
-    logger.info("Copy - onAsyncSuccess");
+    logger.info("resume was called");
   }
 
   private String _getRootTableName(Space targetSpace) throws SQLException {
@@ -400,7 +397,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return isRemoteCopy(sourceSpace, targetSpace);
   }
 
-  private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace, int threadCount, int threadId) throws SQLException {
+  private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace, int threadCount, int threadId)
+      throws SQLException, WebClientException {
     String sourceStorageId = sourceSpace.getStorage().getId(),
            targetStorageId = targetSpace.getStorage().getId(),
            targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ),
@@ -447,16 +445,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         .withQueryFragment("contentQuery", contentQuery);
   }
 
-  boolean _isEnableHashedSpaceIdActivated(Space space) throws SQLException {
-    try {
-      return isEnableHashedSpaceIdActivated(space);
-    }
-    catch (WebClientException e) {
-      throw new SQLException(e);
-    }
-  }
-
-  private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException {
+  private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException, WebClientException {
     GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
             .withSpace(space.getId())
             //@TODO: verify if needed persistExport | versionsToKeep | context
@@ -464,7 +453,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
             .withRef(sourceVersionRef)
             .withContext(EXTENSION)
             .withPropertiesQuery(propertyFilter)
-            .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", _isEnableHashedSpaceIdActivated(space) ));
+            .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", isEnableHashedSpaceIdActivated(space)));
 
     if (geometry != null) {
       event.setGeometry(geometry);
