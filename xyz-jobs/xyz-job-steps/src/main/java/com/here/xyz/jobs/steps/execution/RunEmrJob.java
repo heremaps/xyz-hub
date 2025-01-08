@@ -24,11 +24,14 @@ import static java.util.regex.Matcher.quoteReplacement;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.util.KeyValue;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.BufferedReader;
 import java.io.File;
@@ -40,6 +43,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -52,16 +56,18 @@ import org.apache.logging.log4j.Logger;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
+  public static final String USER_REF = "USER";
   private static final Logger logger = LogManager.getLogger();
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
   private static final String INPUT_SET_REF_SUFFIX = "}";
-  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile("\\$\\{inputSet:([a-zA-Z0-9._=-]+)\\}");
-  public static final String USER_REF = "USER";
+  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile(
+      Pattern.quote(INPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(INPUT_SET_REF_SUFFIX));
 
   private String applicationId;
   private String executionRoleArn;
   private String jarUrl;
-  private List<String> scriptParams;
+  private List<String> positionalScriptParams = new ArrayList<>();
+  private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
 
   @Override
@@ -104,9 +110,9 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
     for (int i = 0; i < scriptParams.size(); i++) {
       String baseDirKey = "--baseInputDir=";
-      if(scriptParams.get(i).startsWith(baseDirKey)){
+      if (scriptParams.get(i).startsWith(baseDirKey)) {
         String localTmpBaseInputsFolder = copyFolderFromS3ToLocal(
-                S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
+            S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
         scriptParams.set(i, baseDirKey + localTmpBaseInputsFolder);
       }
     }
@@ -115,10 +121,10 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
     sparkParams = sparkParams.replace("$localJarPath$", localJarPath);
     sparkParams = "java -Xshare:off --add-exports=java.base/java.nio=ALL-UNNAMED "
-            + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
-            + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
-            + "--add-exports=java.base/java.util=ALL-UNNAMED "
-            + sparkParams;
+        + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
+        + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
+        + "--add-exports=java.base/java.util=ALL-UNNAMED "
+        + sparkParams;
 
     List<String> emrParams = new ArrayList<>(List.of(sparkParams.split(" ")));
     emrParams.addAll(scriptParams);
@@ -166,17 +172,38 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   @Override
   public boolean validate() throws ValidationException {
-    if (scriptParams == null)
+    if (getScriptParams().isEmpty())
       throw new ValidationException("ScriptParams are mandatory!"); //TODO: Check if this is really needed for *all* EMR jobs (if not move to according sub-class)
     if (sparkParams == null)
       throw new ValidationException("SparkParams are mandatory!"); //TODO: Check if this is really needed for *all* EMR jobs (if not move to according sub-class)
     if (jarUrl == null)
       throw new ValidationException("JAR URL is mandatory!");
     //TODO: Move the ScriptParams length check into the according sub-class
-    if (scriptParams.size() < 2)
+    if (getScriptParams().size() < 2)
       throw new ValidationException("ScriptParams length is to small!");
 
     return !isUserInputsExpected() || isUserInputsPresent(Input.class);
+  }
+
+  @JsonIgnore
+  public List<String> getScriptParams() {
+    List<String> scriptParams = new ArrayList<>(positionalScriptParams != null ? positionalScriptParams : List.of());
+    if (namedScriptParams != null && !namedScriptParams.isEmpty())
+      namedScriptParams.forEach((name, value) -> scriptParams.add("--" + name + (value != null ? "=" + value : "")));
+    return scriptParams;
+  }
+
+  @Override
+  public boolean isEquivalentTo(StepExecution other) {
+    if (!(other instanceof RunEmrJob otherEmrStep))
+      return super.isEquivalentTo(other);
+
+    return Objects.equals(otherEmrStep.applicationId, applicationId)
+        && Objects.equals(otherEmrStep.executionRoleArn, executionRoleArn)
+        && Objects.equals(otherEmrStep.jarUrl, jarUrl)
+        && Objects.equals(otherEmrStep.positionalScriptParams, positionalScriptParams)
+        && Objects.equals(otherEmrStep.namedScriptParams, namedScriptParams)
+        && Objects.equals(otherEmrStep.sparkParams, sparkParams);
   }
 
   public String getApplicationId() {
@@ -218,16 +245,39 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return this;
   }
 
-  public List<String> getScriptParams() {
-    return scriptParams;
+  public List<String> getPositionalScriptParams() {
+    return positionalScriptParams;
   }
 
-  public void setScriptParams(List<String> scriptParams) {
-    this.scriptParams = scriptParams;
+  public void setPositionalScriptParams(List<String> positionalScriptParams) {
+    this.positionalScriptParams = positionalScriptParams;
   }
 
-  public RunEmrJob withScriptParams(List<String> scriptParams) {
-    setScriptParams(scriptParams);
+  public RunEmrJob withPositionalScriptParams(List<String> positionalScriptParams) {
+    setPositionalScriptParams(positionalScriptParams);
+    return this;
+  }
+
+  public Map<String, String> getNamedScriptParams() {
+    return namedScriptParams;
+  }
+
+  public void setNamedScriptParams(Map<String, String> namedScriptParams) {
+    this.namedScriptParams = namedScriptParams;
+  }
+
+  public RunEmrJob withNamedScriptParams(Map<String, String> namedScriptParams) {
+    setNamedScriptParams(namedScriptParams);
+    return this;
+  }
+
+  public RunEmrJob withNamedScriptParam(String key, String value) {
+    getNamedScriptParams().put(key, value);
+    return this;
+  }
+
+  public RunEmrJob withNamedScriptParam(KeyValue<String, String> param) {
+    param.putToMap(getNamedScriptParams());
     return this;
   }
 
@@ -263,11 +313,14 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       createLocalFolder(Paths.get(s3Path).getParent().toString(), false);
       Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
       jarStream.close();
-    } catch (FileAlreadyExistsException e) {
+    }
+    catch (FileAlreadyExistsException e) {
       logger.info("File: '{}' already exists locally - skip download.", s3Path);
-    }catch (AmazonS3Exception e){
+    }
+    catch (AmazonS3Exception e) {
       throw new RuntimeException("Can't download File: '" + s3Path + "' for local copy!", e);
-    } catch (IOException e) {
+    }
+    catch (IOException e) {
       throw new RuntimeException("Can't copy File: '" + s3Path + "'!", e);
     }
     return getLocalTmpPath(s3Path);
@@ -335,7 +388,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
         if (file.getPath().endsWith("crc"))
           continue;
 
-        if(file.isDirectory()) {
+        if (file.isDirectory()) {
           logger.info("Folder detected {} ", file);
           uploadEMRResultsToS3(file, s3TargetPath + file.getName());
           continue;
@@ -344,9 +397,9 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
         logger.info("Store local file {} to {} ", file, s3TargetPath);
         //TODO: Check if this is the correct content-type
         new DownloadUrl()
-                .withContentType("text")
-                .withContent(Files.readAllBytes(file.toPath()))
-                .store(s3TargetPath + "/" + UUID.randomUUID());
+            .withContentType("text")
+            .withContent(Files.readAllBytes(file.toPath()))
+            .store(s3TargetPath + "/" + UUID.randomUUID());
       }
     }
   }
@@ -404,7 +457,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
           .get();
     }
     catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set \"" + (name == null ? "<USER-INPUTS>" : stepId + "." + name) + "\" exists in step \"" + getId() + "\"");
+      throw new IllegalArgumentException("No input set \"" + (name == null ? "<USER-INPUTS>" : stepId + "." + name) + "\" exists in step \""
+          + getId() + "\"");
     }
   }
 
