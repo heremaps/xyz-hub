@@ -68,7 +68,8 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
                             + " AND relname LIKE ANY (array[" + tableNames
                                                       .stream()
                                                       .map(tableName -> "'" + tableName + "_%'")
-                                                      .collect(Collectors.joining(",")) + "])");
+                                                      .collect(Collectors.joining(",")) + "])")
+            .withTimeout(15);
   }
 
   private String resolveTableName(Event event, String spaceId) {
