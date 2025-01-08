@@ -422,6 +422,8 @@ components:
           type: string
     ProcessDescription:
       type: object
+      required:
+        - type
       properties:
         type:
           description: The type of the process to be executed when the job starts.
