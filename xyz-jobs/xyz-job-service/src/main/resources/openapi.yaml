@@ -386,6 +386,8 @@ components:
           oneOf:
             - $ref: '#/components/schemas/SourceSpaceDataset'
             - $ref: '#/components/schemas/SourceFilesDataset'
+        process:
+          $ref: '#/components/schemas/ProcessDescription'
         target:
           description: >-
             A description of the resource into which to write / store the processed data.
