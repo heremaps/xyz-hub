@@ -721,6 +721,14 @@ components:
           description: The type of the dataset
           example: Files
           type: string
+    ProcessDescription:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          description: The type of the process to be executed when the job starts.
+          type: string
     FilesDataset:
       allOf:
         - $ref: '#/components/schemas/DatasetDescription'
