@@ -313,8 +313,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       if(!createAndFillTemporaryJobTable()) {
         infoLog(STEP_EXECUTE, this,"No files available - nothing to do!");
+        //Report Success with a new invocation.
+        runReadQueryAsync(buildSuccessReportQuery(), db(), 0, true);
         //no Files to process simply return successfully!
-        reportAsyncSuccess();
         return;
       }
 
@@ -629,6 +630,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withNamedParameter("format", format.toString())
             .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
             .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"));
+  }
+
+  private SQLQuery buildSuccessReportQuery() throws WebClientException {
+    //Wait 5 seconds before report success to ensure event rule is successfully created before.
+    return new SQLQuery("PERFORM pg_sleep(5)");
   }
 
   private Map<String, Object> getQueryContext() throws WebClientException {
