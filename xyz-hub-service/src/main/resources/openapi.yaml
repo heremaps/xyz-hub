@@ -3850,8 +3850,6 @@ components:
           type: string
         source:
           $ref: '#/components/schemas/DatasetDescription'
-        process:
-          $ref: '#/components/schemas/ProcessDescription'
         target:
           $ref: '#/components/schemas/DatasetDescription'
       example:
