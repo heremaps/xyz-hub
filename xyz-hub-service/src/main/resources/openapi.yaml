@@ -3873,9 +3873,3 @@ components:
             - Space
             - Spaces
             - Files
-    ProcessDescription:
-      type: object
-      properties:
-        type:
-          description: The type of the dataset
-          type: string
