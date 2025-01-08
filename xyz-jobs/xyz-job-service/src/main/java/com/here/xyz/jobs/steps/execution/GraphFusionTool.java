@@ -30,6 +30,7 @@ import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.RunEmrJob.ReferenceIdentifier;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class GraphFusionTool {
 
@@ -249,28 +250,36 @@ public class GraphFusionTool {
   }
 
   private static void updateEmrScriptParamReferences(RunEmrJob runEmrJob, StepGraph containingStepGraph) {
-    runEmrJob.setScriptParams(runEmrJob.getScriptParams().stream()
-        .map(scriptParam -> runEmrJob.mapInputReferencesIn(scriptParam, referenceIdentifier -> {
-          try {
-            //Will throw an exception if the referenced inputSet is not found in the step
-            runEmrJob.fromReferenceIdentifier(referenceIdentifier);
-            //In case it was found, it means the reference is pointing to a "new" output, keep the reference as it is
-            return null;
-          }
-          catch (IllegalArgumentException e) {
-            //If the input was not found, check if the target step is a DelegateStep that contains the input set to be referenced
-            ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
-            Step referencedStep = containingStepGraph.getStep(ref.stepId());
-            if (!(referencedStep instanceof DelegateStep referencedDelegateStep))
-              /*
-              In this case, the reference cannot be dereferenced at all.
-              That could only happen if the compiler created an invalid reference.
-              Here the reference will be kept as it is, and the later execution will handle this issue by throwing the correct exception.
-               */
-              return null;
-            return toInputSetReference(runEmrJob.getInputSet(referencedDelegateStep.getDelegate().getId(), ref.name()));
-          }
-        }))
+    //... for positional parameters
+    runEmrJob.setPositionalScriptParams(runEmrJob.getPositionalScriptParams().stream()
+        .map(scriptParam -> runEmrJob.mapInputReferencesIn(scriptParam, referenceIdentifier -> updateEmrScriptParamReferences(runEmrJob, containingStepGraph, referenceIdentifier)))
         .toList());
+
+    //... for named parameters
+    runEmrJob.setNamedScriptParams(runEmrJob.getNamedScriptParams().entrySet().stream()
+        .collect(Collectors.toMap(namedParam -> namedParam.getKey(),
+            namedParam -> runEmrJob.mapInputReferencesIn(namedParam.getValue(), referenceIdentifier -> updateEmrScriptParamReferences(runEmrJob, containingStepGraph, referenceIdentifier)))));
+  }
+
+  private static String updateEmrScriptParamReferences(RunEmrJob runEmrJob, StepGraph containingStepGraph, String referenceIdentifier) {
+    try {
+      //Will throw an exception if the referenced inputSet is not found in the step
+      runEmrJob.fromReferenceIdentifier(referenceIdentifier);
+      //In case it was found, it means the reference is pointing to a "new" output, keep the reference as it is
+      return null;
+    }
+    catch (IllegalArgumentException e) {
+      //If the input was not found, check if the target step is a DelegateStep that contains the input set to be referenced
+      ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
+      Step referencedStep = containingStepGraph.getStep(ref.stepId());
+      if (!(referencedStep instanceof DelegateStep referencedDelegateStep))
+        /*
+        In this case, the reference cannot be dereferenced at all.
+        That could only happen if the compiler created an invalid reference.
+        Here the reference will be kept as it is, and the later execution will handle this issue by throwing the correct exception.
+         */
+        return null;
+      return toInputSetReference(runEmrJob.getInputSet(referencedDelegateStep.getDelegate().getId(), ref.name()));
+    }
   }
 }
