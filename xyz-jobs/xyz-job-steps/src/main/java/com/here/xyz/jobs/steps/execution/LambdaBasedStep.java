@@ -282,7 +282,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   /**
    * Will be called for every STATE_CHECK request being performed for the step.
-   * Subclasses may override this method to implement tasks which should be performed on a regular basis during the STAT_CHECK.
+   * Subclasses may override this method to implement tasks which should be performed on a regular basis during that STATE_CHECK.
    * E.g., overriding implementations can update the estimatedProgress at the step's status object.
    */
   protected void onStateCheck() {
