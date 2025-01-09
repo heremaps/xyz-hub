@@ -47,6 +47,7 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
@@ -56,9 +57,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobApi extends Api {
-
+  protected static final Logger logger = LogManager.getLogger();
   protected JobApi() {}
 
   public JobApi(RouterBuilder rb) {
@@ -75,7 +78,7 @@ public class JobApi extends Api {
 
   protected void postJob(final RoutingContext context) throws HttpException {
     Job job = getJobFromBody(context);
-    logger.info(Api.getMarker(context).getName(), "Received job creation request: {}", job.serialize(true));
+    logger.info(LogUtil.getMarker(context), "Received job creation request: {}", job.serialize(true));
     job.create().submit()
         .map(res -> job)
         .recover(t -> Future.failedFuture(t instanceof CompilationError e ? new ValidationException(e.getMessage(), e) : t))
