@@ -211,9 +211,9 @@ public class JobAdminApi extends Api {
                   String existingErrCause = job.getStatus().getErrorCause();
                   job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
                   //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
-                  future = future.compose(v -> cancelSteps(job, RUNNING))
-                      .compose(v -> loadCausingStepId(executionArn)
-                          .compose(causingStepId -> failStep(job, job.getStepById(causingStepId))));
+                  future = future.compose(v -> loadCausingStepId(executionArn)
+                      .compose(causingStepId -> failStep(job, job.getStepById(causingStepId))))
+                      .compose(v -> cancelSteps(job, RUNNING));
                 }
                 //Set all PENDING steps to CANCELLED
                 future = future.compose(v -> cancelSteps(job, PENDING));
