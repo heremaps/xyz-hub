@@ -363,6 +363,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     exec.shutdown();
 
     registerOutputs(List.of(resultOutput), STATISTICS);
+    infoLog(STEP_EXECUTE, this,"Set contentUpdatedAt on target space");
+    hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
   }
 
   /**
