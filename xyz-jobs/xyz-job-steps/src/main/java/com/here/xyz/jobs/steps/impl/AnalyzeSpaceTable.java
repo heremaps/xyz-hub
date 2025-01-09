@@ -19,13 +19,8 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
@@ -39,10 +34,7 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      int acus = calculateNeededAcus();
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
-
-      return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
+      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(calculateNeededAcus()));
     }
     catch (WebClientException e) {
       //TODO: log error
@@ -84,11 +76,7 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
     logger.info("Analyze table of space " + getSpaceId() + " ...");
 
     try {
-      logger.info("Loading space config for space {}", getSpaceId());
-      Space space = loadSpace(getSpaceId());
-      logger.info("Getting storage database for space {}", getSpaceId());
-      Database db = loadDatabase(space.getStorage().getId(), WRITER);
-      runReadQueryAsync(buildAnalyseQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
+      runReadQueryAsync(buildAnalyseQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus());
     }
     catch (SQLException | TooManyResourcesClaimed | WebClientException e) {
       //@TODO: ErrorHandling! <- Is it necessary here? Anything that should be catched / transformed?

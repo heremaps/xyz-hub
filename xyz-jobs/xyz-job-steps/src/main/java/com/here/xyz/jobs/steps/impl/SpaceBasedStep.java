@@ -42,6 +42,8 @@ import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -66,7 +68,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   private Database db;
 
   @JsonIgnore
-  private Space space;
+  private Map<String, Space> cachedSpaces = new ConcurrentHashMap<>();
 
   @JsonIgnore
   protected Space superSpace;
@@ -101,14 +103,15 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
       //Check if the space is actually existing
       if (getSpaceId() == null)
         throw new ValidationException("SpaceId is missing!");
-      loadSpace(getSpaceId());
+      space();
     }
     catch (WebClientException e) {
       throw new ValidationException("Error loading resource " + getSpaceId(), e);
     }
   }
 
-  protected Space loadSpace(String spaceId) throws WebClientException {
+  private Space loadSpace(String spaceId) throws WebClientException {
+    logger.info("[{}] Loading space config for space {} ...", getGlobalStepId(), spaceId);
     return hubWebClient().loadSpace(spaceId);
   }
 
@@ -130,23 +133,26 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   protected Database db() throws WebClientException {
     if (db == null) {
-      logger.info("[{}] Loading database for space {}.", getGlobalStepId(), getSpaceId());
+      logger.info("[{}] Loading database for space {} ...", getGlobalStepId(), getSpaceId());
       db = loadDatabase(space().getStorage().getId(), WRITER);
     }
     return db;
   }
 
-  protected Space space() throws WebClientException {
-    if (space == null) {
-      logger.info("[{}] Loading space config for space {}.", getGlobalStepId(), getSpaceId());
-      space = loadSpace(getSpaceId());
-    }
+  protected Space space(String spaceId) throws WebClientException {
+    Space space = cachedSpaces.get(spaceId);
+    if (space == null)
+      cachedSpaces.put(spaceId, space = loadSpace(spaceId));
     return space;
+  }
+
+  protected Space space() throws WebClientException {
+    return space(getSpaceId());
   }
 
   protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {
     if (spaceStatistics == null) {
-      logger.info("[{}] Loading statistics for space {}.", getGlobalStepId(), getSpaceId());
+      logger.info("[{}] Loading statistics for space {} ...", getGlobalStepId(), getSpaceId());
       spaceStatistics = loadSpaceStatistics(getSpaceId(), context, skipCache);
     }
     return spaceStatistics;
@@ -154,7 +160,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   protected Space superSpace() throws WebClientException {
     if (superSpace == null) {
-      logger.info("[{}] Loading space config for super-space {}.", getGlobalStepId(), getSpaceId());
+      logger.info("[{}] Loading space config for super-space {} ...", getGlobalStepId(), getSpaceId());
       if (space().getExtension() == null)
         throw new IllegalStateException("The space does not extend some other space. Could not load the super space.");
       superSpace = loadSpace(space().getExtension().getSpaceId());
