@@ -21,17 +21,13 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
@@ -56,17 +52,17 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      Space sourceSpace = loadSpace(getSpaceId());
-
       Load expectedLoad = new Load()
-          .withResource(loadDatabase(sourceSpace.getStorage().getId(), WRITER))
+          .withResource(db())
           .withEstimatedVirtualUnits(0.0);
 
-      logger.info("[{}] getNeededResources {}", getGlobalStepId(), sourceSpace.getStorage().getId());
+      logger.info("[{}] getNeededResources {}", getGlobalStepId(), getSpaceId());
 
       return List.of(expectedLoad);
     }
     catch (WebClientException e) {
+      //TODO: log error
+      //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
     }
   }
@@ -99,16 +95,14 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
 
   private long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
     //TODO: Remove the following duplicated code by simply re-using GetNextVersion QueryRunner
-    Space targetSpace = loadSpace(getSpaceId());
-    Database targetDb = loadDatabase(targetSpace.getStorage().getId(), WRITER);
-    String targetSchema = getSchema(targetDb),
-        targetTable = getRootTableName(targetSpace);
+    String targetSchema = getSchema(db()),
+        targetTable = getRootTableName(space());
 
     SQLQuery incVersionSql = new SQLQuery("SELECT nextval('${schema}.${versionSequenceName}')")
         .withVariable("schema", targetSchema)
         .withVariable("versionSequenceName", targetTable + "_version_seq");
 
-    long newVersion = runReadQuerySync(incVersionSql, targetDb, 0, rs -> {
+    long newVersion = runReadQuerySync(incVersionSql, db(), 0, rs -> {
       rs.next();
       return rs.getLong(1);
     });

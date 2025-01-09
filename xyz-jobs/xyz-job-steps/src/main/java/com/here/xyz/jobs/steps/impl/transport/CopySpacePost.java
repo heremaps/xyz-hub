@@ -21,14 +21,11 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.execution.StepException;
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
@@ -36,7 +33,6 @@ import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
@@ -67,20 +63,20 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      Space sourceSpace = loadSpace(getSpaceId());
-
       Load expectedDbLoad = new Load()
-          .withResource(loadDatabase(sourceSpace.getStorage().getId(), WRITER))
+          .withResource(db())
           .withEstimatedVirtualUnits(0.0);
 
       //Billing, reporting
       Load expectedIoLoad = new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getCopiedByteSize());
 
-      logger.info("[{}] getNeededResources {}", getGlobalStepId(), sourceSpace.getStorage().getId());
+      logger.info("[{}] getNeededResources {}", getGlobalStepId(), getSpaceId());
 
       return List.of(expectedDbLoad, expectedIoLoad);
     }
     catch (WebClientException e) {
+      //TODO: log error
+      //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
     }
   }
@@ -138,10 +134,8 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   }
 
   private FeatureStatistics getCopiedFeatures(long fetchedVersion) throws SQLException, TooManyResourcesClaimed, WebClientException {
-    Space targetSpace = loadSpace(getSpaceId());
-    Database targetDb = loadDatabase(targetSpace.getStorage().getId(), WRITER);
-    String targetSchema = getSchema(targetDb),
-        targetTable = getRootTableName(targetSpace);
+    String targetSchema = getSchema(db()),
+        targetTable = getRootTableName(space());
 
     SQLQuery incVersionSql = new SQLQuery(
         """
@@ -153,7 +147,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
         .withVariable("table", targetTable)
         .withQueryFragment("fetchedVersion", "" + fetchedVersion);
 
-    FeatureStatistics statistics = runReadQuerySync(incVersionSql, targetDb, 0, rs -> rs.next()
+    FeatureStatistics statistics = runReadQuerySync(incVersionSql, db(), 0, rs -> rs.next()
         ? new FeatureStatistics().withFeatureCount(rs.getLong(1)).withByteSize(rs.getLong(2))
         : new FeatureStatistics());
 
