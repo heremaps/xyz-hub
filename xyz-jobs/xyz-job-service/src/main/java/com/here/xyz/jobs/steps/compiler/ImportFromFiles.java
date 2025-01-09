@@ -33,6 +33,7 @@ import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
@@ -44,6 +45,9 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -79,10 +83,15 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withJobId(job.getId())
         .withInputSets(List.of(USER_INPUTS.get()));
 
+    /** This validation check is needed to deliver a constructive error to the user - otherwise keepIndices will throw
+     * a runtime error. */
+    if(!checkIfSpaceIsAccessible(spaceId))
+      throw new CompilationError("Target is not accessible!");
+
     if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
       //Perform only the import Step
       return (CompilationStepGraph) new CompilationStepGraph()
-            .addExecution(importFilesStep);
+              .addExecution(importFilesStep);
 
     //perform full Import with all 11 Steps (IDX deletion/creation..)
     return compileImportSteps(importFilesStep);
@@ -117,5 +126,14 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<Index> indices) {
     return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
+  }
+
+  private boolean checkIfSpaceIsAccessible(String spaceId) {
+      try {
+          HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
+      } catch (XyzWebClient.WebClientException e) {
+          return false;
+      }
+      return true;
   }
 }
