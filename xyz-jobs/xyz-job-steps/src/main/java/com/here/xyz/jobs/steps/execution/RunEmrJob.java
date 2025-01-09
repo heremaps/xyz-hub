@@ -201,9 +201,22 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return Objects.equals(otherEmrStep.applicationId, applicationId)
         && Objects.equals(otherEmrStep.executionRoleArn, executionRoleArn)
         && Objects.equals(otherEmrStep.jarUrl, jarUrl)
-        && Objects.equals(otherEmrStep.positionalScriptParams, positionalScriptParams)
+        //TODO: For now do not compare the actual values of the positional params until the full fledged inputSet comparison was implemented for the GraphFusion
+        && Objects.equals(otherEmrStep.positionalScriptParams.size(), positionalScriptParams.size())
+        //TODO: For now do not compare the actual values of the positional that contain an inputSet reference until the full fledged inputSet comparison was implemented for the GraphFusion
         && Objects.equals(otherEmrStep.namedScriptParams, namedScriptParams)
         && Objects.equals(otherEmrStep.sparkParams, sparkParams);
+  }
+
+  private boolean isEquivalentTo(Map<String, String> namedScriptParams, Map<String, String> otherNamedScriptParams) {
+    return Objects.equals(namedScriptParams.keySet(), otherNamedScriptParams.keySet()) &&
+        namedScriptParams.entrySet().stream()
+            .allMatch(entry -> isEquivalentTo(namedScriptParams.get(entry.getKey()), otherNamedScriptParams.get(entry.getKey())));
+  }
+
+  private boolean isEquivalentTo(String namedScriptParamValue, String otherNamedScriptParamValue) {
+    return Objects.equals(namedScriptParamValue, otherNamedScriptParamValue)
+        || namedScriptParamValue.contains(INPUT_SET_REF_PREFIX) && otherNamedScriptParamValue.contains(INPUT_SET_REF_PREFIX);
   }
 
   public String getApplicationId() {
