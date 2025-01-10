@@ -204,13 +204,13 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
         //TODO: For now do not compare the actual values of the positional params until the full fledged inputSet comparison was implemented for the GraphFusion
         && Objects.equals(otherEmrStep.positionalScriptParams.size(), positionalScriptParams.size())
         //TODO: For now do not compare the actual values of the positional that contain an inputSet reference until the full fledged inputSet comparison was implemented for the GraphFusion
-        && Objects.equals(otherEmrStep.namedScriptParams, namedScriptParams)
+        && isEquivalentTo(namedScriptParams, otherEmrStep.namedScriptParams)
         && Objects.equals(otherEmrStep.sparkParams, sparkParams);
   }
 
   private boolean isEquivalentTo(Map<String, String> namedScriptParams, Map<String, String> otherNamedScriptParams) {
     return Objects.equals(namedScriptParams.keySet(), otherNamedScriptParams.keySet()) &&
-        namedScriptParams.entrySet().stream()
+        namedScriptParams != null && otherNamedScriptParams != null && namedScriptParams.entrySet().stream()
             .allMatch(entry -> isEquivalentTo(namedScriptParams.get(entry.getKey()), otherNamedScriptParams.get(entry.getKey())));
   }
 
