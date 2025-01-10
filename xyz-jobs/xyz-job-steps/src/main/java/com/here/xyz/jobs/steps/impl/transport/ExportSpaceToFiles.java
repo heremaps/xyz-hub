@@ -38,7 +38,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporary
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
@@ -46,6 +45,7 @@ import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -86,6 +86,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
   private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
+  private static final int FEATURES_PER_CHAIN_LINK = 100_000;
 
   @JsonView({Internal.class, Static.class})
   private int calculatedThreadCount = -1;
@@ -369,8 +370,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   protected void onAsyncSuccess() throws Exception {
-    //TODO
-    super.onAsyncSuccess();
+    //TODO: Adjust the implementation to read from the new statistics table
 
     Statistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
         0, rs -> rs.next()
@@ -386,6 +386,44 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
+  }
+
+  @Override
+  protected boolean onAsyncUpdate(ProcessUpdate processUpdate) {
+    FeaturesExportedUpdate update = (FeaturesExportedUpdate) processUpdate;
+    updateStatisticsTable(update);
+
+    int completedThreads = countCompletedThreads();
+    if (completedThreads == calculatedThreadCount)
+      return true;
+    else
+      //Calculate progress and set it on the step's status
+      getStatus().setEstimatedProgress((float) completedThreads / (float) calculatedThreadCount); //TODO: Can be calculated in higher detail once chain-links were implemented
+
+    return false;
+  }
+
+  private void updateStatisticsTable(FeaturesExportedUpdate update) {
+    boolean threadComplete = update.featureCount < FEATURES_PER_CHAIN_LINK;
+
+    /*
+    TODO: Upsert one row with the following information to the tmp statistics table:
+     - threadId = update.threadId
+     - featureCount += update.featureCount
+     - fileCount += update.fileCount
+     - complete = threadComplete
+     */
+  }
+
+  private int countCompletedThreads() {
+    //TODO: Read from the statistics table
+    return 0;
+  }
+
+  public static class FeaturesExportedUpdate extends ProcessUpdate<FeaturesExportedUpdate> {
+    public int threadId;
+    public int featureCount;
+    public int fileCount;
   }
 
   private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) throws SQLException {
