@@ -30,7 +30,7 @@ public record KeyValue<K, V>(K key, V value) {
   }
 
   public Map<K, V> extendMap(Map<K, V> map) {
-    Map<K, V> extended = new HashMap<>();
+    Map<K, V> extended = new HashMap<>(map);
     putToMap(extended);
     return extended;
   }
