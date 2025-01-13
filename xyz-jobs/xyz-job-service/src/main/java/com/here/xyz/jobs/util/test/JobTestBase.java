@@ -1,14 +1,16 @@
 package com.here.xyz.jobs.util.test;
 
+import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static com.google.common.net.MediaType.JSON_UTF_8;
+import static java.net.http.HttpClient.Redirect.NORMAL;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.models.hub.Space;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -24,26 +26,30 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
-import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
-import static com.google.common.net.MediaType.JSON_UTF_8;
-import static java.net.http.HttpClient.Redirect.NORMAL;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobTestBase extends StepTestBase {
     private static final Logger logger = LogManager.getLogger();
     protected Set<String> createdJobs = new HashSet<>();
     protected Set<String> createdSpaces = new HashSet<>();
 
-    /** Job-Api related */
+    //Job-Api related
     public static String createJob(Job job) throws IOException, InterruptedException {
         logger.info("Creating job ...");
         HttpResponse<byte[]> jobResponse = post("/jobs", job);
 
-        logger.info("Got response:");
-        logger.info(new String(jobResponse.body()));
+        logger.info("Got response:\n{}", toPrettyJson(jobResponse.body()));
 
         Job createdJob = XyzSerializable.deserialize(jobResponse.body(), Job.class);
+
+        logger.info("Internal Job config:\n{}", toPrettyJson(get("/admin/jobs/" + createdJob.getId()).body()));
+
         return createdJob.getId();
+    }
+
+    public static String toPrettyJson(byte[] json) throws JsonProcessingException {
+      return XyzSerializable.serialize(XyzSerializable.deserialize(json, Map.class), true);
     }
 
     public static void uploadFileToJob(String jobId, byte[] fileContent) throws IOException, InterruptedException {
@@ -99,7 +105,7 @@ public class JobTestBase extends StepTestBase {
                         status.getOverallStepCount());
                 if (status.getState().isFinal()) {
                     if(!status.getState().equals(RuntimeInfo.State.SUCCEEDED))
-                        logger.info("Job state for {} is not SUCCEEDED: {}", jobId, XyzSerializable.serialize(status));
+                        logger.info("Job state for {} is not SUCCEEDED:\n{}", jobId, XyzSerializable.serialize(status, true));
                     executor.shutdownNow();
                 }
             }
@@ -178,25 +184,25 @@ public class JobTestBase extends StepTestBase {
     }
 
     protected void createSelfRunningJob(Job job) throws Exception {
-        /** Create Job - expect autostart */
+        //Create Job - expect autostart
         createJob(job);
         createdJobs.add(job.getId());
 
-        /** Wait till Job reached final state */
+        //Wait till Job reached final state
         pollJobStatus(job.getId());
     }
 
     protected void createAndStartJob(Job job, byte[] fileContent) throws Exception {
-        /** Create Job */
+        //Create Job
         createJob(job);
         createdJobs.add(job.getId());
 
-        /** Upload content if provided */
+        //Upload content if provided
         if(fileContent != null)
             uploadFileToJob(job.getId(), fileContent);
-        /** Start Job execution */
+        //Start Job execution
         startJob(job.getId());
-        /** Wait till Job reached final state */
+        //Wait till Job reached final state
         pollJobStatus(job.getId());
     }
 
