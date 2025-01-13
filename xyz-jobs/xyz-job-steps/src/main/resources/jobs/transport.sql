@@ -328,6 +328,34 @@ END;
 $BODY$;
 
 /**
+ *  Report progress by invoking lambda function with UPDATE_CALLBACK payload
+ */
+CREATE OR REPLACE FUNCTION report_progress(
+    lambda_function_arn TEXT,
+	lambda_region TEXT,
+	step_payload JSON,
+	progress_data JSON
+)
+RETURNS VOID
+    LANGUAGE 'plpgsql'
+AS $BODY$
+DECLARE
+    lamda_response RECORD;
+BEGIN
+   --TODO: Add error handling
+    SELECT aws_lambda.invoke(aws_commons.create_lambda_function_arn(lambda_function_arn, lambda_region),
+                         json_build_object(
+                                 'type','UPDATE_CALLBACK',
+                                 'step', step_payload,
+                                 'processUpdate', progress_data
+                         ), 'Event') INTO lamda_response;
+END
+$BODY$;
+
+-- ####################################################################################################################
+-- Import related:
+
+/**
  * Enriches Feature - uses in plain trigger function
  */
 CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_empty_layer()
@@ -536,47 +564,6 @@ EXCEPTION
 END;
 $BODY$;
 
--- Export related:
-
-CREATE OR REPLACE FUNCTION export_to_s3_perform(content_query TEXT, s3_bucket TEXT, s3_path TEXT, s3_region TEXT)
-    RETURNS void
-    LANGUAGE 'plpgsql'
-AS $BODY$
-DECLARE
-    export_statistics RECORD;
-    config RECORD;
-    ctx JSONB;
-BEGIN
-    SELECT context() into ctx;
-
-    SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
-
-    EXECUTE format(
-            'SELECT * from aws_s3.query_export_to_s3( '
-                ||' ''%1$s'', '
-                ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
-                ||' %5$L )',
-            format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', REPLACE(content_query, $x$'$x$, $x$''$x$)),
-            s3_bucket,
-            s3_path,
-            s3_region,
-            REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
-            )INTO export_statistics;
-
-    -- Mark item as successfully imported. Store import_statistics.
-    EXECUTE format('UPDATE %1$s '
-                       ||'set state = %2$L, '
-                       ||'execution_count = execution_count + 1, '
-                       ||'data = data || %3$L '
-                       ||'WHERE s3_path = %4$L ',
-                   get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
-                   'FINISHED',
-                   json_build_object('export_statistics', export_statistics),
-                   s3_path);
-END;
-$BODY$;
-
--- Import related:
 /**
  * Enriches Feature - uses in plain trigger function
  */
@@ -625,3 +612,108 @@ BEGIN
 END
 $BODY$
     LANGUAGE plpgsql IMMUTABLE;
+
+-- ####################################################################################################################
+-- Export related:
+
+/**
+ *  Report export progress
+ */
+CREATE OR REPLACE FUNCTION report_export_progress(
+    lambda_function_arn TEXT, 
+	lambda_region TEXT,
+	step_payload JSON,
+	thread_id INT, 
+	bytes_uploaded BIGINT, 
+	rows_uploaded BIGINT, 
+	files_uploaded INT
+)
+    RETURNS VOID
+    LANGUAGE 'plpgsql'
+AS $BODY$
+BEGIN		   
+	PERFORM report_progress(
+		lambda_function_arn,
+		lambda_region,
+		step_payload,
+		json_build_object(
+		       'type','FeaturesExportedUpdate',
+			   'threadId',thread_id,
+			   'byteCount',bytes_uploaded,
+			   'featureCount',rows_uploaded,
+			   'fileCount',files_uploaded
+			)
+	);
+END
+$BODY$;
+
+/**
+ *  Export data from RDS -> S3
+ */
+--old version
+DROP FUNCTION IF EXISTS export_to_s3_perform(content_query text,s3_bucket text,s3_path text,s3_region text);
+
+CREATE OR REPLACE FUNCTION export_to_s3_perform(
+        thread_id INT,
+        s3_bucket TEXT, s3_path TEXT, s3_region TEXT,
+        step_payload JSON,
+        lambda_function_arn TEXT,
+        lambda_region TEXT,
+        content_query TEXT,
+        failure_callback TEXT
+	)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+AS $BODY$
+DECLARE
+	sql_text TEXT;
+BEGIN
+	sql_text = $wrappedouter$ DO
+	$wrappedinner$
+	DECLARE
+		export_statistics RECORD;
+	    config RECORD;
+        thread_id INT := '$wrappedouter$||thread_id||$wrappedouter$'::INT;
+		content_query TEXT := $x$$wrappedouter$||coalesce(content_query,'')||$wrappedouter$$x$::TEXT;
+        s3_bucket TEXT := '$wrappedouter$||s3_bucket||$wrappedouter$'::TEXT;
+		s3_path TEXT := '$wrappedouter$||s3_path||$wrappedouter$'::TEXT;
+		s3_region TEXT := '$wrappedouter$||s3_region||$wrappedouter$'::TEXT;
+		step_payload JSON := '$wrappedouter$||(step_payload::TEXT)||$wrappedouter$'::JSON;        
+		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;		
+		lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
+	BEGIN
+    	SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
+	    EXECUTE format(
+	           'SELECT * from aws_s3.query_export_to_s3( '
+	                ||' ''%1$s'', '
+	                ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
+	                ||' %5$L )',
+			    format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', 
+						REPLACE(content_query, $x$'$x$, $x$''$x$)),
+			    s3_bucket,
+			    s3_path,
+			    s3_region,
+			    REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
+	            )INTO export_statistics;
+		
+		PERFORM report_export_progress(
+			 lambda_function_arn,
+			 lambda_region,
+			 step_payload,
+			 thread_id, 
+			 export_statistics.bytes_uploaded, 
+			 export_statistics.rows_uploaded, 
+			 export_statistics.files_uploaded::int
+		);
+		
+		EXCEPTION
+		 	WHEN OTHERS THEN
+		 		-- Export has failed
+		 		BEGIN
+		 			$wrappedouter$ || failure_callback || $wrappedouter$
+		 		END;
+	END;
+	$wrappedinner$ $wrappedouter$;
+	EXECUTE sql_text;
+END;
+$BODY$;

@@ -19,33 +19,15 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
-import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_STATE_CHECK;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildResetJobTableItemsForResumeStatement;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableCreateStatement;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableInsertStatements;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
-import com.here.xyz.jobs.steps.S3DataFile;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
+import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -61,15 +43,34 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import org.geotools.api.referencing.FactoryException;
+import org.locationtech.jts.geom.Geometry;
+
+import javax.xml.crypto.dsig.TransformException;
 import java.sql.SQLException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import javax.xml.crypto.dsig.TransformException;
-import org.geotools.api.referencing.FactoryException;
-import org.locationtech.jts.geom.Geometry;
+
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 
 /**
  * This step imports a set of user provided inputs and imports their data into a specified space.
@@ -185,7 +186,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       infoLog(JOB_EXECUTOR, this,"Calculated ACUS: byteSize of layer: "
               + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
 
-      return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
+      //TODO: add writer?
+      return List.of(new Load().withResource(db(READER)).withEstimatedVirtualUnits(overallNeededAcus),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }catch (Exception e){
       throw new RuntimeException(e);
@@ -351,28 +353,49 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void execute() throws Exception {
+    String schema = getSchema(db());
     StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
     calculatedThreadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
 
-    List<S3DataFile> s3FileNames = generateS3FileNames(calculatedThreadCount);
-    createAndFillTemporaryJobTable(s3FileNames);
+    /** create progress update table */
+    runWriteQuerySync(buildProcessUpdateTableStatement(schema, this), db(WRITER), 0);
 
     for (int i = 0; i < calculatedThreadCount; i++) {
+      infoLog(STEP_EXECUTE, this,"Add initial entry in process_table for thread number: " + i );
+      runWriteQuerySync(upsertProcessUpdateForThreadQuery(schema, this, i, 0, 0 ,0 , false), db(WRITER), 0);
+
       infoLog(STEP_EXECUTE, this,"Start export thread number: " + i );
-      runReadQueryAsync(buildExportQuery(i), db(), 0,false);
+      //TODO: use READER instead. Fix local Problem SQL state: 2F003
+      runReadQueryAsync(buildExportQuery(schema, i), db(WRITER), 0,false);
     }
   }
 
   @Override
   public void resume() throws Exception {
-    //TODO
+    String schema = getSchema(db());
+
+    //TODO: add featureCount if chunking is possible
+    List<Integer> threadList = Arrays.stream((int[]) runReadQuerySync(retrieveProcessItemsForResumeQuery(schema, this), db(WRITER), 0,
+            rs -> rs.next() ? rs.getArray("threads") : rs.getArray("threads")
+    ).getArray()).boxed().toList();
+
+    //TODO: check exception Type
+    if(threadList.size() == 0)
+      throw new ValidationException("Resume is not possible!");
+
+    for (int i = 0; i < calculatedThreadCount; i++) {
+      if(threadList.contains(Integer.valueOf(i))) {
+        infoLog(STEP_EXECUTE, this, "Start export for thread number: " + i);
+        runReadQueryAsync(buildExportQuery(schema, i), db(READER), 0, false);
+      }
+    }
   }
 
   @Override
   protected void onAsyncSuccess() throws Exception {
-    //TODO: Adjust the implementation to read from the new statistics table
+    String schema = getSchema(db());
 
-    Statistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(), db(),
+    Statistics statistics = runReadQuerySync(buildStatisticDataOfTemporaryTableQuery(schema), db(WRITER),
         0, rs -> rs.next()
             ? createStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"),
             rs.getInt("files_uploaded"))
@@ -385,48 +408,52 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     registerOutputs(List.of(statistics.internal()), INTERNAL_STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
-    runWriteQuerySync(buildTemporaryJobTableDropStatement(getSchema(db()), getTemporaryJobTableName(getId())), db(), 0);
+    runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
   }
 
   @Override
-  protected boolean onAsyncUpdate(ProcessUpdate processUpdate) {
-    FeaturesExportedUpdate update = (FeaturesExportedUpdate) processUpdate;
-    updateStatisticsTable(update);
+  protected boolean onAsyncUpdate(ProcessUpdate processUpdate){
+    try {
+      FeaturesExportedUpdate update = (FeaturesExportedUpdate) processUpdate;
+      updateStatisticsTable(update);
 
-    int completedThreads = countCompletedThreads();
-    if (completedThreads == calculatedThreadCount)
-      return true;
-    else
-      //Calculate progress and set it on the step's status
-      getStatus().setEstimatedProgress((float) completedThreads / (float) calculatedThreadCount); //TODO: Can be calculated in higher detail once chain-links were implemented
+      int completedThreads = countCompletedThreads();
+      if (completedThreads == calculatedThreadCount)
+        return true;
+      else
+        //Calculate progress and set it on the step's status
+        getStatus().setEstimatedProgress((float) completedThreads / (float) calculatedThreadCount); //TODO: Can be calculated in higher detail once chain-links were implemented
 
-    return false;
+      return false;
+    }catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
-  private void updateStatisticsTable(FeaturesExportedUpdate update) {
-    boolean threadComplete = update.featureCount < FEATURES_PER_CHAIN_LINK;
+  private void updateStatisticsTable(FeaturesExportedUpdate update) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    /** TODO: Implement Chunking */
+    boolean threadComplete = true;//update.featureCount < FEATURES_PER_CHAIN_LINK;
 
-    /*
-    TODO: Upsert one row with the following information to the tmp statistics table:
-     - threadId = update.threadId
-     - featureCount += update.featureCount
-     - fileCount += update.fileCount
-     - complete = threadComplete
-     */
+    /** create update process table */
+    runWriteQuerySync(
+            upsertProcessUpdateForThreadQuery(getSchema(db(WRITER)), this, update.threadId,
+              update.byteCount, update.featureCount, update.fileCount, threadComplete
+    ), db(WRITER), 0);
   }
 
-  private int countCompletedThreads() {
-    //TODO: Read from the statistics table
-    return 0;
+  private int countCompletedThreads() throws WebClientException, SQLException, TooManyResourcesClaimed {
+    return runReadQuerySync(retrieveFinalizedProcessItems(getSchema(db(WRITER)), this), db(WRITER), 0,
+      rs -> rs.next() ? rs.getInt("count") : -1);
   }
 
   public static class FeaturesExportedUpdate extends ProcessUpdate<FeaturesExportedUpdate> {
     public int threadId;
-    public int featureCount;
+    public long byteCount;
+    public long featureCount;
     public int fileCount;
   }
 
-  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) throws SQLException {
+  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) {
     return new Statistics(
         //NOTE: Do not publish the file count for the user facing statistics, as it could be confusing when it comes to invisible intermediate outputs
         new FeatureStatistics().withByteSize(byteSize).withFeatureCount(featureCount),
@@ -442,59 +469,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     return super.onAsyncFailure();
   }
 
-  @Override
-  protected void onStateCheck() {
-    try {
-      runReadQuerySync(buildProgressQuery(getSchema(db()), this), db(), 0,
-              rs -> {
-                rs.next();
-
-                float progress = rs.getFloat("progress");
-                long processedBytes = rs.getLong("processed_bytes");
-                int finishedCnt = rs.getInt("finished_cnt");
-                int failedCnt = rs.getInt("failed_cnt");
-
-                getStatus().setEstimatedProgress(progress);
-
-                infoLog(STEP_ON_STATE_CHECK,this,"Progress[" + progress + "] => " + " processedBytes:"
-                        + processedBytes + " ,finishedCnt:" + finishedCnt + " ,failedCnt:" + failedCnt);
-                return progress;
-              });
-    }
-    catch (Exception e) {
-      //TODO: What to do? Only log? Report Status is not that important. Further Ignore "table does not exists error" - report 0 in this case.
-      errorLog(STEP_ON_STATE_CHECK, this, e);
-    }
-  }
-
-  private List<S3DataFile> generateS3FileNames(int count) {
-    List<S3DataFile> urlList = new ArrayList<>();
-
-    for (int i = 1; i <= count; i++)
-      urlList.add(new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + i + "/" + UUID.randomUUID()
-          + ".json"));
-
-    return urlList;
-  }
-
-  private void createAndFillTemporaryJobTable(List<S3DataFile> s3FileNames) throws SQLException, TooManyResourcesClaimed, WebClientException {
-    if (isResume()) {
-      infoLog(STEP_EXECUTE, this,"Reset SuccessMarker");
-      runWriteQuerySync(buildResetJobTableItemsForResumeStatement(getSchema(db()) ,this), db(), 0);
-    }
-    else {
-      infoLog(STEP_EXECUTE, this,"Create temporary job table");
-      runWriteQuerySync(buildTemporaryJobTableCreateStatement(getSchema(db()), this), db(), 0);
-
-      infoLog(STEP_EXECUTE, this,"Fill temporary job table");
-      runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
-              s3FileNames, bucketRegion(),this)), db(), 0 );
-    }
-  }
-
   private String generateFilteredExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
-        .withDataSourceProvider(requestResource(db(), 0));
+        .withDataSourceProvider(requestResource(db(Database.DatabaseRole.READER), 0));
     if(context == SUPER)
       space().switchToSuper(superSpace().getId());
 
@@ -521,66 +498,94 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
         .toExecutableQueryString();
   }
 
-  public SQLQuery buildExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed,
+  public SQLQuery buildExportQuery(String schema, int threadNumber) throws WebClientException, TooManyResourcesClaimed,
           QueryBuildingException {
-    String exportSelectString = generateFilteredExportQuery(threadNumber);
-
-    SQLQuery successQuery = buildSuccessCallbackQuery();
-    SQLQuery failureQuery = buildFailureCallbackQuery();
-
+    DownloadUrl downloadUrl = new DownloadUrl().withS3Key(toS3Path(getOutputSet(EXPORTED_DATA)) + "/" + threadNumber + "/" + UUID.randomUUID() + ".json");
     return new SQLQuery(
-                    "CALL execute_transfer(#{format}, '${{successQuery}}', '${{failureQuery}}', #{contentQuery});")
-                    .withContext(getQueryContext())
-                    .withAsyncProcedure(true)
-                    .withNamedParameter("format", "GEOJSON")
-                    .withQueryFragment("successQuery", successQuery.substitute().text().replaceAll("'", "''"))
-                    .withQueryFragment("failureQuery", failureQuery.substitute().text().replaceAll("'", "''"))
-                    .withNamedParameter("contentQuery", exportSelectString);
+            "SELECT export_to_s3_perform(#{thread_id},  #{s3_bucket}, #{s3_path}, #{s3_region}, #{step_payload}::JSON->'step', " +
+                    "#{lambda_function_arn}, #{lambda_region}, #{contentQuery}, '${{failureCallback}}');")
+            .withContext(getQueryContext(schema))
+            .withAsyncProcedure(false)
+            .withNamedParameter("thread_id", threadNumber)
+            .withNamedParameter("s3_bucket", downloadUrl.getS3Bucket())
+            .withNamedParameter("s3_path", downloadUrl.getS3Key())
+            .withNamedParameter("s3_region", bucketRegion())
+            .withNamedParameter("step_payload", new LambdaStepRequest().withStep(this).serialize())
+            .withNamedParameter("lambda_function_arn", getwOwnLambdaArn().toString())
+            .withNamedParameter("lambda_region", getwOwnLambdaArn().getRegion())
+            .withNamedParameter("contentQuery", generateFilteredExportQuery(threadNumber))
+            .withQueryFragment("failureCallback",  buildFailureCallbackQuery().substitute().text().replaceAll("'", "''"));
   }
 
-  private SQLQuery buildStatisticDataOfTemporaryTableQuery() throws WebClientException {
+  private SQLQuery buildStatisticDataOfTemporaryTableQuery(String schema) {
     return new SQLQuery("""
-          SELECT sum((data->'export_statistics'->'rows_uploaded')::bigint) as rows_uploaded,
+          SELECT sum(rows_uploaded) as rows_uploaded,
                  sum(CASE
-                     WHEN (data->'export_statistics'->'bytes_uploaded')::bigint > 0
-                     THEN (data->'export_statistics'->'files_uploaded')::bigint
+                     WHEN (bytes_uploaded)::bigint > 0
+                     THEN (files_uploaded)::bigint
                      ELSE 0
                  END) as files_uploaded,
-                 sum((data->'export_statistics'->'bytes_uploaded')::bigint) as bytes_uploaded
-                  FROM ${schema}.${tmpTable}
-              WHERE POSITION('SUCCESS_MARKER' in state) = 0;
+                 sum(bytes_uploaded)::bigint as bytes_uploaded
+                  FROM ${schema}.${tmpTable};
         """)
-            .withVariable("schema", getSchema(db()))
-            .withVariable("tmpTable", getTemporaryJobTableName(getId()))
-            .withVariable("triggerTable", TransportTools.getTemporaryTriggerTableName(getId()));
+            .withVariable("schema", schema)
+            .withVariable("tmpTable", getTemporaryJobTableName(getId()));
   }
 
-  private SQLQuery buildProgressQuery(String schema, ExportSpaceToFiles step) {
-    return new SQLQuery("""
-          SELECT
-          	    COALESCE((overall_cnt-submitted_cnt)::FLOAT/overall_cnt, 0) as progress,
-          	    COALESCE(processed_bytes,0) as processed_bytes,
-            	COALESCE(finished_cnt,0) as finished_cnt,
-            	COALESCE(failed_cnt,0) as failed_cnt
-            FROM(
-            	SELECT
-                  (SELECT sum((data->'export_statistics'->'bytes_uploaded')::bigint ) FROM ${schema}.${table}) as overall_bytes,
-                  sum((data->'export_statistics'->'bytes_uploaded')::bigint ) as processed_bytes,
-                  sum((1)::int) as overall_cnt,
-                  sum((state = 'SUBMITTED')::int) as submitted_cnt,
-                  sum((state = 'FINISHED')::int) as finished_cnt,
-                  sum((state = 'FAILED')::int) as failed_cnt
-                FROM ${schema}.${table}
-              	 WHERE POSITION('SUCCESS_MARKER' in state) = 0
-            	   AND state IN ('FINISHED','FAILED')
-            )A
+  protected static SQLQuery buildProcessUpdateTableStatement(String schema, Step step) {
+    return new SQLQuery("""          
+            CREATE TABLE IF NOT EXISTS ${schema}.${table}
+            (
+            	thread_id INT,
+            	bytes_uploaded BIGINT DEFAULT 0,
+            	rows_uploaded BIGINT DEFAULT 0,
+            	files_uploaded INT DEFAULT 0,
+            	finalized BOOLEAN DEFAULT false,
+            	CONSTRAINT ${primaryKey} PRIMARY KEY (thread_id)
+            );
         """)
+            .withVariable("table", getTemporaryJobTableName(step.getId()))
+            .withVariable("schema", schema)
+            .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
+  }
+
+  protected static SQLQuery upsertProcessUpdateForThreadQuery(String schema, Step step,
+                                                              int threadId, long bytesUploaded, long rowsUploaded, int filesUploaded,
+                                                              boolean finalized) {
+    /** TODO: switch to complete upsert */
+    return new SQLQuery("""             
+            INSERT INTO  ${schema}.${table} AS t (thread_id, bytes_uploaded, rows_uploaded, files_uploaded, finalized)
+                VALUES (#{threadId}, #{bytesUploaded}, #{rowsUploaded}, #{filesUploaded}, #{finalized})
+                ON CONFLICT (thread_id) DO UPDATE
+                  SET thread_id = #{threadId},
+                    bytes_uploaded = t.bytes_uploaded + EXCLUDED.bytes_uploaded,
+                    rows_uploaded = t.rows_uploaded + EXCLUDED.rows_uploaded,
+                    files_uploaded = t.files_uploaded + EXCLUDED.files_uploaded,
+                    finalized = EXCLUDED.finalized;
+        """)
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()))
+            .withNamedParameter("threadId", threadId)
+            .withNamedParameter("bytesUploaded", bytesUploaded)
+            .withNamedParameter("rowsUploaded", rowsUploaded)
+            .withNamedParameter("filesUploaded", filesUploaded)
+            .withNamedParameter("finalized", finalized); //future prove
+  }
+
+  protected static SQLQuery retrieveFinalizedProcessItems(String schema, Step step){
+    return new SQLQuery("SELECT count(1) FROM ${schema}.${table} WHERE finalized = true;")
             .withVariable("schema", schema)
             .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
-  private Map<String, Object> getQueryContext() throws WebClientException {
+  protected static SQLQuery retrieveProcessItemsForResumeQuery(String schema, Step step){
+    return new SQLQuery("select array_agg(thread_id) as threads FROM ${schema}.${table} where finalized != true")
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
+  }
+
+  private Map<String, Object> getQueryContext(String schema) throws WebClientException {
     String superTable = space().getExtension() != null ? getRootTableName(superSpace()) : null;
-    return createQueryContext(getId(), getSchema(db()), getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
+    return createQueryContext(getId(), schema, getRootTableName(space()), (space().getVersionsToKeep() > 1), superTable);
   }
 }
