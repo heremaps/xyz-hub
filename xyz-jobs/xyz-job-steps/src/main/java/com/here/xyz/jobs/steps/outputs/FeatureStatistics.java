@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -27,7 +28,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(NON_DEFAULT)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FeatureStatistics extends ModelBasedOutput {
+
+    @JsonInclude(ALWAYS)
     private long featureCount;
+    @JsonInclude(ALWAYS)
     private long byteSize;
     private int fileCount;
 
