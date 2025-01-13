@@ -103,7 +103,7 @@ public class SpaceConnectorBasedHandler {
             )
             .compose(r -> {
                 /* Return min tag of this space */
-                return Future.succeededFuture((r.isPresent() ? r.getAsLong() : null));
+                return Future.succeededFuture((r.isPresent() ? Long.valueOf(r.getAsLong()) : null));
             });
   }
 

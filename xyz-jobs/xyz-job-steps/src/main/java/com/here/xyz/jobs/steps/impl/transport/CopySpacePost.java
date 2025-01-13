@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
@@ -139,10 +140,10 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
     SQLQuery incVersionSql = new SQLQuery(
         """
-              select count(1), coalesce( sum( (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint ), 0::bigint )
-              from ${schema}.${table} 
-              where version = ${{fetchedVersion}} 
-            """)
+         select count(1), coalesce( sum( (coalesce(pg_column_size(jsondata),0) + coalesce(pg_column_size(geo),0))::bigint ), 0::bigint )
+         from ${schema}.${table} 
+         where version = ${{fetchedVersion}} 
+        """)
         .withVariable("schema", targetSchema)
         .withVariable("table", targetTable)
         .withQueryFragment("fetchedVersion", "" + fetchedVersion);
@@ -169,8 +170,9 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
         else {
           logger.error("[{}] could not write contentUpadtedAt to space {}", getGlobalStepId(), getSpaceId());
           throw new StepException("Error while updating the final target settings.", e)
-              .withRetryable(e instanceof ErrorResponseException responseException
-                  && responseException.getErrorResponse().statusCode() == 504);
+              .withRetryable(   e instanceof ErrorResponseException responseException
+                             && responseException.getErrorResponse().statusCode() == 504
+                            );
         }
       }
   }
@@ -184,7 +186,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
 
   @Override
   public void resume() throws Exception {
-    //TODO: Implement
-    logger.info("resume was called");
+    infoLog(STEP_RESUME, this, "resume was called");
+    execute();
   }
 }

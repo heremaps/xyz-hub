@@ -22,13 +22,16 @@ package com.here.xyz.jobs.steps.impl.transport;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
+import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.List;
@@ -87,11 +90,28 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
     return SYNC;
   }
 
+  private void _execute(boolean resumed) throws Exception {
+    infoLog(STEP_EXECUTE, this, String.format("Fetch next version for %s%s", getSpaceId(), resumed ? " - resumed" : "") );
+    long nextVersionToUse = 0;
+    try {
+     nextVersionToUse = setVersionToNextInSequence();
+    } 
+    catch( WebClientException e ) {
+     // retryable in case of webclient error
+     throw new StepException("Error retrieving next version to use", e)
+               .withRetryable(  e instanceof ErrorResponseException responseException
+                              && responseException.getErrorResponse().statusCode() == 504
+                             );
+    }
+    
+    registerOutputs(List.of(new CreatedVersion().withVersion(nextVersionToUse)), VERSION);
+  }
+
   @Override
   public void execute() throws Exception {
-    infoLog(STEP_EXECUTE, this, "Fetch next version for " + getSpaceId());
-    registerOutputs(List.of(new CreatedVersion().withVersion(setVersionToNextInSequence())), VERSION);
+    _execute(false);
   }
+
 
   private long setVersionToNextInSequence() throws SQLException, TooManyResourcesClaimed, WebClientException {
     //TODO: Remove the following duplicated code by simply re-using GetNextVersion QueryRunner
@@ -112,7 +132,8 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
 
   @Override
   public void resume() throws Exception {
-    //TODO: Implement
-    logger.info("resume was called");
+   
+    infoLog(STEP_RESUME, this, "resume was called");
+    _execute(true);
   }
 }

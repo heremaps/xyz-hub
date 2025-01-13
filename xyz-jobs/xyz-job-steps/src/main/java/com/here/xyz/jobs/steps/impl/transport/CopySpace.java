@@ -23,6 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
@@ -30,6 +31,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -328,8 +330,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return 0; //FIXME: Rather throw an exception here?
   }
 
-  @Override
-  public void execute() throws Exception {
+  private void _execute(boolean resumed) throws Exception {
     setVersion(_getCreatedVersion());
 
     logger.info("[{}] Using fetched version {}", getGlobalStepId(), getVersion());
@@ -346,8 +347,18 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     int threadId = getThreadInfo()[0],
         threadCount = getThreadInfo()[1];
 
-     infoLog(STEP_EXECUTE, this, "Start ImlCopy thread number: " + threadId + " / " + threadCount);
+     infoLog(STEP_EXECUTE, this, "Start ImlCopy thread number: " + threadId + " / " + threadCount + (resumed ? " - resumed" : ""));
      runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace,threadCount, threadId), targetDb, calculateNeededAcus()/threadCount, true);
+  }
+
+  @Override
+  public void execute() throws Exception {
+    try { _execute(false); }
+    catch(Exception e)
+    {
+      String errMsg = String.format("Error iml-copy chunk-id %d#%d", getThreadInfo()[0], getThreadInfo()[1] );
+      throw new StepException(errMsg, e).withRetryable( true ); // always retryable at first place
+    }
   }
 
   @Override
@@ -364,8 +375,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @Override
   public void resume() throws Exception {
-    //@TODO: Implement
-    logger.info("resume was called");
+      infoLog(STEP_RESUME, this, "resume was called");
+      _execute(true);
   }
 
   private String _getRootTableName(Space targetSpace) throws SQLException {
