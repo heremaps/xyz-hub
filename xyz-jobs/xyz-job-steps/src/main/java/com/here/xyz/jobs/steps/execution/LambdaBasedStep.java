@@ -175,13 +175,12 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return HEART_BEAT_PREFIX + getGlobalStepId();
   }
 
-  //TODO: Also call this on cancel?
   private void unregisterStateCheckTrigger() {
     if (isSimulation)
       return;
 
     try {
-      logger.info("[{}] unregister StateCheckTrigger {}", getStateCheckRuleName(), getGlobalStepId());
+      logger.info("[{}] Unregistering state-check trigger {} ...", getGlobalStepId(), getStateCheckRuleName());
       //List all targets
       List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(
               ListTargetsByRuleRequest.builder().rule(getStateCheckRuleName()).build())
@@ -197,8 +196,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
     }
     catch (ResourceNotFoundException e) {
-      logger.error("[{}] unregister StateCheckTrigger failed! {}", getStateCheckRuleName(), getGlobalStepId(), e);
-      //Ignore the exception, as the rule is not existing (yet)
+      logger.error("[{}] Unregistering state-check trigger {} failed as it does not exist (yet / anymore).", getGlobalStepId(), getStateCheckRuleName());
+      //Ignore the exception, as the rule is not existing (yet / anymore)
+    }
+    catch (Exception e) {
+      logger.error("[{}] Unexpected error while unregistering state-check trigger {}", getGlobalStepId(), getStateCheckRuleName(), e);
     }
   }
 
@@ -216,7 +218,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       The state is not known currently, maybe one of the next STATE_CHECK requests will be able to reveal the state.
       If the issue persists, the step will fail after the heartbeat timeout.
        */
-      logger.warn("Unknown execution state for step {}.{}", getJobId(), getId(), e);
+      logger.warn("Unknown execution state for step {}", getGlobalStepId(), e);
       synchronizeStep();
       //NOTE: No heartbeat must be sent to SFN in this case!
     }
@@ -256,19 +258,22 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
     }
 
-    updateState(SUCCEEDED);
-    unregisterStateCheckTrigger();
-
-    //Report success to SFN
-    if (!isSimulation) { //TODO: Remove testing code
-      sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()
-          .taskToken(taskToken)
-          .output(INVOKE_SUCCESS)
-          .build());
+    try {
+      updateState(SUCCEEDED);
+      unregisterStateCheckTrigger();
     }
-    else
-      //TODO: Remove testing code
-      System.out.println(getClass().getSimpleName() + " : SUCCESS");
+    finally {
+      //Report success to SFN
+      if (!isSimulation) { //TODO: Remove testing code
+        sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()
+            .taskToken(taskToken)
+            .output(INVOKE_SUCCESS)
+            .build());
+      }
+      else
+        //TODO: Remove testing code
+        System.out.println(getClass().getSimpleName() + " : SUCCESS");
+    }
   }
 
   protected void onAsyncSuccess() throws Exception {
@@ -332,7 +337,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e instanceof StepException stepException)
       retryable = stepException.isRetryable();
 
-    logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}:", getGlobalStepId(), e);
+    logger.error("{}retryable error during execution of step {}:", retryable ? "" : "Non-", getGlobalStepId(), e);
     getStatus().setFailedRetryable(retryable);
     reportFailure(e, async);
   }
@@ -354,16 +359,19 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         getStatus().setErrorCode(codeFromErrorErrorResponseException(responseException));
     }
 
-    //Update state & sync the status
-    updateState(FAILED);
+    try {
+      //Update state & sync the status
+      updateState(FAILED);
 
-    //Log the error also to the lambda log
-    logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
-        getStatus().getErrorCause(), getStatus().getErrorCode());
-
-    //Finally, report failure to SFN
-    if (async)
-      reportFailureToSfn();
+      //Log the error also to the lambda log
+      logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
+          getStatus().getErrorCause(), getStatus().getErrorCode());
+    }
+    finally {
+      //Finally, report failure to SFN
+      if (async)
+        reportFailureToSfn();
+    }
   }
 
   private void reportFailureToSfn() {
@@ -382,8 +390,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     try {
       sfnClient().sendTaskFailure(request.build());
     }
-    catch (TaskTimedOutException ex) {
-      logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}.", getJobId(), getId());
+    catch (TaskTimedOutException e) {
+      logger.error("[{}] Task in SFN is already stopped. Could not send task failure for step.", getGlobalStepId());
+    }
+    catch (Exception e) {
+      logger.error("[{}] Unexpected error while trying to report a failure to SFN.", getGlobalStepId(), e);
     }
   }
 
