@@ -89,6 +89,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   private static final String RETRY_COUNT_TEMPLATE = "$$.State.RetryCount";
   private static final String PIPELINE_INPUT_TEMPLATE = "$$.Execution.Input";
   public static final String HEART_BEAT_PREFIX = "HeartBeat-";
+  //TODO: Check if there are other possibilities
+  @JsonView(Internal.class)
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
@@ -231,7 +233,12 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void handleAsyncUpdate(ProcessUpdate processUpdate) {
-    if (onAsyncUpdate(processUpdate))
+    boolean isCompleted = onAsyncUpdate(processUpdate);
+    if(isSimulation) {
+      /** In simulations we are handling success callbacks by our own */
+      return;
+    }
+    if (isCompleted)
       reportAsyncSuccess();
     else
       synchronizeStep();
@@ -665,7 +672,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
 
     @JsonSubTypes({
-        @JsonSubTypes.Type(value = FeaturesExportedUpdate.class),
+        @JsonSubTypes.Type(value = FeaturesExportedUpdate.class, name="FeaturesExportedUpdate"),
     })
     public static class ProcessUpdate<T extends ProcessUpdate> implements Typed {
 
