@@ -295,12 +295,6 @@ public class GraphTransformer {
 
   private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
     if (Config.instance.LOCALSTACK_ENDPOINT != null) {
-      //Inject defaults for local execution
-      emrStep.setSparkParams("--add-exports=java.base/java.nio=ALL-UNNAMED "
-          + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
-          + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
-          + "--add-exports=java.base/java.util=ALL-UNNAMED "
-          + emrStep.getSparkParams());
       compile((LambdaBasedStep<?>) emrStep, state);
       return;
     }
