@@ -318,12 +318,16 @@ public abstract class JobExecutor implements Initializable {
   private Future<Boolean> needsExecution(Job job) {
     return Future.succeededFuture()
         .compose(v -> {
-          if (job.getSteps().stepStream().anyMatch(step -> !step.getStatus().getState().equals(SUCCEEDED)))
+          int succeededSteps = (int) job.getSteps().stepStream()
+              .filter(step -> step.getStatus().getState().equals(SUCCEEDED))
+              .count();
+          job.getStatus().setSucceededSteps(succeededSteps);
+
+          if (succeededSteps < job.getStatus().getOverallStepCount())
             return Future.succeededFuture(true);
 
           //All Steps are already succeeded - No need to execute the job
           job.getStatus().setState(SUCCEEDED);
-          job.getStatus().setSucceededSteps(job.getStatus().getOverallStepCount());
           return job.store().map(false);
         });
   }
@@ -347,9 +351,7 @@ public abstract class JobExecutor implements Initializable {
             .max(comparingLong(candidateGraph -> candidateGraph.stepStream()
                 .filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
             .orElse(null)))
-        .compose(newGraphWithReusedSteps -> newGraphWithReusedSteps == null
-            ? Future.succeededFuture()
-            : job.withSteps(newGraphWithReusedSteps).store());
+        .compose(fusedGraph -> fusedGraph == null ? Future.succeededFuture() : job.withSteps(fusedGraph).store());
   }
 
   public static void shutdown() throws InterruptedException {
