@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.getTableNameFromSpaceParamsOrSpaceId;
@@ -65,7 +66,10 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   private String spaceId;
 
   @JsonIgnore
-  private Database db;
+  private Database db_writer;
+
+  @JsonIgnore
+  private Database db_reader;
 
   @JsonIgnore
   private Map<String, Space> cachedSpaces = new ConcurrentHashMap<>();
@@ -132,11 +136,27 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected Database db() throws WebClientException {
-    if (db == null) {
-      logger.info("[{}] Loading database for space {} ...", getGlobalStepId(), getSpaceId());
-      db = loadDatabase(space().getStorage().getId(), WRITER);
+    return db(WRITER);
+  }
+
+  protected Database db(Database.DatabaseRole role) throws WebClientException {
+    return role.equals(READER) ?  db_reader() : db_writer();
+  }
+
+  private Database db_reader() throws WebClientException {
+    if (db_reader == null) {
+      logger.info("[{}] Loading database[{}] for space {} ...", getGlobalStepId(), READER.name(), getSpaceId());
+      db_reader = loadDatabase(space().getStorage().getId(), READER);
     }
-    return db;
+    return db_reader;
+  }
+
+  private Database db_writer() throws WebClientException {
+    if (db_writer == null) {
+      logger.info("[{}] Loading database[{}] for space {} ...", getGlobalStepId(), WRITER.name(), getSpaceId());
+      db_writer = loadDatabase(space().getStorage().getId(), WRITER);
+    }
+    return db_writer;
   }
 
   protected Space space(String spaceId) throws WebClientException {

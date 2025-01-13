@@ -221,6 +221,13 @@ public class Database extends ExecutionResource {
           databases.add(new Database(null, null, 128, connectorDbSettingsMap)
               .withName(connector.id)
               .withRole(WRITER));
+
+          /** Adding a virtual readReplica for local testing (same db but ro user) */
+          if(connector.id.equals("psql") && (connectorDbSettings.runsLocal())) {
+            databases.add(new Database(null, null, 128, connectorDbSettingsMap)
+                    .withName(connector.id)
+                    .withRole(READER));
+          }
         }
         else {
           DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
