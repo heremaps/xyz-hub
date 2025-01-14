@@ -19,14 +19,12 @@
 
 package com.here.xyz.jobs.steps.execution;
 
-import static com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -69,7 +67,6 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private String executionRoleArn;
   private String jarUrl;
   private List<String> positionalScriptParams = new ArrayList<>();
-  @JsonInclude(ALWAYS)
   private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
 

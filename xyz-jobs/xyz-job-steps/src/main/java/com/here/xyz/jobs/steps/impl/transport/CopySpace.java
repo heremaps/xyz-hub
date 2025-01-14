@@ -33,7 +33,6 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
-import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.query.ExportSpace;
@@ -57,7 +56,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -225,7 +223,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       boolean isRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);
 
       if (isRemoteCopy)
-        expectedLoads.add(new Load().withResource(dbReaderElseWriter())
+        expectedLoads.add(new Load().withResource(dbReader())
             .withEstimatedVirtualUnits(calculateNeededAcus()));
 
       logger.info("[{}] #getNeededResources() isRemoteCopy={} {} -> {}", getGlobalStepId(), isRemoteCopy, sourceSpace.getStorage().getId(),
@@ -412,7 +410,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     SQLQuery contentQuery = buildCopyContentQuery(sourceSpace, threadCount, threadId);
 
     if (isRemoteCopy(sourceSpace,targetSpace))
-     contentQuery = buildCopyQueryRemoteSpace(dbReaderElseWriter(), contentQuery );
+     contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery );
 
     return new SQLQuery(
 /**/
@@ -489,7 +487,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     Database db = !isRemoteCopy()
         ? loadDatabase(sourceSpace.getStorage().getId(), WRITER)
-        : dbReaderElseWriter();
+        : dbReader();
 
     SearchForFeatures queryRunner;
     if (geometry == null)
