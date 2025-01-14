@@ -222,7 +222,8 @@ public class Database extends ExecutionResource {
               .withName(connector.id)
               .withRole(WRITER));
 
-          /** Adding a virtual readReplica for local testing (same db but ro user) */
+          //TODO: Ensure that we always have a reader for all Databases (by using the read Only user or replica_host if present) and then - if there is none - it is not supported for a good reason
+          //Adding a virtual readReplica for local testing (same db but ro user)
           if(connector.id.equals("psql") && (connectorDbSettings.runsLocal())) {
             databases.add(new Database(null, null, 128, connectorDbSettingsMap)
                     .withName(connector.id)

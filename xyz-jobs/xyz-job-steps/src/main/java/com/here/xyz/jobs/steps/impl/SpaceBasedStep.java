@@ -30,6 +30,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.db.Database;
+import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
@@ -65,12 +66,6 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   @JsonView({Internal.class, Static.class})
   private String spaceId;
-
-  @JsonIgnore
-  private Database db_writer;
-
-  @JsonIgnore
-  private Database db_reader;
 
   @JsonIgnore
   private Map<String, Space> cachedSpaces = new ConcurrentHashMap<>();
@@ -136,15 +131,42 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT);
   }
 
+  /**
+   * Provides the {@link Database} instance for the pre-defined space ID of this step. See: {@link #getSpaceId()}
+   * The loading calls are cached; that means that later calls will not induce an actual REST request to Hub.
+   * Also, the Database objects are cached. See: {@link Database#loadDatabase(String, DatabaseRole)}
+   * @return The Database for the pre-defined space of this step and for the provided role
+   * @throws WebClientException
+   */
+  protected Database db(DatabaseRole role) throws WebClientException {
+    return loadDatabase(space().getStorage().getId(), role);
+  }
+
+  /**
+   * Provides the default {@link Database} instance (WRITER) for the pre-defined space ID of this step. See: {@link #getSpaceId()}
+   * The loading calls are cached; that means that later calls will not induce an actual REST request to Hub.
+   * Also, the Database objects are cached. See: {@link Database#loadDatabase(String, DatabaseRole)}
+   * @return The WRITER Database for the pre-defined space of this step
+   * @throws WebClientException
+   */
   protected Database db() throws WebClientException {
     return db(WRITER);
   }
 
-  protected Database dbReaderElseWriter() throws WebClientException {
-    try{
+  /**
+   * Provides the READER {@link Database} instance for the pre-defined space ID of this step. See: {@link #getSpaceId()}
+   * The loading calls are cached; that means that later calls will not induce an actual REST request to Hub.
+   * Also, the Database objects are cached. See: {@link Database#loadDatabase(String, DatabaseRole)}
+   * If no READER Database is found, the writer will be returned.
+   * @return The READER Database for the pre-defined space of this step, or the WRITER Database if there is no READER
+   * @throws WebClientException
+   */
+  protected Database dbReader() throws WebClientException {
+    try {
       return db(READER);
     }
-    catch( RuntimeException rt ) {
+    catch (RuntimeException rt) {
+      //TODO: Ensure that we always have a reader for all Databases and then - if there is none - it would be for a good reason, so we should not ignore that exception anymore
       if (!(rt.getCause() instanceof NoSuchElementException))
         throw rt;
     }
@@ -152,26 +174,13 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return db(WRITER);
   }
 
-  protected Database db(Database.DatabaseRole role) throws WebClientException {
-    return role.equals(READER) ?  db_reader() : db_writer();
-  }
-
-  private Database db_reader() throws WebClientException {
-    if (db_reader == null) {
-      logger.info("[{}] Loading database[{}] for space {} ...", getGlobalStepId(), READER.name(), getSpaceId());
-      db_reader = loadDatabase(space().getStorage().getId(), READER);
-    }
-    return db_reader;
-  }
-
-  private Database db_writer() throws WebClientException {
-    if (db_writer == null) {
-      logger.info("[{}] Loading database[{}] for space {} ...", getGlobalStepId(), WRITER.name(), getSpaceId());
-      db_writer = loadDatabase(space().getStorage().getId(), WRITER);
-    }
-    return db_writer;
-  }
-
+  /**
+   * Provides the space instance for the provided space ID.
+   * The loading calls are cached; that means that later calls will not induce an actual REST request to Hub.
+   * @param spaceId
+   * @return
+   * @throws WebClientException
+   */
   protected Space space(String spaceId) throws WebClientException {
     Space space = cachedSpaces.get(spaceId);
     if (space == null)
@@ -179,6 +188,12 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return space;
   }
 
+  /**
+   * Provides the space instance for the pre-defined space ID of this step. See: {@link #getSpaceId()}
+   * The loading calls are cached; that means that later calls will not induce an actual REST request to Hub.
+   * @return
+   * @throws WebClientException
+   */
   protected Space space() throws WebClientException {
     return space(getSpaceId());
   }

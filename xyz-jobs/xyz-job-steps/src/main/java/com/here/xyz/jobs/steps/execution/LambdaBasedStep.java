@@ -234,10 +234,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void handleAsyncUpdate(ProcessUpdate processUpdate) {
     boolean isCompleted = onAsyncUpdate(processUpdate);
-    if(isSimulation) {
-      /** In simulations we are handling success callbacks by our own */
+    if (isSimulation)
+      //In simulations we are handling success callbacks by our own
       return;
-    }
     if (isCompleted)
       reportAsyncSuccess();
     else
