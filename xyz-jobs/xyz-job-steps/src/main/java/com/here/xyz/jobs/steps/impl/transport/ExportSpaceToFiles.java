@@ -54,7 +54,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
@@ -187,7 +186,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
               + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
 
       //TODO: add writer?
-      return List.of(new Load().withResource(db(READER)).withEstimatedVirtualUnits(overallNeededAcus),
+      return List.of(new Load().withResource(dbReaderElseWriter()).withEstimatedVirtualUnits(overallNeededAcus),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }catch (Exception e){
       throw new RuntimeException(e);
@@ -386,7 +385,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     for (int i = 0; i < calculatedThreadCount; i++) {
       if(threadList.contains(Integer.valueOf(i))) {
         infoLog(STEP_EXECUTE, this, "Start export for thread number: " + i);
-        runReadQueryAsync(buildExportQuery(schema, i), db(READER), 0, false);
+        runReadQueryAsync(buildExportQuery(schema, i), dbReaderElseWriter(), 0, false);
       }
     }
   }
@@ -471,7 +470,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   private String generateFilteredExportQuery(int threadNumber) throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
-        .withDataSourceProvider(requestResource(db(Database.DatabaseRole.READER), 0));
+        .withDataSourceProvider(requestResource(dbReaderElseWriter(), 0));
     if(context == SUPER)
       space().switchToSuper(superSpace().getId());
 
