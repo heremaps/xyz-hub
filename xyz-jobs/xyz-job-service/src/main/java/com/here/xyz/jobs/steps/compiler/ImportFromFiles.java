@@ -47,7 +47,6 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -59,7 +58,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
   @Override
   public boolean chooseMe(Job job) {
-    return job.getSource() instanceof Files && allowedTargetTypes.contains(job.getTarget().getClass());
+    return job.getProcess() == null && job.getSource() instanceof Files && allowedTargetTypes.contains(job.getTarget().getClass());
   }
 
   @Override
