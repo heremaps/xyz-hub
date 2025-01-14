@@ -225,7 +225,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       boolean isRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);
 
       if (isRemoteCopy)
-        expectedLoads.add(new Load().withResource(loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId()))
+        expectedLoads.add(new Load().withResource(dbReaderElseWriter())
             .withEstimatedVirtualUnits(calculateNeededAcus()));
 
       logger.info("[{}] #getNeededResources() isRemoteCopy={} {} -> {}", getGlobalStepId(), isRemoteCopy, sourceSpace.getStorage().getId(),
@@ -388,18 +388,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     }
   }
 
-  private Database loadDatabaseReaderElseWriter(String name) {
-    try{
-      return loadDatabase(name, DatabaseRole.READER);
-    }
-    catch( RuntimeException rt ) {
-      if (!(rt.getCause() instanceof NoSuchElementException))
-        throw rt;
-    }
-
-    return loadDatabase(name, DatabaseRole.WRITER);
-  }
-
   private boolean isRemoteCopy(Space sourceSpace, Space targetSpace) {
     String sourceStorage = sourceSpace.getStorage().getId(),
            targetStorage = targetSpace.getStorage().getId();
@@ -412,8 +400,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace, int threadCount, int threadId)
       throws SQLException, WebClientException {
-    String sourceStorageId = sourceSpace.getStorage().getId(),
-           targetStorageId = targetSpace.getStorage().getId(),
+    String targetStorageId = targetSpace.getStorage().getId(),
            targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ),
            targetTable  = _getRootTableName(targetSpace);
 
@@ -425,7 +412,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     SQLQuery contentQuery = buildCopyContentQuery(sourceSpace, threadCount, threadId);
 
     if (isRemoteCopy(sourceSpace,targetSpace))
-     contentQuery = buildCopyQueryRemoteSpace( loadDatabaseReaderElseWriter(sourceStorageId), contentQuery );
+     contentQuery = buildCopyQueryRemoteSpace(dbReaderElseWriter(), contentQuery );
 
     return new SQLQuery(
 /**/
@@ -502,7 +489,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     Database db = !isRemoteCopy()
         ? loadDatabase(sourceSpace.getStorage().getId(), WRITER)
-        : loadDatabaseReaderElseWriter(sourceSpace.getStorage().getId());
+        : dbReaderElseWriter();
 
     SearchForFeatures queryRunner;
     if (geometry == null)

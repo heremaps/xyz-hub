@@ -44,6 +44,7 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -136,6 +137,18 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected Database db() throws WebClientException {
+    return db(WRITER);
+  }
+
+  protected Database dbReaderElseWriter() throws WebClientException {
+    try{
+      return db(READER);
+    }
+    catch( RuntimeException rt ) {
+      if (!(rt.getCause() instanceof NoSuchElementException))
+        throw rt;
+    }
+
     return db(WRITER);
   }
 
