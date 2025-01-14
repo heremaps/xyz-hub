@@ -366,7 +366,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
       infoLog(STEP_EXECUTE, this,"Start export thread number: " + i );
       //TODO: use READER instead. Fix local Problem SQL state: 2F003
-      runReadQueryAsync(buildExportQuery(schema, i), db(READER), 0,false);
+      runReadQueryAsync(buildExportQuery(schema, i), dbReaderElseWriter(), 0,false);
     }
   }
 
