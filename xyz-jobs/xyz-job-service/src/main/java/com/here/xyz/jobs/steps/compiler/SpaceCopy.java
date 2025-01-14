@@ -48,7 +48,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
   @Override
   public boolean chooseMe(Job job) {
-    return    job.getSource() instanceof DatasetDescription.Space
+    return job.getProcess() == null && job.getSource() instanceof DatasetDescription.Space
            && validSubType( job.getSource().getClass().getSimpleName() )
            && job.getTarget() instanceof DatasetDescription.Space
            && validSubType( job.getTarget().getClass().getSimpleName() );

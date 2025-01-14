@@ -36,7 +36,7 @@ import java.util.Map;
 public class ExportToFiles implements JobCompilationInterceptor {
   @Override
   public boolean chooseMe(Job job) {
-    return job.getTarget() instanceof Files targetFiles
+    return job.getProcess() == null && job.getTarget() instanceof Files targetFiles
         && job.getSource().getClass().getSimpleName().equals(Space.class.getSimpleName())
         && targetFiles.getOutputSettings().getFormat() instanceof GeoJson;
   }
