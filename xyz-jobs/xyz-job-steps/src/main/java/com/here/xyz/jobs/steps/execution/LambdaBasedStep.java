@@ -269,16 +269,20 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       unregisterStateCheckTrigger();
     }
     finally {
+      //TODO: Remove testing code
+      if (isSimulation)
+        System.out.println(getClass().getSimpleName() + " : SUCCESS");
       //Report success to SFN
-      if (!isSimulation) { //TODO: Remove testing code
+      try {
         sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()
             .taskToken(taskToken)
             .output(INVOKE_SUCCESS)
             .build());
       }
-      else
-        //TODO: Remove testing code
-        System.out.println(getClass().getSimpleName() + " : SUCCESS");
+      catch (TaskTimedOutException | InvalidTokenException e) {
+        //NOTE: Happens, for example, when the SFN was canceled, but this step still was able to succeed during the time it was in CANCELLING state
+        logger.error("[{}] Task in SFN is already stopped. Could not send task success for step.", getGlobalStepId());
+      }
     }
   }
 
@@ -396,7 +400,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     try {
       sfnClient().sendTaskFailure(request.build());
     }
-    catch (TaskTimedOutException e) {
+    catch (TaskTimedOutException | InvalidTokenException e) {
       logger.error("[{}] Task in SFN is already stopped. Could not send task failure for step.", getGlobalStepId());
     }
     catch (Exception e) {

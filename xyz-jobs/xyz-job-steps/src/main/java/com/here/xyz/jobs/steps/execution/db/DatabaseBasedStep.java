@@ -29,15 +29,12 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
-
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -163,7 +160,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withQueryFragment("successCallback", buildSuccessCallbackQuery())
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
 
-    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext()); 
+    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext());
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
@@ -220,8 +217,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   protected SQLQuery buildCopyQueryRemoteSpace( Database remoteDb, SQLQuery contentQuery) {
 
       DatabaseSettings dbSettings = remoteDb.getDatabaseSettings();
-      
-      contentQuery = 
+
+      contentQuery =
        new SQLQuery(
           """
             select t.* 
@@ -237,7 +234,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
        .withQueryFragment("rmtDb", dbSettings.getDb())
        .withQueryFragment("rmtUsr", dbSettings.getUser())
        .withQueryFragment("rmtPwd", dbSettings.getPassword());
-       
+
      return contentQuery;
   }
 
@@ -252,6 +249,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       try {
         Database db = Database.loadDatabase(runningQuery.dbName, runningQuery.dbId);
         SQLQuery.killByQueryId(runningQuery.queryId, db.getDataSources(), db.getRole() == READER);
+        logger.info("[{}] Query with ID \"{}\" was cancelled.", getGlobalStepId(), runningQuery.queryId);
       }
       catch (SQLException e) {
         logger.error("Error cancelling query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
