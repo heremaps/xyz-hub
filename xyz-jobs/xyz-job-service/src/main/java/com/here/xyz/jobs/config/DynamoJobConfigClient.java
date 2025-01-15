@@ -32,15 +32,16 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
 import io.vertx.core.Future;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class DynamoJobConfigClient extends JobConfigClient {
   private static final Logger logger = LogManager.getLogger();
@@ -98,53 +99,33 @@ public class DynamoJobConfigClient extends JobConfigClient {
     });
   }
 
-  public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey) {
-    if(secondaryResourceKey == null)
+  public Future<Set<Job>> loadJobs(String resourceKey, String secondaryResourceKey) {
+    if (secondaryResourceKey == null)
       return loadJobs(resourceKey, resourceKey);
 
+    return Future.all(
+        loadJobs(resourceKey),
+        loadJobs(secondaryResourceKey)
+    ).map(cf -> cf.<Set<Job>>list().stream().flatMap(jobs -> jobs.stream()).collect(Collectors.toSet()));
+  }
+
+  @Override
+  public Future<Set<Job>> loadJobs(String resourceKey) {
     return dynamoClient.executeQueryAsync(() -> {
-      List<Job> jobs = new LinkedList<>();
-
-      // Query by resourceKey
-      jobTable.getIndex("resourceKey-index")
-              .query("resourceKey", resourceKey)
-              .pages()
-              .forEach(page ->
-                      page.forEach(jobItem ->
-                              jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))
-                      )
-              );
-
-      // If secondaryResourceKey is provided, query it too
-      if (secondaryResourceKey != null) {
-        jobTable.getIndex("secondaryResourceKey-index")
-                .query("secondaryResourceKey", secondaryResourceKey)
-                .pages()
-                .forEach(page ->
-                        page.forEach(jobItem -> {
-                          Job job = XyzSerializable.fromMap(jobItem.asMap(), Job.class);
-                          // Avoid duplicates
-                          if (!jobs.contains(job)) {
-                            jobs.add(job);
-                          }
-                        })
-                );
-      }
-
+      Set<Job> jobs = new HashSet<>();
+      jobs.addAll(queryIndex("resourceKey", resourceKey));
+      jobs.addAll(queryIndex("secondaryResourceKey", resourceKey));
       return jobs;
     });
   }
 
-  @Override
-  public Future<List<Job>> loadJobs(String resourceKey) {
-    return dynamoClient.executeQueryAsync(() -> {
-      List<Job> jobs = new LinkedList<>();
-      jobTable.getIndex("resourceKey-index")
-          .query("resourceKey", resourceKey)
-          .pages()
-          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
-      return jobs;
-    });
+  private Set<Job> queryIndex(String resourceKeyFieldName, String resourceKey) {
+    Set<Job> jobs = new HashSet<>();
+    jobTable.getIndex(resourceKeyFieldName + "-index")
+        .query(resourceKeyFieldName, resourceKey)
+        .pages()
+        .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
+    return jobs;
   }
 
   @Override
