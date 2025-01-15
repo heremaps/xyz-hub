@@ -66,6 +66,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -308,9 +309,13 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> updateStep(Step<?> step, State previousStepState) {
+    //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
       return Future.succeededFuture();
+
+    if (step.getStatus().getState().isFinal())
+      updatePreviousAttempts(step);
 
     boolean found = getSteps().replaceStep(step);
     if (!found)
@@ -337,6 +342,11 @@ public class Job implements XyzSerializable {
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null));
+  }
+
+  private Future<Void> updatePreviousAttempts(Step step) {
+    //TODO: Load & iterate event history and count the amount of TasKStateEntered events per step (Set it at step#previousAttempts)
+    return Future.succeededFuture();
   }
 
   /**
@@ -392,7 +402,7 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> loadByResourceKey(String resourceKey) {
+  public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
     return JobConfigClient.getInstance().loadJobs(resourceKey);
   }
 
