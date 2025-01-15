@@ -73,7 +73,7 @@ RETURNS TEXT
     LANGUAGE 'plpgsql'
 AS $BODY$
 BEGIN
-    RETURN trim(trailing '_trigger_tbl' from substring(trigger_tbl::TEXT from length('job_data_') + 1));
+    RETURN regexp_replace(substring(trigger_tbl::TEXT from length('job_data_') + 1), '_trigger_tbl', '');
 END;
 $BODY$;
 
