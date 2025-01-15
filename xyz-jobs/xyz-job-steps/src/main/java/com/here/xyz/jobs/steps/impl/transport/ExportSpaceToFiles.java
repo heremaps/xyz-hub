@@ -183,8 +183,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       infoLog(JOB_EXECUTOR, this,"Calculated ACUS: byteSize of layer: "
               + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
 
-      //TODO: add writer?
-      return List.of(new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
+      return List.of(
+              new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
               new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }catch (Exception e){
       throw new RuntimeException(e);
@@ -363,7 +363,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
       infoLog(STEP_EXECUTE, this,"Start export thread number: " + i );
       //TODO: use READER instead. Fix local Problem SQL state: 2F003
-      runReadQueryAsync(buildExportQuery(schema, i), dbReader(), 0,false);
+      runReadQueryAsync(buildExportQuery(schema, i), dbReader(),
+              overallNeededAcus/calculatedThreadCount,false);
     }
   }
 
