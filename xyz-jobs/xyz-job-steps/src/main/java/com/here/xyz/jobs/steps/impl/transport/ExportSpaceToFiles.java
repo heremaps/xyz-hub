@@ -28,6 +28,7 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EX
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
@@ -377,6 +378,8 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
             rs -> rs.next() ? rs.getArray("threads") : rs.getArray("threads")
     ).getArray()).boxed().toList();
 
+    infoLog(STEP_RESUME, this,"Resume with "+threadList.size()+" threads!");
+
     //TODO: check exception Type
     if(threadList.size() == 0)
       throw new ValidationException("Resume is not possible!");
@@ -384,7 +387,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     for (int i = 0; i < calculatedThreadCount; i++) {
       if(threadList.contains(Integer.valueOf(i))) {
         infoLog(STEP_EXECUTE, this, "Start export for thread number: " + i);
-        runReadQueryAsync(buildExportQuery(schema, i), dbReader(), 0, false);
+        runReadQueryAsync(buildExportQuery(schema, i), dbReader(), overallNeededAcus/threadList.size(), false);
       }
     }
   }
