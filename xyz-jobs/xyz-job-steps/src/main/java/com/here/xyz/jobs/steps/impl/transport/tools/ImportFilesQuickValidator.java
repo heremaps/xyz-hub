@@ -43,6 +43,7 @@ import org.locationtech.jts.io.WKBReader;
 public class ImportFilesQuickValidator {
   private static final int VALIDATE_LINE_PAGE_SIZE_BYTES = 512 * 1024;
   private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
+  private static final String RE_UPLOAD_HINT = "\nPlease re-upload the input files in the correct format using the already provided upload-urls!";
 
   public static void validate(S3DataFile s3File, Format format, EntityPerLine entityPerLine) throws ValidationException {
     try {
@@ -101,13 +102,13 @@ public class ImportFilesQuickValidator {
       csvLine = csvLine.substring(0, csvLine.length() - 1);
 
     if (!format.equals(Format.GEOJSON) && csvLine.endsWith(","))
-      throw new ValidationException("Empty Column detected!");
+      throw new ValidationException("Empty Column detected!" + RE_UPLOAD_HINT);
 
     switch (format) {
       case CSV_GEOJSON -> validateCsvGeoJSON(csvLine, entityPerLine);
       case CSV_JSON_WKB -> validateCsvJSON_WKB(csvLine);
       case GEOJSON -> validateGeoJSON(csvLine, entityPerLine);
-      default -> throw new ValidationException("Format is not supported! " + format);
+      default -> throw new ValidationException("Format is not supported! " + format + RE_UPLOAD_HINT);
     }
   }
 
@@ -146,10 +147,10 @@ public class ImportFilesQuickValidator {
   private static void transformException(Exception e) throws ValidationException {
     Throwable cause = e.getCause();
     if (e instanceof ParseException || e instanceof IllegalArgumentException)
-      throw new ValidationException("Bad WKB encoding! " + (cause != null ? cause.toString() : ""));
+      throw new ValidationException("Bad WKB encoding! " + (cause != null ? cause.toString() : "") + RE_UPLOAD_HINT);
     else if (e instanceof JacksonException)
-      throw new ValidationException("Bad JSON encoding! " + (cause != null ? cause.toString() : ""));
+      throw new ValidationException("Bad JSON encoding! " + (cause != null ? cause.toString() : "") + RE_UPLOAD_HINT);
     else
-      throw new ValidationException("Not able to validate! " + (cause != null ? cause.toString() : ""));
+      throw new ValidationException("Not able to validate! " + (cause != null ? cause.toString() : "") + RE_UPLOAD_HINT);
   }
 }
