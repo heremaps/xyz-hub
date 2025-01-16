@@ -25,13 +25,11 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_E
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_RESUME;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
-import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.List;
@@ -92,19 +90,7 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
 
   private void _execute(boolean resumed) throws Exception {
     infoLog(STEP_EXECUTE, this, String.format("Fetch next version for %s%s", getSpaceId(), resumed ? " - resumed" : "") );
-    long nextVersionToUse = 0;
-    try {
-     nextVersionToUse = setVersionToNextInSequence();
-    } 
-    catch( WebClientException e ) {
-     // retryable in case of webclient error
-     throw new StepException("Error retrieving next version to use", e)
-               .withRetryable(  e instanceof ErrorResponseException responseException
-                              && responseException.getErrorResponse().statusCode() == 504
-                             );
-    }
-    
-    registerOutputs(List.of(new CreatedVersion().withVersion(nextVersionToUse)), VERSION);
+    registerOutputs(List.of(new CreatedVersion().withVersion(setVersionToNextInSequence())), VERSION);
   }
 
   @Override
@@ -132,7 +118,6 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
 
   @Override
   public void resume() throws Exception {
-   
     infoLog(STEP_RESUME, this, "resume was called");
     _execute(true);
   }
