@@ -355,7 +355,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
     calculatedThreadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
 
-    /** create progress update table */
+    // create progress update table
     runWriteQuerySync(buildProcessUpdateTableStatement(schema, this), db(WRITER), 0);
 
     for (int i = 0; i < calculatedThreadCount; i++) {
@@ -363,7 +363,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
       runWriteQuerySync(upsertProcessUpdateForThreadQuery(schema, this, i, 0, 0 ,0 , false), db(WRITER), 0);
 
       infoLog(STEP_EXECUTE, this,"Start export thread number: " + i );
-      //TODO: use READER instead. Fix local Problem SQL state: 2F003
       runReadQueryAsync(buildExportQuery(schema, i), dbReader(),
               overallNeededAcus/calculatedThreadCount,false);
     }

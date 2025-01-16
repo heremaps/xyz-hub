@@ -249,7 +249,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       try {
         Database db = Database.loadDatabase(runningQuery.dbName, runningQuery.dbId);
         SQLQuery.killByQueryId(runningQuery.queryId, db.getDataSources(), db.getRole() == READER);
-        logger.info("[{}] Query with ID \"{}\" was cancelled.", getGlobalStepId(), runningQuery.queryId);
+        logger.info("[{}] Query with ID \"{}\" was cancelled on {}.", getGlobalStepId(), runningQuery.queryId, db.getRole().name());
       }
       catch (SQLException e) {
         logger.error("Error cancelling query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
