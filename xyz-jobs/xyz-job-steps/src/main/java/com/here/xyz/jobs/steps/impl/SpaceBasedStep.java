@@ -29,6 +29,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
@@ -37,12 +38,14 @@ import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -91,11 +94,20 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   protected final String getRootTableName(Space space) throws WebClientException {
     return getTableNameFromSpaceParamsOrSpaceId(space.getStorage().getParams(), space.getId(),
-        ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId());
+        ConnectorParameters.fromMap(loadConnector(space).params).isEnableHashedSpaceId());
   }
 
   protected final boolean isEnableHashedSpaceIdActivated(Space space) throws WebClientException {
-    return ConnectorParameters.fromMap(hubWebClient().loadConnector(space.getStorage().getId()).params).isEnableHashedSpaceId();
+    return ConnectorParameters.fromMap(loadConnector(space).params).isEnableHashedSpaceId();
+  }
+
+  protected Connector loadConnector(Space space) throws WebClientException {
+    try {
+      return hubWebClient().loadConnector(space.getStorage().getId());
+    }
+    catch (ErrorResponseException e) {
+      return handleErrorResponse(e);
+    }
   }
 
   protected void validateSpaceExists() throws ValidationException {
@@ -111,20 +123,36 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   private Space loadSpace(String spaceId) throws WebClientException {
-    logger.info("[{}] Loading space config for space {} ...", getGlobalStepId(), spaceId);
-    return hubWebClient().loadSpace(spaceId);
+    try {
+      logger.info("[{}] Loading space config for space {} ...", getGlobalStepId(), spaceId);
+      return hubWebClient().loadSpace(spaceId);
+    }
+    catch (ErrorResponseException e) {
+      return handleErrorResponse(e);
+    }
   }
 
   protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
-    return hubWebClient().loadSpaceStatistics(spaceId, context, false);
+    return loadSpaceStatistics(spaceId, context, false);
   }
 
   protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
-    return hubWebClient().loadSpaceStatistics(spaceId, context, skipCache);
+    try {
+      logger.info("[{}] Loading statistics for space {} ...", getGlobalStepId(), getSpaceId());
+      return hubWebClient().loadSpaceStatistics(spaceId, context, skipCache);
+    }
+    catch (ErrorResponseException e) {
+      return handleErrorResponse(e);
+    }
   }
 
   protected Tag loadTag(String spaceId, String tagId) throws WebClientException {
-    return hubWebClient().loadTag(spaceId, tagId);
+    try {
+      return hubWebClient().loadTag(spaceId, tagId);
+    }
+    catch (ErrorResponseException e) {
+      return handleErrorResponse(e);
+    }
   }
 
   protected HubWebClient hubWebClient() {
@@ -200,20 +228,13 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {
     if (spaceStatistics == null) {
-      logger.info("[{}] Loading statistics for space {} ...", getGlobalStepId(), getSpaceId());
       spaceStatistics = loadSpaceStatistics(getSpaceId(), context, skipCache);
     }
     return spaceStatistics;
   }
 
   protected Space superSpace() throws WebClientException {
-    if (superSpace == null) {
-      logger.info("[{}] Loading space config for super-space {} ...", getGlobalStepId(), getSpaceId());
-      if (space().getExtension() == null)
-        throw new IllegalStateException("The space does not extend some other space. Could not load the super space.");
-      superSpace = loadSpace(space().getExtension().getSpaceId());
-    }
-    return superSpace;
+    return space(space().getExtension().getSpaceId());
   }
 
   @Override
@@ -221,5 +242,14 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     validateSpaceExists();
     //Return true as no user inputs are necessary
     return true;
+  }
+
+  private <T> T handleErrorResponse(ErrorResponseException e) throws ErrorResponseException {
+    if (e.getStatusCode() >= 500 || e.getStatusCode() == 429 || e.getStatusCode() == 403 || e.getStatusCode() == 401
+        || e.getStatusCode() == 404)
+      throw new StepException("Error requesting Hub Service", e)
+          .withCode("HTTP-" + e.getStatusCode())
+          .withRetryable(true);
+    throw e;
   }
 }

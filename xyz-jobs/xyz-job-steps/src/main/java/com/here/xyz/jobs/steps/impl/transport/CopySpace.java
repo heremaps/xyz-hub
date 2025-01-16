@@ -377,15 +377,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       _execute(true);
   }
 
-  private String _getRootTableName(Space targetSpace) throws SQLException {
-    try {
-      return getRootTableName(targetSpace);
-    }
-    catch (WebClientException e) {
-      throw new SQLException(e);
-    }
-  }
-
   private boolean isRemoteCopy(Space sourceSpace, Space targetSpace) {
     String sourceStorage = sourceSpace.getStorage().getId(),
            targetStorage = targetSpace.getStorage().getId();
@@ -400,7 +391,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       throws SQLException, WebClientException {
     String targetStorageId = targetSpace.getStorage().getId(),
            targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ),
-           targetTable  = _getRootTableName(targetSpace);
+           targetTable  = getRootTableName(targetSpace);
 
     int maxBlkSize = 1000;
 

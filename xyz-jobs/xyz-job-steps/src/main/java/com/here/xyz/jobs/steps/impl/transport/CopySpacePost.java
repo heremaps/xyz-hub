@@ -26,7 +26,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_R
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
@@ -36,7 +35,6 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.Core;
-import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.List;
@@ -156,32 +154,7 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   }
 
   private void writeContentUpdatedAtTs() throws WebClientException {
-    int maxAttempts = 3;
-
-    for (int i = 0; i < maxAttempts; i++)
-      try {
-        hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
-        return;
-      }
-      catch (WebClientException e) {
-        logger.error("[{}] writeContentUpdatedAtTs() -> attempt({}) {}", getGlobalStepId(), i + 1, getSpaceId());
-        if (i < maxAttempts)
-          sleepWithIncr(i + 1);
-        else {
-          logger.error("[{}] could not write contentUpadtedAt to space {}", getGlobalStepId(), getSpaceId());
-          throw new StepException("Error while updating the final target settings.", e)
-              .withRetryable(   e instanceof ErrorResponseException responseException
-                             && responseException.getErrorResponse().statusCode() == 504
-                            );
-        }
-      }
-  }
-
-  private void sleepWithIncr(int attempt) {
-    try {
-      Thread.sleep(attempt * 15000);
-    }
-    catch (InterruptedException ignored) {}
+    hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
   }
 
   @Override
