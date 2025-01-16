@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.extmanager;
 
+import com.here.naksha.lib.core.IExtensionInit;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.SimpleTask;
 import com.here.naksha.lib.core.models.ExtensionConfig;
@@ -29,7 +30,6 @@ import com.here.naksha.lib.extmanager.helpers.FileHelper;
 import com.here.naksha.lib.extmanager.models.KVPair;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,10 +46,10 @@ import software.amazon.awssdk.core.exception.SdkClientException;
  */
 public class ExtensionCache {
   private static final @NotNull Logger logger = LoggerFactory.getLogger(ExtensionCache.class);
-  private static final ConcurrentHashMap<String, KVPair<Extension, ClassLoader>> loaderCache =
-      new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, ValueTuple> loaderCache = new ConcurrentHashMap<>();
   private static final Map<String, FileClient> jarClientMap = new HashMap<>();
   private final @NotNull INaksha naksha;
+  private static final String WHITE_LIST_CLASSES = "whitelistClasses";
 
   static {
     jarClientMap.put(JarClientType.S3.getType(), new AmazonS3Helper());
@@ -90,10 +90,8 @@ public class ExtensionCache {
 
     for (String key : loaderCache.keySet()) {
       if (!extIds.contains(key)) {
-        loaderCache.remove(key);
-        PluginCache.removeExtensionCache(key);
-        logger.info("Extension {} removed from cache.", key);
-      }
+        removeExtensionFromCache(key);
+        }
     }
     logger.info("Extension cache size " + loaderCache.size());
   }
@@ -103,23 +101,36 @@ public class ExtensionCache {
       final Extension extension = result.getKey();
       final String extensionIdWthEnv = extension.getEnv() + ":" + extension.getId();
       final File jarFile = result.getValue();
+      IExtensionInit initObj = null;
       ClassLoader loader;
       try {
-        loader = ClassLoaderHelper.getClassLoader(jarFile, extensionConfig.getWhilelistDelegateClass());
+        @SuppressWarnings("unchecked")
+        List<String> whitelistClasses = (List<String>) extension
+            .getProperties()
+            .getOrDefault(WHITE_LIST_CLASSES, extensionConfig.getWhilelistDelegateClass());
+        logger.info("Whitelist classes in use for extension {} are {}", extensionIdWthEnv, whitelistClasses);
+        loader = ClassLoaderHelper.getClassLoader(jarFile, whitelistClasses);
       } catch (Exception e) {
-        logger.error("Failed to load extension jar " + extension.getId(), e);
+        logger.error("Failed to load extension jar " + extensionIdWthEnv, e);
         return;
       }
 
       if (!isNullOrEmpty(extension.getInitClassName())) {
         try {
           Class<?> clz = loader.loadClass(extension.getInitClassName());
-          clz.getConstructor(INaksha.class, Extension.class).newInstance(naksha, extension);
-        } catch (ClassNotFoundException
-            | InvocationTargetException
-            | InstantiationException
-            | NoSuchMethodException
-            | IllegalAccessException e) {
+          Object obj = clz.getConstructor().newInstance();
+          if (obj instanceof IExtensionInit initInstance) {
+            initInstance.init(naksha, extension);
+            initObj = initInstance;
+            logger.info(
+                    "Extension {} initialization using initClassName {} done successfully.",
+                    extensionIdWthEnv,
+                    extension.getInitClassName());
+          } else {
+            logger.error("InitClassName {} does not implement IExtensionInit for Extension {}", extension.getInitClassName(), extensionIdWthEnv);
+            return;
+          }
+        } catch (Exception e) {
           logger.error(
               "Failed to instantiate class {} for extension {} ",
               extension.getInitClassName(),
@@ -128,28 +139,48 @@ public class ExtensionCache {
           return;
         }
       }
-      if (!isNullOrEmpty(extension.getInitClassName()))
-        logger.info(
-            "Extension {} initialization using initClassName {} done successfully.",
-            extensionIdWthEnv,
-            extension.getInitClassName());
-      loaderCache.put(extensionIdWthEnv, new KVPair<Extension, ClassLoader>(extension, loader));
-      PluginCache.removeExtensionCache(extensionIdWthEnv);
+
+      ValueTuple previousValue = loaderCache.put(extensionIdWthEnv, new ValueTuple(extension, loader, initObj));
+      if (previousValue != null) {
+        IExtensionInit previousInitObj = previousValue.getInstance();
+        closeExtensionInstance(extensionIdWthEnv, previousInitObj);
+      }
+
       logger.info(
-          "Extension id={}, version={} is successfully loaded into the cache, using Jar at {} for env={}.",
+          "Extension id={}, version={} is successfully loaded into the cache, using Jar at {}.",
           extensionIdWthEnv,
           extension.getVersion(),
-          extension.getUrl().substring(extension.getUrl().lastIndexOf("/") + 1),
-          extension.getEnv());
+          extension.getUrl().substring(extension.getUrl().lastIndexOf("/") + 1));
+    }
+  }
+
+  private void removeExtensionFromCache(String extensionId) {
+    ValueTuple valueTuple = loaderCache.remove(extensionId);
+    PluginCache.removeExtensionCache(extensionId);
+    logger.info("Extension {} removed from cache.", extensionId);
+    if (valueTuple != null) {
+      IExtensionInit initObj = valueTuple.getInstance();
+      closeExtensionInstance(extensionId, initObj);
+    }
+  }
+
+  private void closeExtensionInstance(String extensionId, IExtensionInit initObj) {
+    if (initObj != null) {
+      try {
+        initObj.close();
+        logger.info("Extension {} closed successfully.", extensionId);
+      } catch (Exception e) {
+        logger.error("Failed to close extension {}", extensionId, e);
+      }
     }
   }
 
   private boolean isLoaderMappingExist(Extension extension) {
     final String extensionIdWthEnv = extension.getEnv() + ":" + extension.getId();
-    KVPair<Extension, ClassLoader> existingMapping = loaderCache.get(extensionIdWthEnv);
+    ValueTuple existingMapping = loaderCache.get(extensionIdWthEnv);
     if (existingMapping == null) return false;
 
-    final Extension exExtension = existingMapping.getKey();
+    final Extension exExtension = existingMapping.getExtension();
     final String exInitClassName =
         isNullOrEmpty(exExtension.getInitClassName()) ? "" : exExtension.getInitClassName();
     final String initClassName = isNullOrEmpty(extension.getInitClassName()) ? "" : extension.getInitClassName();
@@ -160,7 +191,7 @@ public class ExtensionCache {
   }
 
   /**
-   * Lamda function which will initiate the downloading for extension jar
+   * Lambda function which will initiate the downloading for extension jar
    */
   private KVPair<Extension, File> downloadJar(Extension extension) {
     logger.info("Downloading jar {} with version {} ", extension.getId(), extension.getVersion());
@@ -184,8 +215,8 @@ public class ExtensionCache {
   }
 
   protected ClassLoader getClassLoaderById(@NotNull String extensionId) {
-    KVPair<Extension, ClassLoader> mappedLoader = loaderCache.get(extensionId);
-    return mappedLoader == null ? null : mappedLoader.getValue();
+    ValueTuple mappedLoader = loaderCache.get(extensionId);
+    return mappedLoader == null ? null : mappedLoader.getClassLoader();
   }
 
   public int getCacheLength() {
@@ -193,7 +224,7 @@ public class ExtensionCache {
   }
 
   public List<Extension> getCachedExtensions() {
-    return loaderCache.values().stream().map(KVPair::getKey).toList();
+    return loaderCache.values().stream().map(ValueTuple::getExtension).toList();
   }
 
   private boolean isNullOrEmpty(String value) {
