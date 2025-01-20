@@ -56,11 +56,6 @@ public abstract class SyncLambdaStep extends LambdaBasedStep<SyncLambdaStep> {
   }
 
   @Override
-  public void resume() throws Exception {
-    execute();
-  }
-
-  @Override
   public void cancel() throws Exception {
     //Nothing to do here
   }

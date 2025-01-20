@@ -208,7 +208,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   /**
    * Loads the outputs that have been created by this step (so far).
-   * This method could be used in case of a {@link #resume()} is being performed e.g., to check a previous state of the progress.
+   * This method could be used in case of a resume (see: {@link #execute(boolean)}) is being performed
+   * e.g., to check a previous state of the progress.
    * @param outputSet The outputSet for which to load the outputs
    * @return The outputs that have been registered for the specified outputSet (so far).
    */
@@ -338,6 +339,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * The job framework will make sure that these parameters will be transferred
    * to the target execution system so that this method will be able to access them.
    *
+   * NOTE: If <code>resume</code> is <code>true</code>, the implementation of the step might have to perform
+   * some additional cleanup or preparations before starting the execution again from a feasible resumption point.
+   *
    * @example
    *
    * <pre>
@@ -361,20 +365,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * }
    * </pre>
    *
+   * @param resume `true` if the execution is a resumption, that is if the execution is *not* called for the first time
    * @throws Exception Any kind of execution that was not caught by the step implementation
    */
-  public abstract void execute() throws Exception;
-
-  /**
-   * Same semantics as in {@link #execute()}, but this method will be called in case of a resumption
-   * of the step after it has been canceled / failed previously.
-   *
-   * NOTE: The implementation of the step might have to perform some additional cleanup before
-   *  starting the execution again from a feasible resumption point.
-   *
-   * @throws Exception Any kind of execution that was not caught by the step implementation
-   */
-  public abstract void resume() throws Exception;
+  public abstract void execute(boolean resume) throws Exception;
 
   /**
    * Executes all steps that are necessary to cancel a current execution of this step.

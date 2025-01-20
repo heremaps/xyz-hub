@@ -292,17 +292,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   @Override
-  public void execute()
-      throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException, InterruptedException {
-    _execute(false);
-  }
-
-  private void _execute(boolean isResume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException {
+  public void execute(boolean resume) throws WebClientException, SQLException, TooManyResourcesClaimed, IOException, ParseException,
+      InterruptedException {
     if (getExecutionMode() == SYNC)
       syncExecution();
     else {
-      //TODO: Move resume logic into #resume()
-      if (!isResume) {
+      if (!resume) {
         infoLog(STEP_EXECUTE, this,"Retrieve new version");
         long newVersion = increaseVersionSequence();
 
@@ -513,11 +508,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     catch (Exception e) {
       throw new RuntimeException(e);
     }
-  }
-
-  @Override
-  public void resume() throws Exception {
-    _execute(true);
   }
 
   private SQLQuery buildTemporaryTriggerTableForImportQuery() throws WebClientException {

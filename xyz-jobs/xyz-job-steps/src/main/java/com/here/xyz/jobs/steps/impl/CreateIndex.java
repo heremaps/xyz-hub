@@ -80,19 +80,14 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   }
 
   @Override
-  public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
+  public void execute(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
+    /*
+    NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work
+    as it is using the "CREATE INDEX IF NOT EXISTS" semantics
+     */
     logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
     runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index), db(),
             ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
-  }
-
-  @Override
-  public void resume() throws Exception {
-    /*
-    No cleanup needed, in any case, sending the index creation query again will work
-    as it is using the "CREATE INDEX IF NOT EXISTS" semantics
-     */
-    execute();
   }
 
   public Index getIndex() {

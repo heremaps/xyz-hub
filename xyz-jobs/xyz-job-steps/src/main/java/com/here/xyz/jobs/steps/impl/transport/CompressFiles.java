@@ -78,7 +78,9 @@ public class CompressFiles extends SyncLambdaStep {
   }
 
   @Override
-  public void execute() throws Exception {
+  public void execute(boolean resume) throws Exception {
+    //TODO: In case of resume, first delete the old zip file or continue to extend it if possible
+
     // stores all data in memory, which may need optimization for large data sets
     try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {

@@ -115,13 +115,8 @@ public class DelegateStep extends Step<DelegateStep> {
   }
 
   @Override
-  public void execute() throws Exception {
+  public void execute(boolean resume) throws Exception {
     throw new IllegalAccessException("This method should never be called");
-  }
-
-  @Override
-  public void resume() throws Exception {
-    execute();
   }
 
   @Override
