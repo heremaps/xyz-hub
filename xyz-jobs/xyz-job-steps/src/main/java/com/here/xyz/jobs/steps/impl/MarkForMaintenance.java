@@ -61,17 +61,12 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
     return "Flag space " + getSpaceId() + " to be taken into account for next maintenance schedule.";
   }
 
-  @Override
-  public void resume() throws Exception {
-
-  }
-
   private int calculateNeededAcus() {
     return 0;
   }
 
   @Override
-  public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
+  public void execute(boolean resume) throws WebClientException, SQLException, TooManyResourcesClaimed {
     logger.info("Analyze table of space " + getSpaceId() + " ...");
     if (!space().isActive()) {
       logger.info("[{}] Re-activating the space {} ...", getGlobalStepId(), getSpaceId());

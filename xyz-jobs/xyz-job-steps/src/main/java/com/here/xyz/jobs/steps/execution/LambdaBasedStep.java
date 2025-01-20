@@ -126,20 +126,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void startExecution() throws Exception {
     updateState(RUNNING);
-
+    execute(isResume());
     switch (getExecutionMode()) {
-      case SYNC -> {
-        if (isResume())
-          resume();
-        else
-          execute();
-        updateState(SUCCEEDED);
-      }
+      case SYNC -> updateState(SUCCEEDED);
       case ASYNC -> {
-        if (isResume())
-          resume();
-        else
-          execute();
         registerStateCheckTrigger();
         synchronizeStep();
       }

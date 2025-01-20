@@ -88,14 +88,12 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
     return SYNC;
   }
 
-  private void _execute(boolean resumed) throws Exception {
-    infoLog(STEP_EXECUTE, this, String.format("Fetch next version for %s%s", getSpaceId(), resumed ? " - resumed" : "") );
-    registerOutputs(List.of(new CreatedVersion().withVersion(setVersionToNextInSequence())), VERSION);
-  }
-
   @Override
-  public void execute() throws Exception {
-    _execute(false);
+  public void execute(boolean resume) throws Exception {
+    if (resume)
+      infoLog(STEP_RESUME, this, "resume was called");
+    infoLog(STEP_EXECUTE, this, String.format("Fetch next version for %s%s", getSpaceId(), resume ? " - resumed" : "") );
+    registerOutputs(List.of(new CreatedVersion().withVersion(setVersionToNextInSequence())), VERSION);
   }
 
 
@@ -114,11 +112,5 @@ public class CopySpacePre extends SpaceBasedStep<CopySpacePre> {
     });
 
     return newVersion;
-  }
-
-  @Override
-  public void resume() throws Exception {
-    infoLog(STEP_RESUME, this, "resume was called");
-    _execute(true);
   }
 }

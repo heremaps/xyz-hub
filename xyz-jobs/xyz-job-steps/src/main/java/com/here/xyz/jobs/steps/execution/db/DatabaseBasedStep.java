@@ -55,9 +55,6 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
   private List<RunningQuery> runningQueries = new ArrayList<>();
 
   @Override
-  public abstract void execute() throws Exception;
-
-  @Override
   protected final void onRuntimeShutdown() {
     super.onRuntimeShutdown();
     Database.closeAll();

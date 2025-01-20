@@ -61,18 +61,13 @@ public class AnalyzeSpaceTable extends SpaceBasedStep<AnalyzeSpaceTable> {
         + "to ensure acceptable results of internal statistics calls";
   }
 
-  @Override
-  public void resume() throws Exception {
-
-  }
-
   private int calculateNeededAcus() {
     //TODO: Check max ACUs during tests to find correct interpolation
     return 0;
   }
 
   @Override
-  public void execute() {
+  public void execute(boolean resume) {
     logger.info("Analyze table of space " + getSpaceId() + " ...");
 
     try {

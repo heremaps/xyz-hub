@@ -92,7 +92,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   //Gets only executed when running locally (see GraphTransformer)
   @Override
-  public void execute() throws Exception {
+  public void execute(boolean resume) throws Exception {
     logger.info("[EMR-local] Positional script params: {}", String.join(" ", getPositionalScriptParams()));
     logger.info("[EMR-local] Named script params: {}", getNamedScriptParams());
     List<String> scriptParams = new ArrayList<>(getResolvedScriptParams());
@@ -160,12 +160,6 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
     //Upload EMR files, which are stored locally
     uploadEMRResultsToS3(new File(localTmpOutputsFolder), S3Client.getKeyFromS3Uri(s3TargetDir));
-  }
-
-  @Override
-  public void resume() throws Exception {
-    //NOTE: As this step is just a "configuration holder", this method should never actually be called
-    throw new RuntimeException("RunEmrJob#resume() was called.");
   }
 
   @Override

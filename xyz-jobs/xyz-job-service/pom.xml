@@ -196,6 +196,20 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+      <resource>
+        <!-- Add scripts to jar -->
+        <directory>src/main/bash</directory>
+        <targetPath>.</targetPath>
+        <includes>
+          <include>**/*</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <!-- Include sources -->
       <plugin>
@@ -271,15 +285,27 @@
             <artifactId>exec-maven-plugin</artifactId>
             <executions>
               <execution>
-                <configuration>
-                  <workingDirectory>${project.build.directory}</workingDirectory>
-                  <executable>${basedir}/src/main/bash/localSetup.sh</executable>
-                </configuration>
+                <id>installAWSResources</id>
+                <phase>install</phase>
                 <goals>
                   <goal>exec</goal>
                 </goals>
-                <id>localSetup</id>
-                <phase>install</phase>
+                <configuration>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>run</argument>
+                    <argument>--rm</argument>
+                    <argument>--entrypoint</argument>
+                    <argument> </argument>
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/src/main/bash/localSetup.sh:/aws/localSetup.sh</argument>
+                    <argument>--add-host</argument>
+                    <argument>host.docker.internal=host-gateway</argument>
+                    <argument>amazon/aws-cli</argument>
+                    <argument>./localSetup.sh</argument>
+                    <argument>true</argument>
+                  </arguments>
+                </configuration>
               </execution>
             </executions>
             <groupId>org.codehaus.mojo</groupId>

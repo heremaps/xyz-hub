@@ -42,10 +42,7 @@ public abstract class TestStep<T extends TestStep> extends Step<T> {
   }
 
   @Override
-  public void execute() throws Exception {}
-
-  @Override
-  public void resume() throws Exception {}
+  public void execute(boolean resume) throws Exception {}
 
   @Override
   public void cancel() throws Exception {}
