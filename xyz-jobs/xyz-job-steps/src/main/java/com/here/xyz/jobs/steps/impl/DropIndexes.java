@@ -71,7 +71,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   }
 
   @Override
-  public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
+  public void execute(boolean resume) throws SQLException, TooManyResourcesClaimed, WebClientException {
     logger.info("Gathering indices of space " + getSpaceId());
     List<String> indexes = runReadQuerySync(buildLoadSpaceTableIndicesQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus(),
             rs -> {
@@ -93,10 +93,5 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
       SQLQuery dropIndexesQuery = SQLQuery.join(dropQueries, ";");
       runWriteQueryAsync(dropIndexesQuery, db(), calculateNeededAcus());
     }
-  }
-
-  @Override
-  public void resume() throws Exception {
-    execute();
   }
 }

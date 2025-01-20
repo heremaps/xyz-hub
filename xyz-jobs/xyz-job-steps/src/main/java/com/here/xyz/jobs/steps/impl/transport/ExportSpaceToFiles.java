@@ -350,7 +350,11 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
   }
 
   @Override
-  public void execute() throws Exception {
+  public void execute(boolean resume) throws Exception {
+    if (resume) {
+      resume();
+      return;
+    }
     String schema = getSchema(db());
     StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
     calculatedThreadCount = statistics.getCount().getValue() > PARALLELIZTATION_MIN_THRESHOLD ? PARALLELIZTATION_THREAD_COUNT : 1;
@@ -368,7 +372,7 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     }
   }
 
-  @Override
+  //TODO: Remove Code-duplication (integrate into #execute())
   public void resume() throws Exception {
     String schema = getSchema(db());
 

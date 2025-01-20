@@ -350,12 +350,15 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   @Override
-  public void execute() throws Exception {
-    try { _execute(false); }
-    catch(Exception e)
-    {
-      String errMsg = String.format("Error iml-copy chunk-id %d#%d", getThreadInfo()[0], getThreadInfo()[1] );
-      throw new StepException(errMsg, e).withRetryable( true ); // always retryable at first place
+  public void execute(boolean resume) throws Exception {
+    if (resume)
+      infoLog(STEP_RESUME, this, "resume was called");
+    try {
+      _execute(false);
+    }
+    catch (Exception e) {
+      throw new StepException("Error iml-copy chunk-id " + getThreadInfo()[0] + "/" + getThreadInfo()[1], e)
+          .withRetryable(true); //TODO: always retryable for now (later: check errors!)
     }
   }
 
@@ -369,12 +372,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     //@TODO: Implement
     logger.info("Copy - onStateCheck");
     getStatus().setEstimatedProgress(0.2f);
-  }
-
-  @Override
-  public void resume() throws Exception {
-      infoLog(STEP_RESUME, this, "resume was called");
-      _execute(true);
   }
 
   private boolean isRemoteCopy(Space sourceSpace, Space targetSpace) {

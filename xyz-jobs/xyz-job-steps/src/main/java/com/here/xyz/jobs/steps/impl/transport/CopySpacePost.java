@@ -110,7 +110,9 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   }
 
   @Override
-  public void execute() throws Exception {
+  public void execute(boolean resume) throws Exception {
+    if (resume)
+      infoLog(STEP_RESUME, this, "resume was called");
     long fetchedVersion = _getCreatedVersion();
 
     infoLog(STEP_EXECUTE, this, String.format("Get stats for version %d - %s", fetchedVersion, getSpaceId()));
@@ -161,11 +163,5 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
     catch (ErrorResponseException e) {
       handleErrorResponse(e);
     }
-  }
-
-  @Override
-  public void resume() throws Exception {
-    infoLog(STEP_RESUME, this, "resume was called");
-    execute();
   }
 }
