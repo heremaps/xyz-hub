@@ -287,7 +287,7 @@ public class Script {
       files.add(file);
     return ensureInitScriptIsFirst(files.stream()
         .filter(fileName -> fileName.endsWith(fileSuffix))
-        .map(fileName -> resourceFolder + File.separator + fileName)
+        .map(fileName -> resourceFolder + "/" + fileName)   // script.scriptResourcePath always stored as unix path
         .toList(), scriptResourcePath.initScript());
   }
 
