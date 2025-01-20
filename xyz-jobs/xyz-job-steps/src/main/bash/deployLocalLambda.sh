@@ -1,5 +1,4 @@
 #!/bin/bash
-
 #
 # Copyright (C) 2017-2024 HERE Europe B.V.
 #
@@ -21,28 +20,38 @@
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
-relativeTargetPath="../../../target"
+inContainer=$1
+jarName=$2
+handler=$3
 
-if [ "$HOSTNAME" = "localstack" ]; then
-  relativeTargetPath="../job-steps/target"
+if [ "$inContainer" = "true" ]; then
+  LOCAL_STACK_HOST="http://host.docker.internal:4566"
+  mkdir -p ~/.aws
+  echo -e "[default]\nregion=us-east-1" > ~/.aws/config
+  echo -e "[default]\naws_access_key_id = localstack\naws_secret_access_key = localstack" > ~/.aws/credentials
 fi
 
-#Check if the localstack is up and running
-curl -sf $LOCAL_STACK_HOST/_localstack/health > /dev/null
-if [ $? -ne 0 ]; then
-  echo "Localstack is not up and running." >&2
+# Check if localstack is running
+if aws --endpoint-url $LOCAL_STACK_HOST s3 ls "$LOCAL_GEOWARP_S3_URI" 2>&1 | grep -q 'Could not connect'; then
+  echo "LocalStack is not running!"
+  exit 1
+elif aws --endpoint-url $LOCAL_STACK_HOST s3 ls "$LOCAL_GEOWARP_S3_URI" 2>&1 | grep -q 'NoSuchBucket'; then
+  echo "Local Bucket "$LOCAL_BUCKET" is missing"
   exit 1
 fi
 
-scriptBasePath="$(dirname $(realpath $0))"
+#install zip
+yum install -y zip
 
-cd ${scriptBasePath}/${relativeTargetPath}
+##############
+# install Lambda
+echo "INSTALL "$jarName" Lambda ....................."
 
 rm -rf lib > /dev/null 2>&1
 mkdir lib
-cp ./xyz-job-steps-fat.jar lib
-zip -r xyz-job-steps.zip lib
-chmod -R 777 lib xyz-job-steps.zip
+cp ./"$jarName".jar lib
+zip -r "$jarName".zip lib
+chmod -R 777 lib "$jarName".zip
 
 #Delete a potentially existing old local Lambda Function with the same name
 aws --endpoint $LOCAL_STACK_HOST lambda delete-function \
@@ -56,7 +65,8 @@ aws --endpoint $LOCAL_STACK_HOST lambda create-function \
   --function-name job-step \
   --memory-size 512 \
   --runtime java17 \
-  --zip-file fileb://xyz-job-steps.zip \
-  --handler 'com.here.xyz.jobs.steps.execution.LambdaBasedStep$LambdaBasedStepExecutor::handleRequest' \
+  --zip-file fileb://"$jarName".zip \
+  --handler "$handler" \
   --role arn:aws:iam::000000000000:role/lambda-role \
-  --environment "$(cat "$scriptBasePath/environment.json")"
+  --environment "$(cat "environment.json")" \
+   > /dev/null 2>&1
