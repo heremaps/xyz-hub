@@ -164,6 +164,21 @@
   </dependencies>
 
   <build>
+    <resources>
+      <!-- Default resources (e.g., properties, log4j config) -->
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+      <resource>
+        <!-- Add scripts to jar -->
+        <directory>src/main/bash</directory>
+        <targetPath>.</targetPath>
+        <includes>
+          <include>**/*</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <!-- Include sources -->
       <plugin>
@@ -278,24 +293,58 @@
       <id>local</id>
       <build>
         <plugins>
+          <!-- Add scripts to jar -->
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>add-source</id>
+                <phase>generate-sources</phase>
+                <goals>
+                  <goal>add-source</goal>
+                </goals>
+                <configuration>
+                  <sources>
+                    <source>${project.basedir}/src/main/bash</source>
+                  </sources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
           <plugin>
             <artifactId>exec-maven-plugin</artifactId>
             <executions>
               <execution>
-                <configuration>
-                  <workingDirectory>${project.build.directory}</workingDirectory>
-                  <executable>docker</executable>
-                  <arguments>
-                    <argument>exec</argument>
-                    <argument>localstack-main</argument>
-                    <argument>/home/localstack/job-steps-scripts/deployLocalLambda.sh</argument>
-                  </arguments>
-                </configuration>
+                <id>deployLambda</id>
+                <phase>install</phase>
                 <goals>
                   <goal>exec</goal>
                 </goals>
-                <id>deployLocalLambda</id>
-                <phase>install</phase>
+                <configuration>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>run</argument>
+                    <argument>--rm</argument>
+                    <argument>--entrypoint</argument>
+                    <argument> </argument>
+                    <!-- Files for Lambda deployment  -->
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/src/main/bash/environment.json:/aws/environment.json</argument>
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/src/main/bash/deployLocalLambda.sh:/aws/deployLocalLambda.sh</argument>
+                    <argument>-v</argument>
+                    <argument>${project.basedir}/target/xyz-job-steps-fat.jar:/aws/xyz-job-steps-fat.jar</argument>
+                    <argument>--add-host</argument>
+                    <argument>host.docker.internal=host-gateway</argument>
+                    <argument>amazon/aws-cli</argument>
+                    <!-- Execute script  -->
+                    <argument>sh</argument>
+                    <argument>-c</argument>
+                    <!-- Install Lambda & Make GeoWarp available  -->
+                    <argument>./deployLocalLambda.sh true xyz-job-steps-fat com.here.xyz.jobs.steps.execution.LambdaBasedStep\$LambdaBasedStepExecutor::handleRequest</argument>
+                  </arguments>
+                </configuration>
               </execution>
             </executions>
             <groupId>org.codehaus.mojo</groupId>
