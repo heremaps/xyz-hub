@@ -273,23 +273,6 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
-        <artifactId>exec-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <configuration>
-              <workingDirectory>${project.build.directory}</workingDirectory>
-              <executable>${basedir}/src/main/bash/localSetup.sh</executable>
-            </configuration>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <id>localSetup</id>
-            <phase>install</phase>
-          </execution>
-        </executions>
-        <groupId>org.codehaus.mojo</groupId>
-      </plugin>
     </plugins>
   </build>
 
