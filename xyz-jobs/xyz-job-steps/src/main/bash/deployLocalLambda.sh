@@ -20,12 +20,14 @@
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
-inContainer=$1
+inContainer="$1"
 jarName=$2
 handler=$3
+relativeTargetPath="../../../target"
 
 if [ "$inContainer" = "true" ]; then
   LOCAL_STACK_HOST="http://host.docker.internal:4566"
+  relativeTargetPath="."
   mkdir -p ~/.aws
   echo -e "[default]\nregion=us-east-1" > ~/.aws/config
   echo -e "[default]\naws_access_key_id = localstack\naws_secret_access_key = localstack" > ~/.aws/credentials
