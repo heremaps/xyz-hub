@@ -22,6 +22,10 @@ public class ArchiveProcessor {
         this.archiveBytes = archiveBytes;
     }
 
+    public byte[] getArchiveBytes() {
+        return archiveBytes;
+    }
+
     public static ArchiveProcessor downloadFromUrl(URL url, boolean isCompressed, MediaType mediaType)
             throws IOException, URISyntaxException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
@@ -56,13 +60,13 @@ public class ArchiveProcessor {
     public Map<String, List<String>> extractTextContent() throws IOException {
         Map<String, List<String>> filesContent = new HashMap<>();
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(archiveBytes);
-             ZipInputStream zipInputStream = new ZipInputStream(byteArrayInputStream, StandardCharsets.UTF_8)) {
+             ZipInputStream zipInputStream = new ZipInputStream(byteArrayInputStream)) {
 
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
                 if (!entry.isDirectory()) {
                     List<String> lines = new ArrayList<>();
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(zipInputStream, StandardCharsets.UTF_8));
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(zipInputStream));
 
                     String line;
                     while ((line = reader.readLine()) != null) {
