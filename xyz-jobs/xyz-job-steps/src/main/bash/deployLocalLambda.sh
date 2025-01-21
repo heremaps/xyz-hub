@@ -20,15 +20,24 @@
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
-inContainer=$1
 jarName=$2
 handler=$3
+relativeTargetPath="../../../target"
 
+#TODO: Move the following into a lib.sh and include it from the other scripts
+inContainer="$1"
 if [ "$inContainer" = "true" ]; then
   LOCAL_STACK_HOST="http://host.docker.internal:4566"
+  relativeTargetPath="."
   mkdir -p ~/.aws
   echo -e "[default]\nregion=us-east-1" > ~/.aws/config
   echo -e "[default]\naws_access_key_id = localstack\naws_secret_access_key = localstack" > ~/.aws/credentials
+fi
+
+#Create the local test bucket but only if not existing yet
+aws --endpoint "$LOCAL_STACK_HOST" s3api head-bucket --bucket test-bucket > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  aws --endpoint "$LOCAL_STACK_HOST" s3api create-bucket --bucket test-bucket --create-bucket-configuration LocationConstraint=eu-west-1
 fi
 
 # Check if localstack is running
