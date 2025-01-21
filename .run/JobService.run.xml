@@ -13,7 +13,6 @@
     </extension>
     <method v="2">
       <option name="Make" enabled="true" />
-      <option name="RunConfigurationTask" enabled="true" run_configuration_name="jobServiceSetup" run_configuration_type="ShConfigurationType" />
     </method>
   </configuration>
 </component>
