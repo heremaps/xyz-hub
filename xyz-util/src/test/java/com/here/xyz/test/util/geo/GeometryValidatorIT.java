@@ -22,8 +22,8 @@ public class GeometryValidatorIT {
     @Test
     public void testValidateIntersectsWithAntimeridian() throws InvalidGeometryException {
         LineStringCoordinates coordinates = new LineStringCoordinates();
-        coordinates.add(new Position(0, 0));
-        coordinates.add(new Position(0, 1));
+        coordinates.add(new Position(179.999999, 0));
+        coordinates.add(new Position(179.999999, 1));
 
         //Geometry filter intersects with anti meridian!
         Assertions.assertThrows(GeometryException.class, () -> GeometryValidator.validateGeometry(new LineString().withCoordinates(coordinates), 100));
