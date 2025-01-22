@@ -244,7 +244,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
     return true;
   }
 
-  private <T> T handleErrorResponse(ErrorResponseException e) throws ErrorResponseException {
+  protected <T> T handleErrorResponse(ErrorResponseException e) throws ErrorResponseException {
     if (e.getStatusCode() >= 500 || e.getStatusCode() == 429 || e.getStatusCode() == 403 || e.getStatusCode() == 401
         || e.getStatusCode() == 404)
       throw new StepException("Error requesting Hub Service", e)

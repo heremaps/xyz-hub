@@ -35,6 +35,7 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.List;
@@ -156,6 +157,11 @@ public class CopySpacePost extends SpaceBasedStep<CopySpacePost> {
   }
 
   private void writeContentUpdatedAtTs() throws WebClientException {
-    hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+    try {
+      hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
+    }
+    catch (ErrorResponseException e) {
+      handleErrorResponse(e);
+    }
   }
 }
