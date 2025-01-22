@@ -3315,6 +3315,7 @@ BEGIN
             query = '/*labels(' || get_query_labels() || ')*/ ' || query;
         END IF;
         PERFORM dblink_send_query(connectionName, _create_asyncify_query_block(query, password, procedureCall));
+        PERFORM dblink_disconnect(connectionName);
     END IF;
 END
 $BODY$
