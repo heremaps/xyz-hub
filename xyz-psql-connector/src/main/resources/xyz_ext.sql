@@ -110,7 +110,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 205
+ select 206
 $BODY$
   LANGUAGE sql IMMUTABLE;
 

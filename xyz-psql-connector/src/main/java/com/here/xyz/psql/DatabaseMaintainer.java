@@ -50,7 +50,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 205;
+    public static final int XYZ_EXT_VERSION = 206;
 
     public static final int H3_CORE_VERSION = 108;
 
