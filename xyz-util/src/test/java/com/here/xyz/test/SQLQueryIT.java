@@ -93,14 +93,13 @@ public class SQLQueryIT extends SQLITBase {
     //Start the query and directly close the connection
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       asyncQuery.run(dsp);
-
-      while(SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId()))
-        Thread.sleep(50);
     }
 
     //No Idle connection should be present
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      assertFalse(SQLQuery.pgActivityQuery(dsp, false, "idle", asyncQuery.getQueryId(), SQLQuery.QUERY_ID));
+      while (SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId()))
+        Thread.sleep(50);
+      assertFalse(connectionIsIdle(dsp, asyncQuery.getQueryId()));
     }
   }
 
@@ -112,15 +111,13 @@ public class SQLQueryIT extends SQLITBase {
     //Start the query and directly close the connection
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       asyncQuery.run(dsp);
-
-      while(SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId())){
-        Thread.sleep(50);
-      }
     }
 
     //No Idle connection should be present
     try (DataSourceProvider dsp = getDataSourceProvider()) {
-      assertFalse(SQLQuery.pgActivityQuery(dsp, false, "idle", asyncQuery.getQueryId(), SQLQuery.QUERY_ID));
+      while (SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId()))
+        Thread.sleep(50);
+      assertFalse(connectionIsIdle(dsp, asyncQuery.getQueryId()));
     }
   }
 
