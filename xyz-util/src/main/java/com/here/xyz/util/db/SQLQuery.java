@@ -887,13 +887,20 @@ public class SQLQuery {
    */
   public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
       throws SQLException {
+    return pgActivityQuery(dataSourceProvider, useReplica, "active", labelIdentifier, labelValue);
+  }
+
+  public static boolean pgActivityQuery(DataSourceProvider dataSourceProvider, boolean useReplica,
+                                            String state, String labelIdentifier, String labelValue)
+          throws SQLException {
     return new SQLQuery("""
         SELECT 1 FROM pg_stat_activity
-          WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()
+          WHERE state = #{state} AND ${{labelMatching}} AND pid != pg_backend_pid()
         """)
-        .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
-        .withLoggingEnabled(false)
-        .run(dataSourceProvider, rs -> rs.next(), useReplica);
+            .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
+            .withNamedParameter("state", state)
+            .withLoggingEnabled(false)
+            .run(dataSourceProvider, rs -> rs.next(), useReplica);
   }
 
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {

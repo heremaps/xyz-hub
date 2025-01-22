@@ -86,6 +86,45 @@ public class SQLQueryIT extends SQLITBase {
   }
 
   @Test
+  public void runAsyncQueryAndCheckIfIdleConnectionIsClearedInErrorCase() throws Exception {
+    //ERROR
+    SQLQuery asyncQuery = new SQLQuery("SELECT 1/0").withAsync(true);
+
+    //Start the query and directly close the connection
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      asyncQuery.run(dsp);
+
+      while(SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId()))
+        Thread.sleep(50);
+    }
+
+    //No Idle connection should be present
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      assertFalse(SQLQuery.pgActivityQuery(dsp, false, "idle", asyncQuery.getQueryId(), SQLQuery.QUERY_ID));
+    }
+  }
+
+  @Test
+  public void runAsyncQueryAndCheckIfIdleConnectionIsClearedInSuccessCase() throws Exception {
+    //SUCCESS
+    SQLQuery asyncQuery = new SQLQuery("SELECT 1").withAsync(true);
+
+    //Start the query and directly close the connection
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      asyncQuery.run(dsp);
+
+      while(SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId())){
+        Thread.sleep(50);
+      }
+    }
+
+    //No Idle connection should be present
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      assertFalse(SQLQuery.pgActivityQuery(dsp, false, "idle", asyncQuery.getQueryId(), SQLQuery.QUERY_ID));
+    }
+  }
+
+  @Test
   public void runAsyncQueryWithParameter() throws Exception {
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       try {
