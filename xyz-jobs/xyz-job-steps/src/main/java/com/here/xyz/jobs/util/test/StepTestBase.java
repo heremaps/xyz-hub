@@ -28,6 +28,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropInd
 import static java.net.http.HttpClient.Redirect.NORMAL;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.util.IOUtils;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
 import com.here.xyz.XyzSerializable;
@@ -53,13 +54,8 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -67,11 +63,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -399,30 +395,78 @@ public class StepTestBase {
     return features;
   }
 
+  protected List<String> listFilesNamesFromArchive(URL url, boolean isCompressed, MediaType mediaType)
+          throws URISyntaxException, IOException, InterruptedException {
+    List<String> fileNames = new ArrayList<>();
+
+    logger.info("Opening URL for archive processing: {}", url);
+
+    HttpRequest request = createHttpRequest(url, mediaType);
+
+    HttpResponse<InputStream> response = sendHttpRequest(request);
+
+    try (InputStream compressedStream = isCompressed ? new GZIPInputStream(response.body()) : response.body();
+         InputStream bufferedStream = new BufferedInputStream(compressedStream);
+         ZipInputStream zipStream = new ZipInputStream(bufferedStream)) {
+
+      ZipEntry entry;
+      while ((entry = zipStream.getNextEntry()) != null) {
+        if (!entry.isDirectory()) {
+          fileNames.add(entry.getName());
+        }
+        zipStream.closeEntry();
+      }
+    } catch (IOException e) {
+      throw new IOException("Error occurred while reading archive", e);
+    }
+
+    return fileNames;
+  }
+
+  protected List<String> downloadArchiveContentAsText(URL url, boolean isCompressed, MediaType mediaType)
+          throws URISyntaxException, IOException, InterruptedException {
+    List<String> archiveLines = new ArrayList<>();
+
+    logger.info("Opening URL for archive processing: {}", url);
+
+    HttpRequest request = createHttpRequest(url, mediaType);
+
+    HttpResponse<InputStream> response = sendHttpRequest(request);
+
+    try (InputStream compressedStream = isCompressed ? new GZIPInputStream(response.body()) : response.body();
+         InputStream bufferedStream = new BufferedInputStream(compressedStream);
+         ZipInputStream zipStream = new ZipInputStream(bufferedStream)) {
+
+      ZipEntry entry;
+      while ((entry = zipStream.getNextEntry()) != null) {
+        if (!entry.isDirectory()) {
+          System.out.println("File data content: ");
+          byte[] c = IOUtils.toByteArray(zipStream);
+          zipStream.closeEntry();
+          String fileContent = new String(c);
+          archiveLines.addAll(Arrays.stream(fileContent.split("\n")).toList());
+        }
+        zipStream.closeEntry();
+      }
+    } catch (IOException e) {
+      throw new IOException("Error occurred while reading archive", e);
+    }
+
+    return archiveLines;
+  }
+
   protected List<String> downloadFileAsText(URL url, boolean isCompressed, MediaType mediaType)
       throws IOException, URISyntaxException, InterruptedException {
     List<String> fileInLines = new ArrayList<>();
 
     logger.info("Check file: {}", url);
-    InputStream dataStream;
-    HttpRequest request = HttpRequest.newBuilder()
-        .uri(url.toURI())
-        .header(CONTENT_TYPE, mediaType.toString())
-        .method("GET", HttpRequest.BodyPublishers.noBody())
-        .version(HttpClient.Version.HTTP_1_1)
-        .build();
 
-    HttpClient client = HttpClient.newBuilder().followRedirects(NORMAL).build();
-    HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-    if (response.statusCode() >= 400)
-      throw new RuntimeException("Received error response!");
+    HttpRequest request = createHttpRequest(url, mediaType);
 
-    dataStream = response.body();
+    HttpResponse<InputStream> response = sendHttpRequest(request);
 
-    if (isCompressed)
-      dataStream = new GZIPInputStream(dataStream);
-
-    try (BufferedReader reader = new BufferedReader(new InputStreamReader(dataStream))) {
+    try (InputStreamReader inputStreamReader = new InputStreamReader(isCompressed ? new GZIPInputStream(response.body()) : response.body());
+         BufferedReader reader = new BufferedReader(inputStreamReader)) {
       String line;
 
       while ((line = reader.readLine()) != null) {
@@ -430,6 +474,29 @@ public class StepTestBase {
       }
     }
     return fileInLines;
+  }
+
+
+  private HttpRequest createHttpRequest(URL url, MediaType mediaType) throws URISyntaxException {
+    return HttpRequest.newBuilder()
+            .uri(url.toURI())
+            .header(CONTENT_TYPE, mediaType.toString())
+            .method("GET", HttpRequest.BodyPublishers.noBody())
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+  }
+
+  private HttpResponse<InputStream> sendHttpRequest(HttpRequest request) throws IOException, InterruptedException {
+    HttpClient client = HttpClient.newBuilder().followRedirects(NORMAL).build();
+
+    HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+
+    if (response.statusCode() >= 400) {
+      logger.error("Received error response from server: {}", response.statusCode());
+      throw new RuntimeException("Received HTTP error response with status code: " + response.statusCode());
+    }
+
+    return response;
   }
 
   protected FeatureCollection readTestFeatureCollection(String filePath) throws IOException {
