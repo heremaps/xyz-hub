@@ -20,8 +20,8 @@
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
-jarName=$2
-handler=$3
+jarName=${2:-'xyz-job-steps-fat'}
+handler=${3:-'com.here.xyz.jobs.steps.execution.LambdaBasedStep$LambdaBasedStepExecutor::handleRequest'}
 relativeTargetPath="../../../target"
 
 #TODO: Move the following into a lib.sh and include it from the other scripts
@@ -40,21 +40,25 @@ if [ $? -ne 0 ]; then
   aws --endpoint "$LOCAL_STACK_HOST" s3api create-bucket --bucket test-bucket --create-bucket-configuration LocationConstraint=eu-west-1
 fi
 
-# Check if localstack is running
-if aws --endpoint-url $LOCAL_STACK_HOST s3 ls "$LOCAL_GEOWARP_S3_URI" 2>&1 | grep -q 'Could not connect'; then
-  echo "LocalStack is not running!"
-  exit 1
-elif aws --endpoint-url $LOCAL_STACK_HOST s3 ls "$LOCAL_GEOWARP_S3_URI" 2>&1 | grep -q 'NoSuchBucket'; then
-  echo "Local Bucket "$LOCAL_BUCKET" is missing"
+#Check if localstack is running
+curl -s "http://localhost:4566/_localstack/health" > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "local-stack container is not running properly!" >2
   exit 1
 fi
 
 #install zip
-yum install -y zip
+which zip > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  yum install -y zip
+fi
 
-##############
-# install Lambda
-echo "INSTALL "$jarName" Lambda ....................."
+#install Lambda
+echo "Install "$jarName" Lambda ..."
+
+scriptBasePath="$(dirname $(realpath $0))"
+
+cd ${scriptBasePath}/${relativeTargetPath}
 
 rm -rf lib > /dev/null 2>&1
 mkdir lib
@@ -66,7 +70,7 @@ chmod -R 777 lib "$jarName".zip
 aws --endpoint $LOCAL_STACK_HOST lambda delete-function \
   --region us-east-1 \
   --function-name job-step \
-  > /dev/null 2>&1
+  > /dev/null
 
 aws --endpoint $LOCAL_STACK_HOST lambda create-function \
   --timeout 300 \
@@ -77,5 +81,5 @@ aws --endpoint $LOCAL_STACK_HOST lambda create-function \
   --zip-file fileb://"$jarName".zip \
   --handler "$handler" \
   --role arn:aws:iam::000000000000:role/lambda-role \
-  --environment "$(cat "environment.json")" \
-   > /dev/null 2>&1
+  --environment "$(cat "$scriptBasePath/environment.json")" \
+  > /dev/null
