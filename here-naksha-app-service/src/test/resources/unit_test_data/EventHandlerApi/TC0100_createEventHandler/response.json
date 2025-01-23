@@ -5,10 +5,16 @@
   "active": true,
   "description": "For unit testing",
   "properties": {
+    "customValProperties": {
+      "mod.extension-database.password": "xxxxxx"
+    },
     "autoDeleteCollection": false,
     "autoCreateCollection": true,
     "collection": {
-      "maxAge": 2
+      "maxAge": 2,
+      "sensitiveObject": {
+        "authorization": "xxxxxx"
+      }
     },
     "storageId": "event_handler_api_test_storage"
   },

@@ -9,7 +9,13 @@
   "properties": {
     "storageId": "event_handler_api_test_storage",
     "collection": {
-      "maxAge": 2
+      "maxAge": 2,
+      "sensitiveObject": {
+        "authorization": "testAuthorization"
+      }
+    },
+    "customValProperties": {
+      "mod.extension-database.password": "pwd"
     },
     "autoCreateCollection": true,
     "autoDeleteCollection": false

@@ -18,6 +18,7 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.app.service.http.ops.MaskingUtil.maskProperties;
 import static com.here.naksha.common.http.apis.ApiParamsConst.HANDLER_ID;
 import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
 
@@ -97,10 +98,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     // Read request JSON
     final EventHandler newHandler = handlerFromRequestBody();
     final WriteXyzFeatures writeRequest = RequestHelper.createFeatureRequest(EVENT_HANDLERS, newHandler, false);
-    // persist new handler in Admin DB (if doesn't exist already)
-    try (Result writeResult = executeWriteRequestFromSpaceStorage(writeRequest)) {
-      return transformWriteResultToXyzFeatureResponse(writeResult, EventHandler.class);
-    }
+    return transformResponseFor(writeRequest);
   }
 
   private @NotNull XyzResponse executeGetHandlers() {
@@ -109,7 +107,8 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     // Submit request to NH Space Storage
     try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
       // transform ReadResult to Http FeatureCollection response
-      return transformReadResultToXyzCollectionResponse(rdResult, EventHandler.class);
+      return transformReadResultToXyzCollectionResponse(
+          rdResult, EventHandler.class, this::handlerWithMaskedSensitiveProperties);
     }
   }
 
@@ -117,10 +116,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     // Create ReadFeatures Request to read the handler with the specific ID from Admin DB
     final String handlerId = routingContext.pathParam(HANDLER_ID);
     final ReadFeatures request = new ReadFeatures(EVENT_HANDLERS).withPropertyOp(POp.eq(PRef.id(), handlerId));
-    // Submit request to NH Space Storage
-    try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
-      return transformReadResultToXyzFeatureResponse(rdResult, EventHandler.class);
-    }
+    return transformResponseFor(request);
   }
 
   private @NotNull XyzResponse executeUpdateHandler() throws JsonProcessingException {
@@ -132,9 +128,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     } else {
       final WriteXyzFeatures updateHandlerReq =
           RequestHelper.updateFeatureRequest(EVENT_HANDLERS, handlerToUpdate);
-      try (Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq)) {
-        return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);
-      }
+      return transformResponseFor(updateHandlerReq);
     }
   }
 
@@ -142,8 +136,31 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     final String handlerId = ApiParams.extractMandatoryPathParam(routingContext, HANDLER_ID);
     final WriteXyzFeatures wrRequest = RequestHelper.deleteFeatureByIdRequest(EVENT_HANDLERS, handlerId);
     try (Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest)) {
-      return transformDeleteResultToXyzFeatureResponse(wrResult, EventHandler.class);
+      return transformDeleteResultToXyzFeatureResponse(
+          wrResult, EventHandler.class, this::handlerWithMaskedSensitiveProperties);
     }
+  }
+
+  @NotNull
+  private XyzResponse transformResponseFor(ReadFeatures rdRequest) {
+    try (Result rdResult = executeReadRequestFromSpaceStorage(rdRequest)) {
+      return transformReadResultToXyzFeatureResponse(
+          rdResult, EventHandler.class, this::handlerWithMaskedSensitiveProperties);
+    }
+  }
+
+  @NotNull
+  private XyzResponse transformResponseFor(WriteXyzFeatures updateHandlerReq) {
+    // persist new handler in Admin DB (if doesn't exist already)
+    try (Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq)) {
+      return transformWriteResultToXyzFeatureResponse(
+          updateHandlerResult, EventHandler.class, this::handlerWithMaskedSensitiveProperties);
+    }
+  }
+
+  private EventHandler handlerWithMaskedSensitiveProperties(EventHandler handler) {
+    maskProperties(handler);
+    return handler;
   }
 
   private @NotNull EventHandler handlerFromRequestBody() throws JsonProcessingException {

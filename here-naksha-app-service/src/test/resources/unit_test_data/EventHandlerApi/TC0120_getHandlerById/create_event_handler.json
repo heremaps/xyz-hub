@@ -9,6 +9,9 @@
     "storageId": "event_handler_api_test_storage",
     "collection": {
       "maxAge": 2
+    },
+    "customValProperties": {
+      "mod.extension-database.password": "pwd"
     }
   }
 }

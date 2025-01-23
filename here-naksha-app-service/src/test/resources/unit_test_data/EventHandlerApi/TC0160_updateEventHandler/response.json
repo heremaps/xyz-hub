@@ -6,6 +6,9 @@
   "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
   "active": true,
   "properties": {
+    "customValProperties": {
+      "mod.extension-database.password": "xxxxxx"
+    },
     "storageId": "event_handler_api_test_storage",
     "collection": {
       "maxAge": 3
