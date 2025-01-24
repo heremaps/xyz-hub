@@ -355,34 +355,31 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     if (isRemoteCopy(sourceSpace,targetSpace))
      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery );
 
-    return new SQLQuery(
-/**/  //TODO: rm workaround after clarifying with feature_writer <-> where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null 
-  """
-    WITH ins_data as
-    (
-      select
-        write_features(
-         jsonb_build_array(
-           jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
-                              'partialUpdates',false,
-                              'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text
-         ,iidata.author,false,${{versionToBeUsed}}
-        ) as wfresult
-      from
+    //TODO: Do not use slow JSONB functions in the following query!
+    //TODO: rm workaround after clarifying with feature_writer <-> where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null
+    return new SQLQuery("""
+      WITH ins_data as
       (
-       select ((row_number() over ())-1)/${{maxblksize}} as rn, idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
-       from
-       ( ${{contentQuery}} ) idata
-       where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null 
-      ) iidata
-      group by rn, author
-    )
-    select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
-  """
-/**/
-        )
-        .withContext( queryContext )
-        .withQueryFragment("maxblksize",""+ maxBlkSize)
+        select
+          write_features(
+           jsonb_build_array(
+             jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
+                                'partialUpdates',false,
+                                'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text,
+             'Modifications', iidata.author,false,${{versionToBeUsed}}
+          ) as wfresult
+        from
+        (
+         select ((row_number() over ())-1)/${{maxblksize}} as rn, idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
+         from
+         ( ${{contentQuery}} ) idata
+         where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null 
+        ) iidata
+        group by rn, author
+      )
+      select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
+    """).withContext(queryContext)
+        .withQueryFragment("maxblksize", "" + maxBlkSize)
         .withQueryFragment("versionToBeUsed", "" + getVersion())
         .withQueryFragment("contentQuery", contentQuery);
   }
