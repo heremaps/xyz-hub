@@ -429,9 +429,8 @@ $BODY$
  * Import Trigger for non-empty-layers. (Entity Feature)
  */
 --TODO: Remove code-duplication of the following trigger functions!!
-CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_non_empty_layer()
-    RETURNS trigger
-AS $BODY$
+CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_non_empty_layer() RETURNS trigger AS
+$BODY$
 DECLARE
     author TEXT := TG_ARGV[0];
     currentVersion BIGINT := TG_ARGV[1];
@@ -445,54 +444,46 @@ DECLARE
     extendedTable TEXT := TG_ARGV[9];
     format TEXT := TG_ARGV[10];
     entityPerLine TEXT := TG_ARGV[11];
-    target_table TEXT := TG_ARGV[12];
+    targetTable TEXT := TG_ARGV[12];
     featureCount INT := 0;
-    updated_rows INT;
-    updateStrategy JSONB;
+    input TEXT;
+    inputType TEXT;
 BEGIN
-    updateStrategy = jsonb_build_object('onExists', CASE WHEN onExists = 'null' THEN null ELSE onExists END,
-                               'onNotExists', CASE WHEN onNotExists = 'null' THEN null ELSE onNotExists END,
-                               'onVersionConflict', CASE WHEN onVersionConflict = 'null' THEN null ELSE onVersionConflict END,
-                               'onMergeConflict', CASE WHEN onMergeConflict = 'null' THEN null ELSE onMergeConflict END
-            );
     --TODO: check how to use asyncify instead
     PERFORM context(
-            jsonb_build_object(
-                               'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
-                               'schema', TG_TABLE_SCHEMA,
-                               'table', target_table,
-                               'historyEnabled', historyEnabled,
-                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
-                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
-            )
+        jsonb_build_object(
+            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
+            'schema', TG_TABLE_SCHEMA,
+            'table', targetTable,
+            'historyEnabled', historyEnabled,
+            'context', CASE WHEN context = 'null' THEN null ELSE context END,
+            'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
+        )
     );
 
     IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
         --TODO: Extend feature_writer with possibility to provide geometry (as JSONB manipulations are quite slow)
+        --TODO: Remove unnecessary xyz_reduce_precision call, because the FeatureWriter will do it anyways
         NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo)), false)::JSONB);
-        SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
-                       "featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]}, 'Modifications',
-								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
-                                  author
-                   )::JSONB->'count' INTO featureCount;
+        input = NEW.jsondata::TEXT;
+        inputType = 'Feature';
     END IF;
 
     IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
         IF entityPerLine = 'Feature' THEN
-            SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
-								"featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]},
-								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$, 'Modifications',
-                                  author
-                   )::JSONB->'count' INTO featureCount;
+            input = NEW.jsondata::TEXT;
+            inputType = 'Feature';
         ELSE
-            --TODO: Extend feature_writer with possibility to provide featureCollection
-            SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
-                       "featureData":{"type":"FeatureCollection","features": $fd$ || (NEW.jsondata::JSONB->'features')::TEXT || $fd$}, 'Modifications',
-								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
-                                 author
-                   )::JSONB->'count' INTO featureCount;
+            --TODO: Shouldn't the input be a FeatureCollection here? Seems to be a list of Features
+            input = (NEW.jsondata::JSONB->'features')::TEXT;
+            inputType = 'Features';
         END IF;
     END IF;
+
+    SELECT write_features(
+        input, inputType, author, false, NULL,
+        onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial
+    )::JSONB->'count' INTO featureCount;
 
     NEW.jsondata = NULL;
     NEW.geo = NULL;
@@ -501,7 +492,7 @@ BEGIN
     RETURN NEW;
 END;
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE;
 
 /**
  * Perform single import from S3
