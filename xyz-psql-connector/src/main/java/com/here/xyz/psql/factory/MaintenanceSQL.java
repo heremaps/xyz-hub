@@ -96,6 +96,19 @@ public class MaintenanceSQL {
                 "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public; " +
                 "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public; " +
                 "CREATE EXTENSION IF NOT EXISTS plv8 SCHEMA pg_catalog; " +
+                "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
+                "END; " +
+                "$$;";
+    }
+
+    public static String _generateMandatoryExtensionSQL(){
+        return "DO $$ " +
+                "BEGIN " +
+                "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public; " +
+                "CREATE EXTENSION IF NOT EXISTS postgis_topology; " +
+                "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public; " +
+                "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public; " +
+                "CREATE EXTENSION IF NOT EXISTS plv8 SCHEMA pg_catalog; " +
                 "BEGIN" +
                 "   CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE; " +
                 "   EXCEPTION WHEN OTHERS THEN " +

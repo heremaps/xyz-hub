@@ -26,17 +26,7 @@ DO $installExtensions$
         CREATE EXTENSION IF NOT EXISTS postgis_topology;
         CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
         CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;
-        BEGIN
-            CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE;
-        EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE 'Not able to install plpython3u extension';
-        END;
         CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
-        BEGIN
-            CREATE EXTENSION IF NOT EXISTS aws_lambda CASCADE;
-        EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE 'Not able to install aws_lambda extension';
-        END;
     END;
 $installExtensions$;
 

@@ -22,7 +22,8 @@ RUN echo -e "#!/bin/sh -e \n\
 echo aws_s3.endpoint_url='http://localstack:4566' >> $PGCONFFILE \n\
 echo aws_s3.access_key_id='localstack' >> $PGCONFFILE \n\
 echo aws_s3.secret_access_key='localstack' >> $PGCONFFILE \n\
-psql -a -d postgres -U postgres -c \"SELECT pg_reload_conf();CREATE USER ro_user WITH SUPERUSER ENCRYPTED PASSWORD 'password';GRANT pg_read_all_data TO ro_user;GRANT pg_write_server_files TO ro_user;\" > /dev/null \n\
+psql -a -d postgres -U postgres -c \"SELECT pg_reload_conf();DROP USER IF EXISTS ro_user;CREATE USER ro_user WITH SUPERUSER ENCRYPTED PASSWORD 'password';GRANT pg_read_all_data TO ro_user;GRANT pg_write_server_files TO ro_user;\" > /dev/null \n\
+psql -a -d postgres -U postgres -c \"DROP DATABASE IF EXISTS postgres_db2;\" > /dev/null \n\
 psql -a -d postgres -U postgres -c \"CREATE DATABASE postgres_db2;\" > /dev/null \n\
 " > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
 
