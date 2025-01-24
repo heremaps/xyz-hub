@@ -328,7 +328,6 @@
                     <argument>--rm</argument>
                     <argument>--entrypoint</argument>
                     <argument> </argument>
-                    <!-- Files for Lambda deployment  -->
                     <argument>-v</argument>
                     <argument>${project.basedir}/src/main/bash/environment.json:/aws/environment.json</argument>
                     <argument>-v</argument>
@@ -338,11 +337,8 @@
                     <argument>--add-host</argument>
                     <argument>host.docker.internal=host-gateway</argument>
                     <argument>amazon/aws-cli</argument>
-                    <!-- Execute script  -->
-                    <argument>sh</argument>
-                    <argument>-c</argument>
-                    <!-- Install Lambda & Make GeoWarp available  -->
-                    <argument>./deployLocalLambda.sh true xyz-job-steps-fat com.here.xyz.jobs.steps.execution.LambdaBasedStep\$LambdaBasedStepExecutor::handleRequest</argument>
+                    <argument>./deployLocalLambda.sh</argument>
+                    <argument>true</argument>
                   </arguments>
                 </configuration>
               </execution>

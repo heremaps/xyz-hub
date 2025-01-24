@@ -41,7 +41,7 @@ if [ $? -ne 0 ]; then
 fi
 
 #Check if localstack is running
-curl -s "http://localhost:4566/_localstack/health" > /dev/null 2>&1
+curl -s "$LOCAL_STACK_HOST/_localstack/health" > /dev/null 2>&1
 if [ $? -ne 0 ]; then
   echo "local-stack container is not running properly!" >2
   exit 1
@@ -67,12 +67,12 @@ zip -r "$jarName".zip lib
 chmod -R 777 lib "$jarName".zip
 
 #Delete a potentially existing old local Lambda Function with the same name
-aws --endpoint $LOCAL_STACK_HOST lambda delete-function \
+aws --endpoint "$LOCAL_STACK_HOST" lambda delete-function \
   --region us-east-1 \
   --function-name job-step \
-  > /dev/null
+  > /dev/null 2>&1
 
-aws --endpoint $LOCAL_STACK_HOST lambda create-function \
+aws --endpoint "$LOCAL_STACK_HOST" lambda create-function \
   --timeout 300 \
   --region us-east-1 \
   --function-name job-step \
@@ -81,5 +81,4 @@ aws --endpoint $LOCAL_STACK_HOST lambda create-function \
   --zip-file fileb://"$jarName".zip \
   --handler "$handler" \
   --role arn:aws:iam::000000000000:role/lambda-role \
-  --environment "$(cat "$scriptBasePath/environment.json")" \
-  > /dev/null
+  --environment "$(cat "$scriptBasePath/environment.json")"
