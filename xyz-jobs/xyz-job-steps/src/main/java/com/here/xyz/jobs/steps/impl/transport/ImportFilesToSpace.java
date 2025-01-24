@@ -46,7 +46,6 @@ import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -635,31 +634,29 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   }
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException, JsonProcessingException {
-    String writeFeatureModifications = """
-        [{
-         "updateStrategy": #updateStrategy#,
-        "featureData": {"type": "FeatureCollection", "features": #input_features#},
-        "partialUpdates": "#is_partial#"
-        }]
-     """.replaceAll("#updateStrategy#" , XyzSerializable.serialize(
-             new UpdateStrategy(updateStrategy.onExists(), updateStrategy.onNotExists(), updateStrategy.onVersionConflict(),
-                     updateStrategy.onMergeConflict())))
-        .replaceAll("#input_features#" , featureList)
-        .replaceAll("#is_partial#" , "false");
-
-      return new SQLQuery("""
+    return new SQLQuery("""
         SELECT (write_features::JSONB->>'count')::INT as count from write_features(
           #{featureModifications},
-          'Modifications',
+          'Features',
           #{author},
           #{returnResult},
-          #{version}
+          #{version},
+          #{onExists},
+          #{onNotExists},
+          #{onVersionConflict},
+          #{onMergeConflict},
+          #{isPartial}
         );""")
-            .withNamedParameter("featureModifications", writeFeatureModifications)
-            .withNamedParameter("author", space().getOwner())
-            .withNamedParameter("returnResult", false)
-            .withNamedParameter("version", targetVersion)
-            .withContext(getQueryContext());
+          .withNamedParameter("featureModifications", featureList)
+          .withNamedParameter("author", space().getOwner())
+          .withNamedParameter("returnResult", false)
+          .withNamedParameter("version", targetVersion)
+          .withNamedParameter("onExists", updateStrategy.onExists())
+          .withNamedParameter("onNotExists", updateStrategy.onNotExists())
+          .withNamedParameter("onVersionConflict", updateStrategy.onVersionConflict())
+          .withNamedParameter("onMergeConflict", updateStrategy.onMergeConflict())
+          .withNamedParameter("isPartial", false)
+          .withContext(getQueryContext());
   }
 
   private SQLQuery buildProgressQuery(String schema, ImportFilesToSpace step) {
