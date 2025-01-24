@@ -62,7 +62,7 @@ public class WriteFeatures extends ExtendedSpace<WriteFeaturesEvent, FeatureColl
       queryContext.put("context", event.getContext().toString());
     }
 
-    return new SQLQuery("SELECT write_features(#{modifications}, #{author}, #{responseDataExpected});")
+    return new SQLQuery("SELECT write_features(#{modifications}, 'Modifications', #{author}, #{responseDataExpected});")
         .withLoggingEnabled(false)
         .withContext(queryContext)
         .withNamedParameter("modifications", XyzSerializable.serialize(event.getModifications()))
