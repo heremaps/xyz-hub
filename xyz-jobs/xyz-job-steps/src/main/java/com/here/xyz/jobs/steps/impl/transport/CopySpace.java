@@ -405,17 +405,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     return new SQLQuery(
 /**/
-        //TODO: Do not use slow JSONB functions in the following query!
+        //TODO: Do not use slow JSONB functions and types in the following query!
   """
     WITH ins_data as
     (
       select
         write_features(
-         jsonb_build_array(
-           jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
-                              'partialUpdates',false,
-                              'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text,
-           'Modifications', iidata.author,false,${{versionToBeUsed}}
+          iidata.feature::text, 'Feature', iidata.author, false, ${{versionToBeUsed}}
         ) as wfresult
       from
       (

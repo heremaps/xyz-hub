@@ -21,7 +21,7 @@ CREATE EXTENSION IF NOT EXISTS plv8;
 
 /**
  * @public
- * @param {string} input_type The type of the JSON input. Possible values: "FeatureCollection", "Feature", "Modifications"
+ * @param {string} input_type The type of the JSON input. Possible values: "FeatureCollection", "Features", "Feature", "Modifications"
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
 CREATE OR REPLACE FUNCTION write_features(jsonInput TEXT, input_type TEXT, author TEXT, return_result BOOLEAN = false, version BIGINT = NULL,
@@ -51,13 +51,20 @@ $BODY$
       ${{FeatureWriter.js}}
       //Init completed
 
+      let input = JSON.parse(jsonInput);
+
+      if (input_type == "FeatureCollection") {
+        input = input.features;
+        input_type = "Features";
+      }
+
       let result;
       if (input_type == "Modifications")
-        result = FeatureWriter.writeFeatureModifications(JSON.parse(jsonInput), author, version == null ? undefined : version);
-      else if (input_type == "FeatureCollection")
-        result = FeatureWriter.writeFeatures(JSON.parse(jsonInput), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, null, version == null ? undefined : version);
+        result = FeatureWriter.writeFeatureModifications(input, author, version == null ? undefined : version);
+      else if (input_type == "Features")
+        result = FeatureWriter.writeFeatures(input, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, null, version == null ? undefined : version);
       else if (input_type == "Feature")
-        result = FeatureWriter.writeFeature(JSON.parse(jsonInput), author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, null, version == null ? undefined : version);
+        result = FeatureWriter.writeFeature(input, author, on_exists, on_not_exists, on_version_conflict, on_merge_conflict, is_partial, null, version == null ? undefined : version);
       else
         throw new Error("Invalid input_type: " + input_type);
 
