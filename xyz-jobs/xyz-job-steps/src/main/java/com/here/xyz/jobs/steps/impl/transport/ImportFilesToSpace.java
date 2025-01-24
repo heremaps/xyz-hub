@@ -660,6 +660,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       return new SQLQuery("""
         SELECT (write_features::JSONB->>'count')::INT as count from write_features(
           #{featureModifications},
+          'Modifications',
           #{author},
           #{returnResult},
           #{version}
