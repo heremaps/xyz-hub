@@ -635,8 +635,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   private SQLQuery buildFeatureWriterQuery(String featureList, long targetVersion) throws WebClientException, JsonProcessingException {
     return new SQLQuery("""
-        SELECT (write_features::JSONB->>'count')::INT as count from write_features(
-          #{featureModifications},
+        SELECT (write_features::JSONB->>'count')::INT AS count FROM write_features(
+          #{featureList},
           'Features',
           #{author},
           #{returnResult},
@@ -647,7 +647,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
           #{onMergeConflict},
           #{isPartial}
         );""")
-          .withNamedParameter("featureModifications", featureList)
+          .withNamedParameter("featureList", featureList)
           .withNamedParameter("author", space().getOwner())
           .withNamedParameter("returnResult", false)
           .withNamedParameter("version", targetVersion)
