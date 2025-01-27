@@ -10,10 +10,15 @@ RUN echo "deb http://ftp.de.debian.org/debian trixie main" >> /etc/apt/sources.l
 RUN apt-get update && \
     apt-get -y install postgresql-17-postgis-3 postgresql-plpython3-17 git python3-boto3 make
 
+RUN ln -sf /usr/share/postgresql/17/extension/plpython3u--1.0.sql /opt/bitnami/postgresql/share/extension/plpython3u--1.0.sql
+RUN ln -sf /usr/share/postgresql/17/extension/plpython3u.control /opt/bitnami/postgresql/share/extension/plpython3u.control
+RUN ln -sf /usr/lib/postgresql/17/lib/plpython3.so /opt/bitnami/postgresql/lib/plpython3.so
+    
 WORKDIR /home/1001
 #Clone forked AWS RDS S3-Extension mock called "chimpler"
 RUN git clone https://github.com/mchrza/postgres-aws-s3.git --branch v.1.0.9 .
 RUN make install
+
 
 ARG PGCONFFILE=/opt/bitnami/postgresql/conf/postgresql.conf
 
