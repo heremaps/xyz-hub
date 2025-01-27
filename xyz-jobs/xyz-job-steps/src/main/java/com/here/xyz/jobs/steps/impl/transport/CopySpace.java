@@ -411,7 +411,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     (
       select
         write_features(
-          iidata.feature::text, 'Feature', iidata.author, false, ${{versionToBeUsed}}
+          jsonb_agg(iidata.feature)::TEXT, 'Features', iidata.author, false, ${{versionToBeUsed}}
         ) as wfresult
       from
       (

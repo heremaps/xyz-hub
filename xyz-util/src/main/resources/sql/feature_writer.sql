@@ -24,15 +24,18 @@ CREATE EXTENSION IF NOT EXISTS plv8;
  * @param {string} input_type The type of the JSON input. Possible values: "FeatureCollection", "Features", "Feature", "Modifications"
  * @throws VersionConflictError, MergeConflictError, FeatureExistsError
  */
-CREATE OR REPLACE FUNCTION write_features(jsonInput TEXT, input_type TEXT, author TEXT, return_result BOOLEAN = false, version BIGINT = NULL,
+CREATE OR REPLACE FUNCTION write_features(json_input TEXT, input_type TEXT, author TEXT, return_result BOOLEAN = false, version BIGINT = NULL,
     --The following parameters are not necessary for input_type = "Modifications"
     on_exists TEXT = NULL, on_not_exists TEXT = NULL, on_version_conflict TEXT = NULL, on_merge_conflict TEXT = NULL, is_partial BOOLEAN = false)
     RETURNS TEXT AS
 $BODY$
     try {
+
+			plv8.elog(NOTICE, "###### DEBUG: write_features: " + json_input);
+
       //Actual executions
-      if (jsonInput == null)
-        throw new Error("Parameter jsonInput must not be null.");
+      if (json_input == null)
+        throw new Error("Parameter json_input must not be null.");
 
       //Import other functions
       let _queryContext;
@@ -51,7 +54,7 @@ $BODY$
       ${{FeatureWriter.js}}
       //Init completed
 
-      let input = JSON.parse(jsonInput);
+      let input = JSON.parse(json_input);
 
       if (input_type == "FeatureCollection") {
         input = input.features;
