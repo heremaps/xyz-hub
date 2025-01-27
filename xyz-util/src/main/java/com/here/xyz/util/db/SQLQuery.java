@@ -991,7 +991,7 @@ public class SQLQuery {
     UPDATE_BATCH
   }
 
-  private static List<String> PwdPrefixList = 
+  private static List<String> PwdPrefixList =
    List.of("6URYTnCc", "pUNuBxnW", "JELgvJWS", "0n1UKjIv", "2YW9D4Kz", "3ZX9D4Kz", "9JwYhcgD", "qvukzFHW", "1CpZNKpG", "kwPU00Qy", "AhYtSea7", "AsSrbSE6");
 
   private static String hidePwds( String s )
@@ -1271,7 +1271,7 @@ public class SQLQuery {
       if (!calledBefore) {
         calledBefore = true;
           //TODO: using runWriteQueryAsync together with using query context throws NPE due to returned null value
-        return null; 
+        return null;
       }
       return originalHandler.handle(rs);
     }

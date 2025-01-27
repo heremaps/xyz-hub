@@ -110,7 +110,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 205
+ select 206
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -3315,6 +3315,7 @@ BEGIN
             query = '/*labels(' || get_query_labels() || ')*/ ' || query;
         END IF;
         PERFORM dblink_send_query(connectionName, _create_asyncify_query_block(query, password, procedureCall));
+        PERFORM dblink_disconnect(connectionName);
     END IF;
 END
 $BODY$
