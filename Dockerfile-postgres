@@ -5,7 +5,7 @@ ENV PGPASSWORD=password
 
 USER root
 
-RUN echo "deb http://ftp.de.debian.org/debian trixie main" >> /etc/apt/sources.list
+RUN echo "deb http://deb.debian.org/debian trixie main" >> /etc/apt/sources.list
 
 RUN apt-get update && \
     apt-get -y install postgresql-17-postgis-3 postgresql-plpython3-17 git python3-boto3 make
