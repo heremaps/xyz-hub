@@ -1,0 +1,11 @@
+{
+  "type": "Feature",
+  "momType": "landmark3d.Landmark3dPhotoreal",
+  "properties" : %s,
+  "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+      [[[-3, -3, 0], [0, -3, 0], [0, 0, 0], [-3, 0, 0], [-3, -3, 0]]]
+    ]
+  }
+}

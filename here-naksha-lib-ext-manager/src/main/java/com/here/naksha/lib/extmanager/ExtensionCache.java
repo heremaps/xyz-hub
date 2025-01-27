@@ -91,7 +91,7 @@ public class ExtensionCache {
     for (String key : loaderCache.keySet()) {
       if (!extIds.contains(key)) {
         removeExtensionFromCache(key);
-        }
+      }
     }
     logger.info("Extension cache size " + loaderCache.size());
   }
@@ -123,11 +123,14 @@ public class ExtensionCache {
             initInstance.init(naksha, extension);
             initObj = initInstance;
             logger.info(
-                    "Extension {} initialization using initClassName {} done successfully.",
-                    extensionIdWthEnv,
-                    extension.getInitClassName());
+                "Extension {} initialization using initClassName {} done successfully.",
+                extensionIdWthEnv,
+                extension.getInitClassName());
           } else {
-            logger.error("InitClassName {} does not implement IExtensionInit for Extension {}", extension.getInitClassName(), extensionIdWthEnv);
+            logger.error(
+                "InitClassName {} does not implement IExtensionInit for Extension {}",
+                extension.getInitClassName(),
+                extensionIdWthEnv);
             return;
           }
         } catch (Exception e) {

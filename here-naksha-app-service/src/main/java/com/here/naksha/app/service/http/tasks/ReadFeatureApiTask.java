@@ -21,27 +21,7 @@ package com.here.naksha.app.service.http.tasks;
 import static com.here.naksha.app.service.http.apis.ApiParams.extractMandatoryPathParam;
 import static com.here.naksha.app.service.http.apis.ApiParams.extractParamAsStringList;
 import static com.here.naksha.app.service.http.apis.ApiParams.queryParamsFromRequest;
-import static com.here.naksha.common.http.apis.ApiParamsConst.CLIP_GEO;
-import static com.here.naksha.common.http.apis.ApiParamsConst.DEF_FEATURE_LIMIT;
-import static com.here.naksha.common.http.apis.ApiParamsConst.EAST;
-import static com.here.naksha.common.http.apis.ApiParamsConst.FEATURE_ID;
-import static com.here.naksha.common.http.apis.ApiParamsConst.FEATURE_IDS;
-import static com.here.naksha.common.http.apis.ApiParamsConst.HANDLE;
-import static com.here.naksha.common.http.apis.ApiParamsConst.LAT;
-import static com.here.naksha.common.http.apis.ApiParamsConst.LIMIT;
-import static com.here.naksha.common.http.apis.ApiParamsConst.LON;
-import static com.here.naksha.common.http.apis.ApiParamsConst.MARGIN;
-import static com.here.naksha.common.http.apis.ApiParamsConst.NORTH;
-import static com.here.naksha.common.http.apis.ApiParamsConst.NULL_COORDINATE;
-import static com.here.naksha.common.http.apis.ApiParamsConst.PROPERTY_SEARCH_OP;
-import static com.here.naksha.common.http.apis.ApiParamsConst.RADIUS;
-import static com.here.naksha.common.http.apis.ApiParamsConst.REF_FEATURE_ID;
-import static com.here.naksha.common.http.apis.ApiParamsConst.REF_SPACE_ID;
-import static com.here.naksha.common.http.apis.ApiParamsConst.SOUTH;
-import static com.here.naksha.common.http.apis.ApiParamsConst.SPACE_ID;
-import static com.here.naksha.common.http.apis.ApiParamsConst.TILE_ID;
-import static com.here.naksha.common.http.apis.ApiParamsConst.TILE_TYPE;
-import static com.here.naksha.common.http.apis.ApiParamsConst.WEST;
+import static com.here.naksha.common.http.apis.ApiParamsConst.*;
 import static com.here.naksha.lib.core.models.storage.transformation.BufferTransformation.bufferInMeters;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
@@ -159,7 +139,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     }
     final ReadFeaturesProxyWrapper rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds)
         .withReadRequestType(ReadRequestType.GET_BY_IDS)
-        .withQueryParameters(Map.of(FEATURE_IDS, featureIds));
+        .addQueryParameter(FEATURE_IDS, featureIds);
 
     // Forward request to NH Space Storage reader instance
     try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
@@ -179,7 +159,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
 
     final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(spaceId, featureId)
         .withReadRequestType(ReadRequestType.GET_BY_ID)
-        .withQueryParameters(Map.of(FEATURE_ID, featureId));
+        .addQueryParameter(FEATURE_ID, featureId);
 
     // Forward request to NH Space Storage reader instance
     try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
@@ -225,6 +205,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     queryParamsMap.put(EAST, east);
     queryParamsMap.put(SOUTH, south);
     queryParamsMap.put(LIMIT, limit);
+    queryParamsMap.put(CLIP_GEO, clip);
     if (propSearchOp != null) {
       queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
     }
@@ -275,6 +256,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     queryParamsMap.put(LIMIT, limit);
     queryParamsMap.put(TILE_TYPE, tileType);
     queryParamsMap.put(TILE_ID, tileId);
+    queryParamsMap.put(CLIP_GEO, clip);
     if (propSearchOp != null) {
       queryParamsMap.put(PROPERTY_SEARCH_OP, propSearchOp);
     }
@@ -441,7 +423,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     // Forward Read request to NHSpaceStorage instance
     final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(refSpaceId, refFeatureId)
         .withReadRequestType(ReadRequestType.GET_BY_ID)
-        .withQueryParameters(Map.of(FEATURE_ID, refFeatureId));
+        .addQueryParameter(FEATURE_ID, refFeatureId);
     try (final Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
       if (result instanceof SuccessResult) {
         feature = ResultHelper.readFeatureFromResult(result, XyzFeature.class);

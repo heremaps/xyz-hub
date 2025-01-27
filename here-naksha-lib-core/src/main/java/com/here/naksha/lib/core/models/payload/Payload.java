@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.io.ByteStreams;
 import com.here.naksha.lib.core.models.Typed;
-import com.here.naksha.lib.core.util.Hasher;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.BufferedInputStream;
@@ -137,18 +136,6 @@ public class Payload extends JsonObject implements Typed {
       }
     }
     return 0;
-  }
-
-  /**
-   * Returns the hash of the event as a base64 string.
-   */
-  @JsonIgnore
-  public String getHash() {
-    try {
-      return Hasher.getHash(getCacheString());
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   @SuppressWarnings("WeakerAccess")

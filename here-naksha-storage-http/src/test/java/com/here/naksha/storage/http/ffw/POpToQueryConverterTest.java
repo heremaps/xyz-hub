@@ -1,9 +1,9 @@
-package com.here.naksha.storage.http;
+package com.here.naksha.storage.http.ffw;
 
 import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
-import com.here.naksha.storage.http.POpToQueryConverter.POpToQueryConversionException;
+import com.here.naksha.storage.http.ffw.POpToQueryConverter.POpToQueryConversionException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.net.URLEncoder;
 
 import static com.here.naksha.lib.core.models.storage.POp.*;
-import static com.here.naksha.storage.http.POpToQueryConverter.p0pToQuery;
+import static com.here.naksha.storage.http.ffw.POpToQueryConverter.pOpToQuery;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,7 +25,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_1"), "1")
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1");
   }
@@ -37,7 +37,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_2"), "2")
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1&property.prop_2=2");
   }
@@ -49,7 +49,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_1"), "2")
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1&property.prop_1=2");
   }
@@ -64,7 +64,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_5"), "5")
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1&property.prop_2=2&property.prop_3=3&property.prop_4=4&property.prop_5=5");
   }
@@ -79,7 +79,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_1"), "1")
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1");
   }
@@ -91,7 +91,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_1"), "2")
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1,2");
   }
@@ -103,7 +103,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_2"), "2")
     );
 
-    assertThrows(POpToQueryConversionException.class, () -> p0pToQuery(pOp));
+    assertThrows(POpToQueryConversionException.class, () -> pOpToQuery(pOp));
   }
 
   @Test
@@ -113,7 +113,7 @@ class POpToQueryConverterTest {
             gt(propRef("prop_2"), 2)
     );
 
-    assertThrows(POpToQueryConversionException.class, () -> p0pToQuery(pOp));
+    assertThrows(POpToQueryConversionException.class, () -> pOpToQuery(pOp));
   }
 
   @Test
@@ -126,7 +126,7 @@ class POpToQueryConverterTest {
             eq(propRef("prop_1"), "5")
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1,2,3,4,5");
   }
@@ -138,7 +138,7 @@ class POpToQueryConverterTest {
             not(exists(propRef("prop_1")))
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1,.null");
   }
@@ -147,7 +147,7 @@ class POpToQueryConverterTest {
   void equals() {
     POp pOp = eq(propRef("prop_1"), "1");
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=1");
   }
@@ -156,7 +156,7 @@ class POpToQueryConverterTest {
   void notEquals() {
     POp pOp = not(eq(propRef("prop_1"), "1"));
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1!=1");
   }
@@ -166,7 +166,7 @@ class POpToQueryConverterTest {
   void notWithIncompatibleOperation_throw(POp incompatibleOp) {
     POp pOp = not(incompatibleOp);
 
-    assertThrows(POpToQueryConversionException.class, () -> p0pToQuery(pOp));
+    assertThrows(POpToQueryConversionException.class, () -> pOpToQuery(pOp));
   }
 
   public static POp[] getOpsIncompatibleWithNot() {
@@ -185,7 +185,7 @@ class POpToQueryConverterTest {
   void existsSingle() {
     POp pOp = exists(propRef("prop_1"));
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1!=.null");
   }
@@ -194,7 +194,7 @@ class POpToQueryConverterTest {
   void notExistsSingle() {
     POp pOp = not(exists(propRef("prop_1")));
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=.null");
   }
@@ -204,7 +204,7 @@ class POpToQueryConverterTest {
     String json = "{\"num\":1,\"str\":\"str1\",\"arr\":[1,2,3],\"obj\":{}}";
     POp pOp = contains(propRef("prop_1"), json);
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "property.prop_1=cs=" + urlEncoded(json));
   }
@@ -219,7 +219,7 @@ class POpToQueryConverterTest {
             lte(propRef("prop_5"), 5)
     );
 
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query,
             "property.prop_1=1" +
@@ -234,7 +234,7 @@ class POpToQueryConverterTest {
   void notSupportedOps_throw(POp notSupportedOp) {
     POp pOp = not(notSupportedOp);
 
-    assertThrows(POpToQueryConversionException.class, () -> p0pToQuery(pOp));
+    assertThrows(POpToQueryConversionException.class, () -> pOpToQuery(pOp));
   }
 
   public static POp[] getNotSupportedOps() {
@@ -247,11 +247,11 @@ class POpToQueryConverterTest {
   }
 
   @Test
-  void translateIdProp() {
+  void addPrefixToIdProp() {
     POp pOp = and(
-            eq(RequestHelper.pRefFromPropPath(new String[]{"f","id"}), "1")
+            eq(RequestHelper.pRefFromPropPath(new String[]{"id"}), "1")
     );
-    String query = p0pToQuery(pOp);
+    String query = pOpToQuery(pOp);
 
     assertEquals(query, "f.id=1");
   }

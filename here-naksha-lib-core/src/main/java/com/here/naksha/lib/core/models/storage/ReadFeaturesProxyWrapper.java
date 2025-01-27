@@ -57,8 +57,16 @@ public class ReadFeaturesProxyWrapper extends ReadFeatures {
     return (T) queryParameters.get(key);
   }
 
+  /**
+   * @param parameters will replace existing query parameters
+   */
   public ReadFeaturesProxyWrapper withQueryParameters(Map<String, Object> parameters) {
     this.queryParameters = parameters;
+    return this;
+  }
+
+  public ReadFeaturesProxyWrapper addQueryParameter(String key, Object parameter) {
+    queryParameters.put(key, parameter);
     return this;
   }
 

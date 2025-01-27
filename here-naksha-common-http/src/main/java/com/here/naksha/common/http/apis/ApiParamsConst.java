@@ -45,6 +45,7 @@ public class ApiParamsConst {
   public static final String PROP_SELECTION = "selection";
   public static final String CLIP_GEO = "clip";
   public static final String PROPERTY_SEARCH_OP = "propertySearchOp";
+  public static final String TAGS_OP = "tagsOp";
   public static final long DEF_FEATURE_LIMIT = 30_000;
   public static final long DEF_ADMIN_FEATURE_LIMIT = 1_000;
   // Note - using specific NULL value is not ideal, but practically it makes code less messy at few places

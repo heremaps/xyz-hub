@@ -146,7 +146,7 @@ public class Event extends Payload {
     return remaining;
   }
 
-  @JsonView(ExcludeFromHash.class)
+  @JsonProperty("streamId")
   private String streamId;
 
   @JsonView(ExcludeFromHash.class)

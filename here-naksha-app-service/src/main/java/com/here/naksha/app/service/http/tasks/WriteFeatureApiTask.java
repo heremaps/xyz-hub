@@ -253,7 +253,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     // Extract the version of features in storage
     final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds)
         .withReadRequestType(ReadFeaturesProxyWrapper.ReadRequestType.GET_BY_IDS)
-        .withQueryParameters(Map.of(FEATURE_IDS, featureIds));
+        .addQueryParameter(FEATURE_IDS, featureIds);
     try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
       if (result == null) {
         return returnError(

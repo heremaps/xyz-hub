@@ -16,10 +16,10 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.storage.http;
+package com.here.naksha.storage.http.ffw;
 
 import static com.here.naksha.common.http.apis.ApiParamsConst.*;
-import static com.here.naksha.storage.http.PrepareResult.prepareResult;
+import static com.here.naksha.storage.http.PrepareResult.*;
 import static java.lang.String.format;
 
 import com.here.naksha.lib.core.NakshaContext;
@@ -30,6 +30,7 @@ import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.ReadFeaturesProxyWrapper;
 import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.storage.http.RequestSender;
 import java.net.HttpURLConnection;
 import java.net.http.HttpResponse;
 import java.util.Arrays;
@@ -38,16 +39,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-class HttpStorageReadExecute {
+public class FfwInterfaceReadExecute {
 
-  private static final Logger log = LoggerFactory.getLogger(HttpStorageReadExecute.class);
   private static final String HDR_STREAM_ID = "Stream-Id";
 
   @NotNull
-  static Result execute(@NotNull NakshaContext context, ReadFeaturesProxyWrapper request, RequestSender sender) {
+  public static Result execute(
+      @NotNull NakshaContext context, ReadFeaturesProxyWrapper request, RequestSender sender) {
 
     return switch (request.getReadRequestType()) {
       case GET_BY_ID -> executeFeatureById(context, request, sender);
@@ -68,9 +67,9 @@ class HttpStorageReadExecute {
 
     if (response.statusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
       // For Error 404 (not found) on single feature GetById request, we need to return empty result
-      return prepareResult(Collections.emptyList());
+      return prepareReadResult(Collections.emptyList());
     }
-    return prepareResult(response, XyzFeature.class, List::of);
+    return prepareReadResult(response, XyzFeature.class, List::of);
   }
 
   private static Result executeFeaturesById(
@@ -82,7 +81,7 @@ class HttpStorageReadExecute {
         format("/%s/features?%s", baseEndpoint(readRequest), queryParamsString),
         Map.of(HDR_STREAM_ID, context.getStreamId()));
 
-    return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
+    return prepareReadResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
   }
 
   private static Result executeFeatureByBBox(
@@ -93,7 +92,7 @@ class HttpStorageReadExecute {
         format("/%s/bbox?%s%s", baseEndpoint(readRequest), queryParamsString, getPOpQueryOrEmpty(readRequest)),
         Map.of(HDR_STREAM_ID, context.getStreamId()));
 
-    return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
+    return prepareReadResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
   }
 
   private static Result executeFeaturesByTile(
@@ -111,7 +110,7 @@ class HttpStorageReadExecute {
             baseEndpoint(readRequest), tileId, queryParamsString, getPOpQueryOrEmpty(readRequest)),
         Map.of(HDR_STREAM_ID, context.getStreamId()));
 
-    return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
+    return prepareReadResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
   }
 
   private static Result executeIterate(
@@ -122,7 +121,7 @@ class HttpStorageReadExecute {
         format("/%s/iterate?%s", baseEndpoint(readRequest), queryParamsString),
         Map.of(HDR_STREAM_ID, context.getStreamId()));
 
-    return prepareResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
+    return prepareReadResult(response, XyzFeatureCollection.class, XyzFeatureCollection::getFeatures);
   }
 
   /**
@@ -130,7 +129,7 @@ class HttpStorageReadExecute {
    */
   private static String getPOpQueryOrEmpty(ReadFeaturesProxyWrapper readRequest) {
     POp pOp = readRequest.getQueryParameter(PROPERTY_SEARCH_OP);
-    return pOp == null ? "" : "&" + POpToQueryConverter.p0pToQuery(pOp);
+    return pOp == null ? "" : "&" + POpToQueryConverter.pOpToQuery(pOp);
   }
 
   /**

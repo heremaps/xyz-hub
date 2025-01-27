@@ -18,11 +18,8 @@
  */
 package com.here.naksha.lib.core.models.payload.events.feature;
 
-import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import org.jetbrains.annotations.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByTileEvent")
@@ -34,7 +31,6 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent {
   private int y;
   private String quadkey;
   private int margin;
-  private @NotNull GetFeaturesByTileResponseType responseType = GEO_JSON;
   private boolean hereTileFlag;
 
   public int getLevel() {
@@ -112,19 +108,6 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent {
 
   public GetFeaturesByTileEvent withMargin(int margin) {
     setMargin(margin);
-    return this;
-  }
-
-  public @NotNull GetFeaturesByTileResponseType getResponseType() {
-    return responseType;
-  }
-
-  public void setResponseType(@NotNull GetFeaturesByTileResponseType responseType) {
-    this.responseType = responseType;
-  }
-
-  public GetFeaturesByTileEvent withResponseType(GetFeaturesByTileResponseType responseType) {
-    setResponseType(responseType);
     return this;
   }
 }

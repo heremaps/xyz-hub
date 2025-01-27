@@ -23,6 +23,7 @@ import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.declaration.ILonLat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jetbrains.annotations.NotNull;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
@@ -380,7 +381,7 @@ public class WebMercatorTile {
    *
    * @param quadKey the quaddKey that represents
    */
-  public static WebMercatorTile forQuadkey(String quadKey) throws IllegalArgumentException {
+  public static @NotNull WebMercatorTile forQuadkey(String quadKey) throws IllegalArgumentException {
     if (!QUADKEY_REGEXP.matcher(quadKey).matches()) {
       throw new IllegalArgumentException("Invalid quadkey.");
     }

@@ -1,0 +1,11 @@
+{
+  "id": "urn:here::here:landmark3d.Landmark3dPhotoreal:%s",
+  "type": "Feature",
+  "momType": "landmark3d.Landmark3dPhotoreal",
+  "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+      [[[-3, -3, 0], [0, -3, 0], [0, 0, 0], [-3, 0, 0], [-3, -3, 0]]]
+    ]
+  }
+}

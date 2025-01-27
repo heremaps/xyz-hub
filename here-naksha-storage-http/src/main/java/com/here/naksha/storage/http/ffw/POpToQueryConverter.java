@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.storage.http;
+package com.here.naksha.storage.http.ffw;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.models.storage.POpType.*;
@@ -52,14 +52,14 @@ public class POpToQueryConverter {
 
   private POpToQueryConverter() {}
 
-  static String p0pToQuery(POp pOp) {
+  static String pOpToQuery(POp pOp) {
     if (pOp.op() == AND) return and(pOp);
     else return pOpToMultiValueComparison(pOp).resolve();
   }
 
   private static String and(POp pOp) {
     assertHasAtLeastOneChildren(pOp);
-    return pOp.children().stream().map(POpToQueryConverter::p0pToQuery).collect(Collectors.joining(AND_DELIMITER));
+    return pOp.children().stream().map(POpToQueryConverter::pOpToQuery).collect(Collectors.joining(AND_DELIMITER));
   }
 
   private static MultiValueComparison pOpToMultiValueComparison(POp pOp) {

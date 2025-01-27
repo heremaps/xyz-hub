@@ -91,19 +91,4 @@ public class EventTest {
     assertEquals(-77.080078125D, event.getBbox().getWest(), 0);
   }
 
-  @Test
-  public void checkHash() throws Exception {
-    GetFeaturesByTileEvent event1 =
-        JsonSerializable.deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-            "/com/here/xyz/test/GetFeaturesByTileEvent.json"));
-    GetFeaturesByTileEvent event2 =
-        JsonSerializable.deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-            "/com/here/xyz/test/GetFeaturesByTileEvent2.json"));
-    GetFeaturesByTileEvent event3 =
-        JsonSerializable.deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-            "/com/here/xyz/test/GetFeaturesByTileEvent3.json"));
-
-    assertEquals(event1.getHash(), event2.getHash());
-    assertNotEquals(event1.getHash(), event3.getHash());
-  }
 }

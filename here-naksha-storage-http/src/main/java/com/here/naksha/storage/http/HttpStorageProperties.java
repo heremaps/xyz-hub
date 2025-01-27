@@ -44,6 +44,9 @@ public class HttpStorageProperties extends XyzProperties {
   private static final String SOCKET_TIMEOUT = "socketTimeout";
   private static final String HEADERS = "headers";
 
+  private static final String HTTP_INTERFACE = "httpInterface";
+  private static final HttpInterface DEFAULT_XYZ_PROTOCOL = HttpInterface.ffwAdapter;
+
   @JsonProperty(URL)
   private @NotNull String url;
 
@@ -56,16 +59,29 @@ public class HttpStorageProperties extends XyzProperties {
   @JsonProperty(HEADERS)
   private @NotNull Map<String, String> headers;
 
+  @JsonProperty(HTTP_INTERFACE)
+  private @NotNull HttpInterface httpInterface;
+
   @JsonCreator
   public HttpStorageProperties(
       @JsonProperty(value = URL, required = true) @NotNull String url,
       @JsonProperty(CONNECTION_TIMEOUT) @Nullable Long connectTimeout,
       @JsonProperty(SOCKET_TIMEOUT) @Nullable Long socketTimeout,
-      @JsonProperty(HEADERS) @Nullable Map<String, String> headers) {
+      @JsonProperty(HEADERS) @Nullable Map<String, String> headers,
+      @JsonProperty(HTTP_INTERFACE) @Nullable HttpInterface httpInterface) {
     this.url = url;
     this.connectTimeout = connectTimeout == null ? DEF_CONNECTION_TIMEOUT_SEC : connectTimeout;
     this.socketTimeout = socketTimeout == null ? DEF_SOCKET_TIMEOUT_SEC : socketTimeout;
     this.headers = headers == null ? DEFAULT_HEADERS : headers;
+    this.httpInterface = httpInterface == null ? DEFAULT_XYZ_PROTOCOL : httpInterface;
+  }
+
+  public HttpStorageProperties(
+      @JsonProperty(value = URL, required = true) @NotNull String url,
+      @JsonProperty(CONNECTION_TIMEOUT) @Nullable Long connectTimeout,
+      @JsonProperty(SOCKET_TIMEOUT) @Nullable Long socketTimeout,
+      @JsonProperty(HEADERS) @Nullable Map<String, String> headers) {
+    this(url, connectTimeout, socketTimeout, headers, DEFAULT_XYZ_PROTOCOL);
   }
 
   /**
@@ -85,5 +101,9 @@ public class HttpStorageProperties extends XyzProperties {
 
   public @NotNull Map<String, String> getHeaders() {
     return headers;
+  }
+
+  public @NotNull HttpInterface getProtocol() {
+    return httpInterface;
   }
 }
