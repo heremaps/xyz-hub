@@ -30,9 +30,6 @@ CREATE OR REPLACE FUNCTION write_features(json_input TEXT, input_type TEXT, auth
     RETURNS TEXT AS
 $BODY$
     try {
-
-			plv8.elog(NOTICE, "###### DEBUG: write_features: " + json_input);
-
       //Actual executions
       if (json_input == null)
         throw new Error("Parameter json_input must not be null.");

@@ -449,6 +449,13 @@ DECLARE
     input TEXT;
     inputType TEXT;
 BEGIN
+    --TODO: Remove the following workaround once the caller-side was fixed
+    onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
+    onNotExists = CASE WHEN onNotExists = 'null' THEN NULL ELSE onNotExists END;
+    onVersionConflict = CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END;
+    onMergeConflict = CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END;
+
+
     --TODO: check how to use asyncify instead
     PERFORM context(
         jsonb_build_object(
