@@ -26,15 +26,13 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -52,6 +50,13 @@ public class CompressFiles extends SyncLambdaStep {
    */
   @JsonView({Internal.class, Static.class})
   private String groupByMetadataKey;
+
+  /**
+   * Specifies the desired size (in bytes) for each individual file within the ZIP archive.
+   * If set to -1, files are included without splitting or concatenating based on size.
+   */
+  @JsonView({Internal.class, Static.class})
+  private long desiredContainedFilesize = -1;
 
   {
     setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ".zip")));
@@ -83,12 +88,16 @@ public class CompressFiles extends SyncLambdaStep {
 
     // stores all data in memory, which may need optimization for large data sets
     try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {
+         ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {
 
-      for (InputSet inputSet : getInputSets()) {
-        for (Input input : loadInputs(inputSet, UploadUrl.class)) {
-          processInputToZip(input, inputSet, zipStream);
+      if (desiredContainedFilesize == -1) {
+        for (InputSet inputSet : getInputSets()) {
+          for (Input input : loadInputs(inputSet, UploadUrl.class)) {
+            processInputToZip(input, inputSet, zipStream);
+          }
         }
+      } else {
+        normalizeFiles(zipStream);
       }
 
       zipStream.finish();
@@ -106,6 +115,134 @@ public class CompressFiles extends SyncLambdaStep {
     catch (Exception e) {
       logger.error("Error processing inputs into ZIP: ", e);
       throw e;
+    }
+  }
+
+  private void normalizeFiles(ZipOutputStream zipStream) throws IOException {
+    List<Input> allInputs = loadAllInputs();
+    Map<String, List<Input>> groupedInputs = new HashMap<>();
+    long currentSize = 0;
+    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    int fileCounter = 1;
+
+    if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
+      groupedInputs.putAll(allInputs.stream()
+          .collect(Collectors.groupingBy(
+              input -> (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default")
+          )));
+    } else {
+      groupedInputs.put("default", allInputs);
+    }
+
+    for (Map.Entry<String, List<Input>> inputSet : groupedInputs.entrySet()) {
+      for (Input input : inputSet.getValue()) {
+        if (input.getByteSize() > desiredContainedFilesize) {
+          fileCounter += splitAndAddToZip(input, zipStream, fileCounter);
+        } else {
+          if (currentSize + input.getByteSize() > desiredContainedFilesize) {
+            if (buffer.size() > 0) {
+              addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
+              fileCounter++;
+              buffer.reset();
+              currentSize = 0;
+            }
+          }
+          ByteArrayOutputStream tempStream = new ByteArrayOutputStream();
+          processInputToBuffer(input, tempStream);
+          buffer.write(tempStream.toByteArray());
+          currentSize += input.getByteSize();
+        }
+      }
+      if (buffer.size() > 0) {
+        // should we pick latest input?
+        addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
+      }
+    }
+  }
+
+  private List<Input> loadAllInputs() {
+    List<Input> allInputs = new java.util.ArrayList<>();
+    for (InputSet inputSet : getInputSets()) {
+      allInputs.addAll(loadInputs(inputSet, UploadUrl.class));
+    }
+    return allInputs;
+  }
+
+  private int splitAndAddToZip(Input input, ZipOutputStream zipStream, int startCounter) {
+    String folderName = "default";
+    if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()
+        && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
+      folderName = (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default");
+    }
+    try {
+      S3Client sourceClient = S3Client.getInstance(input.getS3Bucket());
+      try (InputStream fileStream = sourceClient.streamObjectContent(input.getS3Key());
+           BufferedReader reader = new BufferedReader(new InputStreamReader(fileStream))) {
+        String line;
+        ByteArrayOutputStream partStream = new ByteArrayOutputStream();
+        long bytesWritten = 0;
+        int partNumber = startCounter;
+
+        while ((line = reader.readLine()) != null) {
+          byte[] lineBytes = line.getBytes();
+          // if limit reached and we have what to flush
+          if ((bytesWritten + lineBytes.length > desiredContainedFilesize) && partStream.size() > 0) {
+            addZipEntry(zipStream, partStream.toByteArray(), partNumber, folderName);
+            partNumber++;
+            partStream.reset();
+            bytesWritten = 0;
+          }
+          partStream.write(lineBytes);
+          bytesWritten += lineBytes.length;
+        }
+        if (partStream.size() > 0) {
+          addZipEntry(zipStream, partStream.toByteArray(), partNumber, folderName);
+        }
+        return partNumber + 1;
+      }
+    }
+    catch (Exception e) {
+      logger.error("Error splitting and adding file '{}' to ZIP. Skipping. Error: ", input.getS3Key(), e);
+      return startCounter;
+    }
+  }
+
+  private void addBufferedEntryToZip(ByteArrayOutputStream buffer, ZipOutputStream zipStream, int counter, String folderName) {
+    addZipEntry(zipStream, buffer.toByteArray(), counter, folderName);
+  }
+
+  private void addZipEntry(ZipOutputStream zipStream, byte[] data, int counter, String folderName) {
+    try {
+      String zipEntryPath = counter + ".json";
+      if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
+        if (!createdFolders.contains(folderName)) {
+          createFolderInZip(folderName, zipStream);
+          createdFolders.add(folderName);
+        }
+
+        zipEntryPath = folderName + "/" + zipEntryPath;
+      }
+      ZipEntry entry = new ZipEntry(zipEntryPath);
+      zipStream.putNextEntry(entry);
+      zipStream.write(data);
+      zipStream.closeEntry();
+      logger.info("Added entry '{}' to ZIP. Size: {} bytes", zipEntryPath, data.length);
+    }
+    catch (IOException e) {
+      logger.error("Error adding entry '{}' to ZIP. Skipping. Error: ", counter, e);
+    }
+  }
+
+  private void processInputToBuffer(Input input, ByteArrayOutputStream buffer) {
+    try {
+      S3Client sourceClient = S3Client.getInstance(input.getS3Bucket());
+      try (InputStream fileStream = sourceClient.streamObjectContent(input.getS3Key())) {
+        byte[] data = fileStream.readAllBytes();
+        buffer.write(data);
+      }
+    }
+    catch (Exception e) {
+      logger.error("Error processing input '{}' to buffer. Skipping. Error: ", input.getS3Key(), e);
     }
   }
 
@@ -169,8 +306,7 @@ public class CompressFiles extends SyncLambdaStep {
       // create an empty folder inside the Zip
       zipStream.putNextEntry(new ZipEntry(zipEntryPath + "/"));
       zipStream.closeEntry();
-    }
-    else {
+    } else {
       for (String childKey : objectKeys) {
         // ignoring the folder itself
         if (childKey.equals(input.getS3Key()) || childKey.equals(input.getS3Key() + "/"))
@@ -214,6 +350,11 @@ public class CompressFiles extends SyncLambdaStep {
 
   @Override
   public boolean validate() throws BaseHttpServerVerticle.ValidationException {
+    if (desiredContainedFilesize != -1) {
+      if (desiredContainedFilesize < 1024 * 1024 || desiredContainedFilesize > 5L * 1024 * 1024 * 1024) {
+        throw new IllegalArgumentException("desiredContainedFilesize must be between 1MB and 5GB or -1");
+      }
+    }
     return true;
   }
 
@@ -227,6 +368,19 @@ public class CompressFiles extends SyncLambdaStep {
 
   public CompressFiles withGroupByMetadataKey(String value) {
     setGroupByMetadataKey(value);
+    return this;
+  }
+
+  public long getDesiredContainedFilesize() {
+    return desiredContainedFilesize;
+  }
+
+  public void setDesiredContainedFilesize(long desiredContainedFilesize) {
+    this.desiredContainedFilesize = desiredContainedFilesize;
+  }
+
+  public CompressFiles withDesiredContainedFilesize(long desiredContainedFilesize) {
+    setDesiredContainedFilesize(desiredContainedFilesize);
     return this;
   }
 }

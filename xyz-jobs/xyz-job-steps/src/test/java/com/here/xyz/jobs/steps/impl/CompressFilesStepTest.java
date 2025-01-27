@@ -44,8 +44,21 @@ public class CompressFilesStepTest extends StepTest {
   }
 
   @Test
+  public void testValidationThrowsErrorOnInvalidDesiredSize() throws Exception {
+
+    SyncLambdaStep step = new CompressFiles()
+        .withDesiredContainedFilesize(0)
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    Assertions.assertThrows(IllegalArgumentException.class, () -> sendLambdaStepRequestBlock(step, true));
+  }
+
+  @Test
   public void testMultipleFilesCompression() throws Exception {
 
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
@@ -63,7 +76,33 @@ public class CompressFilesStepTest extends StepTest {
     byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
 
     List<String> zipContents = getZipContents(archiveBytes);
-    Assertions.assertEquals(2, zipContents.size());
+    Assertions.assertEquals(3, zipContents.size());
+  }
+
+  @Test
+  public void testMultipleFilesCompressionWithConcatenation() throws Exception {
+
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+
+    SyncLambdaStep step = new CompressFiles()
+        .withDesiredContainedFilesize(100 * 1024 * 1024)
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+
+    Assertions.assertEquals(1, testOutputs.size());
+
+    byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
+
+    List<String> zipContents = getZipContents(archiveBytes);
+    Assertions.assertEquals(1, zipContents.size());
   }
 
   @Test
@@ -135,6 +174,41 @@ public class CompressFilesStepTest extends StepTest {
     byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
 
     List<String> zipContents = getZipContents(archiveBytes);
+    Assertions.assertEquals(2, zipContents.size());
+  }
+
+  @Test
+  public void testGroupBySingleMetadataKeyWithConcatenation() throws Exception {
+
+    String mockStepId = "mockStepId";
+    String mockOutputStepName = "mockOutputStepName";
+    String layer = "address";
+
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+
+    SyncLambdaStep step = new CompressFiles()
+        .withDesiredContainedFilesize(100 * 1024 * 1024)
+        .withGroupByMetadataKey("layer")
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of("layer", layer))));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+    Assertions.assertEquals(1, testOutputs.size(), "Files grouped by metadata key should still create a single ZIP output.");
+
+    byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
+
+    List<String> zipContents = getZipContents(archiveBytes);
+    Assertions.assertTrue(zipContents.contains(layer + "/"));
     Assertions.assertEquals(2, zipContents.size());
   }
 
@@ -254,6 +328,56 @@ public class CompressFilesStepTest extends StepTest {
     Assertions.assertTrue(zipContents.contains(layer2 + "/"));
     Assertions.assertEquals(3, zipContents.stream().filter(s -> s.startsWith(layer2 + "/")).count());
     Assertions.assertEquals(8, zipContents.size());
+  }
+
+  @Test
+  public void testMoreFilesWithGroupByMultipleMetadataKeysWithConcatenation() throws Exception {
+    String mockStepId = "mockStepId";
+    String mockStepId2 = "mockStepId2";
+    String mockOutputStepName = "mockOutputStepName";
+    String layer = "address";
+    String layer2 = "building";
+
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+
+    uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+    uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
+        ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+
+    SyncLambdaStep step = new CompressFiles()
+        .withDesiredContainedFilesize(100 * 1024 * 1024)
+        .withGroupByMetadataKey("layer")
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(
+            new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false, Map.of(
+                "layer", layer
+            )),
+            new Step.InputSet(JOB_ID, mockStepId2, mockOutputStepName, false, Map.of(
+                "layer", layer2
+            ))));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+    Assertions.assertEquals(1, testOutputs.size());
+
+    byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
+
+    List<String> zipContents = getZipContents(archiveBytes);
+    Assertions.assertTrue(zipContents.contains(layer + "/"));
+    Assertions.assertEquals(2, zipContents.stream().filter(s -> s.startsWith(layer + "/")).count());
+    Assertions.assertTrue(zipContents.contains(layer2 + "/"));
+    Assertions.assertEquals(2, zipContents.stream().filter(s -> s.startsWith(layer2 + "/")).count());
+    Assertions.assertEquals(4, zipContents.size());
   }
 
   @Test
