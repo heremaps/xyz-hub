@@ -137,9 +137,7 @@ public class CompressFiles extends SyncLambdaStep {
     List<Input> allInputs = loadAllInputs();
     Map<String, List<Input>> groupedInputs = new HashMap<>();
     long currentSize = 0;
-    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
     int fileCounter = 1;
-
     if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
       groupedInputs.putAll(allInputs.stream()
           .collect(Collectors.groupingBy(
@@ -149,28 +147,37 @@ public class CompressFiles extends SyncLambdaStep {
       groupedInputs.put("default", allInputs);
     }
 
-    for (Map.Entry<String, List<Input>> inputSet : groupedInputs.entrySet()) {
-      for (Input input : inputSet.getValue()) {
-        if (input.getByteSize() > desiredContainedFilesize) {
-          fileCounter += splitAndAddToZip(input, zipStream, fileCounter);
-        } else {
-          if (currentSize + input.getByteSize() > desiredContainedFilesize) {
-            if (buffer.size() > 0) {
-              addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
-              fileCounter++;
-              buffer.reset();
-              currentSize = 0;
+    try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+
+      for (Map.Entry<String, List<Input>> inputSet : groupedInputs.entrySet()) {
+
+        createFolderInZip(inputSet.getKey(), zipStream);
+
+        for (Input input : inputSet.getValue()) {
+
+          if (input.getByteSize() > desiredContainedFilesize) {
+            fileCounter += splitAndAddToZip(input, zipStream, fileCounter);
+          } else {
+            if (currentSize + input.getByteSize() > desiredContainedFilesize) {
+              if (buffer.size() > 0) {
+                addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
+                fileCounter++;
+                buffer.reset();
+                currentSize = 0;
+              }
             }
+            ByteArrayOutputStream tempStream = new ByteArrayOutputStream();
+            processInputToBuffer(input, tempStream);
+            buffer.write(tempStream.toByteArray());
+            currentSize += input.getByteSize();
           }
-          ByteArrayOutputStream tempStream = new ByteArrayOutputStream();
-          processInputToBuffer(input, tempStream);
-          buffer.write(tempStream.toByteArray());
-          currentSize += input.getByteSize();
         }
-      }
-      if (buffer.size() > 0) {
-        // should we pick latest input?
-        addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
+        if (buffer.size() > 0) {
+          addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
+          buffer.reset();
+          currentSize = 0;
+          fileCounter++;
+        }
       }
     }
   }
