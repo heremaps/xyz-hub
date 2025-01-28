@@ -32,10 +32,26 @@ public abstract class Output<T extends Output> extends StepPayload<T> {
   @JsonIgnore
   private String s3Key;
 
+  @JsonIgnore
+  private String fileName;
+
   public abstract void store(String s3Key) throws IOException;
 
   public static String stepOutputS3Prefix(String jobId, String stepId, String name) {
     return jobId + "/" + stepId + "/outputs/" + name;
+  }
+
+  public String getFileName() {
+    return fileName;
+  }
+
+  public void setFileName(String fileName) {
+    this.fileName = fileName;
+  }
+
+  public T withFileName(String fileName) {
+    setFileName(fileName);
+    return (T) this;
   }
 
   public String getS3Key() {

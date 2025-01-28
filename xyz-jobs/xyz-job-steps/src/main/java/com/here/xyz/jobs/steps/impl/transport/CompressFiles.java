@@ -26,13 +26,20 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
-
-import java.io.*;
-import java.util.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,6 +48,7 @@ public class CompressFiles extends SyncLambdaStep {
   public static final String COMPRESSED_DATA = "compressed-data";
   private static final int DEFAULT_BUFFER_SIZE = 8192;
   private static final String ZIP_CONTENT_TYPE = "application/zip";
+  private static final String ARCHIVE_FILE_SUFFIX = ".zip";
   private static final Logger logger = LogManager.getLogger();
   private final Set<String> createdFolders = new HashSet<>();
 
@@ -65,7 +73,7 @@ public class CompressFiles extends SyncLambdaStep {
   private String archiveFileNamePrefix = null;
 
   {
-    setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ".zip")));
+    setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ARCHIVE_FILE_SUFFIX)));
   }
 
   @Override
@@ -114,7 +122,8 @@ public class CompressFiles extends SyncLambdaStep {
           .withContent(byteArray)
           .withContentType(ZIP_CONTENT_TYPE)
           .withByteSize(byteArray.length)
-      ), COMPRESSED_DATA, Optional.ofNullable(archiveFileNamePrefix));
+          .withFileName(archiveFileNamePrefix != null ? archiveFileNamePrefix + "_" + getJobId() + ARCHIVE_FILE_SUFFIX : null)
+      ), COMPRESSED_DATA);
 
       logger.info("ZIP successfully written to S3");
     }
