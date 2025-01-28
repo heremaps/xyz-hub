@@ -58,6 +58,12 @@ public class CompressFiles extends SyncLambdaStep {
   @JsonView({Internal.class, Static.class})
   private long desiredContainedFilesize = -1;
 
+  /**
+   * Prefix for the archive filename. Set this to customize the archive name.
+   */
+  @JsonView({Internal.class, Static.class})
+  private String archiveFileNamePrefix = null;
+
   {
     setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ".zip")));
   }
@@ -108,7 +114,7 @@ public class CompressFiles extends SyncLambdaStep {
           .withContent(byteArray)
           .withContentType(ZIP_CONTENT_TYPE)
           .withByteSize(byteArray.length)
-      ), COMPRESSED_DATA);
+      ), COMPRESSED_DATA, Optional.ofNullable(archiveFileNamePrefix));
 
       logger.info("ZIP successfully written to S3");
     }
@@ -355,6 +361,9 @@ public class CompressFiles extends SyncLambdaStep {
         throw new IllegalArgumentException("desiredContainedFilesize must be between 1MB and 5GB or -1");
       }
     }
+    if (archiveFileNamePrefix != null && archiveFileNamePrefix.trim().isEmpty()) {
+      throw new IllegalArgumentException("archiveFileNamePrefix cannot be empty");
+    }
     return true;
   }
 
@@ -381,6 +390,19 @@ public class CompressFiles extends SyncLambdaStep {
 
   public CompressFiles withDesiredContainedFilesize(long desiredContainedFilesize) {
     setDesiredContainedFilesize(desiredContainedFilesize);
+    return this;
+  }
+
+  public String getArchiveFileNamePrefix() {
+    return archiveFileNamePrefix;
+  }
+
+  public void setArchiveFileNamePrefix(String archiveFileNamePrefix) {
+    this.archiveFileNamePrefix = archiveFileNamePrefix;
+  }
+
+  public CompressFiles withArchiveFileNamePrefix(String archiveFileNamePrefix) {
+    setArchiveFileNamePrefix(archiveFileNamePrefix);
     return this;
   }
 }

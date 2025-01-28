@@ -44,6 +44,40 @@ public class CompressFilesStepTest extends StepTest {
   }
 
   @Test
+  public void testCompressionWithArchiveName() throws Exception {
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+
+    SyncLambdaStep step = new CompressFiles()
+        .withArchiveFileNamePrefix("test_prefix")
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+    Assertions.assertEquals(1, testOutputs.size());
+
+    byte[] archiveBytes = S3Client.getInstance().loadObjectContent(testOutputs.get(0).getS3Key());
+    List<String> zipContents = getZipContents(archiveBytes);
+
+    Assertions.assertEquals(1, zipContents.size());
+  }
+
+  @Test
+  public void testCompressionWithEmptyArchiveName() throws Exception {
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+
+    SyncLambdaStep step = new CompressFiles()
+        .withArchiveFileNamePrefix(" ")
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    Assertions.assertThrows(IllegalArgumentException.class, () -> sendLambdaStepRequestBlock(step, true));
+  }
+
+  @Test
   public void testValidationThrowsErrorOnInvalidDesiredSize() throws Exception {
 
     SyncLambdaStep step = new CompressFiles()
