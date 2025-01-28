@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -155,11 +154,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected void registerOutputs(List<Output> outputs, String outputSetName) throws IOException {
-    registerOutputs(outputs, getOutputSet(outputSetName), Optional.empty());
-  }
-
-  protected void registerOutputs(List<Output> outputs, String outputSetName, Optional<String> filePrefix) throws IOException {
-    registerOutputs(outputs, getOutputSet(outputSetName), filePrefix);
+    registerOutputs(outputs, getOutputSet(outputSetName));
   }
 
   /**
@@ -173,9 +168,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    *
    * @param outputs The list of outputs to be registered for this step
    * @param outputSet The output set for which to register the outputs
-   * @param filePrefix The optional prefix of the stored file
    */
-  protected void registerOutputs(List<Output> outputs, OutputSet outputSet, Optional<String> filePrefix) throws IOException {
+  protected void registerOutputs(List<Output> outputs, OutputSet outputSet) throws IOException {
     for (int i = 0; i < outputs.size(); i++) {
       final Output output = outputs.get(i);
       if (outputSet.modelBased && !(output instanceof ModelBasedOutput))
@@ -184,7 +178,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       if (!outputSet.modelBased && output instanceof ModelBasedOutput)
         throw new IllegalArgumentException("Can not register output of type " + output.getClass().getSimpleName() + " as the output set "
             + outputSet.name + " does only accept model based outputs.");
-      output.store(toS3Path(outputSet) + "/" + filePrefix.orElse(UUID.randomUUID().toString())  + outputSet.fileSuffix);
+      output.store(toS3Path(outputSet) + "/" + (output.getFileName() != null ? output.getFileName() : (UUID.randomUUID() + outputSet.fileSuffix)));
     }
   }
 
