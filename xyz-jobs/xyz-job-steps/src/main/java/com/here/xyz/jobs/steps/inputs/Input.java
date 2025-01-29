@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import static com.here.xyz.jobs.util.S3Client.createS3Uri;
 import static com.here.xyz.jobs.util.S3Client.getBucketFromS3Uri;
 import static com.here.xyz.jobs.util.S3Client.getKeyFromS3Uri;
 
@@ -29,15 +30,27 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.core.JacksonException;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonLocation;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.service.Core;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ExecutionException;
@@ -46,6 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.s3.S3Uri;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = UploadUrl.class, name = "UploadUrl"),
@@ -137,12 +151,28 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     }
     catch (IOException | AmazonS3Exception ignore) {}
 
-    final List<T> inputs = loadInputsInParallel(defaultBucket(), Input.inputS3Prefix(jobId), maxReturnSize, inputType);
+    final List<T> inputs = loadInputsInParallel(defaultBucket(), inputS3Prefix(jobId), maxReturnSize, inputType);
     //Only write metadata of jobs which are submitted already
     if (inputs != null && inputs.size() > 0 && inputsCacheActive.contains(jobId))
       storeMetadata(jobId, (List<Input>) inputs);
 
     return inputs;
+  }
+
+  public static final S3Uri loadResolvedInputPrefixUri(String jobId) {
+    Optional<InputsMetadata> userInputsMetadata = loadMetadataIfExists(jobId);
+    if (userInputsMetadata.isPresent())
+      return userInputsMetadata.get().scannedFrom;
+    return S3Client.createS3Uri(defaultBucket(), inputS3Prefix(jobId));
+  }
+
+  static final Optional<InputsMetadata> loadMetadataIfExists(String jobId) {
+    try {
+      return Optional.of(loadMetadata(jobId));
+    }
+    catch (IOException | AmazonS3Exception e) {
+      return Optional.empty();
+    }
   }
 
   static final InputsMetadata loadMetadata(String jobId) throws IOException, AmazonS3Exception {
@@ -178,11 +208,15 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId) {
+    storeMetadata(jobId, inputs, referencedJobId, createS3Uri(defaultBucket(), inputS3Prefix(jobId)));
+  }
+
+  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, S3Uri scannedFrom) {
     logger.info("Storing inputs metadata for job {} ...", jobId);
     Map<String, InputMetadata> metadata = inputs.stream()
         .collect(Collectors.toMap(input -> (input.s3Bucket == null ? "" : "s3://" + input.s3Bucket + "/") + input.s3Key,
             input -> new InputMetadata(input.byteSize, input.compressed)));
-    storeMetadata(jobId, new InputsMetadata(metadata, new HashSet<>(Set.of(jobId)), referencedJobId));
+    storeMetadata(jobId, new InputsMetadata(metadata, new HashSet<>(Set.of(jobId)), referencedJobId, scannedFrom));
   }
 
   static final List<Input> loadInputsInParallel(String bucketName, String inputS3Prefix) {
@@ -329,6 +363,54 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   public record InputMetadata(@JsonProperty long byteSize, @JsonProperty boolean compressed) {}
-  public record InputsMetadata(@JsonProperty Map<String, InputMetadata> inputs, @JsonProperty Set<String> referencingJobs,
-                               @JsonProperty String referencedJob) implements XyzSerializable {}
+  public record InputsMetadata(
+      @JsonProperty
+      Map<String, InputMetadata> inputs,
+      @JsonProperty
+      Set<String> referencingJobs,
+      @JsonProperty
+      String referencedJob,
+      @JsonProperty
+      //TODO: Remove the following custom (de)serialize annotations once the (de)serializer was registered at a central place for the S3Uri class
+      @JsonSerialize(using = S3UriSerializer.class)
+      @JsonDeserialize(using = S3UriDeserializer.class)
+      S3Uri scannedFrom
+  ) implements XyzSerializable {}
+
+  //TODO: Register that serializer centrally for the S3Uri class
+  private static class S3UriSerializer extends JsonSerializer<S3Uri> {
+
+    @Override
+    public void serialize(S3Uri s3Uri, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+      jsonGenerator.writeObject(s3Uri.uri().toString());
+    }
+  }
+
+  //TODO: Register that deserializer centrally for the S3Uri class
+  private static class S3UriDeserializer extends JsonDeserializer<S3Uri> {
+    @Override
+    public S3Uri deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
+      try {
+        return createS3Uri(jsonParser.getText());
+      }
+      catch (URISyntaxException e) {
+        throw new JacksonException(e) {
+          @Override
+          public JsonLocation getLocation() {
+            return jsonParser.currentLocation();
+          }
+
+          @Override
+          public String getOriginalMessage() {
+            return "Error parsing S3 URI";
+          }
+
+          @Override
+          public Object getProcessor() {
+            return jsonParser;
+          }
+        };
+      }
+    }
+  }
 }
