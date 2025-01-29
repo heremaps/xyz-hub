@@ -1,4 +1,4 @@
-package com.here.xyz.jobs.steps.impl;
+package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
@@ -8,7 +8,7 @@ import static com.here.xyz.jobs.util.test.StepTestBase.S3ContentType.APPLICATION
 import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
-import com.here.xyz.jobs.steps.impl.transport.CompressFiles;
+import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
 import java.io.ByteArrayInputStream;
