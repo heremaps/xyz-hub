@@ -25,7 +25,6 @@ import static java.util.regex.Matcher.quoteReplacement;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -481,7 +480,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   private String replaceInputSetReferences(String scriptParam) {
     return mapInputReferencesIn(scriptParam,
-        referenceIdentifier -> toS3Uri(fromReferenceIdentifier(referenceIdentifier).toS3Path(getJobId())));
+        referenceIdentifier -> fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).uri().toString());
   }
 
   static String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
@@ -494,10 +493,6 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
             return quoteReplacement(match.group());
           return quoteReplacement(replacement);
         });
-  }
-
-  private String toS3Uri(String s3Path) {
-    return "s3://" + Config.instance.JOBS_S3_BUCKET + "/" + s3Path + "/";
   }
 
   record ReferenceIdentifier(String stepId, String name) {

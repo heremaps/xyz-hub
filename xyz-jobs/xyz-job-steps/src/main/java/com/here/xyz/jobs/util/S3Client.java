@@ -28,22 +28,39 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ListObjectsV2Request;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPOutputStream;
+import software.amazon.awssdk.services.s3.S3Uri;
+import software.amazon.awssdk.services.s3.S3Utilities;
 
 public class S3Client {
   private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
+  private static final S3Utilities S3_UTILS = software.amazon.awssdk.services.s3.S3Client.create().utilities();
 
   //TODO: Switch to AWS SDK2
 
@@ -257,5 +274,22 @@ public class S3Client {
     } while (continuationToken != null);
 
     return objectKeys;
+  }
+
+  public static final S3Uri createS3Uri(String bucket, String key) {
+    try {
+      return S3_UTILS.parseUri(new URI("s3://" + bucket + "/" + key));
+    }
+    catch (URISyntaxException e) {
+      return null;
+    }
+  }
+
+  public static final S3Uri createS3Uri(URI s3Uri) {
+    return S3_UTILS.parseUri(s3Uri);
+  }
+
+  public static final S3Uri createS3Uri(String s3Uri) throws URISyntaxException {
+    return createS3Uri(new URI(s3Uri));
   }
 }

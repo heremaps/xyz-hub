@@ -63,6 +63,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.s3.S3Uri;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
@@ -633,8 +634,13 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       String jobId = this.jobId != null ? this.jobId : consumerJobId;
       if (stepId == null)
         //This input-set depicts the user inputs
-        return Input.inputS3Prefix(jobId);
+        return toS3Uri(jobId).key().get();
       return Output.stepOutputS3Prefix(jobId, stepId, name);
+    }
+
+    public S3Uri toS3Uri(String consumerJobId) {
+      String jobId = this.jobId != null ? this.jobId : consumerJobId;
+      return Input.loadResolvedInputPrefixUri(jobId);
     }
   }
 
