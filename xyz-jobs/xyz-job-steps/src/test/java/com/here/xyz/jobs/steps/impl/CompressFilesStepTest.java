@@ -442,6 +442,62 @@ public class CompressFilesStepTest extends StepTest {
     Assertions.assertEquals(2, zipContents.size(), "Files should not be grouped due to missing metadata keys.");
   }
 
+  @Test
+  public void testUnwrapPathWithLevelMinusOne() {
+    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(-1);
+    String originalPath = "folder/subfolder/files";
+    String result = compressFiles.unwrapPath(originalPath);
+    Assertions.assertEquals(originalPath, result);
+  }
+
+  @Test
+  public void testUnwrapPathWithLevelZero() {
+    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(0);
+    String originalPath = "folder/subfolder/files";
+    String result = compressFiles.unwrapPath(originalPath);
+    Assertions.assertEquals(null, result);
+  }
+
+  @Test
+  public void testUnwrapPathWithOneLevel() {
+    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(1);
+    String originalPath = "folder/subfolder/files";
+    String result = compressFiles.unwrapPath(originalPath);
+    Assertions.assertEquals("subfolder/files", result);
+  }
+
+  @Test
+  public void testUnwrapPathWithPositiveLevel() {
+    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(2);
+    String originalPath = "folder/subfolder/files";
+    String result = compressFiles.unwrapPath(originalPath);
+    Assertions.assertEquals("files", result);
+  }
+
+  @Test
+  public void testUnwrapPathWithPositiveLevelEqualToParts() {
+    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(3);
+    String originalPath = "folder/subfolder/files";
+    String result = compressFiles.unwrapPath(originalPath);
+    Assertions.assertEquals(null, result);
+  }
+
+  @Test
+  public void testUnwrapPathWithPositiveLevelGreaterThanParts() {
+    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(5);
+    String originalPath = "folder/subfolder/files";
+    String result = compressFiles.unwrapPath(originalPath);
+    Assertions.assertEquals(null, result);
+  }
+
+  @Test
+  public void testUnwrapPathWithEmptyPath() {
+    CompressFiles compressFiles = new CompressFiles().withUnwrapFolderLevel(1);
+    String originalPath = "files";
+    String result = compressFiles.unwrapPath(originalPath);
+    Assertions.assertEquals(null, result);
+  }
+
   private List<String> getZipContents(byte[] zipBytes) throws Exception {
     List<String> entries = new ArrayList<>();
     try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
