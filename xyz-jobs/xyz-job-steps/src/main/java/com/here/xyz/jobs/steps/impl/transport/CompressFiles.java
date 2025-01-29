@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -113,15 +114,7 @@ public class CompressFiles extends SyncLambdaStep {
     try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
          ZipOutputStream zipStream = new ZipOutputStream(outputStream)) {
 
-      if (desiredContainedFilesize == -1) {
-        for (InputSet inputSet : getInputSets()) {
-          for (Input input : loadInputs(inputSet, UploadUrl.class)) {
-            processInputToZip(input, inputSet, zipStream);
-          }
-        }
-      } else {
-        normalizeFiles(zipStream);
-      }
+      processInputs(zipStream);
 
       zipStream.finish();
 
@@ -131,7 +124,9 @@ public class CompressFiles extends SyncLambdaStep {
           .withContent(byteArray)
           .withContentType(ZIP_CONTENT_TYPE)
           .withByteSize(byteArray.length)
-          .withFileName(archiveFileNamePrefix != null ? archiveFileNamePrefix + "_" + getJobId() + ARCHIVE_FILE_SUFFIX : null)
+          .withFileName(archiveFileNamePrefix != null
+              ? archiveFileNamePrefix + "_" + getJobId() + ARCHIVE_FILE_SUFFIX
+              : null)
       ), COMPRESSED_DATA);
 
       logger.info("ZIP successfully written to S3");
@@ -142,68 +137,76 @@ public class CompressFiles extends SyncLambdaStep {
     }
   }
 
-  private void normalizeFiles(ZipOutputStream zipStream) throws IOException {
-    List<Input> allInputs = loadAllInputs();
-    Map<String, List<Input>> groupedInputs = new HashMap<>();
-    long currentSize = 0;
-    int fileCounter = 1;
-    if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
-      groupedInputs.putAll(allInputs.stream()
-          .collect(Collectors.groupingBy(
-              input -> (String) input.getMetadata().getOrDefault(groupByMetadataKey, null)
-          )));
+  private void processInputs(ZipOutputStream zipStream) throws IOException {
+    if (desiredContainedFilesize == -1) {
+      for (InputSet inputSet : getInputSets()) {
+        for (Input input : loadInputs(inputSet, UploadUrl.class)) {
+          addInputToZip(input, inputSet, zipStream);
+        }
+      }
     } else {
-      groupedInputs.put(null, allInputs);
+      compressNormalizedFiles(zipStream);
     }
+  }
+
+  private void compressNormalizedFiles(ZipOutputStream zipStream) throws IOException {
+    Map<String, List<Input>> groupedInputs = groupInputs(loadAllInputs());
+    long currentSize = 0;
 
     try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
 
       for (Map.Entry<String, List<Input>> inputSet : groupedInputs.entrySet()) {
 
-        String processedFolderName = unwrapPath(inputSet.getKey());
-
-        if (processedFolderName != null) {
-          createFolderInZip(processedFolderName, zipStream);
-        }
+        String processedFolderName = processFolder(inputSet.getKey(), zipStream);
 
         for (Input input : inputSet.getValue()) {
 
           if (input.getByteSize() > desiredContainedFilesize) {
-            fileCounter += splitAndAddToZip(input, zipStream, fileCounter, processedFolderName);
+            splitAndAddInputToZip(input, zipStream, processedFolderName);
           } else {
             if (currentSize + input.getByteSize() > desiredContainedFilesize) {
-              if (buffer.size() > 0) {
-                addBufferedEntryToZip(buffer, zipStream, fileCounter, processedFolderName);
-                fileCounter++;
-                buffer.reset();
-                currentSize = 0;
-              }
+              flushBuffer(buffer, zipStream, processedFolderName);
+              currentSize = 0;
             }
             ByteArrayOutputStream tempStream = new ByteArrayOutputStream();
-            processInputToBuffer(input, tempStream);
-            buffer.write(tempStream.toByteArray());
+            bufferData(buffer, input, tempStream);
             currentSize += input.getByteSize();
           }
         }
-        if (buffer.size() > 0) {
-          addBufferedEntryToZip(buffer, zipStream, fileCounter, processedFolderName);
-          buffer.reset();
-          currentSize = 0;
-          fileCounter++;
-        }
+        flushBuffer(buffer, zipStream, processedFolderName);
+        currentSize = 0;
       }
     }
   }
 
-  private List<Input> loadAllInputs() {
-    List<Input> allInputs = new java.util.ArrayList<>();
-    for (InputSet inputSet : getInputSets()) {
-      allInputs.addAll(loadInputs(inputSet, UploadUrl.class));
+  private String processFolder(String originalFolderName, ZipOutputStream zipStream) {
+    String processedFolderName = unwrapPath(originalFolderName);
+    if (processedFolderName != null && !createdFolders.contains(processedFolderName)) {
+      createFolderInZip(processedFolderName, zipStream);
     }
-    return allInputs;
+    return processedFolderName;
   }
 
-  private int splitAndAddToZip(Input input, ZipOutputStream zipStream, int startCounter, String folderName) {
+  private Map<String, List<Input>> groupInputs(List<Input> inputs) {
+    if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
+      return inputs.stream()
+          .collect(Collectors.groupingBy(
+              input -> (String) input.getMetadata().getOrDefault(groupByMetadataKey, null)
+          ));
+    } else {
+      Map<String, List<Input>> singleGroup = new HashMap<>();
+      singleGroup.put(null, inputs);
+      return singleGroup;
+    }
+  }
+
+  private List<Input> loadAllInputs() {
+    return getInputSets().stream()
+        .flatMap(inputSet -> loadInputs(inputSet, UploadUrl.class).stream())
+        .collect(Collectors.toList());
+  }
+
+  private void splitAndAddInputToZip(Input input, ZipOutputStream zipStream, String processedFolderName) {
     try {
       S3Client sourceClient = S3Client.getInstance(input.getS3Bucket());
       try (InputStream fileStream = sourceClient.streamObjectContent(input.getS3Key());
@@ -211,14 +214,12 @@ public class CompressFiles extends SyncLambdaStep {
         String line;
         ByteArrayOutputStream partStream = new ByteArrayOutputStream();
         long bytesWritten = 0;
-        int partNumber = startCounter;
 
         while ((line = reader.readLine()) != null) {
           byte[] lineBytes = line.getBytes();
           // if limit reached and we have what to flush
           if ((bytesWritten + lineBytes.length > desiredContainedFilesize) && partStream.size() > 0) {
-            addZipEntry(zipStream, partStream.toByteArray(), partNumber, folderName);
-            partNumber++;
+            addZipEntry(zipStream, partStream.toByteArray(), processedFolderName);
             partStream.reset();
             bytesWritten = 0;
           }
@@ -226,34 +227,38 @@ public class CompressFiles extends SyncLambdaStep {
           bytesWritten += lineBytes.length;
         }
         if (partStream.size() > 0) {
-          addZipEntry(zipStream, partStream.toByteArray(), partNumber, folderName);
+          addZipEntry(zipStream, partStream.toByteArray(), processedFolderName);
         }
-        return partNumber + 1;
       }
     }
     catch (Exception e) {
       logger.error("Error splitting and adding file '{}' to ZIP. Skipping. Error: ", input.getS3Key(), e);
-      return startCounter;
     }
   }
 
-  private void addBufferedEntryToZip(ByteArrayOutputStream buffer, ZipOutputStream zipStream, int counter, String folderName) {
-    addZipEntry(zipStream, buffer.toByteArray(), counter, folderName);
+  private void addBufferedEntryToZip(ByteArrayOutputStream buffer, ZipOutputStream zipStream, String folderName) {
+    String zipEntryPath = composeEntryPath(UUID.randomUUID().toString(), folderName);
+    createZipEntry(zipEntryPath, buffer.toByteArray(), zipStream);
   }
 
-  private void addZipEntry(ZipOutputStream zipStream, byte[] data, int counter, String folderName) {
-    try {
-      String zipEntryPath = counter + ".json";
-      if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
-        if (folderName != null && !createdFolders.contains(folderName)) {
-          createFolderInZip(folderName, zipStream);
-          createdFolders.add(folderName);
-        }
-
-        if (folderName != null && !folderName.isEmpty() && !folderName.equals("/")) {
-          zipEntryPath = folderName + "/" + zipEntryPath;
-        }
+  private String composeEntryPath(String fileName, String folderName) {
+    String zipEntryPath = String.valueOf(fileName);
+    if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
+      if (folderName != null && !folderName.isEmpty() && !folderName.equals("/")) {
+        zipEntryPath = folderName + "/" + zipEntryPath;
       }
+    }
+    return zipEntryPath;
+  }
+
+  private void addZipEntry(ZipOutputStream zipStream, byte[] data, String folderName) {
+    String fileName = UUID.randomUUID().toString();
+    try {
+      String zipEntryPath;
+      if (folderName != null && !folderName.isEmpty() && !folderName.equals("/"))
+        zipEntryPath = folderName + "/" + fileName;
+      else
+        zipEntryPath = String.valueOf(fileName);
       ZipEntry entry = new ZipEntry(zipEntryPath);
       zipStream.putNextEntry(entry);
       zipStream.write(data);
@@ -261,11 +266,11 @@ public class CompressFiles extends SyncLambdaStep {
       logger.info("Added entry '{}' to ZIP. Size: {} bytes", zipEntryPath, data.length);
     }
     catch (IOException e) {
-      logger.error("Error adding entry '{}' to ZIP. Skipping. Error: ", counter, e);
+      logger.error("Error adding entry to ZIP. Skipping. Error: ", e);
     }
   }
 
-  private void processInputToBuffer(Input input, ByteArrayOutputStream buffer) {
+  private void bufferInputContent(Input input, ByteArrayOutputStream buffer) {
     try {
       S3Client sourceClient = S3Client.getInstance(input.getS3Bucket());
       try (InputStream fileStream = sourceClient.streamObjectContent(input.getS3Key())) {
@@ -278,19 +283,16 @@ public class CompressFiles extends SyncLambdaStep {
     }
   }
 
-  private void processInputToZip(Input input, InputSet inputSet, ZipOutputStream zipStream) {
+  private void addInputToZip(Input input, InputSet inputSet, ZipOutputStream zipStream) {
     try {
       S3Client sourceClient = S3Client.getInstance(input.getS3Bucket());
       String zipEntryPath = composeFileName(input, inputSet);
 
       if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()
           && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
+        
         String folderName = (String) input.getMetadata().getOrDefault(groupByMetadataKey, null);
-        String processedFolderName = unwrapPath(folderName);
-
-        if (processedFolderName != null && !createdFolders.contains(processedFolderName)) {
-          createFolderInZip(processedFolderName, zipStream);
-        }
+        String processedFolderName = processFolder(folderName, zipStream);
 
         if (processedFolderName != null && !processedFolderName.isEmpty() && !processedFolderName.equals("/")) {
           zipEntryPath = processedFolderName + "/" + zipEntryPath;
@@ -310,7 +312,10 @@ public class CompressFiles extends SyncLambdaStep {
   private String composeFileName(Input input, InputSet inputSet) {
     String fullPath = input.getS3Key();
     String partToCut = inputSet.toS3Path(getJobId());
+    return sanitizeFileName(fullPath, partToCut);
+  }
 
+  private String sanitizeFileName(String fullPath, String partToCut) {
     if (fullPath.startsWith(partToCut))
       return fullPath.substring(partToCut.length() + 1);
     else
@@ -321,17 +326,22 @@ public class CompressFiles extends SyncLambdaStep {
    * Creates an empty folder entry in the ZIP. Example: if folderName = "myFolder", then we create the entry "myFolder/".
    */
   private void createFolderInZip(String folderName, ZipOutputStream zipStream) {
+    String folderEntryPath = folderName + "/";
+    createZipEntry(folderEntryPath, new byte[0], zipStream);
+    createdFolders.add(folderName);
+
+    logger.info("Created folder entry '{}' in the ZIP.", folderName + "/");
+  }
+
+  private void createZipEntry(String entryPath, byte[] data, ZipOutputStream zipStream) {
     try {
-      ZipEntry folderEntry = new ZipEntry(folderName + "/");
-      zipStream.putNextEntry(folderEntry);
+      ZipEntry entry = new ZipEntry(entryPath);
+      zipStream.putNextEntry(entry);
+      zipStream.write(data);
       zipStream.closeEntry();
-
-      createdFolders.add(folderName);
-
-      logger.info("Created folder entry '{}' in the ZIP.", folderName + "/");
-    }
-    catch (IOException e) {
-      logger.error("Error creating folder '{}' in the ZIP. Skipping. Error: ", folderName, e);
+      logger.info("Added entry '{}' to ZIP. Size: {} bytes", entryPath, data.length);
+    } catch (IOException e) {
+      logger.error("Error adding entry '{}' to ZIP. Skipping. Error: ", entryPath, e);
     }
   }
 
@@ -349,7 +359,7 @@ public class CompressFiles extends SyncLambdaStep {
           continue;
 
         try (InputStream childStream = sourceClient.streamObjectContent(childKey)) {
-          writeZipEntry(zipStream, childKey, childStream);
+          addFileContentToZip(zipStream, childKey, childStream);
         }
       }
     }
@@ -357,7 +367,7 @@ public class CompressFiles extends SyncLambdaStep {
 
   private void addFileToZip(Input input, S3Client sourceClient, String zipEntryPath, ZipOutputStream zipStream) {
     try (InputStream fileStream = sourceClient.streamObjectContent(input.getS3Key())) {
-      writeZipEntry(zipStream, zipEntryPath, fileStream);
+      addFileContentToZip(zipStream, zipEntryPath, fileStream);
       logger.info("Added file '{}' to ZIP under entry '{}'. Size: {} bytes", input.getS3Key(), zipEntryPath, input.getByteSize());
     }
     catch (Exception e) {
@@ -365,7 +375,7 @@ public class CompressFiles extends SyncLambdaStep {
     }
   }
 
-  private void writeZipEntry(ZipOutputStream zipStream, String entryPath, InputStream contentStream) throws IOException {
+  private void addFileContentToZip(ZipOutputStream zipStream, String entryPath, InputStream contentStream) throws IOException {
     if (contentStream == null) {
       logger.warn("Content stream for '{}' is null. Skipping entry.", entryPath);
       return;
@@ -381,6 +391,23 @@ public class CompressFiles extends SyncLambdaStep {
       }
 
       zipStream.closeEntry();
+    }
+  }
+
+  private void bufferData(ByteArrayOutputStream buffer, Input input, ByteArrayOutputStream tempStream) {
+    try {
+      bufferInputContent(input, tempStream);
+      buffer.write(tempStream.toByteArray());
+    }
+    catch (Exception e) {
+      logger.error("Error processing input '{}' to buffer. Skipping.", input.getS3Key(), e);
+    }
+  }
+
+  private void flushBuffer(ByteArrayOutputStream buffer, ZipOutputStream zipStream, String folderName) {
+    if (buffer.size() > 0) {
+      addBufferedEntryToZip(buffer, zipStream, folderName);
+      buffer.reset();
     }
   }
 
