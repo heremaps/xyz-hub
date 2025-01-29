@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
@@ -125,14 +126,16 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public abstract AsyncExecutionState getExecutionState() throws UnknownStateException;
 
   private void startExecution() throws Exception {
+    ExecutionMode executionMode = getExecutionMode();
+    if (executionMode == ASYNC)
+      registerStateCheckTrigger();
+
     updateState(RUNNING);
     execute(isResume());
+
     switch (getExecutionMode()) {
       case SYNC -> updateState(SUCCEEDED);
-      case ASYNC -> {
-        registerStateCheckTrigger();
-        synchronizeStep();
-      }
+      case ASYNC -> synchronizeStep();
     }
   }
 
@@ -141,30 +144,36 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     synchronizeStep();
   }
 
+  @JsonIgnore
+  private String getStateCheckRuleName() {
+    return HEART_BEAT_PREFIX + getGlobalStepId();
+  }
+
   private void registerStateCheckTrigger() {
     if (isSimulation)
       return;
 
-    cloudwatchEventsClient().putRule(PutRuleRequest.builder()
-        .name(getStateCheckRuleName())
-        .state(ENABLED)
-        .scheduleExpression("rate(1 minute)")
-        .description("Heartbeat trigger for Step " + getGlobalStepId())
-        .build());
+    try {
+      cloudwatchEventsClient().putRule(PutRuleRequest.builder()
+          .name(getStateCheckRuleName())
+          .state(ENABLED)
+          .scheduleExpression("rate(1 minute)")
+          .description("Heartbeat trigger for Step " + getGlobalStepId())
+          .build());
 
-    cloudwatchEventsClient().putTargets(PutTargetsRequest.builder()
-        .rule(getStateCheckRuleName())
-        .targets(Target.builder()
-            .id(getGlobalStepId())
-            .arn(ownLambdaArn.toString())
-            .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
-            .build())
-        .build());
-  }
-
-  @JsonIgnore
-  private String getStateCheckRuleName() {
-    return HEART_BEAT_PREFIX + getGlobalStepId();
+      cloudwatchEventsClient().putTargets(PutTargetsRequest.builder()
+          .rule(getStateCheckRuleName())
+          .targets(Target.builder()
+              .id(getGlobalStepId())
+              .arn(ownLambdaArn.toString())
+              .input(new LambdaStepRequest().withType(STATE_CHECK).withStep(this).serialize())
+              .build())
+          .build());
+    }
+    catch (Exception e) {
+      logger.error("[{}] Unexpected error while registering state-check trigger {}", getGlobalStepId(), getStateCheckRuleName(), e);
+      throw new StepException("Unexpected error while registering state-check trigger", e);
+    }
   }
 
   private void unregisterStateCheckTrigger() {
