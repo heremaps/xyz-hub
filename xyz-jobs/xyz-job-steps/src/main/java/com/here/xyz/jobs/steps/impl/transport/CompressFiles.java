@@ -72,6 +72,15 @@ public class CompressFiles extends SyncLambdaStep {
   @JsonView({Internal.class, Static.class})
   private String archiveFileNamePrefix = null;
 
+  /**
+   * Specifies the folder unwrapping level.
+   * -1: Do not unwrap
+   *  0: Unwrap indefinitely
+   *  >0: Remove up to specific level
+   */
+  @JsonView({Internal.class, Static.class})
+  private int unwrapFolderLevel = -1;
+
   {
     setOutputSets(List.of(new OutputSet(COMPRESSED_DATA, Visibility.SYSTEM, ARCHIVE_FILE_SUFFIX)));
   }
@@ -141,26 +150,30 @@ public class CompressFiles extends SyncLambdaStep {
     if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
       groupedInputs.putAll(allInputs.stream()
           .collect(Collectors.groupingBy(
-              input -> (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default")
+              input -> (String) input.getMetadata().getOrDefault(groupByMetadataKey, null)
           )));
     } else {
-      groupedInputs.put("default", allInputs);
+      groupedInputs.put(null, allInputs);
     }
 
     try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
 
       for (Map.Entry<String, List<Input>> inputSet : groupedInputs.entrySet()) {
 
-        createFolderInZip(inputSet.getKey(), zipStream);
+        String processedFolderName = unwrapPath(inputSet.getKey());
+
+        if (processedFolderName != null) {
+          createFolderInZip(processedFolderName, zipStream);
+        }
 
         for (Input input : inputSet.getValue()) {
 
           if (input.getByteSize() > desiredContainedFilesize) {
-            fileCounter += splitAndAddToZip(input, zipStream, fileCounter);
+            fileCounter += splitAndAddToZip(input, zipStream, fileCounter, processedFolderName);
           } else {
             if (currentSize + input.getByteSize() > desiredContainedFilesize) {
               if (buffer.size() > 0) {
-                addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
+                addBufferedEntryToZip(buffer, zipStream, fileCounter, processedFolderName);
                 fileCounter++;
                 buffer.reset();
                 currentSize = 0;
@@ -173,7 +186,7 @@ public class CompressFiles extends SyncLambdaStep {
           }
         }
         if (buffer.size() > 0) {
-          addBufferedEntryToZip(buffer, zipStream, fileCounter, inputSet.getKey());
+          addBufferedEntryToZip(buffer, zipStream, fileCounter, processedFolderName);
           buffer.reset();
           currentSize = 0;
           fileCounter++;
@@ -190,12 +203,7 @@ public class CompressFiles extends SyncLambdaStep {
     return allInputs;
   }
 
-  private int splitAndAddToZip(Input input, ZipOutputStream zipStream, int startCounter) {
-    String folderName = "default";
-    if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()
-        && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
-      folderName = (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default");
-    }
+  private int splitAndAddToZip(Input input, ZipOutputStream zipStream, int startCounter, String folderName) {
     try {
       S3Client sourceClient = S3Client.getInstance(input.getS3Bucket());
       try (InputStream fileStream = sourceClient.streamObjectContent(input.getS3Key());
@@ -237,12 +245,14 @@ public class CompressFiles extends SyncLambdaStep {
     try {
       String zipEntryPath = counter + ".json";
       if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()) {
-        if (!createdFolders.contains(folderName)) {
+        if (folderName != null && !createdFolders.contains(folderName)) {
           createFolderInZip(folderName, zipStream);
           createdFolders.add(folderName);
         }
 
-        zipEntryPath = folderName + "/" + zipEntryPath;
+        if (folderName != null && !folderName.isEmpty() && !folderName.equals("/")) {
+          zipEntryPath = folderName + "/" + zipEntryPath;
+        }
       }
       ZipEntry entry = new ZipEntry(zipEntryPath);
       zipStream.putNextEntry(entry);
@@ -275,14 +285,16 @@ public class CompressFiles extends SyncLambdaStep {
 
       if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()
           && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
-        String folderName = (String) input.getMetadata().getOrDefault(groupByMetadataKey, "default");
+        String folderName = (String) input.getMetadata().getOrDefault(groupByMetadataKey, null);
+        String processedFolderName = unwrapPath(folderName);
 
-        if (!createdFolders.contains(folderName)) {
-          createFolderInZip(folderName, zipStream);
-          createdFolders.add(folderName);
+        if (processedFolderName != null && !createdFolders.contains(processedFolderName)) {
+          createFolderInZip(processedFolderName, zipStream);
         }
 
-        zipEntryPath = folderName + "/" + zipEntryPath;
+        if (processedFolderName != null && !processedFolderName.isEmpty() && !processedFolderName.equals("/")) {
+          zipEntryPath = processedFolderName + "/" + zipEntryPath;
+        }
       }
 
       if (sourceClient.isFolder(input.getS3Key()))
@@ -313,6 +325,8 @@ public class CompressFiles extends SyncLambdaStep {
       ZipEntry folderEntry = new ZipEntry(folderName + "/");
       zipStream.putNextEntry(folderEntry);
       zipStream.closeEntry();
+
+      createdFolders.add(folderName);
 
       logger.info("Created folder entry '{}' in the ZIP.", folderName + "/");
     }
@@ -370,6 +384,24 @@ public class CompressFiles extends SyncLambdaStep {
     }
   }
 
+  public String unwrapPath(String originalPath) {
+    if (originalPath == null) {
+      return null;
+    }
+    if (unwrapFolderLevel == -1) {
+      return originalPath;
+    }
+    if (unwrapFolderLevel == 0) {
+      return null;
+    }
+
+    String[] parts = originalPath.split("/");
+    if (unwrapFolderLevel >= parts.length) {
+      return null;
+    }
+    return String.join("/", java.util.Arrays.copyOfRange(parts, unwrapFolderLevel, parts.length));
+  }
+
   @Override
   public boolean validate() throws BaseHttpServerVerticle.ValidationException {
     if (desiredContainedFilesize != -1) {
@@ -379,6 +411,9 @@ public class CompressFiles extends SyncLambdaStep {
     }
     if (archiveFileNamePrefix != null && archiveFileNamePrefix.trim().isEmpty()) {
       throw new IllegalArgumentException("archiveFileNamePrefix cannot be empty");
+    }
+    if (unwrapFolderLevel < -1) {
+      throw new IllegalArgumentException("unwrapFolderLevel must be -1 (do not unwrap), 0 (unwrap indefinitely), or greater than 0");
     }
     return true;
   }
@@ -419,6 +454,19 @@ public class CompressFiles extends SyncLambdaStep {
 
   public CompressFiles withArchiveFileNamePrefix(String archiveFileNamePrefix) {
     setArchiveFileNamePrefix(archiveFileNamePrefix);
+    return this;
+  }
+
+  public int getUnwrapFolderLevel() {
+    return unwrapFolderLevel;
+  }
+
+  public void setUnwrapFolderLevel(int unwrapFolderLevel) {
+    this.unwrapFolderLevel = unwrapFolderLevel;
+  }
+
+  public CompressFiles withUnwrapFolderLevel(int unwrapFolderLevel) {
+    setUnwrapFolderLevel(unwrapFolderLevel);
     return this;
   }
 }
