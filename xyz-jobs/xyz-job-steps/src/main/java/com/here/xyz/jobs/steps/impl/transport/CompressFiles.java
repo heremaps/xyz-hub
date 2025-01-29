@@ -411,7 +411,7 @@ public class CompressFiles extends SyncLambdaStep {
     }
   }
 
-  public String unwrapPath(String originalPath) {
+  String unwrapPath(String originalPath) {
     if (originalPath == null) {
       return null;
     }
