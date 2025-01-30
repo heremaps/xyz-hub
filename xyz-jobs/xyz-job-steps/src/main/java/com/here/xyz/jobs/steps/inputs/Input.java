@@ -74,7 +74,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return jobId + "/meta/inputs.json";
   }
 
-  private static String defaultBucket() {
+  public static String defaultBucket() {
     return Config.instance.JOBS_S3_BUCKET;
   }
 
@@ -147,7 +147,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return inputs;
   }
 
-  public static final S3Uri loadResolvedInputPrefixUri(String jobId) {
+  public static final S3Uri loadResolvedUserInputPrefixUri(String jobId) {
     Optional<InputsMetadata> userInputsMetadata = loadMetadataIfExists(jobId);
     if (userInputsMetadata.isPresent())
       return userInputsMetadata.get().scannedFrom;
