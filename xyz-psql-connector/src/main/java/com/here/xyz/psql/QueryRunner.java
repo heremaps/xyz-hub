@@ -20,10 +20,10 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -62,7 +62,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   private static int calculateTimeout() throws SQLException {
-    final ConnectorRuntime runtime = ConnectorRuntime.getInstance();
+    final FunctionRuntime runtime = FunctionRuntime.getInstance();
     int timeout = runtime.getRemainingTime() / 1000 - MIN_REMAINING_TIME_FOR_RESULT_HANDLING;
     if (timeout <= 0) {
       logger.warn("{} Not enough time left to execute query: {}s", runtime.getStreamId(), timeout);
@@ -92,7 +92,7 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
     if (query == null)
       query = buildQuery(input);
     return query
-        .withQueryId(ConnectorRuntime.getInstance().getStreamId())
+        .withQueryId(FunctionRuntime.getInstance().getStreamId())
         .withTimeout(calculateTimeout())
         .withMaximumRetries(2);
   }

@@ -19,12 +19,9 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
 
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Space;
@@ -34,6 +31,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,10 +42,7 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      int acus = calculateNeededAcus();
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
-
-      return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
+      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(calculateNeededAcus()));
     }
     catch (WebClientException e) {
       //TODO: log error
@@ -77,12 +72,8 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
 
   @Override
   public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    logger.info("Loading space config for space " + getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space " + getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
     logger.info("Gathering indices of space " + getSpaceId());
-    List<String> indexes = runReadQuerySync(buildLoadSpaceTableIndicesQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus(),
+    List<String> indexes = runReadQuerySync(buildLoadSpaceTableIndicesQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus(),
             rs -> {
               List<String> result = new ArrayList<>();
               while(rs.next())
@@ -95,10 +86,12 @@ public class DropIndexes extends SpaceBasedStep<DropIndexes> {
       logger.info("No indices to found. None will be dropped for space " + getSpaceId());
     }
     else {
+      logger.info("[{}] Deactivating the space {} ...", getGlobalStepId(), getSpaceId());
+      hubWebClient().patchSpace(getSpaceId(), Map.of("active", false));
       logger.info("Dropping the following indices for space " + getSpaceId() + ": " + indexes);
-      List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(getSchema(db), indexes);
+      List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(getSchema(db()), indexes);
       SQLQuery dropIndexesQuery = SQLQuery.join(dropQueries, ";");
-      runWriteQueryAsync(dropIndexesQuery, db, calculateNeededAcus());
+      runWriteQueryAsync(dropIndexesQuery, db(), calculateNeededAcus());
     }
   }
 

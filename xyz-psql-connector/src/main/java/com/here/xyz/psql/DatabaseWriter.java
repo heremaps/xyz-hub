@@ -31,7 +31,6 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable.Static;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -39,8 +38,9 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -172,6 +172,7 @@ public class DatabaseWriter {
                 .withId(deletion.getKey())
                 .withProperties(new Properties().withXyzNamespace(new XyzNamespace()
                     .withDeleted(true)
+                    .withAuthor(event.getAuthor())
                     .withVersion(Long.parseLong(deletion.getValue())) //TODO: This is a workaround for legacy history
                     .withUpdatedAt(System.currentTimeMillis())));
             fillInsertQueryFromFeature(query, DELETE, deletedFeature, event, version);
@@ -240,7 +241,7 @@ public class DatabaseWriter {
         long version, boolean uniqueConstraintExists) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
-        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, uniqueConstraintExists);
+        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, uniqueConstraintExists).withLabel("streamId", getStreamId());
 
         List<String> idList = transactional ? new ArrayList<>() : null;
 
@@ -387,7 +388,7 @@ public class DatabaseWriter {
     }
 
     private static String getStreamId() {
-        return ConnectorRuntime.getInstance().getStreamId();
+        return FunctionRuntime.getInstance().getStreamId();
     }
 
     private static void executeBatchesAndCheckOnFailures(List<String> idList, PreparedStatement batchStmt,

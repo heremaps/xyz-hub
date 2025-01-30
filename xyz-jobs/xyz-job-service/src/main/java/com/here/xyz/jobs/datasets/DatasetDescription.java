@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
 import com.here.xyz.jobs.datasets.DatasetDescription.Map;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
@@ -74,9 +75,12 @@ public abstract class DatasetDescription implements Typed {
     }
   }
 
+  @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Space<T extends Space> extends Identifiable<T> implements FilteringSource<T>, VersionedSource<T> {
+    @JsonView({Public.class, Static.class})
     private Filters filters;
-    private Ref versionRef;
+    @JsonView({Public.class, Static.class})
+    private Ref versionRef = new Ref(Ref.HEAD);
 
     @Override
     public Filters getFilters() {

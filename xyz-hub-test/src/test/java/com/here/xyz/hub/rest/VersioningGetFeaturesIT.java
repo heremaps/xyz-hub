@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -51,13 +52,10 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
   public void before() {
     removeSpace(SPACE_ID);
     createSpaceWithVersionsToKeep("spacev2k1000", 1000);
-    postFeature(SPACE_ID, newFeature(), AuthProfile.ACCESS_OWNER_1_ADMIN);
+    postFeature(SPACE_ID, newFeature(), ACCESS_ALL);
     postFeature(SPACE_ID, newFeature()
         .withGeometry(new Point().withCoordinates(new PointCoordinates(50,50)))
-        .withProperties(new Properties().with("key2", "value2")),
-        AuthProfile.ACCESS_OWNER_1_ADMIN,
-        true
-    );
+        .withProperties(new Properties().with("key2", "value2")), ACCESS_ALL);
   }
 
   @After
@@ -68,7 +66,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
   @Test
   public void testGetBboxWithVersion() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=1&south=-1&east=-1&north=1&version=1")
         .then()
@@ -79,7 +77,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=51&south=49&east=49&north=51&version=1")
         .then()
@@ -87,7 +85,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=1&south=-1&east=-1&north=1&version=2")
         .then()
@@ -95,7 +93,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/bbox?west=51&south=49&east=49&north=51&version=2")
         .then()
@@ -109,7 +107,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
   @Test
   public void testGetTileWithVersion() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=1")
         .then()
@@ -120,7 +118,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12120?version=1")
         .then()
@@ -128,7 +126,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12222?version=2")
         .then()
@@ -136,7 +134,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/tile/quadkey/12120?version=2")
         .then()
@@ -150,7 +148,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
   @Test
   public void testGetSpatialWithVersion() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=0&lon=0&radius=10000&version=1")
         .then()
@@ -161,7 +159,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=50&lon=50&radius=10000&version=1")
         .then()
@@ -169,7 +167,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=0&lon=0&radius=10000&version=2")
         .then()
@@ -177,7 +175,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/spatial?lat=50&lon=50&radius=10000&version=2")
         .then()
@@ -191,7 +189,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
   @Test
   public void testPostSpatialWithVersion() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body("{\"type\":\"Point\",\"coordinates\":[1,1,0]}")
@@ -204,7 +202,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body("{\"type\":\"Point\",\"coordinates\":[49,49,0]}")
@@ -220,7 +218,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
   @Test
   public void testGetSearchWithVersion() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&p.key1=value1")
         .then()
@@ -231,7 +229,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&p.key2=value2")
         .then()
@@ -239,7 +237,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=2&p.key1=value1&p.key2=value2")
         .then()
@@ -253,7 +251,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
   @Test
   public void testGetIterateWithVersion() {
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=1&limit=1")
         .then()
@@ -264,7 +262,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.key2", nullValue());
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=2&limit=1")
         .then()
@@ -293,10 +291,10 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
           .withGeometry(new Point().withCoordinates(new PointCoordinates(3,3)))
           .withProperties(new Properties().with("it3", "it3")));
     }}),
-        AuthProfile.ACCESS_OWNER_1_ADMIN);
+        ACCESS_ALL);
 
     String handle = given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=3&limit=3")
         .then()
@@ -307,7 +305,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .path("nextPageToken");
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/iterate?version=3&handle=" + handle)
         .then()
@@ -321,7 +319,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     postFeature(SPACE_ID, newFeature().withProperties(new Properties().with("population", 5000)), AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=1&author=" + AUTHOR_1)
         .then()
@@ -332,7 +330,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(1));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=4&author=" + AUTHOR_1)
         .then()
@@ -340,7 +338,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=2&author=" + AUTHOR_2)
         .then()
@@ -348,7 +346,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?version=4&author=" + AUTHOR_2)
         .then()
@@ -360,7 +358,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features[0].properties.'@ns:com:here:xyz'.version", equalTo(3));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?p.population=5000&author=" + AUTHOR_1)
         .then()
@@ -368,7 +366,7 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
         .body("features.size()", equalTo(0));
 
     given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .headers(getAuthHeaders(ACCESS_ALL))
         .when()
         .get(getSpacesPath() + "/" + SPACE_ID + "/search?p.population=5000&author=" + AUTHOR_2)
         .then()

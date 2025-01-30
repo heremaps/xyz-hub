@@ -101,7 +101,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     if (event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Invalid request parameters. Only one Property is allowed");
 
-    checkCanSearchFor(event, getDataSourceProvider());
+    checkCanSearchFor(event);
   }
 
   /***************************************** CLUSTERING ******************************************************/

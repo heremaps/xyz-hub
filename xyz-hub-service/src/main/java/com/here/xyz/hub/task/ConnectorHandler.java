@@ -288,10 +288,10 @@ public class ConnectorHandler {
     //Validate RemoteFunction
     validateRfId(rf);
 
-    if (rf.lambdaARN == null)
+    if (rf.lambdaARN() == null)
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.lambdaARN' for the resource is missing.");
     else
-    if (!rf.lambdaARN.matches("arn:aws:lambda:[a-z]{2}(-gov)?-[a-z]+-\\d{1}:\\d{12}:function:([a-zA-Z0-9-_]+)(:(\\$LATEST|[a-zA-Z0-9-_]+))?"))
+    if (!rf.lambdaARN().matches("arn:aws:lambda:[a-z]{2}(-gov)?-[a-z]+-\\d{1}:\\d{12}:function:([a-zA-Z0-9-_]+)(:(\\$LATEST|[a-zA-Z0-9-_]+))?"))
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.lambdaARN' must be a valid Lambda function ARN.");
 
     if (rf.roleARN != null)

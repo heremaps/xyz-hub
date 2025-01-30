@@ -21,7 +21,8 @@ package com.here.xyz.hub.connectors;
 
 import static com.here.xyz.hub.util.AtomicUtils.compareAndDecrement;
 import static com.here.xyz.hub.util.AtomicUtils.compareAndIncrementUpTo;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
+import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.QUOTA;
+import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.STORAGE_QUEUE_FULL;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
@@ -31,7 +32,7 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
 import com.here.xyz.util.service.Core;
-import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
@@ -182,12 +183,12 @@ public abstract class RemoteFunctionClient {
 
   private static boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {
     if (context.getRequesterId() != null) {
-      AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger(0));
+      AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger());
       if (!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerRequester(), connectionCount)) {
         logger.warn(marker, "Sending to many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
             context.getRequesterId(), connectionCount.get(), context.getConnector().getMaxConnectionsPerRequester());
-        callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Maximum number of concurrent requests. "
-                + "Max concurrent connections: " + Math.round(context.getConnector().connectionSettings.maxConnectionsPerRequester * 0.6))));
+        callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
+                + "Max concurrent connections: " + Math.round(context.getConnector().connectionSettings.maxConnectionsPerRequester * 0.6), QUOTA)));
         return true;
       }
     }
@@ -471,7 +472,7 @@ public abstract class RemoteFunctionClient {
         //Send timeout for discarded (old) calls
         .forEach(timeoutFc ->
             timeoutFc.callback
-                .handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked."))));
+                .handle(Future.failedFuture(new TooManyRequestsException("Remote function is busy or cannot be invoked.", STORAGE_QUEUE_FULL))));
   }
 
   public class FunctionCall implements ByteSizeAware {

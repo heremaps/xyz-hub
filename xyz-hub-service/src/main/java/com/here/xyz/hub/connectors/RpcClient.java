@@ -21,14 +21,15 @@ package com.here.xyz.hub.connectors;
 
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.CONNECTOR;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TOO_LARGE;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -57,6 +58,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -393,15 +395,17 @@ public class RpcClient {
           errorResponse.getErrorMessage());
 
       switch (errorResponse.getError()) {
+        case NOT_FOUND:
+          throw new HttpException(NOT_FOUND, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case NOT_IMPLEMENTED:
           throw new HttpException(NOT_IMPLEMENTED, "The connector is unable to process this request.", errorResponse.getErrorDetails());
         case CONFLICT:
-          throw new HttpException(CONFLICT, "A conflict occurred when writing a feature: " + errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
+          throw new HttpException(CONFLICT, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case FORBIDDEN:
           throw new HttpException(FORBIDDEN, "The user is not authorized.", errorResponse.getErrorDetails());
         case TOO_MANY_REQUESTS:
-          throw new HttpException(TOO_MANY_REQUESTS,
-              "The connector cannot process the message due to a limitation in an upstream service or a database.", errorResponse.getErrorDetails());
+          throw new TooManyRequestsException("The connector cannot process the message due to a limitation in an upstream service or a database.",
+              CONNECTOR, errorResponse.getErrorDetails());
         case ILLEGAL_ARGUMENT:
           throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case TIMEOUT:
@@ -628,12 +632,10 @@ public class RpcClient {
   public static class RpcContext {
     private int requestSize = -1;
     private int responseSize = -1;
+    private String requesterId;
     private volatile boolean cancelled = false;
 
     private final Connector connector;
-
-    private String requesterId;
-
     private FunctionCall functionCall;
 
     public RpcContext(Connector connector) {
@@ -671,16 +673,16 @@ public class RpcClient {
       return this;
     }
 
+    public Connector getConnector() {
+      return connector;
+    }
+
     public String getRequesterId() {
       return requesterId;
     }
 
     public void setRequesterId(String requesterId) {
       this.requesterId = requesterId;
-    }
-
-    public Connector getConnector() {
-      return connector;
     }
   }
 

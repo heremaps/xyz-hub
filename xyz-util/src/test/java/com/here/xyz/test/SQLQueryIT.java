@@ -19,14 +19,19 @@
 
 package com.here.xyz.test;
 
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
-import org.junit.Test;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import org.junit.jupiter.api.Test;
 
 public class SQLQueryIT extends SQLITBase {
 
@@ -77,6 +82,42 @@ public class SQLQueryIT extends SQLITBase {
     //The query should still be running on the database
     try (DataSourceProvider dsp = getDataSourceProvider()) {
       assertTrue(SQLQuery.isRunning(dsp, false, longRunningAsyncQuery.getQueryId()));
+    }
+  }
+
+  @Test
+  public void runAsyncQueryAndCheckIfIdleConnectionIsClearedInErrorCase() throws Exception {
+    //ERROR
+    SQLQuery asyncQuery = new SQLQuery("SELECT 1/0").withAsync(true);
+
+    //Start the query and directly close the connection
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      asyncQuery.run(dsp);
+    }
+
+    //No Idle connection should be present
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      while (SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId()))
+        Thread.sleep(50);
+      assertFalse(connectionIsIdle(dsp, asyncQuery.getQueryId()));
+    }
+  }
+
+  @Test
+  public void runAsyncQueryAndCheckIfIdleConnectionIsClearedInSuccessCase() throws Exception {
+    //SUCCESS
+    SQLQuery asyncQuery = new SQLQuery("SELECT 1").withAsync(true);
+
+    //Start the query and directly close the connection
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      asyncQuery.run(dsp);
+    }
+
+    //No Idle connection should be present
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      while (SQLQuery.isRunning(dsp, false, asyncQuery.getQueryId()))
+        Thread.sleep(50);
+      assertFalse(connectionIsIdle(dsp, asyncQuery.getQueryId()));
     }
   }
 
@@ -246,5 +287,71 @@ public class SQLQueryIT extends SQLITBase {
         dropTmpTable(dsp);
       }
     }
+  }
+
+  @Test
+  public void runQueryWithContext() throws Exception {
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      String key = "someKey";
+      String value = "someValue";
+
+      SQLQuery query = new SQLQuery("SELECT context()->>#{key};")
+          .withContext(Map.of(key, value))
+          .withNamedParameter("key", key);
+
+      assertEquals(value, query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
+    }
+  }
+
+  @Test
+  public void runConcurrentQueriesWithLock() throws Exception {
+    SQLQuery concurrentQuery = new SQLQuery("""
+        DO $$
+        BEGIN
+          ${{advisoryLock}}
+          PERFORM pg_sleep(1);
+          IF (SELECT count(1) FROM "SQLQueryIT") = 0 THEN
+            INSERT INTO "SQLQueryIT" VALUES ('test');
+          END IF;
+          ${{advisoryUnlock}}
+        END$$;
+        """)
+        .withQueryFragment("advisoryLock", buildAdvisoryLockQuery("someKey"))
+        .withQueryFragment("advisoryUnlock", buildAdvisoryUnlockQuery("someKey"));
+
+    try (DataSourceProvider dsp = getDataSourceProvider()) {
+      try {
+        dropTmpTable(dsp);
+        createTmpTable(dsp);
+        CompletableFuture f1 = runQueryInThread(concurrentQuery, dsp);
+        CompletableFuture f2 = runQueryInThread(concurrentQuery, dsp);
+
+        CompletableFuture.allOf(f1, f2).get();
+
+        assertEquals(1, (int) new SQLQuery("SELECT count(1) FROM \"SQLQueryIT\"").run(dsp, rs -> rs.next() ? rs.getInt(1) : 0));
+      }
+      finally {
+        dropTmpTable(dsp);
+      }
+    }
+  }
+
+  private static CompletableFuture runQueryInThread(SQLQuery query, DataSourceProvider dsp) {
+    CompletableFuture future = new CompletableFuture();
+    new Thread(() -> {
+      try {
+        query.write(dsp);
+        future.complete(null);
+      }
+      catch (SQLException e) {
+        if (e.getCause() != null) {
+          e.getCause().printStackTrace();
+          if (e.getCause() instanceof SQLException sqlException)
+            System.out.println("Code: " + sqlException.getSQLState());
+        }
+        fail(e.getMessage());
+      }
+    }).start();
+    return future;
   }
 }

@@ -19,24 +19,42 @@
 # License-Filename: LICENSE
 #
 
+LOCAL_STACK_HOST="http://localhost:4566"
+
+relativeTargetPath="../../../target"
+
+if [ "$HOSTNAME" = "localstack" ]; then
+  relativeTargetPath="../job-steps/target"
+fi
+
+#Check if the localstack is up and running
+curl -sf $LOCAL_STACK_HOST/_localstack/health > /dev/null
+if [ $? -ne 0 ]; then
+  echo "Localstack is not up and running." >&2
+  exit 1
+fi
+
 scriptBasePath="$(dirname $(realpath $0))"
-cd $scriptBasePath/../../../target
+
+cd ${scriptBasePath}/${relativeTargetPath}
 
 rm -rf lib > /dev/null 2>&1
 mkdir lib
 cp ./xyz-job-steps-fat.jar lib
 zip -r xyz-job-steps.zip lib
+chmod -R 777 lib xyz-job-steps.zip
 
 #Delete a potentially existing old local Lambda Function with the same name
-aws --endpoint http://localhost:4566 lambda delete-function \
+aws --endpoint $LOCAL_STACK_HOST lambda delete-function \
   --region us-east-1 \
   --function-name job-step \
   > /dev/null 2>&1
 
-aws --endpoint http://localhost:4566 lambda create-function \
+aws --endpoint $LOCAL_STACK_HOST lambda create-function \
   --timeout 300 \
   --region us-east-1 \
   --function-name job-step \
+  --memory-size 512 \
   --runtime java17 \
   --zip-file fileb://xyz-job-steps.zip \
   --handler 'com.here.xyz.jobs.steps.execution.LambdaBasedStep$LambdaBasedStepExecutor::handleRequest' \

@@ -98,10 +98,12 @@ public class ConnectorParameters {
     return fromMap(connectorParams);
   }
 
-  public static ConnectorParameters fromMap(Map<String, Object> connectorParams) {
-    if (!cache.containsKey(connectorParams))
-      cache.put(connectorParams,
-          connectorParams != null ? XyzSerializable.fromMap(connectorParams, ConnectorParameters.class) : new ConnectorParameters());
-    return cache.get(connectorParams);
+  public static ConnectorParameters fromMap(Map<String, Object> connectorParamsMap) {
+    ConnectorParameters params = cache.get(connectorParamsMap);
+    if (params == null) {
+      params = connectorParamsMap != null ? XyzSerializable.fromMap(connectorParamsMap, ConnectorParameters.class) : new ConnectorParameters();
+      cache.put(connectorParamsMap, params);
+    }
+    return params;
   }
 }

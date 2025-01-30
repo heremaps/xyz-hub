@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_OWNER_1_ADMIN;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -33,11 +34,14 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
@@ -50,7 +54,7 @@ public class VersioningIT extends TestSpaceWithFeature {
   final String FEATURE_ID_1 = "Q3495887";
   final String FEATURE_ID_2 = "Q929126";
   final String FEATURE_ID_3 = "Q1370732";
-  final String USER_1 = AuthProfile.ACCESS_OWNER_1_ADMIN.payload.aid;
+  final String USER_1 = ACCESS_OWNER_1_ADMIN.payload.aid;
   final String USER_2 = AuthProfile.ACCESS_OWNER_2.payload.aid;
 
   @Before
@@ -67,7 +71,7 @@ public class VersioningIT extends TestSpaceWithFeature {
   public void updateFeature(String spaceId) {
     // update a feature
     postFeature(spaceId, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name")),
-        AuthProfile.ACCESS_OWNER_1_ADMIN);
+        ACCESS_OWNER_1_ADMIN);
   }
 
   @After
@@ -111,6 +115,7 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore("Deprecated functionality")
   public void testNonTransactional() {
     Feature f1 = new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "conflicting change").withXyzNamespace(new XyzNamespace().withVersion(1)));
     Feature f2 = new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "non-conflicting change").withXyzNamespace(new XyzNamespace().withVersion(1)));
@@ -546,7 +551,7 @@ public class VersioningIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void deleteFeatureAndReinsertTest() {
+  public void deleteFeatureAndReinsertTest() throws WebClientException {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
@@ -554,8 +559,10 @@ public class VersioningIT extends TestSpaceWithFeature {
         .then()
         .statusCode(NO_CONTENT.code());
 
-    postFeature(SPACE_ID_2, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 2")), AuthProfile.ACCESS_OWNER_1_ADMIN, true);
+    long headVersion = HubWebClient.getInstance("http://localhost:8080/hub/").loadSpaceStatistics(SPACE_ID_2).getMaxVersion().getValue();
 
-    postFeature(SPACE_ID_2, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 3")), AuthProfile.ACCESS_OWNER_1_ADMIN, true);
+    postFeature(SPACE_ID_2, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 2").withXyzNamespace(new XyzNamespace().withVersion(headVersion))), ACCESS_OWNER_1_ADMIN, true);
+
+    postFeature(SPACE_ID_2, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 3").withXyzNamespace(new XyzNamespace().withVersion(headVersion + 1))), ACCESS_OWNER_1_ADMIN, true);
   }
 }

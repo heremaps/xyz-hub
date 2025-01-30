@@ -35,6 +35,24 @@ services:
             - "postgres"
             - "aws-localstack"
         command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
+    xyz-job-service:
+        image: "xyz-job"
+        build:
+            context: "./"
+            dockerfile: "Dockerfile-job-service"
+        container_name: xyz-job-service
+        ports:
+            - "7070:7070"
+        environment:
+            - HUB_ENDPOINT=http://xyz-hub:8080/hub
+            - LOCALSTACK_ENDPOINT=http://localstack:4566
+            - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-jobs-local
+        depends_on:
+            - "xyz-hub"
+            - "dynamodb"
+            - "postgres"
+            - "aws-localstack"
+        command: java -cp xyz-job-service-fat.jar com.here.xyz.jobs.service.JobService
     postgres:
         image: "xyz-postgres"
         build:
@@ -89,6 +107,8 @@ services:
         volumes:
             - "/var/run/docker.sock:/var/run/docker.sock"
             - "./xyz-hub-test/src/test/resources/mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh"
+            - "./xyz-jobs/xyz-job-steps/src/main/bash:/home/localstack/job-steps-scripts"
+            - "./xyz-jobs/xyz-job-steps:/home/localstack/job-steps"
     s3-explorer:
         image: aws-js-s3-explorer
         build:

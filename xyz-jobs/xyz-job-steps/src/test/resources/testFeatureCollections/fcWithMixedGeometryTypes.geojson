@@ -1,0 +1,331 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "fooroot" : true,
+      "properties": {
+        "foo": 1,
+        "description" : "Line"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            8.7011718,
+            50.157105
+          ],
+          [
+            8.5926818,
+            50.084463
+          ],
+          [
+            8.5446166,
+            50.117055
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "foo": 1,
+        "description" : "Line"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            8.7197113,
+            50.087106
+          ],
+          [
+            8.6338806,
+            50.040824
+          ],
+          [
+            8.5116577,
+            50.056697
+          ],
+          [
+            8.5082244,
+            50.025828
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "fooroot.nested": "bar",
+      "properties": {
+        "foo": 1,
+        "description" : "MultiLine"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              8.6400604,
+              50.258619
+            ],
+            [
+              8.6956787,
+              50.223487
+            ],
+            [
+              8.7705230,
+              50.248083
+            ],
+            [
+              8.7890625,
+              50.247424
+            ]
+          ],
+          [
+            [
+              8.6919021,
+              50.259717
+            ],
+            [
+              8.7035751,
+              50.236885
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "foo": 1,
+        "description" : "Point",
+        "geometry" : {
+          "type" : "onPropertyLevel"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.6709594,
+          50.102964
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "foo": 1,
+        "description" : "Point"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.5995483,
+          50.1293824
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "foo": 2,
+        "description" : "Point"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.5459899,
+          50.063750
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "foo": 1,
+        "description" : "MultiPoint"
+      },
+      "geometry": {
+        "type": "MultiPoint",
+        "coordinates": [
+          [
+            8.7828826,
+            50.211185
+          ],
+          [
+            8.8220214,
+            50.227002
+          ]
+        ]
+      }
+    },
+    {
+      "id": "foo_polygon",
+      "type": "Feature",
+      "properties": {
+        "foo": 2,
+        "description" : "Polygon"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              8.5459899,
+              50.020093
+            ],
+            [
+              8.8199615,
+              50.020093
+            ],
+            [
+              8.8199615,
+              50.188330
+            ],
+            [
+              8.5459899,
+              50.188330
+            ],
+            [
+              8.5459899,
+              50.020093
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "foo": 1,
+        "bar": null,
+        "description" : "Polygon with hole"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              8.4004211,
+              50.179976
+            ],
+            [
+              8.4704589,
+              50.108249
+            ],
+            [
+              8.5926818,
+              50.131143
+            ],
+            [
+              8.6579132,
+              50.198880
+            ],
+            [
+              8.5659027,
+              50.233591
+            ],
+            [
+              8.4574127,
+              50.234030
+            ],
+            [
+              8.4004211,
+              50.179976
+            ]
+          ],
+          [
+            [
+              8.4725189,
+              50.148306
+            ],
+            [
+              8.4725189,
+              50.211405
+            ],
+            [
+              8.5741424,
+              50.211405
+            ],
+            [
+              8.5741424,
+              50.148306
+            ],
+            [
+              8.4725189,
+              50.148306
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "fooroot" : true,
+      "properties": {
+        "foo": 1,
+        "bar": "test",
+        "foo.nested": null,
+        "description" : "MultiPolygon"
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [[
+          [
+            [
+              8.6277008,
+              50.076531
+            ],
+            [
+              8.6496734,
+              50.076531
+            ],
+            [
+              8.6496734,
+              50.091952
+            ],
+            [
+              8.6277008,
+              50.091952
+            ],
+            [
+              8.6277008,
+              50.076531
+            ]
+          ]
+        ],
+          [[
+            [
+              8.6867523,
+              50.083582
+            ],
+            [
+              8.7437438,
+              50.083582
+            ],
+            [
+              8.7437438,
+              50.134664
+            ],
+            [
+              8.6867523,
+              50.134664
+            ],
+            [
+              8.6867523,
+              50.083582
+            ]
+          ]
+          ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "foo": 1,
+        "description" : "without Geometry"
+      }
+    }
+  ]
+}

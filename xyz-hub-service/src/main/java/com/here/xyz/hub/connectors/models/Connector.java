@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
@@ -244,7 +245,8 @@ public class Connector extends com.here.xyz.models.hub.Connector {
       /**
        * The ARN of the AWS lambda main function to be called for the respective operation.
        */
-      public String lambdaARN;
+      @JsonProperty
+      private String lambdaARN;
 
       /**
        * The ARN of an AWS IAM Role granting the permission to call the lambda function specified in {@link #lambdaARN}. The referenced role

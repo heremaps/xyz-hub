@@ -25,11 +25,11 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.query.XyzEventBasedQueryRunner.readTableFromEvent;
+import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -44,17 +44,15 @@ import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.Random;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.CachedPooledDataSources;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
-import com.here.xyz.util.db.datasource.StaticDataSources;
-import com.here.xyz.util.db.pg.Script;
-import java.io.IOException;
-import java.net.URISyntaxException;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
+import com.here.xyz.util.runtime.FunctionRuntime;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -66,19 +64,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public abstract class DatabaseHandler extends StorageConnector {
-
+    //TODO - set scriptResourcePath if ext & h3 functions should get installed here.
+    private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "hub", "common"));
     public static final String ECPS_PHRASE = "ECPS_PHRASE";
     private static final Logger logger = LogManager.getLogger();
     private static final String MAINTENANCE_ENDPOINT = "MAINTENANCE_SERVICE_ENDPOINT";
-    public static final int SCRIPT_VERSIONS_TO_KEEP = 5;
-    private static Map<String, List<Script>> sqlScripts = new ConcurrentHashMap<>();
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -111,43 +107,15 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //Decrypt the ECPS into an instance of DatabaseSettings
         dbSettings = new DatabaseSettings(connectorId,
-            ECPSTool.decryptToMap(ConnectorRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
-            .withApplicationName(ConnectorRuntime.getInstance().getApplicationName());
-
-        dbSettings.withSearchPath(checkScripts(dbSettings));
+            ECPSTool.decryptToMap(FunctionRuntime.getInstance().getEnvironmentVariable(ECPS_PHRASE), connectorParams.getEcps()))
+            .withApplicationName(FunctionRuntime.getInstance().getApplicationName())
+            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
         dataSourceProvider = new CachedPooledDataSources(dbSettings);
         retryAttempted = false;
-        dbMaintainer = new DatabaseMaintainer(dataSourceProvider, dbSettings, connectorParams,
-            ConnectorRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
+        dbMaintainer = new DatabaseMaintainer(dbSettings, connectorParams,
+            FunctionRuntime.getInstance().getEnvironmentVariable(MAINTENANCE_ENDPOINT));
         DataSourceProvider.setDefaultProvider(dataSourceProvider);
-    }
-
-    /**
-     * Checks whether the latest version of all SQL scripts is installed on the DB and returns all script schemas for the use in the
-     * search path.
-     * @return The script schema names (including the newest script version for each script) to be used in the search path
-     */
-    private synchronized static List<String> checkScripts(DatabaseSettings dbSettings) {
-        String softwareVersion = ConnectorRuntime.getInstance().getSoftwareVersion();
-        if (!sqlScripts.containsKey(dbSettings.getId())) {
-          logger.info("Checking / installing scripts for connector {} ...", dbSettings.getId());
-          try (DataSourceProvider dataSourceProvider = new StaticDataSources(dbSettings)) {
-            List<Script> scripts = Script.loadScripts("/sql", dataSourceProvider, softwareVersion);
-            sqlScripts.put(dbSettings.getId(), scripts);
-            scripts.forEach(script -> {
-                script.install();
-                script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
-            });
-          }
-          catch (IOException | URISyntaxException e) {
-            throw new RuntimeException("Error reading script resources.", e);
-          }
-          catch (Exception e) {
-            logger.error("Error checking / installing scripts.", e);
-          }
-        }
-        return sqlScripts.get(dbSettings.getId()).stream().map(script -> script.getCompatibleSchema(softwareVersion)).toList();
     }
 
     protected <R, T extends com.here.xyz.psql.QueryRunner<?, R>> R run(T runner) throws SQLException, ErrorResponseException {
@@ -177,7 +145,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 ((SQLException)e).getSQLState().equalsIgnoreCase("08006")
         )
         ) {
-            int remainingSeconds = ConnectorRuntime.getInstance().getRemainingTime() / 1000;
+            int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
 
             if(!isRemainingTimeSufficient(remainingSeconds)){
                 return false;
@@ -190,15 +158,30 @@ public abstract class DatabaseHandler extends StorageConnector {
         return false;
     }
 
-    protected XyzResponse executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
+    protected FeatureCollection executeModifyFeatures(ModifyFeaturesEvent event) throws Exception {
+        if (ConnectorParameters.fromEvent(event).isReadOnly())
+            throw new ErrorResponseException(NOT_IMPLEMENTED, "ModifyFeaturesEvent is not supported by this storage connector.");
+
+        //Update the features to insert
+        List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
+        List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
+        List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
+
+        //Generate feature ID
+        Stream.of(inserts, upserts)
+            .flatMap(Collection::stream)
+            .filter(feature -> feature.getId() == null)
+            .forEach(feature -> feature.setId(Random.randomAlphaNumeric(16)));
+
+        //Call finalize feature
+        Stream.of(inserts, updates, upserts)
+            .flatMap(Collection::stream)
+            .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace()));
+
         final boolean includeOldStates = event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
 
         final FeatureCollection collection = new FeatureCollection();
         collection.setFeatures(new ArrayList<>());
-
-        List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
-        List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
-        List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
 
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
@@ -214,9 +197,15 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 for (String featureId : originalDeletes) {
                   if (existingIdsInBase.contains(featureId)) {
-                    Feature toDelete = new Feature()
+                      long now = System.currentTimeMillis();
+                      Feature toDelete = new Feature()
                         .withId(featureId)
-                        .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true)));
+                        .withProperties(new Properties().withXyzNamespace(new XyzNamespace()
+                            .withDeleted(true)
+                            .withAuthor(event.getAuthor())
+                            .withCreatedAt(now)
+                            .withUpdatedAt(now)
+                        ));
 
                     try {
                       toDelete.getProperties().getXyzNamespace().setVersion(Long.parseLong(deletes.get(featureId)));
@@ -259,7 +248,16 @@ public abstract class DatabaseHandler extends StorageConnector {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
             List<String> existingIds = run(new FetchExistingIds(new FetchIdsInput(readTableFromEvent(event),
                 upsertIds)));
-            upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
+            upserts.forEach(f -> {
+                if (existingIds.contains(f.getId())) {
+                    f.getProperties().getXyzNamespace().withCreatedAt(0);
+                    updates.add(f);
+                }
+                else {
+                    f.getProperties().getXyzNamespace().withCreatedAt(f.getProperties().getXyzNamespace().getUpdatedAt());
+                    inserts.add(f);
+                }
+            });
           }
 
           version = run(new GetNextVersion<>(event));
@@ -337,13 +335,13 @@ public abstract class DatabaseHandler extends StorageConnector {
                                 throw e;
 
                             errorDetails.put("FailedList", fails);
-                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.CONFLICT).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                         }
                         else {
                             errorDetails.put(DatabaseWriter.TRANSACTION_ERROR_GENERAL,
                                     (e instanceof SQLException sqlException && sqlException.getSQLState() != null)
                                             ? "SQL-state: " + sqlException.getSQLState() : "Unexpected Error occurred");
-                            return new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL);
+                            throw new ErrorResponseException(new ErrorResponse().withErrorDetails(errorDetails).withError(XyzError.BAD_GATEWAY).withErrorMessage(DatabaseWriter.TRANSACTION_ERROR_GENERAL));
                         }
                     }
                 }
@@ -458,19 +456,19 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     static int calculateTimeout() throws SQLException{
-        int remainingSeconds = ConnectorRuntime.getInstance().getRemainingTime() / 1000;
+        int remainingSeconds = FunctionRuntime.getInstance().getRemainingTime() / 1000;
 
         if (!isRemainingTimeSufficient(remainingSeconds))
             throw new SQLException("No time left to execute query.","54000");
 
         int timeout = remainingSeconds - 2;
-        logger.debug("{} New timeout for query set to '{}'", ConnectorRuntime.getInstance().getStreamId(), timeout);
+        logger.debug("{} New timeout for query set to '{}'", FunctionRuntime.getInstance().getStreamId(), timeout);
         return timeout;
     }
 
     private static boolean isRemainingTimeSufficient(int remainingSeconds) {
         if (remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
-            logger.warn("{} Not enough time left to execute query: {}s", ConnectorRuntime.getInstance().getStreamId(), remainingSeconds);
+            logger.warn("{} Not enough time left to execute query: {}s", FunctionRuntime.getInstance().getStreamId(), remainingSeconds);
             return false;
         }
         return true;

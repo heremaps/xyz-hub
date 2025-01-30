@@ -23,8 +23,11 @@ import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
+import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
+import static com.here.xyz.jobs.steps.execution.GraphTransformer.EMR_JOB_NAME_PREFIX;
+import static com.here.xyz.jobs.util.AwsClients.asyncSfnClient;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -33,6 +36,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.service.JobApi.ApiParam;
 import com.here.xyz.jobs.steps.Step;
@@ -44,6 +48,9 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import java.util.List;
+import software.amazon.awssdk.services.sfn.model.GetExecutionHistoryRequest;
+import software.amazon.awssdk.services.sfn.model.HistoryEvent;
 
 public class JobAdminApi extends Api {
   private static final String ADMIN_JOBS = "/admin/jobs";
@@ -129,63 +136,199 @@ public class JobAdminApi extends Api {
    * }
    *
    */
-  private void postStateEvent(RoutingContext context) throws HttpException {
+  private void postStateEvent(RoutingContext context) {
     JsonObject event = context.body().asJsonObject();
 
     if (event.containsKey("detail")) {
-      /*
-      Right now we set JobId as "name" of the state machine execution.
-      If for some reason it changes, we should add the jobId to the "input" param and read it from there.
-       */
-      String jobId = event.getJsonObject("detail").getString("name");
-      String sfnStatus = event.getJsonObject("detail").getString("status");
-
-      if (jobId == null)
-        logger.error("The state machine event does not include a Job ID: {}", event);
-      else if (sfnStatus == null)
-        logger.error("The state machine event does not include a status: {}", event);
+      String eventSource = event.getString("source");
+      if ("aws.states".equals(eventSource))
+        processSfnStateChangeEvent(event);
+      else if ("aws.emr-serverless".equals(eventSource))
+        processEmrJobStateChangeEvent(event);
       else
-        loadJob(jobId)
-            .compose(job -> {
-              State newJobState = switch (sfnStatus) {
-                case "SUCCEEDED" -> SUCCEEDED;
-                case "FAILED", "TIMED_OUT" -> FAILED;
-                default -> null;
-              };
-              if (newJobState != null) {
-                if (newJobState.isFinal())
-                  JobService.callFinalizeObservers(job);
-
-                Future<Void> future = Future.succeededFuture();
-                if (newJobState == SUCCEEDED)
-                  JobExecutor.getInstance().deleteExecution(job.getExecutionId());
-                else if (newJobState == FAILED) {
-                  if ("TIMED_OUT".equals(sfnStatus)) {
-                    final String existingErrCause = job.getStatus().getErrorCause();
-                    job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
-                  }
-                  future = Future.all(job.getSteps().stepStream().filter(step -> step.getStatus().getState() == PENDING).map(pendingStep -> {
-                    pendingStep.getStatus().setState(CANCELLING);
-                    pendingStep.getStatus().setState(CANCELLED);
-                    return job.storeUpdatedStep(pendingStep);
-                  }).toList()).recover(t -> Future.succeededFuture()).mapEmpty();
-                }
-
-                State oldState = job.getStatus().getState();
-                if (oldState != newJobState)
-                  job.getStatus().setState(newJobState);
-
-                return future.compose(v -> job.storeStatus(oldState));
-              }
-              else
-                return Future.succeededFuture();
-            })
-            .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", jobId, t));
+        logger.error("Unsupported event received: {}", event);
     }
     else
-      logger.error("The state machine event does not include a detail field: {}", event);
+      logger.error("The event does not include a detail field: {}", event);
 
     sendResponseWithXyzSerialization(context, NO_CONTENT, null);
+  }
+
+  /**
+   * The sample event format in the request:
+   * {
+   *   "id": "315c1398-40ff-a850-213b-158f73e60175",
+   *   "detail-type": "Step Functions Execution Status Change",
+   *   "source": "aws.states",
+   *   "account": "123456789012",
+   *   "time": "2019-02-26T19:42:21Z",
+   *   "region": "us-east-1",
+   *   "resources": ["arn:aws:states:us-east-1:123456789012:execution:state-machine-name:execution-name"],
+   *   "detail": {
+   *     "executionArn": "arn:aws:states:us-east-1:123456789012:execution:state-machine-name:execution-name",
+   *     "stateMachineArn": "arn:aws:states:us-east-1:123456789012:stateMachine:state-machine",
+   *     "name": "execution-name",
+   *     "status": "RUNNING",
+   *     "startDate": 1551225271984,
+   *     "stopDate": null,
+   *     "input": "{}",
+   *     "output": null
+   *   }
+   * }
+   *
+   */
+  private void processSfnStateChangeEvent(JsonObject event) {
+    /*
+    Right now we set JobId as "name" of the state machine execution.
+    If for some reason it changes, we should add the jobId to the "input" param and read it from there.
+     */
+    JsonObject detail = event.getJsonObject("detail");
+    String jobId = detail.getString("name");
+    String sfnStatus = detail.getString("status");
+    String executionArn = detail.getString("executionArn");
+
+    if (jobId == null)
+      logger.error("The state machine event does not include a Job ID: {}", event);
+    else if (sfnStatus == null)
+      logger.error("The state machine event does not include a status: {}", event);
+    else
+      loadJob(jobId)
+          .compose(job -> {
+            State newJobState = switch (sfnStatus) {
+              case "SUCCEEDED" -> SUCCEEDED;
+              case "FAILED", "TIMED_OUT" -> FAILED;
+              default -> null;
+            };
+            if (newJobState != null) {
+              if (newJobState.isFinal())
+                JobService.callFinalizeObservers(job);
+
+              Future<Void> future = Future.succeededFuture();
+              if (newJobState == SUCCEEDED)
+                JobExecutor.getInstance().deleteExecution(job.getExecutionId());
+              else if (newJobState == FAILED) {
+                if ("TIMED_OUT".equals(sfnStatus)) {
+                  String existingErrCause = job.getStatus().getErrorCause();
+                  job.getStatus().setErrorCause(existingErrCause != null ? "Step timeout: " + existingErrCause : "Step timeout");
+                  //Set all RUNNING steps to CANCELLED, because the steps themselves might not have been informed
+                  future = future.compose(v -> loadCausingStepId(executionArn)
+                      .compose(causingStepId -> failStep(job, job.getStepById(causingStepId))))
+                      .compose(v -> cancelSteps(job, RUNNING));
+                }
+                //Set all PENDING steps to CANCELLED
+                future = future.compose(v -> cancelSteps(job, PENDING));
+              }
+
+              State oldState = job.getStatus().getState();
+              if (oldState != newJobState)
+                job.getStatus().setState(newJobState);
+
+              return future.compose(v -> job.storeStatus(oldState));
+            }
+            else
+              return Future.succeededFuture();
+          })
+          .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", jobId, t));
+  }
+
+  /**
+   * Fetches the execution history for the provided executionArn and goes back in the event history
+   * until hitting "TaskStateEntered".
+   * Then extracts the causing step ID from stateEnteredEventDetails.name field.
+   *
+   * @param executionArn The execution ARN of the state machine
+   * @return The ID of the causing step if found, `null` otherwise
+   */
+  private static Future<String> loadCausingStepId(String executionArn) {
+    return Future.fromCompletionStage(asyncSfnClient().getExecutionHistory(GetExecutionHistoryRequest.builder()
+            .executionArn(executionArn)
+            .build()))
+        .compose(executionHistory -> {
+          List<HistoryEvent> events = executionHistory.events();
+          HistoryEvent failingEvent = events.get(events.size() - 1);
+          while (failingEvent != null && failingEvent.previousEventId() > 0 && !"TaskStateEntered".equals(failingEvent.type().toString())) {
+            long causingEventId = failingEvent.previousEventId();
+            failingEvent = events.stream().filter(event -> event.id().equals(causingEventId)).findAny().orElse(null);
+          }
+          return Future.succeededFuture(failingEvent != null && !"TaskStateEntered".equals(failingEvent.type().toString())
+              && failingEvent.stateEnteredEventDetails() != null && failingEvent.stateEnteredEventDetails().name().contains(".")
+              ? failingEvent.stateEnteredEventDetails().name() : null);
+        });
+  }
+
+  private static Future<Void> cancelSteps(Job job, State currentState) {
+    return Future.all(job.getSteps().stepStream().filter(step -> step.getStatus().getState() == currentState).map(step -> {
+      step.getStatus().setState(CANCELLING);
+      step.getStatus().setState(CANCELLED);
+      return job.storeUpdatedStep(step);
+    }).toList()).recover(t -> Future.succeededFuture()).mapEmpty();
+  }
+
+  private static Future<Void> failStep(Job job, Step step) {
+    if (step.getStatus().getState().isFinal())
+      return Future.succeededFuture();
+    step.getStatus().setState(FAILED);
+    return job.storeUpdatedStep(step);
+  }
+
+  /**
+   * {
+   *   "version": "0",
+   *   "id": "00df3ec6-5da1-36e6-ab71-20f0de68f8a0",
+   *   "detail-type": "EMR Serverless Job Run State Change",
+   *   "source": "aws.emr-serverless",
+   *   "account": "123456789012",
+   *   "time": "2022-05-31T21:07:42Z",
+   *   "region": "us-east-1",
+   *   "resources": [],
+   *   "detail": {
+   *     "jobRunId": "00f1cbn5g4bb0c01",
+   *     "jobRunName": "emr-job-run-name"
+   *     "applicationId": "00f1982r1uukb925",
+   *     "arn": "arn:aws:emr-serverless:us-east-1:123456789012:/applications/00f1982r1uukb925/jobruns/00f1cbn5g4bb0c01",
+   *     "releaseLabel": "emr-6.6.0",
+   *     "state": "RUNNING",
+   *     "previousState": "SCHEDULED",
+   *     "createdBy": "arn:aws:sts::123456789012:assumed-role/TestRole-402dcef3ad14993c15d28263f64381e4cda34775/6622b6233b6d42f59c25dd2637346242",
+   *     "updatedAt": "2022-05-31T21:07:42.299487Z",
+   *     "createdAt": "2022-05-31T21:07:25.325900Z"
+   *   }
+   * }
+   */
+  private void processEmrJobStateChangeEvent(JsonObject event) {
+    String emrJobRunName = event.getJsonObject("detail").getString("jobRunName");
+    String emrJobRunId = event.getJsonObject("detail").getString("jobRunName");
+    String emrJobStatus = event.getJsonObject("detail").getString("state");
+
+    if(emrJobRunName != null && emrJobRunName.startsWith(EMR_JOB_NAME_PREFIX)) {
+      String[] globalStepId = emrJobRunName.substring(emrJobRunName.indexOf(':') + 1).split("\\.");
+
+      if(globalStepId.length != 2) {
+        logger.error("The emrJobRunName does not have a valid globalStepId : {}", emrJobRunName);
+        return;
+      }
+
+      String jobId = globalStepId[0];
+      String stepId = globalStepId[1];
+
+      loadJob(jobId)
+          .compose(job -> {
+            State newStepState = switch (emrJobStatus) {
+              case "RUNNING" -> RUNNING;
+              case "SUCCESS" -> SUCCEEDED;
+              case "CANCELLED" -> CANCELLED;
+              case "FAILED" -> FAILED;
+              default -> null;
+            };
+
+            RuntimeInfo status = new RuntimeInfo().withState(newStepState);
+            return job.updateStepStatus(stepId, status);
+          });
+
+    } else {
+      logger.error("The EMR serverless job {} - {} is not associated with SFN step", emrJobRunId, emrJobRunName);
+    }
+
   }
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {

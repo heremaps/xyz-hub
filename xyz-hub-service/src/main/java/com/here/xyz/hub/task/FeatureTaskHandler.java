@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
@@ -30,6 +29,7 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.TYPE;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static com.here.xyz.util.service.rest.TooManyRequestsException.ThrottlingReason.MEMORY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -38,13 +38,13 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_REQUIRED;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
@@ -54,6 +54,7 @@ import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
+import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
@@ -104,6 +105,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.logging.LogUtil;
+import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -124,7 +126,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -183,16 +184,18 @@ public class FeatureTaskHandler {
    */
   public static <T extends FeatureTask> void invoke(T task, Callback<T> callback) {
     /*
-    In case there is already, nothing has to be done here (happens if the response was set by an earlier process in the task pipeline
-    e.g. when having a cache hit)
+    In case there is already a response, nothing has to be done here (happens if the response was set by an earlier process
+    in the task pipeline, e.g., when having a cache hit)
      */
     if (task.getResponse() != null) {
       callback.call(task);
       return;
     }
     /**
-     * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
-     *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
+     * NOTE: The event may only be consumed once.
+     *  Once it was consumed, it should only be referenced in the request-phase.
+     *  Referencing it in the response-phase will keep the whole event-data in the memory
+     *  and could cause many major GCs for large request-payloads.
      *
      * @see Task#consumeEvent()
      */
@@ -304,8 +307,8 @@ public class FeatureTaskHandler {
       //Update the contentUpdatedAt timestamp to indicate that the data in this space was modified
       if (task instanceof FeatureTask.ConditionalOperation) {
         long now = Core.currentTimeMillis();
-        if (now - task.space.contentUpdatedAt > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
-          task.space.contentUpdatedAt = Core.currentTimeMillis();
+        if (now - task.space.getContentUpdatedAt() > Space.CONTENT_UPDATED_AT_INTERVAL_MILLIS) {
+          task.space.setContentUpdatedAt(Core.currentTimeMillis());
           task.space.volatilityAtLastContentUpdate = task.space.getVolatility();
           Service.spaceConfigClient.store(task.getMarker(), task.space)
               .onSuccess(v -> logger.info(task.getMarker(), "Updated contentUpdatedAt for space {}", task.space.getId()))
@@ -851,6 +854,11 @@ public class FeatureTaskHandler {
               return Future.succeededFuture();
             }
 
+            // ignore composite params resolution when the query is for ModifySubscription
+            if (task instanceof FeatureTask.ModifySubscriptionQuery q && q.getEvent().getOperation() == ModifySubscriptionEvent.Operation.DELETE) {
+              return Future.succeededFuture(space);
+            }
+
             if (!(task instanceof FeatureTask.ModifySpaceQuery) && !space.isActive()) {
               return Future.failedFuture(new HttpException(PRECONDITION_REQUIRED,
                   "The method is not allowed, because the resource \"" + space.getId() + "\" is not active."));
@@ -861,28 +869,27 @@ public class FeatureTaskHandler {
               return switchToSuperSpace(task, space);
             }
 
+            //Inject the minVersion from the space config
+            if (task.getEvent() instanceof SelectiveEvent) {
+              ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
+            }
+
+            //Inject the versionsToKeep from the space config
+            if (task.getEvent() instanceof ContextAwareEvent) {
+              ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
+            }
+
             task.space = space;
 
             //Inject the extension-map
             return space.resolveCompositeParams(task.getMarker())
                 .compose(resolvedExtensions -> {
                   Map<String, Object> storageParams = new HashMap<>();
-                  if (space.getStorage().getParams() != null) {
+                  if (space.getStorage().getParams() != null)
                     storageParams.putAll(space.getStorage().getParams());
-                  }
                   storageParams.putAll(resolvedExtensions);
 
                   task.getEvent().setParams(storageParams);
-
-                  //Inject the minVersion from the space config
-                  if (task.getEvent() instanceof SelectiveEvent) {
-                    ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
-                  }
-
-                  //Inject the versionsToKeep from the space config
-                  if (task.getEvent() instanceof ContextAwareEvent) {
-                    ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
-                  }
 
                   return Future.succeededFuture(space);
                 });
@@ -958,71 +965,7 @@ public class FeatureTaskHandler {
   }
 
   private static <X extends FeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {
-    Promise<Void> p = Promise.promise();
-    try {
-      //Also resolve all listeners & processors
-      CompletableFuture.allOf(
-          resolveConnectors(task.getMarker(), task.space, ConnectorType.LISTENER),
-          resolveConnectors(task.getMarker(), task.space, ConnectorType.PROCESSOR)
-      ).thenRun(() -> {
-        //All listener & processor refs have been resolved now
-        p.complete();
-      });
-    }
-    catch (Exception e) {
-      logger.error(task.getMarker(), "The listeners for this space cannot be initialized", e);
-      p.fail(new HttpException(INTERNAL_SERVER_ERROR, "The listeners for this space cannot be initialized"));
-    }
-    return p.future();
-  }
-
-  private static CompletableFuture<Void> resolveConnectors(Marker marker, final Space space, final ConnectorType connectorType) {
-    if (space == null || connectorType == null) {
-      return CompletableFuture.completedFuture(null);
-    }
-
-    final Map<String, List<Space.ListenerConnectorRef>> connectorRefs = space.getConnectorRefsMap(connectorType);
-
-    if (connectorRefs == null || connectorRefs.isEmpty()) {
-      return CompletableFuture.completedFuture(null);
-    }
-
-    CompletableFuture<Void> future = new CompletableFuture<>();
-    List<CompletableFuture<Void>> futures = new ArrayList<>();
-    for (Map.Entry<String, List<Space.ListenerConnectorRef>> entry : connectorRefs.entrySet()) {
-      if (entry.getValue() != null && !entry.getValue().isEmpty()) {
-        ListIterator<Space.ListenerConnectorRef> i = entry.getValue().listIterator();
-        while (i.hasNext()) {
-          Space.ListenerConnectorRef cR = i.next();
-          CompletableFuture<Void> f = new CompletableFuture<>();
-          Space.resolveConnector(marker, entry.getKey(), arListener -> {
-            final Connector c = arListener.result();
-            ResolvableListenerConnectorRef rCR = new ResolvableListenerConnectorRef();
-            rCR.setId(entry.getKey());
-            rCR.setParams(cR.getParams());
-            rCR.setOrder(cR.getOrder());
-            rCR.setEventTypes(cR.getEventTypes());
-            rCR.resolvedConnector = c;
-            //If no event types have been defined in the connectorRef we use the defaultEventTypes from the resolved connector config
-            if ((rCR.getEventTypes() == null || rCR.getEventTypes().isEmpty()) && c.defaultEventTypes != null && !c.defaultEventTypes
-                .isEmpty()) {
-              rCR.setEventTypes(new ArrayList<>(c.defaultEventTypes));
-            }
-            // replace ListenerConnectorRef with ResolvableListenerConnectorRef
-            i.set(rCR);
-            f.complete(null);
-          });
-          futures.add(f);
-        }
-      }
-    }
-
-    //When all listeners have been resolved we can complete the returned future.
-    CompletableFuture
-        .allOf(futures.toArray(new CompletableFuture[0]))
-        .thenRun(() -> future.complete(null));
-
-    return future;
+    return FeatureHandler.resolveListenersAndProcessors(task.getMarker(), task.space);
   }
 
   static <X extends FeatureTask> void registerRequestMemory(final X task, final Callback<X> callback) {
@@ -1060,7 +1003,7 @@ public class FeatureTaskHandler {
       if (Service.IS_USING_ZGC) {
         if (usedMemoryPercent > Service.configuration.SERVICE_MEMORY_HIGH_UTILIZATION_THRESHOLD) {
           XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
-          throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the service node.");
+          throw new TooManyRequestsException("Too many requests for the service node.", MEMORY);
         }
       }
       //For other GCs, only throttle requests if the request memory filled up over the specified request memory threshold
@@ -1076,7 +1019,7 @@ public class FeatureTaskHandler {
         RpcClient rpcClient = getRpcClient(storage);
         if (storageInflightRequestMemorySum > rpcClient.getFunctionClient().getPriority() * GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE) {
           XYZHubRESTVerticle.addStreamInfo(task.context, "THR", "M"); //Reason for throttling is memory
-          throw new HttpException(TOO_MANY_REQUESTS, "Too many requests for the storage.");
+          throw new TooManyRequestsException("Too many requests for the storage.", MEMORY);
         }
       }
     }
@@ -1533,9 +1476,8 @@ public class FeatureTaskHandler {
       return;
     }
 
-    if (task.getEvent() instanceof GetFeaturesByBBoxEvent) {
-      GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) task.getEvent();
-      String clusteringType = event.getClusteringType();
+    if (task.getEvent() instanceof GetFeaturesByBBoxEvent ev) {
+      String clusteringType = ev.getClusteringType();
       if (clusteringType != null && !Arrays.asList("hexbin", "quadbin").contains(clusteringType)) {
         callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
             + "valid. Supported values are hexbin or quadbin."));
@@ -1549,9 +1491,8 @@ public class FeatureTaskHandler {
       }
     }
 
-    if (task.getEvent() instanceof GetFeaturesByTileEvent) {
-      GetFeaturesByTileEvent event = (GetFeaturesByTileEvent) task.getEvent();
-      String clusteringType = event.getClusteringType();
+    if (task.getEvent() instanceof GetFeaturesByTileEvent ev) {
+      String clusteringType = ev.getClusteringType();
       if (clusteringType != null && !Arrays.asList("hexbin", "quadbin").contains(clusteringType)) {
         callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
             + "valid. Supported values are hexbin or quadbin."));
@@ -1603,25 +1544,25 @@ public class FeatureTaskHandler {
     if (task.space.getExtension() != null) {
       SpaceContext spaceContext = task.spaceContext;
       Space.resolveSpace(task.getMarker(), task.space.getExtension().getSpaceId())
-              .onSuccess(space -> {
-                long contentUpdatedAt;
-                if (spaceContext == SUPER) {
-                  contentUpdatedAt = space.contentUpdatedAt;
-                } else if (spaceContext == DEFAULT) {
-                  contentUpdatedAt = Math.max(space.contentUpdatedAt, task.space.contentUpdatedAt);
-                } else {
-                  contentUpdatedAt = task.space.contentUpdatedAt;
-                }
-                response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
-                        .withValue(contentUpdatedAt)
-                        .withEstimated(true));
-                p.complete();
-              })
-              .onFailure(t -> p.fail(t));
-    } else {
+          .onSuccess(space -> {
+            long contentUpdatedAt;
+            if (spaceContext == SUPER)
+              contentUpdatedAt = space.getContentUpdatedAt();
+            else if (spaceContext == DEFAULT)
+              contentUpdatedAt = Math.max(space.getContentUpdatedAt(), task.space.getContentUpdatedAt());
+            else
+              contentUpdatedAt = task.space.getContentUpdatedAt();
+            response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
+                .withValue(contentUpdatedAt)
+                .withEstimated(true));
+            p.complete();
+          })
+          .onFailure(t -> p.fail(t));
+    }
+    else {
       response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
-              .withValue(task.space.contentUpdatedAt)
-              .withEstimated(true));
+          .withValue(task.space.getContentUpdatedAt())
+          .withEstimated(true));
       p.complete();
     }
     return p.future();

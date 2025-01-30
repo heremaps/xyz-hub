@@ -28,13 +28,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.*;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.io.ByteArrayInputStream;
@@ -42,10 +36,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPOutputStream;
 
@@ -192,5 +183,79 @@ public class S3Client {
     for (S3ObjectSummary file : scanFolder(folderPath))
       //TODO: Delete multiple objects (batches of 1000) with one request instead
       client.deleteObject(bucketName, file.getKey());
+  }
+
+  public static String getBucketFromS3Uri(String s3Uri) {
+    if (!s3Uri.startsWith("s3://"))
+      return null;
+    return s3Uri.substring(5, s3Uri.substring(5).indexOf("/") + 5);
+  }
+
+  public static String getKeyFromS3Uri(String s3Uri) {
+    if (!s3Uri.startsWith("s3://"))
+      return null;
+    return s3Uri.substring(s3Uri.substring(5).indexOf("/") + 5 + 1);
+  }
+
+  /**
+   * Checks if the provided S3 key is a folder.
+   * A key is considered a folder if it has other objects under it
+   *
+   * @return True if the key is a folder, otherwise false.
+   */
+  public boolean isFolder(String s3Key) {
+    // enforce prefix formatting for "folders"
+    if (!s3Key.endsWith("/")) {
+      s3Key += "/";
+    }
+
+    ListObjectsV2Request request = new ListObjectsV2Request()
+            .withBucketName(bucketName)
+            .withPrefix(s3Key)
+            .withMaxKeys(2); // fetch up to 2 to differentiate a single self object and siblings
+
+    ListObjectsV2Result result = client.listObjectsV2(request);
+
+    // more than one object means it's a folder
+    if (result.getKeyCount() > 1) {
+      return true;
+    }
+
+    // exactly one object - check if it matches the key itself
+    if (result.getKeyCount() == 1) {
+      String onlyKey = result.getObjectSummaries().get(0).getKey();
+      return onlyKey.equals(s3Key);
+    }
+
+    return false;
+  }
+
+  /**
+   * Lists all objects starting with the specified prefix (recursively).
+   * Useful for traversing folders in S3.
+   *
+   * @param prefix The prefix or "folder path" to list objects for.
+   * @return A list of object keys under the specified prefix.
+   */
+  public List<String> listObjects(String prefix) {
+    List<String> objectKeys = new ArrayList<>();
+    String continuationToken = null;
+
+    do {
+      ListObjectsV2Request request = new ListObjectsV2Request()
+              .withBucketName(bucketName)
+              .withPrefix(prefix)
+              .withContinuationToken(continuationToken);
+
+      ListObjectsV2Result result = client.listObjectsV2(request);
+
+      for (S3ObjectSummary s3Object : result.getObjectSummaries()) {
+        objectKeys.add(s3Object.getKey());
+      }
+
+      continuationToken = result.getNextContinuationToken();
+    } while (continuationToken != null);
+
+    return objectKeys;
   }
 }

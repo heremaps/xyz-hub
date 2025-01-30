@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.execution.db;
 
+import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.FAILURE_CALLBACK;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
@@ -33,6 +34,7 @@ import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -46,6 +48,7 @@ import org.apache.logging.log4j.Logger;
     @JsonSubTypes.Type(value = SpaceBasedStep.class)
 })
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
+
   private static final Logger logger = LogManager.getLogger();
   private double claimedAcuLoad;
   @JsonView(Internal.class)
@@ -130,14 +133,19 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
    * Invoking the Lambda Function from within the database is done using the <i>aws_lambda</i> plugin.
    * See: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL-Lambda.html
    *
+   * "dummy_output" can by used for ignoring outputs. This is for example needed in CTE queries.
+   *
    * @see LambdaBasedStep
    * @param stepQuery The query that was provided by the step implementation of the subclass
    * @return The wrapped query. A query that takes care of reporting the state back to this implementation asynchronously.
    */
   private SQLQuery wrapQuery(SQLQuery stepQuery) {
-    return new SQLQuery("""
+
+    SQLQuery wrappedQuery = new SQLQuery("""
         DO
         $wrapped$
+        DECLARE
+           dummy_output INTEGER;
         BEGIN
           ${{stepQuery}};
           ${{successCallback}}
@@ -151,6 +159,8 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withQueryFragment("stepQuery", stepQuery)
         .withQueryFragment("successCallback", buildSuccessCallbackQuery())
         .withQueryFragment("failureCallback", buildFailureCallbackQuery());
+
+    return stepQuery.getContext() == null ?  wrappedQuery : wrappedQuery.withContext(stepQuery.getContext());
   }
 
   protected final SQLQuery buildSuccessCallbackQuery() {
@@ -186,6 +196,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
                     true
                   )::JSON, 'Event');
             """) //TODO: Inject fields directly in memory rather than writing and deserializing new JSON object
+             //TODO: Find a solution to retrieve also a given HINT
             .withQueryFragment("lambdaArn", getwOwnLambdaArn().toString())  //TODO: Use named params instead of query fragments
             .withQueryFragment("lambdaRegion", getwOwnLambdaArn().getRegion())
             //TODO: Re-use the request body for success / failure cases and simply inject the request type in the query
@@ -203,6 +214,32 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     return db.getDatabaseSettings().getSchema();
   }
 
+  protected SQLQuery buildCopyQueryRemoteSpace( Database remoteDb, SQLQuery contentQuery) {
+
+      DatabaseSettings dbSettings = remoteDb.getDatabaseSettings();
+
+      contentQuery =
+       new SQLQuery(
+          """
+            select t.* 
+            from 
+            dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
+                    $iqry$ select jsondata, author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
+                  ) 
+            as t( jsondata jsonb, author text, geo geometry )
+           """
+       )
+       .withQueryFragment("innerContentQuery", contentQuery)
+       .withQueryFragment("rmtHost", dbSettings.getHost())
+       .withQueryFragment("rmtDb", dbSettings.getDb())
+       .withQueryFragment("rmtUsr", dbSettings.getUser())
+       .withQueryFragment("rmtPwd", dbSettings.getPassword());
+
+     return contentQuery;
+  }
+
+
+
   @Override
   public void cancel() throws Exception {
     //Cancel all running queries
@@ -212,6 +249,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
       try {
         Database db = Database.loadDatabase(runningQuery.dbName, runningQuery.dbId);
         SQLQuery.killByQueryId(runningQuery.queryId, db.getDataSources(), db.getRole() == READER);
+        logger.info("[{}] Query with ID \"{}\" was cancelled on {}.", getGlobalStepId(), runningQuery.queryId, db.getRole().name());
       }
       catch (SQLException e) {
         logger.error("Error cancelling query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
@@ -250,7 +288,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
           }
         });
 
-    //If the heartbeat is called, but the query is not running anymore, it might be a failure => throw UnknownStateException
+    //If the heartbeat is called, but no query is running anymore, it might be a failure, but it could also be a success => throw UnknownStateException
     if (!someQueryIsRunning)
       throw new UnknownStateException("No query is running anymore for step " + getGlobalStepId() + ". "
           + "Either the step is completed or failed.");
@@ -261,14 +299,17 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   @Override
   public ExecutionMode getExecutionMode() {
-    return ExecutionMode.ASYNC;
+    return ASYNC;
   }
 
   protected final DataSourceProvider requestResource(Database db, double estimatedMaxAcuLoad) throws TooManyResourcesClaimed {
     Map<ExecutionResource, Double> neededResources = getAggregatedNeededResources();
-    if (!neededResources.containsKey(db) || claimedAcuLoad + estimatedMaxAcuLoad > neededResources.get(db))
+
+    if (estimatedMaxAcuLoad != 0d &&
+            (!neededResources.containsKey(db) || claimedAcuLoad + estimatedMaxAcuLoad > neededResources.get(db)))
       throw new TooManyResourcesClaimed("Step " + getId() + " tried to claim further " + estimatedMaxAcuLoad + " ACUs, "
-          + claimedAcuLoad + "/" + neededResources.get(db) + " have been claimed before.");
+          + claimedAcuLoad + "/" + neededResources.get(db) + " have been claimed before on [" + db.getName() +
+              ":" + db.getRole() + "]" );
 
     claimedAcuLoad += estimatedMaxAcuLoad;
     return db.getDataSources();

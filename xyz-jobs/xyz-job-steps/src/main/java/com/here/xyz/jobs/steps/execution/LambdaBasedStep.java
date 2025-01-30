@@ -27,6 +27,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
+import static com.here.xyz.jobs.steps.execution.StepException.codeFromErrorErrorResponseException;
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
@@ -40,14 +41,18 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
+import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.FeaturesExportedUpdate;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.SimulatedContext;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -75,13 +80,17 @@ import software.amazon.awssdk.services.sfn.model.SendTaskSuccessRequest;
 import software.amazon.awssdk.services.sfn.model.TaskTimedOutException;
 
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = DatabaseBasedStep.class)
+    @JsonSubTypes.Type(value = DatabaseBasedStep.class),
+    @JsonSubTypes.Type(value = RunEmrJob.class),
+    @JsonSubTypes.Type(value = SyncLambdaStep.class),
 })
 public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T> {
   private static final String TASK_TOKEN_TEMPLATE = "$$.Task.Token";
   private static final String RETRY_COUNT_TEMPLATE = "$$.State.RetryCount";
   private static final String PIPELINE_INPUT_TEMPLATE = "$$.Execution.Input";
   public static final String HEART_BEAT_PREFIX = "HeartBeat-";
+  //TODO: Check if there are other possibilities
+  @JsonView(Internal.class)
   protected boolean isSimulation = false; //TODO: Remove testing code
   private static final Logger logger = LogManager.getLogger();
 
@@ -94,7 +103,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   /**
    * Contains the raw (unparsed & unresolved) pipeline input if this LambdaBasedStep belongs to a job that is a pipeline.
    * This value should not be used directly by implementing steps. Implementing steps can gather the input using the well-known
-   * method {@link #loadInputs()}. Using that method will ensure correct deserialization & resolving of the input references.
+   * method {@link #loadInputs(Class[])}. Using that method will ensure correct deserialization & resolving of the input references.
    */
   @JsonView(Internal.class)
   private Map<String, Object> pipelineInput;
@@ -117,6 +126,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private void startExecution() throws Exception {
     updateState(RUNNING);
+
     switch (getExecutionMode()) {
       case SYNC -> {
         if (isResume())
@@ -131,14 +141,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         else
           execute();
         registerStateCheckTrigger();
-        synchronizeStepState();
+        synchronizeStep();
       }
     }
   }
 
   private void updateState(State newState) {
     getStatus().setState(newState);
-    synchronizeStepState();
+    synchronizeStep();
   }
 
   private void registerStateCheckTrigger() {
@@ -167,12 +177,12 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return HEART_BEAT_PREFIX + getGlobalStepId();
   }
 
-  //TODO: Also call this on cancel?
   private void unregisterStateCheckTrigger() {
     if (isSimulation)
       return;
 
     try {
+      logger.info("[{}] Unregistering state-check trigger {} ...", getGlobalStepId(), getStateCheckRuleName());
       //List all targets
       List<String> targetIds = cloudwatchEventsClient().listTargetsByRule(
               ListTargetsByRuleRequest.builder().rule(getStateCheckRuleName()).build())
@@ -188,7 +198,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
     }
     catch (ResourceNotFoundException e) {
-      //Ignore the exception, as the rule is not existing (yet)
+      logger.error("[{}] Unregistering state-check trigger {} failed as it does not exist (yet / anymore).", getGlobalStepId(), getStateCheckRuleName());
+      //Ignore the exception, as the rule is not existing (yet / anymore)
+    }
+    catch (Exception e) {
+      logger.error("[{}] Unexpected error while unregistering state-check trigger {}", getGlobalStepId(), getStateCheckRuleName(), e);
     }
   }
 
@@ -206,8 +220,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       The state is not known currently, maybe one of the next STATE_CHECK requests will be able to reveal the state.
       If the issue persists, the step will fail after the heartbeat timeout.
        */
-      logger.warn("Unknown execution state for step {}.{}", getJobId(), getId(), e);
-      synchronizeStepState();
+      logger.warn("Unknown execution state for step {}", getGlobalStepId(), e);
+      synchronizeStep();
       //NOTE: No heartbeat must be sent to SFN in this case!
     }
     catch (Exception e) {
@@ -218,8 +232,27 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
   }
 
-  protected void onAsyncSuccess() throws Exception {
+  private void handleAsyncUpdate(ProcessUpdate processUpdate) {
+    boolean isCompleted = onAsyncUpdate(processUpdate);
+    if (isSimulation)
+      //In simulations we are handling success callbacks by our own
+      return;
+    if (isCompleted)
+      reportAsyncSuccess();
+    else
+      synchronizeStep();
+  }
+
+  /**
+   * Only for ASYNC step implementations: Will be called for every step requests of type UPDATE_CALLBACK coming from the
+   * underlying remote system.
+   *
+   * @param processUpdate Some information from the remote system to be passed to the step implementation
+   * @return Whether the update lead to the successful completion of the step execution in the remote system.
+   */
+  protected boolean onAsyncUpdate(ProcessUpdate processUpdate) {
     //Nothing to do by default (may be overridden in subclasses)
+    return false;
   }
 
   protected final void reportAsyncSuccess() {
@@ -231,19 +264,30 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
     }
 
-    updateState(SUCCEEDED);
-    unregisterStateCheckTrigger();
-
-    //Report success to SFN
-    if (!isSimulation) { //TODO: Remove testing code
-      sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()
-          .taskToken(taskToken)
-          .output(INVOKE_SUCCESS)
-          .build());
+    try {
+      updateState(SUCCEEDED);
+      unregisterStateCheckTrigger();
     }
-    else
+    finally {
       //TODO: Remove testing code
-      System.out.println(getClass().getSimpleName() + " : SUCCESS");
+      if (isSimulation)
+        System.out.println(getClass().getSimpleName() + " : SUCCESS");
+      //Report success to SFN
+      try {
+        sfnClient().sendTaskSuccess(SendTaskSuccessRequest.builder()
+            .taskToken(taskToken)
+            .output(INVOKE_SUCCESS)
+            .build());
+      }
+      catch (TaskTimedOutException | InvalidTokenException e) {
+        //NOTE: Happens, for example, when the SFN was canceled, but this step still was able to succeed during the time it was in CANCELLING state
+        logger.error("[{}] Task in SFN is already stopped. Could not send task success for step.", getGlobalStepId());
+      }
+    }
+  }
+
+  protected void onAsyncSuccess() throws Exception {
+    //Nothing to do by default (may be overridden in subclasses)
   }
 
   private void reportAsyncHeartbeat() {
@@ -253,7 +297,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     try {
       sfnClient().sendTaskHeartbeat(SendTaskHeartbeatRequest.builder().taskToken(taskToken).build());
       getStatus().touch();
-      synchronizeStepState();
+      synchronizeStep();
     }
     catch (TaskTimedOutException | InvalidTokenException e) {
       try {
@@ -269,13 +313,13 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   @JsonIgnore
-  private boolean isResume() {
+  protected boolean isResume() {
     return retryCount > 0;
   }
 
   /**
    * Will be called for every STATE_CHECK request being performed for the step.
-   * Subclasses may override this method to implement tasks which should be performed on a regular basis during the STAT_CHECK.
+   * Subclasses may override this method to implement tasks which should be performed on a regular basis during that STATE_CHECK.
    * E.g., overriding implementations can update the estimatedProgress at the step's status object.
    */
   protected void onStateCheck() {
@@ -300,7 +344,10 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (async)
       retryable = retryable && onAsyncFailure();
 
-    logger.error((retryable ? "" : "Non-") + "retryable error during execution of step {}:", getGlobalStepId(), e);
+    if (e instanceof StepException stepException)
+      retryable = stepException.isRetryable();
+
+    logger.error("{}retryable error during execution of step {}:", retryable ? "" : "Non-", getGlobalStepId(), e);
     getStatus().setFailedRetryable(retryable);
     reportFailure(e, async);
   }
@@ -315,21 +362,26 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e != null) {
       getStatus()
           .withErrorMessage(e.getMessage())
-          .withErrorCause(e.getCause() != null ? e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage() : null);
+          .withErrorCause(e.getCause() != null ? e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage() : null)
+          .withErrorCode(e instanceof StepException stepException ? stepException.getCode() : null);
 
       if (e instanceof ErrorResponseException responseException)
-        getStatus().setErrorCode("HTTP-" + responseException.getErrorResponse().statusCode());
+        getStatus().setErrorCode(codeFromErrorErrorResponseException(responseException));
     }
 
-    updateState(FAILED);
+    try {
+      //Update state & sync the status
+      updateState(FAILED);
 
-    //Report failure to SFN
-    if (async)
-      reportFailureToSfn();
-
-    //Finally, log the error also to the lambda log
-    logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
-        getStatus().getErrorCause(), getStatus().getErrorCode());
+      //Log the error also to the lambda log
+      logger.error("Error in step {}: Message: {}, Cause: {}, Code: {}", getGlobalStepId(), getStatus().getErrorMessage(),
+          getStatus().getErrorCause(), getStatus().getErrorCode());
+    }
+    finally {
+      //Finally, report failure to SFN
+      if (async)
+        reportFailureToSfn();
+    }
   }
 
   private void reportFailureToSfn() {
@@ -348,8 +400,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     try {
       sfnClient().sendTaskFailure(request.build());
     }
-    catch (TaskTimedOutException ex) {
-      logger.error("Task in SFN is already stopped. Could not send task failure for step {}.{}.", getJobId(), getId());
+    catch (TaskTimedOutException | InvalidTokenException e) {
+      logger.error("[{}] Task in SFN is already stopped. Could not send task failure for step.", getGlobalStepId());
+    }
+    catch (Exception e) {
+      logger.error("[{}] Unexpected error while trying to report a failure to SFN.", getGlobalStepId(), e);
     }
   }
 
@@ -357,25 +412,25 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return string.length() < maxLength ? string : string.substring(0, maxLength - 4) + " ...";
   }
 
-  private void synchronizeStepState() {
+  private void synchronizeStep() {
+    if (isSimulation) //TODO: Remove testing code
+      return;
     //NOTE: For steps that are part of a pipeline job, do not synchronize the state
     if (isPipeline())
       return;
-    logger.info("Synchronizing step state for {} with job service ...", getGlobalStepId());
+    logger.info("Synchronizing step {} with the job service ...", getGlobalStepId());
     try {
-      //TODO: Add error & cause to this step instance, so it gets serialized into the step JSON being sent to the service?
       JobWebClient.getInstance().postStepUpdate(this);
     }
     catch (ErrorResponseException httpError) {
       HttpResponse<byte[]> errorResponse = httpError.getErrorResponse();
       final HttpRequest failedRequest = errorResponse.request();
-      logger.error("Error updating the step state of step {} - Performing {} {}. Upstream-ID: {}, Response:\n{}",
-          getGlobalStepId(),
-          failedRequest.method(), failedRequest.uri(), errorResponse.headers().firstValue(STREAM_ID).orElse(null),
-          new String(errorResponse.body()));
+      logger.error("Error updating the step {} at the job service - Performing {} {}. Upstream-ID: {}, Status-Code: {}, Response:\n{}",
+          getGlobalStepId(), failedRequest.method(), failedRequest.uri(), errorResponse.headers().firstValue(STREAM_ID).orElse(null),
+          errorResponse.statusCode(), new String(errorResponse.body()));
     }
     catch (WebClientException httpError) {
-      logger.error("Error updating the step state of step {} at the job service", getGlobalStepId(), httpError);
+      logger.error("Error updating the step {} at the job service", getGlobalStepId(), httpError);
     }
   }
 
@@ -443,8 +498,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   @Override
-  protected List<Input> loadInputs() {
-    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs();
+  protected List<Input> loadInputs(Class<? extends Input>... inputTypes) {
+    return isPipeline() ? List.of(Input.resolveRawInput(pipelineInput)) : super.loadInputs(inputTypes);
   }
 
   public enum ExecutionMode {
@@ -479,6 +534,8 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
         }
         //Read the incoming request
         request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
+
+        new LambdaFunctionRuntime(context, request.getStep().getGlobalStepId());
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");
@@ -516,6 +573,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
               logger.info("Checking async execution state of step {} ...", request.getStep().getGlobalStepId());
               request.getStep().checkAsyncExecutionState();
               logger.info("Async execution state of step {} has been checked & reported successfully.", request.getStep().getGlobalStepId());
+            }
+            case UPDATE_CALLBACK -> {
+              logger.info("Handling async process update for step {} ...", request.getStep().getGlobalStepId());
+              request.getStep().handleAsyncUpdate(request.getProcessUpdate());
+              logger.info("Handled async process update for step {} successfully.", request.getStep().getGlobalStepId());
             }
             case SUCCESS_CALLBACK -> {
               logger.info("Reporting async success for step {} ...", request.getStep().getGlobalStepId());
@@ -563,6 +625,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public static class LambdaStepRequest implements XyzSerializable {
     private RequestType type;
     private LambdaBasedStep step;
+    private ProcessUpdate processUpdate;
 
     public RequestType getType() {
       return type;
@@ -590,11 +653,32 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return this;
     }
 
+    public ProcessUpdate getProcessUpdate() {
+      return processUpdate;
+    }
+
+    public void setProcessUpdate(ProcessUpdate processUpdate) {
+      this.processUpdate = processUpdate;
+    }
+
+    public LambdaStepRequest withProcessUpdate(ProcessUpdate processUpdate) {
+      setProcessUpdate(processUpdate);
+      return this;
+    }
+
     public enum RequestType {
       START_EXECUTION, //Sent by Step Function when the actual execution should be started (ASYNC) / performed (SYNC)
       STATE_CHECK, //For ASYNC mode only: Sent periodically by a CW Events Rule to check the inner step state and report heartbeats to the Step Function
+      UPDATE_CALLBACK, //For ASYNC mode only: A request, sent by the underlying foreign system to inform the step about any updates about the process within the foreign system
       SUCCESS_CALLBACK, //For ASYNC mode only: A request, sent by the underlying foreign system to inform the step about its success
       FAILURE_CALLBACK //For ASYNC mode only: A request, sent by the underlying foreign system to inform the step about its failure
+    }
+
+    @JsonSubTypes({
+        @JsonSubTypes.Type(value = FeaturesExportedUpdate.class, name="FeaturesExportedUpdate"),
+    })
+    public static class ProcessUpdate<T extends ProcessUpdate> implements Typed {
+
     }
   }
 }

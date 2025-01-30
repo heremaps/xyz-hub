@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,12 +82,16 @@ public class JwtGenerator {
   }
 
   public static String generateToken(String resourceFilename) {
-    return generateToken(readTokenPayload(resourceFilename));
+    return generateToken(readTokenPayload(resourceFilename, false));
   }
 
-  public static JWTPayload readTokenPayload(String resourceFilename) {
+  public static JWTPayload readTokenPayload(String resourceFilename, boolean attachRawToken) {
     try {
-      return Json.decodeValue(readResourceFile(resourceFilename), JWTPayload.class);
+      JWTPayload jwt = Json.decodeValue(readResourceFile(resourceFilename), JWTPayload.class);
+      if (attachRawToken) {
+        jwt.jwt = generateToken(jwt);
+      }
+      return jwt;
     } catch (IOException e) {
       throw new RuntimeException("Error while reading token from resource file: " + resourceFilename, e);
     }

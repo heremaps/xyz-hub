@@ -31,6 +31,7 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -65,7 +66,7 @@ public class SQLQuery {
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
   public static final String QUERY_ID = "queryId";
-  public static final String TEXT_QUOTE = "\\$sqlq\\$";
+  public static final String TEXT_QUOTE = "$a$";
   private String statement = "";
   @JsonProperty
   private List<Object> parameters = new ArrayList<>();
@@ -81,8 +82,10 @@ public class SQLQuery {
   private PreparedStatement preparedStatement;
   private String queryId;
   private Map<String, String> labels = new HashMap<>();
+  private Map<String, Object> context;
   private List<ExecutionContext> executions = new CopyOnWriteArrayList<>();
   private boolean labelsEnabled = true;
+  private boolean loggingEnabled = true;
   private List<SQLQuery> queryBatch;
 
   private SQLQuery() {} //Only added as workaround for an issue with Jackson's Include.NON_DEFAULT setting
@@ -194,6 +197,10 @@ public class SQLQuery {
     return statement;
   }
 
+  public void setText(String text) {
+    statement = text;
+  }
+
   private List<String> batchTexts() {
     if (queryBatch == null || queryBatch.isEmpty())
       throw new IllegalStateException("This SQLQuery is not a query batch.");
@@ -228,8 +235,8 @@ public class SQLQuery {
   private String paramValueToString(Object paramValue) {
     if (paramValue == null)
       return "NULL";
-    if (paramValue instanceof String)
-      return TEXT_QUOTE + paramValue + TEXT_QUOTE;
+    if (paramValue instanceof String stringParam)
+      return escapeDollarSigns(customQuote(stringParam));
     if (paramValue instanceof Long)
       return paramValue + "::BIGINT";
     if (paramValue instanceof Number)
@@ -241,6 +248,44 @@ public class SQLQuery {
           .map(elementValue -> paramValueToString(elementValue))
           .collect(Collectors.joining(",")) + "]";
     return paramValue.toString();
+  }
+
+  private static String customQuote(String stringToQuote) {
+    String quote = getEscapedCustomQuoteFor(stringToQuote, TEXT_QUOTE);
+    return quote + stringToQuote + quote;
+  }
+
+  /**
+   * Internal helper method that escapes $-signs, because they're treated as special chars when using the containing string as value
+   * in a string / pattern-matching replacement.
+   *
+   * @see String#replaceAll(String, String)
+   * @see Matcher#replaceFirst(String)
+   *
+   * @param containingString
+   * @return A string that has all $-signs being
+   */
+  private static String escapeDollarSigns(String containingString) {
+    return containingString.replaceAll("\\$", "\\\\\\$");
+  }
+
+  /**
+   * Escapes custom quotes in the form of how they're being used within this class for string quoting. E.g.: `$a$`
+   *
+   * @param containingString
+   * @param customQuoteToEscape
+   * @return
+   */
+  private static String getEscapedCustomQuoteFor(String containingString, String customQuoteToEscape) {
+    //Further escape the custom quote until finding one that is not in use yet
+    while (containingString.contains(customQuoteToEscape))
+      customQuoteToEscape = getEscapedCustomQuoteFor(customQuoteToEscape);
+
+    return customQuoteToEscape;
+  }
+
+  private static String getEscapedCustomQuoteFor(String customQuoteToEscape) {
+    return "$" + (char) (customQuoteToEscape.charAt(1) + 1) + "$";
   }
 
   @Override
@@ -298,8 +343,13 @@ public class SQLQuery {
     return this;
   }
 
+  public String toExecutableQueryString() {
+    return substitute().replaceUnnamedParametersForLogging();
+  }
+
   private synchronized SQLQuery substitute(boolean usePlaceholders) {
     initQueryId();
+    injectContext();
     replaceVars();
     replaceFragments();
     replaceNamedParameters(usePlaceholders && !isAsync());
@@ -356,18 +406,23 @@ public class SQLQuery {
     Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
     Matcher m = p.matcher(text());
 
-    while (m.find()) {
-      String nParam = m.group(1);
-      if (!namedParameters.containsKey(nParam))
-        throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
-      if (!namedParams2Positions.containsKey(nParam))
-        namedParams2Positions.put(nParam, new ArrayList<>());
-      namedParams2Positions.get(nParam).add(parameters.size());
-      parameters.add(namedParameters.get(nParam));
-      if (!usePlaceholders) {
-        statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
-        m = p.matcher(text());
+    try {
+      while (m.find()) {
+        String nParam = m.group(1);
+        if (!namedParameters.containsKey(nParam))
+          throw new IllegalArgumentException("sql: named Parameter [" + nParam + "] missing");
+        if (!namedParams2Positions.containsKey(nParam))
+          namedParams2Positions.put(nParam, new ArrayList<>());
+        namedParams2Positions.get(nParam).add(parameters.size());
+        parameters.add(namedParameters.get(nParam));
+        if (!usePlaceholders) {
+          statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
+          m = p.matcher(text());
+        }
       }
+    }
+    catch (Exception e) {
+      System.out.println(e.getMessage());
     }
 
     if (usePlaceholders)
@@ -706,6 +761,40 @@ public class SQLQuery {
     return this;
   }
 
+  public Map<String, Object> getContext() {
+    return context;
+  }
+
+  public void setContext(Map<String, Object> context) {
+    this.context = new HashMap<>(context);
+  }
+
+  public SQLQuery withContext(Map<String, Object> context) {
+    setContext(context);
+    return this;
+  }
+
+  public Object context(String key) {
+    if (context == null)
+      return null;
+    return context.get(key);
+  }
+
+  public SQLQuery context(String key, Object value) {
+    if (context == null)
+      setContext(Map.of(key, value));
+    else
+      context.put(key, value);
+    return this;
+  }
+
+  private void injectContext() {
+    if (context != null) {
+      statement = (asyncProcedure ? "PERFORM " : "SELECT") +" context(#{context}::JSONB); " + statement;
+      setNamedParameter("context", XyzSerializable.serialize(context));
+    }
+  }
+
   public boolean isLabelsEnabled() {
     return labelsEnabled;
   }
@@ -716,6 +805,23 @@ public class SQLQuery {
 
   public SQLQuery withLabelsEnabled(boolean labelsEnabled) {
     setLabelsEnabled(labelsEnabled);
+    return this;
+  }
+
+  public boolean isLoggingEnabled() {
+    return loggingEnabled;
+  }
+
+  /**
+   * Can be used to explicitly turn the logging off for this specific query.
+   * @param loggingEnabled
+   */
+  public void setLoggingEnabled(boolean loggingEnabled) {
+    this.loggingEnabled = loggingEnabled;
+  }
+
+  public SQLQuery withLoggingEnabled(boolean loggingEnabled) {
+    setLoggingEnabled(loggingEnabled);
     return this;
   }
 
@@ -779,13 +885,14 @@ public class SQLQuery {
    * @param labelValue
    * @return Whether a running query exists with the specified label
    */
-  private static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
+  public static boolean isRunning(DataSourceProvider dataSourceProvider, boolean useReplica, String labelIdentifier, String labelValue)
       throws SQLException {
     return new SQLQuery("""
         SELECT 1 FROM pg_stat_activity
           WHERE state = 'active' AND ${{labelMatching}} AND pid != pg_backend_pid()
         """)
         .withQueryFragment("labelMatching", buildLabelMatchQuery(labelIdentifier, labelValue))
+        .withLoggingEnabled(false)
         .run(dataSourceProvider, rs -> rs.next(), useReplica);
   }
 
@@ -884,19 +991,27 @@ public class SQLQuery {
     UPDATE_BATCH
   }
 
+  private static List<String> PwdPrefixList =
+   List.of("6URYTnCc", "pUNuBxnW", "JELgvJWS", "0n1UKjIv", "2YW9D4Kz", "3ZX9D4Kz", "9JwYhcgD", "qvukzFHW", "1CpZNKpG", "kwPU00Qy", "AhYtSea7", "AsSrbSE6");
+
+  private static String hidePwds( String s )
+  { return s.replaceAll("(" + String.join("|", PwdPrefixList ) + ")\\w*", "$1*******"); }
+
   private Object execute(DataSourceProvider dataSourceProvider, ResultSetHandler<?> handler, ExecutionOperation operation,
       ExecutionContext executionContext) throws SQLException {
-    logger.info("Executing SQLQuery {}", this);
+    if (loggingEnabled)
+      logger.info("Executing SQLQuery {}", hidePwds( ""+this ));
     substitute();
 
     final DataSource dataSource = executionContext.useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
     executionContext.attemptExecution();
     try {
-      logger.info("Sending query to database {} {}, substituted query-text: {}",
-          executionContext.useReplica ? "reader" : "writer",
-          dataSourceProvider.getDatabaseSettings() != null
-              ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
-          replaceUnnamedParametersForLogging());
+      if (loggingEnabled)
+        logger.info("Sending query to database {} {}, substituted query-text: {}",
+            executionContext.useReplica ? "reader" : "writer",
+            dataSourceProvider.getDatabaseSettings() != null
+                ? dataSourceProvider.getDatabaseSettings().getId() : "unknown",
+            hidePwds( replaceUnnamedParametersForLogging()) );
 
       if (isAsync())
         operation = ExecutionOperation.QUERY;
@@ -953,7 +1068,12 @@ public class SQLQuery {
 
   private Object executeQuery(DataSource dataSource, ExecutionContext executionContext, ResultSetHandler<?> handler) throws SQLException {
     SQLQuery query = prepareFinalQuery(executionContext);
-    return getRunner(dataSource, executionContext).query(query.text(), handler, query.parameters().toArray());
+
+    if (context != null)
+      handler = new Ignore1stResultSet(handler);
+
+    final List<?> results = getRunner(dataSource, executionContext).execute(query.text(), handler, query.parameters().toArray());
+    return results.size() <= 1 ? results.get(0) : results.get(results.size() - 1);
   }
 
   private static QueryRunner getRunner(DataSource dataSource, ExecutionContext executionContext) {
@@ -1135,6 +1255,25 @@ public class SQLQuery {
     @Override
     public String toString() {
       return errorName;
+    }
+  }
+
+  private static class Ignore1stResultSet implements ResultSetHandler<Object> {
+    private final ResultSetHandler<?> originalHandler;
+    private boolean calledBefore;
+
+    public Ignore1stResultSet(ResultSetHandler<?> originalHandler) {
+      this.originalHandler = originalHandler;
+    }
+
+    @Override
+    public Object handle(ResultSet rs) throws SQLException {
+      if (!calledBefore) {
+        calledBefore = true;
+          //TODO: using runWriteQueryAsync together with using query context throws NPE due to returned null value
+        return null;
+      }
+      return originalHandler.handle(rs);
     }
   }
 }

@@ -33,6 +33,7 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;
@@ -214,6 +215,14 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
   }
 
   protected FeatureCollection processModifyFeatures(FeatureCollection response, NotificationParams notificationParams) throws Exception {
+    throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
+  }
+
+  protected WriteFeaturesEvent processWriteFeatures(WriteFeaturesEvent event, NotificationParams notificationParams) throws Exception {
+    throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
+  }
+
+  protected FeatureCollection processWriteFeatures(FeatureCollection response, NotificationParams notificationParams) throws Exception {
     throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Not implemented by this processor");
   }
 

@@ -66,6 +66,8 @@ services:
         volumes:
             - "/var/run/docker.sock:/var/run/docker.sock"
             - "./xyz-hub-test/src/test/resources/mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh"
+            - "./xyz-jobs/xyz-job-steps/src/main/bash:/home/localstack/job-steps-scripts"
+            - "./xyz-jobs/xyz-job-steps:/home/localstack/job-steps"
     s3-explorer:
         image: aws-js-s3-explorer
         build:

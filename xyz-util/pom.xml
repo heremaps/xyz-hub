@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2023 HERE Europe B.V.
+  ~ Copyright (C) 2017-2024 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>3.9.42-SNAPSHOT</version>
+    <version>3.15.3-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -41,6 +41,20 @@
   <description>XYZ shared utilities</description>
   <artifactId>xyz-util</artifactId>
   <packaging>jar</packaging>
+
+<!--  <build>-->
+<!--    <plugins>-->
+<!--      <plugin>-->
+<!--        <artifactId>maven-surefire-plugin</artifactId>-->
+<!--        <groupId>org.apache.maven.plugins</groupId>-->
+<!--        <configuration>-->
+<!--          <includes>-->
+<!--            <include>**/*.class</include>-->
+<!--          </includes>-->
+<!--        </configuration>-->
+<!--      </plugin>-->
+<!--    </plugins>-->
+<!--  </build>-->
 
   <dependencies>
     <!-- Vert.x -->
@@ -132,9 +146,12 @@
       <groupId>com.google.guava</groupId>
     </dependency>
     <dependency>
-      <groupId>com.google.crypto.tink</groupId>
-      <artifactId>tink</artifactId>
-      <version>1.5.0</version>
+      <artifactId>gt-main</artifactId>
+      <groupId>org.geotools</groupId>
+    </dependency>
+    <dependency>
+      <groupId>org.geotools</groupId>
+      <artifactId>gt-epsg-hsql</artifactId>
     </dependency>
 
     <!-- Cache -->
@@ -143,9 +160,30 @@
       <groupId>net.jodah</groupId>
     </dependency>
 
+    <!-- Testing -->
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>junit-jupiter-api</artifactId>
+      <groupId>org.junit.jupiter</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.vintage</groupId>
+      <artifactId>junit-vintage-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>hamcrest</artifactId>
+      <groupId>org.hamcrest</groupId>
       <scope>test</scope>
     </dependency>
   </dependencies>

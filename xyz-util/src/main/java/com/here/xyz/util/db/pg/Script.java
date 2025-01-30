@@ -19,11 +19,15 @@
 
 package com.here.xyz.util.db.pg;
 
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryLockQuery;
+import static com.here.xyz.util.db.pg.LockHelper.buildAdvisoryUnlockQuery;
+
 import com.fasterxml.jackson.core.Version;
 import com.google.common.collect.Lists;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -44,6 +48,7 @@ import org.apache.logging.log4j.Logger;
 public class Script {
   private static final Logger logger = LogManager.getLogger();
   private String scriptResourceLocation;
+  private String scriptIdPrefix;
   private String scriptContent;
   private DataSourceProvider dataSourceProvider;
   private String scriptVersion;
@@ -51,23 +56,33 @@ public class Script {
   private Map<String, String> compatibleVersions = new HashMap<>();
 
   public Script(String scriptResourceLocation, DataSourceProvider dataSourceProvider, String scriptVersion) {
+    this(scriptResourceLocation, dataSourceProvider, scriptVersion, null);
+  }
+
+  public Script(String scriptResourceLocation, DataSourceProvider dataSourceProvider, String scriptVersion, String scriptIdPrefix) {
     this.scriptResourceLocation = scriptResourceLocation;
     this.dataSourceProvider = dataSourceProvider;
     this.scriptVersion = scriptVersion;
+    this.scriptIdPrefix = scriptIdPrefix;
   }
 
   private String getTargetSchema(String version) {
-    String targetSchemaPrefix = getScriptId();
-    return targetSchemaPrefix + (version != null ? ":" + version : "");
+    String targetSchemaName = getScriptId();
+    return targetSchemaName + (version != null ? ":" + version : "");
   }
 
   public String getScriptId() {
     String scriptName = getScriptName();
-    return scriptName.substring(0, scriptName.lastIndexOf("."));
+    String prefix = scriptIdPrefix == null ? "" : scriptIdPrefix + ".";
+    return prefix + scriptName.substring(0, scriptName.lastIndexOf("."));
   }
 
   public String getScriptName() {
     return scriptResourceLocation.substring(scriptResourceLocation.lastIndexOf("/") + 1);
+  }
+
+  private String getScriptResourceFolder() {
+    return scriptResourceLocation.substring(0, scriptResourceLocation.lastIndexOf("/"));
   }
 
   public String getCompatibleSchema() {
@@ -105,13 +120,12 @@ public class Script {
 
   public void install() {
     try {
-      if (!installed && (!anyVersionExists() || !scriptVersionExists() && !getHash().equals(loadLatestHash()))) {
-        logger.info("Installing script {} on DB {} ...", getScriptName(), getDbId());
+      if (!installed && (scriptVersion != null && !anyVersionExists() || (scriptVersion == null || !scriptVersionExists()) && !getHash().equals(loadLatestHash()))) {
+        logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), getTargetSchema(null));
         if (scriptVersion != null)
-          install(getTargetSchema(scriptVersion));
+          install(getTargetSchema(scriptVersion), false);
         //Also install the "latest" version
-        deleteSchema(getTargetSchema(null));
-        install(getTargetSchema(null));
+        install(getTargetSchema(null), true);
         installed = true;
         logger.info("Script {} has been installed successfully on DB {}.", getScriptName(), getDbId());
       }
@@ -126,20 +140,48 @@ public class Script {
     return dataSourceProvider.getDatabaseSettings() == null ? "unknown" : dataSourceProvider.getDatabaseSettings().getId();
   }
 
-  private void install(String targetSchema) throws SQLException, IOException {
-    SQLQuery setCurrentSearchPath = buildSetCurrentSearchPathQuery(targetSchema);
-
+  private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
         .withQueryFragment("scriptContent", loadScriptContent());
 
-    SQLQuery.batchOf(buildCreateSchemaQuery(targetSchema), setCurrentSearchPath, buildHashFunctionQuery(), buildVersionFunctionQuery())
-        .writeBatch(dataSourceProvider);
-    scriptContent.write(dataSourceProvider);
+    //Load JS-scripts to be injected
+    for (Script jsScript : loadJsScripts(getScriptResourceFolder())) {
+      String relativeJsScriptPath = jsScript.getScriptResourceFolder().substring(getScriptResourceFolder().length());
+      scriptContent
+          .withQueryFragment(relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent())
+          .withQueryFragment("./" + relativeJsScriptPath + jsScript.getScriptName(), jsScript.loadScriptContent());
+    }
+
+    List<SQLQuery> installationQueries = new ArrayList<>();
+    if (deleteBefore)
+      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
+    installationQueries.addAll(List.of(buildCreateSchemaQuery(targetSchema), buildSetCurrentSearchPathQuery(targetSchema),
+        buildHashFunctionQuery(), buildVersionFunctionQuery(), scriptContent));
+
+    SQLQuery installationQuery = SQLQuery.join(installationQueries, ";")
+        .withLock(targetSchema);
+
+    //TODO: Remove the following workaround once the locking support in SQLQuery was implemented for normal update queries
+    SQLQuery lockWrapper = new SQLQuery("""
+        DO $lockWrapper$
+        BEGIN
+          ${{lockQuery}}
+          ${{installationQuery}}
+          ${{unlockQuery}}
+        END$lockWrapper$;
+        """)
+        .withQueryFragment("lockQuery", buildAdvisoryLockQuery(targetSchema))
+        .withQueryFragment("installationQuery", installationQuery)
+        .withQueryFragment("unlockQuery", buildAdvisoryUnlockQuery(targetSchema));
+
+    lockWrapper
+        .withLoggingEnabled(false)
+        .write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
   }
 
   private static SQLQuery buildSetCurrentSearchPathQuery(String targetSchema) {
-    return new SQLQuery("SET search_path = ${currentSearchPath}")
+    return new SQLQuery("SET search_path = ${currentSearchPath}, \"public\"")
         .withVariable("currentSearchPath", targetSchema);
   }
 
@@ -152,8 +194,13 @@ public class Script {
   }
 
   private String loadLatestHash() throws SQLException {
-    return new SQLQuery("SELECT ${schema}.script_hash()").withVariable("schema", getTargetSchema(null))
-        .run(dataSourceProvider, rs -> rs.next() ? rs.getString(1) : null);
+    try {
+      return new SQLQuery("SELECT ${schema}.script_hash()").withVariable("schema", getTargetSchema(null))
+          .run(dataSourceProvider, rs -> rs.next() ? rs.getString(1) : null);
+    }
+    catch (SQLException e) {
+      return null;
+    }
   }
 
   public String loadLatestVersion() throws SQLException {
@@ -172,10 +219,9 @@ public class Script {
         .withVariable("schema", schemaName);
   }
 
-  private void deleteSchema(String schemaName) throws SQLException {
-    new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE")
-        .withVariable("schema", schemaName)
-        .write(dataSourceProvider);
+  private SQLQuery buildDeleteSchemaQuery(String schemaName) throws SQLException {
+    return new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE")
+        .withVariable("schema", schemaName);
   }
 
   private SQLQuery buildHashFunctionQuery() throws IOException {
@@ -184,12 +230,12 @@ public class Script {
         CREATE OR REPLACE FUNCTION script_hash() RETURNS TEXT AS
         $BODY$
         BEGIN
-            RETURN #{scriptHash};
+            RETURN '${{scriptHash}}';
         END
         $BODY$
-        LANGUAGE plpgsql VOLATILE;
+        LANGUAGE plpgsql IMMUTABLE
         """)
-        .withNamedParameter("scriptHash", getHash());
+        .withQueryFragment("scriptHash", getHash());
   }
 
   private SQLQuery buildVersionFunctionQuery() {
@@ -197,12 +243,12 @@ public class Script {
         CREATE OR REPLACE FUNCTION script_version() RETURNS TEXT AS
         $BODY$
         BEGIN
-            RETURN #{scriptVersion};
+            RETURN '${{scriptVersion}}';
         END
         $BODY$
-        LANGUAGE plpgsql VOLATILE;
+        LANGUAGE plpgsql IMMUTABLE
         """)
-        .withNamedParameter("scriptVersion", scriptVersion);
+        .withQueryFragment("scriptVersion", scriptVersion);
   }
 
   private String getHash() throws IOException {
@@ -216,19 +262,46 @@ public class Script {
     }
   }
 
-  private static List<String> scanResourceFolder(String resourceFolder) throws IOException {
-    List<String> files = new ArrayList<>();
+  private static List<String> scanResourceFolderWA(String resourceFolder, String fileSuffix) throws IOException {
+    return ((List<String>) switch (fileSuffix) {
+      case ".sql" -> List.of("/sql/common.sql", "/sql/feature_writer.sql", "/jobs/transport.sql");
+      case ".js" -> List.of("/sql/Exception.js", "/sql/FeatureWriter.js");
+      default -> List.of();
+    }).stream().filter(filePath -> filePath.startsWith(resourceFolder)).toList();
+  }
+
+  private static List<String> scanResourceFolder(ScriptResourcePath scriptResourcePath, String fileSuffix) throws IOException {
+    String resourceFolder = scriptResourcePath.path();
+    //TODO: Remove this workaround once the actual implementation of this method supports scanning folders inside a JAR
+    if ("/sql".equals(resourceFolder) || "/jobs".equals(resourceFolder))
+      return ensureInitScriptIsFirst(scanResourceFolderWA(resourceFolder, fileSuffix), scriptResourcePath.initScript());
+
     final InputStream folderResource = Script.class.getResourceAsStream(resourceFolder);
     if (folderResource == null)
       throw new FileNotFoundException("Resource folder " + resourceFolder + " was not found and can not be scanned for scripts.");
     BufferedReader reader = new BufferedReader(new InputStreamReader(folderResource));
+
+    List<String> files = new ArrayList<>();
     String file;
     while ((file = reader.readLine()) != null)
       files.add(file);
-    return files.stream()
-        .filter(fileName -> fileName.endsWith(".sql"))
-        .map(fileName -> resourceFolder + File.separator + fileName)
-        .toList();
+    return ensureInitScriptIsFirst(files.stream()
+        .filter(fileName -> fileName.endsWith(fileSuffix))
+        .map(fileName -> resourceFolder + "/" + fileName)   // script.scriptResourcePath always stored as unix path
+        .toList(), scriptResourcePath.initScript());
+  }
+
+  private static List<String> ensureInitScriptIsFirst(List<String> scriptPaths, String initScript) {
+    if (initScript == null)
+      return scriptPaths;
+    String initScriptPath = scriptPaths.stream().filter(scriptPath -> scriptPath.contains(initScript)).findFirst().orElse(null);
+    if (initScriptPath == null)
+      return scriptPaths;
+
+    scriptPaths = new ArrayList<>(scriptPaths);
+    scriptPaths.remove(initScriptPath);
+    scriptPaths.add(0, initScriptPath);
+    return scriptPaths;
   }
 
   private String loadScriptContent() throws IOException {
@@ -244,11 +317,17 @@ public class Script {
    * @param scriptsVersion
    * @return
    */
-  public static List<Script> loadScripts(String scriptsResourcePath, DataSourceProvider dataSourceProvider, String scriptsVersion)
+  public static List<Script> loadScripts(ScriptResourcePath scriptsResourcePath, DataSourceProvider dataSourceProvider, String scriptsVersion)
       throws IOException, URISyntaxException {
-    return scanResourceFolder(scriptsResourcePath).stream()
-        .map(scriptLocation -> new Script(scriptLocation, dataSourceProvider, scriptsVersion))
+    return scanResourceFolder(scriptsResourcePath, ".sql").stream()
+        .map(scriptLocation -> new Script(scriptLocation, dataSourceProvider, scriptsVersion, scriptsResourcePath.schemaPrefix()))
         .collect(Collectors.toUnmodifiableList());
+  }
+
+  private static List<Script> loadJsScripts(String scriptsResourcePath) throws IOException {
+    return scanResourceFolder(new ScriptResourcePath(scriptsResourcePath), ".js").stream()
+        .map(scriptLocation -> new Script(scriptLocation, null, "0.0.0"))
+        .toList();
   }
 
   private String extractVersion(String targetSchema) {
@@ -280,7 +359,7 @@ public class Script {
       throw new IllegalStateException("The script version " + getScriptName() + ":" + scriptVersion
           + " is still in use on DB " + getDbId() + " and can not be uninstalled.");
 
-    deleteSchema(getTargetSchema(scriptVersion));
+    buildDeleteSchemaQuery(getTargetSchema(scriptVersion)).write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
   }
 

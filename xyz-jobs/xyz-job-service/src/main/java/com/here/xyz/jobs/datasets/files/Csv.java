@@ -19,16 +19,15 @@
 
 package com.here.xyz.jobs.datasets.files;
 
-import static com.here.xyz.jobs.datasets.files.Csv.JsonColumnEncoding.BASE64;
-import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.FeatureCollection;
+import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
 /**
  * @deprecated This format should not be used in any public API. It's rather kept for some internal purposes to keep BWC.
  */
 @Deprecated
 public class Csv extends FileFormat {
-  private EntityPerLine entityPerLine = FeatureCollection;
-  private JsonColumnEncoding encoding = BASE64;
+  private EntityPerLine entityPerLine = Feature;
+  private GeoColumnEncoding encoding = null;
   private boolean addPartitionKey;
   private boolean geometryAsExtraWkbColumn;
 
@@ -45,15 +44,15 @@ public class Csv extends FileFormat {
     return this;
   }
 
-  public JsonColumnEncoding getEncoding() {
+  public GeoColumnEncoding getEncoding() {
     return encoding;
   }
 
-  public void setEncoding(JsonColumnEncoding encoding) {
+  public void setEncoding(GeoColumnEncoding encoding) {
     this.encoding = encoding;
   }
 
-  public Csv withEncoding(JsonColumnEncoding encoding) {
+  public Csv withEncoding(GeoColumnEncoding encoding) {
     setEncoding(encoding);
     return this;
   }
@@ -84,7 +83,7 @@ public class Csv extends FileFormat {
     return this;
   }
 
-  public enum JsonColumnEncoding {
+  public enum GeoColumnEncoding {
     BASE64
   }
 }

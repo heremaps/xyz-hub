@@ -22,12 +22,13 @@ package com.here.xyz.httpconnector.task;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.JdbcClient;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
@@ -48,8 +49,8 @@ public abstract class JdbcBasedHandler {
   }
 
   private Future<JdbcClient> createClient(String connectorId) {
-    return dbSettingsForConnector(connectorId)
-        .compose(dbSettings -> Future.succeededFuture(new JdbcClient(new PooledDataSources(dbSettings)).withQueueing(true)));
+    return dbSettingsForConnector(connectorId)                                                                  //TODO: Check why Maintenance service needs common schema
+        .compose(dbSettings -> Future.succeededFuture(new JdbcClient(new PooledDataSources(dbSettings.withSearchPath(List.of("hub.common")))).withQueueing(true)));
   }
 
   private Future<DatabaseSettings> dbSettingsForConnector(String connectorId) {

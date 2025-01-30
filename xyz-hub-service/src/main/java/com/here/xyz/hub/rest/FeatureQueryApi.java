@@ -49,14 +49,14 @@ import com.here.xyz.hub.task.FeatureTask.GetStatistics;
 import com.here.xyz.hub.task.FeatureTask.IterateQuery;
 import com.here.xyz.hub.task.FeatureTask.SearchQuery;
 import com.here.xyz.hub.task.FeatureTask.TileQuery;
-import com.here.xyz.hub.util.geo.GeoTools;
+import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
@@ -102,14 +102,13 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final String author = Query.getString(context, Query.AUTHOR, null);
 
       final SearchForFeaturesEvent event = new SearchForFeaturesEvent();
-      event.withTags(Query.getTags(context))
-          .withPropertiesQuery(propertiesQuery)
+      event.withPropertiesQuery(propertiesQuery)
           .withLimit(getLimit(context))
           .withRef(getRef(context))
-          .withAuthor(author)
           .withForce2D(force2D)
           .withSelection(Query.getSelection(context))
-          .withContext(spaceContext);
+          .withContext(spaceContext)
+          .withAuthor(author);
 
       final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
@@ -220,7 +219,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withRadius(Query.getRadius(context))
           .withH3Index(Query.getH3Index(context))
           .withLimit(getLimit(context))
-          .withTags(Query.getTags(context))
           .withClip(Query.getBoolean(context, Query.CLIP, false))
           .withPropertiesQuery(Query.getPropertiesQuery(context))
           .withSelection(Query.getSelection(context))
@@ -228,17 +226,14 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withContext(spaceContext)
           .withRef(getRef(context));
 
-
-       if( event.getGeometry() != null && !( (event.getGeometry() instanceof Point) && event.getRadius() == 0 ) )
-       { boolean bCrossDateLine = false;
-         try
-         { bCrossDateLine = GeoTools.geometryCrossesDateline(event.getGeometry(), event.getRadius()); }
-         catch (Exception e)
-         { throw new HttpException(BAD_REQUEST,e.getMessage()); }
-
-         if( bCrossDateLine )
-          throw new HttpException(BAD_REQUEST, "Invalid arguments! geometry filter intersects with antimeridian");
-       }
+      try {
+        //If a h3 reference got provided - we do not need to validate the Geometry
+        //If there is a referenced feature - the geometry validation happens in FeatureTask - after the geometry is resolved.
+        if(h3Index == null && refFeatureId == null && refSpaceId == null)
+          GeometryValidator.validateGeometry(event.getGeometry(), event.getRadius());
+      }catch (GeometryValidator.GeometryException e){
+        throw new HttpException(BAD_REQUEST ,e.getMessage());
+      }
 
       final GeometryQuery task = new GeometryQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
       task.execute(this::sendResponse, this::sendErrorResponse);
@@ -267,7 +262,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withClusteringParams(Query.getAdditionalParams(context,Query.CLUSTERING))
             .withTweakType(Query.getString(context, Query.TWEAKS, null))
             .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
-            .withTags(Query.getTags(context))
             .withPropertiesQuery(Query.getPropertiesQuery(context))
             .withLimit(getLimit(context))
             .withSelection(Query.getSelection(context))
@@ -328,7 +322,6 @@ public class FeatureQueryApi extends SpaceBasedApi {
             .withTweakType(Query.getString(context, Query.TWEAKS, null))
             .withTweakParams(Query.getAdditionalParams(context, Query.TWEAKS))
             .withLimit(getLimit(context, ("viz".equals(optimMode) ? HARD_LIMIT : DEFAULT_FEATURE_LIMIT)))
-            .withTags(Query.getTags(context))
             .withPropertiesQuery(Query.getPropertiesQuery(context))
             .withSelection(Query.getSelection(context))
             .withForce2D(force2D)
@@ -345,13 +338,12 @@ public class FeatureQueryApi extends SpaceBasedApi {
       try {
         WebMercatorTile tileAddress = null;
         HQuad hereTileAddress = null;
-        if ("tms".equals(tileType)) {
-          tileAddress = WebMercatorTile.forTMS(tileId);
-        } else if ("web".equals(tileType)) {
-          tileAddress = WebMercatorTile.forWeb(tileId);
-        } else if ("quadkey".equals(tileType)) {
-          tileAddress = WebMercatorTile.forQuadkey(tileId);
-        } else if ("here".equals(tileType)) {
+
+        switch( tileType ) {
+         case "tms"     : tileAddress = WebMercatorTile.forTMS(tileId); break;
+         case "web"     : tileAddress = WebMercatorTile.forWeb(tileId); break;
+         case "quadkey" : tileAddress = WebMercatorTile.forQuadkey(tileId); break;
+         case "here" : 
           if (tileId.contains("_")) {
             String[] levelRowColumnArray = tileId.split("_");
             if (levelRowColumnArray.length == 3) {
@@ -365,6 +357,10 @@ public class FeatureQueryApi extends SpaceBasedApi {
           } else {
             hereTileAddress = new HQuad(tileId, Service.configuration.USE_BASE_4_H_TILES);
           }
+          break;
+         
+         default:
+          throw new HttpException(BAD_REQUEST, String.format("Invalid path argument {type} of tile request '%s' != [tms,web,quadkey,here]",tileType));
         }
 
         if (tileAddress != null) {
@@ -380,7 +376,10 @@ public class FeatureQueryApi extends SpaceBasedApi {
           event.setX(hereTileAddress.x);
           event.setY(hereTileAddress.y);
           event.setQuadkey(hereTileAddress.quadkey);
-        }
+        } 
+        else
+         throw new IllegalArgumentException();
+
       } catch (IllegalArgumentException e) {
         throw new HttpException(BAD_REQUEST, "Invalid argument tileId.");
       }

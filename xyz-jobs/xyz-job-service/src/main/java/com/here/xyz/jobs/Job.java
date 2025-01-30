@@ -41,7 +41,10 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.streams.DynamicStream;
+import com.here.xyz.jobs.processes.ProcessDescription;
+import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
@@ -52,14 +55,20 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.HubWebClient;
+import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -85,6 +94,8 @@ public class Job implements XyzSerializable {
   @JsonView({Public.class, Static.class})
   private String description;
   @JsonView({Public.class, Static.class})
+  private ProcessDescription process;
+  @JsonView({Public.class, Static.class})
   private DatasetDescription source;
   @JsonView({Public.class, Static.class})
   private DatasetDescription target;
@@ -95,10 +106,12 @@ public class Job implements XyzSerializable {
   private String executionId;
   @JsonView({Public.class, Static.class})
   private JobClientInfo clientInfo;
+  @JsonView(Static.class)
+  private String secondaryResourceKey;
 
   private static final Async ASYNC = new Async(20, Job.class);
   private static final Logger logger = LogManager.getLogger();
-  private static final long DEFAULT_JOB_TTL = 2 * 7 * 24 * 3600 * 1000; //2 weeks
+  private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(2 * 7); //4 weeks
 
   /**
    * Creates a new Job.
@@ -152,15 +165,16 @@ public class Job implements XyzSerializable {
         .compose(stepGraph -> {
           setSteps(stepGraph);
           getStatus().setOverallStepCount((int) stepGraph.stepStream().count());
+          Input.activateInputsCache(getId());
           return prepare().compose(v -> validate());
         })
         .compose(isReady -> {
           if (isPipeline() || isReady) {
             getStatus().setState(SUBMITTED);
-            Input.registerSubmittedJob(getId());
             return store().compose(v -> start()).map(true);
           }
           else {
+            Input.clearInputsCache(getId());
             logger.info("{}: Job is not ready for submission yet. Not all pre-conditions are met.", getId());
             return store().map(false);
           }
@@ -195,15 +209,16 @@ public class Job implements XyzSerializable {
    */
   protected Future<Boolean> validate() {
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
-    return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> validateStep(step)))
-        .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(validation -> (boolean) validation)));
+    return Future.all(Job.forEach(getSteps().stepStream().toList(), step -> validateStep(step)))
+        .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
   }
 
   private static Future<Boolean> validateStep(Step step) {
     return ASYNC.run(() -> {
       boolean isReady = step.validate();
-      if (isReady && step.getStatus().getState() != SUBMITTED)
-        step.getStatus().setState(SUBMITTED);
+      State targetState = isReady ? SUBMITTED : NOT_READY;
+      if (step.getStatus().getState() != targetState)
+        step.getStatus().setState(targetState);
       return isReady;
     });
   }
@@ -216,8 +231,11 @@ public class Job implements XyzSerializable {
     getStatus().setState(PENDING);
     getSteps().stepStream().forEach(step -> step.getStatus().setState(PENDING));
 
+    logger.info("Starting job {} ...", getId());
+    long t1 = Core.currentTimeMillis();
     return store()
-        .compose(v -> startExecution(false));
+        .compose(v -> startExecution(false))
+        .onSuccess(v -> logger.info("Started job {}. Took {}ms.", getId(), Core.currentTimeMillis() - t1));
   }
 
   private Future<Void> startExecution(boolean resume) {
@@ -271,9 +289,33 @@ public class Job implements XyzSerializable {
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
 
-    if (!step.getStatus().getState().isFinal() && existingStep.getStatus().getState().isFinal())
+    return updateStep(step, existingStep.getStatus().getState());
+  }
+
+  public Future<Void> updateStepStatus(String stepId, RuntimeInfo status) {
+    final Step step = getStepById(stepId);
+    if (step == null)
+      throw new IllegalArgumentException("The provided step with ID " + stepId + " was not found.");
+
+    State existingStepState = step.getStatus().getState();
+
+    step.getStatus()
+            .withState(status.getState())
+            .withErrorCode(status.getErrorCode())
+            .withErrorCause(status.getErrorCause())
+            .withErrorMessage(status.getErrorMessage());
+
+    return updateStep(step, existingStepState);
+  }
+
+  private Future<Void> updateStep(Step<?> step, State previousStepState) {
+    //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
+    if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
       return Future.succeededFuture();
+
+    if (step.getStatus().getState().isFinal())
+      updatePreviousAttempts(step);
 
     boolean found = getSteps().replaceStep(step);
     if (!found)
@@ -290,7 +332,7 @@ public class Job implements XyzSerializable {
     int overallWorkUnits = getSteps().stepStream().mapToInt(s -> s.getEstimatedExecutionSeconds()).sum();
     getStatus().setEstimatedProgress((float) completedWorkUnits / (float) overallWorkUnits);
 
-    if (step.getStatus().getState() == FAILED) {
+    if (previousStepState != FAILED && step.getStatus().getState() == FAILED) {
       getStatus()
           .withState(FAILED)
           .withErrorMessage(step.getStatus().getErrorMessage())
@@ -300,6 +342,11 @@ public class Job implements XyzSerializable {
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null));
+  }
+
+  private Future<Void> updatePreviousAttempts(Step step) {
+    //TODO: Load & iterate event history and count the amount of TasKStateEntered events per step (Set it at step#previousAttempts)
+    return Future.succeededFuture();
   }
 
   /**
@@ -355,7 +402,7 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
-  public static Future<List<Job>> loadByResourceKey(String resourceKey) {
+  public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
     return JobConfigClient.getInstance().loadJobs(resourceKey);
   }
 
@@ -402,7 +449,6 @@ public class Job implements XyzSerializable {
    * @return A list of overall resource-loads being reserved by this job
    */
   public List<Load> calculateResourceLoads() {
-    //TODO: Run asynchronous!
     return calculateResourceLoads(getSteps())
         .entrySet()
         .stream()
@@ -424,8 +470,10 @@ public class Job implements XyzSerializable {
     return step.getAggregatedNeededResources();
   }
 
-  public UploadUrl createUploadUrl() {
-    return new UploadUrl().withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID());
+  public UploadUrl createUploadUrl(boolean compressed) {
+    return new UploadUrl()
+        .withCompressed(compressed)
+        .withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID() + (compressed ? ".gz" : ""));
   }
 
   public Future<Void> consumeInput(ModelBasedInput input) {
@@ -449,7 +497,7 @@ public class Job implements XyzSerializable {
 
   public Future<List<Output>> loadOutputs() {
     return ASYNC.run(() -> steps.stepStream()
-        .map(step -> (List<Output>) step.loadOutputs(true))
+        .map(step -> (List<Output>) step.loadUserOutputs())
         .flatMap(ol -> ol.stream())
         .collect(Collectors.toList()));
   }
@@ -481,10 +529,35 @@ public class Job implements XyzSerializable {
 
   @JsonView(Static.class)
   public String getResourceKey() {
-    //TODO: Identify when to use the key from source vs from target
-    if (getTarget() == null)
+    //Always use key from the source except when the source is Files
+    if (getSource() == null)
       return null;
-    return getTarget().getKey();
+    return getSource() instanceof Files<?> ? getTarget().getKey() : getSource().getKey();
+  }
+
+  public String getSecondaryResourceKey() {
+    if (secondaryResourceKey != null)
+      return secondaryResourceKey;
+
+    String key = getResourceKey();
+    if (key == null)
+      return null;
+
+    try {
+      Space.Extension extension = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(key).getExtension();
+      if (extension != null)
+        secondaryResourceKey = extension.getSpaceId();
+    }
+    catch (XyzWebClient.WebClientException e) {
+      //Ignore if space is not present anymore
+      if (!(e instanceof ErrorResponseException errorResponseException && errorResponseException.getStatusCode() == 404))
+        throw new RuntimeException(e);
+    }
+    return secondaryResourceKey;
+  }
+
+  private void setSecondaryResourceKey(String secondaryResourceKey) {
+    this.secondaryResourceKey = secondaryResourceKey;
   }
 
   public String getDescription() {
@@ -598,6 +671,19 @@ public class Job implements XyzSerializable {
 
   public Job withClientInfo(JobClientInfo clientInfo) {
     setClientInfo(clientInfo);
+    return this;
+  }
+
+  public ProcessDescription getProcess() {
+    return process;
+  }
+
+  public void setProcess(ProcessDescription process) {
+    this.process = process;
+  }
+
+  public Job withProcess(ProcessDescription process) {
+    setProcess(process);
     return this;
   }
 

@@ -196,7 +196,16 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     logger.info(marker, "Deleting space ID: {}", spaceId);
     return get(marker, spaceId)
         .onFailure(t -> logger.error(marker, "Failure to get space ID: {} during space deletion", spaceId, t))
-        .onSuccess(space -> logger.info(marker, "Space ID: {} has been retrieved", space.getId()))
+        .compose(space -> {
+          if (space == null) {
+              String errMsg = String.format("Space ID: %s is null after retrieval during space deletion", spaceId);
+              logger.error(marker,errMsg);
+              return Future.failedFuture(errMsg);
+          } else {
+              logger.info(marker, "Space ID: {} has been retrieved", space.getId());
+              return Future.succeededFuture(space);
+          }
+        })
         .compose(space -> deleteSpaceFromPackages(marker, space).map(space))
         .compose(space -> {
           Promise<Space> p = Promise.promise();
@@ -390,7 +399,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       if (propsQuery != null) {
         valueMap.put(":typeValue", "SPACE");
         valueMap.put(":contentUpdatedAtValue", propsQuery.get(0).get(0).getValues().get(0));
-        String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
+        String operator = QueryOperation.getOutputRepresentation(propsQuery.get(0).get(0).getOperation());
 
         spaces.getIndex("type-contentUpdatedAt-index")
             .query(new QuerySpec()
@@ -580,7 +589,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       Map<String, Object> valueMap = new HashMap<>();
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", propsQuery.get(0).get(0).getValues().get(0));
-      String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
+      String operator = QueryOperation.getOutputRepresentation(propsQuery.get(0).get(0).getOperation());
       var contentUpdatedAtSpaceIds = new HashSet<String>();
       spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
               .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " +  operator + " :contentUpdatedAtValue")

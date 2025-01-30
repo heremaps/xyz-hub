@@ -19,7 +19,6 @@
 
 package com.here.xyz.util.db.datasource;
 
-import com.here.xyz.util.db.DatabaseSettings;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;

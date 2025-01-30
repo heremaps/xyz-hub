@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.FORBIDDEN;
 
 import com.amazonaws.services.lambda.AWSLambda;
@@ -34,8 +35,8 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.decryptors.EventDecryptor;
 import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
-import com.here.xyz.connectors.runtime.ConnectorRuntime;
-import com.here.xyz.connectors.runtime.LambdaConnectorRuntime;
+import com.here.xyz.util.runtime.FunctionRuntime;
+import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.HealthCheckEvent;
@@ -63,10 +64,6 @@ import org.apache.logging.log4j.util.Strings;
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
  */
 public abstract class AbstractConnectorHandler implements RequestStreamHandler {
-
-  /**
-   * Logger
-   */
   private static final Logger logger = LogManager.getLogger();
 
   /**
@@ -216,7 +213,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
         String connectorId = null;
         this.streamId = streamId != null ? streamId : event.getStreamId();
-        new LambdaConnectorRuntime(context, this.streamId);
+        new LambdaFunctionRuntime(context, this.streamId);
 
         if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
           connectorId = (String) event.getConnectorParams().get("connectorId");
@@ -242,7 +239,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         logger.error("{} Unexpected exception occurred:", traceItem, e);
         dataOut = new ErrorResponse()
             .withStreamId(this.streamId)
-            .withError(XyzError.EXCEPTION)
+            .withError(EXCEPTION)
             .withErrorMessage("Unexpected exception occurred.");
       }
       catch (OutOfMemoryError e) {
@@ -311,7 +308,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
             .toByteArray();
       }
 
-      final boolean runningLocally = ConnectorRuntime.getInstance().isRunningLocally();
+      final boolean runningLocally = FunctionRuntime.getInstance().isRunningLocally();
       if (dataOut instanceof BinaryResponse) {
         //NOTE: BinaryResponses contain an ETag automatically, nothing to calculate here
         String etag = ((BinaryResponse) dataOut).getEtag();
@@ -372,8 +369,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * These type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
    * the connection to the database open.
    */
-  protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    if (event.getWarmupCount() > 0 && !ConnectorRuntime.getInstance().isRunningLocally()) {
+  protected HealthStatus processHealthCheckEvent(HealthCheckEvent event) throws Exception {
+    if (event.getWarmupCount() > 0 && !FunctionRuntime.getInstance().isRunningLocally()) {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
       byte[] newEvent = event.toByteArray();
@@ -383,7 +380,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         if (lambdaClient == null)
           lambdaClient = AWSLambdaClientBuilder.defaultClient();
         threads.add(new Thread(() -> lambdaClient.invoke(new InvokeRequest()
-                .withFunctionName(((LambdaConnectorRuntime) ConnectorRuntime.getInstance()).getInvokedFunctionArn())
+                .withFunctionName(((LambdaFunctionRuntime) FunctionRuntime.getInstance()).getInvokedFunctionArn())
                 .withPayload(ByteBuffer.wrap(newEvent)))));
       }
       threads.forEach(t -> t.start());
@@ -395,10 +392,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         Thread.sleep((event.getMinResponseTime() + start) - System.currentTimeMillis());
       }
       catch (InterruptedException e) {
-        return new ErrorResponse()
-            .withErrorMessage(e.getMessage())
-            .withStreamId(streamId)
-            .withError(XyzError.EXCEPTION);
+        throw new ErrorResponseException(EXCEPTION, e.getMessage());
       }
     }
     return new HealthStatus();

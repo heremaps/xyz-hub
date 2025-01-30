@@ -34,6 +34,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
@@ -84,6 +85,7 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
   }
 
   @Test
+  @Ignore("transactional=false is not supported anymore")
   public void testFailureResponse() {
     FeatureCollection fc = new FeatureCollection().withFeatures(Arrays.asList(
         Feature.createEmptyFeature().withId("T1")));

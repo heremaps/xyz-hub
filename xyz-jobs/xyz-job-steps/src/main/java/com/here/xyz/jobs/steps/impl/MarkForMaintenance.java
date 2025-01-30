@@ -19,18 +19,14 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
-
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,10 +37,7 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      int acus = calculateNeededAcus();
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
-
-      return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
+      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(calculateNeededAcus()));
     }
     catch (WebClientException e) {
       //TODO: log error
@@ -80,12 +73,12 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   @Override
   public void execute() throws WebClientException, SQLException, TooManyResourcesClaimed {
     logger.info("Analyze table of space " + getSpaceId() + " ...");
+    if (!space().isActive()) {
+      logger.info("[{}] Re-activating the space {} ...", getGlobalStepId(), getSpaceId());
+      hubWebClient().patchSpace(getSpaceId(), Map.of("active", true));
+    }
 
-    logger.info("Loading space config for space {}", getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space {}", getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
-    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db), getRootTableName(space)), db, calculateNeededAcus());
+    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus());
   }
 
   public SQLQuery buildMarkForMaintenanceQuery(String schema, String table) {

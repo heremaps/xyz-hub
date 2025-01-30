@@ -21,8 +21,8 @@ package com.here.xyz.jobs.steps.execution.db;
 
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.util.db.DatabaseSettings.PSQL_HOST;
-import static com.here.xyz.util.db.DatabaseSettings.PSQL_REPLICA_HOST;
+import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_HOST;
+import static com.here.xyz.util.db.datasource.DatabaseSettings.PSQL_REPLICA_HOST;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -32,9 +32,10 @@ import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.ConnectorParameters;
-import com.here.xyz.util.db.DatabaseSettings;
 import com.here.xyz.util.db.ECPSTool;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
+import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.HubWebClientAsync;
@@ -61,6 +62,7 @@ import org.xbill.DNS.Record;
 import software.amazon.awssdk.services.rds.model.DBCluster;
 
 public class Database extends ExecutionResource {
+  private static final List<ScriptResourcePath> SCRIPT_RESOURCE_PATHS = List.of(new ScriptResourcePath("/sql", "jobs", "common"), new ScriptResourcePath("/jobs", "jobs"));
   private static final Logger logger = LogManager.getLogger();
   private static final float DB_MAX_JOB_UTILIZATION_PERCENTAGE = 0.6f;
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
@@ -113,7 +115,9 @@ public class Database extends ExecutionResource {
   DatabaseSettings getDatabaseSettings() {
     if (dbSettings == null)
       dbSettings = new RestrictedDatabaseSettings(getName(), connectorDbSettingsMap)
-          .withApplicationName("JobFramework");
+          .withApplicationName("JobFramework")
+          .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
+    dbSettings.setStatementTimeoutSeconds(600);
     return dbSettings;
   }
 
@@ -206,7 +210,9 @@ public class Database extends ExecutionResource {
             connectorParameters.getEcps());
         fixLocalDbHosts(connectorDbSettingsMap);
 
-        DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap);
+        DatabaseSettings connectorDbSettings = new DatabaseSettings(connector.id, connectorDbSettingsMap)
+            .withDbMaxPoolSize(10)
+            .withScriptResourcePaths(SCRIPT_RESOURCE_PATHS);
 
         String rdsClusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
 
@@ -215,6 +221,14 @@ public class Database extends ExecutionResource {
           databases.add(new Database(null, null, 128, connectorDbSettingsMap)
               .withName(connector.id)
               .withRole(WRITER));
+
+          //TODO: Ensure that we always have a reader for all Databases (by using the read Only user or replica_host if present) and then - if there is none - it is not supported for a good reason
+          //Adding a virtual readReplica for local testing (same db but ro user)
+          if(connector.id.equals("psql") && (connectorDbSettings.runsLocal())) {
+            databases.add(new Database(null, null, 128, connectorDbSettingsMap)
+                    .withName(connector.id)
+                    .withRole(READER));
+          }
         }
         else {
           DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);

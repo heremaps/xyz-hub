@@ -24,6 +24,9 @@ import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
+import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
+import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -37,7 +40,7 @@ import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -69,10 +72,18 @@ public abstract class JobExecutor implements Initializable {
 
   public final Future<Void> startExecution(Job job, String formerExecutionId) {
     //TODO: Care about concurrency between nodes when it comes to resource-load calculation within this thread
-    return mayExecute(job)
-        .compose(executionAllowed -> {
-          if (!executionAllowed)
-            //The Job remains in PENDING state and will be checked later again if it may be executed
+    return Future.succeededFuture()
+        .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
+        .compose(v -> needsExecution(job))
+        .compose(executionNeeded -> executionNeeded ? mayExecute(job) : Future.succeededFuture(false))
+        .compose(shouldExecute -> {
+          if (!shouldExecute)
+            /*
+            Two different cases:
+            1. The job is complete already because all its steps are re-using old steps. In that case, the job is succeeded already.
+            2. The job may currently not be executed because of short resources.
+              It remains in PENDING state and will be checked later again if it may be executed.
+             */
             return Future.succeededFuture();
 
           //Update the job status atomically to RUNNING to make sure no other node will try to start it.
@@ -87,11 +98,20 @@ public abstract class JobExecutor implements Initializable {
               .compose(v -> formerExecutionId != null ? resume(job, formerExecutionId) : execute(job))
               //Execution was started successfully, store the execution ID.
               .compose(executionId -> job.withExecutionId(executionId).store());
+        })
+        .onFailure(e -> {
+          //E.g.: Resource got deleted during lifetime of job!
+          logger.error("Start Execution of job '{}' is failed!", job.getId(), e);
+          job.getStatus().setState(FAILED);
+          job.storeStatus(null);
         });
   }
 
   private Future<Void> setStepsRunning(Job job) {
-    job.getSteps().stepStream().forEach(step -> step.getStatus().setState(RUNNING));
+    job.getSteps().stepStream().forEach(step -> {
+      if (!(step instanceof DelegateStep))
+        step.getStatus().setState(RUNNING);
+    });
     return job.store();
   }
 
@@ -108,7 +128,7 @@ public abstract class JobExecutor implements Initializable {
           .compose(pendingJobs -> {
             Future<Void> taskChain = Future.succeededFuture();
             try {
-              pendingJobs.sort(Comparator.comparingLong(Job::getCreatedAt));
+              pendingJobs.sort(comparingLong(Job::getCreatedAt));
               logger.info("Checking {} PENDING jobs if they can be executed ...", pendingJobs.size());
               if (stopRequested)
                 return Future.succeededFuture();
@@ -134,6 +154,42 @@ public abstract class JobExecutor implements Initializable {
       logger.error("Error checking PENDING jobs", e);
       running = false;
     }
+  }
+
+  private static long calculateEstimatedExecutionTime(Job job) {
+    return job.getSteps().stepStream().mapToInt(step -> step.getEstimatedExecutionSeconds()).sum() * 1_000;
+  }
+
+  //TODO: integrate updatePendingTimeEstimations again.
+  //    return updatePendingTimeEstimations(pendingJobs.stream().filter(job -> job.getStatus().getState() == PENDING)
+  //            .collect(Collectors.toUnmodifiableList()));
+  private Future<Void> updatePendingTimeEstimations(List<Job> pendingJobs) {
+    return JobConfigClient.getInstance().loadJobs(RUNNING)
+        .compose(runningJobs -> {
+          if (runningJobs.isEmpty()) {
+            //No jobs are running, but we have PENDING jobs, are the jobs trying to use too many resources of the system overall?
+            logger.warn("Following jobs are PENDING, but there are no running jobs, does the system provide enough resources to "
+                + "start these jobs at all? : {}", pendingJobs.stream().map(Job::getId).collect(Collectors.joining(", ")));
+            //Set the estimated PENDING time to "unknown"
+            pendingJobs.forEach(pendingJob -> pendingJob.getStatus().setEstimatedStartTime(-1));
+            return Future.succeededFuture();
+          }
+
+          List<Job> activeJobs = new ArrayList<>(runningJobs);
+
+          //NOTE: The following is an algorithm that only provides a very rough estimation of the start time
+          for (Job pendingJob : pendingJobs) {
+            Job earliestCompletingJob = activeJobs.stream().min(comparingLong(job -> job.getStatus().getEstimatedEndTime())).get();
+            long estimatedStartTime = earliestCompletingJob.getStatus().getEstimatedEndTime();
+            pendingJob.getStatus()
+                .withEstimatedStartTime(estimatedStartTime)
+                .withInitialEndTimeEstimation(estimatedStartTime + calculateEstimatedExecutionTime(pendingJob));
+            //Replace the (already "consumed") active job by the consuming pending job for the calculation in the next loop iteration
+            activeJobs.remove(earliestCompletingJob);
+            activeJobs.add(pendingJob);
+          }
+          return Future.succeededFuture();
+        });
   }
 
   /**
@@ -257,6 +313,45 @@ public abstract class JobExecutor implements Initializable {
                       job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             }));
+  }
+
+  private Future<Boolean> needsExecution(Job job) {
+    return Future.succeededFuture()
+        .compose(v -> {
+          int succeededSteps = (int) job.getSteps().stepStream()
+              .filter(step -> step.getStatus().getState().equals(SUCCEEDED))
+              .count();
+          job.getStatus().setSucceededSteps(succeededSteps);
+
+          if (succeededSteps < job.getStatus().getOverallStepCount())
+            return Future.succeededFuture(true);
+
+          //All Steps are already succeeded - No need to execute the job
+          job.getStatus().setState(SUCCEEDED);
+          return job.store().map(false);
+        });
+  }
+
+  /**
+   * Tries to find other existing jobs, that are completed and that already performed parts of the
+   * tasks that the provided job would have to perform.
+   * If such jobs are found, the provided job's StepGraph will re-use these parts of the already executed
+   * job and will be shrunk accordingly to lower its execution time and save cost.
+   *
+   * @param job The new job that is about to be started
+   * @return An empty future (NOTE: If the job's graph was adjusted / shrunk, it will be also stored)
+   */
+  private static Future<Void> reuseExistingJobIfPossible(Job job) {
+    if (job.getResourceKey() == null || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
+      return Future.succeededFuture();
+    return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), job.getSecondaryResourceKey(), SUCCEEDED)
+        .compose(candidates -> Future.succeededFuture(candidates.stream()
+            .filter(candidate -> !job.getId().equals(candidate.getId())) //Do not try to compare the job to itself
+            .map(candidate -> fuseGraphs(job, candidate.getSteps()))
+            .max(comparingLong(candidateGraph -> candidateGraph.stepStream()
+                .filter(step -> step instanceof DelegateStep).count())) //Take the candidate with the largest matching subgraph
+            .orElse(null)))
+        .compose(fusedGraph -> fusedGraph == null ? Future.succeededFuture() : job.withSteps(fusedGraph).store());
   }
 
   public static void shutdown() throws InterruptedException {

@@ -46,13 +46,6 @@ public class LimitsTestIT extends TestSpaceWithFeature {
     createSpaceWithTokenLimits();
   }
 
-  @After
-  public void tearDown() {
-    remove();
-    if (cleanUpId != null) {
-      removeSpace(cleanUpId);
-    }
-  }
   private void createSpaceWithTokenLimits() {
     given().
         contentType(APPLICATION_JSON).
@@ -62,6 +55,14 @@ public class LimitsTestIT extends TestSpaceWithFeature {
         when().post("/spaces").then().
         statusCode(OK.code()).
         body("id", equalTo("x-psql-test"));
+  }
+
+  @After
+  public void tearDown() {
+    remove();
+    if (cleanUpId != null) {
+      removeSpace(cleanUpId);
+    }
   }
 
   @Test
@@ -79,7 +80,9 @@ public class LimitsTestIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void addMultipleFeatures() {
+  public void addMultipleFeatures() throws InterruptedException {
+    add1Feature();
+    Thread.sleep(750);
     given().
         contentType(APPLICATION_GEO_JSON).
         accept(APPLICATION_GEO_JSON).

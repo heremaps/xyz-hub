@@ -136,11 +136,11 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
 
   private static AWSLambdaAsync createClient(AWSLambda remoteFunction) {
     logger.info("Creating Lambda Function Client for function {} lambda ARN {}, role ARN: {}",
-        remoteFunction.id, remoteFunction.lambdaARN, remoteFunction.roleARN);
+        remoteFunction.id, remoteFunction.lambdaARN(), remoteFunction.roleARN);
 
     return AWSLambdaAsyncClientBuilder
         .standard()
-        .withRegion(ARN.fromString(remoteFunction.lambdaARN).getRegion())
+        .withRegion(ARN.fromString(remoteFunction.lambdaARN()).getRegion())
         .withCredentials(getAWSCredentialsProvider(remoteFunction))
         .withClientConfiguration(new ClientConfiguration()
             .withTcpKeepAlive(true)
@@ -185,7 +185,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.getByteSize());
 
     InvokeRequest invokeReq = new InvokeRequest()
-        .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
+        .withFunctionName(((AWSLambda) remoteFunction).lambdaARN())
         .withPayload(ByteBuffer.wrap(fc.bytes))
         .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
@@ -277,7 +277,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
   }
 
   private static String getClientKey(AWSLambda remoteFunction) {
-    ARN lambdaArn = ARN.fromString(remoteFunction.lambdaARN);
+    ARN lambdaArn = ARN.fromString(remoteFunction.lambdaARN());
     return lambdaArn.getRegion() + (remoteFunction.roleARN != null ? "_" + remoteFunction.roleARN : "");
   }
 

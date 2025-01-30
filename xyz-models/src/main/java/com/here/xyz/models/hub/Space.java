@@ -20,6 +20,7 @@
 package com.here.xyz.models.hub;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -32,6 +33,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.Static;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -232,6 +234,12 @@ public class Space {
   @JsonInclude(value = Include.CUSTOM, valueFilter = IncludeFalse.class)
   @JsonView({Internal.class, Static.class})
   private boolean active = true;
+  /**
+   * Indicates the last time the content of a space was updated.
+   */
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Public.class, Static.class})
+  private long contentUpdatedAt = 0;
 
   public String getId() {
     return id;
@@ -572,6 +580,21 @@ public class Space {
     return this;
   }
 
+  public long getContentUpdatedAt() {
+    if (contentUpdatedAt == 0)
+      contentUpdatedAt = getCreatedAt();
+    return contentUpdatedAt;
+  }
+
+  public void setContentUpdatedAt(long contentUpdatedAt) {
+    this.contentUpdatedAt = contentUpdatedAt;
+  }
+
+  public Space withContentUpdatedAt(long contentUpdatedAt) {
+    setContentUpdatedAt(contentUpdatedAt);
+    return this;
+  }
+
   /**
    * Used as a JsonView on a {@link Space} to indicate that a property should be part of a response which was requested to contain
    * connector information.
@@ -721,6 +744,28 @@ public class Space {
     }
   }
 
+  public void switchToSuper(String superSpaceId){
+    id = superSpaceId;
+    extension = null;
+  }
+
+  public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
+    if (getExtension() == null)
+      return Collections.emptyMap();
+    //Storage params are taken from the input and then resolved based on the extensions
+    final Map<String, Object> extendsMap = getExtension().toMap();
+
+    //TODO: Remove this once Job-API was fixed to configure that on job-level
+    if (extendedSpace != null && extendedSpace.isReadOnly())
+      extendsMap.put("readOnly", true);
+
+    //Check if the extended space itself is extending some other space (2-level extension)
+    if (extendedSpace != null && extendedSpace.getExtension() != null)
+      //Get the extension definition from the extended space and add it to this one additionally
+      extendsMap.put("extends", extendedSpace.getExtension().toMap());
+    return Collections.singletonMap("extends", extendsMap);
+  }
+
   public static class License {
 
     //Source: https://github.com/shinnn/spdx-license-ids/blob/master/index.json
@@ -788,8 +833,9 @@ public class Space {
   }
 
   public static class Extension implements XyzSerializable {
-
     private String spaceId;
+    @JsonIgnore
+    public Space resolvedSpace;
 
     public String getSpaceId() {
       return spaceId;

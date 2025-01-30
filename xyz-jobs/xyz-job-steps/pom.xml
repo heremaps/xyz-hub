@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.9.42-SNAPSHOT</version>
+    <version>3.15.3-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Steps</name>
@@ -41,6 +41,11 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-util</artifactId>
+    </dependency>
+    <!-- TODO: Get rid of the following dependency again -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-psql-connector</artifactId>
     </dependency>
 
     <!-- AWS SDK -->
@@ -130,16 +135,50 @@
       <artifactId>aws-lambda-java-log4j2</artifactId>
     </dependency>
 
-    <!-- Test -->
+    <!-- Testing -->
     <dependency>
-      <artifactId>junit</artifactId>
-      <groupId>junit</groupId>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>junit-jupiter-api</artifactId>
+      <groupId>org.junit.jupiter</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.vintage</groupId>
+      <artifactId>junit-vintage-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>hamcrest</artifactId>
+      <groupId>org.hamcrest</groupId>
       <scope>test</scope>
     </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <!-- Include sources -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
@@ -245,7 +284,12 @@
               <execution>
                 <configuration>
                   <workingDirectory>${project.build.directory}</workingDirectory>
-                  <executable>${basedir}/src/main/bash/deployLocalLambda.sh</executable>
+                  <executable>docker</executable>
+                  <arguments>
+                    <argument>exec</argument>
+                    <argument>localstack-main</argument>
+                    <argument>/home/localstack/job-steps-scripts/deployLocalLambda.sh</argument>
+                  </arguments>
                 </configuration>
                 <goals>
                   <goal>exec</goal>

@@ -43,6 +43,7 @@ import org.junit.Test;
 public class ChangesetApiIT extends TestSpaceWithFeature {
 
   private static String cleanUpSpaceId = "space1";
+  protected static final String AUTHOR_1 = "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
 
   @BeforeClass
   public static void setupClass() {
@@ -451,12 +452,15 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
   public void validateChangesetVersions() {
     given()
             .get("/spaces/" + cleanUpSpaceId + "/changesets/1")
-            .then()
+        .prettyPeek()
+        .then()
             .statusCode(OK.code())
             .body("version", equalTo(1))
             .body("inserted.features.size()", equalTo(2))
             .body("updated.features.size()", equalTo(0))
             .body("deleted.features.size()", equalTo(0))
+            .body("author", equalTo(AUTHOR_1))
+            .body("createdAt", notNullValue())
             .body("nextPageToken", nullValue());
 
     given()
@@ -492,46 +496,59 @@ public class ChangesetApiIT extends TestSpaceWithFeature {
             .body("versions.1.inserted.features.size()", equalTo(2))
             .body("versions.1.updated.features.size()", equalTo(0))
             .body("versions.1.deleted.features.size()", equalTo(0))
+            .body("versions.1.author", equalTo(AUTHOR_1))
+            .body("versions.1.createdAt", notNullValue())
+            .body("versions.1.version", equalTo(1))
 
             .body("versions.2.inserted.features.size()", equalTo(1))
             .body("versions.2.updated.features.size()", equalTo(1))
             .body("versions.2.deleted.features.size()", equalTo(0))
+            .body("versions.2.version", equalTo(2))
 
             .body("versions.3.inserted.features.size()", equalTo(2))
             .body("versions.3.updated.features.size()", equalTo(0))
             .body("versions.3.deleted.features.size()", equalTo(0))
+            .body("versions.3.version", equalTo(3))
 
             .body("versions.4.inserted.features.size()", equalTo(0))
             .body("versions.4.updated.features.size()", equalTo(1))
             .body("versions.4.deleted.features.size()", equalTo(0))
+            .body("versions.4.version", equalTo(4))
 
             .body("versions.5.inserted.features.size()", equalTo(0))
             .body("versions.5.updated.features.size()", equalTo(1))
             .body("versions.5.deleted.features.size()", equalTo(0))
+            .body("versions.5.version", equalTo(5))
 
             .body("versions.6.inserted.features.size()", equalTo(0))
             .body("versions.6.updated.features.size()", equalTo(1))
             .body("versions.6.deleted.features.size()", equalTo(0))
+            .body("versions.6.version", equalTo(6))
 
             .body("versions.7.inserted.features.size()", equalTo(0))
             .body("versions.7.updated.features.size()", equalTo(1))
             .body("versions.7.deleted.features.size()", equalTo(0))
+            .body("versions.7.version", equalTo(7))
 
             .body("versions.8.inserted.features.size()", equalTo(0))
             .body("versions.8.updated.features.size()", equalTo(1))
             .body("versions.8.deleted.features.size()", equalTo(0))
+            .body("versions.8.version", equalTo(8))
 
             .body("versions.9.inserted.features.size()", equalTo(1))
             .body("versions.9.updated.features.size()", equalTo(0))
             .body("versions.9.deleted.features.size()", equalTo(0))
+            .body("versions.9.version", equalTo(9))
 
             .body("versions.10.inserted.features.size()", equalTo(0))
             .body("versions.10.updated.features.size()", equalTo(0))
             .body("versions.10.deleted.features.size()", equalTo(1))
+            .body("versions.10.version", equalTo(10))
 
             .body("versions.11.inserted.features.size()", equalTo(0))
             .body("versions.11.updated.features.size()", equalTo(1))
             .body("versions.11.deleted.features.size()", equalTo(0))
+            .body("versions.11.version", equalTo(11))
 
             .body("nextPageToken", nullValue());
   }

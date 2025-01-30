@@ -386,6 +386,8 @@ components:
           oneOf:
             - $ref: '#/components/schemas/SourceSpaceDataset'
             - $ref: '#/components/schemas/SourceFilesDataset'
+        process:
+          $ref: '#/components/schemas/ProcessDescription'
         target:
           description: >-
             A description of the resource into which to write / store the processed data.
@@ -417,6 +419,14 @@ components:
         type:
           description: The type of the dataset
           example: Files
+          type: string
+    ProcessDescription:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          description: The type of the process to be executed when the job starts.
           type: string
     FilesDataset:
       allOf:

@@ -25,10 +25,12 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
+import software.amazon.awssdk.services.sfn.SfnAsyncClient;
 import software.amazon.awssdk.services.sfn.SfnClient;
 
 public class AwsClients {
   private static SfnClient sfnClient;
+  private static SfnAsyncClient asyncSfnClient;
   private static CloudWatchEventsClient cloudwatchEventsClient;
 
   private static <T extends AwsClientBuilder> T prepareClientForLocalStack(T builder) {
@@ -45,6 +47,12 @@ public class AwsClients {
     if (sfnClient == null)
       sfnClient = prepareClientForLocalStack(SfnClient.builder()).build();
     return sfnClient;
+  }
+
+  public static SfnAsyncClient asyncSfnClient() {
+    if (asyncSfnClient == null)
+      asyncSfnClient = prepareClientForLocalStack(SfnAsyncClient.builder()).build();
+    return asyncSfnClient;
   }
 
   public static CloudWatchEventsClient cloudwatchEventsClient() {

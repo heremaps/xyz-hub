@@ -81,6 +81,7 @@ public class JobApi extends Api {
   private void postJob(final RoutingContext context) {
     try {
       Job job = HApiParam.HQuery.getJobInput(context);
+      logger.info(LogUtil.getMarker(context), "Received job creation request: {}", job.serialize(true));
       JobHandler.postJob(job, LogUtil.getMarker(context))
               .onFailure(e -> this.sendError(e, context))
               .onSuccess(j -> this.sendResponse(context, CREATED, j));

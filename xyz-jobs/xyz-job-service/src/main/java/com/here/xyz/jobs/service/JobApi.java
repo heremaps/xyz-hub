@@ -45,6 +45,7 @@ import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.logging.LogUtil;
 import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
@@ -54,9 +55,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobApi extends Api {
-
+  protected static final Logger logger = LogManager.getLogger();
   protected JobApi() {}
 
   public JobApi(RouterBuilder rb) {
@@ -73,6 +76,7 @@ public class JobApi extends Api {
 
   protected void postJob(final RoutingContext context) throws HttpException {
     Job job = getJobFromBody(context);
+    logger.info(LogUtil.getMarker(context), "Received job creation request: {}", job.serialize(true));
     job.create().submit()
         .map(res -> job)
         .onSuccess(res -> sendResponse(context, CREATED.code(), res))
@@ -104,12 +108,12 @@ public class JobApi extends Api {
   protected void postJobInput(final RoutingContext context) throws HttpException {
     String jobId = ApiParam.getPathParam(context, JOB_ID);
     Input input = getJobInputFromBody(context);
-    if (input instanceof UploadUrl) {
+    if (input instanceof UploadUrl uploadUrl) {
       loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
               : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
-          .map(job -> job.createUploadUrl())
+          .map(job -> job.createUploadUrl(uploadUrl.isCompressed()))
           .onSuccess(res -> sendResponse(context, CREATED.code(), res))
           .onFailure(err -> sendErrorResponse(context, err));
     }
@@ -204,7 +208,7 @@ public class JobApi extends Api {
 
       String spaceId = ApiParam.getPathParam(context, SPACE_ID);
 
-      if (job.getSource() instanceof DatasetDescription.Space space)
+      if (spaceId != null && job.getSource() instanceof DatasetDescription.Space space)
         space.setId(spaceId);
 
       return job;

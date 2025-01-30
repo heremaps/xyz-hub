@@ -21,17 +21,22 @@ package com.here.xyz.util.db;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.BaseEncoding;
-import com.google.crypto.tink.aead.AeadConfig;
-import com.google.crypto.tink.subtle.AesGcmJce;
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -127,21 +132,15 @@ public class ECPSTool {
    * Encrypt and decrypt ECPS Strings by using AesGcm
    */
   private static class AESGCMHelper {
+    public static final int TAG_SIZE = 16;
+    public static final int IV_SIZE = 12;
+    public static final String ALGORITHM = "AES/GCM/NoPadding";
     private static Map<String, AESGCMHelper> helpers = new HashMap<>();
-    private AesGcmJce key;
-
-    {
-      try {
-        AeadConfig.register();
-      }
-      catch (Exception e) {
-        logger.error("Can't register AeadConfig", e);
-      }
-    }
+    private SecretKey key;
 
     private AESGCMHelper(String passphrase) throws GeneralSecurityException {
       //If required - adjust passphrase to 128bit length
-      this.key = new AesGcmJce(Arrays.copyOfRange((passphrase == null ? "" : passphrase).getBytes(), 0, 16));
+      key = new SecretKeySpec(Arrays.copyOfRange((passphrase == null ? "" : passphrase).getBytes(), 0, TAG_SIZE), "AES");
     }
 
     /**
@@ -160,8 +159,9 @@ public class ECPSTool {
      * @param data The Base 64 encoded string representation of the encrypted bytes.
      */
     public String decrypt(String data) throws GeneralSecurityException {
-      byte[] decrypted = key.decrypt(Base64.getDecoder().decode(data), null);
-      return new String(decrypted);
+      byte[] encrypted = Base64.getDecoder().decode(data);
+      final Cipher cipher = getCipher(Cipher.DECRYPT_MODE, encrypted);
+      return new String(cipher.doFinal(encrypted, IV_SIZE, encrypted.length - IV_SIZE));
     }
 
     /**
@@ -170,8 +170,30 @@ public class ECPSTool {
      * @return A Base 64 encoded string, which represents the encoded bytes.
      */
     public String encrypt(String data) throws GeneralSecurityException {
-      byte[] encrypted = key.encrypt(data.getBytes(), null);
+      byte[] plain = data.getBytes();
+      byte[] encrypted = new byte[IV_SIZE + plain.length + TAG_SIZE];
+      byte[] iv = getIv();
+      System.arraycopy(iv, 0, encrypted, 0, IV_SIZE);
+      Cipher cipher = getCipher(Cipher.ENCRYPT_MODE, iv);
+      cipher.doFinal(plain, 0, plain.length, encrypted, IV_SIZE);
       return new String(Base64.getEncoder().encode(encrypted));
+    }
+
+    private byte[] getIv() {
+      byte[] iv = new byte[IV_SIZE];
+      new SecureRandom().nextBytes(iv);
+      return iv;
+    }
+
+    private AlgorithmParameterSpec getParams(byte[] encryptedBuffer) {
+      return new GCMParameterSpec(8 * TAG_SIZE, encryptedBuffer, 0, IV_SIZE);
+    }
+
+    private Cipher getCipher(int mode, byte[] buffer)
+        throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
+      Cipher cipher = Cipher.getInstance(ALGORITHM);
+      cipher.init(mode, key, getParams(buffer));
+      return cipher;
     }
   }
 }

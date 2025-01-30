@@ -19,12 +19,9 @@
 
 package com.here.xyz.jobs.steps.impl;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.execution.db.Database.loadDatabase;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -51,8 +48,7 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
       double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index);
       logger.info("[{}] {} neededACUs {}", getGlobalStepId(), index, acus);
 
-      Database db = loadDatabase(loadSpace(getSpaceId()).getStorage().getId(), WRITER);
-      return Collections.singletonList(new Load().withResource(db).withEstimatedVirtualUnits(acus));
+      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(acus));
     }
     catch (WebClientException e) {
       //TODO: log error
@@ -85,12 +81,8 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
 
   @Override
   public void execute() throws SQLException, TooManyResourcesClaimed, WebClientException {
-    logger.info("Loading space config for space " + getSpaceId());
-    Space space = loadSpace(getSpaceId());
-    logger.info("Getting storage database for space " + getSpaceId());
-    Database db = loadDatabase(space.getStorage().getId(), WRITER);
     logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
-    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db), getRootTableName(space), index), db,
+    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index), db(),
             ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
   }
 

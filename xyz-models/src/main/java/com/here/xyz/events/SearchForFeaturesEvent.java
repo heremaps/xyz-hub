@@ -19,29 +19,27 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "SearchForFeaturesEvent")
 public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends SelectiveEvent<T> {
-
   private static final long DEFAULT_LIMIT = 1_000L;
   private static final long MAX_LIMIT = 100_000L;
 
   private long limit = DEFAULT_LIMIT;
+  @JsonIgnore
+  public boolean ignoreLimit = false;
 
   public long getLimit() {
-    return limit;
+    return ignoreLimit ? Long.MAX_VALUE : limit;
   }
 
   @SuppressWarnings("WeakerAccess")
   public void setLimit(long limit) {
     this.limit = Math.max(1L, Math.min(limit, MAX_LIMIT));
-  }
-
-  public void setFreeLimit(long limit) {
-    this.limit = limit;
   }
 
   @SuppressWarnings("unused")
@@ -51,22 +49,7 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
     return (T) this;
   }
 
-  private TagsQuery tags;
   private PropertiesQuery propertiesQuery;
-
-  public TagsQuery getTags() {
-    return this.tags;
-  }
-
-  public void setTags(TagsQuery tags) {
-    this.tags = tags;
-  }
-
-  @SuppressWarnings("unused")
-  public T withTags(TagsQuery tags) {
-    setTags(tags);
-    return (T)this;
-  }
 
   @SuppressWarnings("unused")
   public PropertiesQuery getPropertiesQuery() {

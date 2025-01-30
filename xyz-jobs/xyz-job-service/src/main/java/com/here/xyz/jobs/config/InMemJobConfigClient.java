@@ -26,6 +26,7 @@ import com.here.xyz.jobs.steps.Step;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -64,10 +65,10 @@ public class InMemJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  public Future<List<Job>> loadJobs(String resourceKey) {
-    List<Job> jobs = jobMap.values().stream()
+  public Future<Set<Job>> loadJobs(String resourceKey) {
+    Set<Job> jobs = jobMap.values().stream()
         .filter(job -> resourceKey.equals(job.getResourceKey()))
-        .collect(Collectors.toList());
+        .collect(Collectors.toSet());
     return Future.succeededFuture(jobs);
   }
 
@@ -75,6 +76,21 @@ public class InMemJobConfigClient extends JobConfigClient {
   public Future<List<Job>> loadJobs(String resourceKey, State state) {
     return loadJobs().map(jobs -> jobs.stream().filter(job -> (resourceKey == null || job.getResourceKey().equals(resourceKey))
         && (state == null || job.getStatus().getState() == state)).toList());
+  }
+
+  @Override
+  public Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey, State state) {
+    if(secondaryResourceKey == null)
+      return loadJobs(resourceKey, resourceKey, state);
+    return loadJobs().map(jobs ->
+            jobs.stream()
+                    .filter(job ->
+                            (resourceKey == null || job.getResourceKey().equals(resourceKey)
+                              || (secondaryResourceKey != null && job.getResourceKey().equals(secondaryResourceKey)))
+                            && (state == null || job.getStatus().getState() == state)
+                    )
+                    .toList()
+    );
   }
 
   @Override

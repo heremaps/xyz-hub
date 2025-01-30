@@ -137,7 +137,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
       fc.setNextPageToken(nextHandle);
     }
 
-    if (!(this instanceof IterateFeaturesSorted) && hasSearch && fc.getHandle() != null) {
+    if (hasSearch && fc.getHandle() != null) {
       fc.setHandle("" + (start + limit)); //Kept for backwards compatibility for now
       fc.setNextPageToken("" + (start + limit));
     }

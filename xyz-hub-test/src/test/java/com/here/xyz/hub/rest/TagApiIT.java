@@ -100,7 +100,7 @@ public class TagApiIT extends TestSpaceWithFeature {
       _createTag()
               .statusCode(OK.code())
               .body("id", equalTo("XYZ_1"))
-              .body("version", equalTo(-1));
+              .body("version", equalTo(0));
 
       given()
               .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
@@ -155,7 +155,7 @@ public class TagApiIT extends TestSpaceWithFeature {
               .get("/spaces/" + getSpaceId() + "/tags/XYZ_1")
               .then()
               .statusCode(OK.code())
-              .body("version", equalTo(-1));
+              .body("version", equalTo(0));
   }
 
   @Test
@@ -242,7 +242,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .body("size()", is(1))
         .body( "[0].tags.XYZ_1.id", equalTo("XYZ_1"))
-        .body( "[0].tags.XYZ_1.version", equalTo(-1));
+        .body( "[0].tags.XYZ_1.version", equalTo(0));
   }
 
   @Ignore("Disabled. Takes too long")
@@ -398,7 +398,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("XYZ_1"))
-        .body("version", equalTo(-1))
+        .body("version", equalTo(0))
         .body("$", not(hasKey("system")));
 
     given()
@@ -407,7 +407,7 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(OK.code())
         .body("id", equalTo("XYZ_2"))
-        .body("version", equalTo(-1))
+        .body("version", equalTo(0))
         .body("$", hasKey("system"))
         .body("system", equalTo(true));
   }

@@ -27,14 +27,26 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 
 public abstract class XyzWebClient {
   protected final String baseUrl;
+  private final Map<String, String> extraHeaders;
+  private static final int MAX_REQUEST_ATTEMPTS = 3;
 
-  public XyzWebClient(String baseUrl) {this.baseUrl = baseUrl;}
+  protected XyzWebClient(String baseUrl) {
+    this(baseUrl, null);
+  }
+
+  protected XyzWebClient(String baseUrl, Map<String, String> extraHeaders) {
+    this.baseUrl = baseUrl;
+    this.extraHeaders = extraHeaders;
+  }
 
   protected final URI uri(String path) {
     return URI.create(baseUrl + path);
@@ -53,18 +65,37 @@ public abstract class XyzWebClient {
   }
 
   protected HttpResponse<byte[]> request(HttpRequest.Builder requestBuilder) throws WebClientException {
+    return request(requestBuilder, 1);
+  }
+
+  private HttpResponse<byte[]> request(Builder requestBuilder, int attempt) throws WebClientException {
     try {
+      if (extraHeaders != null)
+        extraHeaders.entrySet().forEach(entry -> requestBuilder.header(entry.getKey(), entry.getValue()));
+
       HttpRequest request = requestBuilder.build();
       HttpResponse<byte[]> response = client().send(request, BodyHandlers.ofByteArray());
       if (response.statusCode() >= 400)
-        throw new ErrorResponseException("Received error response with status code: " + response.statusCode(), response);
+        throw new ErrorResponseException(response);
       return response;
     }
     catch (IOException e) {
       throw new WebClientException("Error sending the request or receiving the response", e);
     }
     catch (InterruptedException e) {
-      throw new WebClientException("Request was interrupted.", e);
+      if (attempt >= MAX_REQUEST_ATTEMPTS)
+        throw new WebClientException("Request was interrupted.", e);
+      return request(requestBuilder, attempt + 1);
+    }
+    catch (ErrorResponseException e) {
+      List<Integer> retryableStatusCodes = List.of(429, 502, 503, 504);
+      if (attempt >= MAX_REQUEST_ATTEMPTS || !retryableStatusCodes.contains(e.getStatusCode()))
+        throw e;
+      try {
+        Thread.sleep((long) (Math.pow(2, attempt) * 1000));
+      }
+      catch (InterruptedException ignored) {}
+      return request(requestBuilder, attempt + 1);
     }
   }
 
@@ -82,13 +113,20 @@ public abstract class XyzWebClient {
 
   public static class ErrorResponseException extends WebClientException {
     private HttpResponse<byte[]> errorResponse;
-    public ErrorResponseException(String message, HttpResponse<byte[]> errorResponse) {
-      super(message);
+    private int statusCode;
+
+    public ErrorResponseException(HttpResponse<byte[]> errorResponse) {
+      super("Received error response with status code " + errorResponse.statusCode() + " response body:\n" + new String(errorResponse.body()));
       this.errorResponse = errorResponse;
+      this.statusCode = errorResponse.statusCode();
     }
 
     public HttpResponse<byte[]> getErrorResponse() {
       return errorResponse;
+    }
+
+    public int getStatusCode() {
+      return statusCode;
     }
   }
 }

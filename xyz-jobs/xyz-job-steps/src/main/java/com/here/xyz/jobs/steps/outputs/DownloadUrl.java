@@ -19,20 +19,26 @@
 
 package com.here.xyz.jobs.steps.outputs;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.S3DataFile;
 import com.here.xyz.jobs.util.S3Client;
+import java.io.IOException;
 import java.net.URL;
 
-public class DownloadUrl extends Output<DownloadUrl> {
+public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
   @JsonView(Public.class)
   private long byteSize;
+  @JsonIgnore
+  private byte[] content;
+  private String contentType = "application/octet-stream";
 
   @Override
-  public void store(String s3Key) {
-    /*
-    NOTE: Nothing to do here for now, later (for some step implementations it could be usable if we implement S3 upload logic for binaries here)
-    However, for now all step implementations care about uploading binaries to S3 by themselves (e.g. EMR, DB related steps)
-     */
+  public void store(String s3Key) throws IOException {
+    if (content == null)
+      throw new IllegalStateException("No content was provided for the output to be stored.");
+    S3Client.getInstance().putObject(s3Key, contentType, content);
   }
 
   @JsonView(Public.class)
@@ -40,8 +46,46 @@ public class DownloadUrl extends Output<DownloadUrl> {
     return S3Client.getInstance().generateDownloadURL(getS3Key());
   }
 
+  @Override
+  public boolean isCompressed() {
+    return false;
+  }
+
   public long getByteSize() {
     return byteSize;
+  }
+
+  public void setContent(byte[] content) {
+    this.content = content;
+  }
+
+  public DownloadUrl withContent(byte[] content) {
+    setContent(content);
+    return this;
+  }
+
+  public void setContentType(String contentType) {
+    this.contentType = contentType;
+  }
+
+  public DownloadUrl withContentType(String contentType) {
+    setContentType(contentType);
+    return this;
+  }
+
+  @Override
+  @JsonIgnore
+  public String getS3Bucket() {
+    //Current outputs are written to default bucket only
+    return Config.instance.JOBS_S3_BUCKET;
+  }
+
+  @Override
+  @JsonIgnore
+  public long getEstimatedUncompressedByteSize() {
+    if (isCompressed())
+      throw new RuntimeException("Not Implemented: Compression for outputs is currently not supported.");
+    return getByteSize();
   }
 
   public void setByteSize(long byteSize) {

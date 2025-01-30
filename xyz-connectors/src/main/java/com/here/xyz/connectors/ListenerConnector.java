@@ -34,6 +34,7 @@ import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
@@ -127,6 +128,12 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
     if ((ModifyFeaturesEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
       processModifyFeatures((FeatureCollection) notification.getEvent(), notificationParams);
     }
+    if ((WriteFeaturesEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
+      processWriteFeatures((WriteFeaturesEvent) notification.getEvent(), notificationParams);
+    }
+    if ((ModifyFeaturesEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
+      processWriteFeatures((WriteFeaturesEvent) notification.getEvent(), notificationParams);
+    }
     if ((ContentModifiedNotification.class.getSimpleName() + REQUEST).equals(eventType)) {
       processContentModifiedNotification((ContentModifiedNotification) notification.getEvent(), notificationParams);
     }
@@ -184,6 +191,9 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   }
 
   protected void processModifyFeatures(ModifyFeaturesEvent event, NotificationParams notificationParams) throws Exception {
+  }
+
+  protected void processWriteFeatures(WriteFeaturesEvent event, NotificationParams notificationParams) throws Exception {
   }
 
   @SuppressWarnings("RedundantThrows")

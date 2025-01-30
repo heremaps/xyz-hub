@@ -29,6 +29,7 @@ import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.List;
+import java.util.Set;
 
 public abstract class JobConfigClient implements Initializable {
 
@@ -67,7 +68,7 @@ public abstract class JobConfigClient implements Initializable {
    * @param resourceKey
    * @return
    */
-  public abstract Future<List<Job>> loadJobs(String resourceKey);
+  public abstract Future<Set<Job>> loadJobs(String resourceKey);
 
   /**
    * Load all jobs related to a specified resourceKey (e.g., space ID) that are having the specified state.
@@ -75,6 +76,13 @@ public abstract class JobConfigClient implements Initializable {
    * @return
    */
   public abstract Future<List<Job>> loadJobs(String resourceKey, State state);
+
+  /**
+   * Load all jobs related to a specified resourceKey OR secondaryResourceKey (e.g., space ID) that are having the specified state.
+   * @param resourceKey
+   * @return
+   */
+  public abstract Future<List<Job>> loadJobs(String resourceKey, String secondaryResourceKey, State state);
 
   public abstract Future<Void> storeJob(Job job);
 

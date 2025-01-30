@@ -27,7 +27,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.NEXT_VERSION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.OPERATION;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.SERIAL;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VERSION_ID;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
 import com.here.xyz.util.Hasher;
@@ -47,18 +47,18 @@ public class XyzSpaceTableHelper {
 
   public enum Index {
     GEO,
-    VERSION,
+    VERSION_ID,
     NEXT_VERSION,
     OPERATION,
     SERIAL,
     VIZ,
-    AUTHOR;
+    AUTHOR
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
     return switch (index) {
       case GEO -> buildCreateIndexQuery(schema, table, "geo", "GIST");
-      case VERSION -> buildCreateIndexQuery(schema, table, "version", "BTREE");
+      case VERSION_ID -> buildCreateIndexQuery(schema, table, List.of("version", "id"), "BTREE");
       case NEXT_VERSION -> buildCreateIndexQuery(schema, table, "next_version", "BTREE");
       case OPERATION -> buildCreateIndexQuery(schema, table, "operation", "BTREE");
       case SERIAL -> buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial");
@@ -78,7 +78,7 @@ public class XyzSpaceTableHelper {
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
     return Arrays.asList(
         buildSpaceTableIndexQuery(schema, table, GEO),
-        buildSpaceTableIndexQuery(schema, table, VERSION),
+        buildSpaceTableIndexQuery(schema, table, VERSION_ID),
         buildSpaceTableIndexQuery(schema, table, NEXT_VERSION),
         buildSpaceTableIndexQuery(schema, table, OPERATION),
         buildSpaceTableIndexQuery(schema, table, SERIAL),

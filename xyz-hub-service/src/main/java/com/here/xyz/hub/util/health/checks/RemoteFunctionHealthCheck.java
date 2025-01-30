@@ -164,7 +164,7 @@ public class RemoteFunctionHealthCheck extends ExecutableCheck {
       rfcData.put("id", remoteFunction.id);
       rfcData.put("type", remoteFunction.getClass().getSimpleName());
       if (remoteFunction instanceof AWSLambda) {
-        rfcData.put("lambdaARN", ((AWSLambda) remoteFunction).lambdaARN);
+        rfcData.put("lambdaARN", ((AWSLambda) remoteFunction).lambdaARN());
       }
       else if (remoteFunction instanceof Http) {
         rfcData.put("url", ((Http) remoteFunction).url);
