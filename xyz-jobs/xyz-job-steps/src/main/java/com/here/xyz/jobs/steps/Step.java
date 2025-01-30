@@ -46,6 +46,7 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
+import com.here.xyz.jobs.util.S3Client.S3Uri;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,7 +64,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import software.amazon.awssdk.services.s3.S3Uri;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
@@ -634,7 +634,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       String jobId = this.jobId != null ? this.jobId : consumerJobId;
       if (stepId == null)
         //This input-set depicts the user inputs
-        return toS3Uri(jobId).key().get();
+        return toS3Uri(jobId).key();
       return Output.stepOutputS3Prefix(jobId, stepId, name);
     }
 
