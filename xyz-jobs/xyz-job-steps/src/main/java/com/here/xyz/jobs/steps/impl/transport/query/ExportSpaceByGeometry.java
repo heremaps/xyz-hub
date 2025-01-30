@@ -21,12 +21,17 @@ package com.here.xyz.jobs.steps.impl.transport.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.util.db.SQLQuery;
 
 import java.sql.SQLException;
 
-public class ExportSpaceByGeometry extends GetFeaturesByGeometry implements ExportSpace<GetFeaturesByGeometryEvent> {
+public class ExportSpaceByGeometry 
+  extends GetFeaturesByGeometry 
+  implements ExportSpace<GetFeaturesByGeometryEvent> {
   SQLQuery selectionOverride;
   SQLQuery geoOverride;
   SQLQuery customWhereClause;
@@ -79,4 +84,17 @@ public class ExportSpaceByGeometry extends GetFeaturesByGeometry implements Expo
     this.customWhereClause = customWhereClause;
     return this;
   }
+
+  protected SQLQuery buildVersionComparison(SelectiveEvent event) {
+    if (event.getRef().isRange())
+      return buildVersionComparisonForRange(event);
+    return super.buildVersionComparison(event);
+  }
+
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+    if (ref.isRange())
+      return buildNextVersionFragmentForRange(ref, historyEnabled, versionParamName);
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
+  }
+
 }
