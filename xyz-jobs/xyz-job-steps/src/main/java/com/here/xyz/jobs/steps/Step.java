@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static com.here.xyz.jobs.steps.inputs.Input.defaultBucket;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
 import static com.here.xyz.util.Random.randomAlpha;
 
@@ -631,16 +632,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
     }
 
     public String toS3Path(String consumerJobId) {
-      String jobId = this.jobId != null ? this.jobId : consumerJobId;
-      if (stepId == null)
-        //This input-set depicts the user inputs
-        return toS3Uri(jobId).key();
-      return Output.stepOutputS3Prefix(jobId, stepId, name);
+      return toS3Uri(consumerJobId).key();
     }
 
     public S3Uri toS3Uri(String consumerJobId) {
       String jobId = this.jobId != null ? this.jobId : consumerJobId;
-      return Input.loadResolvedInputPrefixUri(jobId);
+      if (stepId == null)
+        return Input.loadResolvedUserInputPrefixUri(jobId);
+      return new S3Uri(defaultBucket(), Output.stepOutputS3Prefix(jobId, stepId, name));
     }
   }
 
