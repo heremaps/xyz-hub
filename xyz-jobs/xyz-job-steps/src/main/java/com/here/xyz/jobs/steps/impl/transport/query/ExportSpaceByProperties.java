@@ -22,13 +22,17 @@ package com.here.xyz.jobs.steps.impl.transport.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.util.db.SQLQuery;
 
 import java.sql.SQLException;
 
-public class ExportSpaceByProperties extends SearchForFeatures<SearchForFeaturesEvent, FeatureCollection>
+public class ExportSpaceByProperties 
+    extends SearchForFeatures<SearchForFeaturesEvent, FeatureCollection>
     implements ExportSpace<SearchForFeaturesEvent> {
   SQLQuery selectionOverride;
   SQLQuery geoOverride;
@@ -82,4 +86,18 @@ public class ExportSpaceByProperties extends SearchForFeatures<SearchForFeatures
     this.customWhereClause = customWhereClause;
     return this;
   }
+
+  //TODO: unite with code duplicate on  ExportSpaceByGeometry
+  protected SQLQuery buildVersionComparison(SelectiveEvent event) {
+    if (event.getRef().isRange())
+      return buildVersionComparisonForRange(event);
+    return super.buildVersionComparison(event);
+  }
+
+  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+    if (ref.isRange())
+      return buildNextVersionFragmentForRange(ref, historyEnabled, versionParamName);
+    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
+  }
+
 }
