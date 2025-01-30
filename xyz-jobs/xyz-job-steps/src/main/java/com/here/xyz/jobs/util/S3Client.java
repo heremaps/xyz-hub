@@ -54,13 +54,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPOutputStream;
-import software.amazon.awssdk.services.s3.S3Utilities;
 
 public class S3Client {
   private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
   private final String bucketName;
   protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
-  private static final S3Utilities S3_UTILS = software.amazon.awssdk.services.s3.S3Client.create().utilities();
 
   //TODO: Switch to AWS SDK2
 

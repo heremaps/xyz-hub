@@ -480,7 +480,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   private String replaceInputSetReferences(String scriptParam) {
     return mapInputReferencesIn(scriptParam,
-        referenceIdentifier -> fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).uri().toString());
+        referenceIdentifier -> fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString());
   }
 
   static String mapInputReferencesIn(String scriptParam, Function<String, String> mapper) {
