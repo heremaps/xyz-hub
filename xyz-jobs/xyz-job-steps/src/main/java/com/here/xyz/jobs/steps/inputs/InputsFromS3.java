@@ -19,8 +19,7 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
-import static com.here.xyz.jobs.util.S3Client.createS3Uri;
-
+import com.here.xyz.jobs.util.S3Client.S3Uri;
 import java.util.List;
 
 public class InputsFromS3 extends Input<InputsFromS3> {
@@ -60,6 +59,6 @@ public class InputsFromS3 extends Input<InputsFromS3> {
     List<Input> inputs = loadInputsInParallel(getBucket(), getPrefix());
     inputs.forEach(input -> input.setS3Bucket(getBucket()));
     //Store the metadata for the job that accesses the bucket
-    storeMetadata(forJob, inputs, null, createS3Uri(getBucket(), getPrefix()));
+    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()));
   }
 }

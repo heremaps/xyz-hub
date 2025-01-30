@@ -37,6 +37,8 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import java.io.ByteArrayInputStream;
@@ -44,7 +46,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
@@ -53,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPOutputStream;
-import software.amazon.awssdk.services.s3.S3Uri;
 import software.amazon.awssdk.services.s3.S3Utilities;
 
 public class S3Client {
@@ -276,20 +276,49 @@ public class S3Client {
     return objectKeys;
   }
 
-  public static final S3Uri createS3Uri(String bucket, String key) {
-    try {
-      return S3_UTILS.parseUri(new URI("s3://" + bucket + "/" + key));
-    }
-    catch (URISyntaxException e) {
-      return null;
-    }
-  }
+  public static class S3Uri {
+    private String bucket;
+    private String key;
+    private URI uri;
 
-  public static final S3Uri createS3Uri(URI s3Uri) {
-    return S3_UTILS.parseUri(s3Uri);
-  }
+    public S3Uri(URI uri) {
+      this.uri = uri;
+    }
 
-  public static final S3Uri createS3Uri(String s3Uri) throws URISyntaxException {
-    return createS3Uri(new URI(s3Uri));
+    @JsonCreator
+    public S3Uri(String uri) {
+      this(URI.create(uri));
+    }
+
+    public S3Uri(String bucket, String key) {
+      assert bucket != null;
+      assert key != null;
+      this.bucket = bucket;
+      this.key = key;
+    }
+
+    public String bucket() {
+      if (bucket == null)
+        bucket = uri.getHost();
+      return bucket;
+    }
+
+    public String key() {
+      if (key == null)
+        key = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
+      return key;
+    }
+
+    public String uri() {
+      if (uri == null)
+        uri = URI.create("s3://" + bucket + "/" + key);
+      return uri.toString();
+    }
+
+    @JsonValue
+    @Override
+    public String toString() {
+      return uri().toString();
+    }
   }
 }
