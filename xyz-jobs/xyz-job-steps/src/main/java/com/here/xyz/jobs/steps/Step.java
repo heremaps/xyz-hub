@@ -623,6 +623,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this(outputSetOfOtherStep.getStepId(), outputSetOfOtherStep.name, outputSetOfOtherStep.modelBased);
     }
 
+    public InputSet(OutputSet outputSetOfOtherStep, Map<String, String> metadata) {
+      this(outputSetOfOtherStep.getJobId(), outputSetOfOtherStep.getStepId(), outputSetOfOtherStep.name, outputSetOfOtherStep.modelBased,
+          metadata);
+    }
+
     /**
      * Use this constructor to depict the global / user inputs of the same job the consuming step belongs to.
      */
