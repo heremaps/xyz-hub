@@ -58,7 +58,8 @@ public class CopySpaceStepsTest extends StepTest {
       targetSpace = "testCopy-Target-07",
       otherConnector = "psql_db2_hashed",
       targetRemoteSpace = "testCopy-Target-07-remote",
-      propertyFilter = "p.all=common";
+      propertyFilter = "p.all=common",
+      versionRange = "1..2";
 
   static private Polygon spatialSearchGeom;
   static private float xmin = 7.0f, ymin = 50.0f, xmax = 7.1f, ymax = 50.1f;
@@ -85,7 +86,8 @@ public class CopySpaceStepsTest extends StepTest {
 
     //write features source
     putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax);
-    putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax);
+    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax);
+    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax);
     //write features target - non-empty-space
     putRandomFeatureCollectionToSpace(targetSpace, 2, xmin, ymin, xmax, ymax);
 
@@ -100,9 +102,31 @@ public class CopySpaceStepsTest extends StepTest {
     deleteSpace(targetRemoteSpace);
   }
 
+  private static Stream<Arguments> provideParameters() {
+    return Stream.of(
+        Arguments.of(false, null, false, null, null),
+        Arguments.of(false, null, false, propertyFilter,null),
+        Arguments.of(false, spatialSearchGeom, false, null,null),
+        Arguments.of(false, spatialSearchGeom, true, null,null),
+        Arguments.of(false, spatialSearchGeom, false, propertyFilter,null),
+        Arguments.of(false, spatialSearchGeom, true, propertyFilter,null),
+
+        Arguments.of(false, null, false, null, versionRange),
+        Arguments.of(false, null, false, propertyFilter,versionRange),
+        Arguments.of(false, spatialSearchGeom, false, null, versionRange),
+
+        Arguments.of(true, null, false, null,null),
+        Arguments.of(true, null, false, propertyFilter,null),
+        Arguments.of(true, spatialSearchGeom, false, null,null),
+        Arguments.of(true, spatialSearchGeom, true, null,null),
+        Arguments.of(true, spatialSearchGeom, false, propertyFilter,null),
+        Arguments.of(true, spatialSearchGeom, true, propertyFilter,null)
+    );
+  }
+
   @ParameterizedTest //(name = "{index}")
   @MethodSource("provideParameters")
-  public void copySpace(boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter) throws Exception {
+  public void copySpace(boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter, String versionRef) throws Exception {
     String targetSpace = !testRemoteDb ? CopySpaceStepsTest.targetSpace : targetRemoteSpace;
 
     StatisticsResponse statsBefore = getStatistics(targetSpace);
@@ -110,7 +134,7 @@ public class CopySpaceStepsTest extends StepTest {
     assertEquals(2L, (Object) statsBefore.getCount().getValue());
 
     LambdaBasedStep step = new CopySpace()
-        .withSpaceId(sourceSpace).withSourceVersionRef(new Ref("HEAD"))
+        .withSpaceId(sourceSpace).withSourceVersionRef(new Ref(versionRef == null ? "HEAD" : versionRef ))
         .withGeometry(geo).withClipOnFilterGeometry(clip)
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
         .withTargetSpaceId(targetSpace)
@@ -119,13 +143,13 @@ public class CopySpaceStepsTest extends StepTest {
     sendLambdaStepRequestBlock(step, true);
 
     StatisticsResponse statsAfter = getStatistics(targetSpace);
-    assertEquals(42L, (Object) statsAfter.getCount().getValue());
+    assertEquals( versionRef == null ? 42L : 12L, (Object) statsAfter.getCount().getValue());
   }
 
   @Test
   public void copySpacePre() throws Exception {
     LambdaBasedStep step = new CopySpacePre()
-        .withSpaceId(sourceSpace)
+        .withSpaceId(targetSpace)
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);
@@ -137,7 +161,7 @@ public class CopySpaceStepsTest extends StepTest {
       if (output instanceof CreatedVersion f)
         fetchedVersion = f.getVersion();
 
-    assertEquals(3l, fetchedVersion);
+    assertEquals(2l, fetchedVersion);
   }
 
   @Test
@@ -159,21 +183,4 @@ public class CopySpaceStepsTest extends StepTest {
     assertTrue(featureStatistics != null && featureStatistics.getFeatureCount() == 0 && featureStatistics.getByteSize() == 0);
   }
 
-  private static Stream<Arguments> provideParameters() {
-    return Stream.of(
-        Arguments.of(false, null, false, null),
-        Arguments.of(false, null, false, propertyFilter),
-        Arguments.of(false, spatialSearchGeom, false, null),
-        Arguments.of(false, spatialSearchGeom, true, null),
-        Arguments.of(false, spatialSearchGeom, false, propertyFilter),
-        Arguments.of(false, spatialSearchGeom, true, propertyFilter),
-
-        Arguments.of(true, null, false, null),
-        Arguments.of(true, null, false, propertyFilter),
-        Arguments.of(true, spatialSearchGeom, false, null),
-        Arguments.of(true, spatialSearchGeom, true, null),
-        Arguments.of(true, spatialSearchGeom, false, propertyFilter),
-        Arguments.of(true, spatialSearchGeom, true, propertyFilter)
-    );
-  }
 }
