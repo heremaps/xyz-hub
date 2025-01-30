@@ -85,6 +85,7 @@ public class ExportSpaceByGeometry
     return this;
   }
 
+  //TODO: unite with code duplicate on ExportSpaceByProperties
   protected SQLQuery buildVersionComparison(SelectiveEvent event) {
     if (event.getRef().isRange())
       return buildVersionComparisonForRange(event);
