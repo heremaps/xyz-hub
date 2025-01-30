@@ -90,6 +90,7 @@ public class StepTestBase {
   private static final String PG_PW = "password";
   private static final String SCHEMA = "public";
   private static LambdaClient lambdaClient;
+  private static PooledDataSources testDatasource;
 
   static {
     try {
@@ -270,14 +271,16 @@ public class StepTestBase {
   }
 
   private DataSourceProvider getDataSourceProvider() {
-    return new PooledDataSources(
-        new DatabaseSettings("testSteps")
-            .withApplicationName(StepTestBase.class.getSimpleName())
-            .withHost(PG_HOST)
-            .withDb(PG_DB)
-            .withUser(PG_USER)
-            .withPassword(PG_PW)
-            .withDbMaxPoolSize(2));
+    if(testDatasource == null)
+      testDatasource = new PooledDataSources(
+            new DatabaseSettings("testSteps")
+                    .withApplicationName(StepTestBase.class.getSimpleName())
+                    .withHost(PG_HOST)
+                    .withDb(PG_DB)
+                    .withUser(PG_USER)
+                    .withPassword(PG_PW)
+                    .withDbMaxPoolSize(2));
+    return testDatasource;
   }
 
   protected void deleteAllJobTables(List<String> stepIds) throws SQLException {
@@ -312,6 +315,7 @@ public class StepTestBase {
     }
 
     sendLambdaStepRequest(step, START_EXECUTION, simulate);
+
     DataSourceProvider dsp = getDataSourceProvider();
 
     while (true) {
