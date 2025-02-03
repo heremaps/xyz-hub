@@ -277,6 +277,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
                 runningQuery.queryId);
           }
           catch (SQLException e) {
+            logger.error("Error while trying to check running query {} of step {}.", runningQuery.queryId, getGlobalStepId(), e);
             /*
             Ignore it if we cannot check the state for (one of) the queries (for now).
             In the worst case, this will lead to an UnknownStateException.

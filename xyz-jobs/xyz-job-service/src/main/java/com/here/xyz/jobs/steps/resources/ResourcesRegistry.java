@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,7 +47,15 @@ public class ResourcesRegistry {
     return JobConfigClient.getInstance()
         .loadJobs(RUNNING)
         .compose(runningJobs -> Future.succeededFuture(toLoadsMap(runningJobs.stream()
-            .flatMap(job -> job.calculateResourceLoads().stream()).toList(), false)));
+            .flatMap(job -> {
+              try {
+                return job.calculateResourceLoads().stream();
+              }
+              catch (Exception e) {
+                logger.error("Error calculating the reserved resources of job {}. Not taking it into account this time.", job.getId(), e);
+                return Stream.empty();
+              }
+            }).toList(), false)));
   }
 
   /**

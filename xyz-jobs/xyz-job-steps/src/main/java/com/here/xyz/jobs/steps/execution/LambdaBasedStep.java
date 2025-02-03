@@ -24,7 +24,6 @@ import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
@@ -67,6 +66,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.cloudwatchevents.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
@@ -126,16 +126,19 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   public abstract AsyncExecutionState getExecutionState() throws UnknownStateException;
 
   private void startExecution() throws Exception {
-    ExecutionMode executionMode = getExecutionMode();
-    if (executionMode == ASYNC)
-      registerStateCheckTrigger();
-
     updateState(RUNNING);
     execute(isResume());
 
     switch (getExecutionMode()) {
       case SYNC -> updateState(SUCCEEDED);
-      case ASYNC -> synchronizeStep();
+      case ASYNC -> {
+        /*
+        NOTE: The registration of the state-check trigger MUST happen *after* the call to #execute()
+        to ensure the step config contains the changes being added during its execution
+         */
+        registerStateCheckTrigger();
+        synchronizeStep();
+      }
     }
   }
 
@@ -154,6 +157,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
       return;
 
     try {
+      logger.info("[{}] Registering state-check trigger {} ...", getGlobalStepId(), getStateCheckRuleName());
       cloudwatchEventsClient().putRule(PutRuleRequest.builder()
           .name(getStateCheckRuleName())
           .state(ENABLED)
@@ -177,8 +181,22 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   }
 
   private void unregisterStateCheckTrigger() {
+    _unregisterStateCheckTriggerDeferred(0, 1);
+  }
+
+  private void _unregisterStateCheckTriggerDeferred(long waitMs, int attempt) {
+    if (attempt > 5)
+      logger.error("[{}] Could not unregister state-check trigger {} after {} attempts.", getGlobalStepId(),
+          getStateCheckRuleName(), attempt - 1);
+
     if (isSimulation)
       return;
+
+    try {
+      if (waitMs > 0)
+        Thread.sleep(waitMs);
+    }
+    catch (InterruptedException ignore) {}
 
     try {
       logger.info("[{}] Unregistering state-check trigger {} ...", getGlobalStepId(), getStateCheckRuleName());
@@ -190,11 +208,18 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .map(target -> target.id())
           .collect(Collectors.toList());
 
+      if (targetIds.isEmpty())
+        _unregisterStateCheckTriggerDeferred(200, attempt++);
+
       //Remove all targets from the rule
       cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(getStateCheckRuleName()).ids(targetIds).build());
 
       //Remove the rule
       cloudwatchEventsClient().deleteRule(DeleteRuleRequest.builder().name(getStateCheckRuleName()).build());
+    }
+    catch (ConcurrentModificationException e) {
+      logger.info("[{}] Concurrent modification of state-check trigger {} Starting next attempt ...", getGlobalStepId(), getStateCheckRuleName());
+      _unregisterStateCheckTriggerDeferred(200, attempt++);
     }
     catch (ResourceNotFoundException e) {
       logger.error("[{}] Unregistering state-check trigger {} failed as it does not exist (yet / anymore).", getGlobalStepId(), getStateCheckRuleName());
@@ -585,7 +610,12 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
             }
             case FAILURE_CALLBACK -> {
               logger.info("Cancelling and reporting async failure for step {} ...", request.getStep().getGlobalStepId());
-              request.getStep().cancel();
+              try {
+                request.getStep().cancel();
+              }
+              catch (Exception e) {
+                logger.error("Error during cancellation of step {}.", request.getStep().getGlobalStepId(), e);
+              }
               //NOTE: Assume that the error information has been injected into the status object by the callback caller already
               request.getStep().reportFailure(null, false, true);
               logger.info("Reported async failure for step {} failure successfully.", request.getStep().getGlobalStepId());
