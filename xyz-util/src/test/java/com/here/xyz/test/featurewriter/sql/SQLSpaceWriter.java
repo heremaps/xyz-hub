@@ -26,15 +26,15 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildCreateSpaceTableQ
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
 import com.here.xyz.events.WriteFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.test.SQLITBase;
 import com.here.xyz.test.featurewriter.SpaceWriter;
-import com.here.xyz.events.UpdateStrategy.OnExists;
-import com.here.xyz.events.UpdateStrategy.OnNotExists;
-import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.pg.SQLError;
@@ -119,7 +119,7 @@ public class SQLSpaceWriter extends SpaceWriter {
             .withUpdateStrategy(new UpdateStrategy(onExists, onNotExists, onVersionConflict, onMergeConflict))
             .withPartialUpdates(isPartial);
 
-    return new SQLQuery("SELECT write_features(#{featureModificationList}, #{author}, #{responseDataExpected});")
+    return new SQLQuery("SELECT write_features(#{featureModificationList}, 'Modifications', #{author}, #{responseDataExpected});")
         .withNamedParameter("featureModificationList", XyzSerializable.serialize(Set.of(modification)))
         .withNamedParameter("author", author)
         .withNamedParameter("responseDataExpected", true)

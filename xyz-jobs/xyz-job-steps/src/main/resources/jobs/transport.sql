@@ -429,9 +429,8 @@ $BODY$
  * Import Trigger for non-empty-layers. (Entity Feature)
  */
 --TODO: Remove code-duplication of the following trigger functions!!
-CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_non_empty_layer()
-    RETURNS trigger
-AS $BODY$
+CREATE OR REPLACE FUNCTION import_from_s3_trigger_for_non_empty_layer() RETURNS trigger AS
+$BODY$
 DECLARE
     author TEXT := TG_ARGV[0];
     currentVersion BIGINT := TG_ARGV[1];
@@ -445,54 +444,53 @@ DECLARE
     extendedTable TEXT := TG_ARGV[9];
     format TEXT := TG_ARGV[10];
     entityPerLine TEXT := TG_ARGV[11];
-    target_table TEXT := TG_ARGV[12];
+    targetTable TEXT := TG_ARGV[12];
     featureCount INT := 0;
-    updated_rows INT;
-    updateStrategy JSONB;
+    input TEXT;
+    inputType TEXT;
 BEGIN
-    updateStrategy = jsonb_build_object('onExists', CASE WHEN onExists = 'null' THEN null ELSE onExists END,
-                               'onNotExists', CASE WHEN onNotExists = 'null' THEN null ELSE onNotExists END,
-                               'onVersionConflict', CASE WHEN onVersionConflict = 'null' THEN null ELSE onVersionConflict END,
-                               'onMergeConflict', CASE WHEN onMergeConflict = 'null' THEN null ELSE onMergeConflict END
-            );
+    --TODO: Remove the following workaround once the caller-side was fixed
+    onExists = CASE WHEN onExists = 'null' THEN NULL ELSE onExists END;
+    onNotExists = CASE WHEN onNotExists = 'null' THEN NULL ELSE onNotExists END;
+    onVersionConflict = CASE WHEN onVersionConflict = 'null' THEN NULL ELSE onVersionConflict END;
+    onMergeConflict = CASE WHEN onMergeConflict = 'null' THEN NULL ELSE onMergeConflict END;
+
+
     --TODO: check how to use asyncify instead
     PERFORM context(
-            jsonb_build_object(
-                               'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
-                               'schema', TG_TABLE_SCHEMA,
-                               'table', target_table,
-                               'historyEnabled', historyEnabled,
-                               'context', CASE WHEN context = 'null' THEN null ELSE context END,
-                               'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
-            )
+        jsonb_build_object(
+            'stepId', get_stepid_from_work_table(TG_TABLE_NAME::REGCLASS) ,
+            'schema', TG_TABLE_SCHEMA,
+            'table', targetTable,
+            'historyEnabled', historyEnabled,
+            'context', CASE WHEN context = 'null' THEN null ELSE context END,
+            'extendedTable', CASE WHEN extendedTable = 'null' THEN null ELSE extendedTable END
+        )
     );
 
     IF format = 'CSV_JSON_WKB' AND NEW.geo IS NOT NULL THEN
-        --TODO: Extend feature_writer with possibility to provide geometry
+        --TODO: Extend feature_writer with possibility to provide geometry (as JSONB manipulations are quite slow)
+        --TODO: Remove unnecessary xyz_reduce_precision call, because the FeatureWriter will do it anyways
         NEW.jsondata := jsonb_set(NEW.jsondata::JSONB, '{geometry}', xyz_reduce_precision(ST_ASGeojson(ST_Force3D(NEW.geo)), false)::JSONB);
-        SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
-                       "featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]},
-								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
-                                  author
-                   )::JSONB->'count' INTO featureCount;
+        input = NEW.jsondata::TEXT;
+        inputType = 'Feature';
     END IF;
 
     IF format = 'GEOJSON' OR  format = 'CSV_GEOJSON' THEN
         IF entityPerLine = 'Feature' THEN
-            SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
-								"featureData":{"type":"FeatureCollection","features":[$fd$ || NEW.jsondata || $fd$]},
-								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
-                                  author                                                                    
-                   )::JSONB->'count' INTO featureCount;
+            input = NEW.jsondata::TEXT;
+            inputType = 'Feature';
         ELSE
-            --TODO: Extend feature_writer with possibility to provide featureCollection
-            SELECT write_features( $fd$[{"updateStrategy":$fd$ || updateStrategy::TEXT || $fd$,
-                       "featureData":{"type":"FeatureCollection","features": $fd$ || (NEW.jsondata::JSONB->'features')::TEXT || $fd$},
-								"partialUpdates": $fd$ || isPartial || $fd$}]$fd$,
-                                 author
-                   )::JSONB->'count' INTO featureCount;
+            --TODO: Shouldn't the input be a FeatureCollection here? Seems to be a list of Features
+            input = (NEW.jsondata::JSONB->'features')::TEXT;
+            inputType = 'Features';
         END IF;
     END IF;
+
+    SELECT write_features(
+        input, inputType, author, false, NULL,
+        onExists, onNotExists, onVersionConflict, onMergeConflict, isPartial
+    )::JSONB->'count' INTO featureCount;
 
     NEW.jsondata = NULL;
     NEW.geo = NULL;
@@ -501,7 +499,7 @@ BEGIN
     RETURN NEW;
 END;
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE;
 
 /**
  * Perform single import from S3
@@ -620,18 +618,18 @@ $BODY$
  *  Report export progress
  */
 CREATE OR REPLACE FUNCTION report_export_progress(
-    lambda_function_arn TEXT, 
+    lambda_function_arn TEXT,
 	lambda_region TEXT,
 	step_payload JSON,
-	thread_id INT, 
-	bytes_uploaded BIGINT, 
-	rows_uploaded BIGINT, 
+	thread_id INT,
+	bytes_uploaded BIGINT,
+	rows_uploaded BIGINT,
 	files_uploaded INT
 )
     RETURNS VOID
     LANGUAGE 'plpgsql'
 AS $BODY$
-BEGIN		   
+BEGIN
 	PERFORM report_progress(
 		lambda_function_arn,
 		lambda_region,
@@ -678,8 +676,8 @@ BEGIN
         s3_bucket TEXT := '$wrappedouter$||s3_bucket||$wrappedouter$'::TEXT;
 		s3_path TEXT := '$wrappedouter$||s3_path||$wrappedouter$'::TEXT;
 		s3_region TEXT := '$wrappedouter$||s3_region||$wrappedouter$'::TEXT;
-		step_payload JSON := '$wrappedouter$||(step_payload::TEXT)||$wrappedouter$'::JSON;        
-		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;		
+		step_payload JSON := '$wrappedouter$||(step_payload::TEXT)||$wrappedouter$'::JSON;
+		lambda_function_arn TEXT := '$wrappedouter$||lambda_function_arn||$wrappedouter$'::TEXT;
 		lambda_region TEXT := '$wrappedouter$||lambda_region||$wrappedouter$'::TEXT;
 	BEGIN
     	SELECT * FROM s3_plugin_config('GEOJSON') INTO config;
@@ -688,24 +686,24 @@ BEGIN
 	                ||' ''%1$s'', '
 	                ||' aws_commons.create_s3_uri(%2$L,%3$L,%4$L),'
 	                ||' %5$L )',
-			    format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X', 
+			    format('select jsondata || jsonb_build_object(''''geometry'''', ST_AsGeoJSON(geo, 8)::jsonb) from (%1$s) X',
 						REPLACE(content_query, $x$'$x$, $x$''$x$)),
 			    s3_bucket,
 			    s3_path,
 			    s3_region,
 			    REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
 	            )INTO export_statistics;
-		
+
 		PERFORM report_export_progress(
 			 lambda_function_arn,
 			 lambda_region,
 			 step_payload,
-			 thread_id, 
-			 export_statistics.bytes_uploaded, 
-			 export_statistics.rows_uploaded, 
+			 thread_id,
+			 export_statistics.bytes_uploaded,
+			 export_statistics.rows_uploaded,
 			 export_statistics.files_uploaded::int
 		);
-		
+
 		EXCEPTION
 		 	WHEN OTHERS THEN
 		 		-- Export has failed
