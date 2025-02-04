@@ -52,27 +52,4 @@ public interface ExportSpace<E extends SearchForFeaturesEvent> {
         .withQueryFragment("customWhereClause", customWhereClause);
     return customizedWhereClause;
   }
-
-/****/
-  default SQLQuery buildVersionComparisonForRange(SelectiveEvent event) {
-   Ref ref = event.getRef();
-   if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
-     return new SQLQuery("");
-
-   return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
-      .withNamedParameter("fromVersion", ref.getStartVersion())
-      .withNamedParameter("toVersion", ref.getEndVersion());
-  }
-
- default SQLQuery buildNextVersionFragmentForRange(Ref ref, boolean historyEnabled, String versionParamName) {
-   if (!historyEnabled || ref.isAllVersions())
-     return new SQLQuery("");
-
-   boolean endVersionIsHead = ref.getEndVersion() == GetFeatures.MAX_BIGINT;
-   //TODO: review semantic of "NextVersionFragment" in case of ref.isRange
-   return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
-      .withQueryFragment("op", endVersionIsHead ? "=" : ">")
-      .withNamedParameter(versionParamName, endVersionIsHead ? GetFeatures.MAX_BIGINT : ref.getEndVersion());
- }
-/****/
 }

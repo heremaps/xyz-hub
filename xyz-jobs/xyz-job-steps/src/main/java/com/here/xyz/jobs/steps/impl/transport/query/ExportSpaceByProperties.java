@@ -86,18 +86,4 @@ public class ExportSpaceByProperties
     this.customWhereClause = customWhereClause;
     return this;
   }
-
-  //TODO: unite with code duplicate on  ExportSpaceByGeometry
-  protected SQLQuery buildVersionComparison(SelectiveEvent event) {
-    if (event.getRef().isRange())
-      return buildVersionComparisonForRange(event);
-    return super.buildVersionComparison(event);
-  }
-
-  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
-    if (ref.isRange())
-      return buildNextVersionFragmentForRange(ref, historyEnabled, versionParamName);
-    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
-  }
-
 }
