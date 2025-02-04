@@ -210,6 +210,7 @@ public class Job implements XyzSerializable {
    * @return true if the job is ready for execution, false otherwise
    */
   protected Future<Boolean> validate() {
+    logger.info("[{}] Validating job ...", getId());
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
     return Future.all(Job.forEach(getSteps().stepStream().toList(), step -> validateStep(step)))
         .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
@@ -217,7 +218,9 @@ public class Job implements XyzSerializable {
 
   private static Future<Boolean> validateStep(Step step) {
     return ASYNC.run(() -> {
+      logger.info("[{}] Validating {}-step ...", step.getGlobalStepId(), step.getClass().getSimpleName());
       boolean isReady = step.validate();
+      logger.info("[{}] Validation of {}-step completed.", step.getGlobalStepId(), step.getClass().getSimpleName());
       State targetState = isReady ? SUBMITTED : NOT_READY;
       if (step.getStatus().getState() != targetState)
         step.getStatus().setState(targetState);

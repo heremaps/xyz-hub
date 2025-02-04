@@ -151,7 +151,7 @@ class StateMachineExecutor extends JobExecutor {
   }
 
   private Future<String> executeStateMachine(String jobId, String stateMachineArn, String input) {
-    logger.info("[{}] Starting SFN execution of job ...", jobId);
+    logger.info("[{}] Starting SFN state machine execution of job ...", jobId);
     //TODO: Asyncify!
 
     try {
@@ -169,7 +169,7 @@ class StateMachineExecutor extends JobExecutor {
   }
 
   private static Future<String> createStateMachine(String jobId, String stateMachineDefinition, boolean isPipeline) {
-    logger.info("[{}] Creating SFN state maching of job ...", jobId);
+    logger.info("[{}] Creating SFN state machine of job ...", jobId);
     //TODO: Asyncify!
 
     CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()
