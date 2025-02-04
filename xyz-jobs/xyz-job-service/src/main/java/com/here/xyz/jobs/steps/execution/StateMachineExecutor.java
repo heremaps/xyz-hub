@@ -52,6 +52,7 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<String> execute(Job job) {
+    logger.info("[{}] Initiating SFN execution of job ...", job.getId());
     //NOTE: In case of a pipeline job, *only create* the state machine and do not execute it
     return createStateMachine(job.getId(), transformer(job).compileToStateMachine(job.getDescription(), job.getSteps()), job.isPipeline())
         .compose(stateMachineArn -> job.isPipeline() ? Future.succeededFuture(stateMachineArn) : executeStateMachine(job.getId(), stateMachineArn, null));
@@ -89,6 +90,7 @@ class StateMachineExecutor extends JobExecutor {
 
   @Override
   public Future<String> resume(Job job, String executionId) {
+    logger.info("[{}] Re-driving SFN execution of job ...", job.getId());
     try {
       //TODO: Asyncify!
       sfnClient().redriveExecution(RedriveExecutionRequest.builder()
@@ -149,6 +151,7 @@ class StateMachineExecutor extends JobExecutor {
   }
 
   private Future<String> executeStateMachine(String jobId, String stateMachineArn, String input) {
+    logger.info("[{}] Starting SFN execution of job ...", jobId);
     //TODO: Asyncify!
 
     try {
@@ -166,6 +169,7 @@ class StateMachineExecutor extends JobExecutor {
   }
 
   private static Future<String> createStateMachine(String jobId, String stateMachineDefinition, boolean isPipeline) {
+    logger.info("[{}] Creating SFN state maching of job ...", jobId);
     //TODO: Asyncify!
 
     CreateStateMachineResponse creationResponse = sfnClient().createStateMachine(CreateStateMachineRequest.builder()

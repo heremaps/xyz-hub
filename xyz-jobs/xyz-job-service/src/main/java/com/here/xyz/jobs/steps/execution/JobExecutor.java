@@ -298,6 +298,7 @@ public abstract class JobExecutor implements Initializable {
    * @return true, if the job may be executed / enough resources are free
    */
   private Future<Boolean> mayExecute(Job job) {
+    logger.info("[{}] Checking whether there are enough resources to execute the job ...", job.getId());
     //Check for all needed resource loads whether they can be fulfilled
     return ResourcesRegistry.getFreeVirtualUnits()
         .map(freeVirtualUnits -> job.calculateResourceLoads().stream()
@@ -342,6 +343,7 @@ public abstract class JobExecutor implements Initializable {
    * @return An empty future (NOTE: If the job's graph was adjusted / shrunk, it will be also stored)
    */
   private static Future<Void> reuseExistingJobIfPossible(Job job) {
+    logger.info("[{}] Checking for reusable existing jobs ...", job.getId());
     if (job.getResourceKey() == null || job.getSteps().stepStream().anyMatch(step -> step instanceof DelegateStep))
       return Future.succeededFuture();
     return JobConfigClient.getInstance().loadJobs(job.getResourceKey(), job.getSecondaryResourceKey(), SUCCEEDED)
