@@ -290,9 +290,6 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
     if (versionRef.isAllVersions())
       throw new ValidationException("It is not supported to export all versions at once.");
 
-    if (versionRef.isRange())
-      throw new ValidationException("It is currently not supported to export changesets.");
-
     try {
       StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
 

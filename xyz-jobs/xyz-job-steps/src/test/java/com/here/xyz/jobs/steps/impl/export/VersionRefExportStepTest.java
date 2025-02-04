@@ -108,8 +108,11 @@ public class VersionRefExportStepTest extends ExportTestBase {
                 """, FeatureCollection.class);
 
         putFeatureCollectionToSpace(SPACE_ID, fc1);
+        //=> Version 1
         deleteFeaturesInSpace(SPACE_ID, List.of("point2"));
+        //=> Version 2
         putFeatureCollectionToSpace(SPACE_ID, fc2);
+        //=> Version 3
     }
 
     @Test
@@ -120,14 +123,11 @@ public class VersionRefExportStepTest extends ExportTestBase {
                 versionRef,"search?versionRef=" + versionRef);
     }
 
-//    @Test
-    //TODO: implement
+    @Test
     public void exportWithVersionRange() throws IOException, InterruptedException {
         Ref versionRef = new Ref("1..3");
 
-        ExportSpaceToFiles step = new ExportSpaceToFiles()
-                .withSpaceId(SPACE_ID)
-                .withJobId(JOB_ID)
-                .withVersionRef(versionRef);
+        executeExportStepAndCheckResults(SPACE_ID, null, null,  null,
+                versionRef,"search?versionRef=" + versionRef);
     }
 }
