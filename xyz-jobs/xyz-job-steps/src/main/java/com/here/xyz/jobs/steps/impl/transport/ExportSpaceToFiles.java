@@ -307,8 +307,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
             throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
               + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
           }
-        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException e) {
-          errorLog(JOB_VALIDATE, this, e, "Invalid Filter provided!");
+        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
+                 NullPointerException e) {
+          errorLog(JOB_VALIDATE, this, e, "Invalid SpatialFilter provided! ",spatialFilter.getGeometry().serialize());
           throw new ValidationException("Invalid SpatialFilter!");
         }
       }
