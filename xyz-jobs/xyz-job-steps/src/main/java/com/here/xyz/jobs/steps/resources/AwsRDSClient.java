@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.resources;
 import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.rds.RdsClientBuilder;
 import software.amazon.awssdk.services.rds.model.DBCluster;
+import software.amazon.awssdk.services.rds.model.DbClusterNotFoundException;
 import software.amazon.awssdk.services.rds.model.DescribeDbClustersRequest;
 import software.amazon.awssdk.services.rds.model.DescribeDbClustersResponse;
 
@@ -41,10 +42,14 @@ public class AwsRDSClient {
   }
 
   public DBCluster getRDSClusterConfig(String clusterId) {
-    DescribeDbClustersResponse response = client.describeDBClusters(DescribeDbClustersRequest.builder()
-            .dbClusterIdentifier(clusterId)
-            .build());
-    return response.hasDbClusters() && !response.dbClusters().isEmpty() ? response.dbClusters().get(0) : null;
+    try {
+      DescribeDbClustersResponse response = client.describeDBClusters(DescribeDbClustersRequest.builder()
+              .dbClusterIdentifier(clusterId)
+              .build());
+      return response.hasDbClusters() && !response.dbClusters().isEmpty() ? response.dbClusters().get(0) : null;
+    } catch (DbClusterNotFoundException e) {
+      return null;
+    }
   }
 
 }
