@@ -260,14 +260,13 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
-    if(versionRef == null)
+    if (versionRef == null)
       throw new ValidationException("Version ref is required.");
 
-    validateSpaceExists();
     //Resolve the ref to an actual version
     if (versionRef.isTag()) {
       try {
-        setVersionRef(new Ref(hubWebClient().loadTag(getSpaceId(), versionRef.getTag()).getVersion()));
+        setVersionRef(new Ref(loadTag(getSpaceId(), versionRef.getTag()).getVersion()));
       }
       catch (WebClientException e) {
         throw new ValidationException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);

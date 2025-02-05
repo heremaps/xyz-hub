@@ -227,9 +227,8 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {
-    if (spaceStatistics == null) {
+    if (spaceStatistics == null)
       spaceStatistics = loadSpaceStatistics(getSpaceId(), context, skipCache);
-    }
     return spaceStatistics;
   }
 

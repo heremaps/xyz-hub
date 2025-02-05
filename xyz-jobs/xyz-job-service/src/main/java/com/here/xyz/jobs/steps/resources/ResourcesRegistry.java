@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,16 +45,17 @@ public class ResourcesRegistry {
   protected static final Future<Map<ExecutionResource, Double>> getReservedVirtualUnits() {
     return JobConfigClient.getInstance()
         .loadJobs(RUNNING)
-        .compose(runningJobs -> Future.succeededFuture(toLoadsMap(runningJobs.stream()
-            .flatMap(job -> {
+        .compose(runningJobs -> Future.all(runningJobs.stream()
+            .map(job -> {
               try {
-                return job.calculateResourceLoads().stream();
+                return job.calculateResourceLoads();
               }
               catch (Exception e) {
                 logger.error("Error calculating the reserved resources of job {}. Not taking it into account this time.", job.getId(), e);
-                return Stream.empty();
+                return Future.succeededFuture(List.of());
               }
-            }).toList(), false)));
+            }).toList()))
+        .map(cf -> toLoadsMap(cf.list(), false));
   }
 
   /**
