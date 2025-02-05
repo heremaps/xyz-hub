@@ -31,7 +31,6 @@ import static com.here.xyz.jobs.steps.execution.StepException.codeFromErrorError
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
-import static com.here.xyz.util.service.Core.buildVersion;
 import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.ENABLED;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -568,7 +567,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           throw new NullPointerException("Malformed step request, missing step definition.");
 
         //Set the userAgent of the web clients correctly
-        HubWebClient.userAgent = JobWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName() + "/" + buildVersion();
+        HubWebClient.userAgent = JobWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName();
 
         //Set the own lambda ARN accordingly
         if (context instanceof SimulatedContext) {
