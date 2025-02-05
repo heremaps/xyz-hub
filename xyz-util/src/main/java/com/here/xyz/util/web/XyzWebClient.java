@@ -22,6 +22,9 @@ package com.here.xyz.util.web;
 import static java.net.http.HttpClient.Redirect.NORMAL;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.responses.ErrorResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -113,16 +116,25 @@ public abstract class XyzWebClient {
 
   public static class ErrorResponseException extends WebClientException {
     private HttpResponse<byte[]> errorResponse;
+    private ErrorResponse parsedErrorResponse;
     private int statusCode;
 
     public ErrorResponseException(HttpResponse<byte[]> errorResponse) {
       super("Received error response with status code " + errorResponse.statusCode() + " response body:\n" + new String(errorResponse.body()));
       this.errorResponse = errorResponse;
-      this.statusCode = errorResponse.statusCode();
+      statusCode = errorResponse.statusCode();
+      try {
+        parsedErrorResponse = XyzSerializable.deserialize(errorResponse.body());
+      }
+      catch (JsonProcessingException ignored) {}
     }
 
     public HttpResponse<byte[]> getErrorResponse() {
       return errorResponse;
+    }
+
+    public ErrorResponse getParsedErrorResponse() {
+      return parsedErrorResponse;
     }
 
     public int getStatusCode() {
