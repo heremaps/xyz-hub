@@ -51,6 +51,7 @@ import net.jodah.expiringmap.ExpiringMap;
 
 public class HubWebClient extends XyzWebClient {
   public static int STATISTICS_CACHE_TTL_SECONDS = 30;
+  public static String userAgent = DEFAULT_USER_AGENT;
   private static Map<InstanceKey, HubWebClient> instances = new ConcurrentHashMap<>();
   private ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
       .expirationPolicy(ExpirationPolicy.CREATED)
@@ -62,11 +63,11 @@ public class HubWebClient extends XyzWebClient {
       .build();
 
   protected HubWebClient(String baseUrl) {
-    super(baseUrl);
+    super(baseUrl, userAgent);
   }
 
   protected HubWebClient(String baseUrl, Map<String, String> extraHeaders) {
-    super(baseUrl, extraHeaders);
+    super(baseUrl, userAgent, extraHeaders);
   }
 
   @Override

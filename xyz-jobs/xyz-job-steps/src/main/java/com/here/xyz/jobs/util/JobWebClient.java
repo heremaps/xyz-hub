@@ -21,14 +21,11 @@ package com.here.xyz.jobs.util;
 
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.JSON_UTF_8;
-import static com.here.xyz.XyzSerializable.deserialize;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.web.XyzWebClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
@@ -36,8 +33,10 @@ import java.time.Duration;
 
 public class JobWebClient extends XyzWebClient {
   private static JobWebClient instance = new JobWebClient(Config.instance.JOB_API_ENDPOINT.toString());
+  public static String userAgent = DEFAULT_USER_AGENT;
+
   public JobWebClient(String baseUrl) {
-    super(baseUrl);
+    super(baseUrl, userAgent);
   }
 
   @Override
