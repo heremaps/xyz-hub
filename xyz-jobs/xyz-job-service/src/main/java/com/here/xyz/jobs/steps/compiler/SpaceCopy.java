@@ -74,6 +74,47 @@ public class SpaceCopy implements JobCompilationInterceptor {
    return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);
   }
 
+  private static Ref resolveTags(String spaceId, Ref versionRef, long sourceMaxVersion)
+  {
+    if( versionRef == null || versionRef.isHead() ) 
+     return new Ref("HEAD");  //  set to sourceMaxVersion (?)
+    
+    if( versionRef.isAllVersions() ) 
+     throw new JobCompiler.CompilationError("iml-copy 'all versions' not available");
+
+    if( versionRef.resolved() )
+     return versionRef; // no symbols - tags, head, star
+
+    // tags used 
+    try {
+      if( versionRef.isRange() )
+      {
+        long startVersion =  !versionRef.hasStartTag() 
+                               ? versionRef.getStartVersion() 
+                               : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getStartTag()).getVersion(),
+             endVersion   =  versionRef.isEndHead() 
+                             ? sourceMaxVersion 
+                             : ( !versionRef.hasEndTag() 
+                                 ? versionRef.getEndVersion() 
+                                 : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getEndTag()).getVersion()
+                               );
+        return new Ref( startVersion, endVersion );
+      }
+
+      if( versionRef.isTag() )
+      {
+       long version = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getTag()).getVersion();
+       return new Ref(version);
+      }
+    } catch (WebClientException e) {
+      String errMsg = String.format("Unable to resolve Tags for Ref = '%s' on %s", versionRef.toString(), spaceId);
+      throw new JobCompiler.CompilationError(errMsg);
+    }
+
+    throw new JobCompiler.CompilationError("Unexpected Ref - " + versionRef.toString());
+   
+  }
+
   public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef, String targetType)
   {
     final String sourceSpaceId = sourceId,
@@ -94,6 +135,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
     startGraph.addExecution(preCopySpace);
 
     long sourceFeatureCount = sourceStatistics.getCount().getValue(),
+         sourceMaxVersion = sourceStatistics.getMaxVersion().getValue(),
          targetFeatureCount = targetStatistics.getCount().getValue();
 
     int threadCount = threadCountCalc(sourceFeatureCount, targetFeatureCount);
@@ -108,7 +150,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       CopySpace copySpaceStep = new CopySpace()
           .withSpaceId(sourceSpaceId)
           .withTargetSpaceId(targetSpaceId)
-          .withSourceVersionRef(versionRef)
+          .withSourceVersionRef( resolveTags( sourceSpaceId, versionRef, sourceMaxVersion))
           .withPropertyFilter(propertyFilter)
           .withThreadInfo(new int[]{ threadId, threadCount })
           .withJobId(jobId)

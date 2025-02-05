@@ -301,18 +301,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     sourceVersionRef = sourceVersionRef == null ? new Ref("HEAD") : sourceVersionRef;
 
-    if(sourceVersionRef.isTag()) {
-      /** Resolve version Tag - if provided */
-      try {
-        long version = loadTag(getSpaceId(), sourceVersionRef.getTag()).getVersion();
-        if (version >= 0)
-          sourceVersionRef = new Ref(version);
-      }
-      catch (WebClientException e) {
-        throw new ValidationException("Error resolving versionRef \"" + sourceVersionRef.getTag()+ "\" on " + getSpaceId(), e);
-      }
-    }
-
     return true;
   }
 

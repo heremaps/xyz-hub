@@ -26,8 +26,10 @@ import com.here.xyz.XyzSerializable;
 public class Ref implements XyzSerializable {
   public static final String HEAD = "HEAD";
   public static final String ALL_VERSIONS = "*";
-  private String tag;
-  private long version = -1;
+  public static final String OP_RANGE = "..";
+  private String tag;  // +endTag
+  private String startTag;
+  private long version = -1; // +endVersion
   private long startVersion = -1;
   private boolean head;
   private boolean allVersions;
@@ -38,12 +40,23 @@ public class Ref implements XyzSerializable {
       head = true;
     else if (ALL_VERSIONS.equals(ref))
       allVersions = true;
-    else if (ref.contains(".."))
+    else if (ref.contains(OP_RANGE))
       try {
         String[] rangeParts = ref.split("\\.\\.");
-        startVersion = validateVersion(Long.parseLong(rangeParts[0]));
-        version = validateVersion(Long.parseLong(rangeParts[1]));
-        if (getStartVersion() >= getEndVersion())
+        
+        if( Tag.isValidId(rangeParts[0]) )
+         startTag = rangeParts[0];
+        else
+         startVersion = validateVersion(Long.parseLong(rangeParts[0]));
+
+        if( Tag.isValidId(rangeParts[1]) )
+         tag = rangeParts[1];
+        else if( HEAD.equals(rangeParts[1]) ) 
+         head = true;
+        else  
+         version = validateVersion(Long.parseLong(rangeParts[1]));
+
+        if ((version > -1 && startVersion > -1) && getStartVersion() >= getEndVersion())
           throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: "
               + "\"" + ref + "\"");
       }
@@ -66,6 +79,12 @@ public class Ref implements XyzSerializable {
     this.version = validateVersion(version);
   }
 
+  public Ref(long startVersion, long endVersion) {
+    this.startVersion = validateVersion(startVersion);
+    this.version = validateVersion(endVersion);
+  }
+
+
   /**
    * Validates a version number.
    * @param version The version to validate
@@ -82,14 +101,15 @@ public class Ref implements XyzSerializable {
   public String toString() {
     if (!isTag() && version < 0 && !head && !allVersions && !isRange())
       throw new InvalidRef("Not a valid ref");
+
+    if (isRange())
+      return (startVersion > -1 ? startVersion : startTag) + OP_RANGE + (version > -1 ? version : (!head ? tag : HEAD ));
     if (isTag())
       return tag;
     if (head)
       return HEAD;
     if (allVersions)
       return ALL_VERSIONS;
-    if (isRange())
-      return startVersion + ".." + version;
     return String.valueOf(version);
   }
 
@@ -102,7 +122,7 @@ public class Ref implements XyzSerializable {
    * @return <code>true</code> if this ref depicts a tag, <code>false</code> otherwise
    */
   public boolean isTag() {
-    return tag != null;
+    return !isRange() && tag != null;
   }
 
   /**
@@ -125,20 +145,8 @@ public class Ref implements XyzSerializable {
     return version;
   }
 
-  public long getStartVersion() {
-    if (!isRange())
-      throw new NumberFormatException("Ref is not depicting a version range.");
-    return startVersion;
-  }
-
-  public long getEndVersion() {
-    if (!isRange())
-      throw new NumberFormatException("Ref is not depicting a version range.");
-    return version;
-  }
-
   public boolean isHead() {
-    return head;
+    return !isRange() && head;
   }
 
   public boolean isAllVersions() {
@@ -149,9 +157,57 @@ public class Ref implements XyzSerializable {
     return !isAllVersions() && !isRange();
   }
 
+/** range related functions */
+
   public boolean isRange() {
-    return startVersion >= 0;
+    return startVersion >= 0 || startTag != null;
   }
+
+  public long getStartVersion() {
+    if (!isRange())
+      throw new NumberFormatException("Ref is not depicting a version range.");
+    if ( startVersion < -1 )  
+      throw new NumberFormatException("Ref uses start-Tag");
+    return startVersion;
+  }
+
+  public long getEndVersion() {
+    if (!isRange())
+      throw new NumberFormatException("Ref is not depicting a version range.");
+
+    if ( version < -1 )  
+      throw new NumberFormatException("Ref uses end-Tag");
+
+    return version;
+  }
+
+  public String getStartTag() {
+    if (!isRange())
+     throw new NumberFormatException("Ref is not depicting a version range.");
+
+    if( startTag == null ) 
+     throw new IllegalArgumentException("Ref uses startVersion " + startVersion);
+
+    return startTag;
+  }
+
+  public boolean hasStartTag() { return isRange() && startTag != null; }
+
+  public String getEndTag() {
+    if (!isRange())
+     throw new NumberFormatException("Ref is not depicting a version range.");
+
+    if( tag == null ) 
+     throw new InvalidRef("Ref uses endVersion " + version);
+
+    return getTag();
+  }
+
+  public boolean hasEndTag() { return isRange() && tag != null; }
+  public boolean isEndHead() { return isRange() && head; }  // -> m..HEAD
+  
+  public boolean resolved() { return isRange() ? (!hasStartTag() && !hasEndTag() && !isEndHead()) : (!isTag() && !isHead() && !isAllVersions()); }
+
 
   public static class InvalidRef extends IllegalArgumentException {
 
