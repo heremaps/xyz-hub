@@ -14,7 +14,7 @@ ENV LOCALSTACK_ENDPOINT http://aws-localstack:4566
 ENV HUB_ENDPOINT http://xyz-hub:8080/hub
 
 COPY xyz-jobs/xyz-job-service/target/xyz-job-service-fat.jar .
-ADD Dockerfile-job-service /
+ADD xyz-util/src/main/resources/docker/Dockerfile-job-service /
 
 EXPOSE 7070
 CMD java -jar xyz-job-service-fat.jar

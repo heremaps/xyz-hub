@@ -3,7 +3,8 @@ services:
     xyz-hub:
         image: "xyz-hub"
         build:
-            context: "./"
+            context: ./
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile
         container_name: "xyz-hub"
         ports:
             - "8080:8080"
@@ -23,7 +24,8 @@ services:
     xyz-http-connector:
         image: "xyz-hub"
         build:
-            context: "./"
+            context: ./
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile
         container_name: xyz-http-connector
         ports:
             - "9090:9090"
@@ -38,8 +40,8 @@ services:
     xyz-job-service:
         image: "xyz-job"
         build:
-            context: "./"
-            dockerfile: "Dockerfile-job-service"
+            context: ./
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile-job-service
         container_name: xyz-job-service
         ports:
             - "7070:7070"
@@ -56,8 +58,8 @@ services:
     postgres:
         image: "xyz-postgres"
         build:
-            context: "./"
-            dockerfile: "Dockerfile-postgres"
+            context: ./
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile-postgres
         container_name: "postgres"
         ports:
             - "5432:5432"
@@ -113,7 +115,7 @@ services:
         image: aws-js-s3-explorer
         build:
             context: ./
-            dockerfile: Dockerfile-s3-explorer
+            dockerfile: ./xyz-util/src/main/resources/docker/Dockerfile-s3-explorer
         container_name: s3-explorer
         ports:
             - "5001:8080"
