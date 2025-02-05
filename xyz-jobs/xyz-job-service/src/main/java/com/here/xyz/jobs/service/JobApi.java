@@ -79,7 +79,10 @@ public class JobApi extends Api {
     logger.info(LogUtil.getMarker(context), "Received job creation request: {}", job.serialize(true));
     job.create().submit()
         .map(res -> job)
-        .onSuccess(res -> sendResponse(context, CREATED.code(), res))
+        .onSuccess(res -> {
+          sendResponse(context, CREATED.code(), res);
+          logger.info(LogUtil.getMarker(context), "Job was created successfully: {}", job.serialize(true));
+        })
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
