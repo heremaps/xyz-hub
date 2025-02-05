@@ -31,6 +31,7 @@ import static com.here.xyz.jobs.steps.execution.StepException.codeFromErrorError
 import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
 import static com.here.xyz.jobs.util.AwsClients.sfnClient;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
+import static com.here.xyz.util.service.Core.buildVersion;
 import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.ENABLED;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -54,6 +55,7 @@ import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.io.IOException;
@@ -556,6 +558,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           XyzSerializable.fromMap(Map.copyOf(getEnvironmentVariables()), Config.class);
           loadPlugins();
         }
+
         //Read the incoming request
         request = XyzSerializable.deserialize(inputStream, LambdaStepRequest.class);
 
@@ -563,6 +566,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
         if (request.getStep() == null)
           throw new NullPointerException("Malformed step request, missing step definition.");
+
+        //Set the userAgent of the web clients correctly
+        HubWebClient.userAgent = JobWebClient.userAgent = "XYZ-JobStep-" + request.getStep().getClass().getSimpleName() + "/" + buildVersion();
 
         //Set the own lambda ARN accordingly
         if (context instanceof SimulatedContext) {
