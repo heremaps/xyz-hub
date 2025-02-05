@@ -202,6 +202,20 @@
         <filtering>false</filtering>
       </resource>
       <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>**/build.properties</include>
+        </includes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>**/build.properties</exclude>
+        </excludes>
+      </resource>
+      <resource>
         <!-- Add scripts to jar -->
         <directory>src/main/bash</directory>
         <targetPath>.</targetPath>
