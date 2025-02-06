@@ -4,7 +4,7 @@ ENV POSTGRES_PASSWORD password
 
 USER root
 RUN apt-get update && \
-    apt-get -y install postgresql-15-postgis-3 postgresql-plpython3-15 git python3-boto3 make
+    apt-get -y install postgresql-15-postgis-3 postgresql-15-h3 postgresql-plpython3-15 git python3-boto3 make
 
 WORKDIR /home/1001
 #Clone forked AWS RDS S3-Extension mock called "chimpler"
