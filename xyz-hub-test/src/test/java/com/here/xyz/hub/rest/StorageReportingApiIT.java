@@ -26,22 +26,25 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class StorageReportingApiIT extends TestSpaceWithFeature {
+  private static Set<String> cleanUpIds = new HashSet<>();
 
+  private static void cleanUp() {
+    remove();
+    cleanUpIds.forEach(TestWithSpaceCleanup::removeSpace);
+  }
 
   @BeforeClass
-  public static void setup() {
-    remove();
-  }
+  public static void setup() { cleanUp(); }
 
   @After
-  public void tearDown() {
-    remove();
-  }
+  public void tearDown() { cleanUp(); }
 
   @Test
   public void testEmptyResponsePositive() {
@@ -96,6 +99,26 @@ public class StorageReportingApiIT extends TestSpaceWithFeature {
         .body("type", equalTo("StorageStatistics"))
         .body("createdAt", greaterThan(0L))
         .body("byteSizes.x-psql-test.contentBytes.value", greaterThan(3000));
+  }
+
+  @Test
+  public void testWithMultipleStorageIds() {
+    cleanUpIds.add(createSpaceWithCustomStorage("x-psql-test-1", "psql", null));
+    cleanUpIds.add(createSpaceWithCustomStorage("x-psql-test-2", "psql_db2_hashed", null));
+    addFeatures("x-psql-test-2");
+    given()
+            .accept(APPLICATION_JSON)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_ADMIN_STATISTICS))
+            .when()
+            .get("/admin/statistics/spaces/storage")
+            .then()
+            .statusCode(OK.code())
+            .body("type", equalTo("StorageStatistics"))
+            .body("createdAt", greaterThan(0L))
+            .body("byteSizes.x-psql-test-1.contentBytes.value", equalTo(8192))
+            .body("byteSizes.x-psql-test-1.storageId", equalTo("psql"))
+            .body("byteSizes.x-psql-test-2.contentBytes.value", greaterThan(8192))
+            .body("byteSizes.x-psql-test-2.storageId", equalTo("psql_db2_hashed"));
   }
 
 }
