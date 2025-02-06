@@ -156,9 +156,19 @@ public class StepTestBase {
     }
   }
 
+
   protected void createTag(String spaceId, Tag tag) {
     try {
       hubWebClient.postTag(spaceId, tag);
+    }
+    catch (XyzWebClient.WebClientException e) {
+      System.out.println("Hub Error: " + e.getMessage());
+    }
+  }
+
+  protected void deleteTag(String spaceId, String tagId) {
+    try {
+      hubWebClient.deleteTag(spaceId, tagId);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());

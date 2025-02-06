@@ -85,12 +85,12 @@ public class CopySpaceStepsTest extends StepTest {
         false);
 
     //write features source
-    putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax);
-    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax);
-    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax);
+    putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax); // v1
+    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax); // v2
+    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax); // v3
+
     //write features target - non-empty-space
     putRandomFeatureCollectionToSpace(targetSpace, 2, xmin, ymin, xmax, ymax);
-
     putRandomFeatureCollectionToSpace(targetRemoteSpace, 2, xmin, ymin, xmax, ymax);
 
   }

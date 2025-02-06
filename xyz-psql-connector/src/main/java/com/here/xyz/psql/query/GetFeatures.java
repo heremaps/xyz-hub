@@ -133,11 +133,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       return new SQLQuery("");
 
     if (ref.isRange()) {
-      // Version Range!
+      // Version Range! -- startTag, endTag and HEAD is be assumed to be resolved before reaching here
       return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
               .withNamedParameter("fromVersion", ref.getStartVersion())
               .withNamedParameter("toVersion", ref.getEndVersion());
     }
+
     return new SQLQuery("AND version <= #{requestedVersion}")
         .withNamedParameter("requestedVersion", ref.getVersion());
   }
@@ -157,6 +158,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
               .withQueryFragment("op", endVersionIsHead ? "=" : ">")
               .withNamedParameter(versionParamName, endVersionIsHead ? GetFeatures.MAX_BIGINT : ref.getEndVersion());
     }
+
     return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
         .withQueryFragment("op", ref.isHead() ? "=" : ">")
         .withNamedParameter(versionParamName, ref.isHead() ? MAX_BIGINT : ref.getVersion());

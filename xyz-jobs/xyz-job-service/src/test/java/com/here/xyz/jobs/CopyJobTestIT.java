@@ -9,13 +9,18 @@ import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Polygon;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.models.hub.Tag;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 
@@ -23,11 +28,16 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class CopyJobTestIT extends JobTest {
 
   static private String SrcSpc    = "testCopy-Source-09", 
-                        TrgSpc    = "testCopy-Target-09";
+                        TrgSpc    = "testCopy-Target-09",
+                        EndTagId  = "tagV2",
+                        versionRange = "1.." + EndTagId;
+
+  static private long EndVersion = 2;
                         //OtherCntr = "psql_db2_hashed",
                         //TrgRmtSpc = "testCopy-Target-09-remote",
                         //propertyFilter = "p.all=common";
@@ -50,18 +60,30 @@ public class CopyJobTestIT extends JobTest {
 
   @BeforeEach
   public void setup() throws SQLException {
+      
+      cleanup();
+
       createSpace(new Space().withId(SrcSpc).withVersionsToKeep(100),false);
       createSpace(new Space().withId(TrgSpc).withVersionsToKeep(100),false);
       ////createSpace(new Space().withId(TrgRmtSpc).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(OtherCntr)),false);
 
       //write features source
-      putRandomFeatureCollectionToSpace(SrcSpc, 20,xmin,ymin,xmax,ymax);
-      putRandomFeatureCollectionToSpace(SrcSpc, 20,xmin,ymin,xmax,ymax);
+      putRandomFeatureCollectionToSpace(SrcSpc, 20,xmin,ymin,xmax,ymax); // v1
+      putRandomFeatureCollectionToSpace(SrcSpc, 10,xmin,ymin,xmax,ymax); // v2
+      putRandomFeatureCollectionToSpace(SrcSpc, 10,xmin,ymin,xmax,ymax); // v3
+      createTag(SrcSpc, new Tag().withId(EndTagId).withVersion(EndVersion));
       //write features target - non-empty-space
       putRandomFeatureCollectionToSpace(TrgSpc, 2,xmin,ymin,xmax,ymax);
 
       ////putRandomFeatureCollectionToSpace(TrgRmtSpc, 2,xmin,ymin,xmax,ymax);
 
+  }
+
+  @AfterEach
+  public void cleanup() throws SQLException {
+    deleteSpace(SrcSpc);
+    deleteSpace(TrgSpc);
+    deleteTag(SrcSpc,EndTagId);
   }
 
   protected void checkSucceededJob(Job job) throws IOException, InterruptedException {
@@ -70,17 +92,25 @@ public class CopyJobTestIT extends JobTest {
      Assertions.assertEquals(status.getOverallStepCount(), status.getSucceededSteps());
   }
 
-  private Job buildCopyJob() {
+  private Job buildCopyJob(String ref) {
     return new Job()
             .withId(JOB_ID)
             .withDescription("Copy Job Test")
-            .withSource(new DatasetDescription.Space<>().withId(SrcSpc))
+            .withSource(new DatasetDescription.Space<>().withId(SrcSpc).withVersionRef(ref == null ? new Ref("HEAD") : new Ref(ref)))
             .withTarget(new DatasetDescription.Space<>().withId(TrgSpc));
-}
+  }
 
- @Test
- public void testSimpleCopy() throws Exception {
-        Job copyJob = buildCopyJob();
+  private static Stream<Arguments> provideParameters() {
+    return Stream.of(
+      Arguments.of(null, 40),
+      Arguments.of(versionRange, 10)
+    );
+  }
+
+ @ParameterizedTest
+ @MethodSource("provideParameters")
+ public void testSimpleCopy( String versionRange, int expectedFeaturesCopied ) throws Exception {
+        Job copyJob = buildCopyJob( versionRange );
         createSelfRunningJob(copyJob);
 
         checkSucceededJob(copyJob);
@@ -89,7 +119,7 @@ public class CopyJobTestIT extends JobTest {
 
        Assertions.assertEquals( 1, l.size() );
 
-       Assertions.assertEquals( 40, l.get(0).get("featureCount") );
+       Assertions.assertEquals( expectedFeaturesCopied, l.get(0).get("featureCount") );
  }
 
 }
