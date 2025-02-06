@@ -454,29 +454,26 @@ public class Job implements XyzSerializable {
    *
    * @return A list of overall resource-loads being reserved by this job
    */
-  public Future<List<Load>> calculateResourceLoads() {
+  public List<Load> calculateResourceLoads() {
     return calculateResourceLoads(getSteps())
-        .map(resourceLoads -> resourceLoads.entrySet().stream()
-            .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
-            .collect(Collectors.toList()));
+        .entrySet()
+        .stream()
+        .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue())).collect(Collectors.toList());
   }
 
-  private Future<Map<ExecutionResource, Double>> calculateResourceLoads(StepGraph graph) {
-    return Future.all(graph.getExecutions().stream()
-        .map(execution -> execution instanceof Step step
-            ? calculateResourceLoads(step)
-            : calculateResourceLoads((StepGraph) execution)).toList())
-        .map(cf -> {
-          List<Map<ExecutionResource, Double>> loadsToAggregate = cf.list();
-          Map<ExecutionResource, Double> loads = new HashMap<>();
-          loadsToAggregate.forEach(load -> addLoads(loads, load, !graph.isParallel()));
-          return loads;
-        });
+  private Map<ExecutionResource, Double> calculateResourceLoads(StepGraph graph) {
+    //TODO: Run asynchronous!
+    Map<ExecutionResource, Double> loads = new HashMap<>();
+    graph.getExecutions().forEach(execution -> addLoads(loads, execution instanceof Step step
+        ? calculateResourceLoads(step)
+        : calculateResourceLoads((StepGraph) execution), !graph.isParallel()));
+    return loads;
   }
 
-  private Future<Map<ExecutionResource, Double>> calculateResourceLoads(Step step) {
+  private Map<ExecutionResource, Double> calculateResourceLoads(Step step) {
+    //TODO: Asyncify!
     logger.info("Calculating resource loads for step {}.{} of type {} ...", getId(), step.getId(), step.getClass().getSimpleName());
-    return ASYNC.run(() -> step.getAggregatedNeededResources());
+    return step.getAggregatedNeededResources();
   }
 
   public UploadUrl createUploadUrl(boolean compressed) {
