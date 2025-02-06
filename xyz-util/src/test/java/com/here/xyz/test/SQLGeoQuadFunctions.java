@@ -11,7 +11,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void mercator_quad_lrc_to_qk() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT mercator_quad(335,550,10);");
+            SQLQuery query = new SQLQuery("SELECT mercator_quad(550,335,10);");
             Assertions.assertEquals("1202102332", query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
         }
     }
@@ -19,7 +19,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void mercator_quad_point_to_qk() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT mercator_quad(ST_SetSRID(ST_MakePoint(13.4050, 52.5200), 4326), 10);");
+            SQLQuery query = new SQLQuery("SELECT mercator_quad(13.4050, 52.5200, 10);");
             Assertions.assertEquals("1202102332", query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
         }
     }
@@ -27,9 +27,9 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void mercator_quad_point_to_lrc() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT rowY, colX, level FROM " +
-                    "mercator_quad_to_lrc(ST_SetSRID(ST_MakePoint(13.4050, 52.5200), 4326), 10);");
-            Assertions.assertEquals("335,550,10", query.run(dsp, rs -> rs.next() ? rs.getInt(1)
+            SQLQuery query = new SQLQuery("SELECT colX, rowY, level FROM " +
+                    "mercator_quad_crl(3.4050, 52.5200, 10);");
+            Assertions.assertEquals("521,335,10", query.run(dsp, rs -> rs.next() ? rs.getInt(1)
                     + "," + rs.getInt(2) + "," + rs.getInt(3) : null));
         }
     }
@@ -37,7 +37,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void mercator_quad_qk_to_lrc() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT rowY, colX, level FROM mercator_quad_to_lrc(mercator_quad(335,550,10));");
+            SQLQuery query = new SQLQuery("SELECT colX, rowY, level FROM mercator_quad_crl(mercator_quad(335,550,10));");
             Assertions.assertEquals("335,550,10", query.run(dsp, rs -> rs.next() ? rs.getInt(1)
                     + "," + rs.getInt(2) + "," + rs.getInt(3) : null));
         }
@@ -46,7 +46,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void mercator_quad_to_bbox() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(mercator_quad_to_bbox(335,550,10));");
+            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(mercator_quad_to_bbox(550,335,10));");
             Assertions.assertEquals("{\"type\":\"Polygon\",\"coordinates\":[[[13.359375,52.482780222]," +
                     "[13.359375,52.696361078],[13.7109375,52.696361078],[13.7109375,52.482780222],[13.359375,52.482780222]]]}",
                     query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
@@ -56,7 +56,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void mercator_quad_qk_to_bbox() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(mercator_quad_to_bbox(mercator_quad(335,550,10)));");
+            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(mercator_quad_to_bbox(mercator_quad(550,335,10)));");
             Assertions.assertEquals("{\"type\":\"Polygon\",\"coordinates\":[[[13.359375,52.482780222],[13.359375,52.696361078]," +
                     "[13.7109375,52.696361078],[13.7109375,52.482780222],[13.359375,52.482780222]]]}",
                     query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
@@ -93,15 +93,16 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void here_quad_to_lrc_base10() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT rowY, colX, lev, hkey FROM here_quad_to_lrc('377894440', false);");
-            Assertions.assertEquals("6486,8800,14,377894440", query.run(dsp, rs -> rs.next() ? rs.getInt(1) + "," + rs.getInt(2) + "," + rs.getInt(3) + "," + rs.getLong(4) : null));
+            SQLQuery query = new SQLQuery("SELECT rowY, colX, level, hkey FROM here_quad_crl('377894440');");
+            Assertions.assertEquals("6486,8800,14,377894440", query.run(dsp,
+                    rs -> rs.next() ? rs.getInt(1) + "," + rs.getInt(2) + "," + rs.getInt(3) + "," + rs.getLong(4) : null));
         }
     }
 
     @Test
     public void here_quad_to_bbox_base10() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(here_quad_to_bbox(405,550,10));");
+            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(here_quad_to_bbox(550,405,10));");
             Assertions.assertEquals("{\"type\":\"Polygon\",\"coordinates\":[[[13.359375,52.3828125]," +
                     "[13.359375,52.734375],[13.7109375,52.734375],[13.7109375,52.3828125],[13.359375,52.3828125]]]}",
                     query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
@@ -112,7 +113,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void here_quad_to_long_key_base4() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT here_quad_to_long_key('12201203120220');");
+            SQLQuery query = new SQLQuery("SELECT here_quad_base4_to_base10('12201203120220');");
             Assertions.assertEquals("377894440", query.run(dsp, rs -> rs.next() ? rs.getString(1) : null));
         }
     }
@@ -120,9 +121,9 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void here_quad_to_lrc_base4() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT rowY, colX, lev, hkey FROM " +
-                    "here_quad_to_lrc('12201203120220', true);");
-            Assertions.assertEquals("6486,8800,14,377894440",
+            SQLQuery query = new SQLQuery("SELECT colX, rowY, level, hkey FROM " +
+                    "here_quad_crl('12201203120220', true);");
+            Assertions.assertEquals("8800,6486,14,377894440",
                     query.run(dsp, rs -> rs.next() ? rs.getInt(1)
                             + "," + rs.getInt(2) + "," + rs.getInt(3) + "," + rs.getLong(4) : null));
         }
@@ -131,7 +132,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void here_quad_to_bbox_base4() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(here_quad_to_bbox('12201203120220'));");
+            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(here_quad_base4_to_bbox('12201203120220'));");
             Assertions.assertEquals("{\"type\":\"Polygon\",\"coordinates\":[[[13.359375,52.514648438]," +
                     "[13.359375,52.536621094],[13.381347656,52.536621094],[13.381347656,52.514648438]," +
                     "[13.359375,52.514648438]]]}",
