@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.16.7-SNAPSHOT</version>
+  <version>3.16.7</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -58,7 +58,7 @@
     <url>https://github.com/heremaps/xyz-hub</url>
     <connection>scm:git:git://github.com/heremaps/xyz-hub.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/heremaps/xyz-hub.git</developerConnection>
-    <tag>HEAD</tag>
+    <tag>3.16.7</tag>
   </scm>
 
   <distributionManagement>
