@@ -55,7 +55,12 @@ public class ResourcesRegistry {
                 return Future.succeededFuture(List.of());
               }
             }).toList()))
-        .map(cf -> toLoadsMap(cf.list(), false));
+        .map(cf -> toLoadsMap(
+                cf.list().stream()
+                        .flatMap(list -> ((List<Load>) list).stream())
+                        .toList(),
+                false)
+        );
   }
 
   /**
