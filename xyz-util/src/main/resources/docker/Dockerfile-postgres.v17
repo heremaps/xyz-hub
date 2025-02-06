@@ -8,11 +8,14 @@ USER root
 RUN echo "deb http://deb.debian.org/debian trixie main" >> /etc/apt/sources.list
 
 RUN apt-get update && \
-    apt-get -y install postgresql-17-postgis-3 postgresql-plpython3-17 git python3-boto3 make
+    apt-get -y install postgresql-17-postgis-3 postgresql-17-h3 postgresql-plpython3-17 git python3-boto3 make
 
-RUN ln -sf /usr/share/postgresql/17/extension/plpython3u--1.0.sql /opt/bitnami/postgresql/share/extension/plpython3u--1.0.sql
-RUN ln -sf /usr/share/postgresql/17/extension/plpython3u.control /opt/bitnami/postgresql/share/extension/plpython3u.control
-RUN ln -sf /usr/lib/postgresql/17/lib/plpython3.so /opt/bitnami/postgresql/lib/plpython3.so
+##following mappings are due to overall test state of pg.v17 for modules and assumend to be not needed when stable
+RUN for file in /usr/share/postgresql/17/extension/plpython3*; do ln -sf $file /opt/bitnami/postgresql/share/extension/$(basename "$file"); done
+RUN for file in /usr/lib/postgresql/17/lib/plpython3*; do ln -sf $file /opt/bitnami/postgresql/lib/$(basename "$file"); done
+RUN for file in /usr/share/postgresql/17/extension/h3*; do ln -sf $file /opt/bitnami/postgresql/share/extension/$(basename "$file"); done
+RUN for file in /usr/lib/postgresql/17/lib/h3*; do ln -sf $file /opt/bitnami/postgresql/lib/$(basename "$file"); done
+
     
 WORKDIR /home/1001
 #Clone forked AWS RDS S3-Extension mock called "chimpler"
