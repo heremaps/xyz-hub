@@ -7,7 +7,14 @@ import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
 import com.here.xyz.jobs.datasets.filters.Filters;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class ExportJobTestIT extends JobTest {
@@ -20,11 +27,39 @@ public class ExportJobTestIT extends JobTest {
     }
 
     @Test
-    public void testSimpleExport() throws Exception {
+    public void simpleExport() throws Exception {
         Job exportJob = buildExportJob();
         createSelfRunningJob(exportJob);
 
         checkSucceededJob(exportJob, featureCount);
+    }
+
+    @Disabled("Potentially flickering: Ensure that 2nd job does not re-use 1st one")
+    @Test
+    public void twoSimpleExportsInParallel() throws Exception {
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+
+        List<Callable<Job>> tasks = List.of(
+            () -> {
+                Job exportJob = buildExportJob(generateJobId());
+                createSelfRunningJob(exportJob);
+                return exportJob;
+            },
+            () -> {
+                Job exportJob = buildExportJob(generateJobId());
+                createSelfRunningJob(exportJob);
+                return exportJob;
+            }
+        );
+        List<Future<Job>> futures = executorService.invokeAll(tasks);
+        List<Job> jobs = new ArrayList<>();
+        for (Future<Job> future : futures)
+            jobs.add(future.get());
+
+        checkSucceededJob(jobs.get(0), featureCount);
+        checkSucceededJob(jobs.get(1), featureCount);
+
+        executorService.shutdown();
     }
 
     @Test
@@ -65,7 +100,7 @@ public class ExportJobTestIT extends JobTest {
         return buildExportJob(JOB_ID);
     }
 
-    private Job buildExportJob(String jobId){
+    private Job buildExportJob(String jobId) {
         return buildExportJob(jobId, null);
     }
 
