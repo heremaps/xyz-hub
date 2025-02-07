@@ -301,8 +301,8 @@ public abstract class JobExecutor implements Initializable {
     logger.info("[{}] Checking whether there are enough resources to execute the job ...", job.getId());
     //Check for all necessary resource loads whether they can be fulfilled
     return ResourcesRegistry.getFreeVirtualUnits()
-        .map(freeVirtualUnits -> job.calculateResourceLoads().stream()
-            .allMatch(load -> {
+        .compose(freeVirtualUnits -> job.calculateResourceLoads()
+            .map(neededResources -> neededResources.stream().allMatch(load -> {
               final boolean sufficientFreeUnits = freeVirtualUnits.containsKey(load.getResource())
                   && load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
               if (!sufficientFreeUnits)
@@ -311,9 +311,9 @@ public abstract class JobExecutor implements Initializable {
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
 
               logger.info("Job {} can be executed. Resource {}, needed units: {}, currently available units: {}",
-                      job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
+                  job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
-            }));
+            })));
   }
 
   private Future<Boolean> needsExecution(Job job) {
