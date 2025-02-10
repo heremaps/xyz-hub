@@ -20,5 +20,22 @@
 package com.here.xyz.jobs.datasets.files;
 
 public class GeoParquet extends FileFormat {
-  //TODO: Implement
+  private Version version = Version.V1;
+
+  public Version getVersion() {
+    return version;
+  }
+
+  public void setVersion(Version version) {
+    this.version = version;
+  }
+
+  public GeoParquet withVersion(Version version) {
+    setVersion(version);
+    return this;
+  }
+
+  public enum Version {
+    V1, V2
+  }
 }
