@@ -152,15 +152,10 @@ public class SpaceCopy implements JobCompilationInterceptor {
           .withTargetSpaceId(targetSpaceId)
           .withSourceVersionRef( resolveTags( sourceSpaceId, versionRef, sourceMaxVersion))
           .withPropertyFilter(propertyFilter)
+          .withSpatialFilter(spatialFilter)
           .withThreadInfo(new int[]{ threadId, threadCount })
           .withJobId(jobId)
           .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
-
-      if (spatialFilter != null) {
-        copySpaceStep.setGeometry(spatialFilter.getGeometry());
-        copySpaceStep.setRadius(spatialFilter.getRadius());
-        copySpaceStep.setClipOnFilterGeometry(spatialFilter.isClip());
-      }
 
       cGraph.addExecution(copySpaceStep).withParallel(true);
     }
