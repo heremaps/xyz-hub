@@ -31,6 +31,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
@@ -45,6 +46,9 @@ import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
+import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
+import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
@@ -96,51 +100,22 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   //Existing Space in which we copy to
   private String targetSpaceId;
 
-  //Geometry-Filters
-  private Geometry geometry;
-  private int radius = -1;
-  private boolean clipOnFilterGeometry;
-
   //Content-Filters
+  private SpatialFilter spatialFilter;
   private PropertiesQuery propertyFilter;
   private Ref sourceVersionRef;
 
-  public Geometry getGeometry() {
-    return geometry;
+
+  public SpatialFilter getSpatialFilter() {
+    return spatialFilter;
   }
 
-  public void setGeometry(Geometry geometry) {
-    this.geometry = geometry;
+  public void setSpatialFilter(SpatialFilter spatialFilter) {
+    this.spatialFilter = spatialFilter;
   }
 
-  public CopySpace withGeometry(Geometry geometry) {
-    setGeometry(geometry);
-    return this;
-  }
-
-  public int getRadius() {
-    return radius;
-  }
-
-  public void setRadius(int radius) {
-    this.radius = radius;
-  }
-
-  public CopySpace withRadius(int radius) {
-    setRadius(radius);
-    return this;
-  }
-
-  public boolean isClipOnFilterGeometry() {
-    return clipOnFilterGeometry;
-  }
-
-  public void setClipOnFilterGeometry(boolean clipOnFilterGeometry) {
-    this.clipOnFilterGeometry = clipOnFilterGeometry;
-  }
-
-  public CopySpace withClipOnFilterGeometry(boolean clipOnFilterGeometry) {
-    setClipOnFilterGeometry(clipOnFilterGeometry);
+  public CopySpace withSpatialFilter(SpatialFilter spatialFilter) {
+    setSpatialFilter(spatialFilter);
     return this;
   }
 
@@ -373,7 +348,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace, int threadCount, int threadId)
-      throws SQLException, WebClientException {
+      throws SQLException, WebClientException, QueryBuildingException, TooManyResourcesClaimed {
     String targetStorageId = targetSpace.getStorage().getId(),
            targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ),
            targetTable  = getRootTableName(targetSpace);
@@ -403,7 +378,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         ) as wfresult
       from
       (
-       select ((row_number() over ())-1)/${{maxblksize}} as rn, idata.author, idata.jsondata || jsonb_build_object('geometry',st_asgeojson(idata.geo)::json) as feature
+       select ((row_number() over ())-1)/${{maxblksize}} as rn, idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
        from
        ( ${{contentQuery}} ) idata
       ) iidata
@@ -419,60 +394,43 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         .withQueryFragment("contentQuery", contentQuery);
   }
 
-  private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException, WebClientException {
-    GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
-            .withSpace(space.getId())
-            //@TODO: verify if needed persistExport | versionsToKeep | context
-            .withVersionsToKeep(space.getVersionsToKeep())
-            .withRef(sourceVersionRef)
-            .withContext(EXTENSION)
-            .withPropertiesQuery(propertyFilter)
-            .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", isEnableHashedSpaceIdActivated(space)));
-
-    if (geometry != null) {
-      event.setGeometry(geometry);
-      event.setClip(clipOnFilterGeometry);
-      if(radius != -1) event.setRadius(radius);
-    }
-
-    if (threadCount <= 1) {
-      threadCount = 1;
-      threadId = 0;
-    }
-
-    SQLQuery threadCondition = new SQLQuery(" AND (( i % #{threadCount} ) = #{threadNumber})")
-        .withNamedParameter("threadCount", threadCount)
-        .withNamedParameter("threadNumber", threadId);
-
-    try {
-      return ((ExportSpace) getQueryRunner(event))
-              //TODO: Why not selecting the feature id / geo here?
-              //FIXME: Do not select operation / author as part of the "property-selection"-fragment
-              .withSelectionOverride(new SQLQuery("jsondata, author"))
-              .withCustomWhereClause(threadCondition)
-              .buildQuery(event);
-    }
-    catch (Exception e) {
-      throw new SQLException(e);
-    }
-  }
-
-  private SearchForFeatures getQueryRunner(GetFeaturesByGeometryEvent event) throws SQLException, ErrorResponseException,
-      TooManyResourcesClaimed, WebClientException {
-    Space sourceSpace = space();
-
+  private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException, WebClientException, QueryBuildingException, TooManyResourcesClaimed {
+    
     Database db = !isRemoteCopy()
-        ? loadDatabase(sourceSpace.getStorage().getId(), WRITER)
+        ? loadDatabase(space.getStorage().getId(), WRITER)
         : dbReader();
 
-    SearchForFeatures queryRunner;
-    if (geometry == null)
-      queryRunner = new ExportSpaceByProperties(event);
-    else
-      queryRunner = new ExportSpaceByGeometry(event);
 
-    queryRunner.setDataSourceProvider(requestResource(db,0));
-    return queryRunner;
+   GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
+        .withDataSourceProvider(requestResource(db, 0));
+
+   //if(context == SUPER)
+   //   space().switchToSuper(superSpace().getId());
+
+    GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
+        space().getId(),
+        hubWebClient().loadConnector(space().getStorage().getId()).params,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        EXTENSION,
+        space().getVersionsToKeep(),
+        sourceVersionRef,
+        spatialFilter != null ? spatialFilter.getGeometry() : null,
+        spatialFilter != null ? spatialFilter.getRadius() : 0,
+        spatialFilter != null && spatialFilter.isClip(),
+        propertyFilter
+    );
+
+
+    SQLQuery threadCondition = new SQLQuery("i % #{threadCount} = #{threadNumber}")
+    .withNamedParameter("threadCount", threadCount)
+    .withNamedParameter("threadNumber", threadId);
+
+    return queryBuilder
+        .withAdditionalFilterFragment(threadCondition)
+        //.withSelectionOverride(new SQLQuery("jsondata, author"))
+        .buildQuery(input);
+
   }
+
 
 }

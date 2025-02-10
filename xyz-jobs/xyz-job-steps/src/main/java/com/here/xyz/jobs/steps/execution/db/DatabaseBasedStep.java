@@ -221,9 +221,9 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
             select t.* 
             from 
             dblink( $icnt$ host=${{rmtHost}} dbname=${{rmtDb}} user=${{rmtUsr}} password=${{rmtPwd}} $icnt$, 
-                    $iqry$ select jsondata, author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
+                    $iqry$ select jsondata, jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, geo from ( ${{innerContentQuery}} ) rcopy $iqry$
                   ) 
-            as t( jsondata jsonb, author text, geo geometry )
+            as t( jsondata jsonb, author text, geo text )
            """
        )
        .withQueryFragment("innerContentQuery", contentQuery)
