@@ -169,8 +169,8 @@ public class Database extends ExecutionResource {
           //TODO: Run the following asynchronously
           List<Database> allDbs = new CopyOnWriteArrayList<>();
           for (Connector connector : connectors) {
-            if (connector.allowedEventTypes == null) //TODO: Remove that workaround once a proper region check was implemented
-              allDbs.addAll(loadDatabasesForConnector(connector));
+            //TODO: Add some value(s) in connector config to identify if the database can be added in the region
+            allDbs.addAll(loadDatabasesForConnector(connector));
           }
           return Future.succeededFuture(allDbs);
         });
@@ -232,14 +232,16 @@ public class Database extends ExecutionResource {
         }
         else {
           DBCluster dbCluster = AwsRDSClient.getInstance().getRDSClusterConfig(rdsClusterId);
-          dbCluster.dbClusterMembers().forEach(instance -> {
-            final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
+          if(dbCluster != null) {
+            dbCluster.dbClusterMembers().forEach(instance -> {
+              final DatabaseRole role = instance.isClusterWriter() ? WRITER : READER;
 
-            databases.add(new Database(rdsClusterId, instance.dbInstanceIdentifier(),
-                dbCluster.serverlessV2ScalingConfiguration().maxCapacity(), connectorDbSettingsMap)
-                .withName(connector.id)
-                .withRole(role));
-          });
+              databases.add(new Database(rdsClusterId, instance.dbInstanceIdentifier(),
+                      dbCluster.serverlessV2ScalingConfiguration().maxCapacity(), connectorDbSettingsMap)
+                      .withName(connector.id)
+                      .withRole(role));
+            });
+          }
         }
       }
     }

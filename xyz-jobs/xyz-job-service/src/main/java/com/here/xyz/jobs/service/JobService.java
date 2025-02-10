@@ -28,6 +28,7 @@ import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.web.HubWebClient;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.VertxOptions;
@@ -48,6 +49,7 @@ public class JobService extends Core {
 
   static {
     CONFIG_FILE = "jobs.config.json";
+    HubWebClient.userAgent = "XYZ-JobService/" + buildVersion();
   }
 
   static {

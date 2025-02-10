@@ -44,6 +44,7 @@ import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
+import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -260,26 +261,30 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
 
   @Override
   public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
-    if(versionRef == null)
+    if (versionRef == null)
       throw new ValidationException("Version ref is required.");
 
-    validateSpaceExists();
     //Resolve the ref to an actual version
-    if (versionRef.isTag()) {
-      try {
-        setVersionRef(new Ref(hubWebClient().loadTag(getSpaceId(), versionRef.getTag()).getVersion()));
+    try {
+      if (versionRef.isTag()) {
+        try {
+          setVersionRef(new Ref(loadTag(getSpaceId(), versionRef.getTag()).getVersion()));
+        }
+        catch (WebClientException e) {
+          throw new ValidationException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);
+        }
       }
-      catch (WebClientException e) {
-        throw new ValidationException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);
+      else if (versionRef.isHead()) {
+        try {
+          setVersionRef(new Ref(spaceStatistics(context, true).getMaxVersion().getValue()));
+        }
+        catch (WebClientException e) {
+          throw new ValidationException("Unable to resolve HEAD version of " + getSpaceId(), e);
+        }
       }
     }
-    else if (versionRef.isHead()) {
-      try {
-        setVersionRef(new Ref(spaceStatistics(context, true).getMaxVersion().getValue()));
-      }
-      catch (WebClientException e) {
-        throw new ValidationException("Unable to resolve HEAD version of " + getSpaceId(), e);
-      }
+    catch (StepException e) {
+      throw new ValidationException("Unable to resolve the provided version \"" + versionRef + "\". " + e.getMessage());
     }
   }
 
@@ -304,8 +309,9 @@ public class ExportSpaceToFiles extends SpaceBasedStep<ExportSpaceToFiles> {
             throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
               + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
           }
-        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException e) {
-          errorLog(JOB_VALIDATE, this, e, "Invalid Filter provided!");
+        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
+                 NullPointerException e) {
+          errorLog(JOB_VALIDATE, this, e, "Invalid SpatialFilter provided! ",spatialFilter.getGeometry().serialize());
           throw new ValidationException("Invalid SpatialFilter!");
         }
       }

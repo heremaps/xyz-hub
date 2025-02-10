@@ -25,6 +25,7 @@ import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
 import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
+import com.here.xyz.util.db.ConnectorParameters;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -40,7 +41,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
   private static final String TABLE_NAME = "table_name";
   private static final String TABLE_BYTES = "table_bytes";
   private static final String INDEX_BYTES = "index_bytes";
-
+  private final String connectorId;
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
@@ -49,6 +50,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
     super(event);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
+    connectorId = ConnectorParameters.fromEvent(event).getConnectorId();
   }
 
   @Override
@@ -98,7 +100,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
       long tableBytes = rs.getLong(TABLE_BYTES),
            indexBytes = rs.getLong(INDEX_BYTES);
 
-      SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes());
+      SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes().withStorageId(connectorId));
       if (isHistoryTable)
         sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
       else {

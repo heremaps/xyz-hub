@@ -227,9 +227,8 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {
-    if (spaceStatistics == null) {
+    if (spaceStatistics == null)
       spaceStatistics = loadSpaceStatistics(getSpaceId(), context, skipCache);
-    }
     return spaceStatistics;
   }
 
@@ -247,7 +246,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   protected <T> T handleErrorResponse(ErrorResponseException e) throws ErrorResponseException {
     if (e.getStatusCode() >= 500 || e.getStatusCode() == 429 || e.getStatusCode() == 403 || e.getStatusCode() == 401
         || e.getStatusCode() == 404)
-      throw new StepException("Error requesting Hub Service", e)
+      throw new StepException("Error requesting Hub Service" + (e.getParsedErrorResponse() != null ? ": " + e.getParsedErrorResponse().getError() + ": " + e.getParsedErrorResponse().getErrorMessage() : ""), e)
           .withCode("HTTP-" + e.getStatusCode())
           .withRetryable(true);
     throw e;

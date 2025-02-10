@@ -161,6 +161,7 @@ public class Job implements XyzSerializable {
    * @return Whether submission was done. If submission was not done, the Job remains in state NOT_READY.
    */
   public Future<Boolean> submit() {
+    logger.info("[{}] Submitting job ...", getId());
     return JobCompiler.getInstance().compile(this)
         .compose(stepGraph -> {
           setSteps(stepGraph);
@@ -193,6 +194,7 @@ public class Job implements XyzSerializable {
    * @return
    */
   protected Future<Void> prepare() {
+    logger.info("[{}] Preparing job ...", getId());
     return Future.all(Job.forEach(getSteps().stepStream().collect(Collectors.toList()), step -> prepareStep(step))).mapEmpty();
   }
 
@@ -208,6 +210,7 @@ public class Job implements XyzSerializable {
    * @return true if the job is ready for execution, false otherwise
    */
   protected Future<Boolean> validate() {
+    logger.info("[{}] Validating job ...", getId());
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
     return Future.all(Job.forEach(getSteps().stepStream().toList(), step -> validateStep(step)))
         .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
@@ -215,7 +218,9 @@ public class Job implements XyzSerializable {
 
   private static Future<Boolean> validateStep(Step step) {
     return ASYNC.run(() -> {
+      logger.info("[{}] Validating {}-step ...", step.getGlobalStepId(), step.getClass().getSimpleName());
       boolean isReady = step.validate();
+      logger.info("[{}] Validation of {}-step completed.", step.getGlobalStepId(), step.getClass().getSimpleName());
       State targetState = isReady ? SUBMITTED : NOT_READY;
       if (step.getStatus().getState() != targetState)
         step.getStatus().setState(targetState);
@@ -231,7 +236,6 @@ public class Job implements XyzSerializable {
     getStatus().setState(PENDING);
     getSteps().stepStream().forEach(step -> step.getStatus().setState(PENDING));
 
-    logger.info("Starting job {} ...", getId());
     long t1 = Core.currentTimeMillis();
     return store()
         .compose(v -> startExecution(false))
@@ -239,9 +243,11 @@ public class Job implements XyzSerializable {
   }
 
   private Future<Void> startExecution(boolean resume) {
+    logger.info("[{}] Starting job ...", getId());
     /*
-    Execute the step graph of this job. From now on the intrinsic state updates
-    will be synchronized from the step executions back to the service and cached in the job's step graph.
+    Execute the step graph of this job.
+    From now on, the intrinsic state updates will be synchronized
+    from the step executions back to the service and cached in the job's step graph.
      */
     return JobExecutor.getInstance().startExecution(this, resume ? getExecutionId() : null);
   }

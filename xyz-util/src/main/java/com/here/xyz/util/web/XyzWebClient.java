@@ -22,6 +22,9 @@ package com.here.xyz.util.web;
 import static java.net.http.HttpClient.Redirect.NORMAL;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.responses.ErrorResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -36,15 +39,18 @@ import java.util.Map;
 
 public abstract class XyzWebClient {
   protected final String baseUrl;
+  private final String userAgent;
   private final Map<String, String> extraHeaders;
   private static final int MAX_REQUEST_ATTEMPTS = 3;
+  public static final String DEFAULT_USER_AGENT = "Unknown/0.0.0";
 
-  protected XyzWebClient(String baseUrl) {
-    this(baseUrl, null);
+  protected XyzWebClient(String baseUrl, String userAgent) {
+    this(baseUrl, userAgent, null);
   }
 
-  protected XyzWebClient(String baseUrl, Map<String, String> extraHeaders) {
+  protected XyzWebClient(String baseUrl, String userAgent, Map<String, String> extraHeaders) {
     this.baseUrl = baseUrl;
+    this.userAgent = userAgent != null ? userAgent : DEFAULT_USER_AGENT;
     this.extraHeaders = extraHeaders;
   }
 
@@ -72,6 +78,7 @@ public abstract class XyzWebClient {
     try {
       if (extraHeaders != null)
         extraHeaders.entrySet().forEach(entry -> requestBuilder.header(entry.getKey(), entry.getValue()));
+      requestBuilder.header("User-Agent", userAgent);
 
       HttpRequest request = requestBuilder.build();
       HttpResponse<byte[]> response = client().send(request, BodyHandlers.ofByteArray());
@@ -113,16 +120,25 @@ public abstract class XyzWebClient {
 
   public static class ErrorResponseException extends WebClientException {
     private HttpResponse<byte[]> errorResponse;
+    private ErrorResponse parsedErrorResponse;
     private int statusCode;
 
     public ErrorResponseException(HttpResponse<byte[]> errorResponse) {
       super("Received error response with status code " + errorResponse.statusCode() + " response body:\n" + new String(errorResponse.body()));
       this.errorResponse = errorResponse;
-      this.statusCode = errorResponse.statusCode();
+      statusCode = errorResponse.statusCode();
+      try {
+        parsedErrorResponse = XyzSerializable.deserialize(errorResponse.body());
+      }
+      catch (JsonProcessingException ignored) {}
     }
 
     public HttpResponse<byte[]> getErrorResponse() {
       return errorResponse;
+    }
+
+    public ErrorResponse getParsedErrorResponse() {
+      return parsedErrorResponse;
     }
 
     public int getStatusCode() {
