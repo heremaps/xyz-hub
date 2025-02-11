@@ -62,7 +62,7 @@ public class DynamoClient {
   private static final String HYPHEN = "-";
 
 
-  public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
+  public static final WorkerExecutor dynamoWorkers = Core.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 30);
 
   public final AmazonDynamoDBAsync client; //TODO: Make private once DynamoSpaceConfigClient has been refactored
   public final String tableName;
