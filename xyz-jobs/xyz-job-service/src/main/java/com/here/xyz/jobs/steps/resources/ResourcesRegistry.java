@@ -60,9 +60,9 @@ public class ResourcesRegistry {
   }
 
   /**
-   * Provides the number of virtual units which are not in use, and which are still available to be used by incoming jobs.
+   * Provides the number of virtual units which are not in use, that are still available to be used by incoming jobs.
    *
-   * @return The number of virtual units which are still free to be used
+   * @return The number of virtual units that are still free to be used
    */
   public static Future<Map<ExecutionResource, Double>> getFreeVirtualUnits() {
     return getAllResources()
