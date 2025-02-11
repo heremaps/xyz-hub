@@ -45,12 +45,17 @@ import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.aws.dynamo.DynamoClient;
 import com.here.xyz.util.service.aws.dynamo.IndexDefinition;
+
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
+
+import java.net.http.HttpResponse;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -198,9 +203,9 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         .onFailure(t -> logger.error(marker, "Failure to get space ID: {} during space deletion", spaceId, t))
         .compose(space -> {
           if (space == null) {
-              String errMsg = String.format("Space ID: %s is null after retrieval during space deletion", spaceId);
+              String errMsg = String.format("Space ID '%s' - space is null during space deletion", spaceId);
               logger.error(marker,errMsg);
-              return Future.failedFuture(errMsg);
+              return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND,errMsg));
           } else {
               logger.info(marker, "Space ID: {} has been retrieved", space.getId());
               return Future.succeededFuture(space);
