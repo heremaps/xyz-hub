@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,7 +51,7 @@ import org.apache.logging.log4j.Logger;
 })
 public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends LambdaBasedStep<T> {
   private static final Logger logger = LogManager.getLogger();
-  private String ASYNCIFY_LABEL_PREFIX = "asyncStepId_";
+  private String ASYNC_STEP_ID = "asyncStepId";
   private double claimedAcuLoad;
   @JsonView(Internal.class)
   private List<RunningQuery> runningQueries = new ArrayList<>();
@@ -103,10 +102,10 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
         .withLabel("stepId", getId());
 
     if (async) {
-      query.withLabel(ASYNCIFY_LABEL_PREFIX, getId());
       query = (withCallbacks ? wrapQuery(query) : query)
           .withAsync(true)
-          .withTimeout(10);
+          .withTimeout(10)
+          .withLabel(ASYNC_STEP_ID, getId());
     }
     else if (query.getTimeout() == Integer.MAX_VALUE)
       query.setTimeout(300);
@@ -245,21 +244,21 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     List<String> failedCancellations = new LinkedList<>();
     Exception lastException = null;
 
-    Set<Map.Entry<String, String>> dbList = runningQueries.stream()
-            .map(rq -> Map.entry(rq.dbName(), rq.dbId()))
-            .collect(Collectors.toSet());
+    Set<Map.Entry<String, String>> dbIdentifiers = runningQueries.stream()
+        .map(query -> Map.entry(query.dbName(), query.dbId()))
+        .collect(Collectors.toSet());
 
-    for (Map.Entry<String, String> entry : dbList) {
+    for (Map.Entry<String, String> entry : dbIdentifiers) {
       String dbName = entry.getKey();
       String dbId = entry.getValue();
 
       try {
         Database db = Database.loadDatabase(dbName, dbId);
-        SQLQuery.killByLabel(ASYNCIFY_LABEL_PREFIX , getId(), db.getDataSources(), db.getRole() == READER);
-        logger.info("[{}] Queries with were successfully cancelled on {}:{}.", getGlobalStepId(), dbName, db.getRole().name());
+        SQLQuery.killByLabel(ASYNC_STEP_ID, getId(), db.getDataSources(), db.getRole() == READER);
+        logger.info("[{}] Asynchronous queries of step were successfully cancelled on {}:{}.", getGlobalStepId(), dbName, db.getRole().name());
       }
       catch (SQLException e) {
-        logger.error("Error cancelling queries of step {} on {}.", getGlobalStepId(), dbName, e);
+        logger.error("[{}] Error cancelling asynchronous queries of the step on {}.", getGlobalStepId(), dbName, e);
         failedCancellations.add(dbName);
         lastException = e;
         //Continue trying to cancel the remaining queries ...
@@ -269,7 +268,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
     if (!failedCancellations.isEmpty()) {
       //TODO: check if we want to back report like in the uncommented code
       //runningQueries = failedCancellations;
-      logger.error("Error cancelling running queries of step {}. The queries on db(s) {} probably still running!",
+      logger.error("[{}] Error cancelling running queries of the step. Some queries on db(s) {} are probably still running!",
           getGlobalStepId(), failedCancellations);
       throw new RuntimeException("Error cancelling running queries.", lastException);
     }
@@ -279,20 +278,20 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
-    logger.info("Checking execution state of step {} ...", getGlobalStepId());
+    logger.info("[{}] Checking execution state of the step ...", getGlobalStepId());
     Set<Map.Entry<String, String>> dbList = runningQueries.stream()
-            .map(rq -> Map.entry(rq.dbName(), rq.dbId()))
-            .collect(Collectors.toSet());
+        .map(rq -> Map.entry(rq.dbName(), rq.dbId()))
+        .collect(Collectors.toSet());
     boolean someQueryIsRunning = dbList
         .stream()
         .anyMatch(db -> {
           try {
             Database database = Database.loadDatabase(db.getKey(), db.getValue());
             return SQLQuery.isRunning(database.getDataSources(), database.getRole() == READER,
-                ASYNCIFY_LABEL_PREFIX, getId());
+                ASYNC_STEP_ID, getId());
           }
           catch (SQLException e) {
-            logger.error("Error while trying to check running queries of step {} on {}.", getGlobalStepId(), db.getKey(), e);
+            logger.error("[{}] Error while trying to check running queries of the step on {}.", getGlobalStepId(), db.getKey(), e);
             /*
             Ignore it if we cannot check the state for (one of) the queries (for now).
             In the worst case, this will lead to an UnknownStateException.
