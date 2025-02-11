@@ -101,7 +101,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return new SQLQuery("${{filterWhereClause}} ${{authorCheck}} ${{deletedCheck}}")
         .withQueryFragment("filterWhereClause", filterWhereClause)
         .withQueryFragment("authorCheck", buildAuthorCheckFragment(event))
-        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(isExtension));
+        .withQueryFragment("deletedCheck", buildDeletionCheckFragment(event, isExtension));
   }
 
   protected SQLQuery buildFilterWhereClause(E event) {
@@ -238,9 +238,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("versionCheck", versionCheckFragment);
   }
 
-  private SQLQuery buildDeletionCheckFragment(boolean isExtension) {
-    if (!historyEnabled && !isExtension)
+  private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
+    if ((!historyEnabled && !isExtension) ||
+            (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())) {
       return new SQLQuery("");
+    }
 
     String operationsParamName = "operationsToFilterOut" + (isExtension ? "Extension" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
     return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
