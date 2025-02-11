@@ -356,7 +356,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery );
 
     return new SQLQuery(
-/**/
+/**/  //TODO: rm workaround after clarifying with feature_writer <-> where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null 
   """
     WITH ins_data as
     (
@@ -373,6 +373,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
        select ((row_number() over ())-1)/${{maxblksize}} as rn, idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
        from
        ( ${{contentQuery}} ) idata
+       where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null 
       ) iidata
       group by rn, author
     )

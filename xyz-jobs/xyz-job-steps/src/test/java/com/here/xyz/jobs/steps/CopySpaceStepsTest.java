@@ -24,6 +24,8 @@ import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
@@ -38,6 +40,7 @@ import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Polygon;
@@ -63,11 +66,11 @@ public class CopySpaceStepsTest extends StepTest {
                         otherConnector = "psql_db2_hashed",
                         targetRemoteSpace = "testCopy-Target-07-remote",
                         propertyFilter = "p.all=common",
-                        versionRange = "1..2";
+                        versionRange = "1..5";
 
   static private Polygon spatialSearchGeom;
   static private float xmin = 7.0f, ymin = 50.0f, xmax = 7.1f, ymax = 50.1f;
-
+  static private FeatureCollection ftCollection;
   static {
     LinearRingCoordinates lrc = new LinearRingCoordinates();
     lrc.add(new Position(xmin, ymin));
@@ -78,10 +81,28 @@ public class CopySpaceStepsTest extends StepTest {
     PolygonCoordinates pc = new PolygonCoordinates();
     pc.add(lrc);
     spatialSearchGeom = new Polygon().withCoordinates(pc);
+
+    try {
+     ftCollection = XyzSerializable.deserialize(
+      """
+       {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "id-deleted-feature",
+                "properties": { "all":"common" },
+                "geometry": {"type": "Point", "coordinates": [7.05,50.05]}
+            }
+        ]
+       }
+      """, FeatureCollection.class);
+    } catch (JsonProcessingException e) {
+     e.printStackTrace();
+    }
+
   }
 
-  
-  // 
 
   @BeforeEach
   public void setup() throws SQLException {
@@ -99,8 +120,12 @@ public class CopySpaceStepsTest extends StepTest {
     putRandomFeatureCollectionToSpace(sourceSpaceBase, 7, xmin, ymin, xmax, ymax); // base will not be copied
 
     putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax); // v1
-    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax); // v2
-    putRandomFeatureCollectionToSpace(sourceSpace, 10, xmin, ymin, xmax, ymax); // v3
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v2
+    putFeatureCollectionToSpace(sourceSpace, ftCollection);                                  // v3   
+    deleteFeaturesInSpace(sourceSpace, List.of("id-deleted-feature"));                    // v4
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v5
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v6
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v7
 
     //write features target - non-empty-space
     putRandomFeatureCollectionToSpace(targetSpace, 2, xmin, ymin, xmax, ymax);
@@ -134,7 +159,7 @@ public class CopySpaceStepsTest extends StepTest {
         Arguments.of(true, spatialSearchGeom, false, null,null),
         Arguments.of(true, spatialSearchGeom, true, null,null),
         Arguments.of(true, spatialSearchGeom, false, propertyFilter,null),
-        Arguments.of(true, spatialSearchGeom, true, propertyFilter,null) 
+        Arguments.of(true, spatialSearchGeom, true, propertyFilter,null)
     );
   }
 
