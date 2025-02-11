@@ -309,9 +309,6 @@ public abstract class JobExecutor implements Initializable {
                 logger.info("Job {} can not be executed (yet) as the resource {} is not available or there are not sufficient "
                         + "resource units available. Needed units: {}, currently available units: {}",
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
-
-              logger.info("Job {} can be executed. Resource {}, needed units: {}, currently available units: {}",
-                  job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             })));
   }
