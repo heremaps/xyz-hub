@@ -25,6 +25,7 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
@@ -34,6 +35,8 @@ import java.util.Map;
 
 public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByGeometryInput> {
   private SQLQuery additionalFilterFragment;
+  private SQLQuery selectClauseOverride;
+  private BBox bbox;
 
   @Override
   public SQLQuery buildQuery(GetFeaturesByGeometryInput input) throws QueryBuildingException {
@@ -67,6 +70,16 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     return this;
   }
 
+  public GetFeaturesByGeometryBuilder withSelectClauseOverride(SQLQuery selectClauseOverride) {
+    this.selectClauseOverride = selectClauseOverride;
+    return this;
+  }
+
+  public GetFeaturesByGeometryBuilder withGeoFilterOverride(BBox bbox) {
+    this.bbox = bbox;
+    return this;
+  }
+
   public record GetFeaturesByGeometryInput(
       String spaceId,
       Map<String, Object> connectorParams,
@@ -82,8 +95,9 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     public GetFeaturesByGeometryInput {
       if (ref == null)
         ref = new Ref(HEAD);
-      if (geometry == null && clip)
-        throw new IllegalArgumentException("Clip can not be applied if no filter geometry is provided.");
+      //TODO: check
+      //if (geometry == null && clip)
+      //  throw new IllegalArgumentException("Clip can not be applied if no filter geometry is provided.");
     }
   }
 
@@ -94,17 +108,42 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     }
 
     @Override
+    protected SQLQuery buildSelectClause(GetFeaturesByGeometryEvent event, int dataset) {
+      return overrideSelectClause(super.buildSelectClause(event, dataset), selectClauseOverride);
+    }
+
+    @Override
     protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
       return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment);
     }
 
+    @Override
+    protected SQLQuery buildGeoFilter(GetFeaturesByGeometryEvent event) {
+      return patchGeoFilter(super.buildGeoFilter(event));
+    }
+
+    protected SQLQuery patchGeoFilter(SQLQuery geoFilterClause) {
+      if(bbox != null)
+        return new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
+              .withNamedParameter("minLon", bbox.minLon())
+              .withNamedParameter("minLat", bbox.minLat())
+              .withNamedParameter("maxLon", bbox.maxLon())
+              .withNamedParameter("maxLat", bbox.maxLat());
+      return geoFilterClause;
+    }
+
     private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment) {
-      if (additionalFilterFragment == null)
-        return filterWhereClause;
-      SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} AND ${{customWhereClause}}")
+      if (additionalFilterFragment != null)
+        return new SQLQuery("${{innerFilterWhereClause}} AND ${{customWhereClause}}")
           .withQueryFragment("innerFilterWhereClause", filterWhereClause)
           .withQueryFragment("customWhereClause", additionalFilterFragment);
-      return customizedWhereClause;
+      return filterWhereClause;
+    }
+
+    private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {
+      if (selectClauseOverride != null)
+        return selectClause.withQueryFragment("selectClause", selectClauseOverride);
+      return selectClause;
     }
   }
 }
