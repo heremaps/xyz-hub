@@ -263,7 +263,7 @@ public class CompressFiles extends SyncLambdaStep {
       zipStream.putNextEntry(entry);
       zipStream.write(data);
       zipStream.closeEntry();
-      logger.info("Added entry '{}' to ZIP. Size: {} bytes", zipEntryPath, data.length);
+      logger.debug("Added entry '{}' to ZIP. Size: {} bytes", zipEntryPath, data.length);
     }
     catch (IOException e) {
       logger.error("Error adding entry to ZIP. Skipping. Error: ", e);
@@ -290,7 +290,7 @@ public class CompressFiles extends SyncLambdaStep {
 
       if (groupByMetadataKey != null && !groupByMetadataKey.isEmpty()
           && input.getMetadata() != null && !input.getMetadata().isEmpty()) {
-        
+
         String folderName = (String) input.getMetadata().getOrDefault(groupByMetadataKey, null);
         String processedFolderName = processFolder(folderName, zipStream);
 
@@ -330,7 +330,7 @@ public class CompressFiles extends SyncLambdaStep {
     createZipEntry(folderEntryPath, new byte[0], zipStream);
     createdFolders.add(folderName);
 
-    logger.info("Created folder entry '{}' in the ZIP.", folderName + "/");
+    logger.debug("Created folder entry '{}' in the ZIP.", folderName + "/");
   }
 
   private void createZipEntry(String entryPath, byte[] data, ZipOutputStream zipStream) {
@@ -339,7 +339,7 @@ public class CompressFiles extends SyncLambdaStep {
       zipStream.putNextEntry(entry);
       zipStream.write(data);
       zipStream.closeEntry();
-      logger.info("Added entry '{}' to ZIP. Size: {} bytes", entryPath, data.length);
+      logger.debug("Added entry '{}' to ZIP. Size: {} bytes", entryPath, data.length);
     } catch (IOException e) {
       logger.error("Error adding entry '{}' to ZIP. Skipping. Error: ", entryPath, e);
     }
@@ -368,7 +368,7 @@ public class CompressFiles extends SyncLambdaStep {
   private void addFileToZip(Input input, S3Client sourceClient, String zipEntryPath, ZipOutputStream zipStream) {
     try (InputStream fileStream = sourceClient.streamObjectContent(input.getS3Key())) {
       addFileContentToZip(zipStream, zipEntryPath, fileStream);
-      logger.info("Added file '{}' to ZIP under entry '{}'. Size: {} bytes", input.getS3Key(), zipEntryPath, input.getByteSize());
+      logger.debug("Added file '{}' to ZIP under entry '{}'. Size: {} bytes", input.getS3Key(), zipEntryPath, input.getByteSize());
     }
     catch (Exception e) {
       logger.error("Error adding file '{}' to ZIP at '{}'. Skipping. Error: ", input.getS3Key(), zipEntryPath, e);
