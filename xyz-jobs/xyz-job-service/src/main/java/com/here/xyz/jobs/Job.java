@@ -109,7 +109,7 @@ public class Job implements XyzSerializable {
   @JsonView(Static.class)
   private String secondaryResourceKey;
 
-  private static final Async ASYNC = new Async(20, Job.class);
+  private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
   private static final long DEFAULT_JOB_TTL = TimeUnit.DAYS.toMillis(2 * 7); //4 weeks
 
@@ -458,7 +458,7 @@ public class Job implements XyzSerializable {
     return calculateResourceLoads(getSteps())
         .map(resourceLoads -> resourceLoads.entrySet().stream()
             .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
-            .collect(Collectors.toList()));
+            .toList());
   }
 
   private Future<Map<ExecutionResource, Double>> calculateResourceLoads(StepGraph graph) {
