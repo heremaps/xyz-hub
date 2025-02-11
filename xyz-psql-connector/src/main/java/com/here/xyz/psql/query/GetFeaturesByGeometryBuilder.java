@@ -142,7 +142,8 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
 
     private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {
       if (selectClauseOverride != null)
-        return selectClause.withQueryFragment("selectClause", selectClauseOverride);
+        return new SQLQuery("${{selectClause}}")
+                .withQueryFragment("selectClause", selectClauseOverride);
       return selectClause;
     }
   }
