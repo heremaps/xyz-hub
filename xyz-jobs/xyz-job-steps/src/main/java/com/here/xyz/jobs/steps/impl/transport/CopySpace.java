@@ -28,28 +28,21 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryC
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
-import com.here.xyz.jobs.steps.impl.transport.query.ExportSpace;
-import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByGeometry;
-import com.here.xyz.jobs.steps.impl.transport.query.ExportSpaceByProperties;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
-import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -57,7 +50,6 @@ import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
@@ -395,7 +387,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   }
 
   private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException, WebClientException, QueryBuildingException, TooManyResourcesClaimed {
-    
+
     Database db = !isRemoteCopy()
         ? loadDatabase(space.getStorage().getId(), WRITER)
         : dbReader();
