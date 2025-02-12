@@ -112,7 +112,6 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   public Map<ExecutionResource, Double> getAggregatedNeededResources() {
-    //TODO: asyncify the call to getNeededResources()
     List<Load> neededResources = getNeededResources();
     if (neededResources == null)
       return Collections.emptyMap();
