@@ -210,7 +210,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
           .collect(Collectors.toList());
 
       if (targetIds.isEmpty())
-        _unregisterStateCheckTriggerDeferred(200, attempt++);
+        _unregisterStateCheckTriggerDeferred(200, ++attempt);
 
       //Remove all targets from the rule
       cloudwatchEventsClient().removeTargets(RemoveTargetsRequest.builder().rule(getStateCheckRuleName()).ids(targetIds).build());
@@ -220,11 +220,11 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
     catch (ConcurrentModificationException e) {
       logger.info("[{}] Concurrent modification of state-check trigger {} Starting next attempt ...", getGlobalStepId(), getStateCheckRuleName());
-      _unregisterStateCheckTriggerDeferred(200, attempt++);
+      _unregisterStateCheckTriggerDeferred(200, ++attempt);
     }
     catch (ResourceNotFoundException e) {
       logger.error("[{}] Unregistering state-check trigger {} failed as it does not exist (yet / anymore).", getGlobalStepId(), getStateCheckRuleName());
-      //Ignore the exception, as the rule is not existing (yet / anymore)
+      _unregisterStateCheckTriggerDeferred(200, ++attempt);
     }
     catch (Exception e) {
       logger.error("[{}] Unexpected error while unregistering state-check trigger {}", getGlobalStepId(), getStateCheckRuleName(), e);
