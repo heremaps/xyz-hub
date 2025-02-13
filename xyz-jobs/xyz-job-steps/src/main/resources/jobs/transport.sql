@@ -614,14 +614,19 @@ $BODY$
 -- ####################################################################################################################
 -- Export related:
 
+DROP FUNCTION IF EXISTS report_export_progress(lambda_function_arn TEXT,lambda_region TEXT,step_payload JSON,
+    task_id TEXT,bytes_uploaded BIGINT,rows_uploaded BIGINT,files_uploaded INT);
+
+DROP FUNCTION IF EXISTS report_export_progress(lambda_function_arn TEXT,lambda_region TEXT,step_payload JSON,task_id INT,
+                      bytes_uploaded BIGINT,rows_uploaded BIGINT,files_uploaded INT);
 /**
  *  Report export progress
  */
-CREATE OR REPLACE FUNCTION report_export_progress(
+CREATE OR REPLACE FUNCTION report_task_progress(
     lambda_function_arn TEXT,
 	lambda_region TEXT,
 	step_payload JSON,
-	thread_id INT,
+	task_id INT,
 	bytes_uploaded BIGINT,
 	rows_uploaded BIGINT,
 	files_uploaded INT
@@ -635,8 +640,8 @@ BEGIN
 		lambda_region,
 		step_payload,
 		json_build_object(
-		       'type','FeaturesExportedUpdate',
-			   'threadId',thread_id,
+		       'type','SpaceBasedTaskUpdate',
+			   'taskId',task_id,
 			   'byteCount',bytes_uploaded,
 			   'featureCount',rows_uploaded,
 			   'fileCount',files_uploaded
@@ -646,13 +651,72 @@ END
 $BODY$;
 
 /**
+ * Get task_item and statistic
+ */
+CREATE OR REPLACE FUNCTION get_task_item_and_statistics()
+    RETURNS TABLE (total INT, started INT, finalized INT, task_id INT, task_data JSONB) AS $$
+DECLARE
+    v_total INT;
+    v_started INT;
+    v_finalized INT;
+    task_item RECORD;
+    ctx JSONB;
+BEGIN
+    SELECT context() INTO ctx;
+
+    -- Get statistics
+    EXECUTE format('SELECT COUNT(1),
+            SUM((A.started = true)::int),
+            SUM((A.finalized = true)::int)
+            FROM %1$s A;',
+           get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE')
+    ) INTO v_total, v_started, v_finalized;
+
+    -- No work left
+    IF v_total = v_finalized THEN
+        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "TaskData"}'::JSONB;
+        RETURN;
+    END IF;
+
+    -- Retrieve next task_item (will be NULL if all are locked)
+    EXECUTE format('SELECT B.task_id, B.task_data
+            FROM %1$s B
+            WHERE B.started = false
+            ORDER BY random()
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED;',
+           get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE')
+    ) INTO task_item;
+
+    -- If a task is found, mark it as started
+    IF task_item.task_id IS NOT NULL THEN
+        EXECUTE format('UPDATE %1$s C
+                SET started = true
+            WHERE C.task_id = %2$L;',
+            get_table_reference(ctx->>'schema', ctx->>'stepId' ,'JOB_TABLE'),
+            task_item.task_id);
+
+        RETURN QUERY SELECT v_total, v_started, v_finalized, task_item.task_id, task_item.task_data;
+    ELSIF v_total > v_finalized + v_started THEN
+        -- There are unstarted tasks, but all are locked -> Wait & retry
+        PERFORM pg_sleep(500);
+        RETURN QUERY SELECT * FROM "jobs.transport".get_task_item_and_statistics();
+    ELSE
+        -- No unstarted tasks exist -> return no work
+        RETURN QUERY SELECT v_total, v_started, v_finalized, -1, '{"type" : "TaskData"}'::JSONB;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+/**
  *  Export data from RDS -> S3
  */
 --old version
-DROP FUNCTION IF EXISTS export_to_s3_perform(content_query text,s3_bucket text,s3_path text,s3_region text);
+DROP FUNCTION IF EXISTS export_to_s3_perform(thread_id integer,s3_bucket text,s3_path text,s3_region text
+    ,step_payload json,lambda_function_arn text,lambda_region text,content_query text,failure_callback text);
 
 CREATE OR REPLACE FUNCTION export_to_s3_perform(
-        thread_id INT,
+        task_id INT,
         s3_bucket TEXT, s3_path TEXT, s3_region TEXT,
         step_payload JSON,
         lambda_function_arn TEXT,
@@ -671,7 +735,7 @@ BEGIN
 	DECLARE
 		export_statistics RECORD;
 	    config RECORD;
-        thread_id INT := '$wrappedouter$||thread_id||$wrappedouter$'::INT;
+        task_id INT := $wrappedouter$||task_id||$wrappedouter$::INT;
 		content_query TEXT := $x$$wrappedouter$||coalesce(content_query,'')||$wrappedouter$$x$::TEXT;
         s3_bucket TEXT := '$wrappedouter$||s3_bucket||$wrappedouter$'::TEXT;
 		s3_path TEXT := '$wrappedouter$||s3_path||$wrappedouter$'::TEXT;
@@ -694,11 +758,11 @@ BEGIN
 			    REGEXP_REPLACE(config.plugin_options, '[\(\)]', '', 'g')
 	            )INTO export_statistics;
 
-		PERFORM report_export_progress(
+		PERFORM report_task_progress(
 			 lambda_function_arn,
 			 lambda_region,
 			 step_payload,
-			 thread_id,
+			 task_id,
 			 export_statistics.bytes_uploaded,
 			 export_statistics.rows_uploaded,
 			 export_statistics.files_uploaded::int
