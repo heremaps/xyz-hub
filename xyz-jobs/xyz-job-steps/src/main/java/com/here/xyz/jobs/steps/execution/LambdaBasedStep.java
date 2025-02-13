@@ -48,7 +48,7 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
-import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles.FeaturesExportedUpdate;
+import com.here.xyz.jobs.steps.impl.transport.TaskedSpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
@@ -709,7 +709,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     }
 
     @JsonSubTypes({
-        @JsonSubTypes.Type(value = FeaturesExportedUpdate.class, name="FeaturesExportedUpdate"),
+            @JsonSubTypes.Type(value = TaskedSpaceBasedStep.SpaceBasedTaskUpdate.class, name = "SpaceBasedTaskUpdate"),
     })
     public static class ProcessUpdate<T extends ProcessUpdate> implements Typed {
 
