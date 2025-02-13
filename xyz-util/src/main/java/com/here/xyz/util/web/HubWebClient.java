@@ -144,7 +144,7 @@ public class HubWebClient extends XyzWebClient {
   }
 
   public void deleteFeatures(String spaceId, List<String> featureIds) throws WebClientException {
-    String idList = "?id="+String.join(",id=", featureIds);
+    String idList = "?id="+String.join(",", featureIds);
     request(HttpRequest.newBuilder()
             .DELETE()
             .uri(uri("/spaces/" + spaceId + "/features" + idList))
