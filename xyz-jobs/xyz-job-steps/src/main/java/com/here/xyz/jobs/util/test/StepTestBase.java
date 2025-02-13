@@ -22,6 +22,7 @@ package com.here.xyz.jobs.util.test;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.SUCCESS_CALLBACK;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.util.Random.randomAlpha;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
@@ -35,7 +36,10 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
+import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
+import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TransportTools;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
@@ -313,7 +317,8 @@ public class StepTestBase {
     s3Client.deleteFolder(s3Prefix);
   }
 
-  protected void sendLambdaStepRequestBlock(LambdaBasedStep step, boolean simulate) throws IOException, InterruptedException {
+  protected void sendLambdaStepRequestBlock(LambdaBasedStep step, boolean simulate)
+          throws IOException, InterruptedException {
     try {
       step.prepare(null, null);
       if (!step.validate())
@@ -328,10 +333,38 @@ public class StepTestBase {
 
     DataSourceProvider dsp = getDataSourceProvider();
 
+    if(step instanceof ExportSpaceToFiles){
+      waitTillTaskItemsAreFinalized(step);
+    }else{
+      waitTillAllQueriesAreFinalized(step);
+    }
+
+    if (simulate)
+      sendLambdaStepRequest(step, SUCCESS_CALLBACK, true);
+  }
+
+  protected void waitTillTaskItemsAreFinalized(Step step)  throws InterruptedException{
+    //WORKAROUND!! To solve UPDATE_CALLBACK problem.
+    //This is only working if Lambda is installed. ExportSteps are using
+    //Lambda calls from db to invoke new db thread calls.
+    try{
+      Integer i = -1;
+      while (i != 0) {
+        Thread.sleep(1000);
+        SQLQuery query = retrieveNumberOfNotFinalizedTasks("public", step);
+        i = query.run(getDataSourceProvider(), rs -> rs.next() ? rs.getInt(1) : null);
+        logger.info("{} Threads are not finished!", i);
+      }
+    } catch (XyzWebClient.WebClientException | SQLException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  protected void waitTillAllQueriesAreFinalized(Step step) throws InterruptedException{
     while (true) {
       Thread.sleep(500);
       try {
-        boolean running = SQLQuery.isRunning(dsp, false, "jobId", step.getJobId());
+        boolean running = SQLQuery.isRunning(getDataSourceProvider(), false, "jobId", step.getJobId());
         if (!running)
           break;
       }
@@ -339,9 +372,12 @@ public class StepTestBase {
         break;
       }
     }
+  }
 
-    if (simulate)
-      sendLambdaStepRequest(step, SUCCESS_CALLBACK, true);
+  protected SQLQuery retrieveNumberOfNotFinalizedTasks(String schema, Step step) throws XyzWebClient.WebClientException {
+    return new SQLQuery("SELECT count(1) from ${schema}.${table} WHERE finalized = false;")
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   protected void sendLambdaStepRequest(LambdaBasedStep step, LambdaBasedStep.LambdaStepRequest.RequestType requestType, boolean simulate)
