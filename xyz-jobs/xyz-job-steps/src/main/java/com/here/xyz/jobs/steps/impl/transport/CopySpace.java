@@ -275,12 +275,12 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return space(getTargetSpaceId());
   }
 
-  //TODO: Remove that workaround once the 3 copy steps were properly merged into one step again
   long _getCreatedVersion() {
     for (InputFromOutput input : (List<InputFromOutput>)(List<?>) loadInputs(InputFromOutput.class))
       if (input.getDelegate() instanceof CreatedVersion f)
         return f.getVersion();
-    return 0; //FIXME: Rather throw an exception here?
+    
+    return getVersion(); // in case not version found return provided version from caller, used for mocking test cases
   }
 
   private void _execute(boolean resumed) throws Exception {
@@ -356,26 +356,35 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery );
 
     //TODO: Do not use slow JSONB functions in the following query!
-    //TODO: rm workaround after clarifying with feature_writer <-> where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null
+
     return new SQLQuery("""
       WITH ins_data as
       (
         select
           write_features(
            jsonb_build_array(
-             jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
-                                'partialUpdates',false,
-                                'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) )))::text,
+            case deleted_flag when false then
+              jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
+                                  'partialUpdates',false,
+                                  'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) ))
+            else
+                jsonb_build_object('updateStrategy','{"onExists":"DELETE","onNotExists":"RETAIN"}'::jsonb,
+                                  'partialUpdates',false,
+                                  'featureIds', jsonb_agg( iidata.feature->'id' ) )
+            end
+          )::text,
              'Modifications', iidata.author,false,${{versionToBeUsed}}
           ) as wfresult
         from
         (
-         select ((row_number() over ())-1)/${{maxblksize}} as rn, idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature
+         select ((row_number() over ())-1)/${{maxblksize}} as rn, 
+                idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+                idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature,
+                ((idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is not null) as deleted_flag
          from
          ( ${{contentQuery}} ) idata
-         where (idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is null 
         ) iidata
-        group by rn, author
+        group by rn, author, deleted_flag
       )
       select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
     """).withContext(queryContext)
@@ -417,7 +426,8 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
     return queryBuilder
         .withAdditionalFilterFragment(threadCondition)
-        //.withSelectionOverride(new SQLQuery("jsondata, author"))
+        //.withSelectionOverride(new SQLQuery("jsondata, author, operation")) 
+        //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
         .buildQuery(input);
 
   }
