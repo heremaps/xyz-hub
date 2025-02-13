@@ -66,11 +66,13 @@ public class CopySpaceStepsTest extends StepTest {
                         otherConnector = "psql_db2_hashed",
                         targetRemoteSpace = "testCopy-Target-07-remote",
                         propertyFilter = "p.all=common",
-                        versionRange = "1..5";
+                        versionRange = "1..6";
 
   static private Polygon spatialSearchGeom;
   static private float xmin = 7.0f, ymin = 50.0f, xmax = 7.1f, ymax = 50.1f;
-  static private FeatureCollection ftCollection;
+  static private FeatureCollection ftCollection, ftCollection2;
+  static private long NrFeaturesAtStartInTargetSpace = 3;
+
   static {
     LinearRingCoordinates lrc = new LinearRingCoordinates();
     lrc.add(new Position(xmin, ymin));
@@ -97,6 +99,20 @@ public class CopySpaceStepsTest extends StepTest {
         ]
        }
       """, FeatureCollection.class);
+      ftCollection2 = XyzSerializable.deserialize(
+        """
+         {
+          "type": "FeatureCollection",
+          "features": [
+              {
+                  "type": "Feature",
+                  "id": "id-deleted-in-target-feature",
+                  "properties": { "all":"common" },
+                  "geometry": {"type": "Point", "coordinates": [7.05,50.05]}
+              }
+          ]
+         }
+        """, FeatureCollection.class);      
     } catch (JsonProcessingException e) {
      e.printStackTrace();
     }
@@ -119,17 +135,21 @@ public class CopySpaceStepsTest extends StepTest {
     //write features source
     putRandomFeatureCollectionToSpace(sourceSpaceBase, 7, xmin, ymin, xmax, ymax); // base will not be copied
 
-    putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax); // v1
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v2
-    putFeatureCollectionToSpace(sourceSpace, ftCollection);                                  // v3   
-    deleteFeaturesInSpace(sourceSpace, List.of("id-deleted-feature"));                    // v4
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v5
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v6
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);  // v7
+    putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax);                // v1
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v2
+    putFeatureCollectionToSpace(sourceSpace, ftCollection);                                                 // v3   
+    putFeatureCollectionToSpace(sourceSpace, ftCollection2);                                                // v4
+    deleteFeaturesInSpace(sourceSpace, List.of("id-deleted-feature","id-deleted-in-target-feature")); // v5
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v6
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v7
+    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v8
 
     //write features target - non-empty-space
     putRandomFeatureCollectionToSpace(targetSpace, 2, xmin, ymin, xmax, ymax);
+    putFeatureCollectionToSpace(targetSpace, ftCollection2);
+
     putRandomFeatureCollectionToSpace(targetRemoteSpace, 2, xmin, ymin, xmax, ymax);
+    putFeatureCollectionToSpace(targetRemoteSpace, ftCollection2);
 
   }
 
@@ -143,7 +163,7 @@ public class CopySpaceStepsTest extends StepTest {
 
   private static Stream<Arguments> provideParameters() {
     return Stream.of(
-        Arguments.of(false, null, false, null, null), 
+        Arguments.of(false, null, false, null, null),
         Arguments.of(false, null, false, propertyFilter,null),
         Arguments.of(false, spatialSearchGeom, false, null,null),
         Arguments.of(false, spatialSearchGeom, true, null,null),
@@ -170,19 +190,29 @@ public class CopySpaceStepsTest extends StepTest {
 
     StatisticsResponse statsBefore = getStatistics(targetSpace);
 
-    assertEquals(2L, (Object) statsBefore.getCount().getValue());
+    assertEquals(NrFeaturesAtStartInTargetSpace, (Object) statsBefore.getCount().getValue());
 
     LambdaBasedStep step = new CopySpace()
         .withSpaceId(sourceSpace).withSourceVersionRef(new Ref(versionRef == null ? "HEAD" : versionRef ))
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo).withClip(clip) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
         .withTargetSpaceId(targetSpace)
-        .withJobId(JOB_ID);
+        .withJobId(JOB_ID)
+        /* test only -> */.withVersion(3);
+
 
     sendLambdaStepRequestBlock(step, true);
 
+    long expectedCount = 43L;
+
+    if( versionRef != null )
+    { expectedCount = 12L;
+      if( geo != null || propertyFilter != null ) //TODO: clarify - in case of filtering with versionRange, deleted features are not copied as they are not "found" 
+       expectedCount++;
+    }
+ 
     StatisticsResponse statsAfter = getStatistics(targetSpace);
-    assertEquals( versionRef == null ? 42L : 12L, (Object) statsAfter.getCount().getValue());
+    assertEquals( expectedCount, (Object) statsAfter.getCount().getValue());
   }
 
   @Test
@@ -200,7 +230,7 @@ public class CopySpaceStepsTest extends StepTest {
       if (output instanceof CreatedVersion f)
         fetchedVersion = f.getVersion();
 
-    assertEquals(2l, fetchedVersion);
+    assertEquals(3l, fetchedVersion);
   }
 
   @Test
