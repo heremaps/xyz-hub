@@ -30,7 +30,8 @@ import java.util.Map;
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics"),
-    @JsonSubTypes.Type(value = CreatedVersion.class, name = "CreatedVersion")
+    @JsonSubTypes.Type(value = CreatedVersion.class, name = "CreatedVersion"),
+    @JsonSubTypes.Type(value = TileInvalidations.class, name = "TileInvalidationList")
 })
 public abstract class ModelBasedOutput extends Output<ModelBasedOutput> {
   @Override
