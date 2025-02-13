@@ -36,6 +36,7 @@ import com.here.xyz.jobs.steps.execution.db.DatabaseBasedStep;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
+import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.models.hub.Connector;
@@ -56,6 +57,7 @@ import org.apache.logging.log4j.Logger;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateIndex.class),
     @JsonSubTypes.Type(value = ExportSpaceToFiles.class),
+    @JsonSubTypes.Type(value = ExportChangedTiles.class),
     @JsonSubTypes.Type(value = ImportFilesToSpace.class),
     @JsonSubTypes.Type(value = DropIndexes.class),
     @JsonSubTypes.Type(value = AnalyzeSpaceTable.class),
