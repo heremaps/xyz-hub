@@ -39,6 +39,7 @@ import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.web.XyzWebClient;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -194,28 +195,37 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
     if (versionRef == null)
       throw new ValidationException("Version ref is required.");
 
-    //Resolve the ref to an actual version
     try {
       if (versionRef.isTag()) {
-        try {
-          versionRef = new Ref(loadTag(getSpaceId(), versionRef.getTag()).getVersion());
-        }
-        catch (WebClientException e) {
-          throw new ValidationException("Unable to resolve tag \"" + versionRef.getTag() + "\" of " + getSpaceId(), e);
-        }
+        versionRef = new Ref(resolveTag(versionRef.getTag()));
+      } else if (versionRef.isHead()) {
+        versionRef = new Ref(resolveHead());
       }
-      else if (versionRef.isHead()) {
-        try {
-          setVersionRef(new Ref(spaceStatistics(context, true).getMaxVersion().getValue()));
-        }
-        catch (WebClientException e) {
-          throw new ValidationException("Unable to resolve HEAD version of " + getSpaceId(), e);
-        }
-      }
-    }
-    catch (StepException e) {
+    } catch (StepException e) {
       throw new ValidationException("Unable to resolve the provided version \"" + versionRef + "\". " + e.getMessage());
     }
+  }
+
+  private long resolveTag(String tag) throws ValidationException {
+    try {
+      return loadTag(getSpaceId(), tag).getVersion();
+    } catch (WebClientException e) {
+      throw handleWebClientException(e, "Unable to resolve tag \"" + tag + "\" of " );
+    }
+  }
+
+  private long resolveHead() throws ValidationException {
+    try {
+      return spaceStatistics(context, true).getMaxVersion().getValue();
+    } catch (WebClientException e) {
+      throw handleWebClientException(e, "Unable to resolve HEAD version of ");
+    }
+  }
+
+  private ValidationException handleWebClientException(WebClientException e, String message) throws ValidationException {
+    if (e instanceof XyzWebClient.ErrorResponseException err && err.getStatusCode() == 428)
+      throw new ValidationException(getSpaceId() + " is deactivated!", e);
+    throw new ValidationException(message, e);
   }
 
   /**
