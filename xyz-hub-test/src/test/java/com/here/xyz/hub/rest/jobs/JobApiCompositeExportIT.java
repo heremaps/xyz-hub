@@ -241,7 +241,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         job.setFilters(filters);
 
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         assertNotNull(loadJob(testSpaceId1, job.getId()+ "_missing_base"));
         assertEquals(finalized, loadJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
 
