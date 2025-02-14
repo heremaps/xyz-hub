@@ -63,10 +63,19 @@ public class TagApiIT extends TestSpaceWithFeature {
       removeSpace(getSpaceId());
       removeSpace(SECOND_SPACE);
       createdSpaces.forEach(TagApiIT::removeSpace);
+      _deleteSubscription();
   }
 
   private ValidatableResponse _createTag() {
       return _createTagForId(getSpaceId(), "XYZ_1", false);
+  }
+
+  private ValidatableResponse _deleteSubscription() {
+    return given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + getSpaceId() + "/subscriptions/test-subscription-1")
+        .then();
   }
 
   private ValidatableResponse _createTagForId(String spaceId, String tagId, boolean system) {
@@ -459,6 +468,45 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .body("size()", is(2))
         .body("id", hasItems("XYZ_1", "XYZ_2"))
+        .statusCode(OK.code());
+  }
+
+  @Test
+  public void testRecreateSpaceWithSubscription() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
+        .then()
+        .statusCode(NOT_FOUND.code());
+
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(content("/xyz/hub/createSubscription.json"))
+        .post("/spaces/" + getSpaceId() + "/subscriptions");
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
+        .then()
+        .statusCode(OK.code());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .delete("/spaces/" + getSpaceId());
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
+        .then()
+        .statusCode(NOT_FOUND.code());
+
+    createSpaceWithVersionsToKeep(getSpaceId(), 2);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces/" + getSpaceId() + "/tags/xyz_ntf")
+        .then()
         .statusCode(OK.code());
   }
 }
