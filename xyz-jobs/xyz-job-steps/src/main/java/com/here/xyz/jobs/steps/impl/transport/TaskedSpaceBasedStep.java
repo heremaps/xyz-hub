@@ -206,11 +206,46 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
     }
   }
 
+  @Override
+  public boolean validate() throws ValidationException {
+    super.validate();
+    //Validate versionRef
+    if (this.versionRef == null)
+      return true;
+
+    try{
+      //TODO: Discuss if we want move this to SpaceBaseStep impl
+      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
+
+      Long minSpaceVersion = statistics.getMinVersion().getValue();
+      Long maxSpaceVersion = statistics.getMaxVersion().getValue();
+
+      if (this.versionRef.isSingleVersion()) {
+        if (this.versionRef.getVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
+                  minSpaceVersion + "'!");
+        if (this.versionRef.getVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
+                  maxSpaceVersion + "'!");
+      } else if (this.versionRef.isRange()) {
+        if (this.versionRef.getStartVersion() < minSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
+                  minSpaceVersion + "'!");
+        if (this.versionRef.getEndVersion() > maxSpaceVersion)
+          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
+                  maxSpaceVersion + "'!");
+      }
+    }catch (WebClientException e) {
+      throw handleWebClientException("Error loading resource " + getSpaceId(), e);
+    }
+    return true;
+  }
+
   private long resolveTag(String tag) throws ValidationException {
     try {
       return loadTag(getSpaceId(), tag).getVersion();
     } catch (WebClientException e) {
-      throw handleWebClientException(e, "Unable to resolve tag \"" + tag + "\" of " );
+      throw handleWebClientException("Unable to resolve tag \"" + tag + "\" of " + getSpaceId(), e);
     }
   }
 
@@ -218,11 +253,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
     try {
       return spaceStatistics(context, true).getMaxVersion().getValue();
     } catch (WebClientException e) {
-      throw handleWebClientException(e, "Unable to resolve HEAD version of ");
+      throw handleWebClientException("Unable to resolve HEAD version of " + getSpaceId(), e);
     }
   }
 
-  private ValidationException handleWebClientException(WebClientException e, String message) throws ValidationException {
+  protected ValidationException handleWebClientException(String message, WebClientException e) throws ValidationException {
     if (e instanceof XyzWebClient.ErrorResponseException err && err.getStatusCode() == 428)
       throw new ValidationException(getSpaceId() + " is deactivated!", e);
     throw new ValidationException(message, e);

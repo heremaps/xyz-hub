@@ -217,6 +217,8 @@ public class JobApi extends Api {
       return job;
     }
     catch (JsonProcessingException e) {
+      //TODO: Decide if we want to forward the cause to the user.
+      //e.g. an invalid versionRef(4,2) will end up here - without any indication for the user at the end
       throw new HttpException(BAD_REQUEST, "Error parsing request", e);
     }
   }
