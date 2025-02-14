@@ -204,7 +204,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         }
     }
 
-    //@Test
+    @Test
     public void validCompositeL1ExportDifferentFilter() throws Exception {
         Export job =  generateExportJob(testExportJobId, 6);
 
