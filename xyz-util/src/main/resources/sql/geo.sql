@@ -137,12 +137,12 @@ $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
 -- select here_quad(13.4050::FLOAT, 52.5200::FLOAT, 14);
 -- select here_quad_crl('377894440')
 -- select here_quad_crl(13.4050::FLOAT, 52.5200::FLOAT, 14)
--- select ST_AsGeojson(here_quad_to_bbox(405,550,10))
+-- select ST_AsGeojson(here_quad_to_bbox(8800,6486,14))
+-- select ST_AsGeojson(here_quad_to_bbox('377894440'))
 -- --- Base4
 -- select here_quad_crl('12201203120220',true);
 -- select here_quad_base4_to_base10('12201203120220');
--- select ST_AsGeojson(here_quad_to_bbox('12201203120220'))
-
+-- select ST_AsGeojson(here_quad_to_bbox('12201203120220',true));
 -----------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION here_quad(lonX DOUBLE PRECISION, latY DOUBLE PRECISION, level INT)
     RETURNS BIGINT AS $$
@@ -240,9 +240,11 @@ BEGIN
 END
 $$ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;
 -----------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION here_quad_to_bbox(qk TEXT)
+DROP FUNCTION IF EXISTS here_quad_to_bbox(qk TEXT);
+
+CREATE OR REPLACE FUNCTION here_quad_to_bbox(qk TEXT, isbase4encoded boolean DEFAULT false)
     RETURNS GEOMETRY AS $$
-SELECT here_quad_to_bbox(colX,rowY, level) FROM here_quad_crl( qk,true );
+SELECT here_quad_to_bbox(colX,rowY, level) FROM here_quad_crl( qk, isbase4encoded );
 $$ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE;
 -----------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION here_quad_base4_to_base10(qk TEXT)
@@ -367,6 +369,7 @@ BEGIN
     IF quad_type = 'MERCATOR_QUAD' THEN
         RETURN mercator_quad_to_bbox(colX,rowY,level);
     ELSE
+        -- only base10 here_quads are currently supported
         RETURN here_quad_to_bbox( colX, rowY, level);
     END IF;
 END;
