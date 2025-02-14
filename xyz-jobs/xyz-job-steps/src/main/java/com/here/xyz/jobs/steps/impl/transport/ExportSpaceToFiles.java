@@ -85,6 +85,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
   private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
+  //Currently only used if there is no filter set
+  private static final long MAX_TASK_COUNT = 1000;
+  private static final long MAX_BYTES_PER_TASK = 200L * 1024 * 1024; // 200MB in bytes
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
@@ -207,60 +210,30 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     if (versionRef.isAllVersions())
       throw new ValidationException("It is not supported to export all versions at once.");
 
-    try {
-      StatisticsResponse statistics = loadSpaceStatistics(getSpaceId(), context, true);
-
-      //Validate input Geometry
-      if (this.spatialFilter != null) {
-        spatialFilter.validateSpatialFilter();
-        try {
-          Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry((spatialFilter.getGeometry().getJTSGeometry()),
-                  spatialFilter.getRadius());
-          int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
-          if(GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
-            throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
-              + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
-          }
-        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
-                 NullPointerException e) {
-          errorLog(JOB_VALIDATE, this, e, "Invalid SpatialFilter provided! ",spatialFilter.getGeometry().serialize());
-          throw new ValidationException("Invalid SpatialFilter!");
+    //Validate input Geometry
+    if (this.spatialFilter != null) {
+      spatialFilter.validateSpatialFilter();
+      try {
+        Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry((spatialFilter.getGeometry().getJTSGeometry()),
+                spatialFilter.getRadius());
+        int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
+        if(GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
+          throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
+                  + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
         }
+      } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
+               NullPointerException e) {
+        errorLog(JOB_VALIDATE, this, e, "Invalid SpatialFilter provided! ",spatialFilter.getGeometry().serialize());
+        throw new ValidationException("Invalid SpatialFilter!");
       }
-
-      //Validate versionRef
-      if (this.versionRef == null)
-        return true;
-
-      Long minSpaceVersion = statistics.getMinVersion().getValue();
-      Long maxSpaceVersion = statistics.getMaxVersion().getValue();
-
-      if (this.versionRef.isSingleVersion()) {
-        if (this.versionRef.getVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is smaller than min available version '" +
-              minSpaceVersion + "'!");
-        if (this.versionRef.getVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
-              maxSpaceVersion + "'!");
-      }
-      else if (this.versionRef.isRange()) {
-        if (this.versionRef.getStartVersion() < minSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
-              minSpaceVersion + "'!");
-        if (this.versionRef.getEndVersion() > maxSpaceVersion)
-          throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
-              maxSpaceVersion + "'!");
-      }
+    }
 
       //TODO: Check if property validation is needed - in sense of searchableProperties
 //      if(statistics.getCount().getValue() > 1_000_000 && getPropertyFilter() != null){
 //        getPropertyFilter().getQueryKeys()
 //          throw new ValidationException("is not a searchable property");
 //      }
-    }
-    catch (WebClientException e) {
-      throw new ValidationException("Error loading resource " + getSpaceId(), e);
-    }
+
     return true;
   }
 
@@ -309,11 +282,24 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
   protected int createTaskItems(String schema) throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException {
-    for (int i = 0; i < calculatedThreadCount; i++) {
-      infoLog(STEP_EXECUTE, this,"Add initial entry in taskTable for thread number: " + i );
+    int taskListCount = calculatedThreadCount;
+
+    //Todo: find a possibility to add more tasks if filters are set
+    if(spatialFilter == null && propertyFilter == null) {
+      //The dataSize includes indexes and other overhead so the resulting files will be smaller than the
+      //defined MAX_BYTES_PER_TASK.
+      Long estByteCount = spaceStatistics.getDataSize().getValue();
+      infoLog(STEP_EXECUTE, this,"Retrieved estByteCount: " + estByteCount);
+      long calculatedTaskCount = (estByteCount + MAX_BYTES_PER_TASK - 1) / MAX_BYTES_PER_TASK;
+      // Ensure taskListCount does not exceed the maximum allowed limit
+      taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
+    }
+
+    infoLog(STEP_EXECUTE, this,"Add " + taskListCount + " initial entries in taskTable!");
+    for (int i = 0; i < taskListCount; i++) {
       runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData(i)), db(WRITER), 0);
     }
-    return calculatedThreadCount;
+    return taskListCount;
   }
 
   /**
@@ -407,7 +393,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
             createGetFeaturesByGeometryInput(context == null ? DEFAULT : context, spatialFilter, versionRef);
 
     SQLQuery threadCondition = new SQLQuery("i % #{threadCount} = #{threadNumber}")
-            .withNamedParameter("threadCount", calculatedThreadCount)
+            .withNamedParameter("threadCount", taskItemCount)
             .withNamedParameter("threadNumber", threadNumber);
 
     return queryBuilder
