@@ -46,6 +46,7 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
@@ -709,12 +710,21 @@ public class SpaceTaskHandler {
     return p.future();
   }
 
-  public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {
-    if (!task.isDelete()) {
-      callback.call(task);
+  public static void resolveDependencies(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    if (task.isDelete()) {
+      resolveDependenciesForDeletion(task, callback);
       return;
     }
 
+    if (task.isCreate()) {
+      resolveDependenciesForCreation(task, callback);
+      return;
+    }
+
+    callback.call(task);
+  }
+
+  private static void resolveDependenciesForDeletion(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     final String spaceId = task.responseSpaces.get(0).getId();
 
     final Future<List<Tag>> tagsFuture = Service.tagConfigClient.deleteTagsForSpace(task.getMarker(), spaceId)
@@ -729,6 +739,26 @@ public class SpaceTaskHandler {
         .onComplete(v -> {
           if (v.failed())
             logger.error(task.getMarker(), "Failed to complete clean dependent resources for space {}", spaceId, v.cause());
+          callback.call(task);
+        });
+  }
+
+  private static void resolveDependenciesForCreation(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    final String spaceId = task.responseSpaces.get(0).getId();
+
+    // check if there are subscriptions with source pointing to the space id being created
+    Service.subscriptionConfigClient.getBySource(task.getMarker(), spaceId)
+        .compose(subscriptions -> {
+          if (!subscriptions.isEmpty()) {
+            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG);
+          }
+
+          return Future.succeededFuture();
+        })
+        .onComplete(handler -> {
+          if (handler.failed()) {
+            logger.error(task.getMarker(), "Failed to resolve dependencies during creation of {}", spaceId, handler.cause());
+          }
           callback.call(task);
         });
   }
