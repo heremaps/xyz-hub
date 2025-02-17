@@ -46,7 +46,8 @@ import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.web.HubWebClient;
-import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -82,14 +83,14 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withJobId(job.getId())
         .withInputSets(List.of(USER_INPUTS.get()));
 
-    /** This validation check is needed to deliver a constructive error to the user - otherwise keepIndices will throw
+    /** This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw
      * a runtime error. */
     checkIfSpaceIsAccessible(spaceId);
 
     if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
       //Perform only the import Step
       return (CompilationStepGraph) new CompilationStepGraph()
-              .addExecution(importFilesStep);
+          .addExecution(importFilesStep);
 
     //perform full Import with all 11 Steps (IDX deletion/creation..)
     return compileImportSteps(importFilesStep);
@@ -126,12 +127,12 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
   }
 
-  private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError{
+  private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
     try {
       HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId);
-    } catch (XyzWebClient.WebClientException e) {
-      if(e instanceof XyzWebClient.ErrorResponseException err &&
-              err.getStatusCode() == 428)
+    }
+    catch (WebClientException e) {
+      if (e instanceof ErrorResponseException err && err.getStatusCode() == 428)
         throw new CompilationError("Target Layer is deactivated!");
       throw new CompilationError("Target is not accessible!");
     }
