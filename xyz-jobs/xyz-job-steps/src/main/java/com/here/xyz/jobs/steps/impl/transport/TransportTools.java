@@ -26,13 +26,12 @@ import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.json.JsonObject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TransportTools {
   private static final Logger logger = LogManager.getLogger();
@@ -146,18 +145,16 @@ public class TransportTools {
   protected static Map<String, Object> createQueryContext(String stepId, String schema, String table,
                                                           boolean historyEnabled, String superTable){
 
-    Map<String, Object> queryContext = new HashMap<>(Map.of(
-      "stepId", stepId,
-      "schema", schema,
-      "table", table,
-      "historyEnabled", historyEnabled));
+    final Map<String, Object> queryContext = new HashMap<>(Map.of(
+        "stepId", stepId,
+        "schema", schema,
+        "table", table,
+        "context", superTable != null ? "DEFAULT" : null,
+        "historyEnabled", historyEnabled
+    ));
 
-    if (superTable == null)
-     queryContext.put("context",null);
-    else
-    { queryContext.put("context", "DEFAULT" );
+    if (superTable != null)
       queryContext.put("extendedTable", superTable);
-    }
 
     return queryContext;
   }
