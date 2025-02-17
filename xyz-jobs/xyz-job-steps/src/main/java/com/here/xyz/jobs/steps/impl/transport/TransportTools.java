@@ -39,24 +39,18 @@ public class TransportTools {
   private static final String JOB_DATA_PREFIX = "job_data_";
   private static final String TRIGGER_TABLE_SUFFIX = "_trigger_tbl";
 
-  protected static String getSpaceId(Step step) {
-    if(step instanceof SpaceBasedStep<?> spaceStep)
-      return spaceStep.getSpaceId();
-    return null;
+  public static String getTemporaryTriggerTableName(String stepId) {
+    return getTemporaryJobTableName(stepId) + TRIGGER_TABLE_SUFFIX;
   }
 
   public static String getTemporaryJobTableName(String stepId) {
     return JOB_DATA_PREFIX + stepId;
   }
 
-  public static String getTemporaryTriggerTableName(String stepId) {
-    return getTemporaryJobTableName(stepId) + TRIGGER_TABLE_SUFFIX;
-  }
-
   protected static SQLQuery buildTemporaryJobTableDropStatement(String schema, String tableName) {
     return new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
-            .withVariable("table", tableName)
-            .withVariable("schema", schema);
+        .withVariable("table", tableName)
+        .withVariable("schema", schema);
   }
 
   protected static SQLQuery buildTemporaryJobTableCreateStatement(String schema, Step step) {
@@ -73,52 +67,52 @@ public class TransportTools {
                     CONSTRAINT ${primaryKey} PRIMARY KEY (s3_path)
                );
         """)
-            .withVariable("table", getTemporaryJobTableName(step.getId()))
-            .withVariable("schema", schema)
-            .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
+        .withVariable("table", getTemporaryJobTableName(step.getId()))
+        .withVariable("schema", schema)
+        .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
   }
 
   protected static List<SQLQuery> buildTemporaryJobTableInsertStatements(String schema, List<S3DataFile> fileList,
-                                                                         String bucketRegion, Step step) {
+      String bucketRegion, Step step) {
     List<SQLQuery> queryList = new ArrayList<>();
     for (S3DataFile input : fileList) {
       if (input instanceof UploadUrl || input instanceof DownloadUrl) {
         JsonObject data = new JsonObject()
-          .put("compressed", input.isCompressed());
+            .put("compressed", input.isCompressed());
 
-        if(input instanceof UploadUrl)
+        if (input instanceof UploadUrl)
           data.put("filesize", input.getByteSize());
 
         queryList.add(
-                new SQLQuery("""                
+            new SQLQuery("""                
                     INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
                         VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
                         ON CONFLICT (s3_path) DO NOTHING;
                 """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-                        .withVariable("schema", schema)
-                        .withVariable("table", getTemporaryJobTableName(step.getId()))
-                        .withNamedParameter("s3Key", input.getS3Key())
-                        .withNamedParameter("bucketName", input.getS3Bucket())
-                        .withNamedParameter("bucketRegion", bucketRegion)
-                        .withNamedParameter("state", "SUBMITTED")
-                        .withNamedParameter("data", data.toString())
+                .withVariable("schema", schema)
+                .withVariable("table", getTemporaryJobTableName(step.getId()))
+                .withNamedParameter("s3Key", input.getS3Key())
+                .withNamedParameter("bucketName", input.getS3Bucket())
+                .withNamedParameter("bucketRegion", bucketRegion)
+                .withNamedParameter("state", "SUBMITTED")
+                .withNamedParameter("data", data.toString())
         );
       }
     }
     //Add final entry
     queryList.add(
-            new SQLQuery("""                
+        new SQLQuery("""                
                 INSERT INTO  ${schema}.${table} (s3_bucket, s3_path, s3_region, state, data)
                     VALUES (#{bucketName}, #{s3Key}, #{bucketRegion}, #{state}, #{data}::jsonb)
                     ON CONFLICT (s3_path) DO NOTHING;
             """) //TODO: Why would we ever have a conflict here? Why to fill the table again on resume()?
-                    .withVariable("schema", schema)
-                    .withVariable("table", getTemporaryJobTableName(step.getId()))
-                    .withNamedParameter("s3Key", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketName", "SUCCESS_MARKER")
-                    .withNamedParameter("state", "SUCCESS_MARKER")
-                    .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
-                    .withNamedParameter("data", "{}"));
+            .withVariable("schema", schema)
+            .withVariable("table", getTemporaryJobTableName(step.getId()))
+            .withNamedParameter("s3Key", "SUCCESS_MARKER")
+            .withNamedParameter("bucketName", "SUCCESS_MARKER")
+            .withNamedParameter("state", "SUCCESS_MARKER")
+            .withNamedParameter("bucketRegion", "SUCCESS_MARKER")
+            .withNamedParameter("data", "{}"));
     return queryList;
   }
 
@@ -138,12 +132,12 @@ public class TransportTools {
                  END
           WHERE state IN ('SUCCESS_MARKER_RUNNING', 'RUNNING', 'FAILED');
         """)
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step.getId()));
+        .withVariable("schema", schema)
+        .withVariable("table", getTemporaryJobTableName(step.getId()));
   }
 
   protected static Map<String, Object> createQueryContext(String stepId, String schema, String table,
-                                                          boolean historyEnabled, String superTable){
+      boolean historyEnabled, String superTable) {
 
     final Map<String, Object> queryContext = new HashMap<>(Map.of(
         "stepId", stepId,
@@ -160,11 +154,19 @@ public class TransportTools {
   }
 
   protected static void infoLog(Phase phase, Step step, String... messages) {
-    logger.info("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step), messages.length > 0 ? messages : "");
+    logger.info("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step),
+        messages.length > 0 ? messages : "");
   }
 
-  protected static void errorLog(Phase phase, Step step, Exception e,  String... message) {
-    logger.error("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step), message, e);
+  protected static String getSpaceId(Step step) {
+    if (step instanceof SpaceBasedStep<?> spaceStep)
+      return spaceStep.getSpaceId();
+    return null;
+  }
+
+  protected static void errorLog(Phase phase, Step step, Exception e, String... message) {
+    logger.error("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step), message,
+        e);
   }
 
   protected enum Phase {
