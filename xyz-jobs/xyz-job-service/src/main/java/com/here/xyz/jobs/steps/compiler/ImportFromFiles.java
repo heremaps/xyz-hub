@@ -84,8 +84,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
 
     /** This validation check is needed to deliver a constructive error to the user - otherwise keepIndices will throw
      * a runtime error. */
-    if(!checkIfSpaceIsAccessible(spaceId))
-      throw new CompilationError("Target is not accessible!");
+    checkIfSpaceIsAccessible(spaceId);
 
     if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())
       //Perform only the import Step
@@ -127,12 +126,14 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
   }
 
-  private boolean checkIfSpaceIsAccessible(String spaceId) {
-      try {
-          HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
-      } catch (XyzWebClient.WebClientException e) {
-          return false;
-      }
-      return true;
+  private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError{
+    try {
+      HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId);
+    } catch (XyzWebClient.WebClientException e) {
+      if(e instanceof XyzWebClient.ErrorResponseException err &&
+              err.getStatusCode() == 428)
+        throw new CompilationError("Target Layer is deactivated!");
+      throw new CompilationError("Target is not accessible!");
+    }
   }
 }
