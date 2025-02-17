@@ -50,11 +50,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   public static long MAX_BIGINT = Long.MAX_VALUE;
   private boolean historyEnabled;
+  private boolean noGeometry = false;
 
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
     historyEnabled = event.getVersionsToKeep() > 1;
+    noGeometry = selectNoGeometry(event);
   }
 
   @Override
@@ -108,12 +110,21 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return new SQLQuery("TRUE");
   }
 
+  
+  private boolean selectNoGeometry( E event ) { // geometry is not wanted by user
+    return event instanceof SelectiveEvent selectiveEvent 
+           && selectiveEvent.getSelection() != null 
+           && selectiveEvent.getSelection().size() > 0
+           && (   selectiveEvent.getSelection().contains("!geometry") 
+               || selectiveEvent.getSelection().contains("!f.geometry")); 
+  }
+
   protected SQLQuery buildSelectClause(E event, int dataset) {
     return new SQLQuery("id, ${{selection}}, ${{geo}}, ${{dataset}} ${{version}}")
         .withQueryFragment("selection", buildSelectionFragment(event))
-        .withQueryFragment("geo", buildGeoFragment(event))
+        .withQueryFragment("geo", !noGeometry ? buildGeoFragment(event) : new SQLQuery( "null::geometry as geo") )
         .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
-            .withQueryFragment("datasetNo", "" + dataset))
+        .withQueryFragment("datasetNo", "" + dataset))
         .withQueryFragment("version", buildSelectClauseVersionFragment(event));
   }
 
@@ -294,8 +305,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     String geom = rs.getString("geo");
     result.append(rs.getString("jsondata"));
     result.setLength(result.length() - 1);
-    result.append(",\"geometry\":");
-    result.append(geom == null ? "null" : geom);
+    if (!noGeometry) {
+     result.append(",\"geometry\":");
+     result.append(geom == null ? "null" : geom);
+    }
     result.append("}");
     result.append(",");
   }
@@ -303,9 +316,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   protected SQLQuery buildSelectionFragment(ContextAwareEvent event) {
     String jsonDataWithVersion = "jsonb_set(jsondata, '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
 
-    if (!(event instanceof SelectiveEvent) || ((SelectiveEvent) event).getSelection() == null
-        || ((SelectiveEvent) event).getSelection().size() == 0)
+    if (  !(event instanceof SelectiveEvent selectiveEvent) 
+        || selectiveEvent.getSelection() == null
+        || selectiveEvent.getSelection().size() == 0
+        || (selectiveEvent.getSelection().size() ==  1 && noGeometry ) // selection used but to strip geometry only
+       )
       return new SQLQuery(jsonDataWithVersion + " AS jsondata");
+
+
 
     List<String> selection = ((SelectiveEvent) event).getSelection();
     if (!selection.contains("type")) {
