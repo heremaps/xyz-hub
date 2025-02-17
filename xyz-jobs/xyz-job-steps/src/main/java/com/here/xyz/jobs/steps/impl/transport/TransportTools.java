@@ -159,14 +159,12 @@ public class TransportTools {
   }
 
   protected static String getSpaceId(Step step) {
-    if (step instanceof SpaceBasedStep<?> spaceStep)
-      return spaceStep.getSpaceId();
-    return null;
+    return step instanceof SpaceBasedStep<?> spaceStep ? spaceStep.getSpaceId() : null;
   }
 
   protected static void errorLog(Phase phase, Step step, Exception e, String... message) {
-    logger.error("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step), message,
-        e);
+    logger.error("{} [{}@{}] ON '{}' {}", step.getClass().getSimpleName(), step.getGlobalStepId(), phase.name(), getSpaceId(step),
+        message, e);
   }
 
   protected enum Phase {
