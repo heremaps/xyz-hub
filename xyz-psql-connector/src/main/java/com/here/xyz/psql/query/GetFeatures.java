@@ -134,12 +134,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
 
-    if (ref.isRange()) {
-      // Version Range! -- startTag, endTag and HEAD is be assumed to be resolved before reaching here
-      return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
-              .withNamedParameter("fromVersion", ref.getStartVersion())
-              .withNamedParameter("toVersion", ref.getEndVersion());
-    }
+    if (ref.isRange())
+      return new SQLQuery("AND version > #{startVersion} AND version <= #{endVersion}")
+          .withNamedParameter("startVersion", ref.getStart().getVersion())
+          .withNamedParameter("endVersion", ref.getEnd().getVersion());
 
     return new SQLQuery("AND version <= #{requestedVersion}")
         .withNamedParameter("requestedVersion", ref.getVersion());
@@ -154,16 +152,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
 
-    if (ref.isRange()) {
-      boolean endVersionIsHead = ref.getEndVersion() == GetFeatures.MAX_BIGINT;
-      return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
-              .withQueryFragment("op", endVersionIsHead ? "=" : ">")
-              .withNamedParameter(versionParamName, endVersionIsHead ? GetFeatures.MAX_BIGINT : ref.getEndVersion());
-    }
+    boolean maxVersionIsHead = ref.isHead() || ref.isRange() && ref.getEnd().isHead();
+    long maxVersion = maxVersionIsHead ? MAX_BIGINT : ref.isRange() ? ref.getEnd().getVersion() : ref.getVersion();
 
     return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
-        .withQueryFragment("op", ref.isHead() ? "=" : ">")
-        .withNamedParameter(versionParamName, ref.isHead() ? MAX_BIGINT : ref.getVersion());
+        .withQueryFragment("op", maxVersionIsHead ? "=" : ">")
+        .withNamedParameter(versionParamName, maxVersion);
   }
 
   private SQLQuery buildBaseVersionCheckFragment(String versionParamName) {
@@ -182,7 +176,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if (ref.isSingleVersion() && !ref.isHead())
       version = ref.getVersion();
     else if(ref.isRange())
-      version = ref.getEndVersion(); // HEAD -> Long.MAX_VALUE;
+      version = ref.getEnd().getVersion(); // HEAD -> Long.MAX_VALUE;
 
     String headTable = getDefaultTable((E) event) + XyzSpaceTableHelper.HEAD_TABLE_SUFFIX; // max(version) => headtable, no read from p0,...,pN necessary
 
@@ -192,7 +186,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
           .withNamedParameter("minVersion", event.getMinVersion())
           .withNamedParameter("version", version);
-
+    //FIXME: end version should *never* be Long.MAX_VALUE!
     return version == Long.MAX_VALUE ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${headTable})")
         .withVariable("headTable", headTable)
         .withNamedParameter("version", version);
@@ -241,10 +235,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildDeletionCheckFragment(E event, boolean isExtension) {
-    if ((!historyEnabled && !isExtension) ||
-            (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())) {
+    if (!historyEnabled && !isExtension
+        || event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isRange())
       return new SQLQuery("");
-    }
 
     String operationsParamName = "operationsToFilterOut" + (isExtension ? "Extension" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
     return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
