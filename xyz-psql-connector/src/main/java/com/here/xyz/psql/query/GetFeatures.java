@@ -110,19 +110,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return new SQLQuery("TRUE");
   }
 
-  
-  private boolean selectNoGeometry( E event ) { // geometry is not wanted by user
-    return event instanceof SelectiveEvent selectiveEvent 
-           && selectiveEvent.getSelection() != null 
-           && selectiveEvent.getSelection().size() > 0
-           && (   selectiveEvent.getSelection().contains("!geometry") 
-               || selectiveEvent.getSelection().contains("!f.geometry")); 
-  }
-
   protected SQLQuery buildSelectClause(E event, int dataset) {
     return new SQLQuery("id, ${{selection}}, ${{geo}}, ${{dataset}} ${{version}}")
         .withQueryFragment("selection", buildSelectionFragment(event))
-        .withQueryFragment("geo", !noGeometry ? buildGeoFragment(event) : new SQLQuery( "null::geometry as geo") )
+        .withQueryFragment("geo", buildGeoFragment(event))
         .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
         .withQueryFragment("datasetNo", "" + dataset))
         .withQueryFragment("version", buildSelectClauseVersionFragment(event));
@@ -314,16 +305,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   protected SQLQuery buildSelectionFragment(ContextAwareEvent event) {
     String jsonDataWithVersion = "jsonb_set(jsondata, '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
 
-    if (  !(event instanceof SelectiveEvent selectiveEvent) 
-        || selectiveEvent.getSelection() == null
-        || selectiveEvent.getSelection().size() == 0
-        || (selectiveEvent.getSelection().size() ==  1 && noGeometry ) // selection used but to strip geometry only
-       )
+    if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getSelection() == null
+        || selectiveEvent.getSelection().size() == 0 || (selectiveEvent.getSelection().size() == 1 && noGeometry))
       return new SQLQuery(jsonDataWithVersion + " AS jsondata");
 
-
-
-    List<String> selection = ((SelectiveEvent) event).getSelection();
+    List<String> selection = selectiveEvent.getSelection();
     if (!selection.contains("type")) {
       selection = new ArrayList<>(selection);
       selection.add("type");
@@ -357,7 +343,17 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return selectiveEvent.getRef().isAllVersions() ? "ORDER BY version" : "";
   }
 
+  private boolean selectNoGeometry(E event) {
+    return event instanceof SelectiveEvent selectiveEvent
+        && selectiveEvent.getSelection() != null
+        && !selectiveEvent.getSelection().isEmpty()
+        && selectiveEvent.getSelection().contains("!geometry");
+  }
+
   protected SQLQuery buildGeoFragment(E event) {
+    if (noGeometry)
+      return new SQLQuery("NULL::GEOMETRY AS geo");
+
     return new SQLQuery("${{geoExpression}} AS geo")
         .withQueryFragment("geoExpression", buildGeoJsonExpression(event));
   }
