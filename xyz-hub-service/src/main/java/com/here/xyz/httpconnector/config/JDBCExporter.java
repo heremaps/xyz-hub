@@ -556,7 +556,7 @@ public class JDBCExporter extends JdbcBasedHandler {
         if (targetVersion != null)
         { Ref ref = new Ref(targetVersion);
           if( ref.isRange() )
-           targetVersion = "" + ref.getEndVersion();
+           targetVersion = "" + ref.getEnd().getVersion();
         }
        /* incremental */
 
@@ -720,7 +720,7 @@ public class JDBCExporter extends JdbcBasedHandler {
           }
 
          case PARTITIONED_JSON_WKB :
-         case PARTITIONID_FC_B64   : 
+         case PARTITIONID_FC_B64   :
          {
             String partQry =
                          csvFormat == PARTITIONID_FC_B64
@@ -742,7 +742,7 @@ public class JDBCExporter extends JdbcBasedHandler {
                               + " st_geomfromtext(st_astext(geo,8),4326) as geo "
                               + "from ( ${{contentQuery}}) X"
                               : "select jsondata->>'id' as id, jsondata, st_geomfromtext(st_astext(geo,8),4326) as geo "
-                              + "from ( ${{contentQuery}}) X" );  
+                              + "from ( ${{contentQuery}}) X" );
 
            if( partitionByPropertyValue )
            {

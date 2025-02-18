@@ -76,8 +76,8 @@ public interface ExportSpace<E extends SearchForFeaturesEvent> {
              )
          AND id in ( select distinct id FROM ${schema}.${table} WHERE version > #{fromVersion} and version <= #{toVersion} )
         """
-    ).withNamedParameter("fromVersion", ref.getStartVersion())
-        .withNamedParameter("toVersion", ref.getEndVersion());
+    ).withNamedParameter("fromVersion", ref.getStart().getVersion())
+        .withNamedParameter("toVersion", ref.getEnd().getVersion());
   }
 
   SQLQuery buildSelectClause(E event, int dataset);
@@ -94,19 +94,19 @@ public interface ExportSpace<E extends SearchForFeaturesEvent> {
       return new SQLQuery("");
 
     return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
-        .withNamedParameter("fromVersion", ref.getStartVersion())
-        .withNamedParameter("toVersion", ref.getEndVersion());
+        .withNamedParameter("fromVersion", ref.getStart().getVersion())
+        .withNamedParameter("toVersion", ref.getEnd().getVersion());
   }
 
   default SQLQuery buildNextVersionFragmentForRange(Ref ref, boolean historyEnabled, String versionParamName) {
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
 
-    boolean endVersionIsHead = ref.getEndVersion() == MAX_BIGINT;
+    boolean endVersionIsHead = ref.getEnd().getVersion() == MAX_BIGINT;
     //TODO: review semantic of "NextVersionFragment" in case of ref.isRange
     return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
         .withQueryFragment("op", endVersionIsHead ? "=" : ">")
-        .withNamedParameter(versionParamName, endVersionIsHead ? MAX_BIGINT : ref.getEndVersion());
+        .withNamedParameter(versionParamName, endVersionIsHead ? MAX_BIGINT : ref.getEnd().getVersion());
   }
 
   default SQLQuery buildVersionCheckFragment(E event) {

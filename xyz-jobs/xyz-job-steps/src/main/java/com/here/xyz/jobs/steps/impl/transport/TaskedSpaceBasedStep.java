@@ -19,6 +19,15 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -40,19 +49,9 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
-
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 
 /**
@@ -228,10 +227,10 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
           throw new ValidationException("Invalid VersionRef! Version is higher than max available version '" +
                   maxSpaceVersion + "'!");
       } else if (this.versionRef.isRange()) {
-        if (this.versionRef.getStartVersion() < minSpaceVersion)
+        if (this.versionRef.getStart().getVersion() < minSpaceVersion)
           throw new ValidationException("Invalid VersionRef! StartVersion is smaller than min available version '" +
                   minSpaceVersion + "'!");
-        if (this.versionRef.getEndVersion() > maxSpaceVersion)
+        if (this.versionRef.getEnd().getVersion() > maxSpaceVersion)
           throw new ValidationException("Invalid VersionRef! EndVersion is higher than max available version '" +
                   maxSpaceVersion + "'!");
       }

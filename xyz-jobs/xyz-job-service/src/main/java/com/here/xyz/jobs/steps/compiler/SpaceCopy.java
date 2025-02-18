@@ -19,9 +19,9 @@
 
 package com.here.xyz.jobs.steps.compiler;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.jobs.steps.impl.transport.CopySpacePre.VERSION;
 
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.filters.Filters;
@@ -66,7 +66,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
   private static StatisticsResponse _loadSpaceStatistics(String spaceId) throws WebClientException {
     Space sourceSpace = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
     boolean isExtended = sourceSpace.getExtension() != null;
-    return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);
+    return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? EXTENSION : null);
   }
 
   private static Ref resolveTags(String spaceId, Ref versionRef, long sourceMaxVersion) {
@@ -76,21 +76,20 @@ public class SpaceCopy implements JobCompilationInterceptor {
     if (versionRef.isAllVersions())
       throw new CompilationError("Copying the source versionRef = \"*\" is not supported.");
 
-    if (versionRef.resolved())
+    if (versionRef.isOnlyNumeric())
       return versionRef;
 
-    // tags used
+    //Tags used
     try {
       if (versionRef.isRange()) {
-        long startVersion = !versionRef.hasStartTag()
-            ? versionRef.getStartVersion()
-            : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getStartTag()).getVersion(),
-            endVersion = versionRef.isEndHead()
-                ? sourceMaxVersion
-                : (!versionRef.hasEndTag()
-                    ? versionRef.getEndVersion()
-                    : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getEndTag()).getVersion()
-                );
+        long startVersion = versionRef.getStart().isTag()
+            ? HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getStart().getTag()).getVersion()
+            : versionRef.getStart().getVersion();
+
+        long endVersion = versionRef.getEnd().isHead() ? sourceMaxVersion : versionRef.getEnd().isTag()
+            ? HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getEnd().getTag()).getVersion()
+            : versionRef.getEnd().getVersion();
+
         return new Ref(startVersion, endVersion);
       }
 
@@ -98,7 +97,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
         return new Ref(HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getTag()).getVersion());
     }
     catch (WebClientException e) {
-      throw new JobCompiler.CompilationError("Unable to resolve Tags for Ref = \"" + versionRef + "\" on " + spaceId);
+      throw new CompilationError("Unable to resolve Version Ref = \"" + versionRef + "\" of " + spaceId);
     }
 
     throw new JobCompiler.CompilationError("Unexpected Ref - " + versionRef);
