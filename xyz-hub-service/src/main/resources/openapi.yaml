@@ -1774,6 +1774,7 @@ components:
         specified by using comma(,).
 
         Example: ?selection=p.name,p.capacity,p.color,rootpropertyname
+          - !geometry : special value to omit geometries
       explode: false
       schema:
         type: array
