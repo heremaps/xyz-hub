@@ -108,6 +108,10 @@ public class SpaceCopy implements JobCompilationInterceptor {
     DatasetDescription.Space source = (DatasetDescription.Space) job.getSource();
     DatasetDescription.Space target = (DatasetDescription.Space) job.getTarget();
 
+    return compile(job.getId(), source, target);
+  }
+
+  private static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target) {
     String sourceSpaceId = source.getId();
     String targetSpaceId = target.getId();
     Filters filters = source.getFilters();
@@ -122,10 +126,10 @@ public class SpaceCopy implements JobCompilationInterceptor {
       targetStatistics = _loadSpaceStatistics(targetSpaceId);
     }
     catch (WebClientException e) {
-      throw new JobCompiler.CompilationError("Unable to get Staistics for " + (sourceStatistics == null ? sourceSpaceId : targetSpaceId));
+      throw new CompilationError("Unable to get Staistics for " + (sourceStatistics == null ? sourceSpaceId : targetSpaceId));
     }
 
-    CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(job.getId());
+    CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(jobId);
 
     CompilationStepGraph startGraph = new CompilationStepGraph();
     startGraph.addExecution(preCopySpace);
@@ -146,7 +150,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
           .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
           .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
           .withThreadInfo(new int[]{threadId, threadCount})
-          .withJobId(job.getId())
+          .withJobId(jobId)
           .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
       copyGraph.addExecution(copySpaceStep).withParallel(true);
@@ -156,7 +160,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
     CopySpacePost postCopySpace = new CopySpacePost()
         .withSpaceId(targetSpaceId)
-        .withJobId(job.getId())
+        .withJobId(jobId)
         .withOutputMetadata(Map.of(target.getClass().getTypeName().toLowerCase(), targetSpaceId))
         .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
