@@ -22,14 +22,13 @@ package com.here.xyz.jobs.steps.compiler;
 import static com.here.xyz.jobs.steps.impl.transport.CopySpacePre.VERSION;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.filters.Filters;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler;
+import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.Step.InputSet;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
@@ -43,146 +42,127 @@ import java.util.List;
 import java.util.Map;
 
 public class SpaceCopy implements JobCompilationInterceptor {
-  protected boolean validSubType( String subType )
-  { return Space.class.getSimpleName().equals(subType); }
-
   @Override
   public boolean chooseMe(Job job) {
     return job.getProcess() == null && job.getSource() instanceof DatasetDescription.Space
-           && validSubType( job.getSource().getClass().getSimpleName() )
-           && job.getTarget() instanceof DatasetDescription.Space
-           && validSubType( job.getTarget().getClass().getSimpleName() );
+        && job.getTarget() instanceof DatasetDescription.Space;
   }
 
-  private static int threadCountCalc( long sourceFeatureCount, long targetFeatureCount )
-  {
+  private static int threadCountCalc(long sourceFeatureCount, long targetFeatureCount) {
     long PARALLELIZTATION_THRESHOLD = 100000;
     int PARALLELIZTATION_THREAD_MAX = 8;
 
-    if( sourceFeatureCount <=  1 * PARALLELIZTATION_THRESHOLD ) return 1;
-    if( sourceFeatureCount <=  3 * PARALLELIZTATION_THRESHOLD ) return 2;
-    if( sourceFeatureCount <= 12 * PARALLELIZTATION_THRESHOLD ) return 3;
-    if( sourceFeatureCount <= 24 * PARALLELIZTATION_THRESHOLD ) return 6;
+    if (sourceFeatureCount <= 1 * PARALLELIZTATION_THRESHOLD)
+      return 1;
+    if (sourceFeatureCount <= 3 * PARALLELIZTATION_THRESHOLD)
+      return 2;
+    if (sourceFeatureCount <= 12 * PARALLELIZTATION_THRESHOLD)
+      return 3;
+    if (sourceFeatureCount <= 24 * PARALLELIZTATION_THRESHOLD)
+      return 6;
     return PARALLELIZTATION_THREAD_MAX;
   }
 
-
-  private static StatisticsResponse _loadSpaceStatistics(String spaceId) throws WebClientException
-  {
-   Space sourceSpace = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
-   boolean isExtended = sourceSpace.getExtension() != null;
-   return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);
+  private static StatisticsResponse _loadSpaceStatistics(String spaceId) throws WebClientException {
+    Space sourceSpace = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpace(spaceId);
+    boolean isExtended = sourceSpace.getExtension() != null;
+    return HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadSpaceStatistics(spaceId, isExtended ? SpaceContext.EXTENSION : null);
   }
 
-  private static Ref resolveTags(String spaceId, Ref versionRef, long sourceMaxVersion)
-  {
-    if( versionRef == null || versionRef.isHead() ) 
-     return new Ref("HEAD");  //  set to sourceMaxVersion (?)
-    
-    if( versionRef.isAllVersions() ) 
-     throw new JobCompiler.CompilationError("iml-copy 'all versions' not available");
+  private static Ref resolveTags(String spaceId, Ref versionRef, long sourceMaxVersion) {
+    if (versionRef.isHead())
+      return new Ref(sourceMaxVersion);
 
-    if( versionRef.resolved() )
-     return versionRef; // no symbols - tags, head, star
+    if (versionRef.isAllVersions())
+      throw new CompilationError("Copying the source versionRef = \"*\" is not supported.");
 
-    // tags used 
+    if (versionRef.resolved())
+      return versionRef;
+
+    // tags used
     try {
-      if( versionRef.isRange() )
-      {
-        long startVersion =  !versionRef.hasStartTag() 
-                               ? versionRef.getStartVersion() 
-                               : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getStartTag()).getVersion(),
-             endVersion   =  versionRef.isEndHead() 
-                             ? sourceMaxVersion 
-                             : ( !versionRef.hasEndTag() 
-                                 ? versionRef.getEndVersion() 
-                                 : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getEndTag()).getVersion()
-                               );
-        return new Ref( startVersion, endVersion );
+      if (versionRef.isRange()) {
+        long startVersion = !versionRef.hasStartTag()
+            ? versionRef.getStartVersion()
+            : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getStartTag()).getVersion(),
+            endVersion = versionRef.isEndHead()
+                ? sourceMaxVersion
+                : (!versionRef.hasEndTag()
+                    ? versionRef.getEndVersion()
+                    : HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getEndTag()).getVersion()
+                );
+        return new Ref(startVersion, endVersion);
       }
 
-      if( versionRef.isTag() )
-      {
-       long version = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getTag()).getVersion();
-       return new Ref(version);
-      }
-    } catch (WebClientException e) {
-      String errMsg = String.format("Unable to resolve Tags for Ref = '%s' on %s", versionRef.toString(), spaceId);
-      throw new JobCompiler.CompilationError(errMsg);
+      if (versionRef.isTag())
+        return new Ref(HubWebClient.getInstance(Config.instance.HUB_ENDPOINT).loadTag(spaceId, versionRef.getTag()).getVersion());
+    }
+    catch (WebClientException e) {
+      throw new JobCompiler.CompilationError("Unable to resolve Tags for Ref = \"" + versionRef + "\" on " + spaceId);
     }
 
-    throw new JobCompiler.CompilationError("Unexpected Ref - " + versionRef.toString());
-   
+    throw new JobCompiler.CompilationError("Unexpected Ref - " + versionRef);
   }
 
-  public static CompilationStepGraph compileSteps(String sourceId, String targetId, String jobId, Filters filters, Ref versionRef, String targetType)
-  {
-    final String sourceSpaceId = sourceId,
-                 targetSpaceId = targetId;
+  @Override
+  public CompilationStepGraph compile(Job job) {
+    DatasetDescription.Space source = (DatasetDescription.Space) job.getSource();
+    DatasetDescription.Space target = (DatasetDescription.Space) job.getTarget();
 
+    String sourceSpaceId = source.getId();
+    String targetSpaceId = target.getId();
+    Filters filters = source.getFilters();
+
+    if (source.getVersionRef() == null)
+      throw new CompilationError("The source versionRef may not be null.");
+
+    //TODO: Parallelize statistics loading
     StatisticsResponse sourceStatistics = null, targetStatistics = null;
     try {
       sourceStatistics = _loadSpaceStatistics(sourceSpaceId);
       targetStatistics = _loadSpaceStatistics(targetSpaceId);
-    } catch (WebClientException e) {
-      String errMsg = String.format("Unable to get Staistics for %s", sourceStatistics == null ? sourceSpaceId : targetSpaceId );
-      throw new JobCompiler.CompilationError(errMsg);
+    }
+    catch (WebClientException e) {
+      throw new JobCompiler.CompilationError("Unable to get Staistics for " + (sourceStatistics == null ? sourceSpaceId : targetSpaceId));
     }
 
-    CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(jobId);
+    CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(job.getId());
 
     CompilationStepGraph startGraph = new CompilationStepGraph();
     startGraph.addExecution(preCopySpace);
 
     long sourceFeatureCount = sourceStatistics.getCount().getValue(),
-         sourceMaxVersion = sourceStatistics.getMaxVersion().getValue(),
-         targetFeatureCount = targetStatistics.getCount().getValue();
+        sourceMaxVersion = sourceStatistics.getMaxVersion().getValue(),
+        targetFeatureCount = targetStatistics.getCount().getValue();
 
     int threadCount = threadCountCalc(sourceFeatureCount, targetFeatureCount);
 
-    SpatialFilter spatialFilter = filters != null ? filters.getSpatialFilter() : null;
-    PropertiesQuery propertyFilter = filters != null ? filters.getPropertyFilter() : null;
+    CompilationStepGraph copyGraph = new CompilationStepGraph();
 
-    CompilationStepGraph cGraph = new CompilationStepGraph();
-
-    for( int threadId = 0; threadId < threadCount; threadId++)
-    {
+    for (int threadId = 0; threadId < threadCount; threadId++) {
       CopySpace copySpaceStep = new CopySpace()
           .withSpaceId(sourceSpaceId)
           .withTargetSpaceId(targetSpaceId)
-          .withSourceVersionRef( resolveTags( sourceSpaceId, versionRef, sourceMaxVersion))
-          .withPropertyFilter(propertyFilter)
-          .withSpatialFilter(spatialFilter)
-          .withThreadInfo(new int[]{ threadId, threadCount })
-          .withJobId(jobId)
+          .withSourceVersionRef(resolveTags(sourceSpaceId, source.getVersionRef(), sourceMaxVersion))
+          .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
+          .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
+          .withThreadInfo(new int[]{threadId, threadCount})
+          .withJobId(job.getId())
           .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
-      cGraph.addExecution(copySpaceStep).withParallel(true);
+      copyGraph.addExecution(copySpaceStep).withParallel(true);
     }
 
-    startGraph.addExecution(cGraph);
+    startGraph.addExecution(copyGraph);
 
     CopySpacePost postCopySpace = new CopySpacePost()
         .withSpaceId(targetSpaceId)
-        .withJobId(jobId)
-        .withOutputMetadata(Map.of(targetType, targetSpaceId))
+        .withJobId(job.getId())
+        .withOutputMetadata(Map.of(target.getClass().getTypeName().toLowerCase(), targetSpaceId))
         .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
     startGraph.addExecution(postCopySpace);
 
     return startGraph;
-
-  }
-
-  @Override
-  public CompilationStepGraph compile(Job job) {
-
-    return compileSteps(job.getSource().getKey(),
-                        job.getTarget().getKey(),
-                        job.getId(),
-                        ((DatasetDescription.Space<?>) job.getSource()).getFilters(),
-                        ((DatasetDescription.Space<?>) job.getSource()).getVersionRef(),
-                        "space" );
-
   }
 }

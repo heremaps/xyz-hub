@@ -83,8 +83,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .withJobId(job.getId())
         .withInputSets(List.of(USER_INPUTS.get()));
 
-    /** This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw
-     * a runtime error. */
+    //This validation check is necessary to deliver a constructive error to the user - otherwise keepIndices will throw a runtime error.
     checkIfSpaceIsAccessible(spaceId);
 
     if (importFilesStep.getExecutionMode().equals(LambdaBasedStep.ExecutionMode.SYNC) || importFilesStep.keepIndices())

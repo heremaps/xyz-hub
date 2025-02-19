@@ -33,7 +33,6 @@ import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
-import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.resources.Load;
@@ -43,7 +42,6 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
-import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -57,45 +55,56 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * This step copies the content of a source space into a target space. It is possible that the target space
- * already contains data. Spaces where history is enabled are also supported. With filters it is possible to
+ * already contains data. Spaces where history is enabled are also supported. With filters, it is possible to
  * only copy a dataset subset from the source space.
- *
- * @TODO
- * - onStateCheck
- * - resume
  */
 //TODO: Merge version creation step into this step again (basically both: pre- & post-step)
 public class CopySpace extends SpaceBasedStep<CopySpace> {
   private static final Logger logger = LogManager.getLogger();
 
+  //Input settings for the compiler:
   @JsonView({Internal.class, Static.class})
-  private double overallNeededAcus = -1;
-
+  private String targetSpaceId;
   @JsonView({Internal.class, Static.class})
-  private long estimatedSourceFeatureCount = -1;
-
+  private SpatialFilter spatialFilter;
   @JsonView({Internal.class, Static.class})
-  private long estimatedSourceByteSize = -1;
-
+  private PropertiesQuery propertyFilter;
   @JsonView({Internal.class, Static.class})
-  private long estimatedTargetFeatureCount = -1;
-
-  @JsonView({Internal.class, Static.class})
-  private int estimatedSeconds = -1;
-
+  private Ref sourceVersionRef;
   @JsonView({Internal.class, Static.class})
   private int[] threadInfo = {0,1};  // [threadId, threadCount]
 
-  @JsonView({Internal.class, Static.class})
-  private long version = 0;
+  //Some internal caching fields:
+  @JsonView({Internal.class, Static.class}) //TODO: Remove static
+  private double overallNeededAcus = -1;
+  @JsonView({Internal.class, Static.class}) //TODO: Remove static
+  private long estimatedSourceFeatureCount = -1;
+  @JsonView({Internal.class, Static.class}) //TODO: Remove static
+  private long estimatedTargetFeatureCount = -1;
+  @JsonView({Internal.class, Static.class}) //TODO: Remove static
+  private int estimatedSeconds = -1;
+  @JsonView({Internal.class, Static.class}) //TODO: Remove static
+  private long targetVersion = 0;
 
-  //Existing Space in which we copy to
-  private String targetSpaceId;
+  public static double calculateNeededCopyAcus(long nrFeatureSource) {
+    final double maxAcus = 5;
+    int ftBlock = 20000;
 
-  //Content-Filters
-  private SpatialFilter spatialFilter;
-  private PropertiesQuery propertyFilter;
-  private Ref sourceVersionRef;
+    double neededAcus = (nrFeatureSource <= ftBlock ? 1.0 : (nrFeatureSource / ftBlock) * 0.5 + 0.5);
+
+    return Math.min(neededAcus, maxAcus);
+  }
+
+  public static int calculateCopyTimeInSeconds(long nrFeatureSource, long featureCountInTarget) {
+    // ~1min per 20T feature,
+    int oneMinute = 60, featuresPerBlock = 20000, startUp = oneMinute,
+        calcSecs = (nrFeatureSource <= featuresPerBlock ? oneMinute : ((int) (nrFeatureSource / featuresPerBlock)) * oneMinute) + startUp;
+
+    if (featureCountInTarget > featuresPerBlock) // ~ copy into nonempty space => add additional 1/2 amount of calculated
+      calcSecs *= 1.5;
+
+    return calcSecs;
+  }
 
 
   public SpatialFilter getSpatialFilter() {
@@ -123,7 +132,6 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     setPropertyFilter(propertyFilter);
     return this;
   }
-
 
   public Ref getSourceVersionRef() {
     return sourceVersionRef;
@@ -164,16 +172,17 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     return this;
   }
 
-  public long getVersion() {
-    return version;
+  private long getTargetVersion() {
+    return targetVersion;
   }
 
-  public void setVersion(long version) {
-    this.version = version;
+  private void setTargetVersion(long targetVersion) {
+    this.targetVersion = targetVersion;
   }
 
-  public CopySpace withVersion(long version) {
-    setVersion(version);
+  //TODO: Remove testing code. Provide mocked version (model-based)input during tests instead
+  public CopySpace withTargetVersion(long version) {
+    setTargetVersion(version);
     return this;
   }
 
@@ -187,14 +196,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       expectedLoads.add(new Load().withResource(loadDatabase(targetSpace.getStorage().getId(), WRITER))
           .withEstimatedVirtualUnits(calculateNeededAcus()));
 
-      boolean isRemoteCopy = isRemoteCopy(sourceSpace, targetSpace);
+      boolean isRemoteCopy = isRemoteCopy();
 
       if (isRemoteCopy)
-        expectedLoads.add(new Load().withResource(dbReader())
-            .withEstimatedVirtualUnits(calculateNeededAcus()));
+        expectedLoads.add(new Load().withResource(dbReader()).withEstimatedVirtualUnits(calculateNeededAcus()));
 
-      logger.info("[{}] #getNeededResources() isRemoteCopy={} {} -> {}", getGlobalStepId(), isRemoteCopy, sourceSpace.getStorage().getId(),
-          targetSpace.getStorage().getId());
+      logger.info("[{}] #getNeededResources() isRemoteCopy={} {} -> {}", getGlobalStepId(), isRemoteCopy,
+          sourceSpace.getStorage().getId(), targetSpace.getStorage().getId());
 
       return expectedLoads;
     }
@@ -205,7 +213,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
 
   @Override
   public int getTimeoutSeconds() {
-    return 24 * 3600;
+    return 2 * 3600; //TODO: Calculate using #getEstimatedExecutionSeconds()
   }
 
   private int getThreadPartitions() {
@@ -215,10 +223,7 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds == -1 && getSpaceId() != null) {
-                            //TODO: Inline copy-specific calculations into this class!
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateCopyTimeInSeconds(getSpaceId(), getTargetSpaceId(),
-          estimatedSourceFeatureCount / getThreadPartitions(), estimatedTargetFeatureCount, getExecutionMode());
-
+      estimatedSeconds = calculateCopyTimeInSeconds(loadSourceFeatureCount() / getThreadPartitions(), loadTargetFeatureCount());
       logger.info("[{}] Copy estimatedSeconds {}", getGlobalStepId(), estimatedSeconds);
     }
     return estimatedSeconds;
@@ -227,14 +232,13 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
   private double calculateNeededAcus() {
     overallNeededAcus =  overallNeededAcus != -1
         ? overallNeededAcus
-        //TODO: Inline copy-specific calculations into this class!
-        : ResourceAndTimeCalculator.getInstance().calculateNeededCopyAcus(estimatedSourceFeatureCount / getThreadPartitions());
+        : calculateNeededCopyAcus(loadSourceFeatureCount() / getThreadPartitions());
     return overallNeededAcus;
   }
 
   @Override
   public String getDescription() {
-    return "Copy space " + getSpaceId()+ " to space " +getTargetSpaceId();
+    return "Copy space " + getSpaceId() + " to space " + getTargetSpaceId();
   }
 
   @Override
@@ -245,30 +249,59 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
       throw new ValidationException("Target Id is missing!");
     if (getSpaceId().equalsIgnoreCase(getTargetSpaceId()))
       throw new ValidationException("Source = Target!");
+    //TODO: Validate that versionRef is set
 
+    //Validate source space is active / readable
     try {
-      Space sourceSpace = space();
-      boolean isExtended = sourceSpace.getExtension() != null;
-      StatisticsResponse sourceStatistics = loadSpaceStatistics(getSpaceId(), isExtended ? EXTENSION : null); //TODO: use caching?
-      estimatedSourceFeatureCount = sourceStatistics.getCount().getValue();
-      estimatedSourceByteSize = sourceStatistics.getDataSize().getValue();
+      if (!space().isActive())
+        throw new ValidationException("Source is not active! It is currently not possible to read from it.");
     }
     catch (WebClientException e) {
-        throw new ValidationException("Error loading source space \"" + getSpaceId() + "\"", e);
+      throw new ValidationException("Error loading source resource " + getSpaceId(), e);
     }
 
+    //Validate target space exists and is writable
     try {
       Space targetSpace = targetSpace();
-      boolean isExtended = targetSpace.getExtension() != null;
-      StatisticsResponse targetStatistics = loadSpaceStatistics(getTargetSpaceId(), isExtended ? EXTENSION : null); //TODO: use caching?
-      estimatedTargetFeatureCount = targetStatistics.getCount().getValue();
-    }catch (WebClientException e) {
-      throw new ValidationException("Error loading target space \"" + getTargetSpaceId() + "\"", e);
+      if (!targetSpace.isActive())
+        throw new ValidationException("Target resource is not active! It is currently not possible to write into it.");
+      if (targetSpace.isReadOnly())
+        throw new ValidationException("Target resource is read-only!");
+    }
+    catch (WebClientException e) {
+      throw new ValidationException("Error loading target resource " + getTargetSpaceId(), e);
     }
 
+    //FIXME: Enforce sourceVersionRef to be always set by the compiler
     sourceVersionRef = sourceVersionRef == null ? new Ref("HEAD") : sourceVersionRef;
 
     return true;
+  }
+
+  private long loadSourceFeatureCount() {
+    if (estimatedSourceFeatureCount < 0) {
+      try {
+        estimatedSourceFeatureCount = loadSpaceStatistics(getSpaceId(), space().getExtension() != null ? EXTENSION : null)
+            .getCount().getValue();
+      }
+      catch (WebClientException e) {
+        throw new StepException("Error loading the source feature count", e).withRetryable(true);
+      }
+    }
+    return estimatedSourceFeatureCount;
+  }
+
+  private long loadTargetFeatureCount() {
+    if (estimatedTargetFeatureCount < 0) {
+      try {
+        estimatedTargetFeatureCount = loadSpaceStatistics(getSpaceId(), space().getExtension() != null ? EXTENSION : null)
+            .getCount().getValue();
+      }
+      catch (WebClientException e) {
+        throw new StepException("Error loading the target feature count", e).withRetryable(true);
+      }
+    }
+    return estimatedTargetFeatureCount;
   }
 
   private Space targetSpace() throws WebClientException {
@@ -279,41 +312,29 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     for (InputFromOutput input : (List<InputFromOutput>)(List<?>) loadInputs(InputFromOutput.class))
       if (input.getDelegate() instanceof CreatedVersion f)
         return f.getVersion();
-    
-    return getVersion(); // in case not version found return provided version from caller, used for mocking test cases
-  }
 
-  private void _execute(boolean resumed) throws Exception {
-    setVersion(_getCreatedVersion());
-
-    logger.info("[{}] Using fetched version {}", getGlobalStepId(), getVersion());
-
-    logger.info("[{}] Loading space config for source-space {} ...", getGlobalStepId(), getSpaceId());
-    Space sourceSpace = space();
-
-    logger.info("[{}] Loading space config for target-space {} ...", getGlobalStepId(), getTargetSpaceId());
-    Space targetSpace = targetSpace();
-
-    logger.info("[{}] Getting storage database for space {} ...", getGlobalStepId(), getSpaceId());
-    Database targetDb = loadDatabase(targetSpace.getStorage().getId(), WRITER);
-
-    int threadId = getThreadInfo()[0],
-        threadCount = getThreadInfo()[1];
-
-     infoLog(STEP_EXECUTE, this, "Start ImlCopy thread number: " + threadId + " / " + threadCount + (resumed ? " - resumed" : ""));
-     runReadQueryAsync(buildCopySpaceQuery(sourceSpace,targetSpace,threadCount, threadId), targetDb, calculateNeededAcus()/threadCount, true);
+    return getTargetVersion(); // in case not version found return provided version from caller, used for mocking test cases
   }
 
   @Override
   public void execute(boolean resume) throws Exception {
-    if (resume)
-      infoLog(STEP_RESUME, this, "resume was called");
     try {
-      _execute(false);
+      setTargetVersion(_getCreatedVersion());
+
+      int threadId = getThreadInfo()[0],
+          threadCount = getThreadInfo()[1];
+
+      infoLog(resume ? STEP_RESUME : STEP_EXECUTE, this, "Start ImlCopy thread number: " + threadId + " / " + threadCount
+          + "; target version: " + getTargetVersion());
+
+      Space targetSpace = targetSpace();
+      Database targetDb = loadDatabase(targetSpace.getStorage().getId(), WRITER);
+      runReadQueryAsync(buildCopySpaceQuery(threadCount, threadId), targetDb,
+          calculateNeededAcus() / threadCount, true);
     }
     catch (Exception e) {
       throw new StepException("Error iml-copy chunk-id " + getThreadInfo()[0] + "/" + getThreadInfo()[1], e)
-          .withRetryable(true); //TODO: always retryable for now (later: check errors!)
+          .withRetryable(true); //TODO: always retryable for now (later: handle errors properly here!)
     }
   }
 
@@ -329,82 +350,72 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
     getStatus().setEstimatedProgress(0.2f);
   }
 
-  private boolean isRemoteCopy(Space sourceSpace, Space targetSpace) {
-    String sourceStorage = sourceSpace.getStorage().getId(),
-           targetStorage = targetSpace.getStorage().getId();
-    return !sourceStorage.equals( targetStorage );
-  }
-
   private boolean isRemoteCopy() throws WebClientException {
-    return isRemoteCopy(space(), targetSpace());
+    return !space().getStorage().getId().equals(targetSpace().getStorage().getId());
   }
 
-  private SQLQuery buildCopySpaceQuery(Space sourceSpace, Space targetSpace, int threadCount, int threadId)
-      throws SQLException, WebClientException, QueryBuildingException, TooManyResourcesClaimed {
-    String targetStorageId = targetSpace.getStorage().getId(),
-           targetSchema = getSchema( loadDatabase(targetStorageId, WRITER) ),
-           targetTable  = getRootTableName(targetSpace);
+  private SQLQuery buildCopySpaceQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException,
+      TooManyResourcesClaimed {
+    String targetStorageId = targetSpace().getStorage().getId(),
+        targetSchema = getSchema(loadDatabase(targetStorageId, WRITER)),
+        targetTable = getRootTableName(targetSpace());
 
-    int maxBlkSize = 1000;
-
-    final Map<String, Object> queryContext = createQueryContext(getId(), targetSchema, targetTable, targetSpace.getVersionsToKeep() > 1,
+    final Map<String, Object> queryContext = createQueryContext(getId(), targetSchema, targetTable, targetSpace().getVersionsToKeep() > 1,
         null);
 
-    SQLQuery contentQuery = buildCopyContentQuery(sourceSpace, threadCount, threadId);
+    SQLQuery contentQuery = buildCopyContentQuery(threadCount, threadId);
 
-    if (isRemoteCopy(sourceSpace,targetSpace))
-     contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery );
+    if (isRemoteCopy())
+      contentQuery = buildCopyQueryRemoteSpace(dbReader(), contentQuery);
 
+    int maxBatchSize = 1000;
     //TODO: Do not use slow JSONB functions in the following query!
-
+    //TODO: Simplify / deduplicate the following query
     return new SQLQuery("""
-      WITH ins_data as
-      (
-        select
-          write_features(
-           jsonb_build_array(
-            case deleted_flag when false then
-              jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
-                                  'partialUpdates',false,
-                                  'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) ))
-            else
-                jsonb_build_object('updateStrategy','{"onExists":"DELETE","onNotExists":"RETAIN"}'::jsonb,
-                                  'partialUpdates',false,
-                                  'featureIds', jsonb_agg( iidata.feature->'id' ) )
-            end
-          )::text,
-             'Modifications', iidata.author,false,${{versionToBeUsed}}
-          ) as wfresult
-        from
-        (
-         select ((row_number() over ())-1)/${{maxblksize}} as rn, 
-                idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
-                idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature,
-                ((idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is not null) as deleted_flag
-         from
-         ( ${{contentQuery}} ) idata
-        ) iidata
-        group by rn, author, deleted_flag
-      )
-      select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
-    """).withContext(queryContext)
-        .withQueryFragment("maxblksize", "" + maxBlkSize)
-        .withQueryFragment("versionToBeUsed", "" + getVersion())
+          WITH ins_data as
+          (
+            select
+              write_features(
+               jsonb_build_array(
+                case deleted_flag when false then
+                  jsonb_build_object('updateStrategy','{"onExists":null,"onNotExists":null,"onVersionConflict":null,"onMergeConflict":null}'::jsonb,
+                                      'partialUpdates',false,
+                                      'featureData', jsonb_build_object( 'type', 'FeatureCollection', 'features', jsonb_agg( iidata.feature ) ))
+                else
+                    jsonb_build_object('updateStrategy','{"onExists":"DELETE","onNotExists":"RETAIN"}'::jsonb,
+                                      'partialUpdates',false,
+                                      'featureIds', jsonb_agg( iidata.feature->'id' ) )
+                end
+              )::text,
+                 'Modifications', iidata.author,false,${{versionToBeUsed}}
+              ) as wfresult
+            from
+            (
+             select ((row_number() over ())-1)/${{maxblksize}} as rn, 
+                    idata.jsondata#>>'{properties,@ns:com:here:xyz,author}' as author, 
+                    idata.jsondata || jsonb_build_object('geometry', (idata.geo)::json) as feature,
+                    ((idata.jsondata#>>'{properties,@ns:com:here:xyz,deleted}') is not null) as deleted_flag
+             from
+             ( ${{contentQuery}} ) idata
+            ) iidata
+            group by rn, author, deleted_flag
+          )
+          select sum((wfresult::json->>'count')::bigint)::bigint into dummy_output from ins_data
+        """).withContext(queryContext)
+        .withQueryFragment("maxblksize", "" + maxBatchSize)
+        .withQueryFragment("versionToBeUsed", "" + getTargetVersion())
         .withQueryFragment("contentQuery", contentQuery);
   }
 
-  private SQLQuery buildCopyContentQuery(Space space, int threadCount, int threadId) throws SQLException, WebClientException, QueryBuildingException, TooManyResourcesClaimed {
+  private SQLQuery buildCopyContentQuery(int threadCount, int threadId) throws WebClientException, QueryBuildingException,
+      TooManyResourcesClaimed {
 
     Database db = !isRemoteCopy()
-        ? loadDatabase(space.getStorage().getId(), WRITER)
+        ? loadDatabase(space().getStorage().getId(), WRITER)
         : dbReader();
 
-
-   GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
+    GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
         .withDataSourceProvider(requestResource(db, 0));
-
-   //if(context == SUPER)
-   //   space().switchToSuper(superSpace().getId());
 
     GetFeaturesByGeometryInput input = new GetFeaturesByGeometryInput(
         space().getId(),
@@ -419,18 +430,14 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         propertyFilter
     );
 
-
     SQLQuery threadCondition = new SQLQuery("i % #{threadCount} = #{threadNumber}")
-    .withNamedParameter("threadCount", threadCount)
-    .withNamedParameter("threadNumber", threadId);
+        .withNamedParameter("threadCount", threadCount)
+        .withNamedParameter("threadNumber", threadId);
 
     return queryBuilder
         .withAdditionalFilterFragment(threadCondition)
-        //.withSelectionOverride(new SQLQuery("jsondata, author, operation")) 
+        //.withSelectionOverride(new SQLQuery("jsondata, author, operation"))
         //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
         .buildQuery(input);
-
   }
-
-
 }
