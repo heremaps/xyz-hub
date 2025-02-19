@@ -305,10 +305,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     String geom = rs.getString("geo");
     result.append(rs.getString("jsondata"));
     result.setLength(result.length() - 1);
-    if (!noGeometry) {
-     result.append(",\"geometry\":");
-     result.append(geom == null ? "null" : geom);
-    }
+    result.append(",\"geometry\":");
+    result.append(geom == null ? "null" : geom);
     result.append("}");
     result.append(",");
   }
