@@ -111,7 +111,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
     return compile(job.getId(), source, target);
   }
 
-  private static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target) {
+  public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target) {
     String sourceSpaceId = source.getId();
     String targetSpaceId = target.getId();
     Filters filters = source.getFilters();
