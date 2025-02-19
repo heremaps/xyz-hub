@@ -37,12 +37,10 @@ import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
-import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
@@ -60,10 +58,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public class CopySpaceStepsTest extends StepTest {
 
-  static private String sourceSpace = "testCopy-Source-07",
-                        sourceSpaceBase = "testCopy-Source-base-07",
-                        targetSpace = "testCopy-Target-07",
-                        otherConnector = "psql_db2_hashed",
+  static private String sourceSpaceId = "testCopy-Source-07",
+                        sourceSpaceBaseId = "testCopy-Source-base-07",
+                        targetSpaceId = "testCopy-Target-07",
+                        otherConnectorId = "psql_db2_hashed",
                         targetRemoteSpace = "testCopy-Target-07-remote",
                         propertyFilter = "p.all=common",
                         versionRange = "1..6";
@@ -112,7 +110,7 @@ public class CopySpaceStepsTest extends StepTest {
               }
           ]
          }
-        """, FeatureCollection.class);      
+        """, FeatureCollection.class);
     } catch (JsonProcessingException e) {
      e.printStackTrace();
     }
@@ -123,30 +121,31 @@ public class CopySpaceStepsTest extends StepTest {
   @BeforeEach
   public void setup() throws SQLException {
     cleanup();
-    createSpace(new Space().withId(sourceSpaceBase).withVersionsToKeep(100), false);
+    createSpace(new Space().withId(sourceSpaceBaseId).withVersionsToKeep(100), false);
 
-    createSpace(new Space().withId(sourceSpace).withVersionsToKeep(100)
-                           .withExtension(new Space.Extension().withSpaceId(sourceSpaceBase)), false);
+    createSpace(new Space().withId(sourceSpaceId).withVersionsToKeep(100)
+                           .withExtension(new Space.Extension().withSpaceId(sourceSpaceBaseId)), false);
 
-    createSpace(new Space().withId(targetSpace).withVersionsToKeep(100), false);
-    createSpace(new Space().withId(targetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnector)),
+    createSpace(new Space().withId(targetSpaceId).withVersionsToKeep(100), false);
+    createSpace(new Space().withId(targetRemoteSpace).withVersionsToKeep(100).withStorage(new ConnectorRef().withId(otherConnectorId)),
         false);
 
+    //FIXME: Do not use random feature sets but specific ones that are fitting the actual use-case to be tested (prevents flickering and improves testing time)
     //write features source
-    putRandomFeatureCollectionToSpace(sourceSpaceBase, 7, xmin, ymin, xmax, ymax); // base will not be copied
+    putRandomFeatureCollectionToSpace(sourceSpaceBaseId, 7, xmin, ymin, xmax, ymax); // base will not be copied
 
-    putRandomFeatureCollectionToSpace(sourceSpace, 20, xmin, ymin, xmax, ymax);                // v1
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v2
-    putFeatureCollectionToSpace(sourceSpace, ftCollection);                                                 // v3   
-    putFeatureCollectionToSpace(sourceSpace, ftCollection2);                                                // v4
-    deleteFeaturesInSpace(sourceSpace, List.of("id-deleted-feature","id-deleted-in-target-feature")); // v5
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v6
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v7
-    putRandomFeatureCollectionToSpace(sourceSpace, 5, xmin, ymin, xmax, ymax);                 // v8
+    putRandomFeatureCollectionToSpace(sourceSpaceId, 20, xmin, ymin, xmax, ymax);                // v1
+    putRandomFeatureCollectionToSpace(sourceSpaceId, 5, xmin, ymin, xmax, ymax);                 // v2
+    putFeatureCollectionToSpace(sourceSpaceId, ftCollection);                                                 // v3
+    putFeatureCollectionToSpace(sourceSpaceId, ftCollection2);                                                // v4
+    deleteFeaturesInSpace(sourceSpaceId, List.of("id-deleted-feature","id-deleted-in-target-feature")); // v5
+    putRandomFeatureCollectionToSpace(sourceSpaceId, 5, xmin, ymin, xmax, ymax);                 // v6
+    putRandomFeatureCollectionToSpace(sourceSpaceId, 5, xmin, ymin, xmax, ymax);                 // v7
+    putRandomFeatureCollectionToSpace(sourceSpaceId, 5, xmin, ymin, xmax, ymax);                 // v8
 
     //write features target - non-empty-space
-    putRandomFeatureCollectionToSpace(targetSpace, 2, xmin, ymin, xmax, ymax);
-    putFeatureCollectionToSpace(targetSpace, ftCollection2);
+    putRandomFeatureCollectionToSpace(targetSpaceId, 2, xmin, ymin, xmax, ymax);
+    putFeatureCollectionToSpace(targetSpaceId, ftCollection2);
 
     putRandomFeatureCollectionToSpace(targetRemoteSpace, 2, xmin, ymin, xmax, ymax);
     putFeatureCollectionToSpace(targetRemoteSpace, ftCollection2);
@@ -155,9 +154,9 @@ public class CopySpaceStepsTest extends StepTest {
 
   @AfterEach
   public void cleanup() throws SQLException {
-    deleteSpace(sourceSpace);
-    deleteSpace(sourceSpaceBase);
-    deleteSpace(targetSpace);
+    deleteSpace(sourceSpaceId);
+    deleteSpace(sourceSpaceBaseId);
+    deleteSpace(targetSpaceId);
     deleteSpace(targetRemoteSpace);
   }
 
@@ -186,19 +185,21 @@ public class CopySpaceStepsTest extends StepTest {
   @ParameterizedTest //(name = "{index}")
   @MethodSource("provideParameters")
   public void copySpace(boolean testRemoteDb, Geometry geo, boolean clip, String propertyFilter, String versionRef) throws Exception {
-    String targetSpace = !testRemoteDb ? CopySpaceStepsTest.targetSpace : targetRemoteSpace;
+    Ref resolvedRef = versionRef == null ? new Ref(loadHeadVersion(sourceSpaceId)) : new Ref(versionRef);
+
+    String targetSpace = !testRemoteDb ? CopySpaceStepsTest.targetSpaceId : targetRemoteSpace;
 
     StatisticsResponse statsBefore = getStatistics(targetSpace);
 
     assertEquals(NrFeaturesAtStartInTargetSpace, (Object) statsBefore.getCount().getValue());
 
     LambdaBasedStep step = new CopySpace()
-        .withSpaceId(sourceSpace).withSourceVersionRef(new Ref(versionRef == null ? "HEAD" : versionRef ))
+        .withSpaceId(sourceSpaceId).withSourceVersionRef(resolvedRef)
         .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo).withClip(clip) )
         .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
         .withTargetSpaceId(targetSpace)
         .withJobId(JOB_ID)
-        /* test only -> */.withVersion(3);
+        /* test only -> */.withTargetVersion(3); //TODO: rather provide the according model-based input instead (that would also directly test the functionality of providing the input accordingly)
 
 
     sendLambdaStepRequestBlock(step, true);
@@ -207,10 +208,10 @@ public class CopySpaceStepsTest extends StepTest {
 
     if( versionRef != null )
     { expectedCount = 12L;
-      if( geo != null || propertyFilter != null ) //TODO: clarify - in case of filtering with versionRange, deleted features are not copied as they are not "found" 
+      if( geo != null || propertyFilter != null ) //TODO: clarify - in case of filtering with versionRange, deleted features are not copied as they are not "found"
        expectedCount++;
     }
- 
+
     StatisticsResponse statsAfter = getStatistics(targetSpace);
     assertEquals( expectedCount, (Object) statsAfter.getCount().getValue());
   }
@@ -218,7 +219,7 @@ public class CopySpaceStepsTest extends StepTest {
   @Test
   public void copySpacePre() throws Exception {
     LambdaBasedStep step = new CopySpacePre()
-        .withSpaceId(targetSpace)
+        .withSpaceId(targetSpaceId)
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);
@@ -236,7 +237,7 @@ public class CopySpaceStepsTest extends StepTest {
   @Test
   public void copySpacePost() throws Exception {
     LambdaBasedStep step = new CopySpacePost()
-        .withSpaceId(sourceSpace)
+        .withSpaceId(sourceSpaceId)
         .withJobId(JOB_ID);
 
     sendLambdaStepRequestBlock(step, true);

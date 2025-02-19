@@ -128,7 +128,6 @@ public class ResourceAndTimeCalculator implements Initializable {
         return Math.min(calculatedThreadCount, fileCount == 0 ? 1 : fileCount);
     }
 
-    //Copy Related...
     public double calculateNeededAcusFromByteSize(long byteSize) {
         //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
         final double maxAcus = 70;
@@ -142,29 +141,6 @@ public class ResourceAndTimeCalculator implements Initializable {
 
         return Math.min(neededAcus, maxAcus);
     }
-
-    public double calculateNeededCopyAcus( long nrFeatureSource ) 
-    {
-     final double maxAcus = 5;
-     int ftBlock = 20000;
-
-     double neededAcus = ( nrFeatureSource <= ftBlock ? 1.0 : (nrFeatureSource/ftBlock) * 0.5 + 0.5 );
-
-     return Math.min(neededAcus, maxAcus);
-    }
-
-    public int calculateCopyTimeInSeconds(String sourceSpaceId, String targetSpaceId, long nrFeatureSource, long nrFeatureTarget, LambdaBasedStep.ExecutionMode executionMode)
-    {
-      // ~1min per 20T feature,
-      int oneMinute = 60, ftBlock = 20000, startUp = oneMinute,
-          calcSecs = ( nrFeatureSource <= ftBlock ? oneMinute : ((int) (nrFeatureSource/ftBlock)) * oneMinute  ) + startUp;
-
-      if( nrFeatureTarget > ftBlock ) // ~ copy into nonempty space => add additional 1/2 amount of calculated
-       calcSecs = calcSecs + (calcSecs/2);
-
-      return calcSecs;  
-    }
-
 
     //Index Related...
     protected double geoIndexFactor(String spaceId, double bytesPerBillion){
