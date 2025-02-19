@@ -139,16 +139,19 @@ public class TransportTools {
   protected static Map<String, Object> createQueryContext(String stepId, String schema, String table,
       boolean historyEnabled, String superTable) {
 
-    final Map<String, Object> queryContext = new HashMap<>(Map.of(
+    Map<String, Object> queryContext = new HashMap<>(Map.of(
         "stepId", stepId,
         "schema", schema,
         "table", table,
-        "context", superTable != null ? "DEFAULT" : null,
         "historyEnabled", historyEnabled
     ));
 
-    if (superTable != null)
+    if (superTable == null)
+      queryContext.put("context", null);
+    else {
+      queryContext.put("context", "DEFAULT");
       queryContext.put("extendedTable", superTable);
+    }
 
     return queryContext;
   }
