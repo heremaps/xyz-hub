@@ -198,6 +198,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         LOGGER.info("Preparation: Insert features");
 
         // =========== Validate that "geometry":null is serialized ==========
+        // s. https://datatracker.ietf.org/doc/html/rfc7946#section-3.2 
         String response = invokeLambdaFromFile("/events/GetFeaturesByIdEvent.json");
         assertTrue(response.indexOf("\"geometry\":null") > 0);
     }
