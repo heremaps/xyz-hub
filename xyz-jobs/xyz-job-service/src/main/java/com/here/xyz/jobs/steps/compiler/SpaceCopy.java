@@ -38,14 +38,18 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class SpaceCopy implements JobCompilationInterceptor {
+  public static Set<Class> forbiddenTargetTypes = new HashSet<>();
+
   @Override
   public boolean chooseMe(Job job) {
     return job.getProcess() == null && job.getSource() instanceof DatasetDescription.Space
-        && job.getTarget() instanceof DatasetDescription.Space;
+        && job.getTarget() instanceof DatasetDescription.Space && !forbiddenTargetTypes.contains(job.getTarget().getClass());
   }
 
   private static int threadCountCalc(long sourceFeatureCount, long targetFeatureCount) {
