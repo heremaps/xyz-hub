@@ -362,7 +362,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
           SELECT array_agg(element) AS tile_list
               FROM (
                   SELECT jsonb_array_elements_text(
-                          jsonb_build_array(task_data->'taskData')
+                          jsonb_build_array(task_data->'taskInput')
                   ) AS element
                   FROM ${schema}.${table}
                   WHERE bytes_uploaded = 0
