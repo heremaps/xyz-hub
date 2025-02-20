@@ -165,7 +165,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
     CopySpacePost postCopySpace = new CopySpacePost()
         .withSpaceId(targetSpaceId)
         .withJobId(jobId)
-        .withOutputMetadata(Map.of(target.getClass().getTypeName().toLowerCase(), targetSpaceId))
+        .withOutputMetadata(Map.of(target.getClass().getSimpleName().toLowerCase(), targetSpaceId))
         .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
     startGraph.addExecution(postCopySpace);
