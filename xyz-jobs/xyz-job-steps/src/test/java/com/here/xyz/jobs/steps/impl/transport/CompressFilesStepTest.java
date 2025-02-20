@@ -9,6 +9,7 @@ import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.util.S3Client;
 import java.io.ByteArrayInputStream;
@@ -22,6 +23,24 @@ import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 
 public class CompressFilesStepTest extends StepTest {
+
+  @Test
+  public void testOutputIsCompressed() throws Exception {
+    uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
+
+    SyncLambdaStep step = new CompressFiles()
+        .withJobId(JOB_ID)
+        .withOutputSetVisibility(COMPRESSED_DATA, USER)
+        .withInputSets(List.of(USER_INPUTS.get()));
+
+    sendLambdaStepRequestBlock(step, true);
+
+    List<Output> testOutputs = step.loadUserOutputs();
+
+    Assertions.assertEquals(1, testOutputs.size());
+    Assertions.assertInstanceOf(DownloadUrl.class, testOutputs.get(0));
+    Assertions.assertTrue(((DownloadUrl) testOutputs.get(0)).isCompressed());
+  }
 
   @Test
   public void testSingleFileCompression() throws Exception {
