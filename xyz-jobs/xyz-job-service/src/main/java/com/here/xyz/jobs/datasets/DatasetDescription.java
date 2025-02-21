@@ -56,7 +56,7 @@ public abstract class DatasetDescription implements Typed {
   public abstract String getKey();
 
   public static class Map extends Identifiable implements VersionedSource<Map> {
-    private Ref versionRef;
+    private Ref versionRef = new Ref(Ref.HEAD);
 
     @Override
     public Ref getVersionRef() {

@@ -49,6 +49,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
+import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -195,13 +196,20 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
       throw new ValidationException("Version ref is required.");
 
     try {
-      if (versionRef.isTag()) {
-        versionRef = new Ref(resolveTag(versionRef.getTag()));
-      } else if (versionRef.isHead()) {
-        versionRef = new Ref(resolveHead());
+      try {
+        versionRef = hubWebClient().resolveRef(getSpaceId(), context, versionRef);
       }
-    } catch (StepException e) {
-      throw new ValidationException("Unable to resolve the provided version \"" + versionRef + "\". " + e.getMessage());
+      catch (ErrorResponseException e) {
+        handleErrorResponse(e);
+      }
+    }
+    catch (WebClientException e) {
+      throw handleWebClientException("Unable to resolve the provided version ref \"" + versionRef + "\" of " + getSpaceId() + ": "
+          + e.getMessage(), e);
+    }
+    catch (StepException e) {
+      throw new ValidationException("Unable to resolve the provided version ref \"" + versionRef + "\" of " + getSpaceId() + ": "
+          + e.getMessage(), e);
     }
   }
 
