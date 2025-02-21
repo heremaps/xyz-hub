@@ -48,6 +48,9 @@ public class DownloadUrl extends Output<DownloadUrl> implements S3DataFile {
 
   @Override
   public boolean isCompressed() {
+    if (this.getS3Key() != null) {
+      return this.getS3Key().endsWith(".zip");
+    }
     return false;
   }
 
