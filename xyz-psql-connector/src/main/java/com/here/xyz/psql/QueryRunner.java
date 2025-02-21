@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
@@ -76,7 +77,10 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
   }
 
   public final R run() throws SQLException, ErrorResponseException {
-    return run(getDataSourceProvider());
+    R response = run(getDataSourceProvider());
+    if (response instanceof ErrorResponse errorResponse)
+      throw new ErrorResponseException(errorResponse);
+    return response;
   }
 
   protected R write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
