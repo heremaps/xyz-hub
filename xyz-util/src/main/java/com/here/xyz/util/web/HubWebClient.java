@@ -297,6 +297,7 @@ public class HubWebClient extends XyzWebClient {
     if (ref.isTag())
       return new Ref(loadTag(spaceId, ref.getTag()).getVersion());
     if (ref.isRange())
+      //TODO: run start / end resolving in parallel
       return new Ref(resolveRef(spaceId, context, ref.getStart()).getVersion(), resolveRef(spaceId, context, ref.getEnd()).getVersion());
 
     //Unsupported ref type (should not happen)
