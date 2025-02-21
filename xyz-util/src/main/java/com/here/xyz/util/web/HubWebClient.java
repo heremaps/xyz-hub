@@ -24,6 +24,7 @@ import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.GEO_JSON;
 import static com.google.common.net.MediaType.JSON_UTF_8;
 import static com.here.xyz.XyzSerializable.deserialize;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -32,6 +33,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.StatisticsResponse;
@@ -279,6 +281,26 @@ public class HubWebClient extends XyzWebClient {
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
+  }
+
+  public Ref resolveRef(String spaceId, Ref ref) throws WebClientException {
+    return resolveRef(spaceId, loadSpace(spaceId).getExtension() != null ? EXTENSION : null, ref);
+  }
+
+  public Ref resolveRef(String spaceId, SpaceContext context, Ref ref) throws WebClientException {
+    if (ref.isAllVersions())
+      throw new IllegalArgumentException("A ref that is depicting all versions (\"*\") can not be resolved.");
+    if (ref.isOnlyNumeric())
+      return ref;
+    if (ref.isHead())
+      return new Ref(loadSpaceStatistics(spaceId, context).getMaxVersion().getValue());
+    if (ref.isTag())
+      return new Ref(loadTag(spaceId, ref.getTag()).getVersion());
+    if (ref.isRange())
+      return new Ref(resolveRef(spaceId, context, ref.getStart()).getVersion(), resolveRef(spaceId, context, ref.getEnd()).getVersion());
+
+    //Unsupported ref type (should not happen)
+    throw new IllegalArgumentException("Unable to resolve the provided ref: " + ref);
   }
 
   protected record InstanceKey(String baseUrl, Map<String, String> extraHeaders) {}
