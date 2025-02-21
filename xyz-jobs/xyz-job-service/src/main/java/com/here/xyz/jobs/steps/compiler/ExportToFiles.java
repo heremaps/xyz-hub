@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.steps.compiler;
 
 import com.here.xyz.jobs.Job;
-import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
@@ -31,7 +30,7 @@ import java.util.Map;
 public class ExportToFiles implements JobCompilationInterceptor {
   @Override
   public boolean chooseMe(Job job) {
-    return job.getProcess() == null && job.getSource() instanceof DatasetDescription.Space && job.getTarget() instanceof Files targetFiles
+    return job.getProcess() == null && Space.class.equals(job.getSource().getClass()) && job.getTarget() instanceof Files targetFiles
         && targetFiles.getOutputSettings().getFormat() instanceof GeoJson;
   }
 
