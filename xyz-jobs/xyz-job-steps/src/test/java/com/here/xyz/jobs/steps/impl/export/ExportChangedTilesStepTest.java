@@ -256,4 +256,17 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                         List.of() //only deletions have happened
                 ));
     }
+
+    @Test
+    public void ExportChangedTilesStepVersion0toHEAD() throws IOException, InterruptedException {
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
+                new Ref("0..HEAD") , List.of("1269"), new FeatureCollection().withFeatures(
+                        List.of(
+                                new Feature().withId("point1_delta"),
+                                new Feature().withId("point3_delta"),
+                                new Feature().withId("point2_base"),
+                                new Feature().withId("line4_delta")
+                        ) //only deletions have happened
+                ));
+    }
 }
