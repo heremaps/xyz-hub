@@ -110,7 +110,7 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
 
     private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {
       if (selectClauseOverride != null)
-        return selectClause.withQueryFragment("selectClause", selectClauseOverride);
+        return selectClauseOverride;
       return selectClause;
     }
   }

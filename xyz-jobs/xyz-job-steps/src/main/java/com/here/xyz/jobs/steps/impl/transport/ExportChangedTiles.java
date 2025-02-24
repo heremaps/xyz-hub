@@ -160,17 +160,18 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   @Override
   public boolean validate() throws ValidationException {
       super.validate();
-      try {
-        //if(space().getExtension() == null)
-        //  throw new ValidationException("Only supported for composite compounds!");
-        if (space().getVersionsToKeep() <= 1)
-          throw new ValidationException("Versions to keep must be greater than 1!");
-        if (targetLevel < 0 || targetLevel > 12) {
-          throw new ValidationException("TargetLevel must be between 0 and 12!");
-        }
-      }catch (WebClientException e) {
-        throw new ValidationException("Error loading resource " + getSpaceId(), e);
+
+      if (targetLevel < 0 || targetLevel > 12) {
+        throw new ValidationException("TargetLevel must be between 0 and 12!");
       }
+//      try {
+//        //if(space().getExtension() == null)
+//        //  throw new ValidationException("Only supported for composite compounds!");
+//        if (space().getVersionsToKeep() <= 1)
+//          throw new ValidationException("Versions to keep must be greater than 1!");
+//      }catch (WebClientException e) {
+//        throw new ValidationException("Error loading resource " + getSpaceId(), e);
+//      }
       return true;
   }
 
@@ -393,7 +394,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     GetFeaturesByIdsBuilder.GetFeaturesByIdsInput input = createGetFeaturesByIdsInput(ids, context, versionRef);
 
     return queryBuilder
-            .withSelectClauseOverride(new SQLQuery("geo"))
+            .withSelectClauseOverride(new SQLQuery("id,geo"))
             .buildQuery(input);
   }
 

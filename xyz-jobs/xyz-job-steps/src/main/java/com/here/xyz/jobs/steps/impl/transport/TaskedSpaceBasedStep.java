@@ -50,6 +50,9 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -170,7 +173,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
     try {
       StatisticsResponse statistics = spaceStatistics(spaceContext, true);
       overallNeededAcus = overallNeededAcus != -1 ?
-              overallNeededAcus : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
+              overallNeededAcus :
+                ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
       infoLog(JOB_EXECUTOR, this,"Calculated ACUS: byteSize of layer: "
               + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
@@ -303,10 +307,19 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
   protected void startTask(String schema, TaskProgress taskProgressAndItem) throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException {
 
-    if(taskProgressAndItem.taskId() != -1) {
-      infoLog(STEP_EXECUTE, this, "Start export with taskId: " + taskProgressAndItem.taskId());
-      runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.taskId, taskProgressAndItem.taskInput),
-              dbReader(), overallNeededAcus / taskItemCount, false);
+    if (taskProgressAndItem.taskId() != -1) {
+      BigDecimal overallAcusBD = BigDecimal.valueOf(overallNeededAcus);
+      BigDecimal itemCountBD = BigDecimal.valueOf(taskItemCount);
+
+      // Perform precise division
+      BigDecimal perItemAcus = overallAcusBD.divide(itemCountBD, 30, RoundingMode.HALF_UP);
+
+      infoLog(STEP_EXECUTE, this, "Start export with taskId: " + taskProgressAndItem.taskId()
+              + " " + perItemAcus.stripTrailingZeros().toPlainString()
+              + "/" + overallAcusBD.stripTrailingZeros().toPlainString());
+
+      runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.taskId(), taskProgressAndItem.taskInput()),
+              dbReader(), perItemAcus.doubleValue(), false);
     }
   }
 
