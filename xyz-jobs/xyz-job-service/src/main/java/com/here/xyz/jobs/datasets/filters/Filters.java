@@ -33,7 +33,6 @@ import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.util.Hasher;
-
 import java.util.ArrayList;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -68,7 +67,7 @@ public class Filters {
     }
   }
 
-  public Filters withPropertyFilter(String propertyFilter) {
+  public Filters withPropertyFilter(Object propertyFilter) {
     setPropertyFilter(propertyFilter);
     return this;
   }
@@ -105,11 +104,19 @@ public class Filters {
   }
 
   @JsonIgnore
+  @Deprecated
   public String getHash() {
     String input = "#" + (getPropertyFilterAsString() != null ? getPropertyFilterAsString() : "")
         + "#" + (spatialFilter != null ? serialize(spatialFilter) : "")
         + "#";
 
     return Hasher.getHash(input);
+  }
+
+  public Filters copy() {
+    return new Filters()
+        .withContext(getContext())
+        .withSpatialFilter(getSpatialFilter())
+        .withPropertyFilter(getPropertyFilter());
   }
 }

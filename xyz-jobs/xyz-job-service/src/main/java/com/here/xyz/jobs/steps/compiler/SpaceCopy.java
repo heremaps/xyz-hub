@@ -112,6 +112,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
         CopySpace copySpaceStep = new CopySpace()
             .withSpaceId(sourceSpaceId)
             .withTargetSpaceId(targetSpaceId)
+            //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
             .withSourceVersionRef(hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef))
             .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
             .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
