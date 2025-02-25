@@ -79,6 +79,11 @@ public class SpaceCopy implements JobCompilationInterceptor {
   }
 
   public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target) {
+    return compile(jobId, source, target, null);
+  }
+
+  public static CompilationStepGraph compile(String jobId, DatasetDescription.Space source, DatasetDescription.Space target,
+      Map<String, String> outputMetadata) {
     String sourceSpaceId = source.getId();
     String targetSpaceId = target.getId();
     Filters filters = source.getFilters();
@@ -87,7 +92,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
       throw new CompilationError("The source versionRef may not be null.");
 
     SpaceContext sourceContext, targetContext;
-    StatisticsResponse sourceStatistics = null, targetStatistics = null;
+    StatisticsResponse sourceStatistics, targetStatistics;
     try {
       //TODO: Parallelize statistics loading (or get rid of it completely in compiler by merging the 3 copy steps into one)
       sourceContext = hubWebClient().loadSpace(sourceSpaceId).getExtension() != null ? EXTENSION : null;
@@ -125,10 +130,13 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       startGraph.addExecution(copyGraph);
 
+      if (outputMetadata == null)
+        outputMetadata = Map.of(target.getClass().getSimpleName().toLowerCase(), targetSpaceId);
+
       CopySpacePost postCopySpace = new CopySpacePost()
           .withSpaceId(targetSpaceId)
           .withJobId(jobId)
-          .withOutputMetadata(Map.of(target.getClass().getSimpleName().toLowerCase(), targetSpaceId))
+          .withOutputMetadata(outputMetadata)
           .withInputSets(List.of(new InputSet(preCopySpace.getOutputSet(VERSION))));
 
       startGraph.addExecution(postCopySpace);
