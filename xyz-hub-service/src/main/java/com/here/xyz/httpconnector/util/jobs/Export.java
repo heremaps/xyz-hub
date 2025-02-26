@@ -1362,32 +1362,33 @@ public class Export extends JDBCBasedJob<Export> {
             new Thread(() -> {
                 setUpdatedAt(Core.currentTimeMillis() / 1000l);
                 while (emrJobExecutionFuture.get() != null) {
-                    JobRunState jobState = null;
                     try {
-                        jobState = getEmrManager().getExecutionSummary(applicationId, emrJobId);
+                        String jobState = getEmrManager().getExecutionSummary(applicationId, emrJobId);
                         setUpdatedAt(Core.currentTimeMillis() / 1000l);
+
+                        switch (jobState) {
+                            case "SUCCESS":
+                                logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
+                                setS3Key(CService.jobS3Client.getS3Path(this) + EMRConfig.S3_PATH_SUFFIX);
+                                //Update this job's state finally to "finalized"
+                                if (finalizeAfterCompletion)
+                                    updateJobStatus(this, finalized);
+                                //Stop this thread
+                                completePollingThread(promise);
+                                break;
+                            case "FAILED":
+                            case "CANCELLED":
+                                logger.warn("job[{}] EMR transformation {} ended with state \"{}\"", getId(), emrJobId, jobState);
+                                final String errorMessage = "EMR job " + emrJobId + " ended with state \"" + jobState + "\"";
+                                setJobFailed(this, errorMessage, "EMR_JOB_FAILED");
+                                //Stop this thread
+                                failPollingThread(promise, errorMessage);
+                        }
                     }
                     catch (Exception e) {
                         logger.warn("job[{}] Error fetching job state of EMR transformation with emr job id \"{}\"", getId(), emrJobId, e);
                     }
-                    switch (jobState) {
-                        case SUCCESS:
-                            logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
-                            setS3Key(CService.jobS3Client.getS3Path(this) + EMRConfig.S3_PATH_SUFFIX);
-                            //Update this job's state finally to "finalized"
-                            if (finalizeAfterCompletion)
-                                updateJobStatus(this, finalized);
-                            //Stop this thread
-                            completePollingThread(promise);
-                            break;
-                        case FAILED:
-                        case CANCELLED:
-                            logger.warn("job[{}] EMR transformation {} ended with state \"{}\"", getId(), emrJobId, jobState);
-                            final String errorMessage = "EMR job " + emrJobId + " ended with state \"" + jobState + "\"";
-                            setJobFailed(this, errorMessage, "EMR_JOB_FAILED");
-                            //Stop this thread
-                            failPollingThread(promise, errorMessage);
-                    }
+
                     //Check if last state update is too long (>60s) ago (timeout or other issue with EMR job)
                     if (getUpdatedAt() < Core.currentTimeMillis() / 1000l - 60) {
                         final String errorMessage = "No state update from EMR job " + emrJobId + " since more than 60 seconds";
