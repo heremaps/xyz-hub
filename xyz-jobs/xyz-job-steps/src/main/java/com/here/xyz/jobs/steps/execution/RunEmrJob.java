@@ -110,12 +110,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     scriptParams.set(0, localTmpInputsFolder);
     scriptParams.set(1, localTmpOutputsFolder);
 
+    List<String> baseDirKeys = List.of("--baseInputDir=", "--tileInvalidations=");
+
     for (int i = 0; i < scriptParams.size(); i++) {
-      String baseDirKey = "--baseInputDir=";
-      if (scriptParams.get(i).startsWith(baseDirKey)) {
-        String localTmpBaseInputsFolder = copyFolderFromS3ToLocal(
-            S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
-        scriptParams.set(i, baseDirKey + localTmpBaseInputsFolder);
+      for (String baseDirKey : baseDirKeys) {
+        if (scriptParams.get(i).startsWith(baseDirKey)) {
+          String localTmpFolder = copyFolderFromS3ToLocal(
+                  S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
+          scriptParams.set(i, baseDirKey + localTmpFolder);
+        }
       }
     }
 
