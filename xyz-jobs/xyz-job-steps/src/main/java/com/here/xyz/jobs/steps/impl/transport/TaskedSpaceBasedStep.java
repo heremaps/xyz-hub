@@ -50,6 +50,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
@@ -74,6 +76,7 @@ import java.util.Map;
  * @param <T> The specific subclass type extending this step.
  */
 public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> extends SpaceBasedStep<T> {
+  private static final Logger logger = LogManager.getLogger();
   //Defines how many features a source layer need to have to start parallelization.
   public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
   //Defines how many export threads are getting used
@@ -159,6 +162,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
    */
   @Override
   public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
+    logger.info("[{}] Preparing step ...", getGlobalStepId());
+
     if (versionRef == null)
       throw new ValidationException("Version ref is required.");
 
@@ -178,6 +183,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
       throw new ValidationException("Unable to resolve the provided version ref \"" + versionRef + "\" of " + getSpaceId() + ": "
           + e.getMessage(), e);
     }
+
+    logger.info("[{}] Completed preparation of step.", getGlobalStepId());
   }
 
   @Override
