@@ -53,7 +53,7 @@ public class Async {
           catch (Exception e) {
             promise.fail(e);
           }
-        });
+        }, false);
   }
 
   @FunctionalInterface

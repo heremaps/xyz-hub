@@ -82,13 +82,13 @@ public class EMRManager {
         return jobRunResult.getJobRunId();
     }
 
-    public JobRunState getExecutionSummary(String applicationId, String jobRunId) {
+    public String getExecutionSummary(String applicationId, String jobRunId) {
         GetJobRunRequest getJobRunRequest = new GetJobRunRequest()
                 .withApplicationId(applicationId)
                 .withJobRunId(jobRunId);
 
         GetJobRunResult jobRunResult = emrClient.getJobRun(getJobRunRequest);
-        return JobRunState.fromValue(jobRunResult.getJobRun().getState());
+        return jobRunResult.getJobRun().getState();
     }
 
     public void shutdown(String applicationId, String jobRunId) {
