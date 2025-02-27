@@ -54,7 +54,8 @@ public class ExportTestBase extends StepTest {
         checkOutputs(allExpectedFeatures, step.loadUserOutputs(), step.loadOutputs(SYSTEM));
     }
 
-    protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs) throws IOException {
+    protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs)
+            throws IOException {
         Assertions.assertNotEquals(0, userOutputs.size());
         Assertions.assertNotEquals(0, systemOutputs.size());
 
@@ -111,7 +112,7 @@ public class ExportTestBase extends StepTest {
                 System.out.println(statistics.getFeatureCount());
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
             }else if (output instanceof TileInvalidations tileInvalidations) {
-                logger.info("TileInvalidations {} vs {}",expectedTileInvalidations, tileInvalidations);
+                logger.info("TileInvalidations {} vs {}",expectedTileInvalidations, tileInvalidations.getTileIds());
                 Assertions.assertEquals(expectedTileInvalidations.size(), tileInvalidations.getTileIds().size());
                 Assertions.assertTrue(expectedTileInvalidations.containsAll(tileInvalidations.getTileIds()));
             }
