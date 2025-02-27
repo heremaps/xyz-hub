@@ -28,6 +28,8 @@ public class BaseConfig {
   public static BaseConfig instance;
 
   {
+    if(instance != null)
+      throw new IllegalStateException("Config was already initialized.");
     instance = this;
   }
 
