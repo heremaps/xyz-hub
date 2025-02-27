@@ -401,7 +401,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   /**
-   * Will be called right after the job compilation, but juts before the step validation call.
+   * Will be called right after the job compilation, but just before the step validation call.
+   * Can be used to perform some preparations for the step that are already executed in the service node.
+   * NOTE: That means this method will not run within the target runtime environment!
+   * The execution of this method must not take a long time (e.g., <2s), because it would block
+   * the job-creation response that is about to be sent to the user that creates the job.
    *
    * @param owner
    * @param ownerAuth
