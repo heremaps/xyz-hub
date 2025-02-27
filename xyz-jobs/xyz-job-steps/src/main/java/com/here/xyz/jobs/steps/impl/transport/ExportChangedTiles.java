@@ -123,7 +123,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
         new OutputSet(STATISTICS, USER, true),
         new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false),
-        new OutputSet(TILE_INVALIDATIONS, USER, true)
+        new OutputSet(TILE_INVALIDATIONS, SYSTEM, true)
     ));
   }
 
