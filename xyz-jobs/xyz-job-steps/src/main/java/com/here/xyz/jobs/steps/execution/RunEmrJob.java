@@ -387,6 +387,24 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getLocalTmpPath(s3Path);
   }
 
+  // Mapping of file extensions to content types
+  private static final Map<String, String> CONTENT_TYPE_MAP = new HashMap<>() {{
+    put(".geojson", "application/json");
+    put(".json", "application/json");
+    put(".csv", "text/csv");
+    put(".txt", "text/plain");
+  }};
+
+  // Determine the content type based on the file extension
+  private static String getContentType(Path filePath) {
+    String fileName = filePath.getFileName().toString().toLowerCase();
+    return CONTENT_TYPE_MAP.entrySet().stream()
+            .filter(entry -> fileName.endsWith(entry.getKey()))
+            .map(Map.Entry::getValue)
+            .findFirst()
+            .orElse("text/plain"); // Default to text/plain for unknown types
+  }
+
   private void uploadEMRResultsToS3(File emrOutputDir, String s3TargetPath) throws IOException {
     if (emrOutputDir.exists() && emrOutputDir.isDirectory()) {
       File[] files = emrOutputDir.listFiles();
@@ -397,8 +415,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       }
 
       for (File file : files) {
-        //TODO: check why this happens & skip _SUCCESS
-        if (file.getPath().endsWith("crc"))
+        if (file.getPath().endsWith("crc") || file.getName().equalsIgnoreCase("_SUCCESS"))
           continue;
 
         if (file.isDirectory()) {
@@ -408,11 +425,11 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
         }
 
         logger.info("[EMR-local] Store local file {} to {} ", file, s3TargetPath);
-        //TODO: Check if this is the correct content-type
+        s3TargetPath = s3TargetPath.replaceAll("/$", "");
         new DownloadUrl()
-            .withContentType("text")
+            .withContentType(getContentType(file.toPath()))
             .withContent(Files.readAllBytes(file.toPath()))
-            .store(s3TargetPath + "/" + UUID.randomUUID());
+            .store(s3TargetPath + "/" + file.getName());
       }
     }
   }
