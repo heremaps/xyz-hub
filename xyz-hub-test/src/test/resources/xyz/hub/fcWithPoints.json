@@ -64,7 +64,7 @@
     {
       "type": "Feature",
       "id": "id6",
-      "properties": {},
+      "properties": {"foo":"test2"},
       "geometry": {
         "coordinates": [
           89.68955640060244,
