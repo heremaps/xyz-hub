@@ -109,11 +109,11 @@ public class CompositeExportStepTest extends ExportTestBase {
             new Ref(HEAD), "/search?context=SUPER");
     }
 
-    //@Test
+    @Test
     public void exportWithContextSuperAndWithPropertyFilter() throws Exception {
-        //new_point does not exist in base
+        // base_point1 exists in base space //TODO: Check behaviour when empty export -> f.id=\"new_point1\" 
         exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
-                URLEncoder.encode("f.id=\"new_point1\"", StandardCharsets.UTF_8));
+                URLEncoder.encode("f.id=\"base_point1\"", StandardCharsets.UTF_8));
     }
 
     @Test
