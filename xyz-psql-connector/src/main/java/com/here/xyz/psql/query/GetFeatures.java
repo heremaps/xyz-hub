@@ -71,15 +71,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
           + "   ${{unionAll}} "
           + "     SELECT * FROM (${{baseQuery}}) a"
-          + "       WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} WHERE ${{idComparison}})"
+          + "       ${{compositionFilter}}"
           + ") limitQuery ${{limit}}) orderQuery ${{outerOrderBy}}")
           .withQueryFragment("selectClause", buildSelectClause(event, dataset))
           .withQueryFragment("filters", buildFiltersFragment(event, true, filterWhereClause, dataset))
           .withQueryFragment("orderBy", buildOrderByFragment(event))
           .withQueryFragment("versionCheck", versionCheckFragment)
-          .withQueryFragment("idComparison", buildIdComparisonFragment(event, "a.", versionCheckFragment))
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
-          .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION ? "" : "NOT")
+          .withQueryFragment("compositionFilter", buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", versionCheckFragment)))
           .withQueryFragment("baseQuery", !is2LevelExtendedSpace(event)
               ? build1LevelBaseQuery(event, filterWhereClause) //1-level extension
               : build2LevelBaseQuery(event, filterWhereClause)); //2-level extension
@@ -99,6 +98,16 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("limit", buildLimitFragment(event));
   }
 
+  private SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
+    if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions())
+      return new SQLQuery("");
+
+    String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
+    return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
+        .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION && !isL2 ? "" : "NOT")
+        .withQueryFragment("idComparison", idComparisonFragment);
+  }
+
   protected SQLQuery buildFiltersFragment(E event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
     return new SQLQuery("${{filterWhereClause}} ${{authorCheck}} ${{deletedCheck}}")
         .withQueryFragment("filterWhereClause", filterWhereClause)
@@ -111,11 +120,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildSelectClause(E event, int dataset) {
-    return new SQLQuery("id, version, ${{jsonData}}, ${{geo}}, ${{dataset}}")
-        .withQueryFragment("jsonData", buildJsonDataFragment(event))
+    return new SQLQuery("id, ${{version}}, ${{jsonData}}, ${{geo}}, ${{dataset}}")
+        .withQueryFragment("jsonData", buildJsonDataFragment(event, dataset))
         .withQueryFragment("geo", buildGeoFragment(event))
         .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
-        .withQueryFragment("datasetNo", "" + dataset));
+        .withQueryFragment("datasetNo", "" + dataset))
+        .withQueryFragment("version", getFeatureVersion(dataset) + " AS version");
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
@@ -208,14 +218,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "  FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}) "
         + "UNION ALL"
         + "  SELECT * FROM (${{baseQuery}}) b"
-        + "    WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
+        + "    ${{compositionFilter}}")
         .withVariable("intermediateExtensionTable", getIntermediateTable(event))
         .withQueryFragment("selectClause", buildSelectClause(event, dataset))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the intermediate space is an extended one
         .withQueryFragment("versionCheck", versionCheckFragment)
         .withQueryFragment("orderBy", buildOrderByFragment(event))
         .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
-        .withQueryFragment("idComparison", buildIdComparisonFragment(event, "b.", versionCheckFragment));
+        .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment)));
   }
 
   private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {
@@ -286,7 +296,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     result.append(",");
   }
 
-  protected SQLQuery buildJsonDataFragment(ContextAwareEvent event) {
+  protected SQLQuery buildJsonDataFragment(ContextAwareEvent event, int dataset) {
     SQLQuery jsonData;
 
     if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getSelection() == null)
@@ -304,8 +314,18 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           .withNamedParameter("selection", selection.toArray(new String[0]));
     }
 
-    return new SQLQuery("jsonb_set(${{innerJsonData}}, '{properties, @ns:com:here:xyz, version}', to_jsonb(version)) AS jsondata")
-        .withQueryFragment("innerJsonData", jsonData);
+    return new SQLQuery("jsonb_set(${{innerJsonData}}, '{properties, @ns:com:here:xyz, version}', to_jsonb(${{featureVersion}})) AS jsondata")
+        .withQueryFragment("innerJsonData", jsonData)
+        .withQueryFragment("featureVersion", getFeatureVersion(dataset));
+  }
+
+  private static String getFeatureVersion(int dataset) {
+    /*
+    NOTE: From the perspective of a composite layer (requested with context = DEFAULT),
+    the extended dataset(s) always have version = 0, because the extension itself *is empty* and this *empty version (aka version 0)*
+    is simply not empty but contains the whole HEAD of the dataset being extended (e.g., INTERMEDIATE and / or SUPER dataset).
+     */
+    return dataset > 0 ? "0" : "version";
   }
 
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {
