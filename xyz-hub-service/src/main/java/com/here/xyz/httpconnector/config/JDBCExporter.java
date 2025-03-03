@@ -19,19 +19,12 @@
 
 package com.here.xyz.httpconnector.config;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
-import static com.here.xyz.models.hub.Ref.HEAD;
-
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.httpconnector.CService;
@@ -42,6 +35,11 @@ import com.here.xyz.httpconnector.task.JdbcBasedHandler;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import com.here.xyz.httpconnector.util.web.LegacyHubWebClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
@@ -49,6 +47,7 @@ import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.hub.Ref;
+import static com.here.xyz.models.hub.Ref.HEAD;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.JdbcClient;
 import com.here.xyz.util.db.SQLQuery;
@@ -553,6 +552,8 @@ public class JDBCExporter extends JdbcBasedHandler {
 
        /* incremental -> for tiled export the exportSelect should be crafted like query by "toVersion" query.*/
         String targetVersion = j.getTargetVersion();
+        if (HEAD.equals(targetVersion))
+          targetVersion = null;
         if (targetVersion != null)
         { Ref ref = new Ref(targetVersion);
           if( ref.isRange() )
