@@ -65,7 +65,7 @@ public class JobCompiler {
           errors);
 
     if (interceptorCandidates.size() > 1)
-      throw new CompilationInterceptorSelectionFailed("Job \"" + job.getId() + "\" can not be compiled due to ambiguity. "
+      throw new UnexpectedCompilerError("Job \"" + job.getId() + "\" can not be compiled due to ambiguity. "
           + "Multiple compilation interceptors were found: "
           + interceptorCandidates.stream().map(c -> c.getClass().getSimpleName()).collect(Collectors.joining(", ")));
 
@@ -94,13 +94,13 @@ public class JobCompiler {
     interceptors.remove(interceptor);
   }
 
-  public static class CompilationInterceptorSelectionFailed extends RuntimeException {
+  public static class UnexpectedCompilerError extends RuntimeException {
 
-    public CompilationInterceptorSelectionFailed(String message) {
+    public UnexpectedCompilerError(String message) {
       super(message);
     }
 
-    public CompilationInterceptorSelectionFailed(String message, Throwable cause) {
+    public UnexpectedCompilerError(String message, Throwable cause) {
       super(message, cause);
     }
   }
