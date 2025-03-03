@@ -206,7 +206,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
         .withVariable(SCHEMA, getSchema())
         .withVariable("headTable", getDefaultTable((E) event) + HEAD_TABLE_SUFFIX);
 
-    query.setQueryFragment("jsonData", buildJsonDataFragment(event));
+    query.setQueryFragment("jsonData", buildJsonDataFragment(event, 0));
     query.setQueryFragment("geo", buildGeoFragment((E) event));
     query.setQueryFragment("tableSample", ""); //Can be overridden by caller
 
@@ -546,7 +546,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
             +") "
             +"select jsondata, ${{tweaksGeo}} as geo from finaldata LIMIT #{limit}")
             .withQueryFragment("geo", "geo") //(event.getClip() ? clipProjGeom(bbox,"geo") : "geo")
-            .withQueryFragment("jsonData", buildJsonDataFragment(event))
+            .withQueryFragment("jsonData", buildJsonDataFragment(event, 0))
             .withNamedParameter("minGeoHashLenForLineMerge", minGeoHashLenForLineMerge);
 
       }
@@ -568,7 +568,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     final SQLQuery query = new SQLQuery("SELECT * FROM (SELECT ${{jsonData}}, ${{geo}} AS geo FROM ${schema}.${table} ${{sampling}} WHERE ${{indexedQuery}} ${{searchQuery}} ${{orderBy}}) tw ${{outerWhereClause}} LIMIT #{limit}")
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, readTableFromEvent(event) + HEAD_TABLE_SUFFIX)
-        .withQueryFragment("jsonData", buildJsonDataFragment(event))
+        .withQueryFragment("jsonData", buildJsonDataFragment(event, 0))
         .withQueryFragment("geo", tweaksgeo)
         .withQueryFragment("sampling", "")
         .withQueryFragment("indexedQuery", indexedQuery)
