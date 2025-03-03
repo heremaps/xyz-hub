@@ -32,6 +32,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
+
+import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -108,10 +110,17 @@ public class CompositeExportStepTest extends ExportTestBase {
         executeExportStepAndCheckResults(SPACE_ID_EXT, SpaceContext.SUPER, null, null,
             new Ref(HEAD), "/search?context=SUPER");
     }
+    
+    @Ignore("This test is ignored because exporting empty file is not supported (yet)" )
+    @Test
+    public void exportEmptyFile() throws Exception {
+/* TODO: s. https://here-technologies.atlassian.net/wiki/spaces/Dragonstone/pages/1032157371/Findings */        
+        exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
+                URLEncoder.encode("f.id=\"Non_Existing_Feature\"", StandardCharsets.UTF_8));
+    }
 
     @Test
     public void exportWithContextSuperAndWithPropertyFilter() throws Exception {
-        // base_point1 exists in base space //TODO: Check behaviour when empty export -> f.id=\"new_point1\" 
         exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
                 URLEncoder.encode("f.id=\"base_point1\"", StandardCharsets.UTF_8));
     }
