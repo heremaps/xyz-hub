@@ -23,4 +23,13 @@ import com.here.xyz.Typed;
 
 public abstract class ProcessDescription implements Typed {
 
+  private String version;
+
+  public String getVersion() {
+    return version;
+  }
+
+  public void setVersion(String version) {
+    this.version = version;
+  }
 }
