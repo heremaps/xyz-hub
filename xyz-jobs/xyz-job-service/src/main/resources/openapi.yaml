@@ -428,6 +428,9 @@ components:
         type:
           description: The type of the process to be executed when the job starts.
           type: string
+        version:
+          description: A version to describe which process version should be used.
+          type: string
     FilesDataset:
       allOf:
         - $ref: '#/components/schemas/DatasetDescription'
