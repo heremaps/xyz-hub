@@ -36,6 +36,7 @@ import java.util.List;
 import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class CompositeExportStepTest extends ExportTestBase {
@@ -111,8 +112,8 @@ public class CompositeExportStepTest extends ExportTestBase {
             new Ref(HEAD), "/search?context=SUPER");
     }
     
-    @Ignore("This test is ignored because exporting empty file is not supported (yet)" )
     @Test
+    @Disabled("This test is disabled because exporting empty file is not supported (yet)" )
     public void exportEmptyFile() throws Exception {
 /* TODO: s. https://here-technologies.atlassian.net/wiki/spaces/Dragonstone/pages/1032157371/Findings */        
         exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
