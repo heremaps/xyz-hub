@@ -200,8 +200,6 @@ public class JobAdminApi extends Api {
               default -> null;
             };
             if (newJobState != null) {
-              if (newJobState.isFinal())
-                JobService.callFinalizeObservers(job);
 
               Future<Void> future = Future.succeededFuture();
               if (newJobState == SUCCEEDED)
@@ -220,8 +218,13 @@ public class JobAdminApi extends Api {
               }
 
               State oldState = job.getStatus().getState();
-              if (oldState != newJobState)
+              if (oldState != newJobState) {
                 job.getStatus().setState(newJobState);
+
+                //Call finalize observers after setting the new state to the job status
+                if (newJobState.isFinal())
+                  JobService.callFinalizeObservers(job);
+              }
 
               return future.compose(v -> job.storeStatus(oldState));
             }
