@@ -19,7 +19,13 @@
 
 package com.here.xyz.jobs;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
@@ -29,16 +35,6 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
-import static com.here.xyz.jobs.steps.resources.Load.addLoads;
-import static com.here.xyz.util.Random.randomAlpha;
-
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
@@ -50,13 +46,16 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
+import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
+import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.Async;
+import static com.here.xyz.util.Random.randomAlpha;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
@@ -347,7 +346,11 @@ public class Job implements XyzSerializable {
     }
 
     return storeUpdatedStep(step)
-        .compose(v -> storeStatus(null));
+        .compose(v -> storeStatus(null))
+        .compose(v -> getStatus().getState() == FAILED ? JobExecutor.getInstance().cancel(getExecutionId()).recover(t -> {
+          logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
+          return Future.succeededFuture();
+        }) : Future.succeededFuture());
   }
 
   private Future<Void> updatePreviousAttempts(Step step) {
