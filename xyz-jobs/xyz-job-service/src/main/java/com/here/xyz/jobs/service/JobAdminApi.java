@@ -19,30 +19,26 @@
 
 package com.here.xyz.jobs.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
+import com.here.xyz.jobs.steps.Step;
 import static com.here.xyz.jobs.steps.execution.GraphTransformer.EMR_JOB_NAME_PREFIX;
+import com.here.xyz.jobs.steps.execution.JobExecutor;
 import static com.here.xyz.jobs.util.AwsClients.asyncSfnClient;
+import com.here.xyz.util.service.HttpException;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.Job;
-import com.here.xyz.jobs.RuntimeInfo;
-import com.here.xyz.jobs.RuntimeInfo.State;
-import com.here.xyz.jobs.service.JobApi.ApiParam;
-import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.jobs.steps.execution.JobExecutor;
-import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -52,7 +48,7 @@ import java.util.List;
 import software.amazon.awssdk.services.sfn.model.GetExecutionHistoryRequest;
 import software.amazon.awssdk.services.sfn.model.HistoryEvent;
 
-public class JobAdminApi extends Api {
+public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOBS = "/admin/jobs";
   private static final String ADMIN_JOB = ADMIN_JOBS + "/:jobId";
   private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
@@ -69,9 +65,7 @@ public class JobAdminApi extends Api {
   }
 
   private void getJobs(RoutingContext context) {
-    Job.load(getState(context), getResource(context))
-        .onSuccess(res -> sendInternalResponse(context, OK.code(), res))
-        .onFailure(err -> sendErrorResponse(context, err));
+    getJobs(context, true);
   }
 
   private void getJob(RoutingContext context) {
@@ -351,20 +345,7 @@ public class JobAdminApi extends Api {
     }
   }
 
-  private static String jobId(RoutingContext context) {
-    return context.pathParam(JOB_ID);
-  }
-
   private static String stepId(RoutingContext context) {
     return context.pathParam("stepId");
-  }
-
-  private State getState(RoutingContext context) {
-    String stateParamValue = ApiParam.getQueryParam(context, ApiParam.Query.STATE);
-    return stateParamValue != null ? State.valueOf(stateParamValue) : null;
-  }
-
-  private String getResource(RoutingContext context) {
-    return ApiParam.getQueryParam(context, ApiParam.Query.RESOURCE);
   }
 }
