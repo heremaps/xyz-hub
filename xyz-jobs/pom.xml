@@ -4,7 +4,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <version>3.16.18</version>
+    <version>3.16.19-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Framework</name>
