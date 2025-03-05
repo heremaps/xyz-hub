@@ -90,6 +90,10 @@ public class JobCompiler {
     interceptors.add(interceptor);
   }
 
+  public static void deregisterCompilationInterceptor(Class<? extends JobCompilationInterceptor> interceptor) {
+    interceptors.remove(interceptor);
+  }
+
   public static class UnexpectedCompilerError extends RuntimeException {
 
     public UnexpectedCompilerError(String message) {
