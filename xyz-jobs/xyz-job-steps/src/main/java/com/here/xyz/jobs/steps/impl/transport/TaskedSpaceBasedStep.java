@@ -19,15 +19,6 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -38,8 +29,15 @@ import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -50,7 +48,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
@@ -172,18 +170,18 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
   private List<Load> calculateLoadAndSetOverallNeededAcus(SpaceContext spaceContext) {
     try {
       StatisticsResponse statistics = spaceStatistics(spaceContext, true);
-      overallNeededAcus = overallNeededAcus != -1 ?
-              overallNeededAcus :
-                ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
+      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus
+          : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
-      infoLog(JOB_EXECUTOR, this,"Calculated ACUS: byteSize of layer: "
-              + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
+      infoLog(JOB_EXECUTOR, this, "Calculated ACUS: byteSize of layer: " + statistics.getDataSize().getValue()
+          + " => neededACUs:" + overallNeededAcus);
 
       return List.of(
-              new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
-    }catch (Exception e){
-      throw new RuntimeException(e);
+          new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+    }
+    catch (WebClientException e) {
+      throw new StepException("Error calculating the necessary resources for the step.", e);
     }
   }
 
