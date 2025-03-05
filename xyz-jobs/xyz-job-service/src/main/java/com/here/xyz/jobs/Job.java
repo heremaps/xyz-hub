@@ -411,6 +411,10 @@ public class Job implements XyzSerializable {
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
   }
 
+  public static Future<List<Job>> load(boolean newerThan, long  createdAt) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, createdAt);
+  }
+
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {
     return JobConfigClient.getInstance().loadJobs(resourceKey);
   }
