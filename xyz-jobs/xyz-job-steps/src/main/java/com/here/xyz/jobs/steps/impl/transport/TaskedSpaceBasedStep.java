@@ -50,6 +50,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
@@ -173,18 +174,18 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   private List<Load> calculateLoadAndSetOverallNeededAcus(SpaceContext spaceContext) {
     try {
       StatisticsResponse statistics = spaceStatistics(spaceContext, true);
-      overallNeededAcus = overallNeededAcus != -1 ?
-              overallNeededAcus :
-                ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
+      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus
+          : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
 
-      infoLog(JOB_EXECUTOR, this,"Calculated ACUS: byteSize of layer: "
-              + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
+      infoLog(JOB_EXECUTOR, this, "Calculated ACUS: byteSize of layer: " + statistics.getDataSize().getValue()
+          + " => neededACUs:" + overallNeededAcus);
 
       return List.of(
-              new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
-    }catch (Exception e){
-      throw new RuntimeException(e);
+          new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
+    }
+    catch (WebClientException e) {
+      throw new StepException("Error calculating the necessary resources for the step.", e);
     }
   }
 

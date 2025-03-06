@@ -19,11 +19,18 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.execution.StepException;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
@@ -32,16 +39,10 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTempora
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
-
-import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
-import com.here.xyz.jobs.steps.StepExecution;
-import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.resources.IOResource;
+import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
@@ -51,12 +52,12 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import javax.xml.crypto.dsig.TransformException;
-
 import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.Geometry;
 
@@ -88,6 +89,8 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   //Currently only used if there is no filter set
   private static final long MAX_TASK_COUNT = 1000;
   private static final long MAX_BYTES_PER_TASK = 200L * 1024 * 1024; // 200MB in bytes
+  public static final double ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS = 0.05;
+  public static final int ESTIMATED_SPATIAL_FILTERED_IO_BYTES = 100 * 1024 * 1024;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
@@ -180,6 +183,22 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  public List<Load> getNeededResources() {
+    if (spatialFilter != null) {
+      try {
+        return List.of(
+            new Load().withResource(dbReader()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS),
+            new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_IO_BYTES)
+        );
+      }
+      catch (WebClientException e) {
+        throw new StepException("Error calculating the necessary resources for the step.", e);
+      }
+    }
+    return super.getNeededResources();
   }
 
   @Override

@@ -21,6 +21,9 @@ package com.here.xyz.jobs.steps.resources;
 
 import io.vertx.core.Future;
 
+/**
+ * Depicts the number of I/O bytes that have been used by the step.
+ */
 public class IOResource extends ExecutionResource {
   private static final IOResource INSTANCE = new IOResource();
 
