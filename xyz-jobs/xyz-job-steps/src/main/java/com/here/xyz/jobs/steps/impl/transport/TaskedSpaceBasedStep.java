@@ -19,6 +19,14 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
+import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -29,17 +37,7 @@ import com.here.xyz.jobs.JobClientInfo;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
-import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import com.here.xyz.jobs.steps.resources.IOResource;
-import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
@@ -48,11 +46,9 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.Map;
 
 
@@ -77,8 +73,7 @@ import java.util.Map;
  *
  * @param <T> The specific subclass type extending this step.
  */
-public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
-        extends SpaceBasedStep<T> {
+public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> extends SpaceBasedStep<T> {
   //Defines how many features a source layer need to have to start parallelization.
   public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
   //Defines how many export threads are getting used
@@ -154,36 +149,6 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
    */
   protected abstract SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException;
-
-  @Override
-  public List<Load> getNeededResources() {
-    return calculateLoadAndSetOverallNeededAcus(context);
-  }
-
-  /**
-   * Calculates the load and sets the overall needed ACUs (Amazon Compute Units) for the
-   * given space context.
-   *
-   * @param spaceContext The context of the space for which the load is being calculated.
-   * @return A list of loads required for the given space context.
-   */
-  private List<Load> calculateLoadAndSetOverallNeededAcus(SpaceContext spaceContext) {
-    try {
-      StatisticsResponse statistics = spaceStatistics(spaceContext, true);
-      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus
-          : ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
-
-      infoLog(JOB_EXECUTOR, this, "Calculated ACUS: byteSize of layer: " + statistics.getDataSize().getValue()
-          + " => neededACUs:" + overallNeededAcus);
-
-      return List.of(
-          new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
-    }
-    catch (WebClientException e) {
-      throw new StepException("Error calculating the necessary resources for the step.", e);
-    }
-  }
 
   /**
    * Prepares the process by resolving the version reference to an actual version.
