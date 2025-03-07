@@ -74,11 +74,10 @@ public class JobApi extends Api {
   }
 
   protected void postJob(final RoutingContext context) throws HttpException {
-    createNewJob(context);
+    createNewJob(context, getJobFromBody(context));
   }
 
-  protected Future<Job> createNewJob(RoutingContext context) throws HttpException {
-    Job job = getJobFromBody(context);
+  protected Future<Job> createNewJob(RoutingContext context, Job job) {
     logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
     return job.create().submit()
         .map(res -> job)
