@@ -45,7 +45,6 @@ import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.service.logging.LogUtil;
 import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
@@ -75,13 +74,17 @@ public class JobApi extends Api {
   }
 
   protected void postJob(final RoutingContext context) throws HttpException {
+    createNewJob(context);
+  }
+
+  protected Future<Job> createNewJob(RoutingContext context) throws HttpException {
     Job job = getJobFromBody(context);
-    logger.info(LogUtil.getMarker(context), "Received job creation request: {}", job.serialize(true));
-    job.create().submit()
+    logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
+    return job.create().submit()
         .map(res -> job)
         .onSuccess(res -> {
           sendResponse(context, CREATED.code(), res);
-          logger.info(LogUtil.getMarker(context), "Job was created successfully: {}", job.serialize(true));
+          logger.info(getMarker(context), "Job was created successfully: {}", job.serialize(true));
         })
         .onFailure(err -> sendErrorResponse(context, err));
   }

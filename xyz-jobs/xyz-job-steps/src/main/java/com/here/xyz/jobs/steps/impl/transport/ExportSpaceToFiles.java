@@ -19,18 +19,11 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import com.here.xyz.jobs.steps.StepExecution;
-import com.here.xyz.jobs.steps.execution.StepException;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
@@ -39,6 +32,15 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTempora
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
+import static com.here.xyz.util.web.XyzWebClient.WebClientException;
+
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.execution.StepException;
+import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
@@ -52,7 +54,6 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
@@ -187,18 +188,38 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   @Override
   public List<Load> getNeededResources() {
-    if (spatialFilter != null) {
-      try {
+    try {
+      if (spatialFilter != null)
         return List.of(
             new Load().withResource(dbReader()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS),
             new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(ESTIMATED_SPATIAL_FILTERED_IO_BYTES)
         );
-      }
-      catch (WebClientException e) {
-        throw new StepException("Error calculating the necessary resources for the step.", e);
-      }
+
+      StatisticsResponse statistics = spaceStatistics(context, true);
+      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededExportAcus(statistics.getDataSize().getValue());
+
+      infoLog(JOB_EXECUTOR, this, "Calculated ACUS: byteSize of layer: " + statistics.getDataSize().getValue()
+          + " => neededACUs:" + overallNeededAcus);
+
+      return List.of(
+          new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
+          new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }
-    return super.getNeededResources();
+    catch (WebClientException e) {
+      throw new StepException("Error calculating the necessary resources for the step.", e);
+    }
+  }
+
+  private double calculateNeededExportAcus(long bytesSizeEstimation) {
+    //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
+    final double maxAcus = 70;
+    //exports are not as heavy as imports
+    //TODO: Implement more specific load calculation that matches the actual use case of exporting data
+    final double exportDivisor = 3;
+
+    //Calculate the needed ACUs
+    double neededAcus = ResourceAndTimeCalculator.getInstance().calculateNeededAcusFromByteSize(bytesSizeEstimation) / exportDivisor;
+    return Math.min(neededAcus, maxAcus);
   }
 
   @Override
@@ -210,11 +231,16 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   public int getEstimatedExecutionSeconds() {
     //TODO: Fix estimation. Calculate estimatedSeconds on expected the number of features and the size of the data.
     if (estimatedSeconds == -1 && getSpaceId() != null) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance()
-              .calculateExportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
+      estimatedSeconds = calculateExportTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation());
       infoLog(JOB_EXECUTOR, this,"Calculated estimatedSeconds: "+estimatedSeconds );
     }
     return estimatedSeconds;
+  }
+
+  private int calculateExportTimeInSeconds(String spaceId, long byteSize){
+    int warmUpTime = 10;
+    int bytesPerSecond = 57 * 1024 * 1024;
+    return (int) (warmUpTime + ((double) byteSize / bytesPerSecond));
   }
 
   @Override
