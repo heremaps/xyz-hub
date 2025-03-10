@@ -114,11 +114,21 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       for (int threadId = 0; threadId < threadCount; threadId++) {
         Ref versionRef = source.getVersionRef();
+        
+        Ref resolvedVersionRef = null;
+        try {  
+          //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
+          resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
+        } catch (WebClientException e) {
+        }
+
+        if (resolvedVersionRef == null) 
+         continue;
+
         CopySpace copySpaceStep = new CopySpace()
             .withSpaceId(sourceSpaceId)
             .withTargetSpaceId(targetSpaceId)
-            //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
-            .withSourceVersionRef(hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef))
+            .withSourceVersionRef(resolvedVersionRef)
             .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
             .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
             .withThreadInfo(new int[]{threadId, threadCount})
@@ -127,6 +137,9 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
         copyGraph.addExecution(copySpaceStep).withParallel(true);
       }
+
+      if(copyGraph.size() == 0)
+       throw new CompilationError("None of provided Layer contains a valid sourceVersion" );
 
       startGraph.addExecution(copyGraph);
 
