@@ -24,8 +24,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTEN
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.SelectiveEvent;
-import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
@@ -104,19 +102,5 @@ public class ExportSpaceByGeometry extends GetFeaturesByGeometry implements Expo
   @Override
   public String buildOuterOrderByFragment(ContextAwareEvent event) {
     return super.buildOuterOrderByFragment(event);
-  }
-
-  @Override
-  public SQLQuery buildVersionComparison(SelectiveEvent event) {
-    if (event.getRef().isRange())
-      return buildVersionComparisonForRange(event);
-    return super.buildVersionComparison(event);
-  }
-
-  @Override
-  public SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
-    if (ref.isRange())
-      return buildNextVersionFragmentForRange(ref, historyEnabled, versionParamName);
-    return super.buildNextVersionFragment(ref, historyEnabled, versionParamName);
   }
 }

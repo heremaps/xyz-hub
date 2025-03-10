@@ -38,7 +38,6 @@ import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -50,13 +49,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   public static long MAX_BIGINT = Long.MAX_VALUE;
   private boolean historyEnabled;
-  private boolean noGeometry = false;
 
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
     historyEnabled = event.getVersionsToKeep() > 1;
-    noGeometry = selectNoGeometry(event);
   }
 
   @Override
@@ -111,12 +108,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildSelectClause(E event, int dataset) {
-    return new SQLQuery("id, ${{selection}}, ${{geo}}, ${{dataset}} ${{version}}")
+    return new SQLQuery("id, version, ${{selection}}, ${{geo}}, ${{dataset}}")
         .withQueryFragment("selection", buildSelectionFragment(event))
         .withQueryFragment("geo", buildGeoFragment(event))
         .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
-        .withQueryFragment("datasetNo", "" + dataset))
-        .withQueryFragment("version", buildSelectClauseVersionFragment(event));
+        .withQueryFragment("datasetNo", "" + dataset));
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
@@ -129,7 +125,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
   }
 
-  protected SQLQuery buildVersionComparison(SelectiveEvent event) {
+  private SQLQuery buildVersionComparison(SelectiveEvent event) {
     Ref ref = event.getRef();
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
@@ -148,7 +144,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         "requestedVersion");
   }
 
-  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+  private SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
 
@@ -170,25 +166,16 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
     Ref ref = event.getRef();
-
-    long version = Long.MAX_VALUE; // => ref.isHead() || ref.isAllVersions();
-
-    if (ref.isSingleVersion() && !ref.isHead())
-      version = ref.getVersion();
-    else if(ref.isRange())
-      version = ref.getEnd().getVersion(); // HEAD -> Long.MAX_VALUE;
-
-    String headTable = getDefaultTable((E) event) + XyzSpaceTableHelper.HEAD_TABLE_SUFFIX; // max(version) => headtable, no read from p0,...,pN necessary
+    boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions() || ref.isRange() && ref.getEnd().isHead();
+    long version = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getEnd().getVersion() : ref.getVersion();
 
     if (event.getVersionsToKeep() > 1)
-      return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) - #{versionsToKeep} FROM ${schema}.${headTable})) <= #{version}")
-          .withVariable("headTable", headTable)
+      return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) - #{versionsToKeep} FROM ${schema}.${table})) <= #{version}")
           .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
           .withNamedParameter("minVersion", event.getMinVersion())
           .withNamedParameter("version", version);
-    //FIXME: end version should *never* be Long.MAX_VALUE!
-    return version == Long.MAX_VALUE ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${headTable})")
-        .withVariable("headTable", headTable)
+
+    return isHeadOrAllVersions ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${table})")
         .withNamedParameter("version", version);
   }
 
@@ -279,6 +266,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     featureCollection._setFeatures(result.toString());
 
     if (result.length() > MAX_RESULT_SIZE)
+      //TODO: Throw ErrorResponseException instead
       return (R) new ErrorResponse().withError(PAYLOAD_TO_LARGE)
           .withErrorMessage("Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
 
@@ -299,7 +287,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     String jsonDataWithVersion = "jsonb_set(jsondata, '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
 
     if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getSelection() == null
-        || selectiveEvent.getSelection().size() == 0 || (selectiveEvent.getSelection().size() == 1 && noGeometry))
+        || selectiveEvent.getSelection().size() == 0 || (selectiveEvent.getSelection().size() == 1 && selectNoGeometry((E) event)))
       return new SQLQuery(jsonDataWithVersion + " AS jsondata");
 
     List<String> selection = selectiveEvent.getSelection();
@@ -314,16 +302,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "END "
         + "FROM prj_build(#{selection}, " + jsonDataWithVersion + ")) AS jsondata")
         .withNamedParameter("selection", selection.toArray(new String[0]));
-  }
-
-  protected String buildSelectClauseVersionFragment(ContextAwareEvent event) {
-    if (!(event instanceof SelectiveEvent selectiveEvent))
-      return "";
-
-    if (!selectiveEvent.getRef().isAllVersions())
-      return "";
-
-    return ", version";
   }
 
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {
@@ -344,7 +322,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildGeoFragment(E event) {
-    if (noGeometry)
+    if (selectNoGeometry(event))
       return new SQLQuery("NULL::GEOMETRY AS geo");
 
     return new SQLQuery("${{geoExpression}} AS geo")
