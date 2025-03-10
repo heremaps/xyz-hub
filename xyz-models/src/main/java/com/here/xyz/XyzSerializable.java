@@ -279,11 +279,11 @@ public interface XyzSerializable {
     }
   }
 
-  static <T> MappingIterator<T> deserializeIterator(InputStream stream, Class<T> klass) throws IOException {
+  static <T> MappingIterator<T> deserializeJsonLines(InputStream stream, Class<T> klass) throws IOException {
     return DEFAULT_MAPPER.get().readerFor(klass).readValues(stream);
   }
 
-  static <T> MappingIterator<T> deserializeIterator(InputStream stream, TypeReference<T> type) throws IOException {
+  static <T> MappingIterator<T> deserializeJsonLines(InputStream stream, TypeReference<T> type) throws IOException {
     return DEFAULT_MAPPER.get().readerFor(type).readValues(stream);
   }
 

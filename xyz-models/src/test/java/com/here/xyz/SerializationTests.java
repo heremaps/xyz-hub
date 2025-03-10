@@ -65,7 +65,7 @@ public class SerializationTests {
 
   @Test
   public void testStreamIterator() throws Exception {
-    var it = XyzSerializable.deserializeIterator(
+    var it = XyzSerializable.deserializeJsonLines(
             JsonMappingTest.class.getResourceAsStream("test/features_array.jsonl"), Feature.class);
     while (it.hasNext()) {
       Feature feature = it.next();
