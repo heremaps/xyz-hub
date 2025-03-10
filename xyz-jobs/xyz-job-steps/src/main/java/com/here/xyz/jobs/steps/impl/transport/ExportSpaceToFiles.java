@@ -88,7 +88,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   //If a point is defined - the maximum radius can be 17898 meters
   private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
   //Currently only used if there is no filter set
-  private static final long MAX_TASK_COUNT = 1000;
+  private static final long MAX_TASK_COUNT = 20;
   private static final long MAX_BYTES_PER_TASK = 200L * 1024 * 1024; // 200MB in bytes
   public static final double ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS = 0.05;
   public static final int ESTIMATED_SPATIAL_FILTERED_IO_BYTES = 100 * 1024 * 1024;
