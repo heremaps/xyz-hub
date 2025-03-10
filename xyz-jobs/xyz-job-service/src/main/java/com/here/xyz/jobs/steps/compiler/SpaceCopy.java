@@ -42,7 +42,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class SpaceCopy implements JobCompilationInterceptor {
+  private static final Logger logger = LogManager.getLogger();
+
   public static Set<Class> forbiddenTargetTypes = new HashSet<>();
 
   @Override
@@ -120,6 +125,7 @@ public class SpaceCopy implements JobCompilationInterceptor {
           //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
           resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
         } catch (WebClientException e) {
+          logger.error("Error resolving versionRef " + versionRef + " - spaceId: " + sourceSpaceId , e);
         }
 
         if (resolvedVersionRef == null) 
