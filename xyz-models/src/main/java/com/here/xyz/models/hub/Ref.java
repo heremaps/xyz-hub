@@ -61,6 +61,12 @@ public class Ref implements XyzSerializable {
   }
 
   public Ref(long startVersion, long endVersion) {
+    startVersion = validateVersion(startVersion);
+    endVersion = validateVersion(endVersion);
+
+    if (startVersion >= endVersion)
+      throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: " + "\"" + startVersion + OP_RANGE + endVersion + "\"");
+
     start = new Ref(startVersion);
     end = new Ref(endVersion);
   }
