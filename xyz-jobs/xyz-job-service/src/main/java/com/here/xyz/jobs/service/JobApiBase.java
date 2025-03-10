@@ -19,14 +19,15 @@
 
 package com.here.xyz.jobs.service;
 
-import com.here.xyz.jobs.Job;
-import com.here.xyz.jobs.RuntimeInfo.State;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.JOB_ID;
-import com.here.xyz.jobs.service.JobApiBase.ApiParam.Query;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Query.NEWER_THAN;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getQueryParam;
-import com.here.xyz.util.service.rest.Api;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+
+import com.here.xyz.jobs.Job;
+import com.here.xyz.jobs.RuntimeInfo.State;
+import com.here.xyz.jobs.service.JobApiBase.ApiParam.Query;
+import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
@@ -44,7 +45,12 @@ public class JobApiBase extends Api {
           ? Job.load(true, Long.parseLong(newerThan))
           : Job.load(getState(context), getResource(context));
       resultFuture
-          .onSuccess(res -> sendResponse(context, OK.code(), res))
+          .onSuccess(res -> {
+            if (internal)
+              sendInternalResponse(context, OK.code(), res);
+            else
+              sendResponse(context, OK.code(), res);
+          })
           .onFailure(err -> sendErrorResponse(context, err));
     }
     catch (NumberFormatException e) {
