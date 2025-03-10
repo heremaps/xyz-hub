@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.16.24</version>
+    <version>3.16.25-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Service</name>
