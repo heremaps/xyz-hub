@@ -19,7 +19,6 @@
 
 package com.here.xyz.httpconnector.config.query;
 
-import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SCHEMA;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.TABLE;
 
@@ -87,27 +86,6 @@ public interface ExportSpace<E extends SearchForFeaturesEvent> {
   String getDefaultTable(E event);
   String buildOuterOrderByFragment(ContextAwareEvent event);
   SQLQuery buildLimitFragment(E event);
-
-  default SQLQuery buildVersionComparisonForRange(SelectiveEvent event) {
-    Ref ref = event.getRef();
-    if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
-      return new SQLQuery("");
-
-    return new SQLQuery("AND version > #{fromVersion} AND version <= #{toVersion}")
-        .withNamedParameter("fromVersion", ref.getStart().getVersion())
-        .withNamedParameter("toVersion", ref.getEnd().getVersion());
-  }
-
-  default SQLQuery buildNextVersionFragmentForRange(Ref ref, boolean historyEnabled, String versionParamName) {
-    if (!historyEnabled || ref.isAllVersions())
-      return new SQLQuery("");
-
-    boolean endVersionIsHead = ref.getEnd().getVersion() == MAX_BIGINT;
-    //TODO: review semantic of "NextVersionFragment" in case of ref.isRange
-    return new SQLQuery("AND next_version ${{op}} #{" + versionParamName + "}")
-        .withQueryFragment("op", endVersionIsHead ? "=" : ">")
-        .withNamedParameter(versionParamName, endVersionIsHead ? MAX_BIGINT : ref.getEnd().getVersion());
-  }
 
   default SQLQuery buildVersionCheckFragment(E event) {
     return new SQLQuery("${{versionComparison}} ${{nextVersion}} ${{minVersion}}")

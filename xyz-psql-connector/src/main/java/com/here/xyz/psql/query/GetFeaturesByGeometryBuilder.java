@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
+import static com.here.xyz.psql.query.GetFeaturesByBBox.buildGeoFilterFromBbox;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -122,16 +123,14 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       return patchGeoFilter(super.buildGeoFilter(event));
     }
 
-    protected SQLQuery patchGeoFilter(SQLQuery geoFilterClause) {
+    //TODO: Check why this patch is necessary
+    private SQLQuery patchGeoFilter(SQLQuery geoFilterClause) {
       if(bbox != null)
-        return new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
-              .withNamedParameter("minLon", bbox.minLon())
-              .withNamedParameter("minLat", bbox.minLat())
-              .withNamedParameter("maxLon", bbox.maxLon())
-              .withNamedParameter("maxLat", bbox.maxLat());
+        return buildGeoFilterFromBbox(bbox);
       return geoFilterClause;
     }
 
+    //TODO: Check why this patch is necessary
     private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment) {
       if (additionalFilterFragment != null)
         return new SQLQuery("${{innerFilterWhereClause}} AND ${{customWhereClause}}")
@@ -140,6 +139,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
       return filterWhereClause;
     }
 
+    //TODO: Check why this override is necessary
     private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {
       if (selectClauseOverride != null)
         return new SQLQuery("${{selectClause}}")

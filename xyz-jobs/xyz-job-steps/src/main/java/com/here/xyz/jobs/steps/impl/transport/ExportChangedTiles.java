@@ -45,6 +45,7 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.GetFeaturesByIdsBuilder;
+import com.here.xyz.psql.query.GetFeaturesByIdsBuilder.GetFeaturesByIdsInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -386,29 +387,19 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             .withQueryFragment("contentQuery", contentQuery);
   }
 
-  private SQLQuery generateGetFeaturesByIdsQuery(List<String> ids, SpaceContext context, Ref versionRef)
-          throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
-
+  private SQLQuery generateGetFeaturesByIdsQuery(List<String> ids, SpaceContext context, Ref versionRef) throws WebClientException,
+      TooManyResourcesClaimed, QueryBuildingException {
     GetFeaturesByIdsBuilder queryBuilder = new GetFeaturesByIdsBuilder()
-            .withDataSourceProvider(requestResource(dbReader(), 0));
-    GetFeaturesByIdsBuilder.GetFeaturesByIdsInput input = createGetFeaturesByIdsInput(ids, context, versionRef);
+        .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    return queryBuilder
-            .withSelectClauseOverride(new SQLQuery("id,geo"))
-            .buildQuery(input);
-  }
-
-  private GetFeaturesByIdsBuilder.GetFeaturesByIdsInput createGetFeaturesByIdsInput(List<String> ids,
-                                                                                    SpaceContext context, Ref versionRef)
-          throws WebClientException {
-    return new GetFeaturesByIdsBuilder.GetFeaturesByIdsInput(
-            space().getId(),
-            hubWebClient().loadConnector(space().getStorage().getId()).params,
-            space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
-            context,
-            space().getVersionsToKeep(),
-            versionRef,
-            ids
-    );
+    return queryBuilder.buildQuery(new GetFeaturesByIdsInput(
+        space().getId(),
+        hubWebClient().loadConnector(space().getStorage().getId()).params,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        context,
+        space().getVersionsToKeep(),
+        versionRef,
+        ids
+    ));
   }
 }
