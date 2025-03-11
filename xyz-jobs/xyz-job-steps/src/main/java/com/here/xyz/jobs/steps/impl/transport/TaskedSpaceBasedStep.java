@@ -289,7 +289,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
               + "/" + overallAcusBD.stripTrailingZeros().toPlainString());
 
       runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.taskId(), taskProgressAndItem.taskInput()),
-              dbReader(), perItemAcus.doubleValue(), false);
+              dbReader(), 0d/*perItemAcus.doubleValue()*/, false);
     }
   }
 

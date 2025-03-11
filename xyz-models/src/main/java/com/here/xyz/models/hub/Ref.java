@@ -63,6 +63,7 @@ public class Ref implements XyzSerializable {
   public Ref(long startVersion, long endVersion) {
     start = new Ref(startVersion);
     end = new Ref(endVersion);
+    validateRange();
   }
 
   /**
@@ -84,14 +85,17 @@ public class Ref implements XyzSerializable {
 
       parseAndSetRangePart(rangeParts[0], true);
       parseAndSetRangePart(rangeParts[1], false);
-
-      if (isOnlyNumeric() && getStart().getVersion() >= getEnd().getVersion())
-        throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: "
-            + "\"" + ref + "\"");
     }
     catch (NumberFormatException | InvalidRef e) {
       throw new InvalidRef("Invalid ref: The provided version-range is invalid: \"" + ref + "\" Reason: " + e.getMessage());
     }
+    validateRange();
+  }
+
+  private void validateRange() {
+    if (isOnlyNumeric() && getStart().getVersion() >= getEnd().getVersion())
+      throw new InvalidRef("Invalid ref: The provided version-range is invalid. The start-version must be less than the end-version: "
+          + "\"" + this + "\"");
   }
 
   private void parseAndSetRangePart(String rangePart, boolean isStart) {

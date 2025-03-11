@@ -42,7 +42,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class SpaceCopy implements JobCompilationInterceptor {
+  private static final Logger logger = LogManager.getLogger();
+
   public static Set<Class> forbiddenTargetTypes = new HashSet<>();
 
   @Override
@@ -114,11 +119,22 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       for (int threadId = 0; threadId < threadCount; threadId++) {
         Ref versionRef = source.getVersionRef();
+        
+        Ref resolvedVersionRef = null;
+        try {  
+          //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
+          resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
+        } catch (WebClientException e) {
+          logger.error("Error resolving versionRef " + versionRef + " - spaceId: " + sourceSpaceId , e);
+        }
+
+        if (resolvedVersionRef == null) 
+         continue;
+
         CopySpace copySpaceStep = new CopySpace()
             .withSpaceId(sourceSpaceId)
             .withTargetSpaceId(targetSpaceId)
-            //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
-            .withSourceVersionRef(hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef))
+            .withSourceVersionRef(resolvedVersionRef)
             .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
             .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
             .withThreadInfo(new int[]{threadId, threadCount})
@@ -127,6 +143,9 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
         copyGraph.addExecution(copySpaceStep).withParallel(true);
       }
+
+      if(copyGraph.size() == 0)
+       throw new CompilationError("None of provided Layer contains a valid sourceVersion" );
 
       startGraph.addExecution(copyGraph);
 

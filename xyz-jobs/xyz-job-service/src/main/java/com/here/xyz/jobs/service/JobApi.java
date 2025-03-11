@@ -22,8 +22,8 @@ package com.here.xyz.jobs.service;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
@@ -45,7 +45,6 @@ import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
@@ -57,7 +56,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class JobApi extends Api {
+public class JobApi extends JobApiBase {
   protected static final Logger logger = LogManager.getLogger();
   protected JobApi() {}
 
@@ -89,21 +88,18 @@ public class JobApi extends Api {
   }
 
   protected void getJobs(final RoutingContext context) {
-    Job.loadAll()
-        .onSuccess(res -> sendResponse(context, OK.code(), res))
-        .onFailure(err -> sendErrorResponse(context, err));
+    getJobs(context, false);
   }
 
   protected void getJob(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
 
   }
 
   protected void deleteJob(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
+    String jobId = jobId(context);
     loadJob(context, jobId)
         .compose(job -> Job.delete(jobId).map(job))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
@@ -111,7 +107,7 @@ public class JobApi extends Api {
   }
 
   protected void postJobInput(final RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
+    String jobId = jobId(context);
     Input input = getJobInputFromBody(context);
     if (input instanceof UploadUrl uploadUrl) {
       loadJob(context, jobId)
@@ -174,35 +170,29 @@ public class JobApi extends Api {
   }
 
   protected void getJobInputs(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .compose(job -> job.loadInputs())
         .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Input>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void getJobOutputs(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .compose(job -> job.loadOutputs())
         .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Output>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void patchJobStatus(final RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
     RuntimeStatus status = getStatusFromBody(context);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .compose(job -> tryExecuteAction(context, status, job))
         .onSuccess(patchedStatus -> sendResponse(context, ACCEPTED.code(), patchedStatus))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void getJobStatus(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .onSuccess(res -> sendResponse(context, OK.code(), res.getStatus()))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -211,7 +201,7 @@ public class JobApi extends Api {
     try {
       Job job = XyzSerializable.deserialize(context.body().asString(), Job.class);
 
-      String spaceId = ApiParam.getPathParam(context, SPACE_ID);
+      String spaceId = getPathParam(context, SPACE_ID);
 
       if (spaceId != null && job.getSource() instanceof DatasetDescription.Space space)
         space.setId(spaceId);
@@ -276,26 +266,5 @@ public class JobApi extends Api {
           }
         })
         .map(res -> job.getStatus());
-  }
-
-  public static class ApiParam {
-
-    public static String getPathParam(RoutingContext context, String param) {
-      return context.pathParam(param);
-    }
-
-    public static String getQueryParam(RoutingContext context, String param) {
-      return context.queryParams().get(param);
-    }
-
-    public static class Path {
-      static final String SPACE_ID = "spaceId";
-      static final String JOB_ID = "jobId";
-    }
-
-    public static class Query {
-      static final String STATE = "state";
-      static final String RESOURCE = "resource";
-    }
   }
 }

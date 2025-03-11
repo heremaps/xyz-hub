@@ -19,14 +19,15 @@
 
 package com.here.xyz;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable.Public;
 import java.util.Map;
+
+import com.here.xyz.models.geojson.implementation.Feature;
 import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 public class SerializationTests {
 
@@ -60,6 +61,17 @@ public class SerializationTests {
     assertTrue(jsonMap.containsKey("somePrivateIntWithPublicView"));
     assertTrue(jsonMap.containsKey("somePublicIntWithDefaultValue"));
     assertTrue(jsonMap.containsKey("someIntValue"));
+  }
+
+  @Test
+  public void testStreamIterator() throws Exception {
+    var it = XyzSerializable.deserializeJsonLines(
+            JsonMappingTest.class.getResourceAsStream("test/features_array.jsonl"), Feature.class);
+    while (it.hasNext()) {
+      Feature feature = it.next();
+      assertNotNull(feature);
+      assertTrue(feature instanceof Feature);
+    }
   }
 
 

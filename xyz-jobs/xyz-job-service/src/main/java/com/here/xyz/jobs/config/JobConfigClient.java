@@ -19,10 +19,9 @@
 
 package com.here.xyz.jobs.config;
 
-import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
-
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo.State;
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import com.here.xyz.jobs.service.JobService;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.util.di.ImplementationProvider;
@@ -55,6 +54,14 @@ public abstract class JobConfigClient implements Initializable {
    * @return A list of all jobs
    */
   public abstract Future<List<Job>> loadJobs();
+
+  /**
+   * Load all jobs that are newer / older than the specified createdAt timestamp.
+   * @param newerThan Whether to use "newer than", "older than" otherwise
+   * @param createdAt The timestamp to use for comparison
+   * @return A list of jobs that are newer / older than the specified timestamp.
+   */
+  public abstract Future<List<Job>> loadJobs(boolean newerThan, long createdAt);
 
   /**
    * Load all jobs that are having the specified state.
