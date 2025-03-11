@@ -4,12 +4,14 @@ import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.FileOutputSettings;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.GeoJson;
+import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.util.test.JobTestBase;
 import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
@@ -35,7 +37,9 @@ public class CopyJobTestIT extends JobTest {
   static private String SrcSpc    = "testCopy-Source-09", 
                         TrgSpc    = "testCopy-Target-09",
                         EndTagId  = "tagV2",
-                        versionRange = "1.." + EndTagId;
+                        versionRange = "1.." + EndTagId,
+                        versionRangeInvalid = EndTagId +".." + EndTagId;
+
 
   static private long EndVersion = 2;
                         //OtherCntr = "psql_db2_hashed",
@@ -103,7 +107,8 @@ public class CopyJobTestIT extends JobTest {
   private static Stream<Arguments> provideParameters() {
     return Stream.of(
       Arguments.of(null, 40),
-      Arguments.of(versionRange, 10)
+      Arguments.of(versionRange, 10),
+      Arguments.of(versionRangeInvalid, 0)
     );
   }
 
@@ -111,8 +116,14 @@ public class CopyJobTestIT extends JobTest {
  @MethodSource("provideParameters")
  public void testSimpleCopy( String versionRange, int expectedFeaturesCopied ) throws Exception {
         Job copyJob = buildCopyJob( versionRange );
-        createSelfRunningJob(copyJob);
 
+        if(expectedFeaturesCopied == 0)
+        { // CompilationError expected
+          Assertions.assertThrowsExactly(RuntimeException.class, () -> createSelfRunningJob(copyJob));
+          return;
+        }
+           
+        createSelfRunningJob(copyJob);
         checkSucceededJob(copyJob);
 
        List<Map> l =  getJobOutputs(copyJob.getId());
