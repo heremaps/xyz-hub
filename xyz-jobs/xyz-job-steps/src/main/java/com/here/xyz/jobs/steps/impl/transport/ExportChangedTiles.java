@@ -24,7 +24,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
@@ -36,6 +35,8 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.TileInvalidations;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.HQuad;
@@ -242,8 +243,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   private void generateInvalidationTileListOutput() throws WebClientException
           , SQLException, TooManyResourcesClaimed, IOException {
 
-    SQLQuery invalidationListQuery = getInvalidationList(getSchema(db(READER)), getTemporaryJobTableName(getId()));
-    TileInvalidations tileList = (TileInvalidations) runReadQuerySync(invalidationListQuery, db(READER),
+    SQLQuery invalidationListQuery = getInvalidationList(getSchema(dbReader()), getTemporaryJobTableName(getId()));
+    TileInvalidations tileList = (TileInvalidations) runReadQuerySync(invalidationListQuery, dbReader(),
             0, rs -> rs.next()
                     ? new TileInvalidations()
                           .withTileLevel(targetLevel)
