@@ -34,6 +34,7 @@ import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
@@ -41,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -119,16 +119,16 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
       for (int threadId = 0; threadId < threadCount; threadId++) {
         Ref versionRef = source.getVersionRef();
-        
+
         Ref resolvedVersionRef = null;
-        try {  
+        try {
           //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
           resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
-        } catch (WebClientException e) {
+        } catch (WebClientException | InvalidRef e) {
           logger.error("Error resolving versionRef " + versionRef + " - spaceId: " + sourceSpaceId , e);
         }
 
-        if (resolvedVersionRef == null) 
+        if (resolvedVersionRef == null)
          continue;
 
         CopySpace copySpaceStep = new CopySpace()
