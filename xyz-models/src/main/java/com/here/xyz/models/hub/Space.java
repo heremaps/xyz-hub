@@ -744,11 +744,6 @@ public class Space {
     }
   }
 
-  public void switchToSuper(String superSpaceId){
-    id = superSpaceId;
-    extension = null;
-  }
-
   public Map<String, Object> resolveCompositeParams(Space extendedSpace) {
     if (getExtension() == null)
       return Collections.emptyMap();
