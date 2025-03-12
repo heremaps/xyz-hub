@@ -27,19 +27,9 @@ import static com.here.naksha.lib.core.util.MIMEType.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
-import static io.vertx.core.http.HttpHeaders.CACHE_CONTROL;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
-import static io.vertx.core.http.HttpHeaders.ETAG;
-import static io.vertx.core.http.HttpHeaders.IF_MODIFIED_SINCE;
-import static io.vertx.core.http.HttpHeaders.IF_NONE_MATCH;
-import static io.vertx.core.http.HttpHeaders.USER_AGENT;
-import static io.vertx.core.http.HttpMethod.DELETE;
+import static io.vertx.core.http.HttpHeaders.*;
+import static io.vertx.core.http.HttpMethod.*;
 import static io.vertx.core.http.HttpMethod.GET;
-import static io.vertx.core.http.HttpMethod.OPTIONS;
-import static io.vertx.core.http.HttpMethod.PATCH;
-import static io.vertx.core.http.HttpMethod.POST;
-import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaApp;
@@ -118,14 +108,16 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   public NakshaHttpVerticle(@NotNull INaksha naksha, int index, @NotNull NakshaApp app) {
     super(naksha, index, app);
 
-    corsHandler = CorsHandler.create().allowCredentials(true); // .addRelativeOrigin(".*") <-- Not needed, default
+    corsHandler = CorsHandler.create()
+        .addRelativeOrigin(".*")
+        .allowedHeader("*")
+        .allowCredentials(true)
+        .maxAgeSeconds(86400);
+
     // The methods the client allowed to use.
-    final List<HttpMethod> allowMethods = Arrays.asList(OPTIONS, GET, POST, PUT, DELETE, PATCH);
+    final List<HttpMethod> allowMethods = Arrays.asList(OPTIONS, GET, POST, PUT, DELETE, PATCH, HEAD);
     allowMethods.forEach(corsHandler::allowedMethod);
-    // The headers the client allowed to send.
-    final List<CharSequence> allowHeaders = Arrays.asList(
-        AUTHORIZATION, CONTENT_TYPE, USER_AGENT, IF_MODIFIED_SINCE, IF_NONE_MATCH, CACHE_CONTROL, STREAM_ID);
-    allowHeaders.stream().map(String::valueOf).forEach(corsHandler::allowedHeader);
+
     // The headers, which can be exposed as part of the response.
     final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
     exposeHeaders.stream().map(String::valueOf).forEach(corsHandler::exposedHeader);
@@ -188,6 +180,9 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         for (final Api api : apiControllers) {
           api.addManualRoutes(router);
         }
+
+        // CORS handler for all routes
+        router.route().order(-2).handler(corsHandler);
 
         // Static resources route.
         router.route("/hub/static/*").handler(this::onResourceRequest);
