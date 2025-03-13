@@ -95,7 +95,6 @@ public class StepTestBase {
   public static final Config config = new Config();
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final Logger logger = LogManager.getLogger();
-  private static final HubWebClient hubWebClient;
   private static final S3Client s3Client;
   private static final String PG_HOST = "localhost";
   private static final String PG_DB = "postgres";
@@ -115,7 +114,6 @@ public class StepTestBase {
       Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
       Config.instance.JOB_API_ENDPOINT = new URL("http://localhost:7070");
       HubWebClient.STATISTICS_CACHE_TTL_SECONDS = 0;
-      hubWebClient = HubWebClient.getInstance("http://localhost:8080/hub");
       s3Client = S3Client.getInstance();
       lambdaClient = LambdaClient.builder()
           .region(Region.of(Config.instance.AWS_REGION))
@@ -131,6 +129,8 @@ public class StepTestBase {
   protected String SPACE_ID = getClass().getSimpleName() + "_" + randomAlpha(5);
   protected String JOB_ID = generateJobId();
 
+  private HubWebClient hubWebClient() {return HubWebClient.getInstance(config.HUB_ENDPOINT);}
+
   public String generateJobId() {
     return getClass().getSimpleName() + "_" + randomAlpha(5);
   }
@@ -143,7 +143,7 @@ public class StepTestBase {
     String title = "test space for jobs";
     try {
       space.setTitle(title);
-      return hubWebClient.createSpace(space);
+      return hubWebClient().createSpace(space);
     }
     catch (XyzWebClient.ErrorResponseException e) {
       if (e.getErrorResponse().statusCode() == 409) {
@@ -162,7 +162,7 @@ public class StepTestBase {
 
   protected void patchSpace(String spaceId, Map<String, Object> spaceUpdates) {
     try {
-      hubWebClient.patchSpace(spaceId, spaceUpdates);
+      hubWebClient().patchSpace(spaceId, spaceUpdates);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -172,7 +172,7 @@ public class StepTestBase {
 
   protected void createTag(String spaceId, Tag tag) {
     try {
-      hubWebClient.postTag(spaceId, tag);
+      hubWebClient().postTag(spaceId, tag);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -181,7 +181,7 @@ public class StepTestBase {
 
   protected void deleteTag(String spaceId, String tagId) {
     try {
-      hubWebClient.deleteTag(spaceId, tagId);
+      hubWebClient().deleteTag(spaceId, tagId);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -190,7 +190,7 @@ public class StepTestBase {
 
   protected void deleteSpace(String spaceId) {
     try {
-      hubWebClient.deleteSpace(spaceId);
+      hubWebClient().deleteSpace(spaceId);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -199,7 +199,7 @@ public class StepTestBase {
 
   protected StatisticsResponse getStatistics(String spaceId) {
     try {
-      return hubWebClient.loadSpaceStatistics(spaceId, SpaceContext.DEFAULT, true);
+      return hubWebClient().loadSpaceStatistics(spaceId, SpaceContext.DEFAULT, true);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -209,7 +209,7 @@ public class StepTestBase {
 
   protected FeatureCollection getFeaturesFromSmallSpace(String spaceId, String propertyFilter, boolean force2D) {
     try {
-      return hubWebClient.getFeaturesFromSmallSpace(spaceId, SpaceContext.DEFAULT, propertyFilter, force2D);
+      return hubWebClient().getFeaturesFromSmallSpace(spaceId, SpaceContext.DEFAULT, propertyFilter, force2D);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -220,7 +220,7 @@ public class StepTestBase {
   protected FeatureCollection getFeaturesFromSmallSpace(String spaceId, ContextAwareEvent.SpaceContext context, String propertyFilter,
       boolean force2D) {
     try {
-      return hubWebClient.getFeaturesFromSmallSpace(spaceId, context, propertyFilter, force2D);
+      return hubWebClient().getFeaturesFromSmallSpace(spaceId, context, propertyFilter, force2D);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -230,7 +230,7 @@ public class StepTestBase {
 
   protected FeatureCollection customReadFeaturesQuery(String spaceId, String customPath) {
     try {
-      return hubWebClient.customReadFeaturesQuery(spaceId, customPath);
+      return hubWebClient().customReadFeaturesQuery(spaceId, customPath);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -240,7 +240,7 @@ public class StepTestBase {
 
   protected void putFeatureCollectionToSpace(String spaceId, FeatureCollection fc) {
     try {
-      hubWebClient.putFeaturesWithoutResponse(spaceId, fc);
+      hubWebClient().putFeaturesWithoutResponse(spaceId, fc);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -249,7 +249,7 @@ public class StepTestBase {
 
   protected void deleteFeaturesInSpace(String spaceId, List<String> ids) {
     try {
-      hubWebClient.deleteFeatures(spaceId, ids);
+      hubWebClient().deleteFeatures(spaceId, ids);
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -258,7 +258,7 @@ public class StepTestBase {
 
   protected void putRandomFeatureCollectionToSpace(String spaceId, int featureCount) {
     try {
-      hubWebClient.putFeaturesWithoutResponse(spaceId, ContentCreator.generateRandomFeatureCollection(featureCount));
+      hubWebClient().putFeaturesWithoutResponse(spaceId, ContentCreator.generateRandomFeatureCollection(featureCount));
     }
     catch (XyzWebClient.WebClientException e) {
       System.out.println("Hub Error: " + e.getMessage());
@@ -267,7 +267,7 @@ public class StepTestBase {
 
   protected void putRandomFeatureCollectionToSpace(String spaceId, int featureCount, float xmin, float ymin, float xmax, float ymax) {
     try {
-      hubWebClient.putFeaturesWithoutResponse(spaceId,
+      hubWebClient().putFeaturesWithoutResponse(spaceId,
           ContentCreator.generateRandomFeatureCollection(featureCount, xmin, ymin, xmax, ymax));
     }
     catch (XyzWebClient.WebClientException e) {
@@ -575,6 +575,6 @@ public class StepTestBase {
   }
 
   protected long loadHeadVersion(String spaceId) throws WebClientException {
-    return hubWebClient.loadSpaceStatistics(spaceId).getMaxVersion().getValue();
+    return hubWebClient().loadSpaceStatistics(spaceId).getMaxVersion().getValue();
   }
 }
