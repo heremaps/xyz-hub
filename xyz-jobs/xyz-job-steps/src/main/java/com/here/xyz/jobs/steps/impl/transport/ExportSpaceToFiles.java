@@ -40,6 +40,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.execution.StepException;
+import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
@@ -47,6 +48,7 @@ import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
@@ -88,7 +90,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   //If a point is defined - the maximum radius can be 17898 meters
   private static final int MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM = 1_000;
   //Currently only used if there is no filter set
-  private static final long MAX_TASK_COUNT = 20;
+  private static final long MAX_TASK_COUNT = 1_000;
   private static final long MAX_BYTES_PER_TASK = 200L * 1024 * 1024; // 200MB in bytes
   public static final double ESTIMATED_SPATIAL_FILTERED_PEAK_ACUS = 0.05;
   public static final int ESTIMATED_SPATIAL_FILTERED_IO_BYTES = 100 * 1024 * 1024;
@@ -100,6 +102,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   protected SpatialFilter spatialFilter;
   @JsonView({Internal.class, Static.class})
   protected PropertiesQuery propertyFilter;
+
+  @JsonView({Internal.class, Static.class})
+  private long minI = -1;
+  @JsonView({Internal.class, Static.class})
+  private long maxI = -1;
 
   public ExportSpaceToFiles withVersionRef(Ref versionRef) {
     setVersionRef(versionRef);
@@ -373,24 +380,14 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     );
   }
 
-  protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context,
-                                                                        SpatialFilter spatialFilter, Ref versionRef)
-          throws WebClientException {
-    if(context == SUPER)
-      space().switchToSuper(superSpace().getId());
+  protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
+      throws WebClientException {
+    Space space = context == SUPER ? superSpace() : space();
 
-    return new GetFeaturesByGeometryInput(
-            space().getId(),
-            hubWebClient().loadConnector(space().getStorage().getId()).params,
-            space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
-            context,
-            space().getVersionsToKeep(),
-            versionRef,
-            spatialFilter != null ? spatialFilter.getGeometry() : null,
-            spatialFilter != null ? spatialFilter.getRadius() : 0,
-            spatialFilter != null && spatialFilter.isClip(),
-            propertyFilter
-    );
+    return new GetFeaturesByGeometryInput(space.getId(), hubWebClient().loadConnector(space.getStorage().getId()).params,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null, context, space.getVersionsToKeep(),
+        versionRef, spatialFilter != null ? spatialFilter.getGeometry() : null, spatialFilter != null ? spatialFilter.getRadius() : 0,
+        spatialFilter != null && spatialFilter.isClip(), propertyFilter);
   }
 
   private SQLQuery buildExportToS3PluginQuery(String schema, int taskId, String contentQuery) throws WebClientException {
@@ -412,6 +409,46 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
             .withQueryFragment("failureCallback",  buildFailureCallbackQuery().substitute().text().replaceAll("'", "''"));
   }
 
+  private void loadIRange() {
+    try {
+      String table = getRootTableName(context == SUPER ? superSpace() : space());
+      IRange iRange = loadIRange(table);
+      if (space().getExtension() != null && (context == DEFAULT || context == null)) {
+        IRange superIRange = loadIRange(getRootTableName(superSpace()));
+        iRange = new IRange(Math.min(iRange.minI, superIRange.minI), Math.max(iRange.maxI, superIRange.maxI));
+      }
+      this.minI = iRange.minI;
+      this.maxI = iRange.maxI;
+    }
+    catch (Exception e) {
+      throw new StepException(e.getMessage(), e);
+    }
+  }
+
+  private IRange loadIRange(String table) throws WebClientException, SQLException, TooManyResourcesClaimed {
+    Database dbReader = dbReader();
+    return runReadQuerySync(new SQLQuery("SELECT min(i) AS min_i, max(i) AS max_i FROM ${schema}.${table}")
+        .withVariable("schema", getSchema(dbReader))
+        .withVariable("table", table), dbReader, 0d, rs -> {
+      if (!rs.next())
+        throw new StepException("Error while loading min / max i values.");
+      return new IRange(rs.getLong("min_i"), rs.getLong("max_i"));
+    });
+  }
+
+  private record IRange(long minI, long maxI) {};
+
+  private long loadMinI() {
+    if (minI == -1)
+      loadIRange();
+    return minI;
+  }
+
+  private long loadMaxI() {
+    if (maxI == -1)
+      loadIRange();
+    return maxI;
+  }
 
   /**
    * Generates a content query for the export plugin based on the task data and context. This method
@@ -425,26 +462,31 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected String generateContentQueryForExportPlugin(TaskData taskData)
-          throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
+  protected String generateContentQueryForExportPlugin(TaskData taskData) throws WebClientException, TooManyResourcesClaimed,
+      QueryBuildingException {
 
     //We use the thread number as a condition for the query
-    int threadNumber = (int)taskData.taskInput();
+    int taskNumber = (int) taskData.taskInput();
 
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
-            .withDataSourceProvider(requestResource(dbReader(), 0));
+        .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    GetFeaturesByGeometryInput input =
-            createGetFeaturesByGeometryInput(context == null ? DEFAULT : context, spatialFilter, versionRef);
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context == null ? DEFAULT : context, spatialFilter, versionRef);
 
-    SQLQuery threadCondition = new SQLQuery("i % #{threadCount} = #{threadNumber}")
-            .withNamedParameter("threadCount", taskItemCount)
-            .withNamedParameter("threadNumber", threadNumber);
+    long minI = loadMinI();
+    long maxI = loadMaxI();
+    long iRangeSize = (long) Math.ceil((double) (maxI - minI) / (double) taskItemCount);
+
+    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + #{endRangeOffset}) * #{iRangeSize}")
+        .withNamedParameter("minI", minI)
+        .withNamedParameter("taskNumber", taskNumber)
+        .withNamedParameter("iRangeSize", iRangeSize)
+        .withNamedParameter("endRangeOffset", taskNumber == taskItemCount - 1 ? 2 : 1);
 
     return queryBuilder
-            .withAdditionalFilterFragment(threadCondition)
-            .buildQuery(input)
-            .toExecutableQueryString();
+        .withAdditionalFilterFragment(threadCondition)
+        .buildQuery(input)
+        .toExecutableQueryString();
   }
 
   private record Statistics(FeatureStatistics published, FeatureStatistics internal) {}
