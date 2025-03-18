@@ -38,7 +38,6 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.TransportTools;
@@ -84,8 +83,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.units.qual.C;
-
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
@@ -345,8 +342,7 @@ public class StepTestBase {
 
     DataSourceProvider dsp = getDataSourceProvider();
 
-    if(   step instanceof ExportSpaceToFiles 
-       || step instanceof CountSpace ){
+    if(step instanceof ExportSpaceToFiles){
       waitTillTaskItemsAreFinalized(step);
     }else{
       waitTillAllQueriesAreFinalized(step);

@@ -27,14 +27,12 @@ import static org.junit.Assert.assertTrue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.impl.transport.CopySpace;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePost;
 import com.here.xyz.jobs.steps.impl.transport.CopySpacePre;
-import com.here.xyz.jobs.steps.impl.transport.CountSpace;
 import com.here.xyz.jobs.steps.outputs.CreatedVersion;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -254,65 +252,5 @@ public class CopySpaceStepsTest extends StepTest {
 
     assertTrue(featureStatistics != null && featureStatistics.getFeatureCount() == 0 && featureStatistics.getByteSize() == 0);
   }
-
-  private static Stream<Arguments> provideCountParameters() {
-    return Stream.of(
-        Arguments.of( null, null, null, null), 
-        Arguments.of( SpaceContext.DEFAULT, null, null, null), 
-        Arguments.of( null, null, propertyFilter,null),
-        Arguments.of( SpaceContext.DEFAULT, null, propertyFilter,null),
-        Arguments.of( null, spatialSearchGeom, null,null),
-        Arguments.of( SpaceContext.DEFAULT, spatialSearchGeom, null,null),
-        Arguments.of( null, spatialSearchGeom, propertyFilter,null),
-        Arguments.of( SpaceContext.DEFAULT, spatialSearchGeom, propertyFilter,null),
-        
-        Arguments.of( null, null, null, versionRange),
-        Arguments.of( null, null, propertyFilter,versionRange),
-        Arguments.of( null, spatialSearchGeom, null, versionRange) 
-    );
-  }
-
-
-  @ParameterizedTest
-  @MethodSource("provideCountParameters")
-  public void countSpace(SpaceContext ctx, Geometry geo, String propertyFilter, String versionRef) throws Exception {
-
-    assertTrue( versionRef == null || ctx == null || ctx == SpaceContext.EXTENSION ); // versionRef count is only supported in context EXTENSION
-
-    Ref resolvedRef = versionRef == null ? new Ref(loadHeadVersion(sourceSpaceId)) : new Ref(versionRef);
-
-    LambdaBasedStep step = new CountSpace()
-        .withSpaceId(sourceSpaceId)
-        .withSpatialFilter( geo == null ? null : new SpatialFilter().withGeometry(geo) )
-        .withPropertyFilter(PropertiesQuery.fromString(propertyFilter))
-        .withJobId(JOB_ID);
-    
-    ((CountSpace) step).setVersionRef(resolvedRef);
-    ((CountSpace) step).setContext( ctx != null ? ctx : SpaceContext.EXTENSION );
-
-    sendLambdaStepRequestBlock(step, true);
-
-    List<Output> outputs = step.loadOutputs(USER);
-
-    FeatureStatistics featureStatistics = null;
-
-    for (Output output : outputs)
-      if (output instanceof FeatureStatistics statistics)
-        featureStatistics = statistics;
-
-    long expectedCount = versionRef == null ? 40L : 12L; // assuming context EXTENSION
-    
-    if( ((CountSpace) step).getContext() == SpaceContext.DEFAULT ) // => no versionRef
-     expectedCount = 47;
-
-    if(versionRef != null && (geo != null || propertyFilter != null) ) //TODO: clarify - in case of filtering with versionRange, deleted features are not counted as they are not "found"
-     expectedCount = 10;
-
-    assertTrue(    featureStatistics != null 
-                && featureStatistics.getFeatureCount() == expectedCount
-                && featureStatistics.getByteSize() == 0);
-
-  }
-
 
 }
