@@ -19,3 +19,4 @@ release.properties
 *.jfr
 /vault/
 !/vault/README.md
+.DS_Store

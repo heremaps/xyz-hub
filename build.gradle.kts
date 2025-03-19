@@ -640,6 +640,8 @@ sourceSets {
 rootProject.tasks.shadowJar {
     //Have all tests run before building the fat jar
     dependsOn(allprojects.flatMap { it.tasks.withType(Test::class) })
+    mustRunAfter(allprojects.flatMap { it.getTasksByName("jacocoTestReport", true) })
+    mustRunAfter("testCodeCoverageReport")
     archiveClassifier.set("all")
     mergeServiceFiles()
     isZip64 = true
@@ -647,6 +649,14 @@ rootProject.tasks.shadowJar {
         attributes["Implementation-Title"] = "Naksha Service"
         attributes["Main-Class"] = "com.here.naksha.app.service.NakshaApp"
     }
+}
+
+// Task for generating aggregated code coverage at root level
+// Report will be generated in folder ./build/reports/jacoco/testCodeCoverageReport
+rootProject.tasks.testCodeCoverageReport {
+    mustRunAfter(allprojects.flatMap { it.getTasksByName("jacocoTestReport", true) })
+    mustRunAfter(allprojects.flatMap { it.getTasksByName("spotlessJava", true) })
+    mustRunAfter(":spotlessInternalRegisterDependencies")
 }
 
 // print app version

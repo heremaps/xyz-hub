@@ -251,22 +251,22 @@ Code coverage report is generated with use of [jacoco](https://www.jacoco.org/)
 To generate **subproject** level coverage, use Gradle task `jacocoTestReport`:
 
 ```bash
-./gradlew test jacocoTestReport
+./gradlew jacocoTestReport
 ```
 
 Outputs for each subproject will be stored in `/[module]/build/reports/jacoco/test/html/index.html`
 
-To generate **root** level aggregated coverage, use additional Gradle task `testCodeCoverageReport`:
+To generate **root** level aggregated coverage, use Gradle task `testCodeCoverageReport`:
 
 ```bash
-./gradlew test jacocoTestReport testCodeCoverageReport
+./gradlew testCodeCoverageReport
 ```
 
 Outputs will be stored in `/build/reports/jacoco/testCodeCoverageReport/html/index.html`
 
 To validate test coverage, run `jacocoTestCoverageVerification` Gradle task:
 ```bash
-./gradlew test jacocoTestReport jacocoTestCoverageVerification
+./gradlew jacocoTestReport jacocoTestCoverageVerification
 ```
 
 
