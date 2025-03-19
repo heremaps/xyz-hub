@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -199,14 +199,14 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
   private SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
     final SQLQuery query = new SQLQuery(
-        "SELECT ${{selection}}, ${{geo}}"
+        "SELECT ${{jsonData}}, ${{geo}}"
             + "    FROM ${schema}.${headTable} ${{tableSample}}"
             + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
     )
         .withVariable(SCHEMA, getSchema())
         .withVariable("headTable", getDefaultTable((E) event) + HEAD_TABLE_SUFFIX);
 
-    query.setQueryFragment("selection", buildSelectionFragment(event));
+    query.setQueryFragment("jsonData", buildJsonDataFragment(event));
     query.setQueryFragment("geo", buildGeoFragment((E) event));
     query.setQueryFragment("tableSample", ""); //Can be overridden by caller
 
@@ -535,7 +535,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
             +"finaldata as "
             +"(	select "
             +"   case when step = 0 "
-            +"    then ( SELECT ${{selection}} FROM ${schema}.${table} where i = ids[1] ) "
+            +"    then ( SELECT ${{jsonData}} FROM ${schema}.${table} where i = ids[1] ) "
             +"    else ( select jsonb_set( jsonb_set('{\"type\":\"Feature\",\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
             +"   end as jsondata, "
             +"   case when step = 0 "
@@ -546,7 +546,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
             +") "
             +"select jsondata, ${{tweaksGeo}} as geo from finaldata LIMIT #{limit}")
             .withQueryFragment("geo", "geo") //(event.getClip() ? clipProjGeom(bbox,"geo") : "geo")
-            .withQueryFragment("selection", buildSelectionFragment(event))
+            .withQueryFragment("jsonData", buildJsonDataFragment(event))
             .withNamedParameter("minGeoHashLenForLineMerge", minGeoHashLenForLineMerge);
 
       }
@@ -565,11 +565,11 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   {
     SQLQuery searchQuery = generateSearchQuery(event);
 
-    final SQLQuery query = new SQLQuery("SELECT * FROM (SELECT ${{selection}}${{geo}} FROM ${schema}.${table} ${{sampling}} WHERE ${{indexedQuery}} ${{searchQuery}} ${{orderBy}}) tw ${{outerWhereClause}} LIMIT #{limit}")
+    final SQLQuery query = new SQLQuery("SELECT * FROM (SELECT ${{jsonData}}, ${{geo}} AS geo FROM ${schema}.${table} ${{sampling}} WHERE ${{indexedQuery}} ${{searchQuery}} ${{orderBy}}) tw ${{outerWhereClause}} LIMIT #{limit}")
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, readTableFromEvent(event) + HEAD_TABLE_SUFFIX)
-        .withQueryFragment("selection", buildSelectionFragment(event))
-        .withQueryFragment("geo", DhString.format(",%s as geo", tweaksgeo))
+        .withQueryFragment("jsonData", buildJsonDataFragment(event))
+        .withQueryFragment("geo", tweaksgeo)
         .withQueryFragment("sampling", "")
         .withQueryFragment("indexedQuery", indexedQuery)
         .withQueryFragment("searchQuery", "")
