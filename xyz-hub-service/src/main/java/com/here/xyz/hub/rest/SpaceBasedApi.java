@@ -24,6 +24,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
+import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
@@ -33,6 +34,8 @@ import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.ext.web.RoutingContext;
+
+import java.util.Map;
 
 public abstract class SpaceBasedApi extends Api {
   /**
@@ -45,7 +48,7 @@ public abstract class SpaceBasedApi extends Api {
   protected static SpaceContext getSpaceContext(RoutingContext context) throws HttpException {
     SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
     if (spaceContext == null)
-      throw new HttpException(BAD_REQUEST, "Invalid space context.");
+      throw ErrorManager.getHttpException("E318403");
     return spaceContext;
   }
 
@@ -95,7 +98,7 @@ public abstract class SpaceBasedApi extends Api {
       return new Ref(versionRef);
     }
     catch (InvalidRef e) {
-      throw new HttpException(BAD_REQUEST, "Invalid value for versionRef: " + versionRef, e);
+      throw ErrorManager.getHttpException("E318404", Map.of("versionRef", versionRef, "cause", e.getMessage()), e);
     }
   }
 }

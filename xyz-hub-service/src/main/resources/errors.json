@@ -1,0 +1,44 @@
+[
+  {
+    "title": "Invalid JSON string",
+    "code": "E318400",
+    "status": 400,
+    "cause": "Invalid $resource JSON string",
+    "action": ""
+  },
+  {
+    "title": "Invalid JSON string",
+    "code": "E318400",
+    "status": 400,
+    "cause": "Invalid connector JSON string",
+    "action": ""
+  },
+  {
+    "title": "IDs don't match",
+    "code": "E318402",
+    "status": 400,
+    "cause": "The $resource ID in the body does not match the resource ID in the path.",
+    "action": ""
+  },
+  {
+    "title": "Invalid $resource context.",
+    "code": "E318403",
+    "status": 400,
+    "cause": "Invalid $resource context.",
+    "action": ""
+  },
+  {
+    "title": "Invalid value for versionRef",
+    "code": "E318404",
+    "status": 400,
+    "cause": "Invalid value for versionRef: $versionRef. $cause",
+    "action": ""
+  },
+  {
+    "title": "$resource not found",
+    "code": "E318441",
+    "status": 404,
+    "cause": "$resource with ID $resourceId was not found",
+    "action": "Please, check if requested ID $resourceId is correct"
+  }
+]

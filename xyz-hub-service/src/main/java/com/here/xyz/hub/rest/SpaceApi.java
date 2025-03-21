@@ -20,13 +20,13 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
@@ -35,7 +35,6 @@ import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Space.Copyright;
-import com.here.xyz.util.service.HttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
@@ -86,7 +85,7 @@ public class SpaceApi extends SpaceBasedApi {
       input = context.body().asJsonObject();
     }
     catch (DecodeException e) {
-      context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
+      context.fail(ErrorManager.getHttpException("E318400", e));
       return;
     }
 
@@ -107,7 +106,7 @@ public class SpaceApi extends SpaceBasedApi {
     try {
       input = context.body().asJsonObject();
     } catch (DecodeException e) {
-      context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
+      context.fail(ErrorManager.getHttpException("E318400", e));
       return;
     }
     String spaceId = getSpaceId(context);
@@ -116,8 +115,7 @@ public class SpaceApi extends SpaceBasedApi {
       input.put("id", spaceId);
     }
     if (!input.getString("id").equals(spaceId)) {
-      context.fail(
-          new HttpException(BAD_REQUEST, "The resource ID in the body does not match the resource ID in the path."));
+      context.fail(ErrorManager.getHttpException("E318402"));
       return;
     }
 

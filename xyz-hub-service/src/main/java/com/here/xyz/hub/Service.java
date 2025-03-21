@@ -31,6 +31,7 @@ import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.ConfigUpdateThread;
 import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
+import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
@@ -61,13 +62,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.Hashtable;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
@@ -164,6 +159,8 @@ public class Service extends Core {
     Configurator.initialize("default", CONSOLE_LOG_CONFIG);
     isDebugModeActive = Arrays.asList(arguments).contains("--debug");
 
+    initErrorManager();
+
     VertxOptions vertxOptions = new VertxOptions()
         .setMetricsOptions(new MetricsOptions()
             .setEnabled(true)
@@ -180,6 +177,10 @@ public class Service extends Core {
         .compose(Service::initializeService)
         .onFailure(t -> logger.error("Service startup failed", t))
         .onSuccess(v -> logger.info("Service startup succeeded"));
+  }
+
+  protected static void initErrorManager() {
+    ErrorManager.init(Map.of("resource", "Space"));
   }
 
   private static Future<Vertx> initializeGlobalRouter(Vertx vertx) {

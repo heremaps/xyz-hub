@@ -29,6 +29,7 @@ import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.hub.task.ConnectorHandler;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.models.hub.jwt.AttributeMap;
@@ -63,7 +64,7 @@ public class ConnectorApi extends Api {
       return context.body().asJsonObject();
     }
     catch (DecodeException e) {
-      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
+      throw ErrorManager.getHttpException("E318401");
     }
   }
 

@@ -35,9 +35,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.SerializationView;
+import com.here.xyz.responses.DetailedErrorResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.service.DetailedHttpException;
 import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
@@ -132,8 +134,7 @@ public class Api {
         else if (e instanceof AccessDeniedException)
             e = new HttpException(FORBIDDEN, e.getMessage(), e);
 
-        if (e instanceof HttpException) {
-            final HttpException httpException = (HttpException) e;
+        if (e instanceof HttpException httpException) {
 
             if (INTERNAL_SERVER_ERROR.code() != httpException.status.code()) {
                 XyzError error;
@@ -189,15 +190,28 @@ public class Api {
      * @param error     the error type that will become part of the {@link ErrorResponse}.
      */
     private void sendErrorResponse(final RoutingContext context, final HttpException httpError, final XyzError error) {
+        ErrorResponse errorResponse;
+        if (httpError instanceof DetailedHttpException detailedHttpException) {
+            errorResponse = new DetailedErrorResponse()
+                    .withErrorTitle(detailedHttpException.errorDefinition.getTitle())
+                    .withErrorAction(detailedHttpException.errorDefinition.getAction())
+                    .withErrorCause(detailedHttpException.errorDefinition.getCause())
+                    .withStreamId(Api.getMarker(context).getName())
+                    .withErrorDetails(httpError.errorDetails)
+                    .withError(error)
+                    .withErrorMessage(httpError.getMessage());
+        } else {
+            errorResponse = new ErrorResponse()
+                    .withStreamId(Api.getMarker(context).getName())
+                    .withErrorDetails(httpError.errorDetails)
+                    .withError(error)
+                    .withErrorMessage(httpError.getMessage());
+        }
         context.response()
                 .putHeader(CONTENT_TYPE, APPLICATION_JSON)
                 .setStatusCode(httpError.status.code())
                 .setStatusMessage(httpError.status.reasonPhrase())
-                .end(new ErrorResponse()
-                        .withStreamId(Api.getMarker(context).getName())
-                        .withErrorDetails(httpError.errorDetails)
-                        .withError(error)
-                        .withErrorMessage(httpError.getMessage()).serialize());
+                .end(errorResponse.serialize());
     }
 
     protected long getMaxResponseLength(final RoutingContext context) {
