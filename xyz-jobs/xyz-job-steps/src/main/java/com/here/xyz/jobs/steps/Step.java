@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
+import static com.here.xyz.jobs.steps.Step.InputSet.USER_PROVIDER;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.inputs.Input.defaultBucket;
 import static com.here.xyz.jobs.steps.resources.Load.addLoad;
@@ -276,15 +277,15 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return All inputs from the specified InputSet
    */
   private List<Input> loadInputs(InputSet inputSet) {
-    if (inputSet.stepId == null && inputSet.name == null)
-      return Input.loadInputs(getJobId());
-    else if (inputSet.stepId == null)
-      throw new IllegalArgumentException("Incorrect input was provided: Missing source step ID");
-    else if (inputSet.name == null)
-      throw new IllegalArgumentException("Incorrect input was provided: Missing referenced output name");
-    else {
+    if (inputSet.stepId == null)
+      throw new IllegalArgumentException("Incorrect input was provided: Missing source input provider");
+    if (inputSet.name == null)
+      throw new IllegalArgumentException("Incorrect input was provided: Missing referenced set name");
+
+    if (USER_PROVIDER.equals(inputSet.stepId))
+      return Input.loadInputs(getJobId(), inputSet.name);
+    else
       return loadOutputsFor(inputSet).stream().map(output -> (Input) transformToInput(output).withMetadata(inputSet.metadata())).toList();
-    }
   }
 
   /**
@@ -322,11 +323,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   }
 
   protected int currentInputsCount(Class<? extends Input> inputType) {
-    return Input.currentInputsCount(jobId, inputType);
+    return getInputSets().stream()
+        .filter(inputSet -> USER_PROVIDER.equals(inputSet.stepId))
+        .mapToInt(userInputSet -> Input.currentInputsCount(jobId, inputType, userInputSet.name))
+        .sum();
   }
 
   protected <I extends Input> List<I> loadInputsSample(int maxSampleSize, Class<I> inputType) {
-    return Input.loadInputsSample(jobId, maxSampleSize, inputType);
+    return getInputSets().stream()
+        .filter(inputSet -> USER_PROVIDER.equals(inputSet.stepId))
+        .flatMap(userInputSet -> Input.loadInputsSample(jobId, userInputSet.name, maxSampleSize, inputType).stream())
+        .unordered()
+        .limit(maxSampleSize)
+        .toList();
   }
 
   @JsonIgnore
@@ -606,7 +615,10 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @param stepId The step ID of the step producing the outputs
    * @param name The name for the set of outputs to be produced
    */
+  //TODO: Rename "stepId" parameter to "provider"
   public record InputSet(String jobId, String stepId, String name, boolean modelBased, Map<String, String> metadata) {
+    public static final String DEFAULT_INPUT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
+    public static final String USER_PROVIDER = "USER";
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
 
     public InputSet(String jobId, String stepId, String name, boolean modelBased) {
@@ -636,7 +648,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
      */
     public InputSet() {
       //TODO: Currently only non-modelbased user inputs are supported
-      this(null, null, null, false);
+      this(null, USER_PROVIDER, DEFAULT_INPUT_SET_NAME, false);
     }
 
     public String toS3Path(String consumerJobId) {
@@ -645,8 +657,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
     public S3Uri toS3Uri(String consumerJobId) {
       String jobId = this.jobId != null ? this.jobId : consumerJobId;
-      if (stepId == null)
-        return Input.loadResolvedUserInputPrefixUri(jobId);
+      if (USER_PROVIDER.equals(stepId))
+        return Input.loadResolvedUserInputPrefixUri(jobId, name);
       return new S3Uri(defaultBucket(), Output.stepOutputS3Prefix(jobId, stepId, name));
     }
   }

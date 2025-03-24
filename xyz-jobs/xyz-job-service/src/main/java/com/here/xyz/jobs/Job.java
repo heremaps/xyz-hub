@@ -29,6 +29,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_INPUT_SET_NAME;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.util.Random.randomAlpha;
@@ -488,9 +489,13 @@ public class Job implements XyzSerializable {
   }
 
   public UploadUrl createUploadUrl(boolean compressed) {
+    return createUploadUrl(compressed, DEFAULT_INPUT_SET_NAME);
+  }
+
+  public UploadUrl createUploadUrl(boolean compressed, String setName) {
     return new UploadUrl()
         .withCompressed(compressed)
-        .withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID() + (compressed ? ".gz" : ""));
+        .withS3Key(inputS3Prefix(getId(), setName) + "/" + UUID.randomUUID() + (compressed ? ".gz" : ""));
   }
 
   public Future<Void> consumeInput(ModelBasedInput input) {
@@ -508,8 +513,8 @@ public class Job implements XyzSerializable {
     return Future.succeededFuture();
   }
 
-  public Future<List<Input>> loadInputs() {
-    return ASYNC.run(() -> Input.loadInputs(getId()));
+  public Future<List<Input>> loadInputs(String setName) {
+    return ASYNC.run(() -> Input.loadInputs(getId(), setName));
   }
 
   public Future<List<Output>> loadOutputs() {

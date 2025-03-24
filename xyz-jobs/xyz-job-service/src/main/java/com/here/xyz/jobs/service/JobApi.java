@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_INPUT_SET_NAME;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -48,7 +49,6 @@ import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -67,6 +67,8 @@ public class JobApi extends JobApiBase {
     rb.getRoute("deleteJob").setDoValidation(false).addHandler(handleErrors(this::deleteJob));
     rb.getRoute("postJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
     rb.getRoute("getJobInputs").setDoValidation(false).addHandler(handleErrors(this::getJobInputs));
+    rb.getRoute("postNamedJobInputs").setDoValidation(false).addHandler(handleErrors(this::postJobInput));
+    rb.getRoute("getNamedJobInputs").setDoValidation(false).addHandler(handleErrors(this::getJobInputs));
     rb.getRoute("getJobOutputs").setDoValidation(false).addHandler(handleErrors(this::getJobOutputs));
     rb.getRoute("patchJobStatus").setDoValidation(false).addHandler(handleErrors(this::patchJobStatus));
     rb.getRoute("getJobStatus").setDoValidation(false).addHandler(handleErrors(this::getJobStatus));
@@ -116,29 +118,37 @@ public class JobApi extends JobApiBase {
   protected void postJobInput(final RoutingContext context) throws HttpException {
     String jobId = jobId(context);
     Input input = getJobInputFromBody(context);
+    String inputSetName = inputSetName(context);
+
+    Future<Input> inputCreatedFuture = registerInput(context, input, jobId, inputSetName);
+
+    inputCreatedFuture
+        .onSuccess(res -> sendResponse(context, CREATED.code(), res))
+        .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  private Future<Input> registerInput(RoutingContext context, Input input, String jobId, String inputSetName) {
     if (input instanceof UploadUrl uploadUrl) {
-      loadJob(context, jobId)
+      return loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
               : Future.failedFuture(new DetailedHttpException("E319004")))
-          .map(job -> job.createUploadUrl(uploadUrl.isCompressed()))
-          .onSuccess(res -> sendResponse(context, CREATED.code(), res))
-          .onFailure(err -> sendErrorResponse(context, err));
+          .map(job -> job.createUploadUrl(uploadUrl.isCompressed(), inputSetName));
     }
-    else if (input instanceof InputsFromS3 s3Inputs) {
-      loadJob(context, jobId)
+
+    if (input instanceof InputsFromS3 s3Inputs) {
+      return loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
               : Future.failedFuture(new DetailedHttpException("E319004")))
           .compose(job -> {
-            s3Inputs.dereference(job.getId());
-            return Future.succeededFuture();
-          })
-          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
-          .onFailure(err -> sendErrorResponse(context, err));
+            s3Inputs.dereference(job.getId(), inputSetName);
+            return Future.succeededFuture(null);
+          });
     }
-    else if (input instanceof ModelBasedInput modelBasedInput) {
-      loadJob(context, jobId)
+
+    if (input instanceof ModelBasedInput modelBasedInput) {
+      return loadJob(context, jobId)
           .compose(job -> {
             if (!job.isPipeline())
               return Future.failedFuture(new DetailedHttpException("E319005", Map.of("allowedType", UploadUrl.class.getSimpleName())));
@@ -149,12 +159,12 @@ public class JobApi extends JobApiBase {
             else
               return job.consumeInput(modelBasedInput);
           })
-          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
-          .onFailure(err -> sendErrorResponse(context, err));
+          .map(v -> null);
     }
-    else if (input instanceof InputsFromJob inputsReference) {
-      //NOTE: Both jobs have to be loaded to authorize the user for both
-      loadJob(context, jobId)
+
+    if (input instanceof InputsFromJob inputsReference) {
+      //NOTE: Both jobs have to be loaded to authorize the user for both ones
+      return loadJob(context, jobId)
           .compose(job -> loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
             try {
               if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
@@ -163,20 +173,18 @@ public class JobApi extends JobApiBase {
               inputsReference.dereference(job.getId());
               return Future.succeededFuture();
             }
-            catch (IOException e) {
+            catch (Exception e) {
               return Future.failedFuture(e);
             }
-          }))
-          .onSuccess(v -> sendResponse(context, OK.code(), (XyzSerializable) null))
-          .onFailure(err -> sendErrorResponse(context, err));
+          }));
     }
-    else
-      throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported.");
+
+    throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported.");
   }
 
   protected void getJobInputs(final RoutingContext context) {
     loadJob(context, jobId(context))
-        .compose(job -> job.loadInputs())
+        .compose(job -> job.loadInputs(inputSetName(context)))
         .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Input>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -232,6 +240,12 @@ public class JobApi extends JobApiBase {
 
   protected Future<Void> authorizeAccess(RoutingContext context, Job job) {
     return Future.succeededFuture();
+  }
+
+  protected String inputSetName(RoutingContext context) {
+    String setName = context.pathParam("setName");
+    setName =  setName == null ? DEFAULT_INPUT_SET_NAME : setName;
+    return setName;
   }
 
   protected Input getJobInputFromBody(RoutingContext context) throws HttpException {
