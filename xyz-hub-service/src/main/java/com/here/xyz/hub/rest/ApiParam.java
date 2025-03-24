@@ -133,7 +133,8 @@ public class ApiParam {
     @Deprecated
     static final String CONNECTOR_MAPPING = "connectorMapping";
 
-    static final String DRY_RUN = "dryRun";
+    static final String DRY_RUN = "dryRun",
+                        FORCE_STORAGE = "forceStorage";
 
     /**
      * Get access to the custom parsed query parameters. Used as a temporary replacement for context.queryParam until
