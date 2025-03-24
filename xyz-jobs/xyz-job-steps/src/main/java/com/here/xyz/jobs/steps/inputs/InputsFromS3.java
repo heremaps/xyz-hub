@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,11 +54,11 @@ public class InputsFromS3 extends Input<InputsFromS3> {
     return this;
   }
 
-  public void dereference(String forJob) {
+  public void dereference(String forJob, String setName) {
     //First load the inputs from the (foreign) bucket
     List<Input> inputs = loadInputsInParallel(getBucket(), getPrefix());
     inputs.forEach(input -> input.setS3Bucket(getBucket()));
     //Store the metadata for the job that accesses the bucket
-    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()));
+    storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
   }
 }
