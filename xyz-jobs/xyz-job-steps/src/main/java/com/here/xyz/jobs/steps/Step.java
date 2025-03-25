@@ -19,7 +19,6 @@
 
 package com.here.xyz.jobs.steps;
 
-import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_PROVIDER;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.inputs.Input.defaultBucket;
@@ -601,7 +600,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   protected boolean isUserInputsExpected() {
-    return getInputSets().stream().anyMatch(inputSet -> USER_INPUTS.get().equals(inputSet));
+    return getInputSets().stream().anyMatch(inputSet -> USER_PROVIDER.equals(inputSet.stepId));
   }
 
   @JsonIgnore
