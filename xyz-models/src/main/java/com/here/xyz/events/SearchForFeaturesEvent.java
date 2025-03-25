@@ -31,7 +31,7 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Se
 
   private long limit = DEFAULT_LIMIT;
   @JsonIgnore
-  public boolean ignoreLimit = false;
+  public boolean ignoreLimit = false; //TODO: Remove after refactoring
 
   public long getLimit() {
     return ignoreLimit ? Long.MAX_VALUE : limit;

@@ -122,7 +122,9 @@ public class SpaceApi extends SpaceBasedApi {
     }
 
     boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true, dryRun);
+    boolean forceStorage = ApiParam.Query.getBoolean(context, Query.FORCE_STORAGE, false);
+
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true, dryRun, forceStorage);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
         .execute(this::sendResponse, this::sendErrorResponse);

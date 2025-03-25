@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 
 public class JobTestBase extends StepTestBase {
     private static final Logger logger = LogManager.getLogger();
+    private static final String LOCALSTACK_HOST = System.getProperty("localstack.host", "localhost");
     protected Set<String> createdJobs = new HashSet<>();
     protected Set<String> createdSpaces = new HashSet<>();
 
@@ -55,8 +56,7 @@ public class JobTestBase extends StepTestBase {
     public static void uploadFileToJob(String jobId, byte[] fileContent) throws IOException, InterruptedException {
         HttpResponse<byte[]> inputResponse = post("/jobs/" + jobId + "/inputs", Map.of("type", "UploadUrl"));
         String uploadUrl = (String) XyzSerializable.deserialize(inputResponse.body(), Map.class).get("url");
-        uploadUrl = uploadUrl.replace("localstack","localhost");
-        uploadInputFile(fileContent, new URL(uploadUrl));
+        uploadInputFile(fileContent, getLocalizedUrl(uploadUrl));
     }
 
     public static void uploadFilesToJob(String jobId, List<byte[]> fileContents) throws IOException, InterruptedException {
@@ -214,5 +214,10 @@ public class JobTestBase extends StepTestBase {
         for(String jobId : createdJobs) {
             deleteJob(jobId);
         }
+    }
+
+    protected static URL getLocalizedUrl(String url) throws IOException {
+        URL localstackUrl = new URL(url);
+        return new URL(localstackUrl.getProtocol(), LOCALSTACK_HOST, localstackUrl.getPort(), localstackUrl.getFile());
     }
 }
