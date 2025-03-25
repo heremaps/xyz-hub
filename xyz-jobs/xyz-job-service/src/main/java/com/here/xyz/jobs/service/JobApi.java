@@ -80,7 +80,8 @@ public class JobApi extends JobApiBase {
 
   protected Future<Job> createNewJob(RoutingContext context, Job job) {
     logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
-    return job.create().submit()
+    return applyInputReferences(job.create())
+        .compose(v -> job.submit())
         .map(res -> job)
         .recover(t -> {
           if (t instanceof CompilationError)
@@ -94,6 +95,20 @@ public class JobApi extends JobApiBase {
           logger.info(getMarker(context), "Job was created successfully: {}", job.serialize(true));
         })
         .onFailure(err -> sendErrorResponse(context, err));
+  }
+
+  protected Future<Void> applyInputReferences(Job job) {
+    if (job.getInputs() == null)
+      return Future.succeededFuture(null);
+
+    if (!job.getInputs().values().stream().allMatch(input -> input instanceof InputsFromS3))
+      return Future.failedFuture("Only inputs of type " + InputsFromS3.class.getSimpleName() + " are supported as inline inputs.");
+
+    return Future.all(job.getInputs().entrySet().stream()
+        .map(inputSet -> registerInput(job, (InputsFromS3) inputSet.getValue(), inputSet.getKey()))
+        .toList())
+        .map(null);
+
   }
 
   protected void getJobs(final RoutingContext context) {
@@ -120,66 +135,67 @@ public class JobApi extends JobApiBase {
     Input input = getJobInputFromBody(context);
     String inputSetName = inputSetName(context);
 
-    Future<Input> inputCreatedFuture = registerInput(context, input, jobId, inputSetName);
+    Future<Input> inputCreatedFuture = loadJob(context, jobId).compose(job -> registerInput(context, job, input, inputSetName));
 
     inputCreatedFuture
         .onSuccess(res -> sendResponse(context, CREATED.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
-  private Future<Input> registerInput(RoutingContext context, Input input, String jobId, String inputSetName) {
-    if (input instanceof UploadUrl uploadUrl) {
-      return loadJob(context, jobId)
-          .compose(job -> job.getStatus().getState() == NOT_READY
-              ? Future.succeededFuture(job)
-              : Future.failedFuture(new DetailedHttpException("E319004")))
-          .map(job -> job.createUploadUrl(uploadUrl.isCompressed(), inputSetName));
-    }
+  private Future<Input> registerInput(RoutingContext context, Job job, Input input, String inputSetName) {
+    if (input instanceof UploadUrl uploadUrl)
+      return registerInput(job, inputSetName, uploadUrl);
 
-    if (input instanceof InputsFromS3 s3Inputs) {
-      return loadJob(context, jobId)
-          .compose(job -> job.getStatus().getState() == NOT_READY
-              ? Future.succeededFuture(job)
-              : Future.failedFuture(new DetailedHttpException("E319004")))
-          .compose(job -> {
-            s3Inputs.dereference(job.getId(), inputSetName);
-            return Future.succeededFuture(null);
-          });
-    }
+    if (input instanceof InputsFromS3 s3Inputs)
+      return registerInput(job, s3Inputs, inputSetName);
 
-    if (input instanceof ModelBasedInput modelBasedInput) {
-      return loadJob(context, jobId)
-          .compose(job -> {
-            if (!job.isPipeline())
-              return Future.failedFuture(new DetailedHttpException("E319005", Map.of("allowedType", UploadUrl.class.getSimpleName())));
-            else if (job.getStatus().getState() != RUNNING)
-              return Future.failedFuture(new DetailedHttpException("E319006"));
-            else if (context.request().bytesRead() > 256 * 1024)
-              return Future.failedFuture(new DetailedHttpException("E319007"));
-            else
-              return job.consumeInput(modelBasedInput);
-          })
-          .map(v -> null);
-    }
+    if (input instanceof ModelBasedInput modelBasedInput)
+      return registerPipelineInput(context, job, modelBasedInput);
 
-    if (input instanceof InputsFromJob inputsReference) {
-      //NOTE: Both jobs have to be loaded to authorize the user for both ones
-      return loadJob(context, jobId)
-          .compose(job -> loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
-            try {
-              if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
-                return Future.failedFuture(new DetailedHttpException("E319008", Map.of("referencedJob", inputsReference.getJobId(), "referencingJob", job.getId())));
-
-              inputsReference.dereference(job.getId());
-              return Future.succeededFuture();
-            }
-            catch (Exception e) {
-              return Future.failedFuture(e);
-            }
-          }));
-    }
+    if (input instanceof InputsFromJob inputsReference)
+      return registerInput(context, job, inputsReference);
 
     throw new NotImplementedException("Input type " + input.getClass().getSimpleName() + " is not supported.");
+  }
+
+  private static Future<Input> registerInput(Job job, String inputSetName, UploadUrl uploadUrl) {
+    return job.getStatus().getState() == NOT_READY
+        ? Future.succeededFuture(job.createUploadUrl(uploadUrl.isCompressed(), inputSetName))
+        : Future.failedFuture(new DetailedHttpException("E319004"));
+  }
+
+  private Future<Input> registerInput(RoutingContext context, Job job, InputsFromJob inputsReference) {
+    //NOTE: Both jobs have to be loaded to authorize the user for both ones
+    return loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
+      try {
+        if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
+          return Future.failedFuture(new DetailedHttpException("E319008", Map.of("referencedJob", inputsReference.getJobId(), "referencingJob", job.getId())));
+
+        inputsReference.dereference(job.getId());
+        return Future.succeededFuture();
+      }
+      catch (Exception e) {
+        return Future.failedFuture(e);
+      }
+    });
+  }
+
+  private static Future<Input> registerPipelineInput(RoutingContext context, Job job, ModelBasedInput modelBasedInput) {
+    if (!job.isPipeline())
+      return Future.failedFuture(new DetailedHttpException("E319005", Map.of("allowedType", UploadUrl.class.getSimpleName())));
+    else if (job.getStatus().getState() != RUNNING)
+      return Future.failedFuture(new DetailedHttpException("E319006"));
+    else if (context.request().bytesRead() > 256 * 1024)
+      return Future.failedFuture(new DetailedHttpException("E319007"));
+    else
+      return job.consumeInput(modelBasedInput).map(null);
+  }
+
+  private static Future<Input> registerInput(Job job, InputsFromS3 s3Inputs, String inputSetName) {
+    if (job.getStatus().getState() != NOT_READY)
+      return Future.failedFuture(new DetailedHttpException("E319004"));
+    s3Inputs.dereference(job.getId(), inputSetName);
+    return Future.succeededFuture(null);
   }
 
   protected void getJobInputs(final RoutingContext context) {

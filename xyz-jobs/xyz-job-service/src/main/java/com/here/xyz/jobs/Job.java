@@ -37,6 +37,7 @@ import static com.here.xyz.util.Random.randomAlpha;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
@@ -89,6 +90,8 @@ public class Job implements XyzSerializable {
   private long updatedAt;
   @JsonView({Public.class, Static.class})
   private long keepUntil;
+  @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+  private Map<String, Input> inputs;
   //Caller defined properties:
   @JsonView(Static.class)
   private String owner;
@@ -637,6 +640,19 @@ public class Job implements XyzSerializable {
 
   public Job withKeepUntil(long keepUntil) {
     setKeepUntil(keepUntil);
+    return this;
+  }
+
+  public Map<String, Input> getInputs() {
+    return inputs;
+  }
+
+  public void setInputs(Map<String, Input> inputs) {
+    this.inputs = inputs;
+  }
+
+  public Job withInputs(Map<String, Input> inputs) {
+    setInputs(inputs);
     return this;
   }
 
