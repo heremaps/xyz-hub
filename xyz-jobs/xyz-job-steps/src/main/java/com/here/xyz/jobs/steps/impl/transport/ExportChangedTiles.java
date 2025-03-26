@@ -166,14 +166,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
       if (targetLevel < 0 || targetLevel > 12) {
         throw new ValidationException("TargetLevel must be between 0 and 12!");
       }
-//      try {
-//        //if(space().getExtension() == null)
-//        //  throw new ValidationException("Only supported for composite compounds!");
-//        if (space().getVersionsToKeep() <= 1)
-//          throw new ValidationException("Versions to keep must be greater than 1!");
-//      }catch (WebClientException e) {
-//        throw new ValidationException("Error loading resource " + getSpaceId(), e);
-//      }
       return true;
   }
 
@@ -390,7 +382,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
   private SQLQuery generateGetFeaturesByIdsQuery(List<String> ids, SpaceContext context, Ref versionRef) throws WebClientException,
       TooManyResourcesClaimed, QueryBuildingException {
-    GetFeaturesByIdsBuilder queryBuilder = new GetFeaturesByIdsBuilder()
+    GetFeaturesByIdsBuilder queryBuilder = new GetFeaturesByIdsBuilder().withSelectClauseOverride(new SQLQuery("id,geo"))
         .withDataSourceProvider(requestResource(dbReader(), 0));
 
     return queryBuilder.buildQuery(new GetFeaturesByIdsInput(
