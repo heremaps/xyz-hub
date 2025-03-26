@@ -95,8 +95,7 @@ public class HQuad {
       throw new IllegalArgumentException("Quadkey '"+quadkey+"' is invalid!");
   }
 
-
-  public BBox getBoundingBox() {
+  private BBox _getBoundingBox() {
     double width = 360.0 / (1L << level);
     double heigth = level == 0 ? 180 : 360.0 / (1L << level);
 
@@ -106,6 +105,10 @@ public class HQuad {
     double north = heigth * (y + 1) - 90;
 
     return new BBox(west, south, east, north);
+  }
+
+  public BBox getBoundingBox() {
+    return BBox.tile_shrink( _getBoundingBox() );
   }
 
 
