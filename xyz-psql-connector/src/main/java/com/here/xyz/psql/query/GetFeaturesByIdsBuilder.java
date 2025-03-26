@@ -30,6 +30,12 @@ import java.util.List;
 import java.util.Map;
 
 public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInput> {
+  private SQLQuery selectClauseOverride;
+
+  public GetFeaturesByIdsBuilder withSelectClauseOverride(SQLQuery selectClauseOverride) {
+    this.selectClauseOverride = selectClauseOverride;
+    return this;
+  }
 
   @Override
   public SQLQuery buildQuery(GetFeaturesByIdsInput input) throws QueryBuildingException {
@@ -44,7 +50,7 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
           .withRef(input.ref)
           .withIds(input.ids);
 
-      return new GetFeaturesById(event)
+      return new GetFeaturesByIdWithModifiedFilter(event)
           .<GetFeaturesById>withDataSourceProvider(getDataSourceProvider())
           .buildQuery(event);
     }
@@ -65,6 +71,25 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
     public GetFeaturesByIdsInput {
       if (ref == null)
         ref = new Ref(Ref.HEAD);
+    }
+  }
+
+  private class GetFeaturesByIdWithModifiedFilter extends GetFeaturesById {
+
+    public GetFeaturesByIdWithModifiedFilter(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
+      super(event);
+    }
+
+    @Override
+    protected SQLQuery buildSelectClause(GetFeaturesByIdEvent event, int dataset) {
+      return overrideSelectClause(super.buildSelectClause(event, dataset), selectClauseOverride);
+    }
+
+    private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {
+      if (selectClauseOverride != null)
+        return new SQLQuery("${{selectClause}}")
+                .withQueryFragment("selectClause", selectClauseOverride);
+      return selectClause;
     }
   }
 }
