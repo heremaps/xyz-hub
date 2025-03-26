@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,10 +25,7 @@ import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
 import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -38,13 +35,16 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
@@ -80,6 +80,13 @@ public class JobApi extends JobApiBase {
     logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
     return job.create().submit()
         .map(res -> job)
+        .recover(t -> {
+          if (t instanceof CompilationError)
+            return Future.failedFuture(mapUserFacingException("E319002", t));
+          if (t instanceof ValidationException)
+            return Future.failedFuture(mapUserFacingException("E319003", t));
+          return Future.failedFuture(t);
+        })
         .onSuccess(res -> {
           sendResponse(context, CREATED.code(), res);
           logger.info(getMarker(context), "Job was created successfully: {}", job.serialize(true));
@@ -113,7 +120,7 @@ public class JobApi extends JobApiBase {
       loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
-              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
+              : Future.failedFuture(new DetailedHttpException("E319004")))
           .map(job -> job.createUploadUrl(uploadUrl.isCompressed()))
           .onSuccess(res -> sendResponse(context, CREATED.code(), res))
           .onFailure(err -> sendErrorResponse(context, err));
@@ -122,7 +129,7 @@ public class JobApi extends JobApiBase {
       loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
-              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
+              : Future.failedFuture(new DetailedHttpException("E319004")))
           .compose(job -> {
             s3Inputs.dereference(job.getId());
             return Future.succeededFuture();
@@ -134,12 +141,11 @@ public class JobApi extends JobApiBase {
       loadJob(context, jobId)
           .compose(job -> {
             if (!job.isPipeline())
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs other than " + UploadUrl.class.getSimpleName() + "s can be "
-                  + "created for this job."));
+              return Future.failedFuture(new DetailedHttpException("E319005", Map.of("allowedType", UploadUrl.class.getSimpleName())));
             else if (job.getStatus().getState() != RUNNING)
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created for this job before it is running."));
+              return Future.failedFuture(new DetailedHttpException("E319006"));
             else if (context.request().bytesRead() > 256 * 1024)
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "The maximum size of an input for this job is 256KB."));
+              return Future.failedFuture(new DetailedHttpException("E319007"));
             else
               return job.consumeInput(modelBasedInput);
           })
@@ -152,8 +158,7 @@ public class JobApi extends JobApiBase {
           .compose(job -> loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
             try {
               if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
-                return Future.failedFuture(new HttpException(FORBIDDEN, "Inputs of job " + inputsReference.getJobId()
-                    + " can not be referenced by job " + job.getId() + " as it has a different owner."));
+                return Future.failedFuture(new DetailedHttpException("E319008", Map.of("referencedJob", inputsReference.getJobId(), "referencingJob", job.getId())));
 
               inputsReference.dereference(job.getId());
               return Future.succeededFuture();
@@ -210,8 +215,9 @@ public class JobApi extends JobApiBase {
     }
     catch (JsonProcessingException e) {
       //TODO: Decide if we want to forward the cause to the user.
+      //TODO: We should generally try to "unpack" the JsonProcessingException and see if the cause is a "user facing" exception. See: Api#sendErrorResponse(RoutingContext, Throwable)
       //e.g. an invalid versionRef(4,2) will end up here - without any indication for the user at the end
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw mapUserFacingException("E319001", e);
     }
   }
 
@@ -219,7 +225,7 @@ public class JobApi extends JobApiBase {
     return Job.load(jobId)
         .compose(job -> {
           if (job == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist"));
+            return Future.failedFuture(new DetailedHttpException("E319009", Map.of("jobId", jobId)));
           return authorizeAccess(context, job).map(job);
         });
   }
@@ -235,11 +241,11 @@ public class JobApi extends JobApiBase {
       }
       catch (InvalidTypeIdException e) {
         Map<String, Object> jsonInput = XyzSerializable.deserialize(context.body().asString(), Map.class);
-        throw new NotImplementedException("Input type " + jsonInput.get("type") + " is not supported.", e);
+        throw new DetailedHttpException("E319010", Map.of("jsonType", jsonInput.get("type").toString(), "expectedType", Job.class.getSimpleName()), e);
       }
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw mapUserFacingException("E319001", e);
     }
   }
 
@@ -248,7 +254,7 @@ public class JobApi extends JobApiBase {
       return XyzSerializable.deserialize(context.body().asString(), RuntimeStatus.class);
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw mapUserFacingException("E319001", e);
     }
   }
 

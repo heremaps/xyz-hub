@@ -57,6 +57,7 @@ import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -84,6 +85,18 @@ public class Api {
 
     public static Marker getMarker(RoutingContext context) {
         return LogUtil.getMarker(context);
+    }
+
+    /**
+     * NOTE: This method is meant to be used to map an exception that **already is** a user facing exception to
+     * its according {@link DetailedHttpException}. A user facing exception is one that already contains a
+     * nice & descriptive message.
+     * @param errorCode The registered / well-known error code. See: {@link com.here.xyz.util.service.errors.ErrorManager}
+     * @param t The exception to be mapped
+     * @return The API client facing exception to be used for the final response to the user
+     */
+    protected static DetailedHttpException mapUserFacingException(String errorCode, Throwable t) {
+      return new DetailedHttpException(errorCode, Map.of("cause", t.getMessage()), t);
     }
 
     private void sendInternalServerError(RoutingContext context, Throwable t) {
