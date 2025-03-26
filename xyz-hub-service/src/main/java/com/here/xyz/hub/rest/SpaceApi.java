@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
@@ -35,6 +34,7 @@ import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Space.Copyright;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
@@ -85,7 +85,7 @@ public class SpaceApi extends SpaceBasedApi {
       input = context.body().asJsonObject();
     }
     catch (DecodeException e) {
-      context.fail(ErrorManager.getHttpException("E318400", e));
+      context.fail(new DetailedHttpException("E318400", e));
       return;
     }
 
@@ -106,7 +106,7 @@ public class SpaceApi extends SpaceBasedApi {
     try {
       input = context.body().asJsonObject();
     } catch (DecodeException e) {
-      context.fail(ErrorManager.getHttpException("E318400", e));
+      context.fail(new DetailedHttpException("E318400", e));
       return;
     }
     String spaceId = getSpaceId(context);
@@ -115,7 +115,7 @@ public class SpaceApi extends SpaceBasedApi {
       input.put("id", spaceId);
     }
     if (!input.getString("id").equals(spaceId)) {
-      context.fail(ErrorManager.getHttpException("E318402"));
+      context.fail(new DetailedHttpException("E318402"));
       return;
     }
 

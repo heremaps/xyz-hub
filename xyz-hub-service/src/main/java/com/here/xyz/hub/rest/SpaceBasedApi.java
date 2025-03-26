@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
-import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
@@ -33,8 +32,8 @@ import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Ref.InvalidRef;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.ext.web.RoutingContext;
-
 import java.util.Map;
 
 public abstract class SpaceBasedApi extends Api {
@@ -48,7 +47,7 @@ public abstract class SpaceBasedApi extends Api {
   protected static SpaceContext getSpaceContext(RoutingContext context) throws HttpException {
     SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
     if (spaceContext == null)
-      throw ErrorManager.getHttpException("E318403");
+      throw new DetailedHttpException("E318403");
     return spaceContext;
   }
 
@@ -98,7 +97,8 @@ public abstract class SpaceBasedApi extends Api {
       return new Ref(versionRef);
     }
     catch (InvalidRef e) {
-      throw ErrorManager.getHttpException("E318404", Map.of("versionRef", versionRef, "cause", e.getMessage()), e);
+      Map<String, String> placeholders = Map.of("versionRef", versionRef, "cause", e.getMessage());
+      throw new DetailedHttpException("E318404", placeholders, e);
     }
   }
 }

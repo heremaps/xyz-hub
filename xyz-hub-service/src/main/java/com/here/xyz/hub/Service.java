@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.connectors.ConfigUpdateThread;
 import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
-import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
@@ -44,6 +43,7 @@ import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.errors.ErrorManager;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -62,7 +62,14 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Hashtable;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,16 +35,15 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.XyzSerializable.SerializationView;
-import com.here.xyz.responses.DetailedErrorResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.service.DetailedHttpException;
 import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.BaseHttpServerVerticle.RequestCancelledException;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.logging.LogUtil;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
@@ -185,33 +184,31 @@ public class Api {
     /**
      * Send an error response to the client.
      *
-     * @param context   the routing context for which to return an error response.
+     * @param context the routing context for which to return an error response.
      * @param httpError the HTTPException with all information
-     * @param error     the error type that will become part of the {@link ErrorResponse}.
+     * @param error the error type that will become part of the {@link ErrorResponse}.
      */
     private void sendErrorResponse(final RoutingContext context, final HttpException httpError, final XyzError error) {
         ErrorResponse errorResponse;
         if (httpError instanceof DetailedHttpException detailedHttpException) {
-            errorResponse = new DetailedErrorResponse()
-                    .withErrorTitle(detailedHttpException.errorDefinition.getTitle())
-                    .withErrorAction(detailedHttpException.errorDefinition.getAction())
-                    .withErrorCause(detailedHttpException.errorDefinition.getCause())
-                    .withStreamId(Api.getMarker(context).getName())
-                    .withErrorDetails(httpError.errorDetails)
-                    .withError(error)
-                    .withErrorMessage(httpError.getMessage());
-        } else {
+          errorResponse = detailedHttpException.errorDefinition.toErrorResponse(detailedHttpException.placeholders)
+                .withStreamId(Api.getMarker(context).getName())
+                .withErrorDetails(httpError.errorDetails)
+                .withError(error)
+                .withErrorMessage(httpError.getMessage());
+        }
+        else {
             errorResponse = new ErrorResponse()
-                    .withStreamId(Api.getMarker(context).getName())
-                    .withErrorDetails(httpError.errorDetails)
-                    .withError(error)
-                    .withErrorMessage(httpError.getMessage());
+                .withStreamId(Api.getMarker(context).getName())
+                .withErrorDetails(httpError.errorDetails)
+                .withError(error)
+                .withErrorMessage(httpError.getMessage());
         }
         context.response()
-                .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-                .setStatusCode(httpError.status.code())
-                .setStatusMessage(httpError.status.reasonPhrase())
-                .end(errorResponse.serialize());
+            .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+            .setStatusCode(httpError.status.code())
+            .setStatusMessage(httpError.status.reasonPhrase())
+            .end(errorResponse.serialize());
     }
 
     protected long getMaxResponseLength(final RoutingContext context) {

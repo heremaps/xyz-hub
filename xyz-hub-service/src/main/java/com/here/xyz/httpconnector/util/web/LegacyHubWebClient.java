@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,10 +29,10 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.errors.ErrorManager;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.web.HubWebClientAsync;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
@@ -84,7 +84,7 @@ public class LegacyHubWebClient {
         .compose(response -> {
           try {
             if(response.statusCode() == 404)
-              return Future.failedFuture(ErrorManager.getHttpException("E318441", Map.of("resourceId", spaceId)));
+              return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)));
             return Future.succeededFuture(deserializeResponse(response, Space.class));
           }
           catch (Exception e) {
