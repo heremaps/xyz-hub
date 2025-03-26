@@ -115,6 +115,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private EntityPerLine entityPerLine = Feature;
 
+  @JsonView({Internal.class, Static.class})
+  private boolean retainMetadata = false;
+
   {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
@@ -164,6 +167,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   public ImportFilesToSpace withEntityPerLine(EntityPerLine entityPerLine) {
     setEntityPerLine(entityPerLine);
+    return this;
+  }
+
+  public boolean isRetainMetadata() {
+    return retainMetadata;
+  }
+
+  public void setRetainMetadata(boolean retainMetadata) {
+    this.retainMetadata = retainMetadata;
+  }
+
+  public ImportFilesToSpace withRetainMetadata(boolean retainMetadata) {
+    setRetainMetadata(retainMetadata);
     return this;
   }
 
@@ -538,10 +554,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
-        + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
+        + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}', ${{retainMetadata}});")
         .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
         .withQueryFragment("author", targetAuthor)
         .withQueryFragment("targetTable", getRootTableName(space()))
+        .withQueryFragment("retainMetadata", "" + isRetainMetadata())
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("schema", getSchema(db()))
         .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));

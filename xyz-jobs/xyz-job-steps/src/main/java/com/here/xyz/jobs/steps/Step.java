@@ -678,6 +678,11 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
       this.modelBased = modelBased;
     }
 
+    public OutputSet(String name, String stepId, Visibility visibility, boolean modelBased) {
+      this(name, visibility, modelBased);
+      this.stepId = stepId;
+    }
+
     public OutputSet(OutputSet other, String jobId, String stepId, Visibility visibility) {
       this(other.name, visibility, other.fileSuffix);
       this.modelBased = other.modelBased;

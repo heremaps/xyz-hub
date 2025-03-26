@@ -365,11 +365,12 @@ DECLARE
     author TEXT := TG_ARGV[0];
     curVersion BIGINT := TG_ARGV[1];
     target_table TEXT := TG_ARGV[2];
+    retain_meta BOOLEAN := TG_ARGV[3]::BOOLEAN;
     feature RECORD;
     updated_rows INT;
 BEGIN
     SELECT new_jsondata, new_geo, new_operation, new_id
-    from import_from_s3_enrich_feature(NEW.jsondata::JSONB, NEW.geo)
+    from import_from_s3_enrich_feature(NEW.jsondata::JSONB, NEW.geo, retain_meta)
     INTO feature;
 
     EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
@@ -395,6 +396,7 @@ DECLARE
     author TEXT := TG_ARGV[0];
     curVersion BIGINT := TG_ARGV[1];
     target_table TEXT := TG_ARGV[2];
+    retain_meta BOOLEAN := TG_ARGV[3]::BOOLEAN;
     elem JSONB;
     feature RECORD;
     updated_rows INT;
@@ -409,7 +411,7 @@ BEGIN
             END IF;
 
             SELECT new_jsondata, new_geo, new_operation, new_id
-            from import_from_s3_enrich_feature(elem, null)
+            from import_from_s3_enrich_feature(elem, null, retain_meta)
             INTO feature;
 
             EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
@@ -565,7 +567,7 @@ $BODY$;
 /**
  * Enriches Feature - uses in plain trigger function
  */
-CREATE OR REPLACE FUNCTION import_from_s3_enrich_feature(IN jsondata JSONB, geo geometry(GeometryZ,4326))
+CREATE OR REPLACE FUNCTION import_from_s3_enrich_feature(IN jsondata JSONB, geo geometry(GeometryZ,4326), retain_meta BOOLEAN DEFAULT FALSE)
     RETURNS TABLE(new_jsondata JSONB, new_geo geometry(GeometryZ,4326), new_operation character, new_id TEXT)
 AS $BODY$
 DECLARE
@@ -591,6 +593,10 @@ BEGIN
     jsondata := jsonb_set(jsondata, '{type}', '"Feature"');
 
     -- Inject meta
+    IF retain_meta THEN
+        meta := coalesce(jsonb_set(meta, '{createdAt}', (jsondata->'properties'->'@ns:com:here:xyz'->>'createdAt')::JSONB), meta);
+        meta := coalesce(jsonb_set(meta, '{updatedAt}', (jsondata->'properties'->'@ns:com:here:xyz'->>'updatedAt')::JSONB), meta);
+    END IF;
     jsondata := jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', meta);
 
     IF jsondata->'geometry' IS NOT NULL THEN
