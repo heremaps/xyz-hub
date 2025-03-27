@@ -108,6 +108,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   @JsonView({Internal.class, Static.class})
   private long maxI = -1;
 
+  public ExportSpaceToFiles withStepExecutionHeartBeatTimeoutOverride(int timeOutSeconds) {
+    setStepExecutionHeartBeatTimeoutOverride(timeOutSeconds);
+    return this;
+  }
+
   public ExportSpaceToFiles withVersionRef(Ref versionRef) {
     setVersionRef(versionRef);
     return this;

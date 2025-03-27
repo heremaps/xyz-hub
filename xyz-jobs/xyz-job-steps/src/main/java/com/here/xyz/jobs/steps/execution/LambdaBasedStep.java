@@ -126,11 +126,6 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     return stepExecutionHeartBeatTimeoutOverride;
   }
 
-  public LambdaBasedStep withStepExecutionHeartBeatTimeoutOverride(int timeOutSeconds) {
-    setStepExecutionHeartBeatTimeoutOverride(timeOutSeconds);
-    return this;
-  }
-
   /**
    * This method must be implemented by subclasses.
    * It will be called multiple times by the framework during the different execution phases of the step.
