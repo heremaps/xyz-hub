@@ -20,15 +20,19 @@
 package com.here.xyz.jobs.steps.impl.export;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles.QuadType;
-import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -266,7 +270,42 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                                 new Feature().withId("point3_delta"),
                                 new Feature().withId("point2_base"),
                                 new Feature().withId("line4_delta")
-                        ) //only deletions have happened
+                        )
+                ));
+    }
+
+    @Test
+    public void ExportChangedTilesStepVersion2to4WithPropertyFilter() throws IOException, InterruptedException {
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
+                new Ref("1..2") ,null, PropertiesQuery.fromString("p.value=Africa"),
+                List.of("1269", "1423"), new FeatureCollection().withFeatures(
+                        List.of(
+                                new Feature().withId("point3_delta")
+                        )
+                ));
+    }
+
+    @Test
+    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilter() throws IOException, InterruptedException, InvalidGeometryException {
+
+        PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+        lrc.add(new Position(7.2816583426536, 59.64127003570246)); // Bottom-left
+        lrc.add(new Position(7.2816583426536, 59.359282463246615));  // Bottom-right
+        lrc.add(new Position(8.053414030606405, 59.359282463246615));  // Top-right
+        lrc.add(new Position(8.053414030606405, 59.64127003570246)); // Top-left
+        lrc.add(new Position(7.2816583426536, 59.64127003570246)); // Close the ring
+        polygonCoordinates.add(lrc);
+
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 7, QuadType.HERE_QUAD,
+                new Ref("0..HEAD") ,
+                new SpatialFilter()
+                        .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
+                        .withClip(true), null,
+                List.of("1269"), new FeatureCollection().withFeatures(
+                        List.of(
+                                new Feature().withId("point1_delta")
+                        )
                 ));
     }
 }
