@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.16.32-SNAPSHOT</version>
+    <version>3.16.33-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Steps</name>
@@ -48,30 +48,7 @@
       <artifactId>xyz-psql-connector</artifactId>
     </dependency>
 
-    <!-- AWS SDK -->
-    <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <!-- TODO: Use new RDS SDK2 instead -->
-    <dependency>
-      <artifactId>aws-java-sdk-rds</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <!-- TODO: put version into main pom's dependency-management -->
-      <version>1.12.651</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
+    <!-- AWS SDK 2.x -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>sfn</artifactId>
@@ -89,6 +66,39 @@
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>rds</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>emrserverless</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <!-- AWS SDK 1.x -->
+    <dependency>
+      <artifactId>aws-java-sdk-s3</artifactId>
+      <groupId>com.amazonaws</groupId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-annotations</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!-- TODO: Use new RDS SDK2 instead -->
+    <dependency>
+      <artifactId>aws-java-sdk-rds</artifactId>
+      <groupId>com.amazonaws</groupId>
       <exclusions>
         <exclusion>
           <artifactId>jackson-annotations</artifactId>
