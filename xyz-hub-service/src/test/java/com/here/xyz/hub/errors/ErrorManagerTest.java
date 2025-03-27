@@ -34,11 +34,12 @@ import org.junit.jupiter.api.Test;
 public class ErrorManagerTest {
     @BeforeAll
     public static void setUp() {
+        ErrorManager.loadErrors("errors.json");
         Map<String, String> defaults = new HashMap<>();
         defaults.put("featureContainerResource", "TestResource");
         defaults.put("versionRef", "v1.0");
         defaults.put("resourceId", "12345");
-        ErrorManager.init(defaults);
+        ErrorManager.registerGlobalPlaceholders(defaults);
     }
 
     @Test

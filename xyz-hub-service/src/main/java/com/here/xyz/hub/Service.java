@@ -156,7 +156,7 @@ public class Service extends Core {
   public static final boolean IS_USING_ZGC = isUsingZgc();
 
   private static final List<MetricPublisher> metricPublishers = new LinkedList<>();
-
+  private static final String ERROR_DEFINITIONS_FILE = "errors.json";
   private static Router globalRouter;
 
   /**
@@ -187,7 +187,8 @@ public class Service extends Core {
   }
 
   protected static void initErrorManager() {
-    ErrorManager.init(Map.of("featureContainerResource", "Space"));
+    ErrorManager.loadErrors(ERROR_DEFINITIONS_FILE);
+    ErrorManager.registerGlobalPlaceholders(Map.of("featureContainerResource", "Space"));
   }
 
   private static Future<Vertx> initializeGlobalRouter(Vertx vertx) {

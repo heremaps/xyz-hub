@@ -31,24 +31,8 @@ import org.apache.logging.log4j.Logger;
 public class ErrorManager {
 
   private static final Logger logger = LogManager.getLogger();
-
-  private static final String ERROR_DEFINITIONS_FILE = "errors.json";
-
   private static final Map<String, ErrorDefinition> errorMap = new HashMap<>();
-
   private static Map<String, String> globalPlaceholders = new HashMap<>();
-
-  public static void init(Map<String, String> defaults) {
-    globalPlaceholders = new HashMap<>(defaults);
-    logger.info("Initializing ErrorManager with default placeholders: {}", globalPlaceholders);
-    loadErrors(ERROR_DEFINITIONS_FILE);
-  }
-
-  public static void init() {
-    globalPlaceholders = new HashMap<>();
-    logger.info("Initializing ErrorManager without default placeholders.");
-    loadErrors(ERROR_DEFINITIONS_FILE);
-  }
 
   public static void loadErrors(String fileName) {
     logger.info("Loading error definitions from resource file: {}", fileName);
