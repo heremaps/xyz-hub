@@ -3,12 +3,12 @@
     "title": "Invalid JSON string",
     "code": "E318400",
     "status": 400,
-    "cause": "Invalid $resource JSON string",
+    "cause": "Invalid ${resource} JSON string",
     "action": ""
   },
   {
     "title": "Invalid JSON string",
-    "code": "E318400",
+    "code": "E318401",
     "status": 400,
     "cause": "Invalid connector JSON string",
     "action": ""
@@ -17,30 +17,87 @@
     "title": "IDs don't match",
     "code": "E318402",
     "status": 400,
-    "cause": "The $resource ID in the body does not match the resource ID in the path.",
+    "cause": "The ${resource} ID in the body does not match the resource ID in the path.",
     "action": ""
   },
   {
-    "title": "Invalid $resource context.",
+    "title": "Invalid ${resource} context.",
     "code": "E318403",
     "status": 400,
-    "cause": "Invalid $resource context.",
+    "cause": "Invalid ${resource} context.",
     "action": ""
   },
   {
     "title": "Invalid value for versionRef",
     "code": "E318404",
     "status": 400,
-    "cause": "Invalid value for versionRef: $versionRef. $cause",
+    "cause": "Invalid value for versionRef: ${versionRef}. ${cause}",
     "action": ""
   },
   {
-    "title": "$resource not found",
+    "title": "Parameter missing",
+    "code": "E318405",
+    "status": 400,
+    "cause": "Query parameter ${param} is required.",
+    "action": ""
+  },
+  {
+    "title": "Missing feature ID(s)",
+    "code": "E318406",
+    "status": 400,
+    "cause": "At least one feature ID should be provided as a query parameter.",
+    "action": ""
+  },
+  {
+    "title": "${resource} modification is not allowed",
+    "code": "E318431",
+    "status": 403,
+    "cause": "It's not permitted to perform modifications through context ${context}.",
+    "action": ""
+  },
+  {
+    "title": "Resource not found",
+    "code": "E318440",
+    "status": 404,
+    "cause": "The requested resource does not exist.",
+    "action": "Please check if the path is correct"
+  },
+  {
+    "title": "${resource} not found",
     "code": "E318441",
     "status": 404,
-    "cause": "$resource with ID $resourceId was not found",
-    "action": "Please, check if requested ID $resourceId is correct"
+    "cause": "${resource} with ID ${resourceId} was not found",
+    "action": "Please check if requested ID ${resourceId} is correct"
   },
+  {
+    "title": "Extended ${resource} not found",
+    "code": "E318442",
+    "status": 404,
+    "cause": "Extended ${resource} with ID ${resource}Id was not found",
+    "action": "Please check if requested ID ${resource}Id is correct"
+  },
+  {
+    "title": "Changesets not found",
+    "code": "E318443",
+    "status": 404,
+    "cause": "No changeset was found for version ${version}",
+    "action": ""
+  },
+  {
+    "title": "${resource} is not active",
+    "code": "E318451",
+    "status": 405,
+    "cause": "The method is not allowed, because the resource ${resource}Id is not active.",
+    "action": ""
+  },
+  {
+    "title": "${resource} is marked as read-only",
+    "code": "E318452",
+    "status": 405,
+    "cause": "The method is not allowed, because the resource ${resource}Id is marked as read-only.",
+    "action": "Update the resource definition to enable editing of features."
+  },
+
 
 
 
@@ -51,21 +108,21 @@
     "title": "Error parsing request body",
     "code": "E319001",
     "status": 400,
-    "cause": "$cause",
+    "cause": "${cause}",
     "action": "Please, check if the request body is valid"
   },
   {
     "title": "The job configuration could not be compiled",
     "code": "E319002",
     "status": 400,
-    "cause": "$cause",
+    "cause": "${cause}",
     "action": "Please, provide a correct job configuration"
   },
   {
     "title": "The job configuration is invalid",
     "code": "E319003",
     "status": 400,
-    "cause": "$cause",
+    "cause": "${cause}",
     "action": "Please, provide a correct job configuration"
   },
   {
@@ -76,7 +133,7 @@
     "action": "If the job has been started accidentally, cancel the job and create a new one with all inputs prior starting it."
   },
   {
-    "title": "Wrong input type. No inputs other than \"$allowedType\"s can be created for non-pipeline jobs.",
+    "title": "Wrong input type. No inputs other than \"${allowedType}\"s can be created for non-pipeline jobs.",
     "code": "E319005",
     "status": 400,
     "cause": "An input of wrong type was provided to the job.",
@@ -97,7 +154,7 @@
     "action": "Please, provide an input that is not larger than 256KB"
   },
   {
-    "title": "Inputs of job \"$referencedJob\" can not be referenced by job \"$referencingJob\" as it has a different owner.",
+    "title": "Inputs of job \"${referencedJob}\" can not be referenced by job \"${referencingJob}\" as it has a different owner.",
     "code": "E319008",
     "status": 403,
     "cause": "Illegal access. The job that was tried to be referenced is belonging to a different owner.",
@@ -107,14 +164,14 @@
     "title": "The requested job does not exist",
     "code": "E319009",
     "status": 404,
-    "cause": "No job with ID $jobId exists.",
+    "cause": "No job with ID ${jobId} exists.",
     "action": "Please, check whether the correct job ID was provided in the request"
   },
   {
-    "title": "Payload type \"$jsonType\" is not supported.",
+    "title": "Payload type \"${jsonType}\" is not supported.",
     "code": "E319010",
     "status": 400,
-    "cause": "A JSON object with type \"$jsonType\" was provided, but an object of type \"$expectedType\" was expected in the request payload.",
-    "action": "Please, provide a JSON object with the correct type: \"$expectedType\""
+    "cause": "A JSON object with type \"${jsonType}\" was provided, but an object of type \"${expectedType}\" was expected in the request payload.",
+    "action": "Please, provide a JSON object with the correct type: \"${expectedType}\""
   }
 ]

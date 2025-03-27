@@ -90,8 +90,9 @@ public class ErrorDefinition {
 
   public DetailedErrorResponse toErrorResponse(Map<String, String> placeholders) {
     return new DetailedErrorResponse()
-        .withErrorTitle(getFormattedTitle(placeholders))
-        .withErrorCause(getFormattedCause(placeholders))
-        .withErrorAction(getFormattedAction(placeholders));
+        .withTitle(getFormattedTitle(placeholders))
+        .withCode(getCode())
+        .withCause(getFormattedCause(placeholders))
+        .withAction(getFormattedAction(placeholders));
   }
 }

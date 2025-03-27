@@ -32,7 +32,6 @@ import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.web.HubWebClientAsync;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
@@ -84,7 +83,7 @@ public class LegacyHubWebClient {
         .compose(response -> {
           try {
             if(response.statusCode() == 404)
-              return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)));
+              return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Space with ID " + spaceId + " was not found."));
             return Future.succeededFuture(deserializeResponse(response, Space.class));
           }
           catch (Exception e) {

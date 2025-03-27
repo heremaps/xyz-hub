@@ -104,6 +104,7 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.logging.LogUtil;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
@@ -948,7 +949,7 @@ public class FeatureTaskHandler {
 
   private static <X extends FeatureTask> Future<Connector> resolveStorageConnector(final X task) {
     if (task.space == null)
-      return Future.failedFuture(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
+      return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", task.getEvent().getSpace())));
 
     logger.debug(task.getMarker(), "Given space configuration is: {}", task.space);
 
@@ -1570,8 +1571,7 @@ public class FeatureTaskHandler {
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
     if (task.space.isReadOnly() && (task instanceof ConditionalOperation))
-      throw new HttpException(METHOD_NOT_ALLOWED,
-          "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
+      throw new DetailedHttpException("E318452", Map.of("resourceId", task.space.getId()));
     callback.call(task);
   }
 

@@ -7,46 +7,60 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "DetailedErrorResponse")
 public class DetailedErrorResponse extends ErrorResponse {
 
-    private String errorTitle;
-    private String errorAction;
-    private String errorCause;
+    private String title;
+    private String code;
+    private String cause;
+    private String action;
 
-    public String getErrorTitle() {
-        return errorTitle;
+    public String getTitle() {
+        return title;
     }
 
-    public void setErrorTitle(String errorTitle) {
-        this.errorTitle = errorTitle;
+    public void setTitle(String title) {
+        this.title = title;
     }
 
-    public DetailedErrorResponse withErrorTitle(String errorTitle) {
-        setErrorTitle(errorTitle);
+    public DetailedErrorResponse withTitle(String errorTitle) {
+        setTitle(errorTitle);
         return this;
     }
 
-    public String getErrorAction() {
-        return errorAction;
+    public String getCode() {
+        return code;
     }
 
-    public void setErrorAction(String errorAction) {
-        this.errorAction = errorAction;
+    public void setCode(String code) {
+        this.code = code;
     }
 
-    public DetailedErrorResponse withErrorAction(String errorAction) {
-        setErrorAction(errorAction);
+    public DetailedErrorResponse withCode(String code) {
+        setCode(code);
         return this;
     }
 
-    public String getErrorCause() {
-        return errorCause;
+    public String getCause() {
+        return cause;
     }
 
-    public void setErrorCause(String errorCause) {
-        this.errorCause = errorCause;
+    public void setCause(String cause) {
+        this.cause = cause;
     }
 
-    public DetailedErrorResponse withErrorCause(String errorCause) {
-        setErrorCause(errorCause);
+    public DetailedErrorResponse withCause(String errorCause) {
+        setCause(errorCause);
+        return this;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public void setAction(String action) {
+        this.action = action;
+    }
+
+    public DetailedErrorResponse withAction(String errorAction) {
+        setAction(errorAction);
         return this;
     }
 }

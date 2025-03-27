@@ -91,7 +91,7 @@ public class ErrorManager {
       effectivePlaceholders.putAll(placeholders);
 
     for (Map.Entry<String, String> entry : effectivePlaceholders.entrySet())
-      result = result.replace("$" + entry.getKey(), entry.getValue());
+      result = result.replace("${" + entry.getKey() +"}", entry.getValue());
 
     return result;
   }
