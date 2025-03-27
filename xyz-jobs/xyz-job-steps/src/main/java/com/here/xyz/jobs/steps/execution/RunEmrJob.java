@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -56,6 +55,7 @@ import org.apache.logging.log4j.Logger;
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   public static final String USER_REF = "USER";
+  public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final Logger logger = LogManager.getLogger();
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
   private static final String INPUT_SET_REF_SUFFIX = "}";
@@ -68,6 +68,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private List<String> positionalScriptParams = new ArrayList<>();
   private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
+
+  @JsonIgnore
+  public String getEmrJobName() {
+    return EMR_JOB_NAME_PREFIX + getGlobalStepId();
+  }
+
+  public static String globalStepIdFromEmrJobName(String emrJobName) {
+    return emrJobName.startsWith(EMR_JOB_NAME_PREFIX) ? emrJobName.substring(emrJobName.indexOf(':') + 1) : null;
+  }
 
   @Override
   public List<Load> getNeededResources() {
