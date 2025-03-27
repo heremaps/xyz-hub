@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,7 @@
 
 package com.here.xyz.jobs;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
-import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.RuntimeInfo.State;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLED;
 import static com.here.xyz.jobs.RuntimeInfo.State.CANCELLING;
 import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
@@ -35,6 +29,16 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
+import static com.here.xyz.jobs.steps.resources.Load.addLoads;
+import static com.here.xyz.util.Random.randomAlpha;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.jobs.RuntimeInfo.State;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.datasets.Files;
@@ -46,16 +50,13 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
-import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
-import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import com.here.xyz.models.hub.Space.Extension;
 import com.here.xyz.util.Async;
-import static com.here.xyz.util.Random.randomAlpha;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
@@ -294,10 +295,10 @@ public class Job implements XyzSerializable {
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
 
-    return updateStep(step, existingStep.getStatus().getState());
+    return updateStep(step, existingStep.getStatus().getState(), true);
   }
 
-  public Future<Void> updateStepStatus(String stepId, RuntimeInfo status) {
+  public Future<Void> updateStepStatus(String stepId, RuntimeInfo status, boolean cancelOnFailure) {
     final Step step = getStepById(stepId);
     if (step == null)
       throw new IllegalArgumentException("The provided step with ID " + stepId + " was not found.");
@@ -310,10 +311,10 @@ public class Job implements XyzSerializable {
             .withErrorCause(status.getErrorCause())
             .withErrorMessage(status.getErrorMessage());
 
-    return updateStep(step, existingStepState);
+    return updateStep(step, existingStepState, cancelOnFailure);
   }
 
-  private Future<Void> updateStep(Step<?> step, State previousStepState) {
+  private Future<Void> updateStep(Step<?> step, State previousStepState, boolean cancelOnFailure) {
     //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
@@ -347,7 +348,7 @@ public class Job implements XyzSerializable {
 
     return storeUpdatedStep(step)
         .compose(v -> storeStatus(null))
-        .compose(v -> getStatus().getState() == FAILED ? JobExecutor.getInstance().cancel(getExecutionId()).recover(t -> {
+        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ? JobExecutor.getInstance().cancel(getExecutionId()).recover(t -> {
           logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
           return Future.succeededFuture();
         }) : Future.succeededFuture());

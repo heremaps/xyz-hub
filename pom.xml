@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2024 HERE Europe B.V.
+  ~ Copyright (C) 2017-2025 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -337,7 +337,7 @@
         <version>2.0.3</version>
       </dependency>
 
-      <!-- AWS SDKs -->
+      <!-- AWS SDK 2.x -->
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>bom</artifactId>
@@ -363,17 +363,6 @@
         </exclusions>
       </dependency>
       <dependency>
-        <artifactId>aws-java-sdk-core</artifactId>
-        <exclusions>
-          <exclusion>
-            <artifactId>jackson-annotations</artifactId>
-            <groupId>com.fasterxml.jackson.core</groupId>
-          </exclusion>
-        </exclusions>
-        <groupId>com.amazonaws</groupId>
-        <version>${aws-sdk-version}</version>
-      </dependency>
-      <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>lambda</artifactId>
         <version>${aws-sdk2-version}</version>
@@ -384,7 +373,30 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>rds</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
 
+      <!-- AWS SDK 1.x -->
+      <dependency>
+        <artifactId>aws-java-sdk-core</artifactId>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+        <groupId>com.amazonaws</groupId>
+        <version>${aws-sdk-version}</version>
+      </dependency>
       <dependency>
         <artifactId>aws-java-sdk-s3</artifactId>
         <exclusions>
@@ -442,12 +454,18 @@
         <artifactId>aws-java-sdk-secretsmanager</artifactId>
         <version>${aws-sdk-version}</version>
       </dependency>
+      <dependency>
+        <artifactId>aws-java-sdk-rds</artifactId>
+        <groupId>com.amazonaws</groupId>
+        <version>${aws-sdk-version}</version>
+      </dependency>
 
       <!-- For Job API only -->
+      <!-- TODO: Use new RDS SDK2 instead (See: Class AwsClients) -->
       <dependency>
         <artifactId>aws-java-sdk-emrserverless</artifactId>
         <groupId>com.amazonaws</groupId>
-        <version>1.12.230</version>
+        <version>${aws-sdk-version}</version>
       </dependency>
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
@@ -485,6 +503,17 @@
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>rds</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>emrserverless</artifactId>
         <version>${aws-sdk2-version}</version>
         <exclusions>
           <exclusion>
