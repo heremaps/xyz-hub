@@ -3,7 +3,7 @@
     "title": "Invalid JSON string",
     "code": "E318400",
     "status": 400,
-    "cause": "Invalid ${resource} JSON string",
+    "cause": "Invalid ${featureContainerResource} JSON string",
     "action": ""
   },
   {
@@ -17,14 +17,14 @@
     "title": "IDs don't match",
     "code": "E318402",
     "status": 400,
-    "cause": "The ${resource} ID in the body does not match the resource ID in the path.",
+    "cause": "The ${featureContainerResource} ID in the body does not match the resource ID in the path.",
     "action": ""
   },
   {
-    "title": "Invalid ${resource} context.",
+    "title": "Invalid ${featureContainerResource} context.",
     "code": "E318403",
     "status": 400,
-    "cause": "Invalid ${resource} context.",
+    "cause": "Invalid ${featureContainerResource} context.",
     "action": ""
   },
   {
@@ -35,7 +35,7 @@
     "action": ""
   },
   {
-    "title": "Parameter missing",
+    "title": "Missing required parameter",
     "code": "E318405",
     "status": 400,
     "cause": "Query parameter ${param} is required.",
@@ -49,7 +49,14 @@
     "action": ""
   },
   {
-    "title": "${resource} modification is not allowed",
+    "title": "Invalid ${resource} configuration provided",
+    "code": "E318407",
+    "status": 400,
+    "cause": "${cause}",
+    "action": "Please provide correct ${resource} configuration"
+  },
+  {
+    "title": "${featureContainerResource} modification is not allowed",
     "code": "E318431",
     "status": 403,
     "cause": "It's not permitted to perform modifications through context ${context}.",
@@ -63,38 +70,38 @@
     "action": "Please check if the path is correct"
   },
   {
-    "title": "${resource} not found",
+    "title": "${featureContainerResource} not found",
     "code": "E318441",
     "status": 404,
-    "cause": "${resource} with ID ${resourceId} was not found",
+    "cause": "${featureContainerResource} with ID ${resourceId} was not found",
     "action": "Please check if requested ID ${resourceId} is correct"
   },
   {
-    "title": "Extended ${resource} not found",
+    "title": "Extended ${featureContainerResource} not found",
     "code": "E318442",
     "status": 404,
-    "cause": "Extended ${resource} with ID ${resource}Id was not found",
-    "action": "Please check if requested ID ${resource}Id is correct"
+    "cause": "Extended ${featureContainerResource} with ID ${resourceId} was not found",
+    "action": "Please check if requested ID ${resourceId} is correct"
   },
   {
-    "title": "Changesets not found",
+    "title": "${resource} not found",
     "code": "E318443",
     "status": 404,
-    "cause": "No changeset was found for version ${version}",
-    "action": ""
+    "cause": "No ${resource} was found for ID ${resourceId}",
+    "action": "Please check if requested ID ${resourceId} is correct"
   },
   {
-    "title": "${resource} is not active",
+    "title": "${featureContainerResource} is not active",
     "code": "E318451",
     "status": 405,
-    "cause": "The method is not allowed, because the resource ${resource}Id is not active.",
+    "cause": "The method is not allowed, because the resource ${resourceId} is not active.",
     "action": ""
   },
   {
-    "title": "${resource} is marked as read-only",
+    "title": "${featureContainerResource} is marked as read-only",
     "code": "E318452",
     "status": 405,
-    "cause": "The method is not allowed, because the resource ${resource}Id is marked as read-only.",
+    "cause": "The method is not allowed, because the resource ${resourceId} is marked as read-only.",
     "action": "Update the resource definition to enable editing of features."
   },
 

@@ -62,6 +62,8 @@ public class ErrorManager {
       List<ErrorDefinition> errors = mapper.readValue(inputStream, new TypeReference<List<ErrorDefinition>>() {
       });
       errors.forEach(error -> {
+        if(errorMap.containsKey(error.getCode()))
+          throw new IllegalStateException("Error definition for code " + error.getCode() + " is already registered");
         errorMap.put(error.getCode(), error);
         logger.debug("Loaded error definition: code={}, title={}", error.getCode(), error.getTitle());
       });

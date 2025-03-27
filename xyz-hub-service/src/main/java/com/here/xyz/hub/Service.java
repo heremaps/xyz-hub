@@ -187,7 +187,7 @@ public class Service extends Core {
   }
 
   protected static void initErrorManager() {
-    ErrorManager.init(Map.of("resource", "Space"));
+    ErrorManager.init(Map.of("featureContainerResource", "Space"));
   }
 
   private static Future<Vertx> initializeGlobalRouter(Vertx vertx) {

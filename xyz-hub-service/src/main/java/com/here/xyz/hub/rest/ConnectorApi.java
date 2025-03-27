@@ -64,7 +64,7 @@ public class ConnectorApi extends Api {
       return context.body().asJsonObject();
     }
     catch (DecodeException e) {
-      throw new DetailedHttpException("E318401");
+      throw new DetailedHttpException("E318401", e);
     }
   }
 
