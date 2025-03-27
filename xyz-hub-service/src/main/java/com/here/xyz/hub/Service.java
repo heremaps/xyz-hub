@@ -156,7 +156,7 @@ public class Service extends Core {
   public static final boolean IS_USING_ZGC = isUsingZgc();
 
   private static final List<MetricPublisher> metricPublishers = new LinkedList<>();
-  private static final String ERROR_DEFINITIONS_FILE = "errors.json";
+  private static final String ERROR_DEFINITIONS_FILE = "hub-errors.json";
   private static Router globalRouter;
 
   /**

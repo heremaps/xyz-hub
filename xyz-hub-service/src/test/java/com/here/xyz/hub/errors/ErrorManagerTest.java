@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 public class ErrorManagerTest {
     @BeforeAll
     public static void setUp() {
-        ErrorManager.loadErrors("errors.json");
+        ErrorManager.loadErrors("hub-errors.json");
         Map<String, String> defaults = new HashMap<>();
         defaults.put("featureContainerResource", "TestResource");
         defaults.put("versionRef", "v1.0");
