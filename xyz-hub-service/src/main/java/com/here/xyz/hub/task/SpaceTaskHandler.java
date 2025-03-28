@@ -331,7 +331,7 @@ public class SpaceTaskHandler {
       resultStorage.computeIfAbsent("params", k -> new HashMap<>());
 
       // if there is any modification, means the user tried to submit 'storage' and 'extends' properties together
-      if (Patcher.getDifference(inputStorage, resultStorage) != null) {
+      if (Patcher.getDifference(inputStorage, resultStorage) != null && !task.modifyOp.forceStorage ) {
         throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
       }
     }
@@ -526,7 +526,7 @@ public class SpaceTaskHandler {
               .withId(extendedConnector.getId())
               .withParams(extendedConnector.getParams() != null ? extendedConnector.getParams() : new HashMap<>()));
         }
-        else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId())) {
+        else if (!Objects.equals(space.getStorage().getId(), extendedConnector.getId()) && !task.modifyOp.forceStorage) {
           callback.exception(new HttpException(BAD_REQUEST, "The storage of space " + space.getId()
               + " [storage: " + space.getStorage().getId() + "] is not matching the storage of the space to be extended "
               + "(" + extendedSpace.getId() + " [storage: " + extendedConnector.getId() + "])."));

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.resources;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.steps.resources.Load.toLoadsMap;
 
+import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import io.vertx.core.Future;
@@ -48,15 +49,19 @@ public class ResourcesRegistry {
         .compose(runningJobs -> Future.all(runningJobs.stream()
             .map(job -> {
               try {
-                return job.calculateResourceLoads();
+                return job.calculateResourceLoads().recover(t -> handleResourceLoadError(job, t));
               }
               catch (Exception e) {
-                logger.error("Error calculating the reserved resources of job {}. Not taking it into account this time.", job.getId(), e);
-                return Future.succeededFuture(List.of());
+                return handleResourceLoadError(job, e);
               }
             }).toList()))
         .map(cf -> cf.<List<Load>>list().stream().flatMap(List::stream).toList())
         .map(loads -> toLoadsMap(loads, false));
+  }
+
+  private static Future<List<Load>> handleResourceLoadError(Job job, Throwable t) {
+    logger.error("Error calculating the reserved resources of job {}. Not taking it into account this time.", job.getId(), t);
+    return Future.succeededFuture(List.of());
   }
 
   /**

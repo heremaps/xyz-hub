@@ -23,16 +23,19 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.models.hub.Ref;
-import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.psql.query.GetFeaturesByIdsBuilder.GetFeaturesByIdsInput;
-
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
 public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInput> {
-  private SQLQuery additionalFilterFragment;
   private SQLQuery selectClauseOverride;
+
+  public GetFeaturesByIdsBuilder withSelectClauseOverride(SQLQuery selectClauseOverride) {
+    this.selectClauseOverride = selectClauseOverride;
+    return this;
+  }
 
   @Override
   public SQLQuery buildQuery(GetFeaturesByIdsInput input) throws QueryBuildingException {
@@ -46,26 +49,14 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
           .withContext(input.context)
           .withRef(input.ref)
           .withIds(input.ids);
-      //TODO: Check!
-      //event.ignoreLimit = true;
 
-      return new GetFeaturesByIdsWithModifiedFilter(event)
+      return new GetFeaturesByIdWithModifiedFilter(event)
           .<GetFeaturesById>withDataSourceProvider(getDataSourceProvider())
           .buildQuery(event);
     }
     catch (SQLException | ErrorResponseException e) {
       throw new QueryBuildingException(e);
     }
-  }
-
-  public GetFeaturesByIdsBuilder withAdditionalFilterFragment(SQLQuery additionalFilterFragment) {
-    this.additionalFilterFragment = additionalFilterFragment;
-    return this;
-  }
-
-  public GetFeaturesByIdsBuilder withSelectClauseOverride(SQLQuery selectClauseOverride) {
-    this.selectClauseOverride = selectClauseOverride;
-    return this;
   }
 
   public record GetFeaturesByIdsInput(
@@ -83,9 +74,9 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
     }
   }
 
-  private class GetFeaturesByIdsWithModifiedFilter extends GetFeaturesById {
+  private class GetFeaturesByIdWithModifiedFilter extends GetFeaturesById {
 
-    public GetFeaturesByIdsWithModifiedFilter(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
+    public GetFeaturesByIdWithModifiedFilter(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
       super(event);
     }
 
@@ -94,23 +85,10 @@ public class GetFeaturesByIdsBuilder extends XyzQueryBuilder<GetFeaturesByIdsInp
       return overrideSelectClause(super.buildSelectClause(event, dataset), selectClauseOverride);
     }
 
-    @Override
-    protected SQLQuery buildFilterWhereClause(GetFeaturesByIdEvent event) {
-      return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment);
-    }
-
-    private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment) {
-      if (additionalFilterFragment == null)
-        return filterWhereClause;
-      SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} AND ${{customWhereClause}}")
-          .withQueryFragment("innerFilterWhereClause", filterWhereClause)
-          .withQueryFragment("customWhereClause", additionalFilterFragment);
-      return customizedWhereClause;
-    }
-
     private SQLQuery overrideSelectClause(SQLQuery selectClause, SQLQuery selectClauseOverride) {
       if (selectClauseOverride != null)
-        return selectClauseOverride;
+        return new SQLQuery("${{selectClause}}")
+                .withQueryFragment("selectClause", selectClauseOverride);
       return selectClause;
     }
   }

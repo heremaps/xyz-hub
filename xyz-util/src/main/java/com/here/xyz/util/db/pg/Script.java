@@ -153,8 +153,9 @@ public class Script {
     }
 
     List<SQLQuery> installationQueries = new ArrayList<>();
-    if (deleteBefore)
-      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
+// TODO: Remove uncommented code once "drop schema cascade" issue creating orphan functions is resolved
+//    if (deleteBefore)
+//      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
     installationQueries.addAll(List.of(buildCreateSchemaQuery(targetSchema), buildSetCurrentSearchPathQuery(targetSchema),
         buildHashFunctionQuery(), buildVersionFunctionQuery(), scriptContent));
 
@@ -358,8 +359,8 @@ public class Script {
     if (scriptVersion.equals(loadLatestVersion()))
       throw new IllegalStateException("The script version " + getScriptName() + ":" + scriptVersion
           + " is still in use on DB " + getDbId() + " and can not be uninstalled.");
-
-    buildDeleteSchemaQuery(getTargetSchema(scriptVersion)).write(dataSourceProvider);
+// TODO: Remove uncommented code once "drop schema cascade" issue creating orphan functions is resolved
+//    buildDeleteSchemaQuery(getTargetSchema(scriptVersion)).write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
   }
 

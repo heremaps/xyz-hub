@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,48 +38,47 @@ import com.here.xyz.psql.DatabaseWriter.ModificationType;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.db.SQLQuery;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
   protected static final long MAX_RESULT_SIZE = 100 * 1024 * 1024;
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
+  public static final String NO_GEOMETRY = "!geometry";
   public static long MAX_BIGINT = Long.MAX_VALUE;
   private boolean historyEnabled;
-  private boolean noGeometry = false;
 
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
     historyEnabled = event.getVersionsToKeep() > 1;
-    noGeometry = selectNoGeometry(event);
   }
 
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
-    SQLQuery versionCheckFragment = buildVersionCheckFragment(event);
     SQLQuery filterWhereClause = buildFilterWhereClause(event);
 
     SQLQuery query;
     if (isCompositeQuery(event)) {
       int dataset = compositeDatasetNo(event, CompositeDataset.EXTENSION);
+      SQLQuery versionCheckFragment = buildVersionCheckFragment(event);
+
       query = new SQLQuery(
           "SELECT * FROM (SELECT * FROM ("
           + "     (SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}})"
           + "   ${{unionAll}} "
           + "     SELECT * FROM (${{baseQuery}}) a"
-          + "       WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} WHERE ${{idComparison}})"
+          + "       ${{compositionFilter}}"
           + ") limitQuery ${{limit}}) orderQuery ${{outerOrderBy}}")
           .withQueryFragment("selectClause", buildSelectClause(event, dataset))
           .withQueryFragment("filters", buildFiltersFragment(event, true, filterWhereClause, dataset))
           .withQueryFragment("orderBy", buildOrderByFragment(event))
-          .withQueryFragment("idComparison", buildIdComparisonFragment(event, "a.", versionCheckFragment))
+          .withQueryFragment("versionCheck", versionCheckFragment)
           .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
-          .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION ? "" : "NOT")
+          .withQueryFragment("compositionFilter", buildCompositionFilter(event, false, buildIdComparisonFragment(event, "a.", versionCheckFragment)))
           .withQueryFragment("baseQuery", !is2LevelExtendedSpace(event)
               ? build1LevelBaseQuery(event, filterWhereClause) //1-level extension
               : build2LevelBaseQuery(event, filterWhereClause)); //2-level extension
@@ -88,15 +87,25 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       query = new SQLQuery(
           "SELECT ${{selectClause}} FROM ${schema}.${table} WHERE ${{filters}} ${{versionCheck}} ${{outerOrderBy}} ${{limit}}")
           .withQueryFragment("selectClause", buildSelectClause(event, 0))
-          .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, 0));
+          .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, 0))
+          .withQueryFragment("versionCheck", buildVersionCheckFragment(event));
     }
 
     return query
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, getDefaultTable(event))
-        .withQueryFragment("versionCheck", versionCheckFragment)
         .withQueryFragment("outerOrderBy", buildOuterOrderByFragment(event))
         .withQueryFragment("limit", buildLimitFragment(event));
+  }
+
+  private SQLQuery buildCompositionFilter(E event, boolean isL2, SQLQuery idComparisonFragment) {
+    if (event instanceof SelectiveEvent selectiveEvent && selectiveEvent.getRef().isAllVersions())
+      return new SQLQuery("");
+
+    String tableVariable = isL2 ? "intermediateExtensionTable" : "table";
+    return new SQLQuery("WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${" + tableVariable + "} WHERE ${{idComparison}})")
+        .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION && !isL2 ? "" : "NOT")
+        .withQueryFragment("idComparison", idComparisonFragment);
   }
 
   protected SQLQuery buildFiltersFragment(E event, boolean isExtension, SQLQuery filterWhereClause, int dataset) {
@@ -111,12 +120,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   protected SQLQuery buildSelectClause(E event, int dataset) {
-    return new SQLQuery("id, ${{selection}}, ${{geo}}, ${{dataset}} ${{version}}")
-        .withQueryFragment("selection", buildSelectionFragment(event))
+    return new SQLQuery("id, ${{version}}, ${{jsonData}}, ${{geo}}, ${{dataset}}")
+        .withQueryFragment("jsonData", buildJsonDataFragment(event, dataset))
         .withQueryFragment("geo", buildGeoFragment(event))
         .withQueryFragment("dataset", new SQLQuery("${{datasetNo}} AS dataset")
         .withQueryFragment("datasetNo", "" + dataset))
-        .withQueryFragment("version", buildSelectClauseVersionFragment(event));
+        .withQueryFragment("version", getFeatureVersion(dataset) + " AS version");
   }
 
   private SQLQuery buildVersionCheckFragment(E event) {
@@ -129,7 +138,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
   }
 
-  protected SQLQuery buildVersionComparison(SelectiveEvent event) {
+  private SQLQuery buildVersionComparison(SelectiveEvent event) {
     Ref ref = event.getRef();
     if (event.getVersionsToKeep() == 1 || ref.isAllVersions() || ref.isHead())
       return new SQLQuery("");
@@ -148,7 +157,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         "requestedVersion");
   }
 
-  protected SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
+  private SQLQuery buildNextVersionFragment(Ref ref, boolean historyEnabled, String versionParamName) {
     if (!historyEnabled || ref.isAllVersions())
       return new SQLQuery("");
 
@@ -170,26 +179,17 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
     Ref ref = event.getRef();
-
-    long version = Long.MAX_VALUE; // => ref.isHead() || ref.isAllVersions();
-
-    if (ref.isSingleVersion() && !ref.isHead())
-      version = ref.getVersion();
-    else if(ref.isRange())
-      version = ref.getEnd().getVersion(); // HEAD -> Long.MAX_VALUE;
-
-    String headTable = getDefaultTable((E) event) + XyzSpaceTableHelper.HEAD_TABLE_SUFFIX; // max(version) => headtable, no read from p0,...,pN necessary
+    boolean isHeadOrAllVersions = ref.isHead() || ref.isAllVersions() || ref.isRange() && ref.getEnd().isHead();
+    long requestedVersion = isHeadOrAllVersions ? Long.MAX_VALUE : ref.isRange() ? ref.getEnd().getVersion() : ref.getVersion();
 
     if (event.getVersionsToKeep() > 1)
-      return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) - #{versionsToKeep} FROM ${schema}.${headTable})) <= #{version}")
-          .withVariable("headTable", headTable)
+      return new SQLQuery("AND greatest(#{minVersion}, (SELECT max(version) - #{versionsToKeep} FROM ${schema}.${table})) <= #{requestedVersion}")
           .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
           .withNamedParameter("minVersion", event.getMinVersion())
-          .withNamedParameter("version", version);
-    //FIXME: end version should *never* be Long.MAX_VALUE!
-    return version == Long.MAX_VALUE ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) AS HEAD FROM ${schema}.${headTable})")
-        .withVariable("headTable", headTable)
-        .withNamedParameter("version", version);
+          .withNamedParameter("requestedVersion", requestedVersion);
+
+    return isHeadOrAllVersions ? new SQLQuery("") : new SQLQuery("AND #{requestedVersion} = (SELECT max(version) AS HEAD FROM ${schema}.${table})")
+        .withNamedParameter("requestedVersion", requestedVersion);
   }
 
   private SQLQuery buildAuthorCheckFragment(E event) {
@@ -218,14 +218,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "  FROM ${schema}.${intermediateExtensionTable} WHERE ${{filters}} ${{versionCheck}} ${{orderBy}}) "
         + "UNION ALL"
         + "  SELECT * FROM (${{baseQuery}}) b"
-        + "    WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE ${{idComparison}})")
+        + "    ${{compositionFilter}}")
         .withVariable("intermediateExtensionTable", getIntermediateTable(event))
         .withQueryFragment("selectClause", buildSelectClause(event, dataset))
         .withQueryFragment("filters", buildFiltersFragment(event, false, filterWhereClause, dataset)) //NOTE: We know that the intermediate space is an extended one
         .withQueryFragment("versionCheck", versionCheckFragment)
         .withQueryFragment("orderBy", buildOrderByFragment(event))
         .withQueryFragment("baseQuery", build1LevelBaseQuery(event, filterWhereClause))
-        .withQueryFragment("idComparison", buildIdComparisonFragment(event, "b.", versionCheckFragment));
+        .withQueryFragment("compositionFilter", buildCompositionFilter(event, true, buildIdComparisonFragment(event, "b.", versionCheckFragment)));
   }
 
   private SQLQuery buildIdComparisonFragment(E event, String prefix, SQLQuery versionCheckFragment) {
@@ -279,6 +279,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     featureCollection._setFeatures(result.toString());
 
     if (result.length() > MAX_RESULT_SIZE)
+      //TODO: Throw ErrorResponseException instead
       return (R) new ErrorResponse().withError(PAYLOAD_TO_LARGE)
           .withErrorMessage("Maximum response char limit of " + MAX_RESULT_SIZE + " reached");
 
@@ -295,35 +296,36 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     result.append(",");
   }
 
-  protected SQLQuery buildSelectionFragment(ContextAwareEvent event) {
-    String jsonDataWithVersion = "jsonb_set(jsondata, '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
+  protected SQLQuery buildJsonDataFragment(ContextAwareEvent event, int dataset) {
+    SQLQuery jsonData;
 
-    if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getSelection() == null
-        || selectiveEvent.getSelection().size() == 0 || (selectiveEvent.getSelection().size() == 1 && noGeometry))
-      return new SQLQuery(jsonDataWithVersion + " AS jsondata");
-
-    List<String> selection = selectiveEvent.getSelection();
-    if (!selection.contains("type")) {
-      selection = new ArrayList<>(selection);
+    if (!(event instanceof SelectiveEvent selectiveEvent) || selectiveEvent.getSelection() == null)
+      jsonData = new SQLQuery("jsondata");
+    else {
+      Set<String> selection = new HashSet<>(selectiveEvent.getSelection());
+      selection.remove(NO_GEOMETRY);
       selection.add("type");
+
+      jsonData = selection.isEmpty() ? new SQLQuery("jsondata") : new SQLQuery("(SELECT "
+          + "CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build "
+          + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
+          + "END "
+          + "FROM prj_build(#{selection}, jsondata))")
+          .withNamedParameter("selection", selection.toArray(new String[0]));
     }
 
-    return new SQLQuery("(SELECT "
-        + "CASE WHEN prj_build->'properties' IS NOT NULL THEN prj_build "
-        + "ELSE jsonb_set(prj_build, '{properties}', '{}'::jsonb) "
-        + "END "
-        + "FROM prj_build(#{selection}, " + jsonDataWithVersion + ")) AS jsondata")
-        .withNamedParameter("selection", selection.toArray(new String[0]));
+    return new SQLQuery("jsonb_set(${{innerJsonData}}, '{properties, @ns:com:here:xyz, version}', to_jsonb(${{featureVersion}})) AS jsondata")
+        .withQueryFragment("innerJsonData", jsonData)
+        .withQueryFragment("featureVersion", getFeatureVersion(dataset));
   }
 
-  protected String buildSelectClauseVersionFragment(ContextAwareEvent event) {
-    if (!(event instanceof SelectiveEvent selectiveEvent))
-      return "";
-
-    if (!selectiveEvent.getRef().isAllVersions())
-      return "";
-
-    return ", version";
+  private static String getFeatureVersion(int dataset) {
+    /*
+    NOTE: From the perspective of a composite layer (requested with context = DEFAULT),
+    the extended dataset(s) always have version = 0, because the extension itself *is empty* and this *empty version (aka version 0)*
+    is simply not empty but contains the whole HEAD of the dataset being extended (e.g., INTERMEDIATE and / or SUPER dataset).
+     */
+    return dataset > 0 ? "0" : "version";
   }
 
   protected String buildOuterOrderByFragment(ContextAwareEvent event) {
@@ -340,11 +342,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return event instanceof SelectiveEvent selectiveEvent
         && selectiveEvent.getSelection() != null
         && !selectiveEvent.getSelection().isEmpty()
-        && selectiveEvent.getSelection().contains("!geometry");
+        && selectiveEvent.getSelection().contains(NO_GEOMETRY);
   }
 
   protected SQLQuery buildGeoFragment(E event) {
-    if (noGeometry)
+    if (selectNoGeometry(event))
       return new SQLQuery("NULL::GEOMETRY AS geo");
 
     return new SQLQuery("${{geoExpression}} AS geo")

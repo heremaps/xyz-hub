@@ -39,6 +39,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.Proce
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
@@ -151,7 +152,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
   protected abstract SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
-          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException;
+          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException;
 
   /**
    * Prepares the process by resolving the version reference to an actual version.
@@ -254,7 +255,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
    * @throws SQLException If an error occurs while executing SQL queries.
    */
   protected void startInitialTasks(String schema) throws TooManyResourcesClaimed,
-          QueryBuildingException, WebClientException, SQLException {
+          QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
     for (int i = 0; i < calculatedThreadCount; i++) {
       TaskProgress taskProgressAndTaskItem = getTaskProgressAndTaskItem();
       if(taskProgressAndTaskItem.taskId() == -1)
@@ -275,7 +276,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
    * @throws SQLException If an error occurs while executing SQL queries.
    */
   protected void startTask(String schema, TaskProgress taskProgressAndItem) throws TooManyResourcesClaimed,
-          QueryBuildingException, WebClientException, SQLException {
+          QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
 
     if (taskProgressAndItem.taskId() != -1) {
       BigDecimal overallAcusBD = BigDecimal.valueOf(overallNeededAcus);

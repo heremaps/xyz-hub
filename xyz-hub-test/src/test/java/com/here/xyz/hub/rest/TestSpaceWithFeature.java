@@ -19,25 +19,19 @@
 
 package com.here.xyz.hub.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import static com.here.xyz.hub.auth.TestAuthenticator.AuthProfile.ACCESS_ALL;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.isIn;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Properties;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
@@ -53,6 +47,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.isIn;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   protected static String embeddedStorageId = "psql";
@@ -396,6 +395,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     validateGetFeatureResponse(statusCode, null, null, getFeature(spaceId, featureId, version, context));
   }
 
+  protected ValidatableResponse getAllFeatureVersions(String spaceId, String featureId, String context) {
+    return getFeature(spaceId, featureId, "*", context);
+  }
+
   private static void validateGetFeatureResponse(Integer statusCode, String path, String value, ValidatableResponse response) {
     if (statusCode != null)
       response.statusCode(statusCode);
@@ -424,12 +427,16 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected ValidatableResponse getFeature(String spaceId, String featureId, String context) {
-    return getFeature(spaceId, featureId, -1, context);
+    return getFeature(spaceId, featureId, null, context);
   }
 
   protected ValidatableResponse getFeature(String spaceId, String featureId, long version, String context) {
+    return getFeature(spaceId, featureId, version != -1 ? "" + version : null, context);
+  }
+
+  private ValidatableResponse getFeature(String spaceId, String featureId, String versionRef, String context) {
     Map<String, Object> queryParams = new HashMap<>() {{
-      put("version", version != -1 ? version : null);
+      put("version", versionRef);
       put("context", context);
     }};
     return given()

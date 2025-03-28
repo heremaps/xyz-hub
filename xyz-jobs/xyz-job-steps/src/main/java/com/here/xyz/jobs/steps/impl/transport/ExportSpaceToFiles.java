@@ -47,6 +47,7 @@ import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
@@ -107,6 +108,14 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   private long minI = -1;
   @JsonView({Internal.class, Static.class})
   private long maxI = -1;
+
+  @JsonView({Internal.class, Static.class})
+  protected boolean restrictExtendOfSpatialFilter = true;
+
+  public ExportSpaceToFiles withStepExecutionHeartBeatTimeoutOverride(int timeOutSeconds) {
+    setStepExecutionHeartBeatTimeoutOverride(timeOutSeconds);
+    return this;
+  }
 
   public ExportSpaceToFiles withVersionRef(Ref versionRef) {
     setVersionRef(versionRef);
@@ -265,18 +274,20 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     //Validate input Geometry
     if (this.spatialFilter != null) {
       spatialFilter.validateSpatialFilter();
-      try {
-        Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry((spatialFilter.getGeometry().getJTSGeometry()),
-                spatialFilter.getRadius());
-        int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
-        if(GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
-          throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
-                  + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
+      if(restrictExtendOfSpatialFilter) {
+        try {
+          Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry((spatialFilter.getGeometry().getJTSGeometry()),
+                  spatialFilter.getRadius());
+          int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
+          if (GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
+            throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
+                    + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
+          }
+        } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
+                 NullPointerException e) {
+          errorLog(JOB_VALIDATE, this, e, "Invalid SpatialFilter provided! ", spatialFilter.getGeometry().serialize());
+          throw new ValidationException("Invalid SpatialFilter!");
         }
-      } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
-               NullPointerException e) {
-        errorLog(JOB_VALIDATE, this, e, "Invalid SpatialFilter provided! ",spatialFilter.getGeometry().serialize());
-        throw new ValidationException("Invalid SpatialFilter!");
       }
     }
 
@@ -368,7 +379,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    */
   @Override
   protected SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
-          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException {
+          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
     return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskData));
   }
 
@@ -463,7 +474,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
   protected String generateContentQueryForExportPlugin(TaskData taskData) throws WebClientException, TooManyResourcesClaimed,
-      QueryBuildingException {
+      QueryBuildingException, InvalidGeometryException {
 
     //We use the thread number as a condition for the query
     int taskNumber = (int) taskData.taskInput();
