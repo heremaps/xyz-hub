@@ -40,10 +40,12 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.logging.log4j.Marker;
 
@@ -86,7 +88,7 @@ public class ChangesetApi extends SpaceBasedApi {
         .onSuccess(result -> {
             ChangesetCollection changesets = (ChangesetCollection) result;
             if (changesets.getVersions().isEmpty())
-             sendErrorResponse(context, new HttpException(NOT_FOUND, "No changeset was found for version " + version));
+             sendErrorResponse(context, new DetailedHttpException("E318443", Map.of("version", String.valueOf(version))));
             else
              sendResponse(context, changesets.getVersions().get(version).withNextPageToken(changesets.getNextPageToken()));
 
@@ -102,7 +104,7 @@ public class ChangesetApi extends SpaceBasedApi {
     final PropertyQuery version = Query.getPropertyQuery(context.request().query(), "version", false);
 
     if (version == null || version.getValues().isEmpty()) {
-      sendErrorResponse(context, new HttpException(HttpResponseStatus.BAD_REQUEST, "Query parameter version is required"));
+      sendErrorResponse(context, new DetailedHttpException("E318405", Map.of("param", "version")));
       return;
     }
     else if (version.getOperation() != LESS_THAN) {

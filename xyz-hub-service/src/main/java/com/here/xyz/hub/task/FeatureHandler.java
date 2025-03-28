@@ -50,6 +50,7 @@ import com.here.xyz.models.hub.Space.ListenerConnectorRef;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -218,15 +219,12 @@ public class FeatureHandler {
 
   public static void checkReadOnly(Space space) throws HttpException {
     if (space.isReadOnly())
-      throw new HttpException(METHOD_NOT_ALLOWED,
-          "The method is not allowed, because the resource \"" + space.getId() + "\" is marked as read-only. "
-              + "Update the resource definition to enable editing of features.");
+      throw new DetailedHttpException("E318452", Map.of("resourceId", space.getId()));
   }
 
   public static void checkIsActive(Space space) throws HttpException {
     if (!space.isActive())
-      throw new HttpException(PRECONDITION_REQUIRED, "The method is not allowed, because the resource \"" + space.getId()
-          + "\" is not active.");
+      throw new DetailedHttpException("E318451", Map.of("resourceId", space.getId()));
   }
 
   public static Future<Void> resolveExtendedSpaces(Marker marker, Space compositeSpace) {
@@ -239,7 +237,7 @@ public class FeatureHandler {
     return Space.resolveSpace(marker, extendedConfig.getSpaceId())
         .compose(extendedSpace -> {
           if (extendedSpace == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "Extended resource with ID " + extendedConfig.getSpaceId() + " was not found."));
+            return Future.failedFuture(new DetailedHttpException("E318442", Map.of("resource", extendedConfig.getSpaceId())));
 
           //Check for cyclical extensions
           if (resolvedIds.contains(extendedSpace.getId())) {

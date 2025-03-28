@@ -76,6 +76,7 @@ import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPL
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -273,7 +274,7 @@ public class FeatureApi extends SpaceBasedApi {
     final SpaceContext spaceContext = getSpaceContext(context);
 
     if (featureIds.isEmpty())
-      sendErrorResponse(context, new HttpException(BAD_REQUEST, "At least one feature ID should be provided as a query parameter."));
+      sendErrorResponse(context, new DetailedHttpException("E318406"));
     else {
       //Delete features by IDs
       if (Config.instance.USE_WRITE_FEATURES_EVENT)
@@ -335,10 +336,11 @@ public class FeatureApi extends SpaceBasedApi {
   private Future<FeatureCollection> writeFeatures(RoutingContext context, Object inputModifications, SpaceContext spaceContext,
       String author, boolean responseDataExpected) throws HttpException {
     checkModificationOnSuper(spaceContext);
-    return Space.resolveSpace(getMarker(context), getSpaceId(context))
+    String spaceId = getSpaceId(context);
+    return Space.resolveSpace(getMarker(context), spaceId)
         .compose(space -> {
           if (space == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
+            return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)));
 
           Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
               ? toModifications(context, space, featureModificationList, isConflictDetectionEnabled(context))
@@ -631,7 +633,7 @@ public class FeatureApi extends SpaceBasedApi {
 
   private static void checkModificationOnSuper(SpaceContext spaceContext) throws HttpException {
     if (spaceContext != null && spaceContext.equals(SUPER))
-      throw new HttpException(HttpResponseStatus.FORBIDDEN, "It's not permitted to perform modifications through context " + SUPER + ".");
+      throw new DetailedHttpException("E318431", Map.of("context", SUPER.name()));
   }
 
   private ConditionalOperation buildConditionalOperation(
