@@ -289,7 +289,8 @@ public class GraphTransformer {
 
     state.stateBuilder.resource(taskResource);
     if (executionMode == ASYNC)
-      state.stateBuilder.heartbeatSeconds(STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS);
+      state.stateBuilder.heartbeatSeconds(lambdaStep.getStepExecutionHeartBeatTimeoutOverride() == 0 ? STEP_EXECUTION_HEARTBEAT_TIMEOUT_SECONDS :
+              lambdaStep.getStepExecutionHeartBeatTimeoutOverride());
   }
 
   private void compile(RunEmrJob emrStep, NamedState<TaskState.Builder> state) {
