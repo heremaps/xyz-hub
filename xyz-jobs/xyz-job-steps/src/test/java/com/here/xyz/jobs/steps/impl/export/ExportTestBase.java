@@ -83,8 +83,15 @@ public class ExportTestBase extends StepTest {
     }
 
     protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
-                    ExportChangedTiles.QuadType quadType, Ref versionRef, List<String> expectedTileInvalidations,
-                    FeatureCollection expectedFeatures)
+                                                                ExportChangedTiles.QuadType quadType, Ref versionRef,
+                                                                List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
+            throws IOException, InterruptedException {
+        executeExportChangedTilesStepAndCheckResults(spaceId, targetLevel, quadType, versionRef, null, null, expectedTileInvalidations, expectedFeatures);
+    }
+
+    protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
+                    ExportChangedTiles.QuadType quadType, Ref versionRef, SpatialFilter spatialFilter, PropertiesQuery propertiesQuery,
+                    List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
             throws IOException, InterruptedException {
 
         //Create Step definition
@@ -92,6 +99,8 @@ public class ExportTestBase extends StepTest {
                 .withQuadType(quadType)
                 .withTargetLevel(targetLevel)
                 .withVersionRef(versionRef)
+                .withPropertyFilter(propertiesQuery)
+                .withSpatialFilter(spatialFilter)
                 .withSpaceId(spaceId)
                 .withJobId(JOB_ID);
 

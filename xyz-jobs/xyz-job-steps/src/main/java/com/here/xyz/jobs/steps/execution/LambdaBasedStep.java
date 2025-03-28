@@ -102,6 +102,9 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
   @JsonView(Internal.class)
   private int retryCount = -1; //Will be defined by the Step Function
 
+  @JsonView(Internal.class)
+  private int stepExecutionHeartBeatTimeoutOverride;
+
   /**
    * Contains the raw (unparsed & unresolved) pipeline input if this LambdaBasedStep belongs to a job that is a pipeline.
    * This value should not be used directly by implementing steps. Implementing steps can gather the input using the well-known
@@ -114,6 +117,14 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
 
   private static final String INVOKE_SUCCESS = """
       {"status": "OK"}""";
+
+  public void setStepExecutionHeartBeatTimeoutOverride(int timeOutSeconds) {
+    this.stepExecutionHeartBeatTimeoutOverride = timeOutSeconds;
+  }
+
+  public int getStepExecutionHeartBeatTimeoutOverride() {
+    return stepExecutionHeartBeatTimeoutOverride;
+  }
 
   /**
    * This method must be implemented by subclasses.

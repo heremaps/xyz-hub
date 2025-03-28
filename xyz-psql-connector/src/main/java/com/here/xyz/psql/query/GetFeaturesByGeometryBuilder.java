@@ -37,7 +37,6 @@ import java.util.Map;
 public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByGeometryInput> {
   private SQLQuery additionalFilterFragment;
   private SQLQuery selectClauseOverride;
-  private BBox bbox;
 
   @Override
   public SQLQuery buildQuery(GetFeaturesByGeometryInput input) throws QueryBuildingException {
@@ -76,11 +75,6 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     return this;
   }
 
-  public GetFeaturesByGeometryBuilder withGeoFilterOverride(BBox bbox) {
-    this.bbox = bbox;
-    return this;
-  }
-
   public record GetFeaturesByGeometryInput(
       String spaceId,
       Map<String, Object> connectorParams,
@@ -116,18 +110,6 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     @Override
     protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
       return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment);
-    }
-
-    @Override
-    protected SQLQuery buildGeoFilter(GetFeaturesByGeometryEvent event) {
-      return patchGeoFilter(super.buildGeoFilter(event));
-    }
-
-    //TODO: Check why this patch is necessary
-    private SQLQuery patchGeoFilter(SQLQuery geoFilterClause) {
-      if(bbox != null)
-        return buildGeoFilterFromBbox(bbox);
-      return geoFilterClause;
     }
 
     //TODO: Check why this patch is necessary
