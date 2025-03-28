@@ -82,9 +82,9 @@ public class JobApi extends JobApiBase {
         .map(res -> job)
         .recover(t -> {
           if (t instanceof CompilationError)
-            return Future.failedFuture(mapUserFacingException("E319002", t));
+            return Future.failedFuture(new DetailedHttpException("E319002", t));
           if (t instanceof ValidationException)
-            return Future.failedFuture(mapUserFacingException("E319003", t));
+            return Future.failedFuture(new DetailedHttpException("E319003", t));
           return Future.failedFuture(t);
         })
         .onSuccess(res -> {
@@ -217,7 +217,7 @@ public class JobApi extends JobApiBase {
       //TODO: Decide if we want to forward the cause to the user.
       //TODO: We should generally try to "unpack" the JsonProcessingException and see if the cause is a "user facing" exception. See: Api#sendErrorResponse(RoutingContext, Throwable)
       //e.g. an invalid versionRef(4,2) will end up here - without any indication for the user at the end
-      throw mapUserFacingException("E319001", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -245,7 +245,7 @@ public class JobApi extends JobApiBase {
       }
     }
     catch (JsonProcessingException e) {
-      throw mapUserFacingException("E319001", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -254,7 +254,7 @@ public class JobApi extends JobApiBase {
       return XyzSerializable.deserialize(context.body().asString(), RuntimeStatus.class);
     }
     catch (JsonProcessingException e) {
-      throw mapUserFacingException("E319001", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 

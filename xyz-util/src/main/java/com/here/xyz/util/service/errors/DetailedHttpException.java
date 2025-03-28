@@ -23,6 +23,7 @@ import static com.here.xyz.util.service.errors.ErrorManager.getErrorDefinition;
 
 import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.util.HashMap;
 import java.util.Map;
 
 public class DetailedHttpException extends HttpException {
@@ -46,6 +47,11 @@ public class DetailedHttpException extends HttpException {
   public DetailedHttpException(String errorCode, Map<String, String> placeholders, Throwable cause) {
     super(HttpResponseStatus.valueOf(getErrorDefinition(errorCode).getStatus()), getErrorDefinition(errorCode).composeMessage(placeholders), cause);
     this.errorDefinition = getErrorDefinition(errorCode);
-    this.placeholders = placeholders;
+    this.placeholders = new HashMap<>() {{
+      if (placeholders != null)
+        putAll(placeholders);
+      if (cause != null)
+        put("cause", cause.getMessage());
+    }};
   }
 }
