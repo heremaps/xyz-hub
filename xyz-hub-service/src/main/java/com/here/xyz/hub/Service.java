@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.errors.ErrorManager;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
@@ -67,6 +68,7 @@ import java.util.Date;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -154,7 +156,7 @@ public class Service extends Core {
   public static final boolean IS_USING_ZGC = isUsingZgc();
 
   private static final List<MetricPublisher> metricPublishers = new LinkedList<>();
-
+  private static final String ERROR_DEFINITIONS_FILE = "hub-errors.json";
   private static Router globalRouter;
 
   /**
@@ -163,6 +165,8 @@ public class Service extends Core {
   public static void main(String[] arguments) {
     Configurator.initialize("default", CONSOLE_LOG_CONFIG);
     isDebugModeActive = Arrays.asList(arguments).contains("--debug");
+
+    initErrorManager();
 
     VertxOptions vertxOptions = new VertxOptions()
         .setMetricsOptions(new MetricsOptions()
@@ -180,6 +184,11 @@ public class Service extends Core {
         .compose(Service::initializeService)
         .onFailure(t -> logger.error("Service startup failed", t))
         .onSuccess(v -> logger.info("Service startup succeeded"));
+  }
+
+  protected static void initErrorManager() {
+    ErrorManager.loadErrors(ERROR_DEFINITIONS_FILE);
+    ErrorManager.registerGlobalPlaceholders(Map.of("featureContainerResource", "Space"));
   }
 
   private static Future<Vertx> initializeGlobalRouter(Vertx vertx) {

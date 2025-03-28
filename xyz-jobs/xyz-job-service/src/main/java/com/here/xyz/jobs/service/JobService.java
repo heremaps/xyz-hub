@@ -28,6 +28,7 @@ import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.util.service.Core;
+import com.here.xyz.util.service.errors.ErrorManager;
 import com.here.xyz.util.web.HubWebClient;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
@@ -45,6 +46,7 @@ import org.apache.logging.log4j.Logger;
 public class JobService extends Core {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final String ERROR_DEFINITIONS_FILE = "job-errors.json";
   protected static Class<? extends Config> serviceConfigurationClass = Config.class;
 
   static {
@@ -65,6 +67,8 @@ public class JobService extends Core {
         .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
         .setPreferNativeTransport(true)
         .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(15));
+
+    ErrorManager.loadErrors(ERROR_DEFINITIONS_FILE);
 
     initializeVertx(vertxOptions)
         .compose(Core::initializeConfig)
