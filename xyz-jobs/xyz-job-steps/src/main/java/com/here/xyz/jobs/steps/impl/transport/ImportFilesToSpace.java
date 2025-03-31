@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -115,6 +115,9 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @JsonView({Internal.class, Static.class})
   private EntityPerLine entityPerLine = Feature;
 
+  @JsonView({Internal.class, Static.class})
+  private boolean retainMetadata = false;
+
   {
     setOutputSets(List.of(new OutputSet(STATISTICS, USER, true)));
   }
@@ -164,6 +167,19 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
   public ImportFilesToSpace withEntityPerLine(EntityPerLine entityPerLine) {
     setEntityPerLine(entityPerLine);
+    return this;
+  }
+
+  public boolean isRetainMetadata() {
+    return retainMetadata;
+  }
+
+  public void setRetainMetadata(boolean retainMetadata) {
+    this.retainMetadata = retainMetadata;
+  }
+
+  public ImportFilesToSpace withRetainMetadata(boolean retainMetadata) {
+    setRetainMetadata(retainMetadata);
     return this;
   }
 
