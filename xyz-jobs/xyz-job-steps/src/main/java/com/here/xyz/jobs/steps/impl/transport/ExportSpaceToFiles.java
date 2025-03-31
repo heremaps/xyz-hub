@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -111,9 +111,11 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   private long minI = -1;
   @JsonView({Internal.class, Static.class})
   private long maxI = -1;
-  /** Setting this to 'true' will skip the step execution */
+  /**
+   * Setting this to 'true' will skip the step execution
+   */
   @JsonView({Internal.class, Static.class})
-  private boolean passthrough = false;
+  private boolean passthrough;
 
   @JsonView({Internal.class, Static.class})
   protected boolean restrictExtendOfSpatialFilter = true;
