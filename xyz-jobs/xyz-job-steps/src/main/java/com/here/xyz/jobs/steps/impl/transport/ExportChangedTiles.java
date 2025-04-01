@@ -232,10 +232,39 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
     //Write taskList with all unique tileIds which we need to export
     for(String tileId : affectedTiles){
+      if(!tileIsRelevant(tileId))
+        continue;
       infoLog(STEP_EXECUTE, this,"Add initial entry in process_table for thread number: " + tileId );
       runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData(tileId)), db(WRITER), 0);
     }
     return affectedTiles.size();
+  }
+
+  private boolean tileIsRelevant(String tileId){
+    //If a spatialFilter is set with clip=true, we need to check if the tile intersects with the filter
+    //We only add the tile if it intersects with the filter
+    if(spatialFilter != null && spatialFilter.getGeometry() != null && spatialFilter.isClip())
+      return spatialFilter.getGeometry().getJTSGeometry()
+              .intersects(getTileBBOX(tileId).getJTSGeometry());
+    return true;
+  }
+
+  private Polygon getTileBBOX(String tileId) {
+    BBox tileBBOX = switch (quadType) {
+      case HERE_QUAD -> new HQuad(tileId, false).getBoundingBox();
+      case MERCATOR_QUAD -> WebMercatorTile.forQuadkey(tileId).getExtendedBBox(0);
+    };
+
+    PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+    LinearRingCoordinates lrc = new LinearRingCoordinates();
+
+    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.minLat()));
+    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.maxLat()));
+    lrc.add(new Position(tileBBOX.maxLon(), tileBBOX.maxLat()));
+    lrc.add(new Position(tileBBOX.maxLon(), tileBBOX.minLat()));
+    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.minLat()));
+    polygonCoordinates.add(lrc);
+    return new Polygon().withCoordinates(polygonCoordinates);
   }
 
   @Override
@@ -245,7 +274,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     return getFeaturesByTileIdQuery(
             DEFAULT,
             null, //no override needed - use default
-            null, //no spatial Filter is needed - we take Geometry from tile
+            spatialFilter, //no spatial Filter is needed - we take Geometry from tile
             taskData.taskInput().toString(), //tileId from task_item
             new Ref(versionRef.getEnd().getVersion()) //export tiles from endVersion
     ).toExecutableQueryString();
@@ -362,31 +391,14 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
             .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    BBox tileBBOX = switch (quadType) {
-      case HERE_QUAD -> new HQuad(tileId, false).getBoundingBox();
-      case MERCATOR_QUAD -> WebMercatorTile.forQuadkey(tileId).getExtendedBBox(0);
-    };
+    SpatialFilter tileBBOXFilter = new SpatialFilter()
+            .withGeometry(getTileBBOX(tileId))
+            .withClip(clipOnTileBoundaries);
 
-    PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
-    LinearRingCoordinates lrc = new LinearRingCoordinates();
-
-    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.minLat()));
-    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.maxLat()));
-    lrc.add(new Position(tileBBOX.maxLon(), tileBBOX.maxLat()));
-    lrc.add(new Position(tileBBOX.maxLon(), tileBBOX.minLat()));
-    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.minLat()));
-    polygonCoordinates.add(lrc);
-
-    if(spatialFilter == null) {
-      spatialFilter = new SpatialFilter();
-    }
-
-    spatialFilter.setGeometry(new Polygon().withCoordinates(polygonCoordinates));
-    spatialFilter.setClip(clipOnTileBoundaries);
-
-    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context, spatialFilter, versionRef);
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context, tileBBOXFilter, versionRef);
 
     SQLQuery contentQuery = queryBuilder
+            .withClippingGeometry(spatialFilter != null && spatialFilter.isClip() ? spatialFilter.getGeometry() : null)
             .withSelectClauseOverride(selectClauseOverride)
             .buildQuery(input);
 
