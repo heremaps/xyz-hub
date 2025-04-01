@@ -163,6 +163,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                  }
                 """, FeatureCollection.class);
 
+        //=> LINESTRING(6.353809489694754 51.08958733812065, 8.231999783047115 51.359089906708846, 7.937709200611209 50.5346535571293, 9.337868867777473 50.26303968016663, 9.34797694869323 49.3892593362186)
         FeatureCollection fc3 = XyzSerializable.deserialize("""
                 {
                   "type": "FeatureCollection",
@@ -286,25 +287,61 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilter() throws IOException, InterruptedException, InvalidGeometryException {
+    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilterClipped() throws IOException, InterruptedException, InvalidGeometryException {
 
         PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
         LinearRingCoordinates lrc = new LinearRingCoordinates();
-        lrc.add(new Position(7.2816583426536, 59.64127003570246)); // Bottom-left
-        lrc.add(new Position(7.2816583426536, 59.359282463246615));  // Bottom-right
-        lrc.add(new Position(8.053414030606405, 59.359282463246615));  // Top-right
-        lrc.add(new Position(8.053414030606405, 59.64127003570246)); // Top-left
-        lrc.add(new Position(7.2816583426536, 59.64127003570246)); // Close the ring
+
+        // Define the polygon coordinates from the new GeoJSON
+        lrc.add(new Position(6.862454740359112, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 51.266833510249285)); // Closing the ring
+
         polygonCoordinates.add(lrc);
 
-        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 7, QuadType.HERE_QUAD,
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 8, QuadType.HERE_QUAD,
                 new Ref("0..HEAD") ,
                 new SpatialFilter()
                         .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
                         .withClip(true), null,
                 List.of("1269"), new FeatureCollection().withFeatures(
+                        //spatialFilter crosses two tiles
                         List.of(
-                                new Feature().withId("point1_delta")
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta")
+                        )
+                ));
+    }
+
+    @Test
+    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilterNotClipped() throws IOException, InterruptedException, InvalidGeometryException {
+
+        PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+
+        // Define the polygon coordinates from the new GeoJSON
+        lrc.add(new Position(6.862454740359112, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 51.266833510249285)); // Closing the ring
+
+        polygonCoordinates.add(lrc);
+
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 8, QuadType.HERE_QUAD,
+                new Ref("0..HEAD") ,
+                new SpatialFilter()
+                        .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
+                        .withClip(false), null,
+                List.of("1269"), new FeatureCollection().withFeatures(
+                        //spatialFilter crosses two tiles
+                        List.of(
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta")
                         )
                 ));
     }
