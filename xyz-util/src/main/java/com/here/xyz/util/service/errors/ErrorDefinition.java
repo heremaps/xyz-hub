@@ -85,7 +85,7 @@ public class ErrorDefinition {
   }
 
   public String composeMessage(Map<String, String> placeholders) {
-    return getFormattedTitle(placeholders) + " " + getFormattedCause(placeholders) + " " + getFormattedAction(placeholders);
+    return getFormattedTitle(placeholders);
   }
 
   public DetailedErrorResponse toErrorResponse(Map<String, String> placeholders) {
