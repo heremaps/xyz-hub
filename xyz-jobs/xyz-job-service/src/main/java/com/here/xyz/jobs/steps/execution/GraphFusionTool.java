@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,9 @@ import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.RunEmrJob.ReferenceIdentifier;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class GraphFusionTool {
@@ -48,6 +50,7 @@ public class GraphFusionTool {
   }
 
   protected static StepGraph fuseGraphs(String newJobId, StepGraph newGraph, StepGraph oldGraph) {
+    oldGraph = canonicalize(oldGraph);
     CompilationStepGraph fusedGraph = replaceByDelegations(newGraph, oldGraph);
 
     //Replace previous step relations (previousStepIds)
@@ -56,6 +59,39 @@ public class GraphFusionTool {
     //Replace InputSets accordingly for new steps that should re-use outputs of old steps as inputs
     resolveReusedInputs(fusedGraph);
     return fusedGraph;
+  }
+
+  protected static StepGraph canonicalize(StepGraph oldGraph) {
+    /*
+    1.) Remove all steps that are flagged as being "notReusable" (these should be basically hidden from the reusability process)
+    2.) Then, remove empty sub-graphs (NOTE: The traversal is done in "bottom-up" manner so sub-graphs
+      that became empty due to the removal of "notReusable" steps will be removed as well
+     */
+    traverse(oldGraph, (execution, containingGraphIterator) -> {
+      if (execution instanceof Step step && step.isNotReusable() || execution instanceof StepGraph subGraph && subGraph.isEmpty())
+        containingGraphIterator.remove();
+    });
+
+    return oldGraph;
+  }
+
+  /**
+   * Traverses all executions of the specified graph in a bottom-up manner (leaves first).
+   * @param graph The graph to be traversed recursively
+   * @param processor The action to be performed on the execution-node and its containing graph
+   */
+  private static void traverse(StepGraph graph, BiConsumer<StepExecution, Iterator<StepExecution>> processor) {
+    Iterator<StepExecution> nodeIterator = graph.getExecutions().iterator();
+    while (nodeIterator.hasNext()) {
+      StepExecution execution = nodeIterator.next();
+      if (execution instanceof Step step)
+        processor.accept(step, nodeIterator);
+      else if (execution instanceof StepGraph subGraph) {
+        //First traverse, then call the processor (==> "bottom-up")
+        traverse(subGraph, processor);
+        processor.accept(subGraph, nodeIterator);
+      }
+    }
   }
 
   /**
@@ -222,7 +258,7 @@ public class GraphFusionTool {
    *
    * @param graph
    */
-  static void resolveReusedInputs(StepGraph graph) {
+  private static void resolveReusedInputs(StepGraph graph) {
     graph.stepStream().forEach(step -> resolveReusedInputs(step, graph));
   }
 

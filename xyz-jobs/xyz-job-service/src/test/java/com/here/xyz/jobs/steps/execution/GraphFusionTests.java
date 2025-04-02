@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.execution.GraphFusionTool.canonicalize;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
 import static com.here.xyz.jobs.steps.execution.fusion.SimpleTestStepWithOutput.SOME_OUTPUT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -359,6 +360,32 @@ public class GraphFusionTests {
     assertTrue(fusedGraph.getStep(oldIsComplex ? simpleProducer.getId() : complexProducer1.getId()) instanceof DelegateStep);
     checkInputs(fusedGraph, newGraph);
     checkOutputs(fusedGraph, OLD_JOB_ID);
+  }
+
+  @Test
+  public void canonicalizeGraph() {
+    StepGraph graph = parallel(
+        sequential(
+            new SimpleTestStep(SOME_EXPORT).withNotReusable(true),
+            new SimpleTestStep(SOME_CONSUMER),
+            new SimpleTestStep(SOME_CONSUMER)
+        ),
+        sequential(
+            new SimpleTestStep(SOME_CONSUMER),
+            new SimpleTestStep(SOME_EXPORT).withNotReusable(true),
+            new SimpleTestStep(SOME_CONSUMER)
+        ),
+        sequential(
+            new SimpleTestStep(SOME_EXPORT).withNotReusable(true)
+        )
+    );
+
+    StepGraph canonicalGraph = canonicalize(graph);
+    assertEquals(2, canonicalGraph.getExecutions().size());
+    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(0)).size());
+    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(1)).size());
+    assertTrue(((StepGraph) canonicalGraph.getExecutions().get(0)).stepStream().noneMatch(step -> ((SimpleTestStep) step).paramA == SOME_EXPORT));
+    assertTrue(((StepGraph) canonicalGraph.getExecutions().get(1)).stepStream().noneMatch(step -> ((SimpleTestStep) step).paramA == SOME_EXPORT));
   }
 
   /*

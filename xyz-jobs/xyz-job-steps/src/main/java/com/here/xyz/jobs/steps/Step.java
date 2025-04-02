@@ -98,6 +98,8 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   private List<InputSet> inputSets = List.of();
   @JsonView({Internal.class, Static.class})
   private Map<String, String> outputMetadata;
+  @JsonView({Internal.class, Static.class})
+  private boolean notReusable = false;
 
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
@@ -595,6 +597,19 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   public T withOutputMetadata(Map<String, String> metadata) {
     setOutputMetadata(metadata);
+    return (T) this;
+  }
+
+  public boolean isNotReusable() {
+    return notReusable;
+  }
+
+  public void setNotReusable(boolean notReusable) {
+    this.notReusable = notReusable;
+  }
+
+  public T withNotReusable(boolean notReusable) {
+    setNotReusable(notReusable);
     return (T) this;
   }
 
