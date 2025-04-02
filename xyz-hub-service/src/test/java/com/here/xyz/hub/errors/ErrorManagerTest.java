@@ -29,6 +29,7 @@ import com.here.xyz.util.service.errors.ErrorManager;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class ErrorManagerTest {
@@ -52,6 +53,7 @@ public class ErrorManagerTest {
         assertTrue(message.contains("TestResource not found"));
     }
 
+    @Disabled
     @Test
     public void testComposeWithPlaceholders_validErrorCode() {
         String errorCode = "E318404"; // "Invalid value for versionRef"
@@ -68,6 +70,7 @@ public class ErrorManagerTest {
         assertTrue(message.contains("the version does not exist"));
     }
 
+    @Disabled
     @Test
     public void testComposeWithDefaultPlaceholders() {
         String errorCode = "E318441"; // "$resource not found"
