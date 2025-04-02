@@ -107,7 +107,7 @@ public class JobApi extends JobApiBase {
     return Future.all(job.getInputs().entrySet().stream()
         .map(inputSet -> registerInput(job, (InputsFromS3) inputSet.getValue(), inputSet.getKey()))
         .toList())
-        .map(null);
+        .mapEmpty();
 
   }
 
