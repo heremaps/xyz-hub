@@ -32,57 +32,58 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 public class ErrorManagerTest {
-    @BeforeAll
-    public static void setUp() {
-        ErrorManager.loadErrors("hub-errors.json");
-        Map<String, String> defaults = new HashMap<>();
-        defaults.put("featureContainerResource", "TestResource");
-        defaults.put("versionRef", "v1.0");
-        defaults.put("resourceId", "12345");
-        ErrorManager.registerGlobalPlaceholders(defaults);
-    }
 
-    @Test
-    public void testComposeWithoutPlaceholders_validErrorCode() {
-        String errorCode = "E318441"; // "$resource not found"
-        DetailedHttpException exception = new DetailedHttpException(errorCode);
-        assertNotNull(exception);
-        assertEquals(404, exception.status.code());
-        String message = exception.getMessage();
-        assertTrue(message.contains("TestResource not found"));
-    }
+  @BeforeAll
+  public static void setUp() {
+    ErrorManager.loadErrors("hub-errors.json");
+    Map<String, String> defaults = new HashMap<>();
+    defaults.put("featureContainerResource", "TestResource");
+    defaults.put("versionRef", "v1.0");
+    defaults.put("resourceId", "12345");
+    ErrorManager.registerGlobalPlaceholders(defaults);
+  }
 
-    @Test
-    public void testComposeWithPlaceholders_validErrorCode() {
-        String errorCode = "E318404"; // "Invalid value for versionRef"
-        Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("versionRef", "v2.0");
-        placeholders.put("cause", "the version does not exist");
+  @Test
+  public void testComposeWithoutPlaceholders_validErrorCode() {
+    String errorCode = "E318441"; // "$resource not found"
+    DetailedHttpException exception = new DetailedHttpException(errorCode);
+    assertNotNull(exception);
+    assertEquals(404, exception.status.code());
+    String message = exception.getMessage();
+    assertTrue(message.contains("TestResource not found"));
+  }
 
-        DetailedHttpException exception = new DetailedHttpException(errorCode, placeholders);
-        assertNotNull(exception);
-        assertEquals(400, exception.status.code());
+  @Test
+  public void testComposeWithPlaceholders_validErrorCode() {
+    String errorCode = "E318404"; // "Invalid value for versionRef"
+    Map<String, String> placeholders = new HashMap<>();
+    placeholders.put("versionRef", "v2.0");
 
-        String message = exception.getMessage();
-        assertTrue(message.contains("v2.0"));
-        assertTrue(message.contains("the version does not exist"));
-    }
+    String causeMessage = "the version does not exist";
+    DetailedHttpException exception = new DetailedHttpException(errorCode, placeholders, new RuntimeException(causeMessage));
+    assertNotNull(exception);
+    assertEquals(400, exception.status.code());
 
-    @Test
-    public void testComposeWithDefaultPlaceholders() {
-        String errorCode = "E318441"; // "$resource not found"
+    String errorResponseText = exception.errorDefinition.toErrorResponse(exception.placeholders).serialize();
+    assertTrue(errorResponseText.contains("v2.0"));
+    assertTrue(errorResponseText.contains(causeMessage));
+  }
 
-        DetailedHttpException exception = new DetailedHttpException(errorCode);
-        assertNotNull(exception);
-        assertEquals(404, exception.status.code());
+  @Test
+  public void testComposeWithDefaultPlaceholders() {
+    String errorCode = "E318441"; // "$resource not found"
 
-        String message = exception.getMessage();
-        assertTrue(message.contains("12345"));
-    }
+    DetailedHttpException exception = new DetailedHttpException(errorCode);
+    assertNotNull(exception);
+    assertEquals(404, exception.status.code());
 
-    @Test
-    public void testCompose_invalidErrorCode() {
-        String unknownErrorCode = "UNKNOWN_CODE";
-        assertThrows(IllegalArgumentException.class, () -> new DetailedHttpException(unknownErrorCode));
-    }
+    String errorResponseText = exception.errorDefinition.toErrorResponse(exception.placeholders).serialize();
+    assertTrue(errorResponseText.contains("12345"));
+  }
+
+  @Test
+  public void testCompose_invalidErrorCode() {
+    String unknownErrorCode = "UNKNOWN_CODE";
+    assertThrows(IllegalArgumentException.class, () -> new DetailedHttpException(unknownErrorCode));
+  }
 }
