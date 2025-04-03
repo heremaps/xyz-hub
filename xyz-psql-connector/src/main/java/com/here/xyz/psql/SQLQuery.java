@@ -23,7 +23,7 @@ import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 import static com.here.xyz.psql.DatabaseHandler.HEAD_TABLE_SUFFIX;
 
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.QueryEvent;
+import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.psql.query.GetFeatures;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -398,7 +398,7 @@ public class SQLQuery {
   }
 
   @Deprecated
-  public static SQLQuery selectJson(QueryEvent event) {
+  public static SQLQuery selectJson(SearchForFeaturesEvent event) {
     return GetFeatures.buildSelectionFragmentBWC(event);
   }
 

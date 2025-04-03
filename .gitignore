@@ -6,3 +6,4 @@
 target/
 file-uploads/
 release.properties
+data/

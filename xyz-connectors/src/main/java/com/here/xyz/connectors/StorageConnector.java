@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.connectors;
 
 import com.here.xyz.events.DeleteChangesetsEvent;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -67,9 +66,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
     }
     if (event instanceof ModifyFeaturesEvent) {
       return processModifyFeaturesEvent((ModifyFeaturesEvent) event);
-    }
-    if (event instanceof DeleteFeaturesByTagEvent) {
-      return processDeleteFeaturesByTagEvent((DeleteFeaturesByTagEvent) event);
     }
     if (event instanceof GetFeaturesByGeometryEvent) {
       return processGetFeaturesByGeometryEvent((GetFeaturesByGeometryEvent) event);
@@ -172,13 +168,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception;
-
-  /**
-   * Processes a DeleteFeaturesEvent event.
-   */
-  @SuppressWarnings("WeakerAccess")
-  @Deprecated
-  protected abstract XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception;
 
   /**
    * Processes a LoadFeaturesEvent event.

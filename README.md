@@ -45,7 +45,7 @@ mvn clean install
 
 The service and all dependencies could be started locally using Docker compose.
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Alternatively, you can start freshly from the sources by using this command after cloning the project:

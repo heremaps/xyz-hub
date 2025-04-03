@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,8 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.QueryEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
@@ -83,7 +81,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  protected static SQLQuery generatePropertiesQueryBWC(QueryEvent event) {
+  protected static SQLQuery generatePropertiesQueryBWC(SearchForFeaturesEvent event) {
     SQLQuery query = generatePropertiesQuery(event);
     if (query != null)
       query.replaceNamedParameters();
@@ -96,7 +94,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  private static SQLQuery generatePropertiesQuery(QueryEvent event) {
+  private static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
     PropertiesQuery properties = event.getPropertiesQuery();
     if (properties == null || properties.size() == 0) {
       return null;
@@ -175,14 +173,14 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery generateSearchQueryBWC(QueryEvent event) {
+  public static SQLQuery generateSearchQueryBWC(SearchForFeaturesEvent event) {
     SQLQuery query = generateSearchQuery(event);
     if (query != null)
       query.replaceNamedParameters();
     return query;
   }
 
-  protected static SQLQuery generateSearchQuery(final QueryEvent event) { //TODO: Make private again
+  protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) { //TODO: Make private again
     final SQLQuery propertiesQuery = generatePropertiesQuery(event);
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 
@@ -202,7 +200,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
-  private static SQLQuery createKey(QueryEvent event, String key) {
+  private static SQLQuery createKey(SearchForFeaturesEvent event, String key) {
     String[] keySegments = key.split("\\.");
 
     /** ID is indexed as text */

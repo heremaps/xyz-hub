@@ -8,9 +8,12 @@ services:
         ports:
             - "8080:8080"
         depends_on:
-            - "postgres"
-            - "redis"
-            - "xyz-http-connector"
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_started
+            xyz-http-connector:
+                condition: service_started
     xyz-http-connector:
         image: "xyz-hub"
         build:
@@ -19,7 +22,9 @@ services:
         ports:
             - "9090:9090"
         depends_on:
-            - "postgres"
+            postgres:
+                condition: service_healthy
+                restart: true
         command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     postgres:
         image: "xyz-postgres"
@@ -29,6 +34,15 @@ services:
         container_name: "postgres"
         ports:
             - "5432:5432"
+        userns_mode: keep-id
+        volumes:
+            - ./data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 2
+            start_period: 20s
     redis:
         image: "redis"
         container_name: "redis"

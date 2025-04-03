@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "SearchForFeaturesEvent")
-public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends QueryEvent<T> {
+public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends SelectiveEvent<T> {
 
   private static final long DEFAULT_LIMIT = 1_000L;
   private static final long MAX_LIMIT = 100_000L;
@@ -45,5 +45,38 @@ public class SearchForFeaturesEvent<T extends SearchForFeaturesEvent> extends Qu
     setLimit(limit);
     //noinspection unchecked
     return (T) this;
+  }
+
+  private TagsQuery tags;
+  private PropertiesQuery propertiesQuery;
+
+  public TagsQuery getTags() {
+    return this.tags;
+  }
+
+  public void setTags(TagsQuery tags) {
+    this.tags = tags;
+  }
+
+  @SuppressWarnings("unused")
+  public T withTags(TagsQuery tags) {
+    setTags(tags);
+    return (T)this;
+  }
+
+  @SuppressWarnings("unused")
+  public PropertiesQuery getPropertiesQuery() {
+    return this.propertiesQuery;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setPropertiesQuery(PropertiesQuery propertiesQuery) {
+    this.propertiesQuery = propertiesQuery;
+  }
+
+  @SuppressWarnings("unused")
+  public T withPropertiesQuery(PropertiesQuery propertiesQuery) {
+    setPropertiesQuery(propertiesQuery);
+    return (T)this;
   }
 }

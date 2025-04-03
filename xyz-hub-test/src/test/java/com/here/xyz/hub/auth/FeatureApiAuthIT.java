@@ -134,15 +134,4 @@ public class FeatureApiAuthIT extends TestSpaceWithFeature {
         .then()
         .statusCode(FORBIDDEN.code());
   }
-
-  @Test
-  public void deleteFeatureByTagsWithOtherOwner() {
-    given()
-        .accept(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_2))
-        .when()
-        .delete(getSpacesPath() + "/x-psql-test/features?tags=soccer")
-        .then()
-        .statusCode(FORBIDDEN.code());
-  }
 }

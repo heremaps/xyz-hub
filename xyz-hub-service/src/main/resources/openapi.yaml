@@ -1,8 +1,8 @@
 openapi: 3.0.2
 info:
-  title: HERE XYZ Hub
+  title: XYZmaps Hub
   description: |-
-    HERE XYZ Hub is a REST API for simple access to geo data.
+    XYZmaps Hub is a REST API for simple access to geo data.
   contact: {}
   version: 1.0.0
 servers:
@@ -2796,8 +2796,8 @@ components:
           description: The description text for the label to be displayed by the client.
           type: string
       example:
-        label: HERE
-        alt: HERE XYZ
+        label: XYZmaps
+        alt: XYZmaps XYZ
     Error:
       type: object
       description: >-

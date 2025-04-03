@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ package com.here.xyz.connectors;
 
 import com.here.xyz.Typed;
 import com.here.xyz.events.ContentModifiedNotification;
-import com.here.xyz.events.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
@@ -136,12 +135,6 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
     if ((ModifyFeaturesEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
       processModifyFeatures((FeatureCollection) notification.getEvent(), notificationParams);
     }
-    if ((DeleteFeaturesByTagEvent.class.getSimpleName() + REQUEST).equals(eventType)) {
-      processDeleteFeaturesByTag((DeleteFeaturesByTagEvent) notification.getEvent(), notificationParams);
-    }
-    if ((DeleteFeaturesByTagEvent.class.getSimpleName() + RESPONSE).equals(eventType)) {
-      processDeleteFeaturesByTag((FeatureCollection) notification.getEvent(), notificationParams);
-    }
     if ((ContentModifiedNotification.class.getSimpleName() + REQUEST).equals(eventType)) {
       processContentModifiedNotification((ContentModifiedNotification) notification.getEvent(), notificationParams);
     }
@@ -192,10 +185,6 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   }
 
   protected void processSearchForFeatures(FeatureCollection response, NotificationParams notificationParams) throws Exception {
-  }
-
-  @SuppressWarnings("RedundantThrows")
-  protected void processDeleteFeaturesByTag(DeleteFeaturesByTagEvent event, NotificationParams notificationParams) throws Exception {
   }
 
   @SuppressWarnings("RedundantThrows")

@@ -1,9 +1,0 @@
-{
-  "type": "DeleteFeaturesByTagEvent",
-  "space": "foo",
-  "tags": null,
-  "connectorParams": {
-    "propertySearch": true,
-    "connectorId": "test-connector"
-  }
-}

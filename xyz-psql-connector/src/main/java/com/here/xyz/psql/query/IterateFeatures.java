@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -587,12 +587,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
       if( event.getPart() != null && event.getPart()[0] == -1 )
        return requestIterationHandles(event, event.getPart()[1], dbHandler);
 
-      if( event.getPropertiesQuery() != null && (event.getSort() == null || event.getSort().isEmpty()) )
-      {
-       event.setSort( getSortFromSearchKeys( getSearchKeys( event.getPropertiesQuery() ), space, dbHandler ) );
-      }
-      else if (!canSortBy(space, event.getSort(), dbHandler))
-      {
+      if (!canSortBy(space, event.getSort(), dbHandler)) {
         throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
             "Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
       }
