@@ -304,6 +304,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
     //Validate input Geometry
     if (this.spatialFilter != null) {
+      if(spatialFilter.getGeometry() == null)
+        throw new ValidationException("Invalid arguments! Geometry cant be null!");
+
       Geometry jtsGeometry = spatialFilter.getGeometry().getJTSGeometry();
       spatialFilter.validateSpatialFilter();
 
