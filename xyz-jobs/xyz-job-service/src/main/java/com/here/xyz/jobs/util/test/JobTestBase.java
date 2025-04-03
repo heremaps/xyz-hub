@@ -68,11 +68,11 @@ public class JobTestBase extends StepTestBase {
 
     protected static JsonObject createTypedJsonObject(String type) { return new JsonObject().put("type", type);}
 
-    protected void createJobAndPollStatus(JsonObject job) throws Exception {
-        createJobAndPollStatus(job, null);
+    protected String createJobAndPollStatus(JsonObject job) throws Exception {
+        return createJobAndPollStatus(job, null);
     }
 
-    protected void createJobAndPollStatus(JsonObject job, byte[] fileContent) throws Exception {
+    protected String createJobAndPollStatus(JsonObject job, byte[] fileContent) throws Exception {
         //Create Job
         String jobId = createJob(job);
         createdJobs.add(jobId);
@@ -86,6 +86,8 @@ public class JobTestBase extends StepTestBase {
 
         //Wait till Job reached final state
         pollJobStatus(jobId);
+
+        return jobId;
     }
 
     protected JsonObject buildJob(JsonObject source, JsonObject target) {
