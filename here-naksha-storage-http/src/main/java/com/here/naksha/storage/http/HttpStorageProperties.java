@@ -35,6 +35,7 @@ public class HttpStorageProperties extends XyzProperties {
 
   public static final Long DEF_CONNECTION_TIMEOUT_SEC = 20L;
   public static final Long DEF_SOCKET_TIMEOUT_SEC = 90L;
+  public static final Long DEF_MAX_RETRIES = 1L;
   public static final Map<String, String> DEFAULT_HEADERS = Map.of(
       "Content-Type", "application/json",
       "Accept-Encoding", "gzip");
@@ -42,6 +43,7 @@ public class HttpStorageProperties extends XyzProperties {
   private static final String URL = "url";
   private static final String CONNECTION_TIMEOUT = "connectTimeout";
   private static final String SOCKET_TIMEOUT = "socketTimeout";
+  private static final String MAX_RETRIES = "maxRetries";
   private static final String HEADERS = "headers";
 
   private static final String HTTP_INTERFACE = "httpInterface";
@@ -56,6 +58,9 @@ public class HttpStorageProperties extends XyzProperties {
   @JsonProperty(SOCKET_TIMEOUT)
   private @NotNull Long socketTimeout;
 
+  @JsonProperty(MAX_RETRIES)
+  private @NotNull Long maxRetries;
+
   @JsonProperty(HEADERS)
   private @NotNull Map<String, String> headers;
 
@@ -67,11 +72,13 @@ public class HttpStorageProperties extends XyzProperties {
       @JsonProperty(value = URL, required = true) @NotNull String url,
       @JsonProperty(CONNECTION_TIMEOUT) @Nullable Long connectTimeout,
       @JsonProperty(SOCKET_TIMEOUT) @Nullable Long socketTimeout,
+      @JsonProperty(MAX_RETRIES) @Nullable Long maxRetries,
       @JsonProperty(HEADERS) @Nullable Map<String, String> headers,
       @JsonProperty(HTTP_INTERFACE) @Nullable HttpInterface httpInterface) {
     this.url = url;
     this.connectTimeout = connectTimeout == null ? DEF_CONNECTION_TIMEOUT_SEC : connectTimeout;
     this.socketTimeout = socketTimeout == null ? DEF_SOCKET_TIMEOUT_SEC : socketTimeout;
+    this.maxRetries = maxRetries == null ? DEF_MAX_RETRIES : maxRetries;
     this.headers = headers == null ? DEFAULT_HEADERS : headers;
     this.httpInterface = httpInterface == null ? DEFAULT_XYZ_PROTOCOL : httpInterface;
   }
@@ -80,8 +87,9 @@ public class HttpStorageProperties extends XyzProperties {
       @JsonProperty(value = URL, required = true) @NotNull String url,
       @JsonProperty(CONNECTION_TIMEOUT) @Nullable Long connectTimeout,
       @JsonProperty(SOCKET_TIMEOUT) @Nullable Long socketTimeout,
+      @JsonProperty(MAX_RETRIES) @Nullable Long maxRetries,
       @JsonProperty(HEADERS) @Nullable Map<String, String> headers) {
-    this(url, connectTimeout, socketTimeout, headers, DEFAULT_XYZ_PROTOCOL);
+    this(url, connectTimeout, socketTimeout, maxRetries, headers, DEFAULT_XYZ_PROTOCOL);
   }
 
   /**
@@ -97,6 +105,10 @@ public class HttpStorageProperties extends XyzProperties {
 
   public @NotNull Long getSocketTimeout() {
     return socketTimeout;
+  }
+
+  public @NotNull Long getMaxRetries() {
+    return maxRetries;
   }
 
   public @NotNull Map<String, String> getHeaders() {

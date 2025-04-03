@@ -369,6 +369,7 @@ project(":here-naksha-storage-http") {
 
         testImplementation(mockito)
         testImplementation("io.rest-assured:rest-assured:5.5.0")
+        testImplementation(wiremock)
     }
     tasks.withType<Test> {
         if (System.getenv("runConnectorIntegrationTests")?.toBoolean() != true) {

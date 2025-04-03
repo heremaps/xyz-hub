@@ -12,7 +12,7 @@ servers:
 info:
   title: "Naksha Hub-API"
   description: "Naksha Hub-API is a REST API to provide simple access to geo data."
-  version: "2.2.5"
+  version: "2.2.6"
 
 security:
   - AccessToken: [ ]

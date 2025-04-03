@@ -21,6 +21,7 @@ package com.here.naksha.storage.http;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static java.net.http.HttpRequest.newBuilder;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -28,6 +29,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -39,16 +41,18 @@ public class RequestSender {
   private static final Logger log = LoggerFactory.getLogger(RequestSender.class);
 
   @NotNull
-  private final HttpClient httpClient;
+  private HttpClient httpClient;
 
   @NotNull
   private final RequestSender.KeyProperties keyProps;
 
   public RequestSender(@NotNull RequestSender.KeyProperties keyProps) {
     this.keyProps = keyProps;
-    this.httpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(keyProps.connectionTimeoutSec))
-        .build();
+    this.httpClient = createNewClient();
+  }
+
+  private HttpClient createNewClient() {
+    return HttpClientFactory.getHttpClient(Duration.ofSeconds(keyProps.connectionTimeoutSec));
   }
 
   /**
@@ -82,33 +86,49 @@ public class RequestSender {
     if (httpMethod != null) builder.method(httpMethod, bodyPublisher);
     HttpRequest request = builder.build();
 
-    return sendRequest(request);
+    HttpResponse<byte[]> response = null;
+    for (int i = 0; i <= keyProps.maxRetries; i++) {
+      long startTime = System.currentTimeMillis();
+      try {
+        CompletableFuture<HttpResponse<byte[]>> futureResponse =
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
+        response = futureResponse.get(keyProps.socketTimeoutSec, TimeUnit.SECONDS);
+        break;
+      } catch (Exception e) {
+        if (isRetryEligibleException(e) && i < keyProps.maxRetries) {
+          log.warn(
+              "We got retryable exception while executing Http request against remote server. Current retry attempt {} of {}. ",
+              i,
+              keyProps.maxRetries,
+              e);
+          // reset HttpClient and then retry request
+          this.httpClient = createNewClient();
+        } else {
+          log.warn("We got exception while executing Http request against remote server. ", e);
+          throw unchecked(e);
+        }
+      } finally {
+        long executionTime = System.currentTimeMillis() - startTime;
+        log.info(
+            "[Storage API stats => type,storageId,host,method,path,status,timeTakenMs,resSize] - StorageAPIStats {} {} {} {} {} {} {} {}",
+            "HttpStorage",
+            keyProps.name,
+            keyProps.hostUrl,
+            request.method(),
+            request.uri(),
+            (response == null) ? "-" : response.statusCode(),
+            executionTime,
+            (response == null) ? 0 : response.body().length);
+      }
+    }
+    return response;
   }
 
-  private HttpResponse<byte[]> sendRequest(HttpRequest request) {
-    long startTime = System.currentTimeMillis();
-    HttpResponse<byte[]> response = null;
-    try {
-      CompletableFuture<HttpResponse<byte[]>> futureResponse =
-          httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
-      response = futureResponse.get(keyProps.socketTimeoutSec, TimeUnit.SECONDS);
-      return response;
-    } catch (Exception e) {
-      log.warn("We got exception while executing Http request against remote server.", e);
-      throw unchecked(e);
-    } finally {
-      long executionTime = System.currentTimeMillis() - startTime;
-      log.info(
-          "[Storage API stats => type,storageId,host,method,path,status,timeTakenMs,resSize] - StorageAPIStats {} {} {} {} {} {} {} {}",
-          "HttpStorage",
-          keyProps.name,
-          keyProps.hostUrl,
-          request.method(),
-          request.uri(),
-          (response == null) ? "-" : response.statusCode(),
-          executionTime,
-          (response == null) ? 0 : response.body().length);
-    }
+  private boolean isRetryEligibleException(@NotNull final Exception e) {
+    return (e instanceof ExecutionException
+        && e.getCause() instanceof IOException ioe
+        && ioe.getMessage() != null
+        && ioe.getMessage().contains("GOAWAY"));
   }
 
   public boolean hasKeyProps(KeyProperties thatKeyProps) {
@@ -125,5 +145,6 @@ public class RequestSender {
       @NotNull String hostUrl,
       @NotNull Map<String, String> defaultHeaders,
       long connectionTimeoutSec,
-      long socketTimeoutSec) {}
+      long socketTimeoutSec,
+      long maxRetries) {}
 }

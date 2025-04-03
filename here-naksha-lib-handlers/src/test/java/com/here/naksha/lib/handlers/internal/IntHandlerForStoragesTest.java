@@ -103,22 +103,22 @@ class IntHandlerForStoragesTest {
     long validConnectionTimeout = 30L;
     return Stream.of(
         arguments("Invalid connection timeout: -1, allowed values (sec): 0 - 30",
-            new HttpStorageProperties(validUrl, -1L, validSocketTimeout, emptyMap())),
+            new HttpStorageProperties(validUrl, -1L, validSocketTimeout, null, emptyMap())),
         arguments("Invalid connection timeout: 91, allowed values (sec): 0 - 30",
-            new HttpStorageProperties(validUrl, 91L, validSocketTimeout, emptyMap())),
+            new HttpStorageProperties(validUrl, 91L, validSocketTimeout, null, emptyMap())),
         arguments("Invalid socket timeout: -1, allowed values (sec): 0 - 90",
-            new HttpStorageProperties(validUrl, validConnectionTimeout, -1L, emptyMap())),
+            new HttpStorageProperties(validUrl, validConnectionTimeout, -1L, null, emptyMap())),
         arguments("Invalid socket timeout: 91, allowed values (sec): 0 - 90",
-            new HttpStorageProperties(validUrl, validConnectionTimeout, 91L, emptyMap())),
+            new HttpStorageProperties(validUrl, validConnectionTimeout, 91L, null, emptyMap())),
         arguments("Invalid url: this_is_not_a_url",
-            new HttpStorageProperties("this_is_not_a_url", validConnectionTimeout, validSocketTimeout, emptyMap())),
+            new HttpStorageProperties("this_is_not_a_url", validConnectionTimeout, validSocketTimeout, null, emptyMap())),
         arguments("Invalid url: ftp://cool.files.com/static/rfc959.txt",
-            new HttpStorageProperties("ftp://cool.files.com/static/rfc959.txt", validConnectionTimeout, validSocketTimeout, emptyMap())),
+            new HttpStorageProperties("ftp://cool.files.com/static/rfc959.txt", validConnectionTimeout, validSocketTimeout, null, emptyMap())),
         arguments("""
                   Invalid connection timeout: -1, allowed values (sec): 0 - 30
                   Invalid socket timeout: 91, allowed values (sec): 0 - 90
                   Invalid url: ftp://cool.files.com/static/rfc959.txt""",
-            new HttpStorageProperties("ftp://cool.files.com/static/rfc959.txt", -1L, 91L, emptyMap()))
+            new HttpStorageProperties("ftp://cool.files.com/static/rfc959.txt", -1L, 91L, null, emptyMap()))
     );
   }
 

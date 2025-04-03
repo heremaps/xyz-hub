@@ -22,6 +22,8 @@ class RequestSenderCacheTest {
 
   public static final int EXAMPLE_SOCKET_TIMEOUT = 1;
 
+  public static final int EXAMPLE_MAX_RETRIES = 1;
+
   public static final Map<String, String> EXAMPLE_HEADERS = Map.of("Authorization", "Bearer exampleToken", "Content-Type", "application/json");
   public static final Map<String, String> MODIFIED_HEADERS = Map.of("Authorization", "Bearer modifiedToken", "Content-Type", "application/json");
 
@@ -33,7 +35,8 @@ class RequestSenderCacheTest {
           EXAMPLE_URL,
           EXAMPLE_HEADERS,
           EXAMPLE_CONNECTION_TIMEOUT,
-          EXAMPLE_SOCKET_TIMEOUT
+          EXAMPLE_SOCKET_TIMEOUT,
+          EXAMPLE_MAX_RETRIES
   );
 
   public static final KeyProperties PROP_ID_1_COPY = new KeyProperties(
@@ -41,7 +44,8 @@ class RequestSenderCacheTest {
           EXAMPLE_URL,
           EXAMPLE_HEADERS,
           EXAMPLE_CONNECTION_TIMEOUT,
-          EXAMPLE_SOCKET_TIMEOUT
+          EXAMPLE_SOCKET_TIMEOUT,
+          EXAMPLE_MAX_RETRIES
   );
 
   public static final KeyProperties PROP_ID_1_INT_CHANGED = new KeyProperties(
@@ -49,7 +53,8 @@ class RequestSenderCacheTest {
           EXAMPLE_URL,
           EXAMPLE_HEADERS,
           EXAMPLE_CONNECTION_TIMEOUT,
-          2
+          2,
+          EXAMPLE_MAX_RETRIES
   );
 
   public static final KeyProperties PROP_ID_1_MAP_COPIED = new KeyProperties(
@@ -57,7 +62,8 @@ class RequestSenderCacheTest {
           EXAMPLE_URL,
           Map.copyOf(EXAMPLE_HEADERS),
           EXAMPLE_CONNECTION_TIMEOUT,
-          EXAMPLE_SOCKET_TIMEOUT
+          EXAMPLE_SOCKET_TIMEOUT,
+          EXAMPLE_MAX_RETRIES
   );
 
   public static final KeyProperties PROP_ID_1_MAP_CHANGED = new KeyProperties(
@@ -65,7 +71,8 @@ class RequestSenderCacheTest {
           EXAMPLE_URL,
           MODIFIED_HEADERS,
           EXAMPLE_CONNECTION_TIMEOUT,
-          EXAMPLE_SOCKET_TIMEOUT
+          EXAMPLE_SOCKET_TIMEOUT,
+          EXAMPLE_MAX_RETRIES
   );
 
   public static final KeyProperties PROP_ID_2 = new KeyProperties(
@@ -73,7 +80,8 @@ class RequestSenderCacheTest {
           EXAMPLE_URL,
           EXAMPLE_HEADERS,
           EXAMPLE_CONNECTION_TIMEOUT,
-          EXAMPLE_SOCKET_TIMEOUT
+          EXAMPLE_SOCKET_TIMEOUT,
+          EXAMPLE_MAX_RETRIES
   );
 
   public static final KeyProperties PROP_ID_3 = new KeyProperties(
@@ -81,7 +89,8 @@ class RequestSenderCacheTest {
           EXAMPLE_URL,
           EXAMPLE_HEADERS,
           EXAMPLE_CONNECTION_TIMEOUT,
-          EXAMPLE_SOCKET_TIMEOUT
+          EXAMPLE_SOCKET_TIMEOUT,
+          EXAMPLE_MAX_RETRIES
   );
 
 

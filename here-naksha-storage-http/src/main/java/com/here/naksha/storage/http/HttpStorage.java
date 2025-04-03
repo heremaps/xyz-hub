@@ -50,7 +50,8 @@ public class HttpStorage implements IStorage {
             properties.getUrl(),
             properties.getHeaders(),
             properties.getConnectTimeout(),
-            properties.getSocketTimeout()));
+            properties.getSocketTimeout(),
+            properties.getMaxRetries()));
   }
 
   @Override
