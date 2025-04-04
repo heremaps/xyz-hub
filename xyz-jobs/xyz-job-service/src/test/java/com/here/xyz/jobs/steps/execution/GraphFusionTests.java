@@ -366,9 +366,13 @@ public class GraphFusionTests {
   public void canonicalizeGraph() {
     StepGraph graph = parallel(
         sequential(
-            new SimpleTestStep(SOME_EXPORT).withNotReusable(true),
-            new SimpleTestStep(SOME_CONSUMER),
-            new SimpleTestStep(SOME_CONSUMER)
+            sequential(
+                sequential(
+                    new SimpleTestStep(SOME_EXPORT).withNotReusable(true),
+                    new SimpleTestStep(SOME_CONSUMER),
+                    new SimpleTestStep(SOME_CONSUMER)
+                )
+            )
         ),
         sequential(
             new SimpleTestStep(SOME_CONSUMER),
@@ -382,8 +386,8 @@ public class GraphFusionTests {
 
     StepGraph canonicalGraph = canonicalize(graph);
     assertEquals(2, canonicalGraph.getExecutions().size());
-    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(0)).size());
-    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(1)).size());
+    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(0)).getExecutions().size());
+    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(1)).getExecutions().size());
     assertTrue(((StepGraph) canonicalGraph.getExecutions().get(0)).stepStream().noneMatch(step -> ((SimpleTestStep) step).paramA == SOME_EXPORT));
     assertTrue(((StepGraph) canonicalGraph.getExecutions().get(1)).stepStream().noneMatch(step -> ((SimpleTestStep) step).paramA == SOME_EXPORT));
   }

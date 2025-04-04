@@ -31,7 +31,7 @@ import com.here.xyz.jobs.steps.execution.RunEmrJob.ReferenceIdentifier;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class GraphFusionTool {
@@ -50,6 +50,7 @@ public class GraphFusionTool {
   }
 
   protected static StepGraph fuseGraphs(String newJobId, StepGraph newGraph, StepGraph oldGraph) {
+    newGraph = canonicalize(newGraph);
     oldGraph = canonicalize(oldGraph);
     CompilationStepGraph fusedGraph = replaceByDelegations(newGraph, oldGraph);
 
@@ -61,18 +62,25 @@ public class GraphFusionTool {
     return fusedGraph;
   }
 
-  protected static StepGraph canonicalize(StepGraph oldGraph) {
+  protected static StepGraph canonicalize(StepGraph graph) {
     /*
     1.) Remove all steps that are flagged as being "notReusable" (these should be basically hidden from the reusability process)
     2.) Then, remove empty sub-graphs (NOTE: The traversal is done in "bottom-up" manner so sub-graphs
       that became empty due to the removal of "notReusable" steps will be removed as well
      */
-    traverse(oldGraph, (execution, containingGraphIterator) -> {
-      if (execution instanceof Step step && step.isNotReusable() || execution instanceof StepGraph subGraph && subGraph.isEmpty())
-        containingGraphIterator.remove();
+    traverse(graph, execution -> {
+      if (execution instanceof Step step && step.isNotReusable())
+        return null;
+      if (execution instanceof StepGraph subGraph) {
+        if (subGraph.isEmpty())
+          return null;
+        if (subGraph.getExecutions().size() == 1)
+          return unwrap(subGraph);
+      }
+      return execution;
     });
 
-    return oldGraph;
+    return graph;
   }
 
   /**
@@ -80,17 +88,26 @@ public class GraphFusionTool {
    * @param graph The graph to be traversed recursively
    * @param processor The action to be performed on the execution-node and its containing graph
    */
-  private static void traverse(StepGraph graph, BiConsumer<StepExecution, Iterator<StepExecution>> processor) {
-    Iterator<StepExecution> nodeIterator = graph.getExecutions().iterator();
+  private static void traverse(StepGraph graph, UnaryOperator<StepExecution> processor) {
+    List<StepExecution> nodes = graph.getExecutions();
+    Iterator<StepExecution> nodeIterator = nodes.iterator();
+    int index = 0;
     while (nodeIterator.hasNext()) {
       StepExecution execution = nodeIterator.next();
       if (execution instanceof Step step)
-        processor.accept(step, nodeIterator);
+        execution = processor.apply(step);
       else if (execution instanceof StepGraph subGraph) {
         //First traverse, then call the processor (==> "bottom-up")
         traverse(subGraph, processor);
-        processor.accept(subGraph, nodeIterator);
+        execution = processor.apply(subGraph);
       }
+      if (execution == null) {
+        nodeIterator.remove();
+        index--;
+      }
+      else
+        nodes.set(index, execution);
+      index++;
     }
   }
 
