@@ -49,8 +49,9 @@ public class GeometryValidatorIT {
     }
 
     @Test
-    public void testIsWorldBoundingBox_withValidBBox() {
+    public void testIsWorldBoundingBox_withValidBBoxes() {
         PolygonCoordinates expectedCoordinates = new PolygonCoordinates();
+
         // Expected coordinates of a world bounding box
         LinearRingCoordinates lrc = new LinearRingCoordinates();
         lrc.add(new Position(-180.0, -90.0));
@@ -61,7 +62,42 @@ public class GeometryValidatorIT {
 
         expectedCoordinates.add(lrc);
         Polygon polygon = new Polygon().withCoordinates(expectedCoordinates);
+        Assertions.assertTrue(GeometryValidator.isWorldBoundingBox(polygon), "Should detect valid world bbox");
+
+        //other valid permutation
+        lrc = new LinearRingCoordinates();
+        lrc.add(new Position(-180.0, 90.0));
+        lrc.add(new Position(-180.0, -90.0));
+        lrc.add(new Position(180.0, -90.0));
+        lrc.add(new Position(180.0, 90.0));
+        lrc.add(new Position(-180.0, 90.0));
+        expectedCoordinates.add(0, lrc);
 
         Assertions.assertTrue(GeometryValidator.isWorldBoundingBox(polygon), "Should detect valid world bbox");
+    }
+
+    @Test
+    public void testIsWorldBoundingBox_withInvalidBBoxes() {
+        PolygonCoordinates expectedCoordinates = new PolygonCoordinates();
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+        //invalid WWBOX
+        lrc.add(new Position(-180.0, -90.0));
+        lrc.add(new Position(180.0, -90.0));
+        lrc.add(new Position(180.0, 90.0));
+        lrc.add(new Position(-180.0, 90.0));
+        lrc.add(new Position(-180.0, 90.0));
+        expectedCoordinates.add(lrc);
+        Polygon polygon = new Polygon().withCoordinates(expectedCoordinates);
+
+        lrc = new LinearRingCoordinates();
+        //no WWBOX
+        lrc.add(new Position(8.228788827111089, 50.14263202814135));
+        lrc.add(new Position(8.228788827111089, 49.76343646294657));
+        lrc.add(new Position(8.728858987763317, 49.76343646294657));
+        lrc.add(new Position(8.728858987763317, 50.14263202814135));
+        lrc.add(new Position(8.228788827111089, 50.14263202814135));
+        expectedCoordinates.add(0, lrc);
+
+        Assertions.assertFalse(GeometryValidator.isWorldBoundingBox(polygon), "Should detect invalid world bbox");
     }
 }

@@ -26,8 +26,17 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Polygon;
 
+import java.util.List;
+
 public class GeometryValidator {
-  public static int MAX_NUMBER_OF_COORDNIATES = 12_000;
+  public static final int MAX_NUMBER_OF_COORDNIATES = 12_000;
+  private static final List<Position> canonical = List.of(
+          new Position(-180.0, -90.0),
+          new Position(180.0, -90.0),
+          new Position(180.0, 90.0),
+          new Position(-180.0, 90.0),
+          new Position(-180.0, -90.0)
+  ); // Define the canonical world bbox positions (counter-clockwise)
 
   public static void validateGeometry(Geometry geometry, int radius) throws GeometryException {
     if (geometry == null)
@@ -51,40 +60,42 @@ public class GeometryValidator {
   }
 
   public static boolean isWorldBoundingBox(Geometry geometry) {
-    if (!(geometry instanceof Polygon)) {
+    if (!(geometry instanceof Polygon inputPolygon)) {
       return false;
     }
 
-    Polygon polygon = (Polygon) geometry;
-    PolygonCoordinates coordinates = polygon.getCoordinates();
+    PolygonCoordinates inputCoords = inputPolygon.getCoordinates();
 
-    PolygonCoordinates expectedCoordinates = new PolygonCoordinates();
-    // Expected coordinates of a world bounding box
-    LinearRingCoordinates lrc = new LinearRingCoordinates();
-    lrc.add(new Position(-180.0, -90.0));
-    lrc.add(new Position(180.0, -90.0));
-    lrc.add(new Position(180.0, 90.0));
-    lrc.add(new Position(-180.0, 90.0));
-    lrc.add(new Position(-180.0, -90.0)); // close the ring
-    expectedCoordinates.add(lrc);
-
-    PolygonCoordinates inputCords = ((Polygon) geometry).getCoordinates();
-    if(inputCords.size() == 0)
-      return false;
-
-    LinearRingCoordinates inputLrc = inputCords.get(0);
-
-    if (lrc.size() != inputLrc.size()) {
+    if (inputCoords == null || inputCoords.isEmpty()) {
       return false;
     }
 
-    for (int i = 0; i < lrc.size(); i++) {
-      if (!lrc.get(i).isEqual(inputLrc.get(i)) ) {
-        return false;
+    LinearRingCoordinates inputLrc = inputCoords.get(0);
+    if (inputLrc.size() != 5) {
+      return false;
+    }
+
+    // Try all 4 valid cyclic permutations
+    for (int offset = 0; offset < 4; offset++) {
+      boolean match = true;
+      for (int i = 0; i <= 4; i++) {
+        Position expected = canonical.get((i + offset) % 4);
+        // Last point should always match the first to close the ring
+        if (i == 4) {
+          expected = canonical.get(offset % 4);
+        }
+        Position actual = inputLrc.get(i);
+        if (!expected.equals(actual)) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        return true;
       }
     }
 
-    return true;
+    return false;
   }
 
   public static class GeometryException extends Exception {
