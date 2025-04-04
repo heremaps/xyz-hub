@@ -34,8 +34,7 @@ public class GeometryValidator {
           new Position(-180.0, -90.0),
           new Position(180.0, -90.0),
           new Position(180.0, 90.0),
-          new Position(-180.0, 90.0),
-          new Position(-180.0, -90.0)
+          new Position(-180.0, 90.0)
   ); // Define the canonical world bbox positions (counter-clockwise)
 
   public static void validateGeometry(Geometry geometry, int radius) throws GeometryException {
