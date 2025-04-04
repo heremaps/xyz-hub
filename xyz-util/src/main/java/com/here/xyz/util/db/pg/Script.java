@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings.ScriptResourcePath;
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -153,9 +152,11 @@ public class Script {
     }
 
     List<SQLQuery> installationQueries = new ArrayList<>();
-// TODO: Remove uncommented code once "drop schema cascade" issue creating orphan functions is resolved
-//    if (deleteBefore)
-//      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
+    if (deleteBefore) {
+      //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
+      installationQueries.addAll(buildDeleteFunctionQueries(loadSchemaFunctions(targetSchema)));
+      installationQueries.add(buildDeleteSchemaQuery(getTargetSchema(targetSchema)));
+    }
     installationQueries.addAll(List.of(buildCreateSchemaQuery(targetSchema), buildSetCurrentSearchPathQuery(targetSchema),
         buildHashFunctionQuery(), buildVersionFunctionQuery(), scriptContent));
 
@@ -359,9 +360,38 @@ public class Script {
     if (scriptVersion.equals(loadLatestVersion()))
       throw new IllegalStateException("The script version " + getScriptName() + ":" + scriptVersion
           + " is still in use on DB " + getDbId() + " and can not be uninstalled.");
-// TODO: Remove uncommented code once "drop schema cascade" issue creating orphan functions is resolved
-//    buildDeleteSchemaQuery(getTargetSchema(scriptVersion)).write(dataSourceProvider);
+
+    //TODO: Remove following workaround once "drop schema cascade"-bug creating orphaned functions is fixed in postgres
+    String schema = getTargetSchema(scriptVersion);
+    batchDeleteFunctions(loadSchemaFunctions(schema));
+    buildDeleteSchemaQuery(schema).write(dataSourceProvider);
+
     compatibleVersions = new HashMap<>(); //Reset the cache
+  }
+
+  private void batchDeleteFunctions(List<String> functionSignatures) throws SQLException {
+    SQLQuery.batchOf(buildDeleteFunctionQueries(functionSignatures))
+        .writeBatch(dataSourceProvider);
+  }
+
+  private static List<SQLQuery> buildDeleteFunctionQueries(List<String> functionSignatures) {
+    return functionSignatures.stream()
+        .map(signature -> new SQLQuery("DROP FUNCTION " + signature))
+        .toList();
+  }
+
+  private List<String> loadSchemaFunctions(String schema) throws SQLException {
+    return new SQLQuery("""
+        SELECT proc.oid::REGPROCEDURE as signature FROM pg_proc proc LEFT JOIN pg_namespace ns ON proc.pronamespace = ns.oid
+        WHERE ns.nspname = #{schema}
+        """)
+        .withNamedParameter("schema", schema)
+        .run(dataSourceProvider, rs -> {
+          List<String> signatures = new ArrayList<>();
+          while (rs.next())
+            signatures.add(rs.getString("signature"));
+          return signatures;
+        });
   }
 
   public void cleanupOldScriptVersions(int versionsToKeep) {

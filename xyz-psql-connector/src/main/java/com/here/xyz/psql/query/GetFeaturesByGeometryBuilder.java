@@ -115,7 +115,7 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
 
     @Override
     protected SQLQuery buildFilterWhereClause(GetFeaturesByGeometryEvent event) {
-      return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment, clippingGeometry);
+      return patchWhereClause(super.buildFilterWhereClause(event), additionalFilterFragment, clippingGeometry, event.getGeometry());
     }
 
     @Override
@@ -124,29 +124,40 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
     }
 
     //TODO: Check why this patch is necessary
-    private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment, Geometry clippingGeometry) {
-
-      if (additionalFilterFragment != null) {
-        SQLQuery patchedQuery = new SQLQuery("${{innerFilterWhereClause}} AND ${{customWhereClause}}")
-                .withQueryFragment("innerFilterWhereClause", filterWhereClause)
-                .withQueryFragment("customWhereClause", additionalFilterFragment);
-
-        if(clippingGeometry != null) {
-          patchedQuery = new SQLQuery("${{innerFilterWhereClause}} " +
-                  " AND ST_Intersects(geo, ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)))" +
-                  " AND ${{customWhereClause}}")
-                  .withNamedParameter("wktClipGeometry", WKTHelper.geometryToWKT2d(clippingGeometry))
-                  .withQueryFragment("innerFilterWhereClause", filterWhereClause)
-                  .withQueryFragment("customWhereClause", additionalFilterFragment);
-        }
-
-        return patchedQuery;
+    private SQLQuery patchWhereClause(SQLQuery filterWhereClause, SQLQuery additionalFilterFragment, Geometry clippingGeometry
+        ,Geometry filterGeometry) {
+      SQLQuery clippingFragment = new SQLQuery("");
+      if(clippingGeometry != null && filterGeometry != null){
+        clippingFragment = new SQLQuery("""
+                AND ST_Intersects(geo,
+                      ST_Intersection(
+                        ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)),
+                        ST_Force3d(ST_GeomFromText(#{filterGeometry}, 4326))
+                      )
+                    )
+                """)
+                .withNamedParameter("filterGeometry", WKTHelper.geometryToWKT2d(filterGeometry))
+                .withNamedParameter("wktClipGeometry", WKTHelper.geometryToWKT2d(clippingGeometry));
       }
 
-      if(clippingGeometry != null) {
-        return new SQLQuery("${{innerFilterWhereClause}} AND ST_Intersects(geo, " +
-                "ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)))")
-                .withNamedParameter("wktClipGeometry", WKTHelper.geometryToWKT2d(clippingGeometry))
+      if (additionalFilterFragment != null) {
+        return new SQLQuery("""
+                ${{innerFilterWhereClause}}
+                ${{clippingFragment}}
+                AND ${{customWhereClause}}
+            """
+            )
+            .withQueryFragment("clippingFragment", clippingFragment)
+            .withQueryFragment("innerFilterWhereClause", filterWhereClause)
+            .withQueryFragment("customWhereClause", additionalFilterFragment);
+      }
+
+      if(clippingGeometry != null &&  filterGeometry !=null) {
+        return new SQLQuery("""
+                  ${{innerFilterWhereClause}}
+                  ${{clippingFragment}}
+                """)
+                .withQueryFragment("clippingFragment", clippingFragment)
                 .withQueryFragment("innerFilterWhereClause", filterWhereClause);
       }
       return filterWhereClause;
@@ -162,15 +173,9 @@ public class GetFeaturesByGeometryBuilder extends XyzQueryBuilder<GetFeaturesByG
 
     private SQLQuery overrideRawGeoExpression(SQLQuery selectClause, Geometry clippingGeometry, Geometry filterGeometry) {
       //If there is a clipping geometry and a filter geometry, we need to use the intersection of both
-      if (clippingGeometry != null && filterGeometry != null)
-        return new SQLQuery("ST_Intersection(ST_MakeValid(geo), " +
-                    "ST_Intersection(" +
-                      "ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326))," +
-                      "ST_Force3d(ST_GeomFromText(#{filterGeometry}, 4326))" +
-                    ")" +
-                ")")
+      if (clippingGeometry != null)
+        return new SQLQuery("ST_Intersection(geo, ST_Force3d(ST_GeomFromText(#{wktClipGeometry}, 4326)))")
                 .withNamedParameter("wktClipGeometry", WKTHelper.geometryToWKT2d(clippingGeometry))
-                .withNamedParameter("filterGeometry", WKTHelper.geometryToWKT2d(filterGeometry))
                 .withLabelsEnabled(false);
       return selectClause;
     }
