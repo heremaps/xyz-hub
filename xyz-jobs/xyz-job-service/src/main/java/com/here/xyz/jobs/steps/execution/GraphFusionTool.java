@@ -30,6 +30,7 @@ import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.RunEmrJob.ReferenceIdentifier;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -89,7 +90,7 @@ public class GraphFusionTool {
    * @param processor The action to be performed on the execution-node and its containing graph
    */
   private static void traverse(StepGraph graph, UnaryOperator<StepExecution> processor) {
-    List<StepExecution> nodes = graph.getExecutions();
+    List<StepExecution> nodes = new LinkedList<>(graph.getExecutions());
     Iterator<StepExecution> nodeIterator = nodes.iterator();
     int index = 0;
     while (nodeIterator.hasNext()) {
@@ -101,6 +102,8 @@ public class GraphFusionTool {
         traverse(subGraph, processor);
         execution = processor.apply(subGraph);
       }
+
+      //Update executions accordingly to the return value of the processor (null means removal)
       if (execution == null) {
         nodeIterator.remove();
         index--;
@@ -109,6 +112,7 @@ public class GraphFusionTool {
         nodes.set(index, execution);
       index++;
     }
+    graph.setExecutions(nodes);
   }
 
   /**
