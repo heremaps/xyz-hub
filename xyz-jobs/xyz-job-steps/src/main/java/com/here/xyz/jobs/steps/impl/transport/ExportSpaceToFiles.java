@@ -46,6 +46,7 @@ import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -61,6 +62,7 @@ import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -230,8 +232,10 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   @Override
   public void execute(boolean resume) throws Exception {
-    if(passthrough) return;
-    super.execute(resume);
+    if(passthrough)
+      executePassthrough();
+    else
+      super.execute(resume);
   }
 
   @Override
@@ -255,6 +259,15 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     }
     catch (WebClientException e) {
       throw new StepException("Error calculating the necessary resources for the step.", e);
+    }
+  }
+
+  private void executePassthrough() throws Exception {
+    List<Output> statisticsOutput  = loadOutputs(STATISTICS);
+    if(statisticsOutput != null && !statisticsOutput.isEmpty()) {
+      FeatureStatistics featureStatistics = (FeatureStatistics) statisticsOutput.get(0);
+      Statistics statistics = createStatistics(featureStatistics.getFeatureCount(), featureStatistics.getByteSize(), featureStatistics.getFileCount());
+      registerOutputs(List.of(statistics.internal), INTERNAL_STATISTICS);
     }
   }
 
@@ -298,6 +311,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   @Override
   public boolean validate() throws ValidationException {
+
+    if(isPassthrough()) return true;
+
     super.validate();
 
     if (versionRef.isAllVersions())
@@ -505,9 +521,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   public void setInputSets(List<InputSet> inputSets) {
     super.setInputSets(inputSets);
     if(isPassthrough()) {
-      this.outputSets = inputSets.stream()
-              .map(inputSet -> new OutputSet(inputSet.name(), inputSet.stepId(), SYSTEM, inputSet.modelBased()))
-              .collect(Collectors.toList());
+      Map<String, OutputSet> outputSetMap = this.outputSets.stream().collect(Collectors.toMap(os -> os.name, os -> os));
+      for(InputSet inputSet : inputSets) {
+        if(outputSetMap.containsKey(inputSet.name()))
+          outputSetMap.put(inputSet.name(), new OutputSet(inputSet.name(), inputSet.stepId(), SYSTEM, inputSet.modelBased()));
+      }
+      this.outputSets = outputSetMap.values().stream().toList();
     }
   }
 

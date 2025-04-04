@@ -363,6 +363,29 @@ public class GraphFusionTests {
   }
 
   @Test
+  public void graphWithSomeNotReusableSteps() {
+    SimpleTestStep notReusableStep1 = new SimpleTestStep<>(SOME_EXPORT).withNotReusable(true);
+    SimpleTestStep notReusableStep2 = new SimpleTestStep<>(SOME_OTHER_EXPORT).withNotReusable(true);
+
+    SimpleTestStepWithOutput reusableStep1 = new SimpleTestStepWithOutput(SOME_EXPORT);
+    SimpleTestStepWithOutput reusableStep2 = new SimpleTestStepWithOutput(SOME_OTHER_EXPORT);
+
+    StepGraph oldGraph = ((CompilationStepGraph) parallel(
+            sequential(notReusableStep1, reusableStep1),
+            sequential(notReusableStep2, reusableStep2)
+    )).enrich(OLD_JOB_ID);
+
+
+    SimpleTestStepWithOutput newStep1 = new SimpleTestStepWithOutput(SOME_EXPORT);
+    SimpleTestStepWithOutput newStep2 = new SimpleTestStepWithOutput(SOME_OTHER_EXPORT);
+    StepGraph newGraph = ((CompilationStepGraph) sequential(parallel(newStep1, newStep2))).enrich(NEW_JOB_ID);
+
+    StepGraph fusedGraph = fuse(newGraph, oldGraph);
+    assertEquals(2, fusedGraph.stepStream().filter(step -> step instanceof DelegateStep).count());
+    checkOutputs(fusedGraph, OLD_JOB_ID);
+  }
+
+  @Test
   public void canonicalizeGraph() {
     StepGraph graph = parallel(
         sequential(

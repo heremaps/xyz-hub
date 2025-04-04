@@ -55,7 +55,7 @@ public class DelegateStep extends Step<DelegateStep> {
     //Create the delegating output-sets by copying them from the delegate step but keep the visibility of each counterpart of the compiled (new) step
     outputSets = delegate.getOutputSets().stream().map(delegateOutputSet -> {
       OutputSet compiledOutputSet = delegator.getOutputSets().stream().filter(outputSet -> outputSet.name.equals(delegateOutputSet.name)).findFirst().get();
-      return new OutputSet(delegateOutputSet, this.delegate.getJobId(), this.delegate.getId(), compiledOutputSet.visibility);
+      return new OutputSet(delegateOutputSet, this.delegate.getJobId(), compiledOutputSet.visibility);
     }).toList();
   }
 
