@@ -19,8 +19,12 @@
 
 package com.here.xyz.util.geo;
 
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
 
 public class GeometryValidator {
   public static int MAX_NUMBER_OF_COORDNIATES = 12_000;
@@ -44,6 +48,43 @@ public class GeometryValidator {
     catch (Exception e){
       throw new GeometryException("Invalid filter geometry!");
     }
+  }
+
+  public static boolean isWorldBoundingBox(Geometry geometry) {
+    if (!(geometry instanceof Polygon)) {
+      return false;
+    }
+
+    Polygon polygon = (Polygon) geometry;
+    PolygonCoordinates coordinates = polygon.getCoordinates();
+
+    PolygonCoordinates expectedCoordinates = new PolygonCoordinates();
+    // Expected coordinates of a world bounding box
+    LinearRingCoordinates lrc = new LinearRingCoordinates();
+    lrc.add(new Position(-180.0, -90.0));
+    lrc.add(new Position(180.0, -90.0));
+    lrc.add(new Position(180.0, 90.0));
+    lrc.add(new Position(-180.0, 90.0));
+    lrc.add(new Position(-180.0, -90.0)); // close the ring
+    expectedCoordinates.add(lrc);
+
+    PolygonCoordinates inputCords = ((Polygon) geometry).getCoordinates();
+    if(inputCords.size() == 0)
+      return false;
+
+    LinearRingCoordinates inputLrc = inputCords.get(0);
+
+    if (lrc.size() != inputLrc.size()) {
+      return false;
+    }
+
+    for (int i = 0; i < lrc.size(); i++) {
+      if (!lrc.get(i).isEqual(inputLrc.get(i)) ) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   public static class GeometryException extends Exception {

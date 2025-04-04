@@ -1,11 +1,14 @@
 package com.here.xyz.test.util.geo;
 
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.LineString;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.util.geo.GeometryValidator;
 import com.here.xyz.util.geo.GeometryValidator.GeometryException;
 import org.junit.jupiter.api.Assertions;
@@ -45,4 +48,20 @@ public class GeometryValidatorIT {
         Assertions.assertThrows(GeometryException.class, () -> GeometryValidator.validateGeometry(point, 0));
     }
 
+    @Test
+    public void testIsWorldBoundingBox_withValidBBox() {
+        PolygonCoordinates expectedCoordinates = new PolygonCoordinates();
+        // Expected coordinates of a world bounding box
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+        lrc.add(new Position(-180.0, -90.0));
+        lrc.add(new Position(180.0, -90.0));
+        lrc.add(new Position(180.0, 90.0));
+        lrc.add(new Position(-180.0, 90.0));
+        lrc.add(new Position(-180.0, -90.0));
+
+        expectedCoordinates.add(lrc);
+        Polygon polygon = new Polygon().withCoordinates(expectedCoordinates);
+
+        Assertions.assertTrue(GeometryValidator.isWorldBoundingBox(polygon), "Should detect valid world bbox");
+    }
 }

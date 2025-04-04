@@ -35,6 +35,7 @@ import com.here.xyz.jobs.datasets.filters.FilteringSource;
 import com.here.xyz.jobs.datasets.filters.Filters;
 import com.here.xyz.jobs.datasets.streams.Notifications;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.util.geo.GeometryValidator;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = Id.NAME, property = "type")
@@ -90,6 +91,11 @@ public abstract class DatasetDescription implements Typed {
     @Override
     public void setFilters(Filters filters) {
       this.filters = filters;
+      if(filters != null && filters.getSpatialFilter() != null && filters.getSpatialFilter().getGeometry() != null
+        && GeometryValidator.isWorldBoundingBox(filters.getSpatialFilter().getGeometry())){
+        //Remove spatialFilter if it is a world bounding box
+        this.filters = null;
+      }
     }
 
     @Override
