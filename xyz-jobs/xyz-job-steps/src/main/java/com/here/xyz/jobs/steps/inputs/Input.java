@@ -62,7 +62,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   private String s3Bucket;
   @JsonIgnore
   private String s3Key;
-  private static Map<String, InputsMetadata> metadataCache = new WeakHashMap<>();
+  private static Map<InputCacheKey, InputsMetadata> metadataCache = new WeakHashMap<>();
   private static Map<InputCacheKey, List<Input>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
   private static Set<String> inputsCacheActive = new HashSet<>();
 
@@ -189,7 +189,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
         InputsMetadata.class);
     logger.info("Loaded metadata for job {}. Took {}ms ...", jobId, Core.currentTimeMillis() - t1);
     if (inputsCacheActive.contains(jobId))
-      metadataCache.put(jobId, metadata);
+      metadataCache.put(new InputCacheKey(jobId, setName), metadata);
 
     return metadata;
   }
@@ -205,7 +205,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   static final void storeMetadata(String jobId, InputsMetadata metadata, String setName) {
     try {
       if (inputsCacheActive.contains(jobId))
-        metadataCache.put(jobId, metadata);
+        metadataCache.put(new InputCacheKey(jobId, setName), metadata);
       S3Client.getInstance().putObject(inputMetaS3Key(jobId, setName), "application/json", metadata.serialize());
     }
     catch (IOException e) {
