@@ -222,7 +222,7 @@ public class Script {
   }
 
   private SQLQuery buildDeleteSchemaQuery(String schemaName) throws SQLException {
-    return new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE")
+    return new SQLQuery("DROP SCHEMA IF EXISTS ${schema}") //TODO: Re-add "CASCADE" into query, once PG bug was fixed
         .withVariable("schema", schemaName);
   }
 
