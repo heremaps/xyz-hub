@@ -21,7 +21,7 @@ package com.here.xyz.httpconnector;
 
 import com.here.xyz.httpconnector.config.AwsCWClient;
 import com.here.xyz.httpconnector.config.JobConfigClient;
-import com.here.xyz.httpconnector.config.JobS3Client;
+import com.here.xyz.httpconnector.config.JobS3ClientV2;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
@@ -68,7 +68,7 @@ public class CService extends Core {
   /**
    * The client to access job configs
    */
-  public static JobS3Client jobS3Client;
+  public static JobS3ClientV2 jobS3Client;
 
   /**
    * The client to access job configs
@@ -152,7 +152,7 @@ public class CService extends Core {
               .setTcpQuickAck(true)
               .setTcpFastOpen(true));
 
-          jobS3Client = new JobS3Client();
+          jobS3Client = new JobS3ClientV2();
           jobCWClient = new AwsCWClient();
           importQueue = new ImportQueue();
           exportQueue = new ExportQueue();

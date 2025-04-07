@@ -23,7 +23,9 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.here.xyz.httpconnector.config.JobS3Client;
+import com.here.xyz.httpconnector.config.JobS3ClientV2;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.net.URL;
 
@@ -74,6 +76,15 @@ public class ImportObject {
                 this.compressed = true;
     }
 
+    public ImportObject(S3Object s3Object, HeadObjectResponse objectMetadata) {
+        this.s3Key = s3Object.key();
+        this.filesize = s3Object.size();
+
+        if(objectMetadata.contentEncoding() != null &&
+            objectMetadata.contentEncoding().equalsIgnoreCase("gzip"))
+                this.compressed = true;
+    }
+
     @JsonIgnore
     public String getFilename() {
         if(s3Key == null)
@@ -108,7 +119,7 @@ public class ImportObject {
     public String getS3Key() { return s3Key;}
 
     public String getS3Key(String jobId, String part){
-        return JobS3Client.getImportPath(jobId, part);
+        return JobS3ClientV2.getImportPath(jobId, part);
     }
 
     public URL getUploadUrl(){ return uploadUrl;}
