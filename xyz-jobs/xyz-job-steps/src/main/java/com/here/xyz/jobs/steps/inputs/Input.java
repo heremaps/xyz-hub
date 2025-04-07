@@ -63,7 +63,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   @JsonIgnore
   private String s3Key;
   private static Map<String, InputsMetadata> metadataCache = new WeakHashMap<>();
-  private static Map<String, List<Input>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
+  private static Map<InputCacheKey, List<Input>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
   private static Set<String> inputsCacheActive = new HashSet<>();
 
   public static String inputS3Prefix(String jobId) {
@@ -117,10 +117,11 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   public static List<Input> loadInputs(String jobId, String setName) {
     //Only cache inputs of jobs which are submitted already
     if (inputsCacheActive.contains(jobId)) {
-      List<Input> inputs = inputsCache.get(jobId);
+      InputCacheKey cacheKey = new InputCacheKey(jobId, setName);
+      List<Input> inputs = inputsCache.get(cacheKey);
       if (inputs == null) {
         inputs = loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
-        inputsCache.put(jobId, inputs);
+        inputsCache.put(cacheKey, inputs);
       }
       return inputs;
     }
@@ -380,4 +381,6 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   public record InputMetadata(@JsonProperty long byteSize, @JsonProperty boolean compressed) {}
   public record InputsMetadata(@JsonProperty Map<String, InputMetadata> inputs, @JsonProperty Set<String> referencingJobs,
       @JsonProperty String referencedJob, @JsonProperty S3Uri scannedFrom) implements XyzSerializable {}
+
+  private record InputCacheKey(String jobId, String setName) {}
 }

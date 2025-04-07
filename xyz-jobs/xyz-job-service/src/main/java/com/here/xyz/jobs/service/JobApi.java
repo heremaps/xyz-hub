@@ -260,8 +260,7 @@ public class JobApi extends JobApiBase {
 
   protected String inputSetName(RoutingContext context) {
     String setName = context.pathParam("setName");
-    setName =  setName == null ? DEFAULT_INPUT_SET_NAME : setName;
-    return setName;
+    return setName == null ? DEFAULT_INPUT_SET_NAME : setName;
   }
 
   protected Input getJobInputFromBody(RoutingContext context) throws HttpException {
