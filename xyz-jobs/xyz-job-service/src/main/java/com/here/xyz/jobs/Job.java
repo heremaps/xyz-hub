@@ -295,7 +295,7 @@ public class Job implements XyzSerializable {
    * @param step
    * @return
    */
-  public Future<Void> updateStep(Step<?> step) {
+  public Future<Void> updateStep(Step step) {
     final Step existingStep = getStepById(step.getId());
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
