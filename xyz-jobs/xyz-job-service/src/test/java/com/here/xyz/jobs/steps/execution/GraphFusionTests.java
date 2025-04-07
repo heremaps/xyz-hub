@@ -363,26 +363,37 @@ public class GraphFusionTests {
   }
 
   @Test
-  public void graphWithSomeNotReusableSteps() {
-    SimpleTestStep notReusableStep1 = new SimpleTestStep<>(SOME_EXPORT).withNotReusable(true);
-    SimpleTestStep notReusableStep2 = new SimpleTestStep<>(SOME_OTHER_EXPORT).withNotReusable(true);
+  public void canonicalizeParallelyWrappedSequentialGraphs() {
+    StepGraph graph = parallel(
+        sequential(
+            new SimpleTestStep<>(SOME_EXPORT).withNotReusable(true),
+            new SimpleTestStepWithOutput(SOME_EXPORT)
+        ),
+        sequential(
+            new SimpleTestStep<>(SOME_OTHER_EXPORT).withNotReusable(true),
+            new SimpleTestStepWithOutput(SOME_OTHER_EXPORT)
+        )
+    );
 
-    SimpleTestStepWithOutput reusableStep1 = new SimpleTestStepWithOutput(SOME_EXPORT);
-    SimpleTestStepWithOutput reusableStep2 = new SimpleTestStepWithOutput(SOME_OTHER_EXPORT);
+    StepGraph canonicalGraph = canonicalize(graph);
 
-    StepGraph oldGraph = ((CompilationStepGraph) parallel(
-            sequential(notReusableStep1, reusableStep1),
-            sequential(notReusableStep2, reusableStep2)
-    )).enrich(OLD_JOB_ID);
+    assertTrue(canonicalGraph.isParallel());
+    assertEquals(2, canonicalGraph.getExecutions().size());
+  }
 
+  @Test
+  public void canonicalizeWrappedParallelGraph() {
+    StepGraph graph = sequential(
+        parallel(
+            new SimpleTestStepWithOutput(SOME_EXPORT),
+            new SimpleTestStepWithOutput(SOME_OTHER_EXPORT)
+        )
+    );
 
-    SimpleTestStepWithOutput newStep1 = new SimpleTestStepWithOutput(SOME_EXPORT);
-    SimpleTestStepWithOutput newStep2 = new SimpleTestStepWithOutput(SOME_OTHER_EXPORT);
-    StepGraph newGraph = ((CompilationStepGraph) sequential(parallel(newStep1, newStep2))).enrich(NEW_JOB_ID);
+    StepGraph canonicalGraph = canonicalize(graph);
 
-    StepGraph fusedGraph = fuse(newGraph, oldGraph);
-    assertEquals(2, fusedGraph.stepStream().filter(step -> step instanceof DelegateStep).count());
-    checkOutputs(fusedGraph, OLD_JOB_ID);
+    assertTrue(canonicalGraph.isParallel());
+    assertEquals(2, canonicalGraph.getExecutions().size());
   }
 
   @Test

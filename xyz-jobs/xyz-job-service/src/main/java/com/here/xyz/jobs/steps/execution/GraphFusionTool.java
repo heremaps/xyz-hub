@@ -80,6 +80,9 @@ public class GraphFusionTool {
       }
       return execution;
     });
+    //Unwrap the top-level graph if it only contains one subgraph
+    if (graph.getExecutions().size() == 1 && graph.getExecutions().get(0) instanceof StepGraph subGraph)
+      graph = subGraph;
 
     return graph;
   }
