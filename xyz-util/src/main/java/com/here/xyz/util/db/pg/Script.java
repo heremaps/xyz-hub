@@ -383,7 +383,7 @@ public class Script {
   private List<String> loadSchemaFunctions(String schema) throws SQLException {
     return new SQLQuery("""
         SELECT proc.oid::REGPROCEDURE as signature FROM pg_proc proc LEFT JOIN pg_namespace ns ON proc.pronamespace = ns.oid
-        WHERE ns.nspname = #{schema}
+        WHERE ns.nspname = #{schema} AND proc.prokind = 'f'
         """)
         .withNamedParameter("schema", schema)
         .run(dataSourceProvider, rs -> {
