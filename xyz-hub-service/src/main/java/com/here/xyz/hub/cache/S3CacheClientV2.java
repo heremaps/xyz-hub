@@ -66,12 +66,13 @@ public class S3CacheClientV2 implements CacheClient {
 
         if (Service.configuration.LOCALSTACK_ENDPOINT != null) {
             builder.endpointOverride(URI.create(Service.configuration.LOCALSTACK_ENDPOINT))
-                    .region(Region.of(Service.configuration.AWS_REGION))
                     .credentialsProvider(
                             StaticCredentialsProvider.create(
                                     AwsBasicCredentials.create("localstack", "localstack")))
                     .forcePathStyle(true);
-        } else {
+        }
+
+        if (Service.configuration.AWS_REGION != null && !Service.configuration.AWS_REGION.isEmpty()) {
             builder.region(Region.of(Service.configuration.AWS_REGION));
         }
 

@@ -304,11 +304,19 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
     //Validate input Geometry
     if (this.spatialFilter != null) {
+      if(spatialFilter.getGeometry() == null)
+        throw new ValidationException("Invalid arguments! Geometry cant be null!");
+
+      Geometry jtsGeometry = spatialFilter.getGeometry().getJTSGeometry();
       spatialFilter.validateSpatialFilter();
+
+      //Enhanced Check validation check of Geometry with JTS
+      if(jtsGeometry != null && !jtsGeometry.isValid())
+        throw new ValidationException("Invalid geometry in spatialFilter!");
+
       if(restrictExtendOfSpatialFilter) {
         try {
-          Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry((spatialFilter.getGeometry().getJTSGeometry()),
-                  spatialFilter.getRadius());
+          Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry(jtsGeometry, spatialFilter.getRadius());
           int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
           if (GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
             throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["

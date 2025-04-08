@@ -319,6 +319,7 @@ public class JobAdminApi extends JobApiBase {
             State newStepState = switch (emrJobStatus) {
               case "RUNNING" -> RUNNING;
               case "SUCCESS" -> SUCCEEDED;
+              case "CANCELLING" -> CANCELLING;
               case "CANCELLED" -> CANCELLED;
               case "FAILED" -> FAILED;
               default -> null;

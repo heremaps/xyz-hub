@@ -28,6 +28,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -57,7 +58,10 @@ public class AwsS3ClientV2 {
 
     public AwsS3ClientV2() {
         final S3ClientBuilder builder = S3Client.builder();
-        S3Presigner.Builder presignerBuilder = S3Presigner.builder();
+        S3Presigner.Builder presignerBuilder = S3Presigner.builder()
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(true)
+                        .build());
 
         final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
 

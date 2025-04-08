@@ -258,6 +258,7 @@ public class Job implements XyzSerializable {
    * @return A future providing a boolean telling whether the action was performed already.
    */
   public Future<Boolean> cancel() {
+    logger.info("[{}] Cancelling job ...", getId());
     getStatus().setState(CANCELLING);
 
     return storeStatus(null)
@@ -306,15 +307,15 @@ public class Job implements XyzSerializable {
     State existingStepState = step.getStatus().getState();
 
     step.getStatus()
-            .withState(status.getState())
-            .withErrorCode(status.getErrorCode())
-            .withErrorCause(status.getErrorCause())
-            .withErrorMessage(status.getErrorMessage());
+        .withState(status.getState())
+        .withErrorCode(status.getErrorCode())
+        .withErrorCause(status.getErrorCause())
+        .withErrorMessage(status.getErrorMessage());
 
     return updateStep(step, existingStepState, cancelOnFailure);
   }
 
-  private Future<Void> updateStep(Step<?> step, State previousStepState, boolean cancelOnFailure) {
+  private Future<Void> updateStep(Step step, State previousStepState, boolean cancelOnFailure) {
     //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
@@ -364,6 +365,7 @@ public class Job implements XyzSerializable {
    * @return A future providing a boolean telling whether the action was performed already.
    */
   public Future<Boolean> resume() {
+    logger.info("[{}] Resuming job ...", getId());
     if (isResumable()) {
       getStatus().setState(RESUMING);
       getSteps().stepStream().forEach(step -> {
