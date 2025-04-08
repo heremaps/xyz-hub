@@ -5,6 +5,7 @@
   "httpPort": 8080,
   "env": "local",
   "requestBodyLimit": 25,
+  "requestHeaderLimit": 16,
   "authMode": "DUMMY",
   "jwtPvtKeyPath":  "auth/jwt.key",
   "jwtPubKeyPaths": "auth/jwt.pub",

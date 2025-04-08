@@ -47,3 +47,8 @@ excludes:
   - pattern: "provided"
     reason: "PROVIDED_DEPENDENCY_OF"
     comment: "Scope with dependencies provided by the JDK or container at runtime. Not included in released artifacts."
+analyzer:
+  package_managers:
+    Gradle:
+      options:
+        javaVersion: 17

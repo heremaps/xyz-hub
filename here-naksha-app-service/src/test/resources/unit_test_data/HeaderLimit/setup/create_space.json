@@ -1,0 +1,15 @@
+{
+  "id": "header_limit_test_space",
+  "type": "Space",
+  "title": "Temp Space for Testing Header Limit",
+  "description": "Temp Space for validating header limit specific test scenarios",
+  "eventHandlerIds": [
+    "header_limit_test_handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "header_limit_test_collection",
+      "type": "NakshaCollection"
+    }
+  }
+}

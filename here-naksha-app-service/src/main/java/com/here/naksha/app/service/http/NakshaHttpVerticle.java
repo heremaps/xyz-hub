@@ -90,15 +90,6 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
   private final NakshaHubConfig hubConfig;
 
-  private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
-      .setCompressionSupported(true)
-      .setDecompressionSupported(true)
-      .setHandle100ContinueAutomatically(true)
-      .setTcpQuickAck(true)
-      .setTcpFastOpen(true)
-      .setMaxInitialLineLength(16 * 1024 * 1024) // mb
-      .setIdleTimeout(300);
-
   /**
    * Creates a new verticle. Each verticle will be bound to a single IO worker.
    *
@@ -205,7 +196,10 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         router.route().failureHandler(this::failureHandler);
 
         // add handler to set max allowed request payload size
-        log.info("Setting Http request body limit to {} MB", hubConfig.requestBodyLimit);
+        log.info(
+            "Setting Http request body limit to {} MB and Header limit to {} KB",
+            hubConfig.requestBodyLimit,
+            hubConfig.requestHeaderLimit);
         router.route()
             .order(-1) // we add this before any other handler
             .handler(BodyHandler.create()
@@ -222,6 +216,16 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         // round-robin strategy.
         //
         // https://vertx.io/docs/vertx-core/java/#_server_sharing
+        final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
+            .setCompressionSupported(true)
+            .setDecompressionSupported(true)
+            .setHandle100ContinueAutomatically(true)
+            .setTcpQuickAck(true)
+            .setTcpFastOpen(true)
+            .setMaxInitialLineLength(16 * 1024 * 1024) // MB to Bytes
+            .setMaxHeaderSize(hubConfig.requestHeaderLimit * 1024) // KB to Bytes
+            .setIdleTimeout(300);
+
         vertx.createHttpServer(SERVER_OPTIONS)
             .requestHandler(router)
             .connectionHandler(loggingConnectionHandler())

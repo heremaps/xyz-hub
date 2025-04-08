@@ -3,6 +3,7 @@
     "type": "Feature",
     "httpPort": 7080,
     "requestBodyLimit": 25,
+    "requestHeaderLimit": 16,
     "authMode": "JWT",
     "jwtPvtKeyPath":  "SOME_PVT_KEY_PATH",
     "jwtPubKeyPaths": "SOME_PUB_KEY_PATHS",
