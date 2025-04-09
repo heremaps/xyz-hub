@@ -99,6 +99,29 @@ public class GraphFusionTests {
   }
 
   @Test
+  public void reuseSingletonGraphTransitively() {
+    Step oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldProducer);
+
+    SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph newGraph = sequential(NEW_JOB_ID, newProducer);
+
+    StepGraph firstFusedGraph = fuse(newGraph, oldGraph);
+
+    SimpleTestStepWithOutput anotherNewProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph anotherNewGraph = sequential(NEW_JOB_ID, newProducer);
+
+    StepGraph fusedGraph = fuse(anotherNewGraph, firstFusedGraph);
+
+    assertEquals(1, fusedGraph.size());
+    assertTrue(fusedGraph.stepStream().allMatch(step -> step instanceof DelegateStep delegateStep && delegateStep.getDelegate() instanceof SimpleTestStepWithOutput));
+    assertTrue(oldGraph.isEquivalentTo(anotherNewGraph));
+    assertTrue(fusedGraph.isEquivalentTo(oldGraph));
+    checkInputs(fusedGraph, newGraph);
+    checkOutputs(fusedGraph, OLD_JOB_ID);
+  }
+
+  @Test
   public void simpleSequentialGraphFullyReusable() {
     Step oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     Step oldConsumer = new SimpleTestStep(SOME_CONSUMER);
@@ -124,13 +147,11 @@ public class GraphFusionTests {
   public void simpleSequentialGraphPartiallyReusable() {
     SimpleTestStepWithOutput oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     SimpleTestStep oldConsumer = new SimpleTestStep(SOME_CONSUMER);
-    StepGraph oldGraph = sequential(OLD_JOB_ID,
-        oldProducer, step(oldConsumer, inputsOf(oldProducer)));
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldProducer, step(oldConsumer, inputsOf(oldProducer)));
 
     SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     SimpleTestStep newConsumer = new SimpleTestStep("SomeOtherStep");
-    StepGraph newGraph = sequential(NEW_JOB_ID,
-        newProducer, step(newConsumer, inputsOf(newProducer)));
+    StepGraph newGraph = sequential(NEW_JOB_ID, newProducer, step(newConsumer, inputsOf(newProducer)));
 
     StepGraph fusedGraph = fuse(newGraph, oldGraph);
 
@@ -147,13 +168,11 @@ public class GraphFusionTests {
   public void simpleSequentialGraphNotReusable() {
     SimpleTestStepWithOutput oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     SimpleTestStep oldConsumer = new SimpleTestStep(SOME_CONSUMER);
-    StepGraph oldGraph = sequential(OLD_JOB_ID,
-        oldProducer, step(oldConsumer, inputsOf(oldProducer)));
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldProducer, step(oldConsumer, inputsOf(oldProducer)));
 
     SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput("SomeOtherExport");
     SimpleTestStep newConsumer = new SimpleTestStep("SomeOtherStep");
-    StepGraph newGraph = sequential(NEW_JOB_ID,
-        newProducer, step(newConsumer, inputsOf(newProducer)));
+    StepGraph newGraph = sequential(NEW_JOB_ID, newProducer, step(newConsumer, inputsOf(newProducer)));
 
     StepGraph fusedGraph = fuse(newGraph, oldGraph);
 
