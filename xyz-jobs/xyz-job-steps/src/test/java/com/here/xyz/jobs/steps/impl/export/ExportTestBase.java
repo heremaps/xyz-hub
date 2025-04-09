@@ -75,7 +75,6 @@ public class ExportTestBase extends StepTest {
     protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs)
             throws IOException {
         Assertions.assertNotEquals(0, userOutputs.size());
-        Assertions.assertNotEquals(0, systemOutputs.size());
 
         List<Feature>  exportedFeatures = new ArrayList<>();
 

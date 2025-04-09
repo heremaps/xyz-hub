@@ -351,8 +351,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
                     ? new TransportStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"), rs.getInt("files_uploaded"))
                     : new TransportStatistics(0, 0, 0));
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize
-            + " files=" + stepStatistics.fileCount);
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize + " files=" + stepStatistics.fileCount);
 
     registerOutputs(List.of(new FeatureStatistics().withFeatureCount(stepStatistics.rowCount).withByteSize(stepStatistics.byteSize)),
         STATISTICS);
