@@ -46,7 +46,6 @@ import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
@@ -90,7 +89,6 @@ import org.locationtech.jts.geom.Geometry;
  */
 public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles> {
   public static final String STATISTICS = "statistics";
-  public static final String INTERNAL_STATISTICS = "internalStatistics";
   public static final String EXPORTED_DATA = "exportedData";
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
@@ -140,7 +138,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   {
     setOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
-        new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false)
     ));
   }
@@ -232,9 +229,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   @Override
   public void execute(boolean resume) throws Exception {
-    if(passthrough)
-      executePassthrough();
-    else
+    if (!passthrough)
       super.execute(resume);
   }
 
@@ -259,15 +254,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     }
     catch (WebClientException e) {
       throw new StepException("Error calculating the necessary resources for the step.", e);
-    }
-  }
-
-  private void executePassthrough() throws Exception {
-    List<Output> statisticsOutput  = loadOutputs(STATISTICS);
-    if(statisticsOutput != null && !statisticsOutput.isEmpty()) {
-      FeatureStatistics featureStatistics = (FeatureStatistics) statisticsOutput.get(0);
-      Statistics statistics = createStatistics(featureStatistics.getFeatureCount(), featureStatistics.getByteSize(), featureStatistics.getFileCount());
-      registerOutputs(List.of(statistics.internal), INTERNAL_STATISTICS);
     }
   }
 
@@ -360,17 +346,16 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   protected void onAsyncSuccess() throws Exception {
     String schema = getSchema(db());
 
-    Statistics statistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
+    TransportStatistics stepStatistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
             0, rs -> rs.next()
-                    ? createStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"),
-                    rs.getInt("files_uploaded"))
-                    : createStatistics(0, 0, 0));
+                    ? new TransportStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"), rs.getInt("files_uploaded"))
+                    : new TransportStatistics(0, 0, 0));
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + statistics.published().getByteSize()
-            + " files=" + statistics.internal().getFileCount());
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize
+            + " files=" + stepStatistics.fileCount);
 
-    registerOutputs(List.of(statistics.published()), STATISTICS);
-    registerOutputs(List.of(statistics.internal()), INTERNAL_STATISTICS);
+    registerOutputs(List.of(new FeatureStatistics().withFeatureCount(stepStatistics.rowCount).withByteSize(stepStatistics.byteSize)),
+        STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
@@ -437,14 +422,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   protected SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
     return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskData));
-  }
-
-  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) {
-    return new Statistics(
-        //NOTE: Do not publish the file count for the user facing statistics, as it could be confusing when it comes to invisible intermediate outputs
-        new FeatureStatistics().withByteSize(byteSize).withFeatureCount(featureCount),
-        new FeatureStatistics().withFileCount(fileCount)
-    );
   }
 
   protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
@@ -569,5 +546,5 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
         .toExecutableQueryString();
   }
 
-  private record Statistics(FeatureStatistics published, FeatureStatistics internal) {}
+  private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
 }
