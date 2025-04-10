@@ -19,7 +19,7 @@ public class SecretManagerCredentialsProviderV2 implements AwsCredentialsProvide
     private String secretArn;
 
     /**
-     * The client to access secrets from AWS Secret Manager
+     * The client to access secrets from AWS v2 Secret Manager
      */
     private static AwsSecretManagerClientV2 jobSecretClient;
 

@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.xyz.hub.cache;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -40,6 +39,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,17 +47,28 @@ public class S3CacheClientV2 implements CacheClient {
     private static final String EXPIRES_AT = "expiresAt";
     private static final String LAST_ACCESSED_AT = "lastAccessedAt";
     private static final long ACCESS_UPDATE_TIME_THRESHOLD = TimeUnit.DAYS.toMillis(1);
-    private static CacheClient instance;
     private static final Logger logger = LogManager.getLogger();
+    private static final String prefix = "xyz-hub-cache/";
+    private static CacheClient instance;
     private volatile S3Client s3client;
     private String bucket;
-    private static final String prefix = "xyz-hub-cache/";
 
     private S3CacheClientV2() {
         if (Service.configuration.XYZ_HUB_S3_BUCKET == null)
             throw new RuntimeException("No S3 bucket defined. S3CacheClient can not be used.");
         bucket = Service.configuration.XYZ_HUB_S3_BUCKET;
         initS3Client();
+    }
+
+    public static synchronized CacheClient getInstance() {
+        try {
+            if (instance == null)
+                instance = new S3CacheClientV2();
+        } catch (Exception e) {
+            logger.error("Error when trying to create the S3 client.", e);
+            instance = new NoopCacheClient();
+        }
+        return instance;
     }
 
     private void initS3Client() {
@@ -79,18 +90,6 @@ public class S3CacheClientV2 implements CacheClient {
         s3client = builder.build();
     }
 
-    public static synchronized CacheClient getInstance() {
-        try {
-            if (instance == null)
-                instance = new S3CacheClientV2();
-        }
-        catch (Exception e) {
-            logger.error("Error when trying to create the S3 client.", e);
-            instance = new NoopCacheClient();
-        }
-        return instance;
-    }
-
     @Override
     public Future<byte[]> get(String key) {
         return Core.vertx.executeBlocking(promise -> {
@@ -102,15 +101,13 @@ public class S3CacheClientV2 implements CacheClient {
 
                 byte[] content = s3client.getObject(request, ResponseTransformer.toBytes()).asByteArray();
 
-                // Get the metadata to update lastAccessedAt
                 GetObjectResponse response = s3client.getObject(request, ResponseTransformer.toBytes()).response();
                 Map<String, String> metadata = response.metadata();
-                String expiresAt = metadata.get(EXPIRES_AT.toLowerCase());
                 String lastAccessedAt = metadata.get(LAST_ACCESSED_AT.toLowerCase());
 
                 if (lastAccessedAt != null) {
                     // Update the "lastAccessedAt" metadata field asynchronously
-                    updateLastAccessedAt(key, metadata, expiresAt, response.contentLength(), Core.currentTimeMillis());
+                    updateLastAccessedAt(key, metadata, Core.currentTimeMillis());
                 }
 
                 promise.complete(content);
@@ -146,8 +143,7 @@ public class S3CacheClientV2 implements CacheClient {
         }, false);
     }
 
-    private void updateLastAccessedAt(String key, Map<String, String> existingMetadata,
-                                      String expiresAt, Long contentLength, long lastAccessedAt) {
+    private void updateLastAccessedAt(String key, Map<String, String> existingMetadata, long lastAccessedAt) {
         // Only perform the update if the last update was not done too recently (to save requests)
         String oldAccessedAtStr = existingMetadata.get(LAST_ACCESSED_AT.toLowerCase());
         if (oldAccessedAtStr == null) return;
@@ -158,7 +154,6 @@ public class S3CacheClientV2 implements CacheClient {
 
         Core.vertx.executeBlocking(promise -> {
             try {
-                // Create new metadata
                 Map<String, String> newMetadata = new HashMap<>(existingMetadata);
                 newMetadata.put(LAST_ACCESSED_AT.toLowerCase(), "" + lastAccessedAt);
 

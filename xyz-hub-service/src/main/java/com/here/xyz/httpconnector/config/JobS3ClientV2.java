@@ -41,18 +41,21 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
 public class JobS3ClientV2 extends AwsS3ClientV2 {
-    private static final Logger logger = LogManager.getLogger();
-
-    private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
-    private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES =  4 * 1024 * 1024;
-
-    protected static final String IMPORT_MANUAL_UPLOAD_FOLDER = "manual";
-    protected static final String IMPORT_UPLOAD_FOLDER = "imports";
     public static final String EXPORT_DOWNLOAD_FOLDER = "exports";
     public static final String EXPORT_PERSIST_FOLDER = "persistent";
+    protected static final String IMPORT_MANUAL_UPLOAD_FOLDER = "manual";
+    protected static final String IMPORT_UPLOAD_FOLDER = "imports";
+    private static final Logger logger = LogManager.getLogger();
+    private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
+    private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 4 * 1024 * 1024;
+    private static Cache<String, Map<String, ExportObject>> s3ScanningCache = CacheBuilder
+            .newBuilder()
+            .maximumSize(100)
+            .expireAfterWrite(10, TimeUnit.MINUTES)
+            .build();
 
-    public static String getImportPath(String jobId, String part){
-        return IMPORT_UPLOAD_FOLDER +"/"+ jobId+"/"+part;
+    public static String getImportPath(String jobId, String part) {
+        return IMPORT_UPLOAD_FOLDER + "/" + jobId + "/" + part;
     }
 
     public ImportObject generateUploadURL(Import job) throws IOException {
@@ -65,28 +68,28 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
         int currentPart = job.getImportObjects().size();
 
         String key = "${uploadFolder}/${jobId}/part_${currentPart}.${extension}"
-                .replace("${uploadFolder}",IMPORT_UPLOAD_FOLDER)
-                .replace("${jobId}",job.getId())
-                .replace("${currentPart}",Integer.toString(currentPart))
-                .replace("${extension}",extension);
+                .replace("${uploadFolder}", IMPORT_UPLOAD_FOLDER)
+                .replace("${jobId}", job.getId())
+                .replace("${currentPart}", Integer.toString(currentPart))
+                .replace("${extension}", extension);
 
         URL url = generateUploadURL(bucketName, key);
-        return new ImportObject(key,url);
+        return new ImportObject(key, url);
     }
 
-    public Map<String, ImportObject> scanImportPath(Import job, Job.CSVFormat csvFormat){
+    public Map<String, ImportObject> scanImportPath(Import job, Job.CSVFormat csvFormat) {
         /** if we cant find a upload url read from IMPORT_MANUAL_UPLOAD_FOLDER */
         String firstKey = (String) job.getImportObjects().keySet().toArray()[0];
         String path = getS3Path(job);
 
         /** manual uploaded files are not allowed to be named as part_*.csv */
-        if(!firstKey.matches("part_\\d*.csv"))
-            path = IMPORT_MANUAL_UPLOAD_FOLDER +"/"+ path;
+        if (!firstKey.matches("part_\\d*.csv"))
+            path = IMPORT_MANUAL_UPLOAD_FOLDER + "/" + path;
 
         return scanImportPath(path, CService.configuration.JOBS_S3_BUCKET, csvFormat);
     }
 
-    public Map<String,ImportObject> scanImportPath(String prefix, String bucketName, Job.CSVFormat csvFormat){
+    public Map<String, ImportObject> scanImportPath(String prefix, String bucketName, Job.CSVFormat csvFormat) {
         Map<String, ImportObject> importObjectList = new HashMap<>();
 
         for (S3Object objectSummary : scanFolder(bucketName, prefix)) {
@@ -105,7 +108,7 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
         return importObjectList;
     }
 
-    private ImportObject checkFile(S3Object s3Object, HeadObjectResponse objectMetadata, Job.CSVFormat csvFormat){
+    private ImportObject checkFile(S3Object s3Object, HeadObjectResponse objectMetadata, Job.CSVFormat csvFormat) {
         //skip validation till refactoring is done.
         ImportObject io = new ImportObject(s3Object, objectMetadata);
         io.setStatus(ImportObject.Status.waiting);
@@ -113,12 +116,12 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
         return io;
     }
 
-    private ImportObject checkFileBak(S3Object s3Object, HeadObjectResponse objectMetadata, String bucketName, Job.CSVFormat csvFormat){
+    private ImportObject checkFileBak(S3Object s3Object, HeadObjectResponse objectMetadata, String bucketName, Job.CSVFormat csvFormat) {
         ImportObject io = new ImportObject(s3Object, objectMetadata);
 
         try {
-            if(objectMetadata.contentEncoding() != null &&
-                    objectMetadata.contentEncoding().equalsIgnoreCase("gzip")){
+            if (objectMetadata.contentEncoding() != null &&
+                    objectMetadata.contentEncoding().equalsIgnoreCase("gzip")) {
                 validateFirstZippedCSVLine(io.getS3Key(), bucketName, csvFormat, "", 0);
             } else {
                 validateFirstCSVLine(io.getS3Key(), bucketName, csvFormat, "", 0);
@@ -126,11 +129,11 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
             io.setStatus(ImportObject.Status.waiting);
             io.setValid(true);
         } catch (Exception e) {
-            if(e instanceof UnsupportedEncodingException){
+            if (e instanceof UnsupportedEncodingException) {
                 logger.info("CSV Format is not valid: {}", io.getS3Key());
-            }else if(e instanceof ZipException){
+            } else if (e instanceof ZipException) {
                 logger.info("Wrong content-encoding: [}", io.getS3Key());
-            }else
+            } else
                 logger.warn("checkFile error {} {}", io.getS3Key(), e);
             io.setValid(false);
         }
@@ -157,11 +160,11 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
             reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
 
             int val;
-            while((val = reader.read()) != -1) {
-                char c = (char)val;
+            while ((val = reader.read()) != -1) {
+                char c = (char) val;
                 line += c;
 
-                if(c == '\n' || c == '\r'){
+                if (c == '\n' || c == '\r') {
                     Validator.validateCSVLine(line, csvFormat);
                     return;
                 }
@@ -176,25 +179,24 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
             }
             throw e;
         } finally {
-            if(is != null) {
+            if (is != null) {
                 is.close();
             }
-            if(reader != null)
+            if (reader != null)
                 reader.close();
         }
 
         /** not found a line break */
-        if(toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
+        if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
             /** not found a line break till now - search further */
             fromKB = toKB + 1;
             validateFirstCSVLine(keyName, bucketName, csvFormat, line, fromKB);
-        }
-        else
+        } else
             throw new UnsupportedEncodingException("Not able to find EOL!");
     }
 
     private void validateFirstZippedCSVLine(String keyName, String bucketName, Job.CSVFormat csvFormat, String line, int toKB) throws IOException {
-        if(toKB == 0)
+        if (toKB == 0)
             toKB = VALIDATE_LINE_KB_STEPS;
 
         GetObjectRequest gor;
@@ -228,38 +230,30 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
         } catch (EOFException e) {
             /** Ignore incomplete stream */
         } finally {
-            if(is != null) {
+            if (is != null) {
                 is.close();
             }
-            if(reader != null)
+            if (reader != null)
                 reader.close();
         }
 
-        if(toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
+        if (toKB <= VALIDATE_LINE_MAX_LINE_SIZE_BYTES) {
             /** not found a line break till now - search further */
             toKB = toKB + VALIDATE_LINE_KB_STEPS;
             validateFirstZippedCSVLine(keyName, bucketName, csvFormat, line, toKB);
-        }
-        else
+        } else
             throw new UnsupportedEncodingException("Not able to find EOL!");
     }
 
-    private static Cache<String, Map<String, ExportObject>> s3ScanningCache = CacheBuilder
-            .newBuilder()
-            .maximumSize(100)
-            .expireAfterWrite(10, TimeUnit.MINUTES)
-            .build();
-
-    public Map<String,ExportObject> scanExportPathCached(String prefix) {
+    public Map<String, ExportObject> scanExportPathCached(String prefix) {
         try {
             return s3ScanningCache.get(prefix, () -> scanExportPath(prefix));
-        }
-        catch (ExecutionException e) {
+        } catch (ExecutionException e) {
             throw new RuntimeException(e.getCause());
         }
     }
 
-    public Map<String,ExportObject> scanExportPath(String prefix) {
+    public Map<String, ExportObject> scanExportPath(String prefix) {
         String bucketName = CService.configuration.JOBS_S3_BUCKET;
         Map<String, ExportObject> exportObjects = new HashMap<>();
 
@@ -295,7 +289,7 @@ public class JobS3ClientV2 extends AwsS3ClientV2 {
         });
     }
 
-    public Future<Job> cleanJobData(Job job){
+    public Future<Job> cleanJobData(Job job) {
         String path = getS3Path(job);
 
         if (job instanceof Export export && export.getSuperId() != null)

@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
@@ -47,12 +46,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A client for reading and writing from and to S3
+ * A client for reading and writing from and to S3 based on AWS v2
  */
 public class AwsS3ClientV2 {
-    private static final Logger logger = LogManager.getLogger();
     protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
-
+    private static final Logger logger = LogManager.getLogger();
     protected final S3Client client;
     protected final S3Presigner presigner;
 
