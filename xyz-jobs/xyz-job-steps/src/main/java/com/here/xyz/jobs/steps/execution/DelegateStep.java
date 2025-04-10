@@ -36,9 +36,9 @@ import java.util.List;
 })
 public class DelegateStep extends Step<DelegateStep> {
   @JsonView({Internal.class, Static.class})
-  protected final Step<?> delegate;
+  private final Step<?> delegate;
   @JsonIgnore
-  protected final Step<?> delegator;
+  private final Step<?> delegator;
   private RuntimeInfo status = new RuntimeInfo();
 
   //Only needed for deserialization purposes
@@ -68,7 +68,6 @@ public class DelegateStep extends Step<DelegateStep> {
   }
 
   private Step unwrapDelegate(DelegateStep delegate) {
-    //TODO: Check if JobInternalDelegateStep can also be transitive
     return delegate.getDelegate() instanceof DelegateStep transitiveDelegate && !(delegate.getDelegate() instanceof JobInternalDelegateStep)
         ? unwrapDelegate(transitiveDelegate)
         : delegate.getDelegate();

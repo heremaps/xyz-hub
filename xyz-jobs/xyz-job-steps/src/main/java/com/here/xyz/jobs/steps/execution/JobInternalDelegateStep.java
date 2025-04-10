@@ -29,12 +29,7 @@ public class JobInternalDelegateStep extends DelegateStep {
     super();
   }
 
-  protected JobInternalDelegateStep(Step delegate, List<OutputSet> outputSets) {
+  public JobInternalDelegateStep(Step delegate, List<OutputSet> outputSets) {
     super(delegate, delegate, outputSets);
-  }
-
-  @Override
-  public void setOutputSets(List<OutputSet> outputSets) {
-    super.setOutputSets(outputSets);
   }
 }
