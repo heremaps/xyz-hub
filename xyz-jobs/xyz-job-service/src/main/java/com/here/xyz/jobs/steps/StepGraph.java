@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.jobs.service.Config;
+import com.here.xyz.jobs.steps.execution.DelegateStep;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -37,10 +38,20 @@ public class StepGraph implements StepExecution {
   boolean parallel;
 
   public Stream<Step> stepStream() {
-    return executions.stream()
-        .flatMap(execution -> execution instanceof StepGraph subGraph ? subGraph.stepStream()
-            : Collections.singletonList((Step) execution).stream());
+    return stepStream(false);
   }
+
+  public Stream<Step> stepStream(boolean ignoreDelegateSteps) {
+    Stream<Step> stepStream = executions.stream()
+            .flatMap(execution -> execution instanceof StepGraph subGraph ? subGraph.stepStream()
+                    : Collections.singletonList((Step) execution).stream());
+
+    if(ignoreDelegateSteps)
+      stepStream = stepStream.filter(step -> !(step instanceof DelegateStep));
+
+    return stepStream;
+  }
+
 
   public List<StepExecution> getExecutions() {
     return executions;

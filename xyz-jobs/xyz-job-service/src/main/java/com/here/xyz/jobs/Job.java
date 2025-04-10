@@ -216,7 +216,7 @@ public class Job implements XyzSerializable {
   protected Future<Boolean> validate() {
     logger.info("[{}] Validating job ...", getId());
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
-    return Future.all(Job.forEach(getSteps().stepStream().toList(), step -> validateStep(step)))
+    return Future.all(Job.forEach(getSteps().stepStream(true).toList(), step -> validateStep(step)))
         .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
   }
 
@@ -238,7 +238,7 @@ public class Job implements XyzSerializable {
       return Future.failedFuture(new IllegalStateException("Job can not be started as it's not in SUBMITTED state."));
 
     getStatus().setState(PENDING);
-    getSteps().stepStream().forEach(step -> step.getStatus().setState(PENDING));
+    getSteps().stepStream(true).forEach(step -> step.getStatus().setState(PENDING));
 
     long t1 = Core.currentTimeMillis();
     return store()

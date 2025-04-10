@@ -25,6 +25,7 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.Step.InputSet;
+import com.here.xyz.jobs.steps.Step.OutputSet;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.RunEmrJob.ReferenceIdentifier;
@@ -300,8 +301,9 @@ public class GraphFusionTool {
         newInputSets.add(compiledInputSet);
       else
         //Now we know that inputSet is one that should be replaced by one that is pointing to the outputs of the old graph
-        newInputSets.add(new InputSet(replacementStep.getDelegate().getJobId(), replacementStep.getDelegate().getId(), compiledInputSet.name(),
-            compiledInputSet.modelBased(), replacementStep.getDelegate().getOutputMetadata()));
+        //Note that stepId in the OutputSet of DelegateStep could be different from the stepId of the DelegateStep
+        newInputSets.add(new InputSet(replacementStep.getDelegate().getJobId(), replacementStep.getOutputSet(compiledInputSet.name()).getStepId(),
+            compiledInputSet.name(), compiledInputSet.modelBased(), replacementStep.getDelegate().getOutputMetadata()));
     }
     step.setInputSets(newInputSets);
 
@@ -339,7 +341,8 @@ public class GraphFusionTool {
         Here the reference will be kept as it is, and the later execution will handle this issue by throwing the correct exception.
          */
         return null;
-      return toInputSetReference(runEmrJob.getInputSet(referencedDelegateStep.getDelegate().getId(), ref.name()));
+      OutputSet referencedOutputsSet = referencedDelegateStep.getOutputSet(ref.name());
+      return toInputSetReference(runEmrJob.getInputSet(referencedOutputsSet.getStepId(), ref.name()));
     }
   }
 }

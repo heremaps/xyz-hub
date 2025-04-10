@@ -22,6 +22,7 @@ package com.here.xyz.jobs.steps.execution;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.steps.Step;
@@ -30,6 +31,9 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.List;
 
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = JobInternalDelegateStep.class)
+})
 public class DelegateStep extends Step<DelegateStep> {
   @JsonView({Internal.class, Static.class})
   private final Step<?> delegate;
@@ -38,19 +42,29 @@ public class DelegateStep extends Step<DelegateStep> {
   private RuntimeInfo status = new RuntimeInfo();
 
   //Only needed for deserialization purposes
-  private DelegateStep() {
+  protected DelegateStep() {
     this.delegator = null;
     this.delegate = null;
   }
 
+  protected DelegateStep(Step delegate, List<OutputSet> outputSets) {
+    this.delegate = delegate;
+    this.delegator = delegate;
+    this.outputSets = outputSets;
+
+    setInputSets(delegator.getInputSets());
+    setOutputMetadata(delegator.getOutputMetadata());
+
+  }
+
   public DelegateStep(Step<?> delegate, Step<?> delegator) {
-    if (delegate instanceof DelegateStep transitiveDelegate)
+    if (delegate instanceof DelegateStep transitiveDelegate && !(delegate instanceof JobInternalDelegateStep))
       delegate = unwrapDelegate(transitiveDelegate);
 
     this.delegator = delegator;
     this.delegate = delegate;
     setInputSets(delegator.getInputSets());
-    setOutputMetadata(delegate.getOutputMetadata()); //TODO: Change this to delegator.getOutputMetadata()?
+    setOutputMetadata(delegator.getOutputMetadata());
 
     //Create the delegating output-sets by copying them from the delegate step but keep the visibility of each counterpart of the compiled (new) step
     outputSets = delegate.getOutputSets().stream().map(delegateOutputSet -> {
@@ -60,7 +74,8 @@ public class DelegateStep extends Step<DelegateStep> {
   }
 
   private Step unwrapDelegate(DelegateStep delegate) {
-    return delegate.getDelegate() instanceof DelegateStep transitiveDelegate
+    //TODO: Check if JobInternalDelegateStep can also be transitive
+    return delegate.getDelegate() instanceof DelegateStep transitiveDelegate && !(delegate.getDelegate() instanceof JobInternalDelegateStep)
         ? unwrapDelegate(transitiveDelegate)
         : delegate.getDelegate();
   }
