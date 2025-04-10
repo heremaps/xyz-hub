@@ -67,16 +67,6 @@
 
     <!-- AWS SDK -->
     <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <artifactId>aws-java-sdk-secretsmanager</artifactId>
       <groupId>com.amazonaws</groupId>
       <exclusions>

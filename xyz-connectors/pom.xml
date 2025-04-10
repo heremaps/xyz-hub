@@ -62,10 +62,6 @@
       <artifactId>aws-java-sdk-lambda</artifactId>
       <groupId>com.amazonaws</groupId>
     </dependency>
-    <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
-    </dependency>
 
     <!-- PSQL JDBC driver -->
     <dependency>

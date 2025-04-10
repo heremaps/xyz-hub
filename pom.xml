@@ -453,17 +453,6 @@
         <version>${aws-sdk-version}</version>
       </dependency>
       <dependency>
-        <artifactId>aws-java-sdk-s3</artifactId>
-        <exclusions>
-          <exclusion>
-            <artifactId>jackson-annotations</artifactId>
-            <groupId>com.fasterxml.jackson.core</groupId>
-          </exclusion>
-        </exclusions>
-        <groupId>com.amazonaws</groupId>
-        <version>${aws-sdk-version}</version>
-      </dependency>
-      <dependency>
         <artifactId>aws-java-sdk-lambda</artifactId>
         <exclusions>
           <exclusion>

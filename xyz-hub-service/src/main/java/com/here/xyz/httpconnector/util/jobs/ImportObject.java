@@ -18,14 +18,12 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.here.xyz.httpconnector.config.JobS3ClientV2;
+import com.here.xyz.httpconnector.config.JobS3Client;
+import com.here.xyz.util.service.aws.S3ObjectSummary;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.net.URL;
 
@@ -67,18 +65,9 @@ public class ImportObject {
 
     }
 
-    public ImportObject(S3ObjectSummary s3ObjectSummary, ObjectMetadata objectMetadata) {
-        this.s3Key = s3ObjectSummary.getKey();
-        this.filesize = s3ObjectSummary.getSize();
-
-        if(objectMetadata.getContentEncoding() != null &&
-            objectMetadata.getContentEncoding().equalsIgnoreCase("gzip"))
-                this.compressed = true;
-    }
-
-    public ImportObject(S3Object s3Object, HeadObjectResponse objectMetadata) {
-        this.s3Key = s3Object.key();
-        this.filesize = s3Object.size();
+    public ImportObject(S3ObjectSummary s3ObjectSummary, HeadObjectResponse objectMetadata) {
+        this.s3Key = s3ObjectSummary.key();
+        this.filesize = s3ObjectSummary.size();
 
         if(objectMetadata.contentEncoding() != null &&
             objectMetadata.contentEncoding().equalsIgnoreCase("gzip"))
@@ -119,7 +108,7 @@ public class ImportObject {
     public String getS3Key() { return s3Key;}
 
     public String getS3Key(String jobId, String part){
-        return JobS3ClientV2.getImportPath(jobId, part);
+        return JobS3Client.getImportPath(jobId, part);
     }
 
     public URL getUploadUrl(){ return uploadUrl;}

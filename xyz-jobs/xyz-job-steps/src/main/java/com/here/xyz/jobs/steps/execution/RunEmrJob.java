@@ -22,8 +22,6 @@ package com.here.xyz.jobs.steps.execution;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -49,8 +47,11 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+
+import com.here.xyz.util.service.aws.S3ObjectSummary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
@@ -339,7 +340,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     catch (FileAlreadyExistsException e) {
       logger.info("[EMR-local] File: '{}' already exists locally - skip download.", s3Path);
     }
-    catch (AmazonS3Exception e) {
+    catch (S3Exception e) {
       throw new RuntimeException("[EMR-local] Can't download File: '" + s3Path + "' for local copy!", e);
     }
     catch (IOException e) {
@@ -357,8 +358,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     List<S3ObjectSummary> s3ObjectSummaries = S3Client.getInstance().scanFolder(s3Path);
 
     for (S3ObjectSummary s3ObjectSummary : s3ObjectSummaries) {
-      if (!s3ObjectSummary.getKey().contains("modelBased"))
-        copyFileFromS3ToLocal(s3ObjectSummary.getKey());
+      if (!s3ObjectSummary.key().contains("modelBased"))
+        copyFileFromS3ToLocal(s3ObjectSummary.key());
     }
     return getLocalTmpPath(s3Path);
   }
