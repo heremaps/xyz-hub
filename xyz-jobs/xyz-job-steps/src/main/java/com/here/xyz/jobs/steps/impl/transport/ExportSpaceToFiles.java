@@ -531,13 +531,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
     long minI = loadMinI();
     long maxI = loadMaxI();
-    long iRangeSize = (long) Math.ceil((double) (maxI - minI) / (double) taskItemCount);
+    long iRangeSize = (long) Math.ceil((double) (maxI - minI + 1) / (double) taskItemCount);
 
-    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + #{endRangeOffset}) * #{iRangeSize}")
+    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + 1) * #{iRangeSize}")
         .withNamedParameter("minI", minI)
         .withNamedParameter("taskNumber", taskNumber)
-        .withNamedParameter("iRangeSize", iRangeSize)
-        .withNamedParameter("endRangeOffset", taskNumber == taskItemCount - 1 ? 2 : 1);
+        .withNamedParameter("iRangeSize", iRangeSize);
 
     return queryBuilder
         .withAdditionalFilterFragment(threadCondition)
