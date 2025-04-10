@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.jobs.service.Config;
-import com.here.xyz.jobs.steps.execution.DelegateStep;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,20 +37,10 @@ public class StepGraph implements StepExecution {
   boolean parallel;
 
   public Stream<Step> stepStream() {
-    return stepStream(false);
+    return executions.stream()
+        .flatMap(execution -> execution instanceof StepGraph subGraph ? subGraph.stepStream()
+            : Collections.singletonList((Step) execution).stream());
   }
-
-  public Stream<Step> stepStream(boolean ignoreDelegateSteps) {
-    Stream<Step> stepStream = executions.stream()
-            .flatMap(execution -> execution instanceof StepGraph subGraph ? subGraph.stepStream()
-                    : Collections.singletonList((Step) execution).stream());
-
-    if(ignoreDelegateSteps)
-      stepStream = stepStream.filter(step -> !(step instanceof DelegateStep));
-
-    return stepStream;
-  }
-
 
   public List<StepExecution> getExecutions() {
     return executions;

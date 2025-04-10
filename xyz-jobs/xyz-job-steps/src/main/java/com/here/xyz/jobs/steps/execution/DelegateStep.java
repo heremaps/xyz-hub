@@ -32,13 +32,13 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.util.List;
 
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = JobInternalDelegateStep.class)
+    @JsonSubTypes.Type(value = JobInternalDelegateStep.class)
 })
 public class DelegateStep extends Step<DelegateStep> {
   @JsonView({Internal.class, Static.class})
-  private final Step<?> delegate;
+  protected final Step<?> delegate;
   @JsonIgnore
-  private final Step<?> delegator;
+  protected final Step<?> delegator;
   private RuntimeInfo status = new RuntimeInfo();
 
   //Only needed for deserialization purposes
@@ -47,17 +47,11 @@ public class DelegateStep extends Step<DelegateStep> {
     this.delegate = null;
   }
 
-  protected DelegateStep(Step delegate, List<OutputSet> outputSets) {
-    this.delegate = delegate;
-    this.delegator = delegate;
-    this.outputSets = outputSets;
-
-    setInputSets(delegator.getInputSets());
-    setOutputMetadata(delegator.getOutputMetadata());
-
+  public DelegateStep(Step delegate, Step delegator) {
+    this(delegate, delegator, null);
   }
 
-  public DelegateStep(Step<?> delegate, Step<?> delegator) {
+  protected DelegateStep(Step<?> delegate, Step<?> delegator, List<OutputSet> outputSets) {
     if (delegate instanceof DelegateStep transitiveDelegate && !(delegate instanceof JobInternalDelegateStep))
       delegate = unwrapDelegate(transitiveDelegate);
 
@@ -67,7 +61,7 @@ public class DelegateStep extends Step<DelegateStep> {
     setOutputMetadata(delegator.getOutputMetadata());
 
     //Create the delegating output-sets by copying them from the delegate step but keep the visibility of each counterpart of the compiled (new) step
-    outputSets = delegate.getOutputSets().stream().map(delegateOutputSet -> {
+    this.outputSets = outputSets != null ? outputSets : delegate.getOutputSets().stream().map(delegateOutputSet -> {
       OutputSet compiledOutputSet = delegator.getOutputSets().stream().filter(outputSet -> outputSet.name.equals(delegateOutputSet.name)).findFirst().get();
       return new OutputSet(delegateOutputSet, this.delegate.getJobId(), compiledOutputSet.visibility);
     }).toList();
@@ -152,10 +146,5 @@ public class DelegateStep extends Step<DelegateStep> {
   @Override
   public boolean isEquivalentTo(StepExecution other) {
     return getDelegate().isEquivalentTo(other);
-  }
-
-  @Override
-  public void setOutputSets(List<OutputSet> outputSets) {
-    super.setOutputSets(outputSets);
   }
 }

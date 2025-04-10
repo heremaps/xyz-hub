@@ -20,17 +20,21 @@
 package com.here.xyz.jobs.steps.execution;
 
 import com.here.xyz.jobs.steps.Step;
-
 import java.util.List;
 
 public class JobInternalDelegateStep extends DelegateStep {
 
+  //Only needed for deserialization purposes
   private JobInternalDelegateStep() {
     super();
   }
 
-  public JobInternalDelegateStep(Step delegate, List<OutputSet> outputSets) {
-    super(delegate, outputSets);
+  protected JobInternalDelegateStep(Step delegate, List<OutputSet> outputSets) {
+    super(delegate, delegate, outputSets);
   }
 
+  @Override
+  public void setOutputSets(List<OutputSet> outputSets) {
+    super.setOutputSets(outputSets);
+  }
 }

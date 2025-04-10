@@ -73,6 +73,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -216,7 +217,7 @@ public class Job implements XyzSerializable {
   protected Future<Boolean> validate() {
     logger.info("[{}] Validating job ...", getId());
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
-    return Future.all(Job.forEach(getSteps().stepStream(true).toList(), step -> validateStep(step)))
+    return Future.all(Job.forEach(nonFinalSteps().toList(), step -> validateStep(step)))
         .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
   }
 
@@ -238,7 +239,7 @@ public class Job implements XyzSerializable {
       return Future.failedFuture(new IllegalStateException("Job can not be started as it's not in SUBMITTED state."));
 
     getStatus().setState(PENDING);
-    getSteps().stepStream(true).forEach(step -> step.getStatus().setState(PENDING));
+    nonFinalSteps().forEach(step -> step.getStatus().setState(PENDING));
 
     long t1 = Core.currentTimeMillis();
     return store()
@@ -288,6 +289,10 @@ public class Job implements XyzSerializable {
    */
   public Step getStepById(String stepId) {
     return getSteps().getStep(stepId);
+  }
+
+  private Stream<Step> nonFinalSteps() {
+    return getSteps().stepStream().filter(step -> !step.getStatus().getState().isFinal());
   }
 
   /**
