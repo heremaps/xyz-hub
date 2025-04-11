@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.service;
 
+import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
@@ -104,11 +105,24 @@ public class JobApi extends JobApiBase {
     if (!job.getInputs().values().stream().allMatch(input -> input instanceof InputsFromS3))
       return Future.failedFuture("Only inputs of type " + InputsFromS3.class.getSimpleName() + " are supported as inline inputs.");
 
-    return Future.all(job.getInputs().entrySet().stream()
+    //Continue with the input scanning *asynchronously* but fail the job if something goes wrong (User can check the status)
+    Future.all(job.getInputs().entrySet().stream()
         .map(inputSet -> registerInput(job, (InputsFromS3) inputSet.getValue(), inputSet.getKey()))
         .toList())
-        .mapEmpty();
+        .onFailure(t -> {
+          logger.error("[{}] Error while scanning inputs for job.", job.getId(), t);
+          job.getStatus()
+              .withState(FAILED)
+              .withErrorMessage("Error while scanning inputs.")
+              .withErrorCause(t.getMessage());
+          job.store();
+        });
 
+    /*
+    Return without waiting for the input scanning to complete.
+    The job will stay in state NOT_READY for some time but will proceed automatically afterwards.
+     */
+    return Future.succeededFuture();
   }
 
   protected void getJobs(final RoutingContext context) {
