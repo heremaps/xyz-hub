@@ -227,7 +227,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion0to1() throws IOException, InterruptedException {
+    public void Export_Version0to1() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("0..1") , List.of(), new FeatureCollection().withFeatures(
                         List.of(new Feature().withId("point1_delta"),new Feature().withId("point2_delta"),
@@ -237,7 +237,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion0to4() throws IOException, InterruptedException {
+    public void Export_Version0to4() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("0..4") , List.of("1269"), new FeatureCollection().withFeatures(
                         List.of(new Feature().withId("point1_delta"),new Feature().withId("point3_delta"))
@@ -245,7 +245,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion1to2() throws IOException, InterruptedException {
+    public void Export_Version1to2() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("1..2") , List.of(), //1440 is missing, because point2_base remains in it
                         new FeatureCollection().withFeatures(
@@ -255,7 +255,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion2to4() throws IOException, InterruptedException {
+    public void Export_Version2to4() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("2..4") , List.of("1269", "1423"), new FeatureCollection().withFeatures(
                         List.of() //only deletions have happened
@@ -263,7 +263,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion0toHEAD() throws IOException, InterruptedException {
+    public void Export_Version0toHEAD() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("0..HEAD") , List.of("1269"), new FeatureCollection().withFeatures(
                         List.of(
@@ -276,7 +276,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion2to4WithPropertyFilter() throws IOException, InterruptedException {
+    public void Export_Version2to4WithPropertyFilter() throws IOException, InterruptedException {
         executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
                 new Ref("1..2") ,null, PropertiesQuery.fromString("p.value=Africa"),
                 List.of("1269", "1423"), new FeatureCollection().withFeatures(
@@ -287,7 +287,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilterClipped() throws IOException, InterruptedException, InvalidGeometryException {
+    public void Export_Version0toHEADWithSpatialFilterClipped() throws IOException, InterruptedException, InvalidGeometryException {
 
         PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
         LinearRingCoordinates lrc = new LinearRingCoordinates();
@@ -316,7 +316,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
     }
 
     @Test
-    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilterNotClipped() throws IOException, InterruptedException, InvalidGeometryException {
+    public void Export_SpatialFilterWithoutHittingChanges() throws IOException, InterruptedException, InvalidGeometryException {
 
         PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
         LinearRingCoordinates lrc = new LinearRingCoordinates();
@@ -344,5 +344,27 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                                 new Feature().withId("line4_delta")
                         )
                 ));
+    }
+
+    @Test
+    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilterNotClipped() throws IOException, InterruptedException, InvalidGeometryException {
+        PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+
+        //No change is inside this polygon
+        lrc.add(new Position(46.45782151089023, 11.866315363309141));
+        lrc.add(new Position(46.45782151089023, 8.970767248921192));
+        lrc.add(new Position(51.31537254401951, 8.970767248921192));
+        lrc.add(new Position(51.31537254401951, 11.866315363309141));
+        lrc.add(new Position(46.45782151089023, 11.866315363309141)); // Closing the ring
+
+        polygonCoordinates.add(lrc);
+
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 8, QuadType.HERE_QUAD,
+                new Ref("0..HEAD") ,
+                new SpatialFilter()
+                        .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
+                        .withClip(false), null,
+                List.of(), new FeatureCollection());
     }
 }
