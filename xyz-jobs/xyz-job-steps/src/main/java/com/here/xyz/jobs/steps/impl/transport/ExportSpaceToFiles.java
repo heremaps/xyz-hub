@@ -119,6 +119,15 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   @JsonView({Internal.class, Static.class})
   protected boolean restrictExtendOfSpatialFilter = true;
 
+  public void setRestrictExtendOfSpatialFilter(boolean restrictExtendOfSpatialFilter) {
+    this.restrictExtendOfSpatialFilter = restrictExtendOfSpatialFilter;
+  }
+
+  public ExportSpaceToFiles withRestrictExtendOfSpatialFilter(boolean restrictExtendOfSpatialFilter) {
+    setRestrictExtendOfSpatialFilter(restrictExtendOfSpatialFilter);
+    return this;
+  }
+
   public ExportSpaceToFiles withStepExecutionHeartBeatTimeoutOverride(int timeOutSeconds) {
     setStepExecutionHeartBeatTimeoutOverride(timeOutSeconds);
     return this;
