@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
@@ -62,8 +63,8 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   private String s3Bucket;
   @JsonIgnore
   private String s3Key;
-  private static Map<InputCacheKey, InputsMetadata> metadataCache = new WeakHashMap<>();
-  private static Map<InputCacheKey, List<Input>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
+  private static Map<String, Map<String, InputsMetadata>> metadataCache = new WeakHashMap<>();
+  private static Map<String, Map<String, List<Input>>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
   private static Set<String> inputsCacheActive = new HashSet<>();
 
   public static String inputS3Prefix(String jobId) {
@@ -117,15 +118,40 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   public static List<Input> loadInputs(String jobId, String setName) {
     //Only cache inputs of jobs which are submitted already
     if (inputsCacheActive.contains(jobId)) {
-      InputCacheKey cacheKey = new InputCacheKey(jobId, setName);
-      List<Input> inputs = inputsCache.get(cacheKey);
+      List<Input> inputs = getFromInputCache(jobId, setName);
       if (inputs == null) {
         inputs = loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
-        inputsCache.put(cacheKey, inputs);
+        putToInputCache(jobId, setName, inputs);
       }
       return inputs;
     }
     return loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
+  }
+
+  private static void putToInputCache(String jobId, String setName, List<Input> inputs) {
+    Map<String, List<Input>> cachedInputs = inputsCache.get(jobId);
+    if (cachedInputs == null)
+      cachedInputs = new ConcurrentHashMap<>();
+    cachedInputs.put(setName, inputs);
+    inputsCache.put(jobId, cachedInputs);
+  }
+
+  private static List<Input> getFromInputCache(String jobId, String setName) {
+    Map<String, List<Input>> inputs = inputsCache.get(jobId);
+    return inputs == null ? null: inputs.get(setName);
+  }
+
+  private static void putToMetadataCache(String jobId, String setName, InputsMetadata metadata) {
+    Map<String, InputsMetadata> cachedMetadata = metadataCache.get(jobId);
+    if (cachedMetadata == null)
+      cachedMetadata = new ConcurrentHashMap<>();
+    cachedMetadata.put(setName, metadata);
+    metadataCache.put(jobId, cachedMetadata);
+  }
+
+  private static InputsMetadata getFromMetadataCache(String jobId, String setName) {
+    Map<String, InputsMetadata> metadata = metadataCache.get(jobId);
+    return metadata == null ? null : metadata.get(setName);
   }
 
   private static <T extends Input> List<T> loadInputsAndWriteMetadata(String jobId, String setName, int maxReturnSize, Class<T> inputType) {
@@ -179,7 +205,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final InputsMetadata loadMetadata(String jobId, String setName) throws IOException, AmazonS3Exception {
-    InputsMetadata metadata = metadataCache.get(jobId);
+    InputsMetadata metadata = getFromMetadataCache(jobId, setName);
     if (metadata != null)
       return metadata;
 
@@ -189,7 +215,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
         InputsMetadata.class);
     logger.info("Loaded metadata for job {}. Took {}ms ...", jobId, Core.currentTimeMillis() - t1);
     if (inputsCacheActive.contains(jobId))
-      metadataCache.put(new InputCacheKey(jobId, setName), metadata);
+      putToMetadataCache(jobId, setName, metadata);
 
     return metadata;
   }
@@ -205,7 +231,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   static final void storeMetadata(String jobId, InputsMetadata metadata, String setName) {
     try {
       if (inputsCacheActive.contains(jobId))
-        metadataCache.put(new InputCacheKey(jobId, setName), metadata);
+        putToMetadataCache(jobId, setName, metadata);
       S3Client.getInstance().putObject(inputMetaS3Key(jobId, setName), "application/json", metadata.serialize());
     }
     catch (IOException e) {
@@ -381,6 +407,4 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   public record InputMetadata(@JsonProperty long byteSize, @JsonProperty boolean compressed) {}
   public record InputsMetadata(@JsonProperty Map<String, InputMetadata> inputs, @JsonProperty Set<String> referencingJobs,
       @JsonProperty String referencedJob, @JsonProperty S3Uri scannedFrom) implements XyzSerializable {}
-
-  private record InputCacheKey(String jobId, String setName) {}
 }
