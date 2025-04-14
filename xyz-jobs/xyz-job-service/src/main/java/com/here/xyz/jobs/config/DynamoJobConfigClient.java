@@ -88,6 +88,18 @@ public class DynamoJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<List<Job>> loadJobs(boolean newerThan, long createdAt) {
+    //TODO: Use index with sort-key on "createdAt" attribute instead of scan()
+    return dynamoClient.executeQueryAsync(() -> {
+      List<Job> jobs = new LinkedList<>();
+      jobTable.scan("#createdAt " + (newerThan ? ">" : "<") + " :ts", Map.of("#createdAt", "createdAt"), Map.of(":ts",  createdAt))
+          .pages()
+          .forEach(page -> page.forEach(jobItem -> jobs.add(XyzSerializable.fromMap(jobItem.asMap(), Job.class))));
+      return jobs;
+    });
+  }
+
+  @Override
   public Future<List<Job>> loadJobs(State state) {
     return dynamoClient.executeQueryAsync(() -> {
       List<Job> jobs = new LinkedList<>();
@@ -253,10 +265,13 @@ public class DynamoJobConfigClient extends JobConfigClient {
     if (dynamoClient.isLocal()) {
       logger.info("DynamoDB running locally, initializing Jobs table.");
       try {
-        List<IndexDefinition> indexes = List.of(new IndexDefinition("resourceKey"), new IndexDefinition("state"),
-                new IndexDefinition("secondaryResourceKey"));
+        List<IndexDefinition> indexes = List.of(
+            new IndexDefinition("resourceKey"),
+            new IndexDefinition("state"),
+            new IndexDefinition("secondaryResourceKey")
+        );
         dynamoClient.createTable(jobTable.getTableName(), "id:S,resourceKey:S,secondaryResourceKey:S,state:S", "id", indexes, "keepUntil");
-        //TODO: Register a dynamo stream (also in CFN) to ensure we're getting informed when a job expires
+        //TODO: Register a dynamo stream (in local dynamodb) to ensure we're getting informed when a job expires
       }
       catch (Exception e) {
         logger.error("Failure during creating table on " + getClass().getSimpleName() + "#init()", e);

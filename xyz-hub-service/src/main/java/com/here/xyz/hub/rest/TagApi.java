@@ -32,10 +32,12 @@ import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Marker;
 
@@ -199,11 +201,10 @@ public class TagApi extends SpaceBasedApi {
   private static Future<Space> getSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId)
         .compose(s -> s == null
-            ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found."))
+            ? Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)))
             : Future.succeededFuture(s))
         .compose(s -> !s.isActive()
-            ? Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED,
-            "The method is not allowed, because the resource \"" + spaceId + "\" is not active."))
+            ? Future.failedFuture(new DetailedHttpException("E318451", Map.of("resourceId", spaceId)))
             : Future.succeededFuture(s));
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -258,6 +258,7 @@ public class Job implements XyzSerializable {
    * @return A future providing a boolean telling whether the action was performed already.
    */
   public Future<Boolean> cancel() {
+    logger.info("[{}] Cancelling job ...", getId());
     getStatus().setState(CANCELLING);
 
     return storeStatus(null)
@@ -295,10 +296,10 @@ public class Job implements XyzSerializable {
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
 
-    return updateStep(step, existingStep.getStatus().getState());
+    return updateStep(step, existingStep.getStatus().getState(), true);
   }
 
-  public Future<Void> updateStepStatus(String stepId, RuntimeInfo status) {
+  public Future<Void> updateStepStatus(String stepId, RuntimeInfo status, boolean cancelOnFailure) {
     final Step step = getStepById(stepId);
     if (step == null)
       throw new IllegalArgumentException("The provided step with ID " + stepId + " was not found.");
@@ -306,15 +307,15 @@ public class Job implements XyzSerializable {
     State existingStepState = step.getStatus().getState();
 
     step.getStatus()
-            .withState(status.getState())
-            .withErrorCode(status.getErrorCode())
-            .withErrorCause(status.getErrorCause())
-            .withErrorMessage(status.getErrorMessage());
+        .withState(status.getState())
+        .withErrorCode(status.getErrorCode())
+        .withErrorCause(status.getErrorCause())
+        .withErrorMessage(status.getErrorMessage());
 
-    return updateStep(step, existingStepState);
+    return updateStep(step, existingStepState, cancelOnFailure);
   }
 
-  private Future<Void> updateStep(Step<?> step, State previousStepState) {
+  private Future<Void> updateStep(Step step, State previousStepState, boolean cancelOnFailure) {
     //TODO: Once the state was SUCCEEDED it should not be mutable at all anymore
     if (previousStepState != null && !step.getStatus().getState().isFinal() && previousStepState.isFinal())
       //In case the step was already marked to have a final state, ignore any subsequent non-final updates to it
@@ -347,7 +348,11 @@ public class Job implements XyzSerializable {
     }
 
     return storeUpdatedStep(step)
-        .compose(v -> storeStatus(null));
+        .compose(v -> storeStatus(null))
+        .compose(v -> getStatus().getState() == FAILED && cancelOnFailure ? JobExecutor.getInstance().cancel(getExecutionId()).recover(t -> {
+          logger.error("[{}] Error cancelling the job execution. Was it already cancelled before?", getId(), t);
+          return Future.succeededFuture();
+        }) : Future.succeededFuture());
   }
 
   private Future<Void> updatePreviousAttempts(Step step) {
@@ -360,6 +365,7 @@ public class Job implements XyzSerializable {
    * @return A future providing a boolean telling whether the action was performed already.
    */
   public Future<Boolean> resume() {
+    logger.info("[{}] Resuming job ...", getId());
     if (isResumable()) {
       getStatus().setState(RESUMING);
       getSteps().stepStream().forEach(step -> {
@@ -406,6 +412,10 @@ public class Job implements XyzSerializable {
       return loadAll();
     else
       return JobConfigClient.getInstance().loadJobs(resourceKey, state);
+  }
+
+  public static Future<List<Job>> load(boolean newerThan, long  createdAt) {
+    return JobConfigClient.getInstance().loadJobs(newerThan, createdAt);
   }
 
   public static Future<Set<Job>> loadByResourceKey(String resourceKey) {

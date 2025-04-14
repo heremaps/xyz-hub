@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_UPDATE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.createQueryContext;
@@ -39,10 +38,8 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.ProcessUpdate;
 import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
-import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
-import com.here.xyz.jobs.steps.resources.IOResource;
-import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.responses.StatisticsResponse;
@@ -50,12 +47,12 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 
 /**
@@ -79,8 +76,8 @@ import java.util.Map;
  *
  * @param <T> The specific subclass type extending this step.
  */
-public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
-        extends SpaceBasedStep<T> {
+public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> extends SpaceBasedStep<T> {
+  private static final Logger logger = LogManager.getLogger();
   //Defines how many features a source layer need to have to start parallelization.
   public static final int PARALLELIZTATION_MIN_THRESHOLD = 200_000;
   //Defines how many export threads are getting used
@@ -155,37 +152,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
    * @throws WebClientException If an error occurs while interacting with the web client.
    */
   protected abstract SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
-          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException;
-
-  @Override
-  public List<Load> getNeededResources() {
-    return calculateLoadAndSetOverallNeededAcus(context);
-  }
-
-  /**
-   * Calculates the load and sets the overall needed ACUs (Amazon Compute Units) for the
-   * given space context.
-   *
-   * @param spaceContext The context of the space for which the load is being calculated.
-   * @return A list of loads required for the given space context.
-   */
-  private List<Load> calculateLoadAndSetOverallNeededAcus(SpaceContext spaceContext) {
-    try {
-      StatisticsResponse statistics = spaceStatistics(spaceContext, true);
-      overallNeededAcus = overallNeededAcus != -1 ?
-              overallNeededAcus :
-                ResourceAndTimeCalculator.getInstance().calculateNeededExportAcus(statistics.getDataSize().getValue());
-
-      infoLog(JOB_EXECUTOR, this,"Calculated ACUS: byteSize of layer: "
-              + statistics.getDataSize().getValue() + " => neededACUs:" + overallNeededAcus);
-
-      return List.of(
-              new Load().withResource(dbReader()).withEstimatedVirtualUnits(overallNeededAcus),
-              new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
-    }catch (Exception e){
-      throw new RuntimeException(e);
-    }
-  }
+          throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException;
 
   /**
    * Prepares the process by resolving the version reference to an actual version.
@@ -196,6 +163,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
    */
   @Override
   public void prepare(String owner, JobClientInfo ownerAuth) throws ValidationException {
+    logger.info("[{}] Preparing step ...", getGlobalStepId());
+
     if (versionRef == null)
       throw new ValidationException("Version ref is required.");
 
@@ -215,6 +184,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
       throw new ValidationException("Unable to resolve the provided version ref \"" + versionRef + "\" of " + getSpaceId() + ": "
           + e.getMessage(), e);
     }
+
+    logger.info("[{}] Completed preparation of step.", getGlobalStepId());
   }
 
   @Override
@@ -284,7 +255,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
    * @throws SQLException If an error occurs while executing SQL queries.
    */
   protected void startInitialTasks(String schema) throws TooManyResourcesClaimed,
-          QueryBuildingException, WebClientException, SQLException {
+          QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
     for (int i = 0; i < calculatedThreadCount; i++) {
       TaskProgress taskProgressAndTaskItem = getTaskProgressAndTaskItem();
       if(taskProgressAndTaskItem.taskId() == -1)
@@ -305,7 +276,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
    * @throws SQLException If an error occurs while executing SQL queries.
    */
   protected void startTask(String schema, TaskProgress taskProgressAndItem) throws TooManyResourcesClaimed,
-          QueryBuildingException, WebClientException, SQLException {
+          QueryBuildingException, WebClientException, SQLException, InvalidGeometryException {
 
     if (taskProgressAndItem.taskId() != -1) {
       BigDecimal overallAcusBD = BigDecimal.valueOf(overallNeededAcus);
@@ -319,7 +290,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep>
               + "/" + overallAcusBD.stripTrailingZeros().toPlainString());
 
       runReadQueryAsync(buildTaskQuery(schema, taskProgressAndItem.taskId(), taskProgressAndItem.taskInput()),
-              dbReader(), perItemAcus.doubleValue(), false);
+              dbReader(), 0d/*perItemAcus.doubleValue()*/, false);
     }
   }
 

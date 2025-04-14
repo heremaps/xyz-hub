@@ -1,0 +1,72 @@
+[
+  {
+    "title": "Error parsing request body",
+    "code": "E319001",
+    "status": 400,
+    "cause": "${cause}",
+    "action": "Please, check if the request body is valid"
+  },
+  {
+    "title": "The job configuration could not be compiled",
+    "code": "E319002",
+    "status": 400,
+    "cause": "${cause}",
+    "action": "Please, provide a correct job configuration"
+  },
+  {
+    "title": "The job configuration is invalid",
+    "code": "E319003",
+    "status": 400,
+    "cause": "${cause}",
+    "action": "Please, provide a correct job configuration"
+  },
+  {
+    "title": "No inputs can be created after a job was submitted.",
+    "code": "E319004",
+    "status": 400,
+    "cause": "The job's execution has already started, so no inputs can be added anymore.",
+    "action": "If the job has been started accidentally, cancel the job and create a new one with all inputs prior starting it."
+  },
+  {
+    "title": "Wrong input type. No inputs other than \"${allowedType}\"s can be created for non-pipeline jobs.",
+    "code": "E319005",
+    "status": 400,
+    "cause": "An input of wrong type was provided to the job.",
+    "action": "Please, use a correct input type"
+  },
+  {
+    "title": "No inputs can be created for a pipeline job before it is running.",
+    "code": "E319006",
+    "status": 400,
+    "cause": "An input was provided to the pipeline job, but it is not started yet.",
+    "action": "Please, start the pipeline job before trying to provide inputs to it"
+  },
+  {
+    "title": "The maximum size of an input for a pipeline job is 256KB.",
+    "code": "E319007",
+    "status": 400,
+    "cause": "An input was provided to the pipeline job, that was exceeding the maximum size.",
+    "action": "Please, provide an input that is not larger than 256KB"
+  },
+  {
+    "title": "Inputs of job \"${referencedJob}\" can not be referenced by job \"${referencingJob}\" as it has a different owner.",
+    "code": "E319008",
+    "status": 403,
+    "cause": "Illegal access. The job that was tried to be referenced is belonging to a different owner.",
+    "action": "Please, upload different inputs to this job"
+  },
+  {
+    "title": "The requested job does not exist",
+    "code": "E319009",
+    "status": 404,
+    "cause": "No job with ID ${jobId} exists.",
+    "action": "Please, check whether the correct job ID was provided in the request"
+  },
+  {
+    "title": "Payload type \"${jsonType}\" is not supported.",
+    "code": "E319010",
+    "status": 400,
+    "cause": "A JSON object with type \"${jsonType}\" was provided, but an object of type \"${expectedType}\" was expected in the request payload.",
+    "action": "Please, provide a JSON object with the correct type: \"${expectedType}\""
+  }
+]

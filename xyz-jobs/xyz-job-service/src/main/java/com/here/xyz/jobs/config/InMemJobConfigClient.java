@@ -57,6 +57,12 @@ public class InMemJobConfigClient extends JobConfigClient {
   }
 
   @Override
+  public Future<List<Job>> loadJobs(boolean newerThan, long createdAt) {
+    return Future.succeededFuture(jobMap.values().stream()
+        .filter(job -> newerThan ? job.getCreatedAt() > createdAt : job.getCreatedAt() < createdAt).toList());
+  }
+
+  @Override
   public Future<List<Job>> loadJobs(RuntimeInfo.State state) {
     List<Job> jobs = jobMap.values().stream()
         .filter(job -> job.getStatus().getState() == state)

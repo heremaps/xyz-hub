@@ -21,13 +21,20 @@ package com.here.xyz.jobs.steps.impl.export;
 
 import static com.here.xyz.models.hub.Ref.HEAD;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.hub.Ref;
+
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+
+import com.here.xyz.util.geo.GeometryValidator;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -45,7 +52,6 @@ public class ExportStepTest extends ExportTestBase {
      * 1 MultiPolygon (2 Polygons)
      *
      */
-
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -93,5 +99,46 @@ public class ExportStepTest extends ExportTestBase {
 
         executeExportStepAndCheckResults(SPACE_ID, null, spatialFilter,
                 PropertiesQuery.fromString(propertiesQuery), new Ref(HEAD), hubQuery);
+    }
+
+    @Test
+    public void testWorldWideBBOX() throws IOException {
+        ExportSpaceToFiles step = XyzSerializable.deserialize("""
+                {
+                    "type": "ExportSpaceToFiles",
+                    "spatialFilter": {
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [
+                                        -180.0,
+                                        -90.0
+                                    ],
+                                    [
+                                        180,
+                                        -90.0
+                                    ],
+                                    [
+                                        180.000,
+                                        90
+                                    ],
+                                    [
+                                        -180,
+                                        90
+                                    ],
+                                    [
+                                        -180,
+                                        -90
+                                    ]
+                                ]
+                            ]
+                        },
+                        "clipped": true
+                    }
+                }
+                """, ExportSpaceToFiles.class);
+
+        Assertions.assertTrue(GeometryValidator.isWorldBoundingBox(step.getSpatialFilter().getGeometry()));
     }
 }

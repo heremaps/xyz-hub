@@ -84,7 +84,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
     return buildGeoFilterFromBbox(event.getBbox());
   }
 
-  protected SQLQuery buildGeoFilterFromBbox(BBox bbox) {
+  protected static SQLQuery buildGeoFilterFromBbox(BBox bbox) {
     SQLQuery geoFilter = new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
         .withNamedParameter("minLon", bbox.minLon())
         .withNamedParameter("minLat", bbox.minLat())

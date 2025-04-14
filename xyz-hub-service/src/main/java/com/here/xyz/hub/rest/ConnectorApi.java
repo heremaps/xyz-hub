@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.here.xyz.hub.task.ConnectorHandler;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -63,7 +64,7 @@ public class ConnectorApi extends Api {
       return context.body().asJsonObject();
     }
     catch (DecodeException e) {
-      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
+      throw new DetailedHttpException("E318401", e);
     }
   }
 

@@ -19,40 +19,15 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
-import static com.here.xyz.hub.rest.ApiParam.Query.ADD_TAGS;
-import static com.here.xyz.hub.rest.ApiParam.Query.CONFLICT_DETECTION;
-import static com.here.xyz.hub.rest.ApiParam.Query.FEATURE_ID;
-import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
-import static com.here.xyz.hub.rest.ApiParam.Query.PREFIX_ID;
-import static com.here.xyz.hub.rest.ApiParam.Query.REMOVE_TAGS;
-import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
-import static com.here.xyz.hub.rest.ApiResponseType.EMPTY;
-import static com.here.xyz.hub.rest.ApiResponseType.FEATURE;
-import static com.here.xyz.hub.rest.ApiResponseType.FEATURE_COLLECTION;
-import static com.here.xyz.hub.task.FeatureHandler.checkIsActive;
-import static com.here.xyz.hub.task.FeatureHandler.checkReadOnly;
-import static com.here.xyz.hub.task.FeatureHandler.resolveExtendedSpaces;
-import static com.here.xyz.hub.task.FeatureHandler.resolveListenersAndProcessors;
-import static com.here.xyz.models.geojson.implementation.XyzNamespace.fixNormalizedTags;
-import static com.here.xyz.models.geojson.implementation.XyzNamespace.normalizeTags;
-import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.vertx.core.http.HttpHeaders.ACCEPT;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.UpdateStrategy;
+import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
 import com.here.xyz.events.UpdateStrategy.OnExists;
 import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
 import com.here.xyz.events.UpdateStrategy.OnNotExists;
@@ -64,24 +39,51 @@ import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
+import static com.here.xyz.hub.rest.ApiParam.Query.ADD_TAGS;
+import static com.here.xyz.hub.rest.ApiParam.Query.CONFLICT_DETECTION;
+import static com.here.xyz.hub.rest.ApiParam.Query.FEATURE_ID;
+import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
+import static com.here.xyz.hub.rest.ApiParam.Query.PREFIX_ID;
+import static com.here.xyz.hub.rest.ApiParam.Query.REMOVE_TAGS;
+import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
+import static com.here.xyz.hub.rest.ApiParam.Query.queryParam;
+import static com.here.xyz.hub.rest.ApiResponseType.EMPTY;
+import static com.here.xyz.hub.rest.ApiResponseType.FEATURE;
+import static com.here.xyz.hub.rest.ApiResponseType.FEATURE_COLLECTION;
 import com.here.xyz.hub.task.FeatureHandler;
+import static com.here.xyz.hub.task.FeatureHandler.checkIsActive;
+import static com.here.xyz.hub.task.FeatureHandler.checkReadOnly;
+import static com.here.xyz.hub.task.FeatureHandler.resolveExtendedSpaces;
+import static com.here.xyz.hub.task.FeatureHandler.resolveListenersAndProcessors;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import static com.here.xyz.models.geojson.implementation.XyzNamespace.fixNormalizedTags;
+import static com.here.xyz.models.geojson.implementation.XyzNamespace.normalizeTags;
 import com.here.xyz.models.hub.FeatureModificationList;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpHeaders;
+import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.ArrayList;
@@ -120,35 +122,34 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   /**
-   * Retrieves a feature.
+   * Retrieves a feature. (Or potentially all versions of it)
    */
   private void getFeature(final RoutingContext context) {
-    getFeatures(context, FEATURE);
+    getFeatures(context, List.of(context.pathParam(Path.FEATURE_ID)), FEATURE);
   }
 
   /**
    * Retrieves multiple features by ID.
    */
   private void getFeatures(final RoutingContext context) {
-    getFeatures(context, FEATURE_COLLECTION);
+    getFeatures(context, queryParam(FEATURE_ID, context), FEATURE_COLLECTION);
   }
 
-  private void getFeatures(final RoutingContext context, ApiResponseType apiResponseType) {
+  private void getFeatures(final RoutingContext context, List<String> ids, ApiResponseType apiResponseType) {
     try {
-      final List<String> ids = apiResponseType == FEATURE_COLLECTION
-              ? Query.queryParam(FEATURE_ID, context)
-              : List.of(context.pathParam(Path.FEATURE_ID));
-
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final SpaceContext spaceContext = getSpaceContext(context);
       final String author = Query.getString(context, Query.AUTHOR, null);
+      final Ref ref = getRef(context);
+      if (ref.isAllVersions() || ref.isRange())
+        apiResponseType = FEATURE_COLLECTION;
 
       final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent()
               .withIds(ids)
               .withSelection(Query.getSelection(context))
               .withForce2D(force2D)
-              .withRef(getRef(context))
+              .withRef(ref)
               .withContext(spaceContext)
               .withAuthor(author);
 
@@ -266,14 +267,14 @@ public class FeatureApi extends SpaceBasedApi {
    * Delete features by IDs or by tags.
    */
   private void deleteFeatures(final RoutingContext context) throws HttpException {
-    final List<String> featureIds = new ArrayList<>(new HashSet<>(Query.queryParam(FEATURE_ID, context)));
+    final List<String> featureIds = new ArrayList<>(new HashSet<>(queryParam(FEATURE_ID, context)));
     final String accept = context.request().getHeader(ACCEPT);
     final ApiResponseType responseType = APPLICATION_GEO_JSON.equals(accept) || APPLICATION_JSON.equals(accept)
         ? FEATURE_COLLECTION : ApiResponseType.EMPTY;
     final SpaceContext spaceContext = getSpaceContext(context);
 
     if (featureIds.isEmpty())
-      sendErrorResponse(context, new HttpException(BAD_REQUEST, "At least one feature ID should be provided as a query parameter."));
+      sendErrorResponse(context, new DetailedHttpException("E318406"));
     else {
       //Delete features by IDs
       if (Config.instance.USE_WRITE_FEATURES_EVENT)
@@ -335,10 +336,11 @@ public class FeatureApi extends SpaceBasedApi {
   private Future<FeatureCollection> writeFeatures(RoutingContext context, Object inputModifications, SpaceContext spaceContext,
       String author, boolean responseDataExpected) throws HttpException {
     checkModificationOnSuper(spaceContext);
-    return Space.resolveSpace(getMarker(context), getSpaceId(context))
+    String spaceId = getSpaceId(context);
+    return Space.resolveSpace(getMarker(context), spaceId)
         .compose(space -> {
           if (space == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
+            return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)));
 
           Set<Modification> modifications = inputModifications instanceof FeatureModificationList featureModificationList
               ? toModifications(context, space, featureModificationList, isConflictDetectionEnabled(context))
@@ -618,11 +620,11 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   private static List<String> getRemoveTags(RoutingContext context) {
-    return fixNormalizedTags(normalizeTags(new ArrayList<>(Query.queryParam(REMOVE_TAGS, context))));
+    return fixNormalizedTags(normalizeTags(new ArrayList<>(queryParam(REMOVE_TAGS, context))));
   }
 
   private static List<String> getAddTags(RoutingContext context) {
-    return fixNormalizedTags(normalizeTags(new ArrayList<>(Query.queryParam(ADD_TAGS, context))));
+    return fixNormalizedTags(normalizeTags(new ArrayList<>(queryParam(ADD_TAGS, context))));
   }
 
   private static boolean isConflictDetectionEnabled(RoutingContext context) {
@@ -631,7 +633,7 @@ public class FeatureApi extends SpaceBasedApi {
 
   private static void checkModificationOnSuper(SpaceContext spaceContext) throws HttpException {
     if (spaceContext != null && spaceContext.equals(SUPER))
-      throw new HttpException(HttpResponseStatus.FORBIDDEN, "It's not permitted to perform modifications through context " + SUPER + ".");
+      throw new DetailedHttpException("E318431", Map.of("context", SUPER.name()));
   }
 
   private ConditionalOperation buildConditionalOperation(

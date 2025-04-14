@@ -24,7 +24,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.READER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
@@ -36,15 +35,23 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.TileInvalidations;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.GetFeaturesByIdsBuilder;
+import com.here.xyz.psql.query.GetFeaturesByIdsBuilder.GetFeaturesByIdsInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
@@ -87,6 +94,22 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   @JsonView({Internal.class, Static.class})
   private QuadType quadType = QuadType.HERE_QUAD;
 
+  @JsonView({Internal.class, Static.class})
+  private boolean clipOnTileBoundaries;
+
+  public boolean isClipOnTileBoundaries() {
+    return clipOnTileBoundaries;
+  }
+
+  public void setClipOnTileBoundaries(boolean clipOnTileBoundaries) {
+    this.clipOnTileBoundaries = clipOnTileBoundaries;
+  }
+
+  public ExportChangedTiles withClipOnTileBoundaries(boolean clipOnTileBoundaries) {
+    setClipOnTileBoundaries(clipOnTileBoundaries);
+    return this;
+  }
+
   public int getTargetLevel() {
     return targetLevel;
   }
@@ -123,7 +146,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
         new OutputSet(STATISTICS, USER, true),
         new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false),
-        new OutputSet(TILE_INVALIDATIONS, USER, true)
+        new OutputSet(TILE_INVALIDATIONS, SYSTEM, true)
     ));
   }
 
@@ -159,20 +182,15 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
   @Override
   public boolean validate() throws ValidationException {
-      super.validate();
+    //Disable spatial filter restriction
+    restrictExtendOfSpatialFilter = false;
 
-      if (targetLevel < 0 || targetLevel > 12) {
-        throw new ValidationException("TargetLevel must be between 0 and 12!");
-      }
-//      try {
-//        //if(space().getExtension() == null)
-//        //  throw new ValidationException("Only supported for composite compounds!");
-//        if (space().getVersionsToKeep() <= 1)
-//          throw new ValidationException("Versions to keep must be greater than 1!");
-//      }catch (WebClientException e) {
-//        throw new ValidationException("Error loading resource " + getSpaceId(), e);
-//      }
-      return true;
+    super.validate();
+
+    if (targetLevel < 0 || targetLevel > 12) {
+      throw new ValidationException("TargetLevel must be between 0 and 12!");
+    }
+    return true;
   }
 
   @Override
@@ -214,20 +232,49 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
     //Write taskList with all unique tileIds which we need to export
     for(String tileId : affectedTiles){
+      if(!tileIsRelevant(tileId))
+        continue;
       infoLog(STEP_EXECUTE, this,"Add initial entry in process_table for thread number: " + tileId );
       runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData(tileId)), db(WRITER), 0);
     }
     return affectedTiles.size();
   }
 
+  private boolean tileIsRelevant(String tileId){
+    //If a spatialFilter is set with clip=true, we need to check if the tile intersects with the filter
+    //We only add the tile if it intersects with the filter
+    if(spatialFilter != null && spatialFilter.getGeometry() != null && spatialFilter.isClip())
+      return spatialFilter.getGeometry().getJTSGeometry()
+              .intersects(getTileBBOX(tileId).getJTSGeometry());
+    return true;
+  }
+
+  private Polygon getTileBBOX(String tileId) {
+    BBox tileBBOX = switch (quadType) {
+      case HERE_QUAD -> new HQuad(tileId, false).getBoundingBox();
+      case MERCATOR_QUAD -> WebMercatorTile.forQuadkey(tileId).getExtendedBBox(0);
+    };
+
+    PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+    LinearRingCoordinates lrc = new LinearRingCoordinates();
+
+    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.minLat()));
+    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.maxLat()));
+    lrc.add(new Position(tileBBOX.maxLon(), tileBBOX.maxLat()));
+    lrc.add(new Position(tileBBOX.maxLon(), tileBBOX.minLat()));
+    lrc.add(new Position(tileBBOX.minLon(), tileBBOX.minLat()));
+    polygonCoordinates.add(lrc);
+    return new Polygon().withCoordinates(polygonCoordinates);
+  }
+
   @Override
   protected String generateContentQueryForExportPlugin(TaskData taskData)
-          throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
+          throws WebClientException, TooManyResourcesClaimed, QueryBuildingException, InvalidGeometryException {
     //We are exporting now the data from the provided tile ID.
-    return getFeaturesByGeometryQuery(
+    return getFeaturesByTileIdQuery(
             DEFAULT,
             null, //no override needed - use default
-            null, //no spatial Filter is needed - we take Geometry from tile
+            spatialFilter, //no spatial Filter is needed - we take Geometry from tile
             taskData.taskInput().toString(), //tileId from task_item
             new Ref(versionRef.getEnd().getVersion()) //export tiles from endVersion
     ).toExecutableQueryString();
@@ -242,8 +289,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   private void generateInvalidationTileListOutput() throws WebClientException
           , SQLException, TooManyResourcesClaimed, IOException {
 
-    SQLQuery invalidationListQuery = getInvalidationList(getSchema(db(READER)), getTemporaryJobTableName(getId()));
-    TileInvalidations tileList = (TileInvalidations) runReadQuerySync(invalidationListQuery, db(READER),
+    SQLQuery invalidationListQuery = getInvalidationList(getSchema(dbReader()), getTemporaryJobTableName(getId()));
+    TileInvalidations tileList = (TileInvalidations) runReadQuerySync(invalidationListQuery, dbReader(),
             0, rs -> rs.next()
                     ? new TileInvalidations()
                           .withTileLevel(targetLevel)
@@ -298,7 +345,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             EXTENSION,
             new SQLQuery("id, geo"),
             spatialFilter,
-            null,
             versionRef
     );
     //We are getting a list tileId,id
@@ -321,7 +367,6 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
           SpaceContext context,
           SQLQuery selectClauseOverride,
           SpatialFilter spatialFilter,
-          String tileId,
           Ref versionRef
   ) throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
 
@@ -330,28 +375,30 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
 
     GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context, spatialFilter, versionRef);
 
-    if (tileId != null) {
-      return getFeaturesByTileIdQuery(queryBuilder, input, tileId, selectClauseOverride);
-    }
-
     return queryBuilder
             .withSelectClauseOverride(selectClauseOverride)
             .buildQuery(input);
   }
 
-  private SQLQuery getFeaturesByTileIdQuery(GetFeaturesByGeometryBuilder queryBuilder,
-                                            GetFeaturesByGeometryInput input,
-                                            String tileId,
-                                            SQLQuery selectClauseOverride)
-          throws QueryBuildingException {
+  private SQLQuery getFeaturesByTileIdQuery(
+          SpaceContext context,
+          SQLQuery selectClauseOverride,
+          SpatialFilter spatialFilter,
+          String tileId,
+          Ref versionRef
+  ) throws WebClientException, TooManyResourcesClaimed, QueryBuildingException, InvalidGeometryException {
 
-    BBox tileBBOX = switch (quadType) {
-      case HERE_QUAD -> new HQuad(tileId, false).getBoundingBox();
-      case MERCATOR_QUAD -> WebMercatorTile.forQuadkey(tileId).getExtendedBBox(0);
-    };
+    GetFeaturesByGeometryBuilder queryBuilder = new GetFeaturesByGeometryBuilder()
+            .withDataSourceProvider(requestResource(dbReader(), 0));
+
+    SpatialFilter tileBBOXFilter = new SpatialFilter()
+            .withGeometry(getTileBBOX(tileId))
+            .withClip(clipOnTileBoundaries);
+
+    GetFeaturesByGeometryInput input = createGetFeaturesByGeometryInput(context, tileBBOXFilter, versionRef);
 
     SQLQuery contentQuery = queryBuilder
-            .withGeoFilterOverride(tileBBOX)  //TODO: unclipped?
+            .withClippingGeometry(spatialFilter != null && spatialFilter.isClip() ? spatialFilter.getGeometry() : null)
             .withSelectClauseOverride(selectClauseOverride)
             .buildQuery(input);
 
@@ -386,29 +433,19 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
             .withQueryFragment("contentQuery", contentQuery);
   }
 
-  private SQLQuery generateGetFeaturesByIdsQuery(List<String> ids, SpaceContext context, Ref versionRef)
-          throws WebClientException, TooManyResourcesClaimed, QueryBuildingException {
+  private SQLQuery generateGetFeaturesByIdsQuery(List<String> ids, SpaceContext context, Ref versionRef) throws WebClientException,
+      TooManyResourcesClaimed, QueryBuildingException {
+    GetFeaturesByIdsBuilder queryBuilder = new GetFeaturesByIdsBuilder().withSelectClauseOverride(new SQLQuery("id,geo"))
+        .withDataSourceProvider(requestResource(dbReader(), 0));
 
-    GetFeaturesByIdsBuilder queryBuilder = new GetFeaturesByIdsBuilder()
-            .withDataSourceProvider(requestResource(dbReader(), 0));
-    GetFeaturesByIdsBuilder.GetFeaturesByIdsInput input = createGetFeaturesByIdsInput(ids, context, versionRef);
-
-    return queryBuilder
-            .withSelectClauseOverride(new SQLQuery("id,geo"))
-            .buildQuery(input);
-  }
-
-  private GetFeaturesByIdsBuilder.GetFeaturesByIdsInput createGetFeaturesByIdsInput(List<String> ids,
-                                                                                    SpaceContext context, Ref versionRef)
-          throws WebClientException {
-    return new GetFeaturesByIdsBuilder.GetFeaturesByIdsInput(
-            space().getId(),
-            hubWebClient().loadConnector(space().getStorage().getId()).params,
-            space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
-            context,
-            space().getVersionsToKeep(),
-            versionRef,
-            ids
-    );
+    return queryBuilder.buildQuery(new GetFeaturesByIdsInput(
+        space().getId(),
+        hubWebClient().loadConnector(space().getStorage().getId()).params,
+        space().getExtension() != null ? space().resolveCompositeParams(superSpace()) : null,
+        context,
+        space().getVersionsToKeep(),
+        versionRef,
+        ids
+    ));
   }
 }

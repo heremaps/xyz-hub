@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,10 @@ package com.here.xyz.jobs.service;
 import static com.here.xyz.jobs.RuntimeInfo.State.NOT_READY;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeStatus.Action.CANCEL;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.SPACE_ID;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.Path.SPACE_ID;
+import static com.here.xyz.jobs.service.JobApiBase.ApiParam.getPathParam;
 import static io.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -38,15 +35,16 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeStatus;
 import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputsFromJob;
 import com.here.xyz.jobs.steps.inputs.InputsFromS3;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.service.logging.LogUtil;
-import com.here.xyz.util.service.rest.Api;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
@@ -58,7 +56,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class JobApi extends Api {
+public class JobApi extends JobApiBase {
   protected static final Logger logger = LogManager.getLogger();
   protected JobApi() {}
 
@@ -75,33 +73,40 @@ public class JobApi extends Api {
   }
 
   protected void postJob(final RoutingContext context) throws HttpException {
-    Job job = getJobFromBody(context);
-    logger.info(LogUtil.getMarker(context), "Received job creation request: {}", job.serialize(true));
-    job.create().submit()
+    createNewJob(context, getJobFromBody(context));
+  }
+
+  protected Future<Job> createNewJob(RoutingContext context, Job job) {
+    logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
+    return job.create().submit()
         .map(res -> job)
+        .recover(t -> {
+          if (t instanceof CompilationError)
+            return Future.failedFuture(new DetailedHttpException("E319002", t));
+          if (t instanceof ValidationException)
+            return Future.failedFuture(new DetailedHttpException("E319003", t));
+          return Future.failedFuture(t);
+        })
         .onSuccess(res -> {
           sendResponse(context, CREATED.code(), res);
-          logger.info(LogUtil.getMarker(context), "Job was created successfully: {}", job.serialize(true));
+          logger.info(getMarker(context), "Job was created successfully: {}", job.serialize(true));
         })
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void getJobs(final RoutingContext context) {
-    Job.loadAll()
-        .onSuccess(res -> sendResponse(context, OK.code(), res))
-        .onFailure(err -> sendErrorResponse(context, err));
+    getJobs(context, false);
   }
 
   protected void getJob(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
         .onFailure(err -> sendErrorResponse(context, err));
 
   }
 
   protected void deleteJob(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
+    String jobId = jobId(context);
     loadJob(context, jobId)
         .compose(job -> Job.delete(jobId).map(job))
         .onSuccess(res -> sendResponse(context, OK.code(), res))
@@ -109,13 +114,13 @@ public class JobApi extends Api {
   }
 
   protected void postJobInput(final RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
+    String jobId = jobId(context);
     Input input = getJobInputFromBody(context);
     if (input instanceof UploadUrl uploadUrl) {
       loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
-              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
+              : Future.failedFuture(new DetailedHttpException("E319004")))
           .map(job -> job.createUploadUrl(uploadUrl.isCompressed()))
           .onSuccess(res -> sendResponse(context, CREATED.code(), res))
           .onFailure(err -> sendErrorResponse(context, err));
@@ -124,7 +129,7 @@ public class JobApi extends Api {
       loadJob(context, jobId)
           .compose(job -> job.getStatus().getState() == NOT_READY
               ? Future.succeededFuture(job)
-              : Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created after a job was submitted.")))
+              : Future.failedFuture(new DetailedHttpException("E319004")))
           .compose(job -> {
             s3Inputs.dereference(job.getId());
             return Future.succeededFuture();
@@ -136,12 +141,11 @@ public class JobApi extends Api {
       loadJob(context, jobId)
           .compose(job -> {
             if (!job.isPipeline())
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs other than " + UploadUrl.class.getSimpleName() + "s can be "
-                  + "created for this job."));
+              return Future.failedFuture(new DetailedHttpException("E319005", Map.of("allowedType", UploadUrl.class.getSimpleName())));
             else if (job.getStatus().getState() != RUNNING)
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "No inputs can be created for this job before it is running."));
+              return Future.failedFuture(new DetailedHttpException("E319006"));
             else if (context.request().bytesRead() > 256 * 1024)
-              return Future.failedFuture(new HttpException(BAD_REQUEST, "The maximum size of an input for this job is 256KB."));
+              return Future.failedFuture(new DetailedHttpException("E319007"));
             else
               return job.consumeInput(modelBasedInput);
           })
@@ -154,8 +158,7 @@ public class JobApi extends Api {
           .compose(job -> loadJob(context, inputsReference.getJobId()).compose(referencedJob -> {
             try {
               if (!Objects.equals(referencedJob.getOwner(), job.getOwner()))
-                return Future.failedFuture(new HttpException(FORBIDDEN, "Inputs of job " + inputsReference.getJobId()
-                    + " can not be referenced by job " + job.getId() + " as it has a different owner."));
+                return Future.failedFuture(new DetailedHttpException("E319008", Map.of("referencedJob", inputsReference.getJobId(), "referencingJob", job.getId())));
 
               inputsReference.dereference(job.getId());
               return Future.succeededFuture();
@@ -172,35 +175,29 @@ public class JobApi extends Api {
   }
 
   protected void getJobInputs(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .compose(job -> job.loadInputs())
         .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Input>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void getJobOutputs(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .compose(job -> job.loadOutputs())
         .onSuccess(res -> sendResponse(context, OK.code(), res, new TypeReference<List<Output>>() {}))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void patchJobStatus(final RoutingContext context) throws HttpException {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
     RuntimeStatus status = getStatusFromBody(context);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .compose(job -> tryExecuteAction(context, status, job))
         .onSuccess(patchedStatus -> sendResponse(context, ACCEPTED.code(), patchedStatus))
         .onFailure(err -> sendErrorResponse(context, err));
   }
 
   protected void getJobStatus(final RoutingContext context) {
-    String jobId = ApiParam.getPathParam(context, JOB_ID);
-    loadJob(context, jobId)
+    loadJob(context, jobId(context))
         .onSuccess(res -> sendResponse(context, OK.code(), res.getStatus()))
         .onFailure(err -> sendErrorResponse(context, err));
   }
@@ -209,7 +206,7 @@ public class JobApi extends Api {
     try {
       Job job = XyzSerializable.deserialize(context.body().asString(), Job.class);
 
-      String spaceId = ApiParam.getPathParam(context, SPACE_ID);
+      String spaceId = getPathParam(context, SPACE_ID);
 
       if (spaceId != null && job.getSource() instanceof DatasetDescription.Space space)
         space.setId(spaceId);
@@ -218,8 +215,9 @@ public class JobApi extends Api {
     }
     catch (JsonProcessingException e) {
       //TODO: Decide if we want to forward the cause to the user.
+      //TODO: We should generally try to "unpack" the JsonProcessingException and see if the cause is a "user facing" exception. See: Api#sendErrorResponse(RoutingContext, Throwable)
       //e.g. an invalid versionRef(4,2) will end up here - without any indication for the user at the end
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -227,7 +225,7 @@ public class JobApi extends Api {
     return Job.load(jobId)
         .compose(job -> {
           if (job == null)
-            return Future.failedFuture(new HttpException(NOT_FOUND, "The requested job does not exist"));
+            return Future.failedFuture(new DetailedHttpException("E319009", Map.of("jobId", jobId)));
           return authorizeAccess(context, job).map(job);
         });
   }
@@ -243,11 +241,11 @@ public class JobApi extends Api {
       }
       catch (InvalidTypeIdException e) {
         Map<String, Object> jsonInput = XyzSerializable.deserialize(context.body().asString(), Map.class);
-        throw new NotImplementedException("Input type " + jsonInput.get("type") + " is not supported.", e);
+        throw new DetailedHttpException("E319010", Map.of("jsonType", jsonInput.get("type").toString(), "expectedType", Job.class.getSimpleName()), e);
       }
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -256,7 +254,7 @@ public class JobApi extends Api {
       return XyzSerializable.deserialize(context.body().asString(), RuntimeStatus.class);
     }
     catch (JsonProcessingException e) {
-      throw new HttpException(BAD_REQUEST, "Error parsing request", e);
+      throw new DetailedHttpException("E319001", e);
     }
   }
 
@@ -274,26 +272,5 @@ public class JobApi extends Api {
           }
         })
         .map(res -> job.getStatus());
-  }
-
-  public static class ApiParam {
-
-    public static String getPathParam(RoutingContext context, String param) {
-      return context.pathParam(param);
-    }
-
-    public static String getQueryParam(RoutingContext context, String param) {
-      return context.queryParams().get(param);
-    }
-
-    public static class Path {
-      static final String SPACE_ID = "spaceId";
-      static final String JOB_ID = "jobId";
-    }
-
-    public static class Query {
-      static final String STATE = "state";
-      static final String RESOURCE = "resource";
-    }
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -35,7 +34,7 @@ import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Space.Copyright;
-import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
@@ -86,7 +85,7 @@ public class SpaceApi extends SpaceBasedApi {
       input = context.body().asJsonObject();
     }
     catch (DecodeException e) {
-      context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
+      context.fail(new DetailedHttpException("E318400", e));
       return;
     }
 
@@ -107,7 +106,7 @@ public class SpaceApi extends SpaceBasedApi {
     try {
       input = context.body().asJsonObject();
     } catch (DecodeException e) {
-      context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
+      context.fail(new DetailedHttpException("E318400", e));
       return;
     }
     String spaceId = getSpaceId(context);
@@ -116,13 +115,14 @@ public class SpaceApi extends SpaceBasedApi {
       input.put("id", spaceId);
     }
     if (!input.getString("id").equals(spaceId)) {
-      context.fail(
-          new HttpException(BAD_REQUEST, "The resource ID in the body does not match the resource ID in the path."));
+      context.fail(new DetailedHttpException("E318402"));
       return;
     }
 
     boolean dryRun = ApiParam.Query.getBoolean(context, Query.DRY_RUN, false);
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true, dryRun);
+    boolean forceStorage = ApiParam.Query.getBoolean(context, Query.FORCE_STORAGE, false);
+
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.ERROR, IfExists.PATCH, true, dryRun, forceStorage);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
         .execute(this::sendResponse, this::sendErrorResponse);

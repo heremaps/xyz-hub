@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,9 +25,9 @@ import static com.here.xyz.jobs.RuntimeInfo.State.FAILED;
 import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
-import static com.here.xyz.jobs.service.JobApi.ApiParam.Path.JOB_ID;
-import static com.here.xyz.jobs.steps.execution.GraphTransformer.EMR_JOB_NAME_PREFIX;
+import static com.here.xyz.jobs.steps.execution.RunEmrJob.globalStepIdFromEmrJobName;
 import static com.here.xyz.jobs.util.AwsClients.asyncSfnClient;
+import static com.here.xyz.jobs.util.AwsClients.emrServerlessClient;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -38,21 +38,21 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.RuntimeInfo;
 import com.here.xyz.jobs.RuntimeInfo.State;
-import com.here.xyz.jobs.service.JobApi.ApiParam;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.util.service.HttpException;
-import com.here.xyz.util.service.rest.Api;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
+import software.amazon.awssdk.services.emrserverless.model.GetJobRunRequest;
+import software.amazon.awssdk.services.emrserverless.model.JobRun;
 import software.amazon.awssdk.services.sfn.model.GetExecutionHistoryRequest;
 import software.amazon.awssdk.services.sfn.model.HistoryEvent;
 
-public class JobAdminApi extends Api {
+public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_JOBS = "/admin/jobs";
   private static final String ADMIN_JOB = ADMIN_JOBS + "/:jobId";
   private static final String ADMIN_JOB_STEPS = ADMIN_JOB + "/steps";
@@ -69,9 +69,7 @@ public class JobAdminApi extends Api {
   }
 
   private void getJobs(RoutingContext context) {
-    Job.load(getState(context), getResource(context))
-        .onSuccess(res -> sendInternalResponse(context, OK.code(), res))
-        .onFailure(err -> sendErrorResponse(context, err));
+    getJobs(context, true);
   }
 
   private void getJob(RoutingContext context) {
@@ -200,8 +198,6 @@ public class JobAdminApi extends Api {
               default -> null;
             };
             if (newJobState != null) {
-              if (newJobState.isFinal())
-                JobService.callFinalizeObservers(job);
 
               Future<Void> future = Future.succeededFuture();
               if (newJobState == SUCCEEDED)
@@ -220,8 +216,13 @@ public class JobAdminApi extends Api {
               }
 
               State oldState = job.getStatus().getState();
-              if (oldState != newJobState)
+              if (oldState != newJobState) {
                 job.getStatus().setState(newJobState);
+
+                //Call finalize observers after setting the new state to the job status
+                if (newJobState.isFinal())
+                  JobService.callFinalizeObservers(job);
+              }
 
               return future.compose(v -> job.storeStatus(oldState));
             }
@@ -296,39 +297,53 @@ public class JobAdminApi extends Api {
    * }
    */
   private void processEmrJobStateChangeEvent(JsonObject event) {
-    String emrJobRunName = event.getJsonObject("detail").getString("jobRunName");
+    String emrApplicationId = event.getJsonObject("detail").getString("applicationId");
+    String emrJobName = event.getJsonObject("detail").getString("jobRunName");
     String emrJobRunId = event.getJsonObject("detail").getString("jobRunName");
     String emrJobStatus = event.getJsonObject("detail").getString("state");
+    String globalStepId = globalStepIdFromEmrJobName(emrJobName);
 
-    if(emrJobRunName != null && emrJobRunName.startsWith(EMR_JOB_NAME_PREFIX)) {
-      String[] globalStepId = emrJobRunName.substring(emrJobRunName.indexOf(':') + 1).split("\\.");
+    if (globalStepId != null) {
+      String[] globalStepIdParts = globalStepId.split("\\.");
 
-      if(globalStepId.length != 2) {
-        logger.error("The emrJobRunName does not have a valid globalStepId : {}", emrJobRunName);
+      if (globalStepIdParts.length != 2) {
+        logger.error("The emrJobRunName does not have a valid globalStepId EMR job name was: {}", emrJobName);
         return;
       }
 
-      String jobId = globalStepId[0];
-      String stepId = globalStepId[1];
+      String jobId = globalStepIdParts[0];
+      String stepId = globalStepIdParts[1];
 
       loadJob(jobId)
           .compose(job -> {
             State newStepState = switch (emrJobStatus) {
               case "RUNNING" -> RUNNING;
               case "SUCCESS" -> SUCCEEDED;
+              case "CANCELLING" -> CANCELLING;
               case "CANCELLED" -> CANCELLED;
               case "FAILED" -> FAILED;
               default -> null;
             };
 
             RuntimeInfo status = new RuntimeInfo().withState(newStepState);
-            return job.updateStepStatus(stepId, status);
+            if (newStepState == FAILED)
+              populateEmrErrorInformation(emrApplicationId, emrJobName, emrJobRunId, status);
+            return job.updateStepStatus(stepId, status, false);
           });
-
-    } else {
-      logger.error("The EMR serverless job {} - {} is not associated with SFN step", emrJobRunId, emrJobRunName);
     }
+    else
+      logger.error("The EMR job {} - {} is not associated with a step", emrJobName, emrJobRunId);
+  }
 
+  private void populateEmrErrorInformation(String emrApplicationId, String emrJobName, String emrJobRunId, RuntimeInfo status) {
+    JobRun jobRun = emrServerlessClient().getJobRun(GetJobRunRequest.builder()
+        .applicationId(emrApplicationId)
+        .jobRunId(emrJobRunId)
+        .build()).jobRun();
+
+    status.setErrorMessage("EMR Job " + emrJobName + " with run ID " + emrJobRunId + " failed.");
+    status.setErrorCause(jobRun.stateDetails());
+    //TODO: Set error code
   }
 
   private Step getStepFromBody(RoutingContext context) throws HttpException {
@@ -348,20 +363,7 @@ public class JobAdminApi extends Api {
     }
   }
 
-  private static String jobId(RoutingContext context) {
-    return context.pathParam(JOB_ID);
-  }
-
   private static String stepId(RoutingContext context) {
     return context.pathParam("stepId");
-  }
-
-  private State getState(RoutingContext context) {
-    String stateParamValue = ApiParam.getQueryParam(context, ApiParam.Query.STATE);
-    return stateParamValue != null ? State.valueOf(stateParamValue) : null;
-  }
-
-  private String getResource(RoutingContext context) {
-    return ApiParam.getQueryParam(context, ApiParam.Query.RESOURCE);
   }
 }

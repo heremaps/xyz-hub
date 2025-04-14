@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.LazyParsable.ProxyStringReader;
 import java.io.IOException;
@@ -276,6 +277,14 @@ public interface XyzSerializable {
     try (Scanner scanner = new java.util.Scanner(is)) {
       return deserialize(scanner.useDelimiter("\\A").next(), type);
     }
+  }
+
+  static <T> MappingIterator<T> deserializeJsonLines(InputStream stream, Class<T> klass) throws IOException {
+    return DEFAULT_MAPPER.get().readerFor(klass).readValues(stream);
+  }
+
+  static <T> MappingIterator<T> deserializeJsonLines(InputStream stream, TypeReference<T> type) throws IOException {
+    return DEFAULT_MAPPER.get().readerFor(type).readValues(stream);
   }
 
   static <T extends Typed> T deserialize(byte[] bytes) throws JsonProcessingException {

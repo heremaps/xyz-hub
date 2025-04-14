@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class SpaceCopy implements JobCompilationInterceptor {
+
   public static Set<Class> forbiddenTargetTypes = new HashSet<>();
 
   @Override
@@ -100,6 +101,9 @@ public class SpaceCopy implements JobCompilationInterceptor {
       sourceStatistics = hubWebClient().loadSpaceStatistics(sourceSpaceId, sourceContext);
       targetStatistics = hubWebClient().loadSpaceStatistics(targetSpaceId, targetContext);
 
+      Ref versionRef = source.getVersionRef(),
+          resolvedVersionRef = hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef);
+
       CopySpacePre preCopySpace = new CopySpacePre().withSpaceId(targetSpaceId).withJobId(jobId);
 
       CompilationStepGraph startGraph = new CompilationStepGraph();
@@ -113,12 +117,11 @@ public class SpaceCopy implements JobCompilationInterceptor {
       CompilationStepGraph copyGraph = new CompilationStepGraph();
 
       for (int threadId = 0; threadId < threadCount; threadId++) {
-        Ref versionRef = source.getVersionRef();
+
         CopySpace copySpaceStep = new CopySpace()
             .withSpaceId(sourceSpaceId)
             .withTargetSpaceId(targetSpaceId)
-            //TODO: Move resolving of version ref into step's prepare method! (See: ExportToFiles compiler)
-            .withSourceVersionRef(hubWebClient().resolveRef(sourceSpaceId, sourceContext, versionRef))
+            .withSourceVersionRef(resolvedVersionRef)
             .withPropertyFilter(filters != null ? filters.getPropertyFilter() : null)
             .withSpatialFilter(filters != null ? filters.getSpatialFilter() : null)
             .withThreadInfo(new int[]{threadId, threadCount})
@@ -127,6 +130,9 @@ public class SpaceCopy implements JobCompilationInterceptor {
 
         copyGraph.addExecution(copySpaceStep).withParallel(true);
       }
+
+      if(copyGraph.size() == 0)
+       throw new CompilationError("None of provided Layer contains a valid sourceVersion" );
 
       startGraph.addExecution(copyGraph);
 

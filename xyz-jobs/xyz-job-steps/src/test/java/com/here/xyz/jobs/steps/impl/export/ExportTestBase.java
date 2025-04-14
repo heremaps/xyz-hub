@@ -54,7 +54,8 @@ public class ExportTestBase extends StepTest {
         checkOutputs(allExpectedFeatures, step.loadUserOutputs(), step.loadOutputs(SYSTEM));
     }
 
-    protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs) throws IOException {
+    protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs)
+            throws IOException {
         Assertions.assertNotEquals(0, userOutputs.size());
         Assertions.assertNotEquals(0, systemOutputs.size());
 
@@ -82,8 +83,15 @@ public class ExportTestBase extends StepTest {
     }
 
     protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
-                    ExportChangedTiles.QuadType quadType, Ref versionRef, List<String> expectedTileInvalidations,
-                    FeatureCollection expectedFeatures)
+                                                                ExportChangedTiles.QuadType quadType, Ref versionRef,
+                                                                List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
+            throws IOException, InterruptedException {
+        executeExportChangedTilesStepAndCheckResults(spaceId, targetLevel, quadType, versionRef, null, null, expectedTileInvalidations, expectedFeatures);
+    }
+
+    protected void executeExportChangedTilesStepAndCheckResults(String spaceId, int targetLevel,
+                    ExportChangedTiles.QuadType quadType, Ref versionRef, SpatialFilter spatialFilter, PropertiesQuery propertiesQuery,
+                    List<String> expectedTileInvalidations, FeatureCollection expectedFeatures)
             throws IOException, InterruptedException {
 
         //Create Step definition
@@ -91,6 +99,8 @@ public class ExportTestBase extends StepTest {
                 .withQuadType(quadType)
                 .withTargetLevel(targetLevel)
                 .withVersionRef(versionRef)
+                .withPropertyFilter(propertiesQuery)
+                .withSpatialFilter(spatialFilter)
                 .withSpaceId(spaceId)
                 .withJobId(JOB_ID);
 
@@ -111,7 +121,7 @@ public class ExportTestBase extends StepTest {
                 System.out.println(statistics.getFeatureCount());
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
             }else if (output instanceof TileInvalidations tileInvalidations) {
-                logger.info("TileInvalidations {} vs {}",expectedTileInvalidations, tileInvalidations);
+                logger.info("TileInvalidations {} vs {}",expectedTileInvalidations, tileInvalidations.getTileIds());
                 Assertions.assertEquals(expectedTileInvalidations.size(), tileInvalidations.getTileIds().size());
                 Assertions.assertTrue(expectedTileInvalidations.containsAll(tileInvalidations.getTileIds()));
             }

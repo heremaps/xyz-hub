@@ -20,15 +20,19 @@
 package com.here.xyz.jobs.steps.impl.export;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
 import com.here.xyz.jobs.steps.impl.transport.ExportChangedTiles.QuadType;
-import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -159,6 +163,7 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                  }
                 """, FeatureCollection.class);
 
+        //=> LINESTRING(6.353809489694754 51.08958733812065, 8.231999783047115 51.359089906708846, 7.937709200611209 50.5346535571293, 9.337868867777473 50.26303968016663, 9.34797694869323 49.3892593362186)
         FeatureCollection fc3 = XyzSerializable.deserialize("""
                 {
                   "type": "FeatureCollection",
@@ -266,7 +271,78 @@ public class ExportChangedTilesStepTest extends ExportTestBase {
                                 new Feature().withId("point3_delta"),
                                 new Feature().withId("point2_base"),
                                 new Feature().withId("line4_delta")
-                        ) //only deletions have happened
+                        )
+                ));
+    }
+
+    @Test
+    public void ExportChangedTilesStepVersion2to4WithPropertyFilter() throws IOException, InterruptedException {
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 5, QuadType.HERE_QUAD,
+                new Ref("1..2") ,null, PropertiesQuery.fromString("p.value=Africa"),
+                List.of("1269", "1423"), new FeatureCollection().withFeatures(
+                        List.of(
+                                new Feature().withId("point3_delta")
+                        )
+                ));
+    }
+
+    @Test
+    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilterClipped() throws IOException, InterruptedException, InvalidGeometryException {
+
+        PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+
+        // Define the polygon coordinates from the new GeoJSON
+        lrc.add(new Position(6.862454740359112, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 51.266833510249285)); // Closing the ring
+
+        polygonCoordinates.add(lrc);
+
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 8, QuadType.HERE_QUAD,
+                new Ref("0..HEAD") ,
+                new SpatialFilter()
+                        .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
+                        .withClip(true), null,
+                List.of("1269"), new FeatureCollection().withFeatures(
+                        //spatialFilter crosses two tiles
+                        List.of(
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta")
+                        )
+                ));
+    }
+
+    @Test
+    public void ExportChangedTilesStepVersion0toHEADWithSpatialFilterNotClipped() throws IOException, InterruptedException, InvalidGeometryException {
+
+        PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+
+        // Define the polygon coordinates from the new GeoJSON
+        lrc.add(new Position(6.862454740359112, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 50.94927282395278));
+        lrc.add(new Position(8.809774102827362, 51.266833510249285));
+        lrc.add(new Position(6.862454740359112, 51.266833510249285)); // Closing the ring
+
+        polygonCoordinates.add(lrc);
+
+        executeExportChangedTilesStepAndCheckResults(SPACE_ID_EXT, 8, QuadType.HERE_QUAD,
+                new Ref("0..HEAD") ,
+                new SpatialFilter()
+                        .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
+                        .withClip(false), null,
+                List.of("1269"), new FeatureCollection().withFeatures(
+                        //spatialFilter crosses two tiles
+                        List.of(
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta"),
+                                new Feature().withId("line4_delta")
+                        )
                 ));
     }
 }

@@ -52,29 +52,6 @@ public class ResourceAndTimeCalculator implements Initializable {
         }
     }
 
-    //Export Related...
-    public double calculateNeededExportAcus(long uncompressedUploadBytesEstimation) {
-        //maximum auf Acus - to prevent that job never gets executed. @TODO: check how to deal is maxUnits of DB
-        final double maxAcus = 70;
-        //exports are not that heavy than imports
-        final double exportQuotient = 2;
-
-        //Calculate the needed ACUs
-        double neededAcus = calculateNeededAcusFromByteSize(uncompressedUploadBytesEstimation) / exportQuotient;
-        return Math.min(neededAcus, maxAcus);
-    }
-
-    protected double exportTimeFactor(String spaceId, double seconds){
-        return seconds;
-    }
-
-    public int calculateExportTimeInSeconds(String spaceId, long byteSize){
-        int warmUpTime = 10;
-        int bytesPerSecond = 57 * 1024 * 1024;
-
-        return (int)(warmUpTime + exportTimeFactor(spaceId,  ((double) byteSize / bytesPerSecond)));
-    }
-
     //Import Related...
     protected double importTimeFactor(String spaceId, double bytesPerBillion){
         return 0.44 * bytesPerBillion;

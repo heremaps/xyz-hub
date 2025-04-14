@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -56,6 +55,7 @@ import org.apache.logging.log4j.Logger;
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
   public static final String USER_REF = "USER";
+  public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final Logger logger = LogManager.getLogger();
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
   private static final String INPUT_SET_REF_SUFFIX = "}";
@@ -68,6 +68,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   private List<String> positionalScriptParams = new ArrayList<>();
   private Map<String, String> namedScriptParams = new HashMap<>();
   private String sparkParams;
+
+  @JsonIgnore
+  public String getEmrJobName() {
+    return EMR_JOB_NAME_PREFIX + getGlobalStepId();
+  }
+
+  public static String globalStepIdFromEmrJobName(String emrJobName) {
+    return emrJobName.startsWith(EMR_JOB_NAME_PREFIX) ? emrJobName.substring(emrJobName.indexOf(':') + 1) : null;
+  }
 
   @Override
   public List<Load> getNeededResources() {
@@ -110,12 +119,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     scriptParams.set(0, localTmpInputsFolder);
     scriptParams.set(1, localTmpOutputsFolder);
 
+    List<String> baseDirKeys = List.of("--baseInputDir=", "--tileInvalidations=");
+
     for (int i = 0; i < scriptParams.size(); i++) {
-      String baseDirKey = "--baseInputDir=";
-      if (scriptParams.get(i).startsWith(baseDirKey)) {
-        String localTmpBaseInputsFolder = copyFolderFromS3ToLocal(
-            S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
-        scriptParams.set(i, baseDirKey + localTmpBaseInputsFolder);
+      for (String baseDirKey : baseDirKeys) {
+        if (scriptParams.get(i).startsWith(baseDirKey)) {
+          String localTmpFolder = copyFolderFromS3ToLocal(
+                  S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
+          scriptParams.set(i, baseDirKey + localTmpFolder);
+        }
       }
     }
 
@@ -384,6 +396,24 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getLocalTmpPath(s3Path);
   }
 
+  // Mapping of file extensions to content types
+  private static final Map<String, String> CONTENT_TYPE_MAP = new HashMap<>() {{
+    put(".geojson", "application/json");
+    put(".json", "application/json");
+    put(".csv", "text/csv");
+    put(".txt", "text/plain");
+  }};
+
+  // Determine the content type based on the file extension
+  private static String getContentType(Path filePath) {
+    String fileName = filePath.getFileName().toString().toLowerCase();
+    return CONTENT_TYPE_MAP.entrySet().stream()
+            .filter(entry -> fileName.endsWith(entry.getKey()))
+            .map(Map.Entry::getValue)
+            .findFirst()
+            .orElse("text/plain"); // Default to text/plain for unknown types
+  }
+
   private void uploadEMRResultsToS3(File emrOutputDir, String s3TargetPath) throws IOException {
     if (emrOutputDir.exists() && emrOutputDir.isDirectory()) {
       File[] files = emrOutputDir.listFiles();
@@ -394,8 +424,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       }
 
       for (File file : files) {
-        //TODO: check why this happens & skip _SUCCESS
-        if (file.getPath().endsWith("crc"))
+        if (file.getPath().endsWith("crc") || file.getName().equalsIgnoreCase("_SUCCESS"))
           continue;
 
         if (file.isDirectory()) {
@@ -405,11 +434,11 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
         }
 
         logger.info("[EMR-local] Store local file {} to {} ", file, s3TargetPath);
-        //TODO: Check if this is the correct content-type
+        s3TargetPath = s3TargetPath.replaceAll("/$", "");
         new DownloadUrl()
-            .withContentType("text")
+            .withContentType(getContentType(file.toPath()))
             .withContent(Files.readAllBytes(file.toPath()))
-            .store(s3TargetPath + "/" + UUID.randomUUID());
+            .store(s3TargetPath + "/" + file.getName());
       }
     }
   }
