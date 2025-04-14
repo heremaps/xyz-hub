@@ -81,7 +81,8 @@ public class JobApi extends JobApiBase {
 
   protected Future<Job> createNewJob(RoutingContext context, Job job) {
     logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
-    return applyInputReferences(job.create())
+    return job.create().submit()
+        .compose(v -> applyInputReferences(job))
         .map(res -> job)
         .recover(t -> {
           if (t instanceof CompilationError)
@@ -99,7 +100,7 @@ public class JobApi extends JobApiBase {
 
   protected Future<Void> applyInputReferences(Job job) {
     if (job.getInputs() == null)
-      return Future.succeededFuture(null);
+      return Future.succeededFuture();
 
     if (!job.getInputs().values().stream().allMatch(input -> input instanceof InputsFromS3))
       return Future.failedFuture("Only inputs of type " + InputsFromS3.class.getSimpleName() + " are supported as inline inputs.");
