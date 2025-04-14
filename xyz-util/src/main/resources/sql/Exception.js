@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,22 @@ class Exception extends Error {
   context;
   detail;
   hint;
+  cause;
 
-  constructor(message) {
+  constructor(message, cause = null) {
     super(message);
     this.withDetail(this.constructor.name + ": ");
+    this.cause = cause;
+
+    //Build the context information
+    this.context = this.stack;
+
+    if (cause instanceof Exception)
+      this.context += "\nCaused by: " + cause.context;
+    else if (cause instanceof Error)
+      this.context += "\nCaused by: " + cause.stack;
+    else
+      this.context += "\nCaused by: " + cause;
   }
 
   withCode(code) {
@@ -37,11 +49,6 @@ class Exception extends Error {
     for (let i in code)
       numericCode += Math.pow(64, i) * (code[i].charCodeAt(0) - 48);
     this.code = numericCode;
-    return this;
-  }
-
-  withContext(context) {
-    this.context = context;
     return this;
   }
 
@@ -57,43 +64,43 @@ class Exception extends Error {
 }
 
 class XyzException extends Exception {
-  constructor(message) {
-    super(message);
+  constructor(message, cause = null) {
+    super(message, cause);
     this.withCode("XYZ50");
   }
 }
 
 class VersionConflictError extends XyzException {
-  constructor(message) {
-    super(message);
+  constructor(message, cause = null) {
+    super(message, cause);
     this.withCode("XYZ49");
   }
 }
 
 class MergeConflictError extends VersionConflictError {
-  constructor(message) {
-    super(message);
+  constructor(message, cause = null) {
+    super(message, cause);
     this.withCode("XYZ48");
   }
 }
 
 class IllegalArgumentException extends XyzException {
-  constructor(message) {
-    super(message);
+  constructor(message, cause = null) {
+    super(message, cause);
     this.withCode("XYZ40");
   }
 }
 
 class FeatureExistsException extends XyzException {
-  constructor(message) {
-    super(message);
+  constructor(message, cause = null) {
+    super(message, cause);
     this.withCode("XYZ20");
   }
 }
 
 class FeatureNotExistsException extends XyzException {
-  constructor(message) {
-    super(message);
+  constructor(message, cause = null) {
+    super(message, cause);
     this.withCode("XYZ44");
   }
 }

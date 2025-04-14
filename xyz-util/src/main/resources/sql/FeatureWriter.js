@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -342,7 +342,7 @@ class FeatureWriter {
           if (this.onExists == "ERROR")
             this._throwFeatureExistsError();
           else
-            throw new XyzException("Unexpected conflict while trying to perform write operation.").withDetail(e.detail).withHint(e.hint);
+            throw new XyzException("Unexpected conflict while trying to perform write operation.", e).withDetail(e.detail).withHint(e.hint);
         }
 
         this.debugBox(e.stack);
