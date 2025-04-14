@@ -128,7 +128,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
   }
 
-  private static void putToInputCache(String jobId, String setName, List<Input> inputs) {
+  private synchronized static void putToInputCache(String jobId, String setName, List<Input> inputs) {
     Map<String, List<Input>> cachedInputs = inputsCache.get(jobId);
     if (cachedInputs == null)
       cachedInputs = new ConcurrentHashMap<>();
@@ -141,7 +141,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return inputs == null ? null: inputs.get(setName);
   }
 
-  private static void putToMetadataCache(String jobId, String setName, InputsMetadata metadata) {
+  private synchronized static void putToMetadataCache(String jobId, String setName, InputsMetadata metadata) {
     Map<String, InputsMetadata> cachedMetadata = metadataCache.get(jobId);
     if (cachedMetadata == null)
       cachedMetadata = new ConcurrentHashMap<>();
