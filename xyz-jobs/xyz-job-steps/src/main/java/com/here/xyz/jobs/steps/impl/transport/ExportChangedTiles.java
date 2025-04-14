@@ -218,16 +218,18 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     infoLog(STEP_EXECUTE, this, "Added affected tiles from delta in version range "
             + versionRef +". Intermediate result size: "+ affectedTiles.size());
 
-    //Get affected Tiles from list of Feature in version [versionRef.getStartVersion()]
-    runReadQuerySync(getAffectedTilesFromBase(changedFeatureIds, new Ref(versionRef.getStart().getVersion())),
-            db(), 0, rs -> {
-      while (rs.next()){
-        affectedTiles.add(rs.getString("tile"));
-      }
-      return null;
-    });
-    infoLog(STEP_EXECUTE, this, "Added affected tiles from base version "
-            + versionRef.getStart().getVersion() +". Final Result size: "+ affectedTiles.size());
+    if(!changedFeatureIds.isEmpty()){
+      //Get affected Tiles from list of Feature in version [versionRef.getStartVersion()]
+      runReadQuerySync(getAffectedTilesFromBase(changedFeatureIds, new Ref(versionRef.getStart().getVersion())),
+              db(), 0, rs -> {
+                while (rs.next()){
+                  affectedTiles.add(rs.getString("tile"));
+                }
+                return null;
+              });
+      infoLog(STEP_EXECUTE, this, "Added affected tiles from base version "
+              + versionRef.getStart().getVersion() +". Final Result size: "+ affectedTiles.size());
+    }
 
     //Write taskList with all unique tileIds which we need to export
     for(String tileId : affectedTiles){
