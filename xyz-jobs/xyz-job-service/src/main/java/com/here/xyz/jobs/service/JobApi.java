@@ -82,7 +82,6 @@ public class JobApi extends JobApiBase {
   protected Future<Job> createNewJob(RoutingContext context, Job job) {
     logger.info(getMarker(context), "Received job creation request: {}", job.serialize(true));
     return applyInputReferences(job.create())
-        .compose(v -> job.submit())
         .map(res -> job)
         .recover(t -> {
           if (t instanceof CompilationError)
@@ -116,7 +115,8 @@ public class JobApi extends JobApiBase {
               .withErrorMessage("Error while scanning inputs.")
               .withErrorCause(t.getMessage());
           job.store();
-        });
+        })
+        .compose(v -> job.submit());
 
     /*
     Return without waiting for the input scanning to complete.
