@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ $BODY$
     }
     catch (error) {
       if (!error.code)
-        throw new Error("Unexpected error in feature_writer: " + error.message);
+        throw new Exception("Unexpected error in feature_writer: " + error.message, error);
       else
         throw error;
     }
