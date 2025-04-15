@@ -483,15 +483,15 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     return getInputSet(ref.stepId(), ref.name());
   }
 
-  protected InputSet getInputSet(String stepId, String name) {
+  protected InputSet getInputSet(String providerId, String name) {
     try {
       return getInputSets().stream()
-          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.providerId(), stepId))
+          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.providerId(), providerId))
           .findFirst()
           .get();
     }
     catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set \"" + stepId + "." + name + "\" exists in step \"" + getId() + "\"");
+      throw new IllegalArgumentException("No input set \"" + providerId + "." + name + "\" exists in step \"" + getId() + "\"");
     }
   }
 
