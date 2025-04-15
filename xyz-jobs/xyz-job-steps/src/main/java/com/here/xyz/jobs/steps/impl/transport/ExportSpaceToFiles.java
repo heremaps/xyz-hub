@@ -21,10 +21,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
@@ -87,7 +84,6 @@ import org.locationtech.jts.geom.Geometry;
  */
 public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles> {
   public static final String STATISTICS = "statistics";
-  public static final String INTERNAL_STATISTICS = "internalStatistics";
   public static final String EXPORTED_DATA = "exportedData";
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
@@ -110,12 +106,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   private long minI = -1;
   @JsonView({Internal.class, Static.class})
   private long maxI = -1;
-  /**
-   * Setting this to 'true' will skip the step execution
-   */
-  @JsonView({Internal.class, Static.class})
-  private boolean passthrough;
-
   @JsonView({Internal.class, Static.class})
   protected boolean restrictExtendOfSpatialFilter = true;
 
@@ -146,7 +136,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   {
     setOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
-        new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false)
     ));
   }
@@ -174,19 +163,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   public ExportSpaceToFiles withPropertyFilter(PropertiesQuery propertyFilter){
     setPropertyFilter(propertyFilter);
-    return this;
-  }
-
-  public boolean isPassthrough() {
-    return passthrough;
-  }
-
-  public void setPassthrough(boolean passthrough) {
-    this.passthrough = passthrough;
-  }
-
-  public ExportSpaceToFiles withPassthrough(boolean passthrough) {
-    setPassthrough(passthrough);
     return this;
   }
 
@@ -229,17 +205,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     catch (Exception e) {
       throw new RuntimeException(e);
     }
-  }
-
-  @Override
-  public ExecutionMode getExecutionMode() {
-    return passthrough ? SYNC : ASYNC;
-  }
-
-  @Override
-  public void execute(boolean resume) throws Exception {
-    if(passthrough) return;
-    super.execute(resume);
   }
 
   @Override
@@ -352,17 +317,15 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   protected void onAsyncSuccess() throws Exception {
     String schema = getSchema(db());
 
-    Statistics statistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
+    TransportStatistics stepStatistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
             0, rs -> rs.next()
-                    ? createStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"),
-                    rs.getInt("files_uploaded"))
-                    : createStatistics(0, 0, 0));
+                    ? new TransportStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"), rs.getInt("files_uploaded"))
+                    : new TransportStatistics(0, 0, 0));
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + statistics.published().getByteSize()
-            + " files=" + statistics.internal().getFileCount());
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize + " files=" + stepStatistics.fileCount);
 
-    registerOutputs(List.of(statistics.published()), STATISTICS);
-    registerOutputs(List.of(statistics.internal()), INTERNAL_STATISTICS);
+    registerOutputs(List.of(new FeatureStatistics().withFeatureCount(stepStatistics.rowCount).withByteSize(stepStatistics.byteSize)),
+        STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
@@ -429,14 +392,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   protected SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
     return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskData));
-  }
-
-  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) {
-    return new Statistics(
-        //NOTE: Do not publish the file count for the user facing statistics, as it could be confusing when it comes to invisible intermediate outputs
-        new FeatureStatistics().withByteSize(byteSize).withFeatureCount(featureCount),
-        new FeatureStatistics().withFileCount(fileCount)
-    );
   }
 
   protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
@@ -509,6 +464,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     return maxI;
   }
 
+
   /**
    * Generates a content query for the export plugin based on the task data and context. This method
    * can get overridden easily from other ExportProcesses.
@@ -547,5 +503,5 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
         .toExecutableQueryString();
   }
 
-  private record Statistics(FeatureStatistics published, FeatureStatistics internal) {}
+  private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
 }

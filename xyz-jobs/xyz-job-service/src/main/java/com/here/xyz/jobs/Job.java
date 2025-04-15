@@ -29,6 +29,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.RESUMING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUBMITTED;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
+import static com.here.xyz.jobs.steps.Step.InputSet.DEFAULT_INPUT_SET_NAME;
 import static com.here.xyz.jobs.steps.inputs.Input.inputS3Prefix;
 import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.util.Random.randomAlpha;
@@ -36,6 +37,7 @@ import static com.here.xyz.util.Random.randomAlpha;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.RuntimeInfo.State;
@@ -71,6 +73,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -88,6 +91,8 @@ public class Job implements XyzSerializable {
   private long updatedAt;
   @JsonView({Public.class, Static.class})
   private long keepUntil;
+  @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+  private Map<String, Input> inputs;
   //Caller defined properties:
   @JsonView(Static.class)
   private String owner;
@@ -212,7 +217,7 @@ public class Job implements XyzSerializable {
   protected Future<Boolean> validate() {
     logger.info("[{}] Validating job ...", getId());
     //TODO: Collect exceptions and forward them accordingly as one exception object with (potentially) multiple error objects inside
-    return Future.all(Job.forEach(getSteps().stepStream().toList(), step -> validateStep(step)))
+    return Future.all(Job.forEach(nonFinalSteps().toList(), step -> validateStep(step)))
         .compose(cf -> Future.succeededFuture(cf.list().stream().allMatch(isReady -> (boolean) isReady)));
   }
 
@@ -234,7 +239,7 @@ public class Job implements XyzSerializable {
       return Future.failedFuture(new IllegalStateException("Job can not be started as it's not in SUBMITTED state."));
 
     getStatus().setState(PENDING);
-    getSteps().stepStream().forEach(step -> step.getStatus().setState(PENDING));
+    nonFinalSteps().forEach(step -> step.getStatus().setState(PENDING));
 
     long t1 = Core.currentTimeMillis();
     return store()
@@ -286,12 +291,16 @@ public class Job implements XyzSerializable {
     return getSteps().getStep(stepId);
   }
 
+  private Stream<Step> nonFinalSteps() {
+    return getSteps().stepStream().filter(step -> !step.getStatus().getState().isFinal());
+  }
+
   /**
    * Updates the status of a step at this job by replacing it with the specified one.
    * @param step
    * @return
    */
-  public Future<Void> updateStep(Step<?> step) {
+  public Future<Void> updateStep(Step step) {
     final Step existingStep = getStepById(step.getId());
     if (existingStep == null)
       throw new IllegalArgumentException("The provided step with ID " + step.getGlobalStepId() + " was not found.");
@@ -490,9 +499,13 @@ public class Job implements XyzSerializable {
   }
 
   public UploadUrl createUploadUrl(boolean compressed) {
+    return createUploadUrl(compressed, DEFAULT_INPUT_SET_NAME);
+  }
+
+  public UploadUrl createUploadUrl(boolean compressed, String setName) {
     return new UploadUrl()
         .withCompressed(compressed)
-        .withS3Key(inputS3Prefix(getId()) + "/" + UUID.randomUUID() + (compressed ? ".gz" : ""));
+        .withS3Key(inputS3Prefix(getId(), setName) + "/" + UUID.randomUUID() + (compressed ? ".gz" : ""));
   }
 
   public Future<Void> consumeInput(ModelBasedInput input) {
@@ -510,8 +523,8 @@ public class Job implements XyzSerializable {
     return Future.succeededFuture();
   }
 
-  public Future<List<Input>> loadInputs() {
-    return ASYNC.run(() -> Input.loadInputs(getId()));
+  public Future<List<Input>> loadInputs(String setName) {
+    return ASYNC.run(() -> Input.loadInputs(getId(), setName));
   }
 
   public Future<List<Output>> loadOutputs() {
@@ -634,6 +647,19 @@ public class Job implements XyzSerializable {
 
   public Job withKeepUntil(long keepUntil) {
     setKeepUntil(keepUntil);
+    return this;
+  }
+
+  public Map<String, Input> getInputs() {
+    return inputs;
+  }
+
+  public void setInputs(Map<String, Input> inputs) {
+    this.inputs = inputs;
+  }
+
+  public Job withInputs(Map<String, Input> inputs) {
+    setInputs(inputs);
     return this;
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.jobs.steps.execution;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
+import static com.here.xyz.jobs.steps.execution.GraphFusionTool.canonicalize;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
 import static com.here.xyz.jobs.steps.execution.fusion.SimpleTestStepWithOutput.SOME_OUTPUT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -98,6 +99,29 @@ public class GraphFusionTests {
   }
 
   @Test
+  public void reuseSingletonGraphTransitively() {
+    Step oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldProducer);
+
+    SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph newGraph = sequential(NEW_JOB_ID, newProducer);
+
+    StepGraph firstFusedGraph = fuse(newGraph, oldGraph);
+
+    SimpleTestStepWithOutput anotherNewProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
+    StepGraph anotherNewGraph = sequential(NEW_JOB_ID, newProducer);
+
+    StepGraph fusedGraph = fuse(anotherNewGraph, firstFusedGraph);
+
+    assertEquals(1, fusedGraph.size());
+    assertTrue(fusedGraph.stepStream().allMatch(step -> step instanceof DelegateStep delegateStep && delegateStep.getDelegate() instanceof SimpleTestStepWithOutput));
+    assertTrue(oldGraph.isEquivalentTo(anotherNewGraph));
+    assertTrue(fusedGraph.isEquivalentTo(oldGraph));
+    checkInputs(fusedGraph, newGraph);
+    checkOutputs(fusedGraph, OLD_JOB_ID);
+  }
+
+  @Test
   public void simpleSequentialGraphFullyReusable() {
     Step oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     Step oldConsumer = new SimpleTestStep(SOME_CONSUMER);
@@ -123,13 +147,11 @@ public class GraphFusionTests {
   public void simpleSequentialGraphPartiallyReusable() {
     SimpleTestStepWithOutput oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     SimpleTestStep oldConsumer = new SimpleTestStep(SOME_CONSUMER);
-    StepGraph oldGraph = sequential(OLD_JOB_ID,
-        oldProducer, step(oldConsumer, inputsOf(oldProducer)));
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldProducer, step(oldConsumer, inputsOf(oldProducer)));
 
     SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     SimpleTestStep newConsumer = new SimpleTestStep("SomeOtherStep");
-    StepGraph newGraph = sequential(NEW_JOB_ID,
-        newProducer, step(newConsumer, inputsOf(newProducer)));
+    StepGraph newGraph = sequential(NEW_JOB_ID, newProducer, step(newConsumer, inputsOf(newProducer)));
 
     StepGraph fusedGraph = fuse(newGraph, oldGraph);
 
@@ -146,13 +168,11 @@ public class GraphFusionTests {
   public void simpleSequentialGraphNotReusable() {
     SimpleTestStepWithOutput oldProducer = new SimpleTestStepWithOutput(SOME_EXPORT);
     SimpleTestStep oldConsumer = new SimpleTestStep(SOME_CONSUMER);
-    StepGraph oldGraph = sequential(OLD_JOB_ID,
-        oldProducer, step(oldConsumer, inputsOf(oldProducer)));
+    StepGraph oldGraph = sequential(OLD_JOB_ID, oldProducer, step(oldConsumer, inputsOf(oldProducer)));
 
     SimpleTestStepWithOutput newProducer = new SimpleTestStepWithOutput("SomeOtherExport");
     SimpleTestStep newConsumer = new SimpleTestStep("SomeOtherStep");
-    StepGraph newGraph = sequential(NEW_JOB_ID,
-        newProducer, step(newConsumer, inputsOf(newProducer)));
+    StepGraph newGraph = sequential(NEW_JOB_ID, newProducer, step(newConsumer, inputsOf(newProducer)));
 
     StepGraph fusedGraph = fuse(newGraph, oldGraph);
 
@@ -361,6 +381,70 @@ public class GraphFusionTests {
     checkOutputs(fusedGraph, OLD_JOB_ID);
   }
 
+  @Test
+  public void canonicalizeParallelyWrappedSequentialGraphs() {
+    StepGraph graph = parallel(
+        sequential(
+            new SimpleTestStep<>(SOME_EXPORT).withNotReusable(true),
+            new SimpleTestStepWithOutput(SOME_EXPORT)
+        ),
+        sequential(
+            new SimpleTestStep<>(SOME_OTHER_EXPORT).withNotReusable(true),
+            new SimpleTestStepWithOutput(SOME_OTHER_EXPORT)
+        )
+    );
+
+    StepGraph canonicalGraph = canonicalize(graph);
+
+    assertTrue(canonicalGraph.isParallel());
+    assertEquals(2, canonicalGraph.getExecutions().size());
+  }
+
+  @Test
+  public void canonicalizeWrappedParallelGraph() {
+    StepGraph graph = sequential(
+        parallel(
+            new SimpleTestStepWithOutput(SOME_EXPORT),
+            new SimpleTestStepWithOutput(SOME_OTHER_EXPORT)
+        )
+    );
+
+    StepGraph canonicalGraph = canonicalize(graph);
+
+    assertTrue(canonicalGraph.isParallel());
+    assertEquals(2, canonicalGraph.getExecutions().size());
+  }
+
+  @Test
+  public void canonicalizeGraph() {
+    StepGraph graph = parallel(
+        sequential(
+            sequential(
+                sequential(
+                    new SimpleTestStep(SOME_EXPORT).withNotReusable(true),
+                    new SimpleTestStep(SOME_CONSUMER),
+                    new SimpleTestStep(SOME_CONSUMER)
+                )
+            )
+        ),
+        sequential(
+            new SimpleTestStep(SOME_CONSUMER),
+            new SimpleTestStep(SOME_EXPORT).withNotReusable(true),
+            new SimpleTestStep(SOME_CONSUMER)
+        ),
+        sequential(
+            new SimpleTestStep(SOME_EXPORT).withNotReusable(true)
+        )
+    );
+
+    StepGraph canonicalGraph = canonicalize(graph);
+    assertEquals(2, canonicalGraph.getExecutions().size());
+    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(0)).getExecutions().size());
+    assertEquals(2, ((StepGraph) canonicalGraph.getExecutions().get(1)).getExecutions().size());
+    assertTrue(((StepGraph) canonicalGraph.getExecutions().get(0)).stepStream().noneMatch(step -> ((SimpleTestStep) step).paramA == SOME_EXPORT));
+    assertTrue(((StepGraph) canonicalGraph.getExecutions().get(1)).stepStream().noneMatch(step -> ((SimpleTestStep) step).paramA == SOME_EXPORT));
+  }
+
   /*
   TODO: Add edge case tests:
 
@@ -392,8 +476,8 @@ public class GraphFusionTests {
           //CHECK THAT ALL INPUTS OF THE FUSED GRAPH THAT *SHOULD* BE DELEGATED ACTUALLY *ARE* DELEGATED
           //For every input-set of all steps in the fused graph it must not be the case that it references a DelegateStep, because that would mean that the input-set was not delegated correctly to the old output
           ((List<InputSet>) fusedStep.getInputSets()).forEach(inputSet -> {
-            if (inputSet.stepId() != null) {
-              Step referencedStep = fusedGraph.getStep(inputSet.stepId());
+            if (inputSet.providerId() != null) {
+              Step referencedStep = fusedGraph.getStep(inputSet.providerId());
               if (referencedStep != null) //NOTE: In case referencedStep == null that would mean that the step is not part of the fusedGraph, thus an old step would be referenced
                 assertFalse(referencedStep instanceof DelegateStep, !(referencedStep instanceof DelegateStep) ? null : "The input-set \"" + inputSet.name() + "\" of step \"" + fusedStep.getId()
                     + "\" must be delegated to the old output-set of step \"" + ((DelegateStep) referencedStep).getDelegate().getGlobalStepId()

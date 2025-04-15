@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
@@ -62,16 +63,24 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   private String s3Bucket;
   @JsonIgnore
   private String s3Key;
-  private static Map<String, InputsMetadata> metadataCache = new WeakHashMap<>();
-  private static Map<String, List<Input>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
+  private static Map<String, Map<String, InputsMetadata>> metadataCache = new WeakHashMap<>();
+  private static Map<String, Map<String, List<Input>>> inputsCache = new WeakHashMap<>(); //TODO: Expire keys after <24h
   private static Set<String> inputsCacheActive = new HashSet<>();
 
   public static String inputS3Prefix(String jobId) {
     return jobId + "/inputs";
   }
 
-  private static String inputMetaS3Key(String jobId) {
-    return jobId + "/meta/inputs.json";
+  public static String inputS3Prefix(String jobId, String setName) {
+    return jobId + "/inputs/" + setName;
+  }
+
+  private static String inputMetaS3Prefix(String jobId) {
+    return jobId + "/meta";
+  }
+
+  private static String inputMetaS3Key(String jobId, String setName) {
+    return inputMetaS3Prefix(jobId) + "/" + setName + ".json";
   }
 
   public static String defaultBucket() {
@@ -106,22 +115,48 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
       return (T) this;
   }
 
-  public static List<Input> loadInputs(String jobId) {
+  public static List<Input> loadInputs(String jobId, String setName) {
     //Only cache inputs of jobs which are submitted already
     if (inputsCacheActive.contains(jobId)) {
-      List<Input> inputs = inputsCache.get(jobId);
+      List<Input> inputs = getFromInputCache(jobId, setName);
       if (inputs == null) {
-        inputs = loadInputsAndWriteMetadata(jobId, -1, Input.class);
-        inputsCache.put(jobId, inputs);
+        inputs = loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
+        putToInputCache(jobId, setName, inputs);
       }
       return inputs;
     }
-    return loadInputsAndWriteMetadata(jobId, -1, Input.class);
+    return loadInputsAndWriteMetadata(jobId, setName, -1, Input.class);
   }
 
-  private static <T extends Input> List<T> loadInputsAndWriteMetadata(String jobId, int maxReturnSize, Class<T> inputType) {
+  private synchronized static void putToInputCache(String jobId, String setName, List<Input> inputs) {
+    Map<String, List<Input>> cachedInputs = inputsCache.get(jobId);
+    if (cachedInputs == null)
+      cachedInputs = new ConcurrentHashMap<>();
+    cachedInputs.put(setName, inputs);
+    inputsCache.put(jobId, cachedInputs);
+  }
+
+  private static List<Input> getFromInputCache(String jobId, String setName) {
+    Map<String, List<Input>> inputs = inputsCache.get(jobId);
+    return inputs == null ? null: inputs.get(setName);
+  }
+
+  private synchronized static void putToMetadataCache(String jobId, String setName, InputsMetadata metadata) {
+    Map<String, InputsMetadata> cachedMetadata = metadataCache.get(jobId);
+    if (cachedMetadata == null)
+      cachedMetadata = new ConcurrentHashMap<>();
+    cachedMetadata.put(setName, metadata);
+    metadataCache.put(jobId, cachedMetadata);
+  }
+
+  private static InputsMetadata getFromMetadataCache(String jobId, String setName) {
+    Map<String, InputsMetadata> metadata = metadataCache.get(jobId);
+    return metadata == null ? null : metadata.get(setName);
+  }
+
+  private static <T extends Input> List<T> loadInputsAndWriteMetadata(String jobId, String setName, int maxReturnSize, Class<T> inputType) {
     try {
-      InputsMetadata metadata = loadMetadata(jobId);
+      InputsMetadata metadata = loadMetadata(jobId, setName);
       Stream<T> inputs = metadata.inputs.entrySet().stream()
           .filter(input -> input.getValue().byteSize > 0)
           .map(metaEntry -> {
@@ -139,51 +174,65 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     }
     catch (IOException | AmazonS3Exception ignore) {}
 
-    final List<T> inputs = loadInputsInParallel(defaultBucket(), inputS3Prefix(jobId), maxReturnSize, inputType);
+    final List<T> inputs = loadInputsInParallel(defaultBucket(), inputS3Prefix(jobId, setName), maxReturnSize, inputType);
     //Only write metadata of jobs which are submitted already
     if (inputs != null && inputs.size() > 0 && inputsCacheActive.contains(jobId))
-      storeMetadata(jobId, (List<Input>) inputs);
+      storeMetadata(jobId, (List<Input>) inputs, setName);
 
     return inputs;
   }
 
-  public static final S3Uri loadResolvedUserInputPrefixUri(String jobId) {
-    Optional<InputsMetadata> userInputsMetadata = loadMetadataIfExists(jobId);
+  public static final S3Uri loadResolvedUserInputPrefixUri(String jobId, String setName) {
+    Optional<InputsMetadata> userInputsMetadata = loadMetadataIfExists(jobId, setName);
     if (userInputsMetadata.isPresent())
       return userInputsMetadata.get().scannedFrom;
-    return new S3Uri(defaultBucket(), inputS3Prefix(jobId));
+    return new S3Uri(defaultBucket(), inputS3Prefix(jobId, setName));
   }
 
-  static final Optional<InputsMetadata> loadMetadataIfExists(String jobId) {
+  static List<String> loadAllInputSetNames(String jobId) {
+    return S3Client.getInstance().scanFolder(inputMetaS3Prefix(jobId)).stream()
+        .map(s3ObjectSummary -> s3ObjectSummary.getKey().substring(0, s3ObjectSummary.getKey().lastIndexOf(".json")))
+        .toList();
+  }
+
+  private static Optional<InputsMetadata> loadMetadataIfExists(String jobId, String setName) {
     try {
-      return Optional.of(loadMetadata(jobId));
+      return Optional.of(loadMetadata(jobId, setName));
     }
     catch (IOException | AmazonS3Exception e) {
       return Optional.empty();
     }
   }
 
-  static final InputsMetadata loadMetadata(String jobId) throws IOException, AmazonS3Exception {
-    InputsMetadata metadata = metadataCache.get(jobId);
+  static final InputsMetadata loadMetadata(String jobId, String setName) throws IOException, AmazonS3Exception {
+    InputsMetadata metadata = getFromMetadataCache(jobId, setName);
     if (metadata != null)
       return metadata;
 
     logger.info("Loading metadata from S3 for job {} ...", jobId);
     long t1 = Core.currentTimeMillis();
-    metadata = XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(inputMetaS3Key(jobId)),
+    metadata = XyzSerializable.deserialize(S3Client.getInstance().loadObjectContent(inputMetaS3Key(jobId, setName)),
         InputsMetadata.class);
     logger.info("Loaded metadata for job {}. Took {}ms ...", jobId, Core.currentTimeMillis() - t1);
     if (inputsCacheActive.contains(jobId))
-      metadataCache.put(jobId, metadata);
+      putToMetadataCache(jobId, setName, metadata);
 
     return metadata;
   }
 
-  static final void storeMetadata(String jobId, InputsMetadata metadata) {
+  static final void addInputReferences(String referencedJobId, String referencingJobId, String setName) throws IOException,
+      AmazonS3Exception {
+    InputsMetadata referencedMetadata = loadMetadata(referencedJobId, setName);
+    //Add the referencing job to the list of jobs referencing the metadata
+    referencedMetadata.referencingJobs().add(referencingJobId);
+    storeMetadata(referencedJobId, referencedMetadata, setName);
+  }
+
+  static final void storeMetadata(String jobId, InputsMetadata metadata, String setName) {
     try {
       if (inputsCacheActive.contains(jobId))
-        metadataCache.put(jobId, metadata);
-      S3Client.getInstance().putObject(inputMetaS3Key(jobId), "application/json", metadata.serialize());
+        putToMetadataCache(jobId, setName, metadata);
+      S3Client.getInstance().putObject(inputMetaS3Key(jobId, setName), "application/json", metadata.serialize());
     }
     catch (IOException e) {
       logger.error("Error writing inputs metadata file for job {}.", jobId, e);
@@ -191,20 +240,20 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     }
   }
 
-  private static void storeMetadata(String jobId, List<Input> inputs) {
-    storeMetadata(jobId, inputs, null);
+  private static void storeMetadata(String jobId, List<Input> inputs, String setName) {
+    storeMetadata(jobId, inputs, null, setName);
   }
 
-  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId) {
-    storeMetadata(jobId, inputs, referencedJobId, new S3Uri(defaultBucket(), inputS3Prefix(jobId)));
+  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, String setName) {
+    storeMetadata(jobId, inputs, referencedJobId, new S3Uri(defaultBucket(), inputS3Prefix(jobId, setName)), setName);
   }
 
-  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, S3Uri scannedFrom) {
+  static final void storeMetadata(String jobId, List<Input> inputs, String referencedJobId, S3Uri scannedFrom, String setName) {
     logger.info("Storing inputs metadata for job {} ...", jobId);
     Map<String, InputMetadata> metadata = inputs.stream()
         .collect(Collectors.toMap(input -> (input.s3Bucket == null ? "" : "s3://" + input.s3Bucket + "/") + input.s3Key,
             input -> new InputMetadata(input.byteSize, input.compressed)));
-    storeMetadata(jobId, new InputsMetadata(metadata, new HashSet<>(Set.of(jobId)), referencedJobId, scannedFrom));
+    storeMetadata(jobId, new InputsMetadata(metadata, new HashSet<>(Set.of(jobId)), referencedJobId, scannedFrom), setName);
   }
 
   static final List<Input> loadInputsInParallel(String bucketName, String inputS3Prefix) {
@@ -233,12 +282,12 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     return inputs;
   }
 
-  public static int currentInputsCount(String jobId, Class<? extends Input> inputType) {
-    return (int) loadInputs(jobId).stream().filter(input -> inputType.isAssignableFrom(input.getClass())).count();
+  public static int currentInputsCount(String jobId, Class<? extends Input> inputType, String setName) {
+    return (int) loadInputs(jobId, setName).stream().filter(input -> inputType.isAssignableFrom(input.getClass())).count();
   }
 
-  public static <T extends Input> List<T> loadInputsSample(String jobId, int maxSampleSize, Class<T> inputType) {
-    return loadInputsAndWriteMetadata(jobId, maxSampleSize, inputType);
+  public static <T extends Input> List<T> loadInputsSample(String jobId, String setName, int maxSampleSize, Class<T> inputType) {
+    return loadInputsAndWriteMetadata(jobId, setName, maxSampleSize, inputType);
   }
 
   private static <T extends Input> List<T> loadAndTransformInputs(String bucketName, String inputS3Prefix, int maxReturnSize, Class<T> inputType) {
@@ -266,9 +315,14 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   private static void deleteInputs(String owningJobId, String referencingJob) {
+    //TODO: Parallelize
+    loadAllInputSetNames(owningJobId).forEach(setName -> deleteInputs(owningJobId, referencingJob, setName));
+  }
+
+  private static void deleteInputs(String owningJobId, String referencingJob, String setName) {
     InputsMetadata metadata = null;
     try {
-      metadata = loadMetadata(owningJobId);
+      metadata = loadMetadata(owningJobId, setName);
       metadata.referencingJobs().remove(referencingJob);
     }
     catch (AmazonS3Exception | IOException ignore) {}
@@ -282,10 +336,10 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
          */
         deleteInputs(metadata.referencedJob(), owningJobId);
 
-      S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId));
+      S3Client.getInstance().deleteFolder(inputS3Prefix(owningJobId, setName));
     }
     else if (metadata != null)
-      storeMetadata(owningJobId, metadata);
+      storeMetadata(owningJobId, metadata, setName);
   }
 
   private static Input createInput(String s3Bucket, String s3Key, long byteSize, boolean compressed) {

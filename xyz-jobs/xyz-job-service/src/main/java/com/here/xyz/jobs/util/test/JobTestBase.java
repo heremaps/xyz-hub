@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,6 +37,9 @@ public class JobTestBase extends StepTestBase {
     protected Set<String> createdSpaces = new HashSet<>();
 
     //Job-Api related
+
+    /** Use {@link JobTestBase#createJob(JsonObject)} instead*/
+    @Deprecated
     public static String createJob(Job job) throws IOException, InterruptedException {
         logger.info("Creating job ...");
         HttpResponse<byte[]> jobResponse = post("/jobs", job);
@@ -47,6 +51,59 @@ public class JobTestBase extends StepTestBase {
         logger.info("Internal Job config:\n{}", toPrettyJson(get("/admin/jobs/" + createdJob.getId()).body()));
 
         return createdJob.getId();
+    }
+
+    protected static String createJob(JsonObject job) throws IOException, InterruptedException {
+        logger.info("Creating job ...");
+        HttpResponse<byte[]> jobResponse = post("/jobs", job.mapTo(Map.class));
+
+        logger.info("Got response:\n{}", toPrettyJson(jobResponse.body()));
+
+        String jobId = new JsonObject(new String(jobResponse.body())).getString("id");
+
+        logger.info("Internal Job config:\n{}", toPrettyJson(get("/admin/jobs/" + jobId).body()));
+
+        return jobId;
+    }
+
+    protected static JsonObject createTypedJsonObject(String type) { return new JsonObject().put("type", type);}
+
+    protected String createJobAndPollStatus(JsonObject job) throws Exception {
+        return createJobAndPollStatus(job, null);
+    }
+
+    protected String createJobAndPollStatus(JsonObject job, byte[] fileContent) throws Exception {
+        //Create Job
+        String jobId = createJob(job);
+        createdJobs.add(jobId);
+
+        //Upload content if provided
+        if(fileContent != null) {
+            uploadFileToJob(jobId, fileContent);
+            //Start Job execution
+            startJob(jobId);
+        }
+
+        //Wait till Job reached final state
+        pollJobStatus(jobId);
+
+        return jobId;
+    }
+
+    protected JsonObject buildJob(JsonObject source, JsonObject target) {
+        return buildJob(source, target, null);
+    }
+
+    protected JsonObject buildJob(JsonObject source, JsonObject target, JsonObject process) {
+        return buildJob(source, target, process, null);
+    }
+
+    protected JsonObject buildJob(JsonObject source, JsonObject target, JsonObject process, JsonObject inputs) {
+        return new JsonObject()
+                .put("source", source)
+                .put("target", target)
+                .put("process", process)
+                .put("inputs", inputs);
     }
 
     public static String toPrettyJson(byte[] json) throws JsonProcessingException {
@@ -183,6 +240,8 @@ public class JobTestBase extends StepTestBase {
         return super.createSpace(space, force);
     }
 
+    /** Use {@link JobTestBase#createJobAndPollStatus(JsonObject)} instead */
+    @Deprecated
     protected void createSelfRunningJob(Job job) throws Exception {
         //Create Job - expect autostart
         createJob(job);
@@ -192,6 +251,8 @@ public class JobTestBase extends StepTestBase {
         pollJobStatus(job.getId());
     }
 
+    /** Use {@link JobTestBase#createJobAndPollStatus(JsonObject, byte[])} instead */
+    @Deprecated
     protected void createAndStartJob(Job job, byte[] fileContent) throws Exception {
         //Create Job
         createJob(job);

@@ -48,6 +48,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.UpdateStrategy;
 import com.here.xyz.jobs.steps.S3DataFile;
+import com.here.xyz.jobs.steps.execution.StepException;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.impl.transport.tools.ImportFilesQuickValidator;
@@ -351,12 +352,12 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     List<Future<FeatureStatistics>> resultFutures = new ArrayList<>();
 
     //Execute the sync for each import file in parallel
-    for (Input input : loadInputs(UploadUrl.class)) {
-      resultFutures.add(exec.submit(() -> {
-        long writtenFeatureCount = syncWriteFileToSpace((UploadUrl) input, newVersion);return new FeatureStatistics().withFeatureCount(writtenFeatureCount).withByteSize(input.getByteSize());
-      }));
-    }
+    for (Input input : loadInputs(UploadUrl.class))
+      resultFutures.add(exec.submit(() -> new FeatureStatistics()
+          .withFeatureCount(syncWriteFileToSpace((UploadUrl) input, newVersion))
+          .withByteSize(input.getByteSize())));
 
+    //TODO: Use CompletableFuture.allOf() instead of the following
     //Wait for the futures and aggregate the result statistics into one FeatureStatistics object
     FeatureStatistics resultOutput = new FeatureStatistics();
     for (Future<FeatureStatistics> future : resultFutures) {
@@ -366,7 +367,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
             .withByteSize(resultOutput.getByteSize() + future.get().getByteSize());
       }
       catch (InterruptedException | ExecutionException e) {
-        throw new RuntimeException(e);
+        throw new StepException("Error during sync write to target space", e);
       }
     }
 
@@ -554,10 +555,11 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     triggerFunction += entityPerLine == FeatureCollection ? "_geojsonfc" : "";
 
     return new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${table} "
-        + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}');")
+        + "FOR EACH ROW EXECUTE PROCEDURE ${triggerFunction}('${{author}}', ${{spaceVersion}}, '${{targetTable}}', ${{retainMetadata}});")
         .withQueryFragment("spaceVersion", "" + targetSpaceVersion)
         .withQueryFragment("author", targetAuthor)
         .withQueryFragment("targetTable", getRootTableName(space()))
+        .withQueryFragment("retainMetadata", "" + isRetainMetadata())
         .withVariable("triggerFunction", triggerFunction)
         .withVariable("schema", getSchema(db()))
         .withVariable("table", TransportTools.getTemporaryTriggerTableName(getId()));

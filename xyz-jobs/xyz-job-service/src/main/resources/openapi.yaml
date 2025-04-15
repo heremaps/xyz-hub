@@ -77,7 +77,7 @@ paths:
     post:
       tags:
         - "Manage Jobs"
-      summary: "Create job input"
+      summary: "Create a job input"
       description: "Creates a new input for a job"
       operationId: "postJobInputs"
       parameters:
@@ -99,6 +99,41 @@ paths:
       operationId: "getJobInputs"
       parameters:
         - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          $ref: "#/components/responses/JobInputsResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse400"
+        "404":
+          $ref: "#/components/responses/ErrorResponse404"
+  /jobs/{jobId}/inputs/{setName}:
+    post:
+      tags:
+        - "Manage Jobs"
+      summary: "Create a named job input"
+      description: "Creates a new input for a job"
+      operationId: "postNamedJobInputs"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/PayloadSetName"
+      requestBody:
+        $ref: "#/components/requestBodies/JobInputRequest"
+      responses:
+        "201":
+          $ref: "#/components/responses/JobInputResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse400"
+        "404":
+          $ref: "#/components/responses/ErrorResponse404"
+    get:
+      tags:
+        - "Manage Jobs"
+      summary: "List job inputs of a named set"
+      description: "Lists the available inputs of a named set of a job"
+      operationId: "getNamedJobInputs"
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/PayloadSetName"
       responses:
         "200":
           $ref: "#/components/responses/JobInputsResponse"
@@ -177,6 +212,13 @@ components:
       name: jobId
       in: path
       description: The unique identifier of the job.
+      required: true
+      schema:
+        type: string
+    PayloadSetName:
+      name: setName
+      in: path
+      description: The name of a set of payloads.
       required: true
       schema:
         type: string

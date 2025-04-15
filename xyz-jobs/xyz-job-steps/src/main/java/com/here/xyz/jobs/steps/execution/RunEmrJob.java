@@ -53,8 +53,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
-
-  public static final String USER_REF = "USER";
   public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final Logger logger = LogManager.getLogger();
   private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
@@ -477,28 +475,23 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   private static String toReferenceIdentifier(InputSet inputSet) {
-    return inputSet.name() == null ? USER_REF : (inputSet.stepId() + "." + inputSet.name());
+    return inputSet.providerId() + "." + inputSet.name();
   }
 
   InputSet fromReferenceIdentifier(String referenceIdentifier) {
-    if (USER_REF.equals(referenceIdentifier))
-      return getInputSet(null, null);
-    else {
-      ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
-      return getInputSet(ref.stepId(), ref.name());
-    }
+    ReferenceIdentifier ref = ReferenceIdentifier.fromString(referenceIdentifier);
+    return getInputSet(ref.stepId(), ref.name());
   }
 
-  protected InputSet getInputSet(String stepId, String name) {
+  protected InputSet getInputSet(String providerId, String name) {
     try {
       return getInputSets().stream()
-          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.stepId(), stepId))
+          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.providerId(), providerId))
           .findFirst()
           .get();
     }
     catch (NoSuchElementException e) {
-      throw new IllegalArgumentException("No input set \"" + (name == null ? "<USER-INPUTS>" : stepId + "." + name) + "\" exists in step \""
-          + getId() + "\"");
+      throw new IllegalArgumentException("No input set \"" + providerId + "." + name + "\" exists in step \"" + getId() + "\"");
     }
   }
 
