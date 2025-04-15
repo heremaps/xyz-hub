@@ -475,7 +475,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   }
 
   private static String toReferenceIdentifier(InputSet inputSet) {
-    return inputSet.stepId() + "." + inputSet.name();
+    return inputSet.providerId() + "." + inputSet.name();
   }
 
   InputSet fromReferenceIdentifier(String referenceIdentifier) {
@@ -486,7 +486,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   protected InputSet getInputSet(String stepId, String name) {
     try {
       return getInputSets().stream()
-          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.stepId(), stepId))
+          .filter(inputSet -> Objects.equals(inputSet.name(), name) && Objects.equals(inputSet.providerId(), stepId))
           .findFirst()
           .get();
     }

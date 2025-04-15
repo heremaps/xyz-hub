@@ -278,12 +278,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return All inputs from the specified InputSet
    */
   private List<Input> loadInputs(InputSet inputSet) {
-    if (inputSet.stepId == null)
+    if (inputSet.providerId == null)
       throw new IllegalArgumentException("Incorrect input was provided: Missing source input provider");
     if (inputSet.name == null)
       throw new IllegalArgumentException("Incorrect input was provided: Missing referenced set name");
 
-    if (USER_PROVIDER.equals(inputSet.stepId))
+    if (USER_PROVIDER.equals(inputSet.providerId))
       return Input.loadInputs(getJobId(), inputSet.name);
     else
       return loadOutputsFor(inputSet).stream().map(output -> (Input) transformToInput(output).withMetadata(inputSet.metadata())).toList();
@@ -325,14 +325,14 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   protected int currentInputsCount(Class<? extends Input> inputType) {
     return getInputSets().stream()
-        .filter(inputSet -> USER_PROVIDER.equals(inputSet.stepId))
+        .filter(inputSet -> USER_PROVIDER.equals(inputSet.providerId))
         .mapToInt(userInputSet -> Input.currentInputsCount(jobId, inputType, userInputSet.name))
         .sum();
   }
 
   protected <I extends Input> List<I> loadInputsSample(int maxSampleSize, Class<I> inputType) {
     return getInputSets().stream()
-        .filter(inputSet -> USER_PROVIDER.equals(inputSet.stepId))
+        .filter(inputSet -> USER_PROVIDER.equals(inputSet.providerId))
         .flatMap(userInputSet -> Input.loadInputsSample(jobId, userInputSet.name, maxSampleSize, inputType).stream())
         .unordered()
         .limit(maxSampleSize)
@@ -555,7 +555,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
    * @return Whether this step depends on user outputs or not.
    */
   public boolean usesUserInput() {
-    return inputSets.stream().anyMatch(inputSet -> inputSet.stepId == null);
+    return inputSets.stream().anyMatch(inputSet -> inputSet.providerId == null);
   }
 
   public List<OutputSet> getOutputSets() {
@@ -615,7 +615,7 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   protected boolean isUserInputsExpected() {
-    return getInputSets().stream().anyMatch(inputSet -> USER_PROVIDER.equals(inputSet.stepId));
+    return getInputSets().stream().anyMatch(inputSet -> USER_PROVIDER.equals(inputSet.providerId));
   }
 
   @JsonIgnore
@@ -626,26 +626,25 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   /**
    * Use this constructor to reference the outputs of a step belonging to a different job than the one the consuming step belongs to.
    * @param jobId The other job's id
-   * @param stepId The step ID of the step producing the outputs
+   * @param providerId The ID of the entity that provided the inputs (e.g., a step ID or "USER")
    * @param name The name for the set of outputs to be produced
    */
-  //TODO: Rename "stepId" parameter to "provider"
-  public record InputSet(String jobId, String stepId, String name, boolean modelBased, Map<String, String> metadata) {
+  public record InputSet(String jobId, String providerId, String name, boolean modelBased, Map<String, String> metadata) {
     public static final String DEFAULT_INPUT_SET_NAME = "inputs"; //Depicts the input set used if no set name is defined
     public static final String USER_PROVIDER = "USER";
     public static final Supplier<InputSet> USER_INPUTS = () -> new InputSet();
 
-    public InputSet(String jobId, String stepId, String name, boolean modelBased) {
-      this(jobId, stepId, name, modelBased, null);
+    public InputSet(String jobId, String providerId, String name, boolean modelBased) {
+      this(jobId, providerId, name, modelBased, null);
     }
 
     /**
      * Use this constructor to reference the outputs of a step belonging to the same job as the consuming step.
-     * @param stepId
+     * @param providerId
      * @param name
      */
-    public InputSet(String stepId, String name, boolean modelBased) {
-      this(null, stepId, name, modelBased);
+    public InputSet(String providerId, String name, boolean modelBased) {
+      this(null, providerId, name, modelBased);
     }
 
     public InputSet(OutputSet outputSetOfOtherStep) {
@@ -671,9 +670,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
     public S3Uri toS3Uri(String consumerJobId) {
       String jobId = this.jobId != null ? this.jobId : consumerJobId;
-      if (USER_PROVIDER.equals(stepId))
+      if (USER_PROVIDER.equals(providerId))
         return Input.loadResolvedUserInputPrefixUri(jobId, name);
-      return new S3Uri(defaultBucket(), Output.stepOutputS3Prefix(jobId, stepId, name));
+      return new S3Uri(defaultBucket(), Output.stepOutputS3Prefix(jobId, providerId, name));
     }
   }
 

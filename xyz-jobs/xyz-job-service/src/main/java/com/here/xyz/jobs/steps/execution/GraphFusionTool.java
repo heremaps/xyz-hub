@@ -296,7 +296,7 @@ public class GraphFusionTool {
   private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
     List<InputSet> newInputSets = new ArrayList<>();
     for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
-      if (compiledInputSet.stepId() == null || !(containingStepGraph.getStep(compiledInputSet.stepId()) instanceof DelegateStep replacementStep))
+      if (compiledInputSet.providerId() == null || !(containingStepGraph.getStep(compiledInputSet.providerId()) instanceof DelegateStep replacementStep))
         //NOTE: stepId == null on an InputSet refers to the USER-inputs
         newInputSets.add(compiledInputSet);
       else

@@ -476,8 +476,8 @@ public class GraphFusionTests {
           //CHECK THAT ALL INPUTS OF THE FUSED GRAPH THAT *SHOULD* BE DELEGATED ACTUALLY *ARE* DELEGATED
           //For every input-set of all steps in the fused graph it must not be the case that it references a DelegateStep, because that would mean that the input-set was not delegated correctly to the old output
           ((List<InputSet>) fusedStep.getInputSets()).forEach(inputSet -> {
-            if (inputSet.stepId() != null) {
-              Step referencedStep = fusedGraph.getStep(inputSet.stepId());
+            if (inputSet.providerId() != null) {
+              Step referencedStep = fusedGraph.getStep(inputSet.providerId());
               if (referencedStep != null) //NOTE: In case referencedStep == null that would mean that the step is not part of the fusedGraph, thus an old step would be referenced
                 assertFalse(referencedStep instanceof DelegateStep, !(referencedStep instanceof DelegateStep) ? null : "The input-set \"" + inputSet.name() + "\" of step \"" + fusedStep.getId()
                     + "\" must be delegated to the old output-set of step \"" + ((DelegateStep) referencedStep).getDelegate().getGlobalStepId()
