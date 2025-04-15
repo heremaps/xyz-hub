@@ -21,10 +21,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
@@ -61,10 +58,8 @@ import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import javax.xml.crypto.dsig.TransformException;
 import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.Geometry;
@@ -111,12 +106,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   private long minI = -1;
   @JsonView({Internal.class, Static.class})
   private long maxI = -1;
-  /**
-   * Setting this to 'true' will skip the step execution
-   */
-  @JsonView({Internal.class, Static.class})
-  private boolean passthrough;
-
   @JsonView({Internal.class, Static.class})
   protected boolean restrictExtendOfSpatialFilter = true;
 
@@ -177,19 +166,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     return this;
   }
 
-  public boolean isPassthrough() {
-    return passthrough;
-  }
-
-  public void setPassthrough(boolean passthrough) {
-    this.passthrough = passthrough;
-  }
-
-  public ExportSpaceToFiles withPassthrough(boolean passthrough) {
-    setPassthrough(passthrough);
-    return this;
-  }
-
   /**
    * Determines whether this {@code ExportSpaceToFiles} step execution is equivalent to another step execution.
    *
@@ -229,17 +205,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     catch (Exception e) {
       throw new RuntimeException(e);
     }
-  }
-
-  @Override
-  public ExecutionMode getExecutionMode() {
-    return passthrough ? SYNC : ASYNC;
-  }
-
-  @Override
-  public void execute(boolean resume) throws Exception {
-    if (!passthrough)
-      super.execute(resume);
   }
 
   @Override
@@ -306,9 +271,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   @Override
   public boolean validate() throws ValidationException {
-
-    if(isPassthrough()) return true;
-
     super.validate();
 
     if (versionRef.isAllVersions())
@@ -502,18 +464,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     return maxI;
   }
 
-  @Override
-  public void setInputSets(List<InputSet> inputSets) {
-    super.setInputSets(inputSets);
-    if(isPassthrough()) {
-      Map<String, OutputSet> outputSetMap = this.outputSets.stream().collect(Collectors.toMap(os -> os.name, os -> os));
-      for(InputSet inputSet : inputSets) {
-        if(outputSetMap.containsKey(inputSet.name()))
-          outputSetMap.put(inputSet.name(), new OutputSet(inputSet.name(), inputSet.stepId(), SYSTEM, inputSet.modelBased()));
-      }
-      this.outputSets = outputSetMap.values().stream().toList();
-    }
-  }
 
   /**
    * Generates a content query for the export plugin based on the task data and context. This method
