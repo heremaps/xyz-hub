@@ -318,7 +318,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
         try {
           Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry(jtsGeometry, spatialFilter.getRadius());
           int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
-          if (GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
+          if ( areaInSquareKilometersFromGeometry > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
             throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
                     + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
           }
