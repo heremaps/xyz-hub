@@ -24,7 +24,6 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_EXECUTE;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
@@ -199,7 +198,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
   }
 
   @Override
-  protected int createTaskItems(String schema) throws TooManyResourcesClaimed,
+  protected List<TaskData> createTaskItems(String schema) throws TooManyResourcesClaimed,
           QueryBuildingException, WebClientException, SQLException {
     Set<String> affectedTiles = new HashSet<>();
     List<String> changedFeatureIds = new ArrayList<>();
@@ -231,14 +230,14 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
               + versionRef.getStart().getVersion() +". Final Result size: "+ affectedTiles.size());
     }
 
+    List<TaskData> taskList = new ArrayList<>();
     //Write taskList with all unique tileIds which we need to export
     for(String tileId : affectedTiles){
       if(!tileIsRelevant(tileId))
         continue;
-      infoLog(STEP_EXECUTE, this,"Add initial entry in process_table for thread number: " + tileId );
-      runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData(tileId)), db(WRITER), 0);
+      taskList.add(new TaskData(tileId));
     }
-    return affectedTiles.size();
+    return taskList;
   }
 
   private boolean tileIsRelevant(String tileId){
@@ -287,11 +286,25 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
     super.onAsyncSuccess();
   }
 
+  @Override
+  protected void onStateCheck() {
+      try {
+          //@TODO: Remove this is EMR is capable of handling not existing files
+          registerOutputs(List.of(new DownloadUrl()
+                 .withContent(new byte[]{})
+                .withFileName("empty")
+          ), EXPORTED_DATA);
+      } catch (IOException e) {
+          throw new RuntimeException(e);
+      }
+      super.onStateCheck();
+  }
+
   private void generateInvalidationTileListOutput() throws WebClientException
           , SQLException, TooManyResourcesClaimed, IOException {
 
     SQLQuery invalidationListQuery = getInvalidationList(getSchema(dbReader()), getTemporaryJobTableName(getId()));
-    TileInvalidations tileList = (TileInvalidations) runReadQuerySync(invalidationListQuery, dbReader(),
+    TileInvalidations tileList = runReadQuerySync(invalidationListQuery, dbReader(),
             0, rs -> rs.next()
                     ? new TileInvalidations()
                           .withTileLevel(targetLevel)
@@ -306,7 +319,7 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
                                   })
                                   .map(Arrays::asList)
                                   .orElse(Collections.emptyList()))
-                    : new TileInvalidations());
+                    : new TileInvalidations().withTileLevel(targetLevel).withQuadType(quadType));
 
     //Skip if tileList=0 ?
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Write TILE_INVALIDATIONS output. Size: {}.",

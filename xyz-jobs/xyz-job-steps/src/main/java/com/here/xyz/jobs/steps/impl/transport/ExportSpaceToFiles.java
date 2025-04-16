@@ -57,6 +57,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -355,25 +356,26 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected int createTaskItems(String schema) throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException {
+  protected List<TaskData> createTaskItems(String schema)
+          throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException{
     int taskListCount = calculatedThreadCount;
 
     //Todo: find a possibility to add more tasks if filters are set
     if(spatialFilter == null && propertyFilter == null) {
       //The dataSize includes indexes and other overhead so the resulting files will be smaller than the
       //defined MAX_BYTES_PER_TASK.
-      Long estByteCount = spaceStatistics.getDataSize().getValue();
+      Long estByteCount = spaceStatistics(context, true).getDataSize().getValue();
       infoLog(STEP_EXECUTE, this,"Retrieved estByteCount: " + estByteCount);
       long calculatedTaskCount = (estByteCount + MAX_BYTES_PER_TASK - 1) / MAX_BYTES_PER_TASK;
       // Ensure taskListCount does not exceed the maximum allowed limit
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
-    infoLog(STEP_EXECUTE, this,"Add " + taskListCount + " initial entries in taskTable!");
+    List<TaskData> taskDataList = new ArrayList<>();
     for (int i = 0; i < taskListCount; i++) {
-      runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData(i)), db(WRITER), 0);
+      taskDataList.add(new TaskData(i));
     }
-    return taskListCount;
+    return taskDataList;
   }
 
   /**

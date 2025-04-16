@@ -13,6 +13,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import com.here.xyz.jobs.datasets.filters.SpatialFilter;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -32,6 +38,28 @@ public class ExportJobTestIT extends JobTest {
         createSelfRunningJob(exportJob);
 
         checkSucceededJob(exportJob, featureCount);
+    }
+
+    @Test
+    public void simpleEmptyFilteredExport() throws Exception {
+        PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
+        LinearRingCoordinates lrc = new LinearRingCoordinates();
+
+        //No change is inside this polygon
+        lrc.add(new Position(-15.346685180729708, 17.497068486524824));
+        lrc.add(new Position(-15.346685180729708, 17.411220600917204));
+        lrc.add(new Position(-15.167656664190616, 17.411220600917204));
+        lrc.add(new Position(-15.167656664190616, 17.497068486524824));
+        lrc.add(new Position(-15.346685180729708, 17.497068486524824));
+
+        polygonCoordinates.add(lrc);
+
+        Job exportJob = buildExportJob(generateJobId(), new Filters().withSpatialFilter(new SpatialFilter()
+                .withGeometry(new Polygon().withCoordinates(polygonCoordinates))
+                .withClip(false)));
+
+        createSelfRunningJob(exportJob);
+        checkSucceededJob(exportJob, 0);
     }
 
     @Disabled("Potentially flickering: Ensure that 2nd job does not re-use 1st one")

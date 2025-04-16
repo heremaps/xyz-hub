@@ -63,7 +63,8 @@ public class JobTest extends JobTestBase {
     }
 
     assertTrue(foundStatistics);
-    assertTrue(foundUrls);
+    if(expectedFeatureCount != 0)
+      assertTrue(foundUrls);
   }
 
   protected void checkJobReusage(Job reusedJob, Job exportJob, int expectedFeatureCount, boolean expectMatch)
