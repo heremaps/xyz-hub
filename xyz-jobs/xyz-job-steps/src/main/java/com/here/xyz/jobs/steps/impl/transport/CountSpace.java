@@ -213,12 +213,8 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
   }
 
   @Override
-  protected int createTaskItems(String schema)
-      throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException {
-
-    runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData("CountSpace")), db(WRITER), 0);
-
-    return 1;
+  protected List<TaskData> createTaskItems(String schema){
+    return List.of(new TaskData("CountSpace"));
   }
 
   @Override
