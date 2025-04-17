@@ -19,11 +19,7 @@
 
 package com.here.xyz.hub;
 
-import com.here.xyz.hub.cache.CacheClient;
-import com.here.xyz.hub.cache.InMemoryCacheClient;
-import com.here.xyz.hub.cache.MultiLevelCacheClient;
-import com.here.xyz.hub.cache.RedisCacheClient;
-import com.here.xyz.hub.cache.S3CacheClient;
+import com.here.xyz.hub.cache.*;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
@@ -205,7 +201,7 @@ public class Service extends Core {
 
   private static Future<JsonObject> initializeClients(JsonObject config) {
     volatileCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), RedisCacheClient.getInstance());
-    staticCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), S3CacheClient.getInstance());
+    staticCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), S3CacheClientV2.getInstance());
     MessageBroker.getInstance().onSuccess(mb -> {
       messageBroker = mb;
       Node.initialize();
