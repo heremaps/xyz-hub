@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -489,11 +489,11 @@ public class DatabaseSettings extends Payload {
                         sqlScripts.put(getId(), new ArrayList<>(scripts));
                     else
                         sqlScripts.get(getId()).addAll(scripts);
-                    scripts.forEach(script -> {
-                        script.install();
-                        script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
-                    });
                 }
+                sqlScripts.get(getId()).forEach(script -> {
+                    script.install();
+                    script.cleanupOldScriptVersions(SCRIPT_VERSIONS_TO_KEEP);
+                });
             }
             catch (IOException | URISyntaxException e) {
                 throw new RuntimeException("Error reading script resources.", e);

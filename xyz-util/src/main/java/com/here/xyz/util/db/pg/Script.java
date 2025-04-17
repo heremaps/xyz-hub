@@ -119,7 +119,10 @@ public class Script {
 
   public void install() {
     try {
-      if (!installed && (scriptVersion != null && !anyVersionExists() || (scriptVersion == null || !scriptVersionExists()) && !getHash().equals(loadLatestHash()))) {
+      if (installed)
+        return;
+      //TODO: Remove the "anyVersionExists-check" once full qualified schemas have been installed for all scripts
+      if (!getHash().equals(loadLatestHash()) || scriptVersion != null && !anyVersionExists()) {
         logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), getTargetSchema(null));
         if (scriptVersion != null)
           install(getTargetSchema(scriptVersion), false);
@@ -376,7 +379,7 @@ public class Script {
 
   private static List<SQLQuery> buildDeleteFunctionQueries(List<String> functionSignatures) {
     return functionSignatures.stream()
-        .map(signature -> new SQLQuery("DROP FUNCTION " + signature))
+        .map(signature -> new SQLQuery("DROP FUNCTION " + signature + " CASCADE"))
         .toList();
   }
 
