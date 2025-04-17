@@ -1,0 +1,7 @@
+[{
+    "extensionId":"child_extension_1",
+    "url":"s3://genericadapter/childExtension/naksha-ext-child1-1.0-SNAPSHOT-shaded.jar",
+    "version": "2.0",
+    "initClassName" : "",
+    "type":"Extension"
+  }]

@@ -57,6 +57,8 @@ public final class PluginCache {
       extends ConcurrentHashMap<String, EventHandlerConstructorByTarget> {}
 
   static ConcurrentHashMap<String, ExtensionConstructorByClassNameMap> extensionCache = new ConcurrentHashMap<>();
+
+  static final ConcurrentHashMap<String, ClassLoader> extensionCacheForClassLoader = new ConcurrentHashMap<>();
   // ******************************************
 
   /**
@@ -377,7 +379,7 @@ public final class PluginCache {
       final @NotNull ClassLoader extClassLoader) {
 
     final ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>> constructorByTarget =
-        extensionConstructorMap(extensionId, className);
+        extensionConstructorMap(extensionId, className, extClassLoader);
     Fe3<IEventHandler, INaksha, CONFIG, TARGET> c = constructorByTarget.get(targetClass);
     if (c != null) {
       return c;
@@ -423,7 +425,15 @@ public final class PluginCache {
 
   static <CONFIG, TARGET> @NotNull
       ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>> extensionConstructorMap(
-          final @NotNull String extensionId, final @NotNull String className) {
+          final @NotNull String extensionId,
+          final @NotNull String className,
+          final @NotNull ClassLoader extClassLoader) {
+    ClassLoader existingLoader = extensionCacheForClassLoader.get(extensionId);
+    if (existingLoader != extClassLoader) {
+      removeExtensionCache(extensionId);
+      extensionCacheForClassLoader.put(extensionId, extClassLoader);
+    }
+
     ExtensionConstructorByClassNameMap byClassNameMap = extensionCache.get(extensionId);
     if (byClassNameMap == null) {
       byClassNameMap = new ExtensionConstructorByClassNameMap();
@@ -432,6 +442,7 @@ public final class PluginCache {
         byClassNameMap = existing;
       }
     }
+
     EventHandlerConstructorByTarget byTarget = byClassNameMap.get(className);
     if (byTarget == null) {
       byTarget = new EventHandlerConstructorByTarget();
@@ -440,6 +451,7 @@ public final class PluginCache {
         byTarget = existing;
       }
     }
+
     //noinspection unchecked,rawtypes
     return (ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>>)
         (ConcurrentHashMap) byTarget;
@@ -451,5 +463,6 @@ public final class PluginCache {
    */
   public static void removeExtensionCache(final @NotNull String extensionId) {
     extensionCache.remove(extensionId);
+    extensionCacheForClassLoader.remove(extensionId);
   }
 }
