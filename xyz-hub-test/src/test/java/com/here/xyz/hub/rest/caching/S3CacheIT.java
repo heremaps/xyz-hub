@@ -24,7 +24,7 @@ import static org.junit.Assert.assertEquals;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.cache.CacheClient;
-import com.here.xyz.hub.cache.S3CacheClientV2;
+import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.rest.RestAssuredTest;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Vertx;
@@ -51,7 +51,7 @@ public class S3CacheIT extends RestAssuredTest {
 
   @Test
   public void testSetAndGet() throws InterruptedException {
-    CacheClient cacheClient = S3CacheClientV2.getInstance();
+    CacheClient cacheClient = S3CacheClient.getInstance();
     final String key = "testKey";
     final String value = "testValue";
 

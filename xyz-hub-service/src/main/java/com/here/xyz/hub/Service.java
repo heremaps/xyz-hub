@@ -201,7 +201,7 @@ public class Service extends Core {
 
   private static Future<JsonObject> initializeClients(JsonObject config) {
     volatileCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), RedisCacheClient.getInstance());
-    staticCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), S3CacheClientV2.getInstance());
+    staticCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), S3CacheClient.getInstance());
     MessageBroker.getInstance().onSuccess(mb -> {
       messageBroker = mb;
       Node.initialize();
