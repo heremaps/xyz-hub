@@ -50,7 +50,6 @@ import java.util.stream.Collectors;
 public class S3Client {
     protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
     private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
-    //TODO: Switch to AWS SDK2
     protected final software.amazon.awssdk.services.s3.S3Client client;
     protected final S3Presigner presigner;
     private final String bucketName;

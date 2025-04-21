@@ -192,7 +192,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
 
   static List<String> loadAllInputSetNames(String jobId) {
     return S3Client.getInstance().scanFolder(inputMetaS3Prefix(jobId)).stream()
-        .map(s3ObjectSummary -> s3ObjectSummary.getKey().substring(0, s3ObjectSummary.getKey().lastIndexOf(".json")))
+        .map(s3ObjectSummary -> s3ObjectSummary.key().substring(0, s3ObjectSummary.key().lastIndexOf(".json")))
         .toList();
   }
 
@@ -205,7 +205,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
     }
   }
 
-  static final InputsMetadata loadMetadata(String jobId, String setName) throws IOException, AmazonS3Exception {
+  static final InputsMetadata loadMetadata(String jobId, String setName) throws IOException, S3Exception {
     InputsMetadata metadata = getFromMetadataCache(jobId, setName);
     if (metadata != null)
       return metadata;
@@ -222,7 +222,7 @@ public abstract class Input <T extends Input> extends StepPayload<T> {
   }
 
   static final void addInputReferences(String referencedJobId, String referencingJobId, String setName) throws IOException,
-      AmazonS3Exception {
+          S3Exception {
     InputsMetadata referencedMetadata = loadMetadata(referencedJobId, setName);
     //Add the referencing job to the list of jobs referencing the metadata
     referencedMetadata.referencingJobs().add(referencingJobId);
