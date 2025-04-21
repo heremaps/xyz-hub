@@ -132,7 +132,7 @@ public class SQLGeoQuadFunctions extends SQLITBase{
     @Test
     public void here_quad_to_bbox_base4() throws Exception {
         try (DataSourceProvider dsp = getDataSourceProvider()) {
-            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(here_quad_base4_to_bbox('12201203120220'));");
+            SQLQuery query = new SQLQuery("SELECT ST_AsGeojson(here_quad_to_bbox('12201203120220',true));");
             Assertions.assertEquals("{\"type\":\"Polygon\",\"coordinates\":[[[13.359375,52.514648438]," +
                     "[13.359375,52.536621094],[13.381347656,52.536621094],[13.381347656,52.514648438]," +
                     "[13.359375,52.514648438]]]}",

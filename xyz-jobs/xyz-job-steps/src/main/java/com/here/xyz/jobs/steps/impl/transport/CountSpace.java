@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,12 @@
 
 package com.here.xyz.jobs.steps.impl.transport;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.jobs.steps.Step.Visibility.USER;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.STEP_ON_ASYNC_SUCCESS;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTemporaryJobTableDropStatement;
-
-import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
-import static com.here.xyz.jobs.steps.Step.Visibility.USER;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
+import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.PropertiesQuery;
@@ -36,14 +33,12 @@ import com.here.xyz.jobs.steps.execution.db.Database;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Ref;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder;
 import com.here.xyz.psql.query.GetFeaturesByGeometryBuilder.GetFeaturesByGeometryInput;
 import com.here.xyz.psql.query.QueryBuilder.QueryBuildingException;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
-
 import java.sql.SQLException;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -56,7 +51,7 @@ import org.apache.logging.log4j.Logger;
 
 public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
   private static final Logger logger = LogManager.getLogger();
-  
+
   public static final String FEATURECOUNT = "featurecount";
   {
     setOutputSets(List.of(new OutputSet(FEATURECOUNT, USER, true)));
@@ -133,14 +128,13 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
 
     FeatureStatistics featureStatistics = new FeatureStatistics()
         .withFeatureCount(count)
-        .withByteSize(0)
-        .withFileCount(0);
-        
+        .withByteSize(0);
+
     registerOutputs(List.of( featureStatistics ), FEATURECOUNT);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
-    
+
     //super.onAsyncSuccess();
   }
 
@@ -215,16 +209,12 @@ public class CountSpace extends TaskedSpaceBasedStep<CountSpace> {
 
   @Override
   protected int setInitialThreadCount(String schema) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    return 1; 
+    return 1;
   }
 
   @Override
-  protected int createTaskItems(String schema)
-      throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException {
-
-    runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData("CountSpace")), db(WRITER), 0);
-
-    return 1;
+  protected List<TaskData> createTaskItems(String schema){
+    return List.of(new TaskData("CountSpace"));
   }
 
   @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,15 @@ import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.Step.InputSet;
+import com.here.xyz.jobs.steps.Step.OutputSet;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.execution.RunEmrJob.ReferenceIdentifier;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class GraphFusionTool {
@@ -48,6 +52,8 @@ public class GraphFusionTool {
   }
 
   protected static StepGraph fuseGraphs(String newJobId, StepGraph newGraph, StepGraph oldGraph) {
+    newGraph = canonicalize(newGraph);
+    oldGraph = canonicalize(oldGraph);
     CompilationStepGraph fusedGraph = replaceByDelegations(newGraph, oldGraph);
 
     //Replace previous step relations (previousStepIds)
@@ -56,6 +62,61 @@ public class GraphFusionTool {
     //Replace InputSets accordingly for new steps that should re-use outputs of old steps as inputs
     resolveReusedInputs(fusedGraph);
     return fusedGraph;
+  }
+
+  protected static StepGraph canonicalize(StepGraph graph) {
+    /*
+    1.) Remove all steps that are flagged as being "notReusable" (these should be basically hidden from the reusability process)
+    2.) Then, remove empty sub-graphs (NOTE: The traversal is done in "bottom-up" manner so sub-graphs
+      that became empty due to the removal of "notReusable" steps will be removed as well
+     */
+    traverse(graph, execution -> {
+      if (execution instanceof Step step && step.isNotReusable())
+        return null;
+      if (execution instanceof StepGraph subGraph) {
+        if (subGraph.isEmpty())
+          return null;
+        if (subGraph.getExecutions().size() == 1)
+          return unwrap(subGraph);
+      }
+      return execution;
+    });
+    //Unwrap the top-level graph if it only contains one subgraph
+    if (graph.getExecutions().size() == 1 && graph.getExecutions().get(0) instanceof StepGraph subGraph)
+      graph = subGraph;
+
+    return graph;
+  }
+
+  /**
+   * Traverses all executions of the specified graph in a bottom-up manner (leaves first).
+   * @param graph The graph to be traversed recursively
+   * @param processor The action to be performed on the execution-node and its containing graph
+   */
+  private static void traverse(StepGraph graph, UnaryOperator<StepExecution> processor) {
+    List<StepExecution> nodes = new LinkedList<>(graph.getExecutions());
+    Iterator<StepExecution> nodeIterator = nodes.iterator();
+    int index = 0;
+    while (nodeIterator.hasNext()) {
+      StepExecution execution = nodeIterator.next();
+      if (execution instanceof Step step)
+        execution = processor.apply(step);
+      else if (execution instanceof StepGraph subGraph) {
+        //First traverse, then call the processor (==> "bottom-up")
+        traverse(subGraph, processor);
+        execution = processor.apply(subGraph);
+      }
+
+      //Update executions accordingly to the return value of the processor (null means removal)
+      if (execution == null) {
+        nodeIterator.remove();
+        index--;
+      }
+      else
+        nodes.set(index, execution);
+      index++;
+    }
+    graph.setExecutions(nodes);
   }
 
   /**
@@ -222,7 +283,7 @@ public class GraphFusionTool {
    *
    * @param graph
    */
-  static void resolveReusedInputs(StepGraph graph) {
+  private static void resolveReusedInputs(StepGraph graph) {
     graph.stepStream().forEach(step -> resolveReusedInputs(step, graph));
   }
 
@@ -235,13 +296,15 @@ public class GraphFusionTool {
   private static void resolveReusedInputs(Step step, StepGraph containingStepGraph) {
     List<InputSet> newInputSets = new ArrayList<>();
     for (InputSet compiledInputSet : (List<InputSet>) step.getInputSets()) {
-      if (compiledInputSet.stepId() == null || !(containingStepGraph.getStep(compiledInputSet.stepId()) instanceof DelegateStep replacementStep))
+      if (compiledInputSet.providerId() == null || !(containingStepGraph.getStep(compiledInputSet.providerId()) instanceof DelegateStep replacementStep))
         //NOTE: stepId == null on an InputSet refers to the USER-inputs
         newInputSets.add(compiledInputSet);
       else
         //Now we know that inputSet is one that should be replaced by one that is pointing to the outputs of the old graph
-        newInputSets.add(new InputSet(replacementStep.getDelegate().getJobId(), replacementStep.getDelegate().getId(), compiledInputSet.name(),
-            compiledInputSet.modelBased(), replacementStep.getDelegate().getOutputMetadata()));
+        //Note that stepId in the OutputSet of DelegateStep could be different from the stepId of the DelegateStep
+        newInputSets.add(new InputSet(replacementStep.getDelegate().getJobId(),
+            replacementStep.getOutputSet(compiledInputSet.name()).getStepId(), compiledInputSet.name(), compiledInputSet.modelBased(),
+            replacementStep.getDelegate().getOutputMetadata()));
     }
     step.setInputSets(newInputSets);
 
@@ -279,7 +342,8 @@ public class GraphFusionTool {
         Here the reference will be kept as it is, and the later execution will handle this issue by throwing the correct exception.
          */
         return null;
-      return toInputSetReference(runEmrJob.getInputSet(referencedDelegateStep.getDelegate().getId(), ref.name()));
+      OutputSet referencedOutputsSet = referencedDelegateStep.getOutputSet(ref.name());
+      return toInputSetReference(runEmrJob.getInputSet(referencedOutputsSet.getStepId(), ref.name()));
     }
   }
 }

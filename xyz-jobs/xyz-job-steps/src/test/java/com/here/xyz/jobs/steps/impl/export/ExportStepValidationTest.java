@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -145,12 +145,6 @@ public class ExportStepValidationTest extends StepTest {
                 exportedFeatures.addAll(downloadFileAndSerializeFeatures(downloadUrl));
             else if (output instanceof FeatureStatistics statistics)
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
-        }
-
-        for (Output output : systemOutputs) {
-            //if we have one Feature - we expect at least one file
-            if (output instanceof FeatureStatistics statistics && expectedFeatures.getFeatures().size() > 1)
-                Assertions.assertTrue(statistics.getFileCount() > 0);
         }
 
         List<String> existingFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());

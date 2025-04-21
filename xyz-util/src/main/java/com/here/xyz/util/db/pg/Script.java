@@ -222,7 +222,7 @@ public class Script {
   }
 
   private SQLQuery buildDeleteSchemaQuery(String schemaName) throws SQLException {
-    return new SQLQuery("DROP SCHEMA IF EXISTS ${schema}") //TODO: Re-add "CASCADE" into query, once PG bug was fixed
+    return new SQLQuery("DROP SCHEMA IF EXISTS ${schema} CASCADE")
         .withVariable("schema", schemaName);
   }
 
@@ -383,7 +383,7 @@ public class Script {
   private List<String> loadSchemaFunctions(String schema) throws SQLException {
     return new SQLQuery("""
         SELECT proc.oid::REGPROCEDURE as signature FROM pg_proc proc LEFT JOIN pg_namespace ns ON proc.pronamespace = ns.oid
-        WHERE ns.nspname = #{schema}
+        WHERE ns.nspname = #{schema} AND proc.prokind = 'f'
         """)
         .withNamedParameter("schema", schema)
         .run(dataSourceProvider, rs -> {

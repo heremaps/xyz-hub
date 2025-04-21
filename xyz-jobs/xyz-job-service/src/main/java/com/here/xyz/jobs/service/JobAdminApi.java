@@ -32,6 +32,9 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.vertx.core.http.HttpMethod.DELETE;
+import static io.vertx.core.http.HttpMethod.GET;
+import static io.vertx.core.http.HttpMethod.POST;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -42,7 +45,6 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -60,12 +62,12 @@ public class JobAdminApi extends JobApiBase {
   private static final String ADMIN_STATE_MACHINE_EVENTS = "/admin/state/events";
 
   public JobAdminApi(Router router) {
-    router.route(HttpMethod.GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
-    router.route(HttpMethod.GET, ADMIN_JOB).handler(handleErrors(this::getJob));
-    router.route(HttpMethod.DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
-    router.route(HttpMethod.POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
-    router.route(HttpMethod.GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
-    router.route(HttpMethod.POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
+    router.route(GET, ADMIN_JOBS).handler(handleErrors(this::getJobs));
+    router.route(GET, ADMIN_JOB).handler(handleErrors(this::getJob));
+    router.route(DELETE, ADMIN_JOBS).handler(handleErrors(this::deleteJob));
+    router.route(POST, ADMIN_JOB_STEPS).handler(handleErrors(this::postStep));
+    router.route(GET, ADMIN_JOB_STEP).handler(handleErrors(this::getStep));
+    router.route(POST, ADMIN_STATE_MACHINE_EVENTS).handler(handleErrors(this::postStateEvent));
   }
 
   private void getJobs(RoutingContext context) {

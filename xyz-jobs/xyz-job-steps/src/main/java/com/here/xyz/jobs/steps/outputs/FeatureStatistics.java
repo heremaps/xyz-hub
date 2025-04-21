@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ public class FeatureStatistics extends ModelBasedOutput {
     private long featureCount;
     @JsonInclude(ALWAYS)
     private long byteSize;
-    private int fileCount;
 
     public long getFeatureCount() {
         return featureCount;
@@ -58,19 +57,6 @@ public class FeatureStatistics extends ModelBasedOutput {
 
     public FeatureStatistics withByteSize(long byteSize) {
         setByteSize(byteSize);
-        return this;
-    }
-
-    public int getFileCount() {
-        return fileCount;
-    }
-
-    public void setFileCount(int fileCount) {
-        this.fileCount = fileCount;
-    }
-
-    public FeatureStatistics withFileCount(int fileCount) {
-        setFileCount(fileCount);
         return this;
     }
 }

@@ -21,10 +21,7 @@ package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
 import static com.here.xyz.jobs.steps.Step.Visibility.USER;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.ASYNC;
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static com.here.xyz.jobs.steps.execution.db.Database.DatabaseRole.WRITER;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_EXECUTOR;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.Phase.JOB_VALIDATE;
@@ -60,6 +57,7 @@ import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -87,7 +85,6 @@ import org.locationtech.jts.geom.Geometry;
  */
 public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles> {
   public static final String STATISTICS = "statistics";
-  public static final String INTERNAL_STATISTICS = "internalStatistics";
   public static final String EXPORTED_DATA = "exportedData";
   //Defines how large the area of a defined spatialFilter can be
   //If a point is defined - the maximum radius can be 17898 meters
@@ -110,14 +107,17 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   private long minI = -1;
   @JsonView({Internal.class, Static.class})
   private long maxI = -1;
-  /**
-   * Setting this to 'true' will skip the step execution
-   */
-  @JsonView({Internal.class, Static.class})
-  private boolean passthrough;
-
   @JsonView({Internal.class, Static.class})
   protected boolean restrictExtendOfSpatialFilter = true;
+
+  public void setRestrictExtendOfSpatialFilter(boolean restrictExtendOfSpatialFilter) {
+    this.restrictExtendOfSpatialFilter = restrictExtendOfSpatialFilter;
+  }
+
+  public ExportSpaceToFiles withRestrictExtendOfSpatialFilter(boolean restrictExtendOfSpatialFilter) {
+    setRestrictExtendOfSpatialFilter(restrictExtendOfSpatialFilter);
+    return this;
+  }
 
   public ExportSpaceToFiles withStepExecutionHeartBeatTimeoutOverride(int timeOutSeconds) {
     setStepExecutionHeartBeatTimeoutOverride(timeOutSeconds);
@@ -137,7 +137,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   {
     setOutputSets(List.of(
         new OutputSet(STATISTICS, USER, true),
-        new OutputSet(INTERNAL_STATISTICS, SYSTEM, true),
         new OutputSet(EXPORTED_DATA, USER, false)
     ));
   }
@@ -165,19 +164,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
   public ExportSpaceToFiles withPropertyFilter(PropertiesQuery propertyFilter){
     setPropertyFilter(propertyFilter);
-    return this;
-  }
-
-  public boolean isPassthrough() {
-    return passthrough;
-  }
-
-  public void setPassthrough(boolean passthrough) {
-    this.passthrough = passthrough;
-  }
-
-  public ExportSpaceToFiles withPassthrough(boolean passthrough) {
-    setPassthrough(passthrough);
     return this;
   }
 
@@ -220,17 +206,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     catch (Exception e) {
       throw new RuntimeException(e);
     }
-  }
-
-  @Override
-  public ExecutionMode getExecutionMode() {
-    return passthrough ? SYNC : ASYNC;
-  }
-
-  @Override
-  public void execute(boolean resume) throws Exception {
-    if(passthrough) return;
-    super.execute(resume);
   }
 
   @Override
@@ -343,17 +318,15 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   protected void onAsyncSuccess() throws Exception {
     String schema = getSchema(db());
 
-    Statistics statistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
+    TransportStatistics stepStatistics = runReadQuerySync(retrieveStatisticFromTaskAndStatisticTable(schema), db(WRITER),
             0, rs -> rs.next()
-                    ? createStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"),
-                    rs.getInt("files_uploaded"))
-                    : createStatistics(0, 0, 0));
+                    ? new TransportStatistics(rs.getLong("rows_uploaded"), rs.getLong("bytes_uploaded"), rs.getInt("files_uploaded"))
+                    : new TransportStatistics(0, 0, 0));
 
-    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + statistics.published().getByteSize()
-            + " files=" + statistics.internal().getFileCount());
+    infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize + " files=" + stepStatistics.fileCount);
 
-    registerOutputs(List.of(statistics.published()), STATISTICS);
-    registerOutputs(List.of(statistics.internal()), INTERNAL_STATISTICS);
+    registerOutputs(List.of(new FeatureStatistics().withFeatureCount(stepStatistics.rowCount).withByteSize(stepStatistics.byteSize)),
+        STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);
@@ -383,25 +356,26 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected int createTaskItems(String schema) throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException {
+  protected List<TaskData> createTaskItems(String schema)
+          throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException{
     int taskListCount = calculatedThreadCount;
 
     //Todo: find a possibility to add more tasks if filters are set
     if(spatialFilter == null && propertyFilter == null) {
       //The dataSize includes indexes and other overhead so the resulting files will be smaller than the
       //defined MAX_BYTES_PER_TASK.
-      Long estByteCount = spaceStatistics.getDataSize().getValue();
+      Long estByteCount = spaceStatistics(context, true).getDataSize().getValue();
       infoLog(STEP_EXECUTE, this,"Retrieved estByteCount: " + estByteCount);
       long calculatedTaskCount = (estByteCount + MAX_BYTES_PER_TASK - 1) / MAX_BYTES_PER_TASK;
       // Ensure taskListCount does not exceed the maximum allowed limit
       taskListCount = (int) Math.min(calculatedTaskCount, MAX_TASK_COUNT);
     }
 
-    infoLog(STEP_EXECUTE, this,"Add " + taskListCount + " initial entries in taskTable!");
+    List<TaskData> taskDataList = new ArrayList<>();
     for (int i = 0; i < taskListCount; i++) {
-      runWriteQuerySync(insertTaskItemInTaskAndStatisticTable(schema, this, new TaskData(i)), db(WRITER), 0);
+      taskDataList.add(new TaskData(i));
     }
-    return taskListCount;
+    return taskDataList;
   }
 
   /**
@@ -420,14 +394,6 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   protected SQLQuery buildTaskQuery(String schema, Integer taskId, TaskData taskData)
           throws QueryBuildingException, TooManyResourcesClaimed, WebClientException, InvalidGeometryException {
     return buildExportToS3PluginQuery(schema, taskId, generateContentQueryForExportPlugin(taskData));
-  }
-
-  private static Statistics createStatistics(long featureCount, long byteSize, int fileCount) {
-    return new Statistics(
-        //NOTE: Do not publish the file count for the user facing statistics, as it could be confusing when it comes to invisible intermediate outputs
-        new FeatureStatistics().withByteSize(byteSize).withFeatureCount(featureCount),
-        new FeatureStatistics().withFileCount(fileCount)
-    );
   }
 
   protected GetFeaturesByGeometryInput createGetFeaturesByGeometryInput(SpaceContext context, SpatialFilter spatialFilter, Ref versionRef)
@@ -500,6 +466,7 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
     return maxI;
   }
 
+
   /**
    * Generates a content query for the export plugin based on the task data and context. This method
    * can get overridden easily from other ExportProcesses.
@@ -525,13 +492,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
     long minI = loadMinI();
     long maxI = loadMaxI();
-    long iRangeSize = (long) Math.ceil((double) (maxI - minI) / (double) taskItemCount);
+    long iRangeSize = (long) Math.ceil((double) (maxI - minI + 1) / (double) taskItemCount);
 
-    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + #{endRangeOffset}) * #{iRangeSize}")
+    SQLQuery threadCondition = new SQLQuery("i >= #{minI} + #{taskNumber} * #{iRangeSize} AND i < #{minI} + (#{taskNumber} + 1) * #{iRangeSize}")
         .withNamedParameter("minI", minI)
         .withNamedParameter("taskNumber", taskNumber)
-        .withNamedParameter("iRangeSize", iRangeSize)
-        .withNamedParameter("endRangeOffset", taskNumber == taskItemCount - 1 ? 2 : 1);
+        .withNamedParameter("iRangeSize", iRangeSize);
 
     return queryBuilder
         .withAdditionalFilterFragment(threadCondition)
@@ -539,5 +505,5 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
         .toExecutableQueryString();
   }
 
-  private record Statistics(FeatureStatistics published, FeatureStatistics internal) {}
+  private record TransportStatistics(long rowCount, long byteSize, int fileCount) {}
 }

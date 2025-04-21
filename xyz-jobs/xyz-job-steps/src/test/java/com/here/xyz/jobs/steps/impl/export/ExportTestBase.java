@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.jobs.steps.impl.export;
 
 import static com.here.xyz.jobs.steps.Step.Visibility.SYSTEM;
@@ -19,7 +38,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -57,7 +75,6 @@ public class ExportTestBase extends StepTest {
     protected void checkOutputs(FeatureCollection expectedFeatures, List<Output> userOutputs, List<Output> systemOutputs)
             throws IOException {
         Assertions.assertNotEquals(0, userOutputs.size());
-        Assertions.assertNotEquals(0, systemOutputs.size());
 
         List<Feature>  exportedFeatures = new ArrayList<>();
 
@@ -67,13 +84,6 @@ public class ExportTestBase extends StepTest {
             //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
             else if (output instanceof FeatureStatistics statistics)
                 Assertions.assertEquals(expectedFeatures.getFeatures().size(), statistics.getFeatureCount());
-        }
-
-        //TODO: FeatureStatistics could get only checked if we also support during simulation "UPDATE_CALLBACK"
-        for (Output output : systemOutputs) {
-            //if we have one Feature - we expect at least one file
-            if (output instanceof FeatureStatistics statistics && expectedFeatures.getFeatures().size() > 1)
-                Assertions.assertTrue(statistics.getFileCount() > 0);
         }
 
         List<String> existingFeaturesIdList = expectedFeatures.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import java.io.IOException;
 import java.util.List;
 
@@ -48,18 +49,22 @@ public class InputsFromJob extends Input<InputsFromJob> {
    * @param referencingJobId The job that owns this delegator object
    * @throws IOException when the metadata for the referenced job could not be updated
    */
-  public void dereference(String referencingJobId) throws IOException {
-    //First load the inputs of the other job to ensure the other job's metadata actually have been written
-    List<Input> inputs = Input.loadInputs(getJobId());
-    updateInputMetaReferences(referencingJobId);
-    //Store the metadata of the job that references the other job's metadata
-    storeMetadata(referencingJobId, inputs, getJobId());
-  }
+  public void dereference(String referencingJobId) {
+    String referencedJobId = getJobId();
 
-  private void updateInputMetaReferences(String referencingJobId) throws IOException {
-    InputsMetadata referencedMetadata = loadMetadata(getJobId());
-    //Add the referencing job to the list of jobs referencing the metadata
-    referencedMetadata.referencingJobs().add(referencingJobId);
-    storeMetadata(getJobId(), referencedMetadata);
+    //TODO: Parallelize
+    loadAllInputSetNames(referencedJobId).forEach(setName -> {
+      try {
+        //First load the inputs of the other job to ensure the other job's metadata actually have been written
+        List<Input> inputs = Input.loadInputs(referencedJobId, setName);
+        //Update the other job's metadata to be referenced by <referencingJob>
+        Input.addInputReferences(referencedJobId, referencingJobId, setName);
+        //Store the metadata of the job that references the other job's metadata
+        storeMetadata(referencingJobId, inputs, getJobId(), setName);
+      }
+      catch (IOException | AmazonS3Exception e) {
+        throw new RuntimeException("Error dereferencing inputs of job " + referencedJobId, e);
+      }
+    });
   }
 }

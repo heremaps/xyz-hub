@@ -50,6 +50,8 @@ import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -95,6 +97,9 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   @JsonView({Internal.class, Static.class})
   protected Ref versionRef;
 
+  @JsonView({Internal.class, Static.class})
+  protected boolean noTasksCreated = false;
+
   public Ref getVersionRef() {
     return versionRef;
   }
@@ -135,7 +140,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
    * @throws TooManyResourcesClaimed If too many resources are claimed during the process.
    * @throws QueryBuildingException If an error occurs while building the SQL query.
    */
-  protected abstract int createTaskItems(String schema)
+  protected abstract List<TaskData> createTaskItems(String schema)
           throws WebClientException, SQLException, TooManyResourcesClaimed, QueryBuildingException;
 
   /**
@@ -296,14 +301,16 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
 
   @Override
   public void execute(boolean resume) throws Exception {
+    //The following code is running synchronously till the first task is getting started.
     String schema = getSchema(db());
     if (!resume) {
       calculatedThreadCount = setInitialThreadCount(schema);
-      //create progress update table
-      runWriteQuerySync(buildTaskAndStatisticTableStatement(schema, this), db(WRITER), 0);
-      taskItemCount = createTaskItems(schema);
+      List<TaskData> taskDataList = createTaskItems(schema);
+      taskItemCount = taskDataList.size();
+      insertTaskItemsInTaskAndStatisticTable(schema, this, createTaskItems(schema));
     }
     startInitialTasks(schema);
+    noTasksCreated = taskItemCount == 0;
   }
 
   /**
@@ -337,6 +344,13 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     }catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  protected void onStateCheck() {
+    //If no tasks are created, we can finish the process
+    if(noTasksCreated)
+      reportAsyncSuccess();
   }
 
   /**
@@ -430,15 +444,28 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
             .withVariable("tmpTable", getTemporaryJobTableName(getId()));
   }
 
-  protected static SQLQuery insertTaskItemInTaskAndStatisticTable(String schema, Step step, TaskData taskData) {
-    /** TODO: switch to complete upsert */
-    return new SQLQuery("""             
+  protected void insertTaskItemsInTaskAndStatisticTable(String schema, Step step, List<TaskData> taskData)
+          throws WebClientException, SQLException, TooManyResourcesClaimed {
+    List<SQLQuery> insertQueries = new ArrayList<>();
+
+    //Create process table
+    runWriteQuerySync(buildTaskAndStatisticTableStatement(schema, this), db(WRITER), 0);
+
+    for (TaskData task : taskData) {
+      String taskItem = task.serialize();
+
+      infoLog(STEP_EXECUTE, this,"Add initial entry in process_table: " + taskItem );
+      insertQueries.add(new SQLQuery("""             
             INSERT INTO  ${schema}.${table} AS t (task_data)
                 VALUES (#{taskData}::JSONB);
         """)
-            .withVariable("schema", schema)
-            .withVariable("table", getTemporaryJobTableName(step.getId()))
-            .withNamedParameter("taskData", taskData.serialize());
+              .withVariable("schema", schema)
+              .withVariable("table", getTemporaryJobTableName(step.getId()))
+              .withNamedParameter("taskData", taskItem));
+    }
+    if(!insertQueries.isEmpty()) {
+      runBatchWriteQuerySync(SQLQuery.batchOf(insertQueries), db(WRITER), 0);
+    }
   }
 
   protected Map<String, Object> getQueryContext(String schema) throws WebClientException {
