@@ -95,6 +95,34 @@ public class LimitsTestIT extends TestSpaceWithFeature {
   }
 
   @Test
+  public void addMoreThen10Mb() throws InterruptedException {
+    var content = generateFeatureCollection(140); // 1 feature template 100 kb
+    var headers = getAuthHeaders(AuthProfile.ACCESS_ALL);
+//    headers.put("content-length", "10485765");
+    var response = given().
+        accept(APPLICATION_GEO_JSON).
+        contentType(APPLICATION_GEO_JSON).
+        headers(headers).
+        body(content).
+        when().post("/spaces/x-psql-test/features");
+
+    response.then().statusCode(OK.code());
+  }
+
+  private String generateFeatureCollection(int count) {
+    String featureTemplate100k = content("/xyz/hub/100kFeatureTemplate.json");
+    String content = "{\"type\":\"FeatureCollection\",\"features\":[";
+    for (int i = 0; i < count; i++) {
+      content += featureTemplate100k.replace("FEATURE_ID", "ID-"+ i);
+      if (i < count - 1) {
+        content += ",";
+      }
+    }
+      content += "]}";
+    return content;
+  }
+
+  @Test
   public void add1Feature() {
     given().
         accept(APPLICATION_GEO_JSON).
