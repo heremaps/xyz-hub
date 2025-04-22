@@ -338,10 +338,12 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
   protected void addDefaultHandlers(Router router) {
     //Add additional handler to the router
     router.route().failureHandler(createFailureHandler());
+    var bodyHandler = BodyHandler.create();
+    bodyHandler.setBodyLimit(-1); // set for unlime by body size default value 10 megabytes
     // starts at the 2nd route, since the first one is automatically added from openapi's RouterBuilder.createRouter
     router.route().order(1)
         .handler(createCorsHandler())
-        .handler(BodyHandler.create())
+        .handler(bodyHandler)
         .handler(createReceiveHandler())
         .handler(createMaxRequestSizeHandler());
   }
