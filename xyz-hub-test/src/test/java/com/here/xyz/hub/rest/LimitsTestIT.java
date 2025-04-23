@@ -26,11 +26,15 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import io.restassured.response.ValidatableResponse;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import java.util.Random;
 
 public class LimitsTestIT extends TestSpaceWithFeature {
 
@@ -96,30 +100,34 @@ public class LimitsTestIT extends TestSpaceWithFeature {
 
   @Test
   public void addMoreThen10Mb() throws InterruptedException {
-    var content = generateFeatureCollection(140); // 1 feature template 100 kb
+    int featureCount = 1024*12; // around 12 megabytes
+    var content = generateFeatureCollection(featureCount);
     var headers = getAuthHeaders(AuthProfile.ACCESS_ALL);
-//    headers.put("content-length", "10485765");
     var response = given().
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(headers).
         body(content).
         when().post("/spaces/x-psql-test/features");
-
     response.then().statusCode(OK.code());
   }
 
   private String generateFeatureCollection(int count) {
-    String featureTemplate100k = content("/xyz/hub/100kFeatureTemplate.json");
     String content = "{\"type\":\"FeatureCollection\",\"features\":[";
     for (int i = 0; i < count; i++) {
-      content += featureTemplate100k.replace("FEATURE_ID", "ID-"+ i);
+      content += generateContentLine(i);
       if (i < count - 1) {
         content += ",";
       }
     }
-      content += "]}";
+    content += "]}";
     return content;
+  }
+
+  private String generateContentLine(int id) {
+    Random rd = new Random();
+    String randomString = RandomStringUtils.randomAlphanumeric(900);
+    return "{\"id\":\""+id+"\",\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":["+(rd.nextInt(179))+"."+(rd.nextInt(100))+","+(rd.nextInt(79))+"."+(rd.nextInt(100))+"]},\"properties\":{\"test\":\""+ randomString+"\"}}";
   }
 
   @Test
