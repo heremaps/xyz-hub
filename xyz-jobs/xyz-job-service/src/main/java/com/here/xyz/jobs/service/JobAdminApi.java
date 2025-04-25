@@ -199,9 +199,9 @@ public class JobAdminApi extends JobApiBase {
               case "FAILED", "TIMED_OUT" -> FAILED;
               default -> null;
             };
-            if (newJobState != null) {
 
-              Future<Void> future = Future.succeededFuture();
+            Future<Void> future = Future.succeededFuture();
+            if (newJobState != null) {
               if (newJobState == SUCCEEDED)
                 JobExecutor.getInstance().deleteExecution(job.getExecutionId());
               else if (newJobState == FAILED) {
@@ -220,16 +220,16 @@ public class JobAdminApi extends JobApiBase {
               State oldState = job.getStatus().getState();
               if (oldState != newJobState) {
                 job.getStatus().setState(newJobState);
-
-                //Call finalize observers after setting the new state to the job status
-                if (newJobState.isFinal())
-                  JobService.callFinalizeObservers(job);
               }
 
-              return future.compose(v -> job.storeStatus(oldState));
+              future = future.compose(v -> job.storeStatus(oldState));
             }
-            else
-              return Future.succeededFuture();
+
+            //Call finalize observers after setting the new state to the job status
+            if (job.getStatus().getState().isFinal())
+              JobService.callFinalizeObservers(job);
+
+            return future;
           })
           .onFailure(t -> logger.error("Error updating the state of job {} after receiving an event from its state machine:", jobId, t));
   }

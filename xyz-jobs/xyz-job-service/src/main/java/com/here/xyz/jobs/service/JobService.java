@@ -135,6 +135,7 @@ public class JobService extends Core {
   }
 
   public static void callFinalizeObservers(Job job) {
+    logger.info("Calling job finalization observers for job {}", job.getId());
     jobFinalizationObservers.forEach(c -> {
       try {
         c.accept(job);
