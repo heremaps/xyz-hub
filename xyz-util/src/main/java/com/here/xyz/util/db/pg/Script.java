@@ -111,7 +111,7 @@ public class Script {
       return compatibleVersion;
     }
     catch (SQLException e) {
-      logger.error("Error finding compatible version for script {} on DB {}. Falling back to latest version if possible.",
+      logger.warn("Unable to find compatible version for script {} on DB {}. Falling back to latest version if possible.",
           getScriptName(), getDbId(), e);
       return null;
     }
@@ -131,7 +131,7 @@ public class Script {
       }
     }
     catch (SQLException | IOException e) {
-      logger.error("Error installing script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
+      logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
           getDbId(), e);
     }
   }
@@ -184,7 +184,7 @@ public class Script {
         .write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
 
-    logger.info("Script {} has been installed successfully on DB {}.", getScriptName(), getDbId());
+    logger.info("Script {} has been installed successfully on DB {} into schema {}.", getScriptName(), getDbId(), targetSchema);
   }
 
   private static SQLQuery buildSetCurrentSearchPathQuery(String targetSchema) {
