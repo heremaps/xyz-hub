@@ -123,13 +123,11 @@ public class Script {
         return;
       //TODO: Remove the "anyVersionExists-check" once full qualified schemas have been installed for all scripts
       if (!getHash().equals(loadLatestHash()) || scriptVersion != null && !anyVersionExists()) {
-        logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), getTargetSchema(null));
         if (scriptVersion != null)
           install(getTargetSchema(scriptVersion), false);
         //Also install the "latest" version
         install(getTargetSchema(null), true);
         installed = true;
-        logger.info("Script {} has been installed successfully on DB {}.", getScriptName(), getDbId());
       }
     }
     catch (SQLException | IOException e) {
@@ -143,6 +141,8 @@ public class Script {
   }
 
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
+    logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), targetSchema);
+
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
         .withQueryFragment("scriptContent", loadScriptContent());
 
@@ -183,6 +183,8 @@ public class Script {
         .withLoggingEnabled(false)
         .write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
+
+    logger.info("Script {} has been installed successfully on DB {}.", getScriptName(), getDbId());
   }
 
   private static SQLQuery buildSetCurrentSearchPathQuery(String targetSchema) {
