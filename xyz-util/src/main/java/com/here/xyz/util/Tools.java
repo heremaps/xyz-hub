@@ -17,34 +17,21 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.rest;
+package com.here.xyz.util;
 
-/**
- * An enumeration with all responses that should be returned to the client. If the required response type is not available an {@link
- * com.here.xyz.responses.ErrorResponse} should be returned.
- */
-public enum ApiResponseType {
-  EMPTY,
-  FEATURE,
-  FEATURE_COLLECTION,
-  CHANGESET_COLLECTION,
-  MVT(true),
-  MVT_FLATTENED(true),
-  BINARY(true),
-  SPACE,
-  SPACE_LIST,
-  @Deprecated
-  COUNT_RESPONSE,
-  HEALTHY_RESPONSE,
-  STATISTICS_RESPONSE;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 
-  public final boolean binary;
+public class Tools {
 
-  ApiResponseType() {
-    this.binary = false;
-  }
-
-  ApiResponseType(boolean binary) {
-    this.binary = binary;
+  public static <R> R parallelize(Callable<R> task, int threads) throws ExecutionException, InterruptedException {
+    ForkJoinPool tmpPool = new ForkJoinPool(threads);
+    try {
+      return tmpPool.submit(task).get();
+    }
+    finally {
+      tmpPool.shutdown();
+    }
   }
 }

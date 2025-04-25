@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -177,7 +177,7 @@ public class Connector extends com.here.xyz.models.hub.Connector {
      * The XYZ connector protocol version being served by the remote function.
      * @see Payload#VERSION
      */
-    public String protocolVersion = "0.5.0";
+    public String protocolVersion = "0.6.0";
 
     /**
      * The maximum amount of milliseconds a connector request may take.
