@@ -131,7 +131,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
         route.addHandler(jwtHandler);
       }
 
-      new FeatureApi(rb);
+      FeatureApi featureApi = new FeatureApi(rb);
       new FeatureQueryApi(rb);
       new SpaceApi(rb);
       new ConnectorApi(rb);
@@ -144,6 +144,8 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
       new HealthApi(vertx, router);
       new AdminApi(vertx, router, jwtHandler);
+
+      featureApi.activatePrivateRoutes(router, jwtHandler);
 
       //OpenAPI resources
       router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {

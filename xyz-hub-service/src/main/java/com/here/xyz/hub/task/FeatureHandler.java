@@ -141,7 +141,7 @@ public class FeatureHandler {
     }
   }
 
-  static void injectSpaceParams(Event event, Space space) {
+  public static void injectSpaceParams(Event event, Space space) {
     event.setSpace(space.getId());
     if (event instanceof ContextAwareEvent contextAwareEvent)
       contextAwareEvent.setVersionsToKeep(space.getVersionsToKeep());
@@ -206,7 +206,7 @@ public class FeatureHandler {
               "The resource contains " + currentSpaceCount + " features and cannot store any more features.");
   }
 
-  private static RpcClient getRpcClient(Connector refConnector) throws HttpException {
+  public static RpcClient getRpcClient(Connector refConnector) throws HttpException {
     try {
       return RpcClient.getInstanceFor(refConnector);
     }

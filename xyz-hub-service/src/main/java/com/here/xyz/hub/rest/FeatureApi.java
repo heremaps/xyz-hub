@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,26 +19,9 @@
 
 package com.here.xyz.hub.rest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import com.here.xyz.events.GetFeaturesByIdEvent;
-import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.UpdateStrategy;
 import static com.here.xyz.events.UpdateStrategy.DEFAULT_DELETE_STRATEGY;
-import com.here.xyz.events.UpdateStrategy.OnExists;
-import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
-import com.here.xyz.events.UpdateStrategy.OnNotExists;
-import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
-import com.here.xyz.events.WriteFeaturesEvent.Modification;
-import com.here.xyz.hub.Config;
-import com.here.xyz.hub.XYZHubRESTVerticle;
-import com.here.xyz.hub.auth.FeatureAuthorization;
-import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.ApiParam.Path;
-import com.here.xyz.hub.rest.ApiParam.Query;
 import static com.here.xyz.hub.rest.ApiParam.Query.ADD_TAGS;
 import static com.here.xyz.hub.rest.ApiParam.Query.CONFLICT_DETECTION;
 import static com.here.xyz.hub.rest.ApiParam.Query.FEATURE_ID;
@@ -50,50 +33,85 @@ import static com.here.xyz.hub.rest.ApiParam.Query.queryParam;
 import static com.here.xyz.hub.rest.ApiResponseType.EMPTY;
 import static com.here.xyz.hub.rest.ApiResponseType.FEATURE;
 import static com.here.xyz.hub.rest.ApiResponseType.FEATURE_COLLECTION;
-import com.here.xyz.hub.task.FeatureHandler;
 import static com.here.xyz.hub.task.FeatureHandler.checkIsActive;
 import static com.here.xyz.hub.task.FeatureHandler.checkReadOnly;
+import static com.here.xyz.hub.task.FeatureHandler.getRpcClient;
+import static com.here.xyz.hub.task.FeatureHandler.injectSpaceParams;
 import static com.here.xyz.hub.task.FeatureHandler.resolveExtendedSpaces;
 import static com.here.xyz.hub.task.FeatureHandler.resolveListenersAndProcessors;
+import static com.here.xyz.models.geojson.implementation.XyzNamespace.fixNormalizedTags;
+import static com.here.xyz.models.geojson.implementation.XyzNamespace.normalizeTags;
+import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.AUTHOR_HEADER;
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.vertx.core.http.HttpHeaders.ACCEPT;
+import static io.vertx.core.http.HttpMethod.PUT;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
+import com.here.xyz.events.GetFeaturesByIdEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.PutBlobTileEvent;
+import com.here.xyz.events.UpdateStrategy;
+import com.here.xyz.events.UpdateStrategy.OnExists;
+import com.here.xyz.events.UpdateStrategy.OnMergeConflict;
+import com.here.xyz.events.UpdateStrategy.OnNotExists;
+import com.here.xyz.events.UpdateStrategy.OnVersionConflict;
+import com.here.xyz.events.WriteFeaturesEvent.Modification;
+import com.here.xyz.hub.Config;
+import com.here.xyz.hub.Service;
+import com.here.xyz.hub.XYZHubRESTVerticle;
+import com.here.xyz.hub.auth.FeatureAuthorization;
+import com.here.xyz.hub.connectors.RpcClient.RpcContext;
+import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.ApiParam.Path;
+import com.here.xyz.hub.rest.ApiParam.Query;
+import com.here.xyz.hub.task.FeatureHandler;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.IdsQuery;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import static com.here.xyz.models.geojson.implementation.XyzNamespace.fixNormalizedTags;
-import static com.here.xyz.models.geojson.implementation.XyzNamespace.normalizeTags;
 import com.here.xyz.models.hub.FeatureModificationList;
 import com.here.xyz.models.hub.FeatureModificationList.ConflictResolution;
 import com.here.xyz.models.hub.FeatureModificationList.FeatureModification;
 import com.here.xyz.models.hub.FeatureModificationList.IfExists;
-import static com.here.xyz.models.hub.FeatureModificationList.IfExists.PATCH;
 import com.here.xyz.models.hub.FeatureModificationList.IfNotExists;
 import com.here.xyz.models.hub.Ref;
+import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.util.Async;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
-import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.aws.s3.S3Client;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpHeaders;
-import static io.vertx.core.http.HttpHeaders.ACCEPT;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.AuthenticationHandler;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.Marker;
 
 public class FeatureApi extends SpaceBasedApi {
+  private static final Async ASYNC = new Async(20, FeatureApi.class);
+
   public FeatureApi(RouterBuilder rb) {
     rb.getRoute("getFeature").setDoValidation(false).addHandler(handleErrors(this::getFeature));
     rb.getRoute("getFeatures").setDoValidation(false).addHandler(handleErrors(this::getFeatures));
@@ -103,6 +121,12 @@ public class FeatureApi extends SpaceBasedApi {
     rb.getRoute("patchFeature").setDoValidation(false).addHandler(handleErrors(this::patchFeature));
     rb.getRoute("deleteFeature").setDoValidation(false).addHandler(handleErrors(this::deleteFeature));
     rb.getRoute("deleteFeatures").setDoValidation(false).addHandler(handleErrors(this::deleteFeatures));
+  }
+
+  public void activatePrivateRoutes(Router router, AuthenticationHandler auth) {
+    router.route(PUT, "/hub/spaces/:spaceId/tile/:type/:tileId")
+        .handler(auth)
+        .handler(handleErrors(this::putBinaryTile));
   }
 
   /**
@@ -212,6 +236,125 @@ public class FeatureApi extends SpaceBasedApi {
     else
       executeConditionalOperationChain(false, context, responseType,
           IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
+  }
+
+  private void putBinaryTile(final RoutingContext context) throws HttpException {
+    SpaceContext spaceContext = getSpaceContext(context);
+    boolean isDelete = false;
+    boolean isWrite = true;
+
+    checkModificationOnSuper(spaceContext);
+    String spaceId = getSpaceId(context);
+    String tileId = context.pathParam(Path.TILE_ID);
+    Space.resolveSpace(getMarker(context), spaceId)
+        .compose(space -> {
+          if (space == null)
+            return Future.failedFuture(new DetailedHttpException("E318441", Map.of("resourceId", spaceId)));
+
+          try {
+            //Authorize the request and check some preconditions
+            if (isDelete)
+              FeatureAuthorization.authorizeWrite(context, space, true);
+            if (isWrite)
+              FeatureAuthorization.authorizeWrite(context, space, false);
+            //TODO: authorizeComposite?
+            checkIsActive(space);
+            checkReadOnly(space);
+
+            XYZHubRESTVerticle.addStreamInfo(context, "SID", space.getStorage().getId());
+
+            return space.resolveStorage(getMarker(context))
+                //.compose(connector -> resolveListenersAndProcessors(getMarker(context), space))
+                .compose(v -> resolveExtendedSpaces(getMarker(context), space))
+                .compose(v -> enforceUsageQuotas(context, space, spaceContext, isDelete && !isWrite))
+                //Perform the actual feature writing
+                .compose(v -> {
+                  try {
+                    return putBlobTile(getMarker(context), space, spaceContext, getAuthor(context), tileId,
+                        context.body().buffer().getBytes(), context.parsedHeaders().contentType().value());
+                  }
+                  catch (HttpException e) {
+                    return Future.failedFuture(e);
+                  }
+                })
+                .recover(t -> {
+                  if (t instanceof TooManyRequestsException throttleException)
+                    XYZHubRESTVerticle.addStreamInfo(context, "THR", throttleException.reason); //Set the throttling reason at the stream-info header
+                  return Future.failedFuture(t);
+                });
+          }
+          catch (TooManyRequestsException e) {
+            XYZHubRESTVerticle.addStreamInfo(context, "THR", e.reason); //Set the throttling reason at the stream-info header
+            return Future.failedFuture(e);
+          }
+          catch (Exception e) {
+            return Future.failedFuture(e);
+          }
+        })
+        .onSuccess(v -> {
+          sendResponse(context, 200, new SuccessResponse().withStatus("OK"));
+        })
+        .onFailure(t -> sendErrorResponse(context, t));
+  }
+
+  private String s3Key(String spaceId, String tileId) {
+    return "binarySpaces/" + spaceId + "/" + tileId;
+  }
+
+  private Future<Void> putBlobTile(Marker marker, Space space, SpaceContext spaceContext, String author, String tileId, byte[] blobTile,
+      String mimeType) throws HttpException {
+
+    if (mimeType == null)
+      mimeType = space.getMimeType() != null ? space.getMimeType() : "application/octet-stream";
+
+    //return sendPutBlobTileEvent(marker, space, spaceContext, author, tileId, blobTile, mimeType);
+    return putBlobTileEmbedded(space, author, tileId, blobTile, mimeType)
+        .compose(v -> updateContentUpdatedAt(marker, space));
+  }
+
+  private Future<Void> putBlobTileEmbedded(Space space, String author, String tileId, byte[] blobTile, String mimeType) {
+    return ASYNC.run(() -> {
+      try {
+        S3Client.getInstance(Config.instance.XYZ_HUB_S3_BUCKET)
+            .putObject(s3Key(space.getId(), tileId), mimeType, blobTile, true, Map.of(AUTHOR_HEADER, author));
+      }
+      catch (IOException e) {
+        throw new HttpException(INTERNAL_SERVER_ERROR, "Error trying to store the binary tile.", e);
+      }
+      return null;
+    });
+  }
+
+  private Future<Void> sendPutBlobTileEvent(Marker marker, Space space, SpaceContext spaceContext, String author, String tileId,
+      byte[] blobTile, String mimeType) throws HttpException {
+    PutBlobTileEvent event = new PutBlobTileEvent()
+        .withAuthor(author)
+        .withTileId(tileId)
+        .withSpace(space.getId())
+        .withContext(spaceContext)
+        .withBytes(blobTile);
+
+    if (mimeType != null)
+      event.setMimeType(mimeType);
+
+    //Enrich event with properties from the space
+    injectSpaceParams(event, space);
+
+    Promise<Void> promise = Promise.promise();
+    RpcContext rpcContext = getRpcClient(space.getResolvedStorageConnector())
+        .execute(marker, event, ar -> {
+          if (ar.failed())
+            promise.fail(ar.cause());
+          else if (ar.result() instanceof SuccessResponse)
+            promise.complete();
+          else
+            promise.fail(new RuntimeException("Received unexpected response from storage connector: " + ar.result().getClass().getSimpleName()));
+        });
+    return promise.future();
+  }
+
+  private Future<Void> updateContentUpdatedAt(Marker marker, Space space) {
+    return Service.spaceConfigClient.store(marker, (Space) space.withContentUpdatedAt(Core.currentTimeMillis()));
   }
 
   /**
