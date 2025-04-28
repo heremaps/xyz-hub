@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.xyz.jobs.util;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -25,16 +24,11 @@ import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.S3ObjectSummary;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -125,56 +119,16 @@ public class S3Client {
         return s3Uri.substring(s3Uri.substring(5).indexOf("/") + 5 + 1);
     }
 
-    private URL generatePresignedUrl(String key, SdkHttpMethod method) {
-        if (method == SdkHttpMethod.GET) {
-            return generateDownloadURL(key);
-        } else if (method == SdkHttpMethod.PUT) {
-            return generateUploadURL(key);
-        } else {
-            throw new IllegalArgumentException("Unsupported method: " + method);
-        }
-    }
-
     public URL generateDownloadURL(String key) {
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build();
-
-        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS))
-                .getObjectRequest(getObjectRequest)
-                .build();
-
-        PresignedGetObjectRequest presignedRequest = presigner.presignGetObject(presignRequest);
-        return presignedRequest.url();
+        return S3ClientHelper.generateDownloadURL(presigner, bucketName, key, Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS));
     }
 
     public URL generateUploadURL(String key) {
-        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build();
-
-        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS))
-                .putObjectRequest(putObjectRequest)
-                .build();
-
-        PresignedPutObjectRequest presignedRequest = presigner.presignPutObject(presignRequest);
-        return presignedRequest.url();
+        return S3ClientHelper.generateUploadURL(presigner, bucketName, key, Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS));
     }
 
     public List<S3ObjectSummary> scanFolder(String folderPath) {
-        ListObjectsRequest listObjectsRequest = ListObjectsRequest.builder()
-                .prefix(folderPath)
-                .bucket(bucketName)
-                .build();
-
-        ListObjectsResponse listObjectsResponse = client.listObjects(listObjectsRequest);
-        return listObjectsResponse.contents().stream()
-                .map((it) -> S3ObjectSummary.fromS3Object(it, bucketName))
-                .collect(Collectors.toList());
+       return S3ClientHelper.scanFolder(client, bucketName, folderPath);
     }
 
     public byte[] loadObjectContent(String s3Key) throws IOException {
@@ -190,15 +144,7 @@ public class S3Client {
     }
 
     public InputStream streamObjectContent(String s3Key, long offset, long length) {
-        GetObjectRequest.Builder builder = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key);
-
-        if (offset > 0 && length > 0) {
-            builder.range("bytes=" + offset + "-" + (offset + length - 1));
-        }
-
-        return client.getObject(builder.build());
+        return S3ClientHelper.streamObjectContent(client, bucketName, s3Key, offset, length);
     }
 
     public void putObject(String s3Key, String contentType, String content) throws IOException {
@@ -222,6 +168,7 @@ public class S3Client {
         PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(s3Key)
+                .contentLength((long) finalContent.length)
                 .contentType(contentType);
 
         if (gzip) {
@@ -232,26 +179,14 @@ public class S3Client {
     }
 
     public HeadObjectResponse loadMetadata(String key) {
-        HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build();
-
-        return client.headObject(headObjectRequest);
+        return S3ClientHelper.loadMetadata(client, bucketName, key);
     }
 
     public void deleteFolder(String folderPath) {
-        //TODO: Run partially in parallel in multiple threads
-        List<String> keys = listObjects(folderPath);
-
-        for (String key : keys) {
-            DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(key)
-                    .build();
-
-            client.deleteObject(deleteObjectRequest);
-        }
+        listObjects(folderPath)
+                .stream()
+                .parallel()
+                .forEach((key) -> S3ClientHelper.deleteObject(client, bucketName, key));
     }
 
     /**
@@ -261,16 +196,7 @@ public class S3Client {
      * @return True if the key is a folder, otherwise false.
      */
     public boolean isFolder(String s3Key) {
-        String normalizedKey = s3Key.endsWith("/") ? s3Key : s3Key + "/";
-
-        ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .prefix(normalizedKey)
-                .maxKeys(1)
-                .build();
-
-        ListObjectsV2Response response = client.listObjectsV2(listRequest);
-        return !response.contents().isEmpty();
+        return S3ClientHelper.checkIsFolder(client, bucketName, s3Key);
     }
 
     /**
@@ -281,14 +207,9 @@ public class S3Client {
      * @return A list of object keys under the specified prefix.
      */
     public List<String> listObjects(String prefix) {
-        ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .prefix(prefix)
-                .build();
-
-        ListObjectsV2Response response = client.listObjectsV2(listRequest);
-        return response.contents().stream()
-                .map(S3Object::key)
+        List<S3ObjectSummary> objects = scanFolder(prefix);
+        return objects.stream()
+                .map(S3ObjectSummary::key)
                 .collect(Collectors.toList());
     }
 

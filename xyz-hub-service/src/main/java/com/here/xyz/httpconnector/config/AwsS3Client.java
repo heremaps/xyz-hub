@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,10 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.xyz.httpconnector.config;
 
+import com.here.xyz.jobs.util.S3ClientHelper;
 import com.here.xyz.util.service.aws.S3ObjectSummary;
-import io.vertx.core.http.HttpMethod;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -31,7 +30,6 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.*;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
@@ -41,10 +39,8 @@ import org.apache.logging.log4j.Logger;
 import java.net.URL;
 import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * A client for reading and writing from and to S3
@@ -100,68 +96,29 @@ public class AwsS3Client {
     }
 
     public URL generateDownloadURL(String bucketName, String key) {
-        return generatePresignedUrl(bucketName, key, HttpMethod.GET);
+        return S3ClientHelper.generateDownloadURL(presigner, bucketName, key, PRESIGNED_URL_EXPIRATION);
     }
 
     public URL generateUploadURL(String bucketName, String key) {
-        return generatePresignedUrl(bucketName, key, HttpMethod.PUT);
-    }
-
-    public URL generatePresignedUrl(String bucketName, String key, HttpMethod method) {
-        if (method == HttpMethod.GET) {
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(key)
-                    .build();
-            return presigner.presignGetObject(GetObjectPresignRequest.builder()
-                    .signatureDuration(PRESIGNED_URL_EXPIRATION)
-                    .getObjectRequest(getObjectRequest)
-                    .build()).url();
-        } else if (method == HttpMethod.PUT) {
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(key)
-                    .build();
-            return presigner.presignPutObject(PutObjectPresignRequest.builder()
-                    .signatureDuration(PRESIGNED_URL_EXPIRATION)
-                    .putObjectRequest(putObjectRequest)
-                    .build()).url();
-        } else {
-            throw new IllegalArgumentException("Unsupported HTTP method for presigned URL: " + method);
-        }
+        return S3ClientHelper.generateUploadURL(presigner, bucketName, key, PRESIGNED_URL_EXPIRATION);
     }
 
     public void deleteS3Folder(String bucketName, String folderPath) {
         try {
-            ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
-                    .bucket(bucketName)
-                    .prefix(folderPath)
-                    .build();
+            List<S3ObjectSummary> objectsToDelete = scanFolder(bucketName, folderPath);
 
-            ListObjectsV2Response listResponse;
+            if (!objectsToDelete.isEmpty()) {
+                List<ObjectIdentifier> toDelete = objectsToDelete.stream()
+                        .map(obj -> ObjectIdentifier.builder().key(obj.key()).build())
+                        .collect(Collectors.toList());
 
-            do {
-                listResponse = client.listObjectsV2(listObjectsV2Request);
-
-                List<ObjectIdentifier> toDelete = new ArrayList<>();
-                listResponse.contents().forEach(s3Object -> {
-                    toDelete.add(ObjectIdentifier.builder().key(s3Object.key()).build());
-                });
-
-                if (!toDelete.isEmpty()) {
-                    DeleteObjectsRequest deleteObjectsRequest = DeleteObjectsRequest.builder()
-                            .bucket(bucketName)
-                            .delete(Delete.builder().objects(toDelete).build())
-                            .build();
-                    client.deleteObjects(deleteObjectsRequest);
-                }
-
-                listObjectsV2Request = listObjectsV2Request.toBuilder()
-                        .continuationToken(listResponse.nextContinuationToken())
+                DeleteObjectsRequest deleteObjectsRequest = DeleteObjectsRequest.builder()
+                        .bucket(bucketName)
+                        .delete(Delete.builder().objects(toDelete).build())
                         .build();
 
-            } while (listResponse.isTruncated());
-
+                client.deleteObjects(deleteObjectsRequest);
+            }
         } catch (Exception e) {
             logger.error("Failed to delete folder '{}' in bucket '{}': {}", folderPath, bucketName, e.getMessage(), e);
         }
@@ -169,64 +126,27 @@ public class AwsS3Client {
 
     public void copyFolder(String bucketName, String sourceFolderPath, String targetFolderPath) {
         try {
-            ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
-                    .bucket(bucketName)
-                    .prefix(sourceFolderPath)
-                    .build();
+            List<S3ObjectSummary> sourceObjects = scanFolder(bucketName, sourceFolderPath);
 
-            ListObjectsV2Response listResponse;
+            for (S3ObjectSummary s3ObjectSummary : sourceObjects) {
+                String sourceKey = s3ObjectSummary.key();
+                String targetKey = sourceKey.replace(sourceFolderPath, targetFolderPath);
 
-            do {
-                listResponse = client.listObjectsV2(listObjectsV2Request);
-
-                for (S3Object s3Object : listResponse.contents()) {
-                    String sourceKey = s3Object.key();
-                    String targetKey = sourceKey.replace(sourceFolderPath, targetFolderPath);
-
-                    CopyObjectRequest copyRequest = CopyObjectRequest.builder()
-                            .copySource(bucketName + "/" + sourceKey)
-                            .destinationBucket(bucketName)
-                            .destinationKey(targetKey)
-                            .build();
-
-                    client.copyObject(copyRequest);
-                }
-
-                listObjectsV2Request = listObjectsV2Request.toBuilder()
-                        .continuationToken(listResponse.nextContinuationToken())
+                CopyObjectRequest copyRequest = CopyObjectRequest.builder()
+                        .copySource(bucketName + "/" + sourceKey)
+                        .destinationBucket(bucketName)
+                        .destinationKey(targetKey)
                         .build();
-            } while (listResponse.isTruncated());
 
+                client.copyObject(copyRequest);
+            }
         } catch (Exception e) {
             logger.error("Failed to copy folder from '{}' to '{}' in bucket '{}': {}", sourceFolderPath, targetFolderPath, bucketName, e.getMessage(), e);
         }
     }
 
     public List<S3ObjectSummary> scanFolder(String bucketName, String folderPath) {
-        logger.info("Scanning folder for bucket {} and path {} ...", bucketName, folderPath);
-
-        List<S3Object> summaries = new ArrayList<>();
-        try {
-            ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
-                    .bucket(bucketName)
-                    .prefix(folderPath)
-                    .build();
-
-            ListObjectsV2Response listResponse;
-
-            do {
-                listResponse = client.listObjectsV2(listObjectsV2Request);
-                summaries.addAll(listResponse.contents());
-
-                listObjectsV2Request = listObjectsV2Request.toBuilder()
-                        .continuationToken(listResponse.nextContinuationToken())
-                        .build();
-
-            } while (listResponse.isTruncated());
-        } catch (Exception e) {
-            logger.error("Error scanning folder {} in bucket {}: {}", folderPath, bucketName, e.getMessage(), e);
-        }
-        return summaries.stream().map((it) -> S3ObjectSummary.fromS3Object(it, bucketName)).collect(Collectors.toList());
+        return S3ClientHelper.scanFolder(client, bucketName, folderPath);
     }
 
     public boolean isLocal() {

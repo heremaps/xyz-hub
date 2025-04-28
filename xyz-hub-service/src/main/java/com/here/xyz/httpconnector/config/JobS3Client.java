@@ -27,6 +27,7 @@ import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.validate.Validator;
+import com.here.xyz.jobs.util.S3ClientHelper;
 import com.here.xyz.util.service.aws.S3ObjectSummary;
 import io.vertx.core.Future;
 
@@ -103,11 +104,7 @@ public class JobS3Client extends AwsS3Client {
 
         for (S3ObjectSummary s3ObjectSummary : scanFolder(bucketName, prefix)) {
 
-            HeadObjectResponse metadata = client.headObject(HeadObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(s3ObjectSummary.key())
-                    .build()
-            );
+            HeadObjectResponse metadata = S3ClientHelper.loadMetadata(client, bucketName, s3ObjectSummary.key());
             ImportObject importObject = checkFile(s3ObjectSummary, metadata, csvFormat);
             importObjectList.put(importObject.getFilename(), importObject);
         }

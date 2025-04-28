@@ -18,6 +18,7 @@
  */
 package com.here.xyz.hub.cache;
 
+import com.here.xyz.jobs.util.S3ClientHelper;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -29,7 +30,6 @@ import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import com.here.xyz.hub.Service;
 import com.here.xyz.util.service.Core;
@@ -178,12 +178,7 @@ public class S3CacheClient implements CacheClient {
     @Override
     public void remove(String key) {
         Core.vertx.executeBlocking(promise -> {
-            DeleteObjectRequest request = DeleteObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(prefix + key)
-                    .build();
-
-            s3client.deleteObject(request);
+            S3ClientHelper.deleteObject(s3client, bucket, prefix + key);
             promise.complete();
         }, false);
     }
