@@ -112,9 +112,9 @@ public class StepTestBase {
       Config.instance.JOBS_S3_BUCKET = "test-bucket";
       Config.instance.AWS_REGION = "us-east-1";
       Config.instance.ECPS_PHRASE = "local";
-      Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
-      Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
-      Config.instance.JOB_API_ENDPOINT = new URL("http://localhost:7070");
+      Config.instance.HUB_ENDPOINT = "http://" + System.getProperty("hub.host", "localhost") + ":8080/hub";
+      Config.instance.JOB_API_ENDPOINT = new URL("http://" + System.getProperty("job.host", "localhost") + ":7070");
+      Config.instance.LOCALSTACK_ENDPOINT = new URI("http://" + System.getProperty("localstack.host", "localhost") + ":4566");
       HubWebClient.STATISTICS_CACHE_TTL_SECONDS = 0;
       s3Client = S3Client.getInstance();
       lambdaClient = LambdaClient.builder()
