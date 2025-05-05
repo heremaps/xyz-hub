@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,30 +19,49 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
-import static java.lang.Thread.sleep;
-import static org.junit.Assert.assertEquals;
-
 public class CreateIndexStepTest extends StepTest {
 
     @Test
-    public void testCreateIndex() throws Exception {
+    public void testCreateSystemIndex() throws Exception {
         deleteAllExistingIndexes(SPACE_ID);
         Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
 
-        LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withIndex(GEO);
+        SystemIndex systemIndex = SystemIndex.GEO;
+        LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withSystemIndex(SystemIndex.GEO);
 
         sendLambdaStepRequestBlock(step, true);
 
         List<String> indexes = listExistingIndexes(SPACE_ID);
         Assertions.assertEquals(1, indexes.size());
-        Assertions.assertEquals("idx_" + SPACE_ID + "_" + GEO.toString().toLowerCase(), indexes.get(0));
+        Assertions.assertEquals(systemIndex.getIndexName(SPACE_ID), indexes.get(0));
+    }
+
+    @Test
+    public void testCreateOnDemandIndex() throws Exception {
+        XyzSerializable.registerSubtypes(XyzSpaceTableHelper.Index.class);
+        XyzSerializable.registerSubtypes(OnDemandIndex.class);
+
+        deleteAllExistingIndexes(SPACE_ID);
+        Assertions.assertEquals(0, listExistingIndexes(SPACE_ID).size());
+
+        OnDemandIndex onDemandIndex = new OnDemandIndex().withPropertyPath("foo");
+
+        LambdaBasedStep step = new CreateIndex().withSpaceId(SPACE_ID).withOnDemandIndex(onDemandIndex);
+
+        sendLambdaStepRequestBlock(step, true);
+
+        List<String> indexes = listExistingIndexes(SPACE_ID);
+        Assertions.assertEquals(1, indexes.size());
+        Assertions.assertEquals(onDemandIndex.getIndexName(SPACE_ID), indexes.get(0));
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_GEOJSON;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.CSV_JSON_WKB;
 import static com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format.GEOJSON;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 
 import com.google.common.collect.Lists;
 import com.here.xyz.jobs.Job;
@@ -44,12 +44,13 @@ import com.here.xyz.jobs.steps.impl.MarkForMaintenance;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.EntityPerLine;
 import com.here.xyz.jobs.steps.impl.transport.ImportFilesToSpace.Format;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -99,21 +100,32 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     String spaceId = importFilesStep.getSpaceId();
 
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
-    List<Index> indices = Stream.of(Index.values()).filter(index -> index != VIZ).toList();
-    //Split the work in two parallel tasks for now
-    List<List<Index>> indexTasks = Lists.partition(indices, indices.size() / 2);
+    List<XyzSpaceTableHelper.SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
+    //Split the work in three parallel tasks for now
+    List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
 
-    return (CompilationStepGraph) new CompilationStepGraph()
+    CompilationStepGraph importStepGraph = (CompilationStepGraph) new CompilationStepGraph()
         .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
+            // TODO: remove this step in the future, when the maintenance-service got shut down.
+        .addExecution(new MarkForMaintenance().withSpaceId(spaceId).withIdxCreationCompleted(true))
         .addExecution(importFilesStep)
         //NOTE: Create *all* indices in parallel, make sure to (at least) keep the viz-index sequential #postgres-issue-with-partitions
         .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
+            .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(2))))
             .withParallel(true))
-        .addExecution(new CreateIndex().withIndex(VIZ).withSpaceId(spaceId))
-        .addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId))
-        .addExecution(new MarkForMaintenance().withSpaceId(spaceId));
+        .addExecution(new CreateIndex().withSystemIndex(SystemIndex.VIZ).withSpaceId(spaceId));
+
+    CompilationStepGraph onDemandIndexSteps = compileOnDemandIndexSteps(spaceId);
+    if (!onDemandIndexSteps.isEmpty())
+      importStepGraph.addExecution(onDemandIndexSteps);
+
+    importStepGraph.addExecution(new AnalyzeSpaceTable().withSpaceId(spaceId));
+    //TODO: remove this step in the future, when the maintenance-service got shut down.
+    importStepGraph.addExecution(new MarkForMaintenance().withSpaceId(spaceId).withIdxCreationCompleted(false));
+
+    return importStepGraph;
   }
 
   private EntityPerLine getEntityPerLine(FileFormat format) {
@@ -122,8 +134,8 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         : ((Csv) format).getEntityPerLine()).toString());
   }
 
-  private static List<StepExecution> toSequentialSteps(String spaceId, List<Index> indices) {
-    return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
+  private static List<StepExecution> toSequentialSteps(String spaceId, List<SystemIndex> indices) {
+    return indices.stream().map(index -> new CreateIndex().withSystemIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
   }
 
   private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
@@ -133,7 +145,52 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     catch (WebClientException e) {
       if (e instanceof ErrorResponseException err && err.getStatusCode() == 428)
         throw new CompilationError("Target Layer is deactivated!");
-      throw new CompilationError("Target is not accessible!");
+      throw new CompilationError("Target is not accessible!" + e.getMessage());
+    }
+  }
+
+  /**
+   * Creates a CompilationStepGraph for the on-demand indices of the given space.
+   * @param spaceId The ID of the space for which to create the on-demand indices.
+   * @return A CompilationStepGraph containing the steps to create the on-demand indices, which are getting executed in parallel.
+   * @throws CompilationError If an error occurs while retrieving the searchable properties.
+   */
+  private static CompilationStepGraph compileOnDemandIndexSteps(String spaceId) throws CompilationError {
+
+    Map<String, Boolean> activatedSearchableProperties = getActivatedSearchableProperties(spaceId);
+    CompilationStepGraph onDemandIndicesGraph = (CompilationStepGraph) new CompilationStepGraph().withParallel(true);
+
+    for(String property : activatedSearchableProperties.keySet()) {
+      if (activatedSearchableProperties.get(property)) {
+        // Create an OnDemandIndex step for each activated searchable property
+        onDemandIndicesGraph.addExecution(new CreateIndex()
+            .withOnDemandIndex(new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(property))
+            .withSpaceId(spaceId));
+      }
+    }
+    return onDemandIndicesGraph;
+  }
+
+  /**
+   * Retrieves the activated searchable properties for the given space ID.
+   * @param spaceId The ID of the space for which to retrieve the searchable properties.
+   * @return A map containing the activated searchable properties and their values.
+   * @throws CompilationError If an error occurs while retrieving the searchable properties.
+   */
+  private static Map<String, Boolean> getActivatedSearchableProperties(String spaceId) throws CompilationError {
+    try {
+      Map<String, Boolean> searchableProperties = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT)
+              .loadSpace(spaceId).getSearchableProperties();
+
+      return searchableProperties == null ? Map.of() : searchableProperties.entrySet().stream()
+              .filter(Map.Entry::getValue)
+              .collect(Collectors.toMap(
+                      Map.Entry::getKey,
+                      Map.Entry::getValue
+              ));
+    }
+    catch (WebClientException e) {
+      throw new CompilationError("Target is not accessible! "+ e.getMessage());
     }
   }
 }

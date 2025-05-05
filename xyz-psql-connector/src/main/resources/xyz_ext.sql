@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 206
+ select 207
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -710,12 +710,12 @@ $BODY$
 
         IF propkey = 'f.geometry.type' THEN
             /** special handling for geometryType */
-            EXECUTE format('CREATE INDEX "%s" '
+            EXECUTE format('CREATE INDEX IF NOT EXISTS "%s" '
                 ||'ON %s."%s" '
                 ||' USING btree '
                 ||' (GeometryType(geo))', idx_name, schema, spaceid, idx_type);
         ELSE
-            EXECUTE format('CREATE INDEX "%s" '
+            EXECUTE format('CREATE INDEX IF NOT EXISTS "%s" '
                 ||'ON %s."%s" '
                 ||' USING %s '
                 ||'((jsondata->%s %s))', idx_name, schema, spaceid, idx_type, root_path, prop_path);

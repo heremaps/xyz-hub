@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropInd
 
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
@@ -37,7 +36,6 @@ import org.apache.logging.log4j.Logger;
 
 public class DropIndexes extends SpaceBasedStep<DropIndexes> {
   private static final Logger logger = LogManager.getLogger();
-  private Space space;
 
   @Override
   public List<Load> getNeededResources() {
