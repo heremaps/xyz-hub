@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ public class SimulatedContext implements Context, LambdaLogger {
   @Override
   public String getFunctionVersion() {
     if (functionVersion == null)
-      functionVersion = "1.0";
+      functionVersion = "0";
     return functionVersion;
   }
 
