@@ -484,7 +484,7 @@ public class JobPlayground {
   }
 
   public static void runCreateIndexStep(String spaceId, SystemIndex index) throws IOException {
-    runStep(new CreateIndex().withSpaceId(spaceId).withSystemIndex(index));
+    runStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
   }
 
   public static void runAnalyzeSpaceTableStep(String spaceId) throws IOException {
