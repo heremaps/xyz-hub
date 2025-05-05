@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,6 +96,8 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   protected SpaceContext context;
   @JsonView({Internal.class, Static.class})
   protected Ref versionRef;
+  @JsonView({Internal.class, Static.class})
+  protected long spaceCreatedAt;
 
   @JsonView({Internal.class, Static.class})
   protected boolean noTasksCreated = false;
@@ -176,6 +178,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
     try {
       try {
         versionRef = hubWebClient().resolveRef(getSpaceId(), context, versionRef);
+        spaceCreatedAt = space().getCreatedAt();
       }
       catch (ErrorResponseException e) {
         handleErrorResponse(e);
