@@ -486,10 +486,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       registerOutputs(List.of(statistics), STATISTICS);
 
       cleanUpDbRelatedResources();
-
-      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Set contentUpdatedAt on target space");
-      hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
-
     }
     catch (SQLException e) {
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK

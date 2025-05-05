@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,15 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.util.db.pg.IndexHelper.buildAsyncOnDemandIndexQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
@@ -36,8 +38,8 @@ import org.apache.logging.log4j.Logger;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();
-  private Index index;
-  private Space space;
+  private SystemIndex systemIndex;
+  private OnDemandIndex onDemandIndex;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
@@ -45,8 +47,8 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public List<Load> getNeededResources() {
     try{
-      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index);
-      logger.info("[{}] {} neededACUs {}", getGlobalStepId(), index, acus);
+      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), systemIndex);
+      logger.info("[{}] {} neededACUs {}", getGlobalStepId(), systemIndex, acus);
 
       return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(acus));
     }
@@ -68,15 +70,15 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds < 0) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , index);
-      logger.info("[{}] {} estimatedSeconds {}", getGlobalStepId(), index, estimatedSeconds);
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , systemIndex);
+      logger.info("[{}] {} estimatedSeconds {}", getGlobalStepId(), systemIndex, estimatedSeconds);
     }
     return estimatedSeconds;
   }
 
   @Override
   public String getDescription() {
-    return "Creates the " + index + " index on space " + getSpaceId();
+    return "Creates the " + (systemIndex != null ? systemIndex : onDemandIndex) + " index on space " + getSpaceId();
   }
 
   @Override
@@ -85,21 +87,44 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work
     as it is using the "CREATE INDEX IF NOT EXISTS" semantics
      */
-    logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
-    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index), db(),
-            ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+    logger.info("Creating the index " +  (systemIndex != null ? systemIndex : onDemandIndex) + " for space " + getSpaceId() + " ...");
+    if(systemIndex != null) {
+      runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), systemIndex), db(),
+              ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), systemIndex));
+    }else if (onDemandIndex != null) {
+      runWriteQueryAsync(buildAsyncOnDemandIndexQuery(getSchema(db()), getRootTableName(space()), onDemandIndex.getPropertyPath()),
+              db(),
+              0); //TODO
+    }
   }
 
-  public Index getIndex() {
-    return index;
+  public Index getSystemIndex() {
+    return systemIndex;
   }
 
-  public void setIndex(Index index) {
-    this.index = index;
+  public void setSystemIndex(SystemIndex systemIndex) {
+    this.systemIndex = systemIndex;
   }
 
-  public CreateIndex withIndex(Index index) {
-    setIndex(index);
+  public CreateIndex withSystemIndex(SystemIndex index) {
+    if(onDemandIndex != null)
+      throw new IllegalStateException("OnDemandIndex is already set");
+    setSystemIndex(index);
+    return this;
+  }
+
+  public Index getOnDemandIndex() {
+    return onDemandIndex;
+  }
+
+  public void setOnDemandIndex(OnDemandIndex onDemandIndex) {
+    this.onDemandIndex = onDemandIndex;
+  }
+
+  public CreateIndex withOnDemandIndex(OnDemandIndex onDemandIndex) {
+    if(systemIndex != null)
+      throw new IllegalStateException("SystemIndex is already set");
+    setOnDemandIndex(onDemandIndex);
     return this;
   }
 }
