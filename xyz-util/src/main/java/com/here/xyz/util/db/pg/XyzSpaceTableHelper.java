@@ -24,12 +24,20 @@ import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.GEO;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.VERSION_ID;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.NEXT_VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.OPERATION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.SERIAL;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.VIZ;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.AUTHOR;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.Typed;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.SQLQuery;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -53,12 +61,12 @@ public class XyzSpaceTableHelper {
       @JsonSubTypes.Type(value = SystemIndex.class, name = "SystemIndex"),
       @JsonSubTypes.Type(value = OnDemandIndex.class, name = "OnDemandIndex")
   })
-  public interface Index {
+  public interface Index extends Typed {
     String idxPrefix = "idx_";
     String getIndexName(String tableName);
+    boolean isSystemIndex();
   }
 
-  //TODO: Rename to SystemIndex
   public enum SystemIndex implements Index {
     GEO,
     VERSION_ID,
@@ -76,6 +84,11 @@ public class XyzSpaceTableHelper {
         case VERSION_ID -> idxPrefix + tableName +  "_versionid";
         default -> idxPrefix + tableName + "_" + getIndexContent().get(0);
       };
+    }
+
+    @Override
+    public boolean isSystemIndex() {
+      return true;
     }
 
     public String getIndexType() {
@@ -108,7 +121,7 @@ public class XyzSpaceTableHelper {
     }
   }
 
-  public static class OnDemandIndex implements Index, XyzSerializable {
+  public static class OnDemandIndex implements Index {
     private String propertyPath;
 
     public OnDemandIndex() { }
@@ -133,6 +146,11 @@ public class XyzSpaceTableHelper {
 
       return idxPrefix + tableName + "_" + shortMd5 + "_m";
     }
+
+    @Override
+    public boolean isSystemIndex() {
+      return false;
+    }
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
@@ -149,13 +167,13 @@ public class XyzSpaceTableHelper {
   @Deprecated
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
     return Arrays.asList(
-        buildCreateIndexQuery(schema, table, SystemIndex.GEO.getIndexContent(), SystemIndex.GEO.getIndexType(), SystemIndex.GEO.getIndexName(table)),
-        buildCreateIndexQuery(schema, table, SystemIndex.VERSION_ID.getIndexContent(), SystemIndex.VERSION_ID.getIndexType(), SystemIndex.VERSION_ID.getIndexName(table)),
-        buildCreateIndexQuery(schema, table, SystemIndex.NEXT_VERSION.getIndexContent(), SystemIndex.NEXT_VERSION.getIndexType(), SystemIndex.NEXT_VERSION.getIndexName(table)),
-        buildCreateIndexQuery(schema, table, SystemIndex.OPERATION.getIndexContent(), SystemIndex.OPERATION.getIndexType(), SystemIndex.OPERATION.getIndexName(table)),
-        buildCreateIndexQuery(schema, table, SystemIndex.SERIAL.getIndexContent(), SystemIndex.SERIAL.getIndexType(), SystemIndex.SERIAL.getIndexName(table)),
-        buildCreateIndexQuery(schema, table, SystemIndex.VIZ.getIndexContent(), SystemIndex.VIZ.getIndexType(), SystemIndex.VIZ.getIndexName(table)),
-        buildCreateIndexQuery(schema, table, SystemIndex.AUTHOR.getIndexContent(), SystemIndex.AUTHOR.getIndexType(), SystemIndex.AUTHOR.getIndexName(table))
+        buildCreateIndexQuery(schema, table, GEO.getIndexContent(), GEO.getIndexType(), SystemIndex.GEO.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, VERSION_ID.getIndexContent(), VERSION_ID.getIndexType(), VERSION_ID.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, NEXT_VERSION.getIndexContent(), NEXT_VERSION.getIndexType(), NEXT_VERSION.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, OPERATION.getIndexContent(), OPERATION.getIndexType(), OPERATION.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, SERIAL.getIndexContent(), SERIAL.getIndexType(), SERIAL.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, VIZ.getIndexContent(), VIZ.getIndexType(), VIZ.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, AUTHOR.getIndexContent(), AUTHOR.getIndexType(), AUTHOR.getIndexName(table))
     ).stream().map(q -> addQueryComment(q, queryComment)).collect(Collectors.toList());
   }
 

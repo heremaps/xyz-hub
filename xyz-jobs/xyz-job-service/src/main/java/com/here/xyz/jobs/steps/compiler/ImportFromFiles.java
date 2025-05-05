@@ -115,7 +115,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(2))))
             .withParallel(true))
-        .addExecution(new CreateIndex().withSystemIndex(SystemIndex.VIZ).withSpaceId(spaceId));
+        .addExecution(new CreateIndex().withIndex(SystemIndex.VIZ).withSpaceId(spaceId));
 
     CompilationStepGraph onDemandIndexSteps = compileOnDemandIndexSteps(spaceId);
     if (!onDemandIndexSteps.isEmpty())
@@ -135,7 +135,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   }
 
   private static List<StepExecution> toSequentialSteps(String spaceId, List<SystemIndex> indices) {
-    return indices.stream().map(index -> new CreateIndex().withSystemIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
+    return indices.stream().map(index -> new CreateIndex().withIndex(index).withSpaceId(spaceId)).collect(Collectors.toList());
   }
 
   private void checkIfSpaceIsAccessible(String spaceId) throws CompilationError {
@@ -164,7 +164,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
       if (activatedSearchableProperties.get(property)) {
         // Create an OnDemandIndex step for each activated searchable property
         onDemandIndicesGraph.addExecution(new CreateIndex()
-            .withOnDemandIndex(new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(property))
+            .withIndex(new XyzSpaceTableHelper.OnDemandIndex().withPropertyPath(property))
             .withSpaceId(spaceId));
       }
     }

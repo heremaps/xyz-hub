@@ -38,8 +38,7 @@ import org.apache.logging.log4j.Logger;
 
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();
-  private SystemIndex systemIndex;
-  private OnDemandIndex onDemandIndex;
+  private Index index;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
@@ -47,8 +46,8 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public List<Load> getNeededResources() {
     try{
-      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), systemIndex);
-      logger.info("[{}] {} neededACUs {}", getGlobalStepId(), systemIndex, acus);
+      double acus = ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index);
+      logger.info("[{}] {} neededACUs {}", getGlobalStepId(), index, acus);
 
       return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(acus));
     }
@@ -70,15 +69,15 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   @Override
   public int getEstimatedExecutionSeconds() {
     if (estimatedSeconds < 0) {
-      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , systemIndex);
-      logger.info("[{}] {} estimatedSeconds {}", getGlobalStepId(), systemIndex, estimatedSeconds);
+      estimatedSeconds = ResourceAndTimeCalculator.getInstance().calculateIndexCreationTimeInSeconds(getSpaceId(), getUncompressedUploadBytesEstimation() , index);
+      logger.info("[{}] {} estimatedSeconds {}", getGlobalStepId(), index, estimatedSeconds);
     }
     return estimatedSeconds;
   }
 
   @Override
   public String getDescription() {
-    return "Creates the " + (systemIndex != null ? systemIndex : onDemandIndex) + " index on space " + getSpaceId();
+    return "Creates the " + index + " index on space " + getSpaceId();
   }
 
   @Override
@@ -87,44 +86,27 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work
     as it is using the "CREATE INDEX IF NOT EXISTS" semantics
      */
-    logger.info("Creating the index " +  (systemIndex != null ? systemIndex : onDemandIndex) + " for space " + getSpaceId() + " ...");
-    if(systemIndex != null) {
-      runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), systemIndex), db(),
-              ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), systemIndex));
-    }else if (onDemandIndex != null) {
+    logger.info("Creating the index " +  index + " for space " + getSpaceId() + " ...");
+    if(index instanceof SystemIndex) {
+      runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index), db(),
+              ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+    }else if (index instanceof OnDemandIndex onDemandIndex) {
       runWriteQueryAsync(buildAsyncOnDemandIndexQuery(getSchema(db()), getRootTableName(space()), onDemandIndex.getPropertyPath()),
               db(),
-              0); //TODO
+              ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
     }
   }
 
-  public Index getSystemIndex() {
-    return systemIndex;
+  public Index getIndex() {
+    return index;
   }
 
-  public void setSystemIndex(SystemIndex systemIndex) {
-    this.systemIndex = systemIndex;
+  public void setIndex(Index index) {
+    this.index = index;
   }
 
-  public CreateIndex withSystemIndex(SystemIndex index) {
-    if(onDemandIndex != null)
-      throw new IllegalStateException("OnDemandIndex is already set");
-    setSystemIndex(index);
-    return this;
-  }
-
-  public Index getOnDemandIndex() {
-    return onDemandIndex;
-  }
-
-  public void setOnDemandIndex(OnDemandIndex onDemandIndex) {
-    this.onDemandIndex = onDemandIndex;
-  }
-
-  public CreateIndex withOnDemandIndex(OnDemandIndex onDemandIndex) {
-    if(systemIndex != null)
-      throw new IllegalStateException("SystemIndex is already set");
-    setOnDemandIndex(onDemandIndex);
+  public CreateIndex withIndex(Index index) {
+    setIndex(index);
     return this;
   }
 }
