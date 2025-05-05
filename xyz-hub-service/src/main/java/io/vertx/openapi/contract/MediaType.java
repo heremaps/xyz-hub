@@ -6,19 +6,17 @@ import io.vertx.json.schema.JsonSchema;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * This interface represents the most important attributes of an OpenAPI Operation.
- * <br>
- * <a href="https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.1.0.md#media-type-Object">Operation V3.1</a>
- * <br>
- * <a href="https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.3.md#media-type-Object">Operation V3.0</a>
- */
 public interface MediaType extends OpenAPIObject {
 
+  String APPLICATION_HAL_JSON = "application/hal+json";
   String APPLICATION_JSON = HttpHeaderValues.APPLICATION_JSON.toString();
   String APPLICATION_JSON_UTF8 = APPLICATION_JSON + "; charset=utf-8";
-  List<String> SUPPORTED_MEDIA_TYPES = Arrays.asList(APPLICATION_JSON,
+  String MULTIPART_FORM_DATA = HttpHeaderValues.MULTIPART_FORM_DATA.toString();
+  List<String> SUPPORTED_MEDIA_TYPES = Arrays.asList(
+      APPLICATION_JSON,
       APPLICATION_JSON_UTF8,
+      MULTIPART_FORM_DATA,
+      APPLICATION_HAL_JSON,
       "application/vnd.here.changeset-collection",
       "application/vnd.here.changeset",
       "application/vnd.here.compact-changeset",
