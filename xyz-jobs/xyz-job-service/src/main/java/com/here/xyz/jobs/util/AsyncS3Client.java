@@ -19,9 +19,9 @@
 
 package com.here.xyz.jobs.util;
 
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.jobs.service.Config;
 import com.here.xyz.util.Async;
+import com.here.xyz.util.service.aws.S3ObjectSummary;
 import io.vertx.core.Future;
 import java.util.List;
 import java.util.Map;

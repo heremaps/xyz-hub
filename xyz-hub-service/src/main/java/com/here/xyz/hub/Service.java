@@ -19,11 +19,7 @@
 
 package com.here.xyz.hub;
 
-import com.here.xyz.hub.cache.CacheClient;
-import com.here.xyz.hub.cache.InMemoryCacheClient;
-import com.here.xyz.hub.cache.MultiLevelCacheClient;
-import com.here.xyz.hub.cache.RedisCacheClient;
-import com.here.xyz.hub.cache.S3CacheClient;
+import com.here.xyz.hub.cache.*;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;

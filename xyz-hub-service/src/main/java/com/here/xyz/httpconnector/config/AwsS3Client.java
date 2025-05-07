@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,111 +16,141 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.xyz.httpconnector.config;
 
-import com.amazonaws.HttpMethod;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.here.xyz.jobs.util.S3ClientHelper;
+import com.here.xyz.util.service.aws.S3ObjectSummary;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
-import java.net.URL;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.net.URL;
+import java.net.URI;
+import java.time.Duration;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * A client for reading and writing from and to S3
  */
 public class AwsS3Client {
     private static final Logger logger = LogManager.getLogger();
-    protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
+    protected static final Duration PRESIGNED_URL_EXPIRATION = Duration.ofDays(7);
 
-    protected final AmazonS3 client;
+    protected final S3Client client;
+    protected final S3Presigner presigner;
 
     public AwsS3Client() {
-        final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
+        S3ClientBuilder builder = S3Client.builder();
 
-        if (isLocal()) {
-            builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-                    CService.configuration.LOCALSTACK_ENDPOINT, CService.configuration.JOBS_REGION))
-                    .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
-                    .withPathStyleAccessEnabled(true);
-        }
-        else {
-            final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
-            builder.setRegion(region);
-        }
+        AwsCredentialsProvider credentialsProvider;
+        Region region = Region.of(CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1");
 
-        if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
-            synchronized (AwsS3Client.class) {
-                builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOBS_REGION,
-                    CService.configuration.LOCALSTACK_ENDPOINT, CService.configuration.JOB_BOT_SECRET_ARN));
+        boolean local = isLocal();
+
+        if (local) {
+            builder.endpointOverride(URI.create(CService.configuration.LOCALSTACK_ENDPOINT))
+                    .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build());
+            credentialsProvider = StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create("localstack", "localstack"));
+        } else {
+            credentialsProvider = DefaultCredentialsProvider.create();
+
+            if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
+                synchronized (AwsS3Client.class) {
+                    credentialsProvider = new SecretManagerCredentialsProvider(
+                            region.toString(),
+                            CService.configuration.LOCALSTACK_ENDPOINT,
+                            CService.configuration.JOB_BOT_SECRET_ARN);
+                }
             }
         }
+
+        builder.region(region);
+        builder.credentialsProvider(credentialsProvider);
         client = builder.build();
+
+        S3Presigner.Builder presignerBuilder = S3Presigner.builder()
+                .region(region)
+                .credentialsProvider(credentialsProvider);
+
+        if (local) {
+            presignerBuilder
+                    .endpointOverride(URI.create(CService.configuration.LOCALSTACK_ENDPOINT))
+                    .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build());
+        }
+
+        presigner = presignerBuilder.build();
     }
 
     public URL generateDownloadURL(String bucketName, String key) {
-        return generatePresignedUrl(bucketName, key, HttpMethod.GET);
+        return S3ClientHelper.generateDownloadURL(presigner, bucketName, key, PRESIGNED_URL_EXPIRATION);
     }
 
     public URL generateUploadURL(String bucketName, String key) {
-        return generatePresignedUrl(bucketName, key, HttpMethod.PUT);
-    }
-
-    public URL generatePresignedUrl(String bucketName, String key, HttpMethod method) {
-        GeneratePresignedUrlRequest generatePresignedUrlRequest =
-                new GeneratePresignedUrlRequest(bucketName, key)
-                    .withMethod(method)
-                    .withExpiration(new Date(System.currentTimeMillis() + PRESIGNED_URL_EXPIRATION_SECONDS * 1000));
-
-        return client.generatePresignedUrl(generatePresignedUrlRequest);
+        return S3ClientHelper.generateUploadURL(presigner, bucketName, key, PRESIGNED_URL_EXPIRATION);
     }
 
     public void deleteS3Folder(String bucketName, String folderPath) {
-        for (S3ObjectSummary file : client.listObjects(bucketName, folderPath).getObjectSummaries()){
-            client.deleteObject(bucketName, file.getKey());
+        try {
+            List<S3ObjectSummary> objectsToDelete = scanFolder(bucketName, folderPath);
+
+            if (!objectsToDelete.isEmpty()) {
+                List<ObjectIdentifier> toDelete = objectsToDelete.stream()
+                        .map(obj -> ObjectIdentifier.builder().key(obj.key()).build())
+                        .collect(Collectors.toList());
+
+                DeleteObjectsRequest deleteObjectsRequest = DeleteObjectsRequest.builder()
+                        .bucket(bucketName)
+                        .delete(Delete.builder().objects(toDelete).build())
+                        .build();
+
+                client.deleteObjects(deleteObjectsRequest);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to delete folder '{}' in bucket '{}': {}", folderPath, bucketName, e.getMessage(), e);
         }
     }
 
     public void copyFolder(String bucketName, String sourceFolderPath, String targetFolderPath) {
-        for (S3ObjectSummary summary : scanFolder(bucketName, sourceFolderPath)) {
-            String objectPath = summary.getKey();
-            String targetObjectPath = objectPath.replace(sourceFolderPath, targetFolderPath);
-            client.copyObject(bucketName, objectPath, bucketName, targetObjectPath);
+        try {
+            List<S3ObjectSummary> sourceObjects = scanFolder(bucketName, sourceFolderPath);
+
+            for (S3ObjectSummary s3ObjectSummary : sourceObjects) {
+                String sourceKey = s3ObjectSummary.key();
+                String targetKey = sourceKey.replace(sourceFolderPath, targetFolderPath);
+
+                CopyObjectRequest copyRequest = CopyObjectRequest.builder()
+                        .copySource(bucketName + "/" + sourceKey)
+                        .destinationBucket(bucketName)
+                        .destinationKey(targetKey)
+                        .build();
+
+                client.copyObject(copyRequest);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to copy folder from '{}' to '{}' in bucket '{}': {}", sourceFolderPath, targetFolderPath, bucketName, e.getMessage(), e);
         }
     }
 
     public List<S3ObjectSummary> scanFolder(String bucketName, String folderPath) {
-        logger.info("Scanning folder for bucket {} and path {} ...", bucketName, folderPath);
-
-        ListObjectsRequest listObjects = new ListObjectsRequest()
-            .withPrefix(folderPath)
-            .withBucketName(bucketName);
-
-        ObjectListing objectListing = client.listObjects(listObjects);
-        List<S3ObjectSummary> summaries = new LinkedList<>(objectListing.getObjectSummaries());
-        while (objectListing.isTruncated()) {
-            objectListing = client.listNextBatchOfObjects(objectListing);
-            summaries.addAll(objectListing.getObjectSummaries());
-        }
-
-        return summaries;
+        return S3ClientHelper.scanFolder(client, bucketName, folderPath);
     }
 
     public boolean isLocal() {
-        if(CService.configuration.HUB_ENDPOINT.contains("localhost") ||
+        if (CService.configuration.HUB_ENDPOINT.contains("localhost") ||
                 CService.configuration.HUB_ENDPOINT.contains("xyz-hub:8080"))
             return true;
         return false;

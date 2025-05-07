@@ -40,8 +40,8 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
-import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.util.CollectionUtils;
+import software.amazon.awssdk.regions.Region;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
@@ -135,7 +135,7 @@ public class DynamoClient {
   }
 
   public boolean isLocal() {
-    return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
+    return Region.regions().stream().noneMatch(r -> r.id().equals(arn.getRegion()));
   }
 
   public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {

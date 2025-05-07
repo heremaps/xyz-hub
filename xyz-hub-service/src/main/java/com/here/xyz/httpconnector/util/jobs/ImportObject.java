@@ -18,12 +18,12 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.httpconnector.config.JobS3Client;
+import com.here.xyz.util.service.aws.S3ObjectSummary;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
 import java.net.URL;
 
@@ -65,12 +65,12 @@ public class ImportObject {
 
     }
 
-    public ImportObject(S3ObjectSummary s3ObjectSummary, ObjectMetadata objectMetadata) {
-        this.s3Key = s3ObjectSummary.getKey();
-        this.filesize = s3ObjectSummary.getSize();
+    public ImportObject(S3ObjectSummary s3ObjectSummary, HeadObjectResponse objectMetadata) {
+        this.s3Key = s3ObjectSummary.key();
+        this.filesize = s3ObjectSummary.size();
 
-        if(objectMetadata.getContentEncoding() != null &&
-            objectMetadata.getContentEncoding().equalsIgnoreCase("gzip"))
+        if(objectMetadata.contentEncoding() != null &&
+            objectMetadata.contentEncoding().equalsIgnoreCase("gzip"))
                 this.compressed = true;
     }
 
