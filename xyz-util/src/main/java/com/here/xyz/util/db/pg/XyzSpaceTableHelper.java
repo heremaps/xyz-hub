@@ -64,7 +64,6 @@ public class XyzSpaceTableHelper {
   public interface Index extends Typed {
     String idxPrefix = "idx_";
     String getIndexName(String tableName);
-    boolean isSystemIndex();
   }
 
   public enum SystemIndex implements Index {
@@ -86,11 +85,6 @@ public class XyzSpaceTableHelper {
       };
     }
 
-    @Override
-    public boolean isSystemIndex() {
-      return true;
-    }
-
     public String getIndexType() {
         return switch (this) {
             case GEO -> "GIST";
@@ -108,16 +102,6 @@ public class XyzSpaceTableHelper {
         case VIZ -> List.of("(left(md5('' || i), 5))");
         case AUTHOR -> List.of("author");
       };
-    }
-
-    @JsonValue
-    public String toJson() {
-      return this.name();
-    }
-
-    @JsonCreator
-    public static SystemIndex fromJson(String name) {
-      return SystemIndex.valueOf(name.toUpperCase());
     }
   }
 
@@ -145,11 +129,6 @@ public class XyzSpaceTableHelper {
       String shortMd5 = DigestUtils.md5Hex(propertyPath).substring(0, 7);
 
       return idxPrefix + tableName + "_" + shortMd5 + "_m";
-    }
-
-    @Override
-    public boolean isSystemIndex() {
-      return false;
     }
   }
 

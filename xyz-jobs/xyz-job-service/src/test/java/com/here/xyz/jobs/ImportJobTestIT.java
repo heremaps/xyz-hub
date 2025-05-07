@@ -35,8 +35,7 @@ import static com.here.xyz.jobs.datasets.files.FileFormat.EntityPerLine.Feature;
 public class ImportJobTestIT extends JobTest {
     @BeforeEach
     public void setUp() {
-        createSpace(new Space().withId(SPACE_ID).withSearchableProperties(Map.of(
-                "foo1.nested", true)), false);
+        createSpace(SPACE_ID);
     }
 
     @Test
