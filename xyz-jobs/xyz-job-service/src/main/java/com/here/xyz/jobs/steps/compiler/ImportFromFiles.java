@@ -102,7 +102,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
     //NOTE: VIZ index will be created separately in a sequential step afterwards (see below)
     List<XyzSpaceTableHelper.SystemIndex> indices = Stream.of(SystemIndex.values()).filter(index -> index != SystemIndex.VIZ).toList();
     //Split the work in three parallel tasks for now
-    List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 3);
+    List<List<SystemIndex>> indexTasks = Lists.partition(indices, indices.size() / 2);
 
     CompilationStepGraph importStepGraph = (CompilationStepGraph) new CompilationStepGraph()
         .addExecution(new DropIndexes().withSpaceId(spaceId)) //Drop all existing indices
