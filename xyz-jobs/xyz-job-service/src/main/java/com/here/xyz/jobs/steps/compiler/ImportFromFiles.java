@@ -113,7 +113,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
         .addExecution(new CompilationStepGraph() //Create all the base indices semi-parallel
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(0))))
             .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(1))))
-            .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(2))))
+//            .addExecution(new CompilationStepGraph().withExecutions(toSequentialSteps(spaceId, indexTasks.get(2))))
             .withParallel(true))
         .addExecution(new CreateIndex().withIndex(SystemIndex.VIZ).withSpaceId(spaceId));
 
