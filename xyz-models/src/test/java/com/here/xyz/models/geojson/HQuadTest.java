@@ -6,7 +6,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 public class HQuadTest {
-    BBox bbox = new BBox().withEast(13.38134765625).withNorth(52.53662109375).withWest(13.359375).withSouth(52.5146484375);
+    BBox bbox = BBox.tile_shrink( new BBox().withEast(13.38134765625).withNorth(52.53662109375).withWest(13.359375).withSouth(52.5146484375) );
     String base4QK = "12201203120220";
     String base10QK = "377894440";
 
