@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# Copyright (C) 2017-2024 HERE Europe B.V.
+# Copyright (C) 2017-2025 HERE Europe B.V.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,3 +63,5 @@ aws --endpoint "$LOCAL_STACK_HOST" events put-targets \
   --rule StepFunctionStateChangeRule \
   --targets "Id"="JobApiDestination","Arn"="$api_destination_arn" \
   --region us-east-1
+
+echo "Job service setup completed."

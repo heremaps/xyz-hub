@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
 
+@Disabled("Obsolete / Deprecated")
 public class JobApiImportIT extends JobApiIT {
     protected String testImportJobId = "x-test-import-job";
     protected static String scope = "import";

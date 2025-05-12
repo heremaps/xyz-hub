@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,9 @@ import java.util.List;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
 
+@Disabled("Obsolete / Deprecated")
 public class ReadOnlyPersistExportIT extends JobApiIT {
     protected String testExportJobId = "x-test-persistent-export-job";
     protected static String testSpaceId1 = "persistent-export-space";

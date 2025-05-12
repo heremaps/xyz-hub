@@ -511,7 +511,7 @@ public class DatabaseSettings extends Payload {
     /**
      * Must be called whenever this DatabaseSettings objects is used to initialize a new {@link DataSourceProvider}.
      */
-    void init() {
+    synchronized void init() {
         if (!initialized) {
             initialized = true;
             checkScripts();
