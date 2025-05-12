@@ -50,7 +50,7 @@ public class S3Client {
 
     protected S3Client(String bucketName) {
         this.bucketName = bucketName;
-
+        final String defaultRegion = "eu-west-1";
         S3ClientBuilder builder = software.amazon.awssdk.services.s3.S3Client.builder();
         S3Presigner.Builder presignerBuilder = S3Presigner.builder();
 
@@ -63,23 +63,27 @@ public class S3Client {
                             )
                     )
                     .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
+                    .region(Region.of(defaultRegion))
                     .forcePathStyle(true);
             presignerBuilder
                     .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
                     .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+                    .region(Region.of(defaultRegion))
                     .credentialsProvider(
                             software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
                                     software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("localstack", "localstack")
                             ));
         } else if (Config.instance != null && Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
-            final String region = Config.instance != null ? Config.instance.AWS_REGION : "eu-west-1"; //TODO: Remove default value
+            final String region = Config.instance != null ? Config.instance.AWS_REGION : defaultRegion; //TODO: Remove default value
             builder.region(Region.of(region));
+            presignerBuilder.region(Region.of(region));
         } else {
             GetBucketLocationResponse bucketLocation = getInstance().client.getBucketLocation(GetBucketLocationRequest.builder().bucket(bucketName).build());
             String bucketRegion = bucketLocation.locationConstraintAsString();
             if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
                 throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
             builder.region(Region.of(bucketRegion));
+            presignerBuilder.region(Region.of(bucketRegion));
         }
 
         if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
