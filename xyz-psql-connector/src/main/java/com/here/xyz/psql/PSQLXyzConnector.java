@@ -276,7 +276,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       case "42P01":
-        throw new ErrorResponseException(TIMEOUT, e.getMessage());
+        int messagePrefixLengthToReport = 75;
+        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Table not found in database: " + table + 
+                                                           (e.getMessage() == null || e.getMessage().length() <= messagePrefixLengthToReport
+                                                            ? "" 
+                                                            : " - " + e.getMessage().substring(0,messagePrefixLengthToReport) ));
 
       case
           "40P01": // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."

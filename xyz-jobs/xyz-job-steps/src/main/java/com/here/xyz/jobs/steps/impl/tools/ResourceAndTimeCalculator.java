@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,9 @@ package com.here.xyz.jobs.steps.impl.tools;
 
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 
@@ -124,43 +126,54 @@ public class ResourceAndTimeCalculator implements Initializable {
         return  0.091 * bytesPerBillion;
     }
 
-    public int calculateIndexCreationTimeInSeconds(String spaceId, long byteSize, XyzSpaceTableHelper.Index index){
+    public int calculateIndexCreationTimeInSeconds(String spaceId, long byteSize, Index index){
         int warmUpTime = 1;
         double bytesPerBillion = byteSize  / 1_000_000_000d;
         double fact = byteSize < 100_000_000_000l ? 0.5 : 1;
         if(index == null)
             return 1;
 
-        double importTimeInMin =  switch (index){
-            case GEO -> geoIndexFactor(spaceId, bytesPerBillion);
-            case VERSION_ID ->  0.014 * bytesPerBillion;
-            case VIZ ->  0.025 * bytesPerBillion;
-            case OPERATION ->  0.012 * bytesPerBillion;
-            case NEXT_VERSION ->  0.013 * bytesPerBillion;
-            case AUTHOR ->  0.013 * bytesPerBillion;
-            case SERIAL ->  0.013 * bytesPerBillion;
-        };
+        double importTimeInMin = 0;
+
+        if(index instanceof OnDemandIndex)
+            importTimeInMin = 0.014 * bytesPerBillion;
+        else if(index instanceof SystemIndex systemIndex) {
+            importTimeInMin = switch (systemIndex) {
+                case GEO -> geoIndexFactor(spaceId, bytesPerBillion);
+                case VERSION_ID -> 0.014 * bytesPerBillion;
+                case VIZ -> 0.025 * bytesPerBillion;
+                case OPERATION -> 0.012 * bytesPerBillion;
+                case NEXT_VERSION -> 0.013 * bytesPerBillion;
+                case AUTHOR -> 0.013 * bytesPerBillion;
+                case SERIAL -> 0.013 * bytesPerBillion;
+            };
+        }
 
         return (int)(warmUpTime + (importTimeInMin * fact * 60));
     }
 
-    public double calculateNeededIndexAcus(long byteSize, XyzSpaceTableHelper.Index index) {
+    public double calculateNeededIndexAcus(long byteSize, Index index) {
         double minACUs = 0.01;
         //Threshold which defines when we scale to maximum
         double globalMax = 200d * 1024 * 1024 * 1024;
 
-        return switch (index){
-            case GEO -> interpolate(globalMax,30, byteSize, minACUs);
-            case VIZ ->  interpolate(globalMax,10, byteSize, minACUs);
-            case VERSION_ID ->  interpolate(globalMax,  10, byteSize, minACUs);
-            case OPERATION ->  interpolate(globalMax,10, byteSize, minACUs);
-            case NEXT_VERSION ->  interpolate(globalMax, 10, byteSize, minACUs);
-            case AUTHOR ->  interpolate(globalMax,10, byteSize, minACUs);
-            case SERIAL ->  interpolate(globalMax, 8, byteSize, minACUs);
-        };
+        if(index instanceof OnDemandIndex)
+            return interpolate(globalMax, 10, byteSize, minACUs);
+        else if(index instanceof SystemIndex systemIndex) {
+            return switch (systemIndex) {
+                case GEO -> interpolate(globalMax, 30, byteSize, minACUs);
+                case VIZ -> interpolate(globalMax, 10, byteSize, minACUs);
+                case VERSION_ID -> interpolate(globalMax, 10, byteSize, minACUs);
+                case OPERATION -> interpolate(globalMax, 10, byteSize, minACUs);
+                case NEXT_VERSION -> interpolate(globalMax, 10, byteSize, minACUs);
+                case AUTHOR -> interpolate(globalMax, 10, byteSize, minACUs);
+                case SERIAL -> interpolate(globalMax, 8, byteSize, minACUs);
+            };
+        }
+        return 0;
     }
 
-    public int calculateIndexTimeoutSeconds(String spaceId, long byteSize, XyzSpaceTableHelper.Index index) {
+    public int calculateIndexTimeoutSeconds(String spaceId, long byteSize, Index index) {
         int t = calculateIndexCreationTimeInSeconds(spaceId, byteSize, index) * 3;
         return Math.min(Math.max(t, MIN_IDX_CREATION_TIME_IN_SECONDS), MAX_IDX_CREATION_TIME_IN_SECONDS);
     }

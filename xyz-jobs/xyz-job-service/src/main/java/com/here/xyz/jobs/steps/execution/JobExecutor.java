@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -135,8 +135,13 @@ public abstract class JobExecutor implements Initializable {
 
               //Now start one job after each other in the correct order
               for (Job pendingJob : pendingJobs)
-                //Try to start the execution of the pending job
-                taskChain = taskChain.compose(v -> tryAndWaitForStart(pendingJob));
+                /*
+                Add a delay to prevent starting a job 2 times. That could happen in rare cases because also in the
+                normal starting procedure, the job is in PENDING state for a very short period. (But that should be normally some seconds at max)
+                 */
+                if (Core.currentTimeMillis() > pendingJob.getStatus().getUpdatedAt() + 60_000)
+                  //Try to start the execution of the pending job
+                  taskChain = taskChain.compose(v -> tryAndWaitForStart(pendingJob));
             }
             catch (Exception e) {
               logger.error("Error checking PENDING jobs", e);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,4 +66,34 @@ public class IndexHelper {
             .withQueryFragment("queryComment", "");
   }
 
+  //TODO: move xyz_index_creation_on_property_object, xyz_index_name_for_property, xyz_property_datatype functions from
+  // ext to common.sql ?
+  public static SQLQuery buildAsyncOnDemandIndexQuery(String schema, String table, String propertyName){
+    return new SQLQuery("""
+            PERFORM xyz_index_creation_on_property_object(
+                #{schema_name},
+                #{table_name},
+                #{property_name},
+                xyz_index_name_for_property(#{table_name}, #{property_name}, #{idx_type}),
+                xyz_property_datatype(#{schema_name}, #{table_name}, #{property_name}, #{table_sample_cnt}),
+                #{idx_type}
+              )
+            """)
+            .withNamedParameter("schema_name", schema)
+            .withNamedParameter("table_name", table)
+            .withNamedParameter("property_name", propertyName)
+            .withNamedParameter("table_sample_cnt", 5000)
+            .withNamedParameter("idx_type", "m");
+  }
+
+  public static SQLQuery checkIndexType(String schema, String table, String propertyName, int tableSampleCnt) {
+    return new SQLQuery("""
+            SELECT * FROM xyz_index_creation_on_property_object( #{schema_name}, #{table_name},
+                #{property_name}, #{table_sample_cnt} )
+            """)
+            .withNamedParameter("schema_name", schema)
+            .withNamedParameter("table_name", table)
+            .withNamedParameter("property_name", propertyName)
+            .withNamedParameter("table_sample_cnt", tableSampleCnt);
+  }
 }

@@ -111,7 +111,7 @@ public class Script {
       return compatibleVersion;
     }
     catch (SQLException e) {
-      logger.error("Error finding compatible version for script {} on DB {}. Falling back to latest version if possible.",
+      logger.warn("Unable to find compatible version for script {} on DB {}. Falling back to latest version if possible.",
           getScriptName(), getDbId(), e);
       return null;
     }
@@ -119,18 +119,19 @@ public class Script {
 
   public void install() {
     try {
-      if (!installed && (scriptVersion != null && !anyVersionExists() || (scriptVersion == null || !scriptVersionExists()) && !getHash().equals(loadLatestHash()))) {
-        logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), getTargetSchema(null));
+      if (installed)
+        return;
+      //TODO: Remove the "anyVersionExists-check" once full qualified schemas have been installed for all scripts
+      if (!getHash().equals(loadLatestHash()) || scriptVersion != null && !anyVersionExists()) {
         if (scriptVersion != null)
           install(getTargetSchema(scriptVersion), false);
         //Also install the "latest" version
         install(getTargetSchema(null), true);
         installed = true;
-        logger.info("Script {} has been installed successfully on DB {}.", getScriptName(), getDbId());
       }
     }
     catch (SQLException | IOException e) {
-      logger.error("Error installing script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
+      logger.warn("Unable to install script {} on DB {}. Falling back to previous version if possible.", getScriptName(),
           getDbId(), e);
     }
   }
@@ -140,6 +141,8 @@ public class Script {
   }
 
   private void install(String targetSchema, boolean deleteBefore) throws SQLException, IOException {
+    logger.info("Installing script {} on DB {} into schema {} ...", getScriptName(), getDbId(), targetSchema);
+
     SQLQuery scriptContent = new SQLQuery("${{scriptContent}}")
         .withQueryFragment("scriptContent", loadScriptContent());
 
@@ -180,6 +183,8 @@ public class Script {
         .withLoggingEnabled(false)
         .write(dataSourceProvider);
     compatibleVersions = new HashMap<>(); //Reset the cache
+
+    logger.info("Script {} has been installed successfully on DB {} into schema {}.", getScriptName(), getDbId(), targetSchema);
   }
 
   private static SQLQuery buildSetCurrentSearchPathQuery(String targetSchema) {
@@ -376,7 +381,7 @@ public class Script {
 
   private static List<SQLQuery> buildDeleteFunctionQueries(List<String> functionSignatures) {
     return functionSignatures.stream()
-        .map(signature -> new SQLQuery("DROP FUNCTION " + signature))
+        .map(signature -> new SQLQuery("DROP FUNCTION " + signature + " CASCADE"))
         .toList();
   }
 

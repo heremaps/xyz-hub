@@ -113,6 +113,22 @@ public class ExportJobTestIT extends JobTest {
     }
 
     @Test
+    public void testRecreationOfSpaceExport() throws Exception {
+        Job exportJob1 = buildExportJob();
+        createSelfRunningJob(exportJob1);
+        checkSucceededJob(exportJob1, featureCount);
+
+        //recreate space which should break the reusability
+        deleteSpace(SPACE_ID);
+        createSpace(SPACE_ID);
+        putRandomFeatureCollectionToSpace(SPACE_ID, featureCount);
+
+        Job exportJob2 = buildExportJob(generateJobId());
+        createSelfRunningJob(exportJob2);
+        checkJobReusage(exportJob1, exportJob2, featureCount, false);
+    }
+
+    @Test
     public void testReusingSimpleExportMismatch() throws Exception {
         Job exportJob1 = buildExportJob();
         createSelfRunningJob(exportJob1);

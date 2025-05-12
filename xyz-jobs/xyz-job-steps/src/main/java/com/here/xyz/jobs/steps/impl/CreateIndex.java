@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,15 @@
 
 package com.here.xyz.jobs.steps.impl;
 
+import static com.here.xyz.util.db.pg.IndexHelper.buildAsyncOnDemandIndexQuery;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQuery;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.jobs.steps.impl.tools.ResourceAndTimeCalculator;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.TooManyResourcesClaimed;
-import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import java.sql.SQLException;
@@ -37,7 +39,6 @@ import org.apache.logging.log4j.Logger;
 public class CreateIndex extends SpaceBasedStep<CreateIndex> {
   private static final Logger logger = LogManager.getLogger();
   private Index index;
-  private Space space;
 
   @JsonView({Internal.class, Static.class})
   private int estimatedSeconds = -1;
@@ -85,9 +86,15 @@ public class CreateIndex extends SpaceBasedStep<CreateIndex> {
     NOTE: In case of resume, no cleanup needed, in any case, sending the index creation query again will work
     as it is using the "CREATE INDEX IF NOT EXISTS" semantics
      */
-    logger.info("Creating the index " + index + " for space " + getSpaceId() + " ...");
-    runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index), db(),
-            ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+    logger.info("Creating the index " +  index + " for space " + getSpaceId() + " ...");
+    if(index instanceof SystemIndex) {
+      runWriteQueryAsync(buildSpaceTableIndexQuery(getSchema(db()), getRootTableName(space()), index), db(),
+              ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+    }else if (index instanceof OnDemandIndex onDemandIndex) {
+      runWriteQueryAsync(buildAsyncOnDemandIndexQuery(getSchema(db()), getRootTableName(space()), onDemandIndex.getPropertyPath()),
+              db(),
+              ResourceAndTimeCalculator.getInstance().calculateNeededIndexAcus(getUncompressedUploadBytesEstimation(), index));
+    }
   }
 
   public Index getIndex() {

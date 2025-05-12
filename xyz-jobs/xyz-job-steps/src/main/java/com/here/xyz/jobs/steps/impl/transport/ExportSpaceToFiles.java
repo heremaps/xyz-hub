@@ -56,6 +56,8 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.util.db.SQLQuery;
 import com.here.xyz.util.geo.GeoTools;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.web.XyzWebClient.WebClientException;
+
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -201,7 +203,8 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
           && Objects.equals(otherExport.versionRef, versionRef)
           && (otherExport.context == context || (space().getExtension() == null && otherExport.context == null && context == SUPER))
           && Objects.equals(otherExport.spatialFilter, spatialFilter)
-          && Objects.equals(otherExport.propertyFilter, propertyFilter);
+          && Objects.equals(otherExport.propertyFilter, propertyFilter)
+          && Objects.equals(otherExport.spaceCreatedAt, spaceCreatedAt);
     }
     catch (Exception e) {
       throw new RuntimeException(e);
@@ -292,10 +295,9 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
       if(restrictExtendOfSpatialFilter) {
         try {
           Geometry bufferedGeo = GeoTools.applyBufferInMetersToGeometry(jtsGeometry, spatialFilter.getRadius());
-          int areaInSquareKilometersFromGeometry = (int) GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
-          if (GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo) > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
-            throw new ValidationException("Invalid SpatialFilter! Provided area of filter geometry is to large! ["
-                    + areaInSquareKilometersFromGeometry + " km² > " + MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM + " km²]");
+          double areaInSquareKilometersFromGeometry = GeoTools.getAreaInSquareKilometersFromGeometry(bufferedGeo);
+          if ( areaInSquareKilometersFromGeometry > MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM) {
+            throw new ValidationException( String.format("Invalid SpatialFilter! Provided area of filter geometry is to large! [%.2f km² > %d km²]",areaInSquareKilometersFromGeometry,MAX_ALLOWED_SPATALFILTER_AREA_IN_SQUARE_KM));
           }
         } catch (FactoryException | org.geotools.api.referencing.operation.TransformException | TransformException |
                  NullPointerException e) {

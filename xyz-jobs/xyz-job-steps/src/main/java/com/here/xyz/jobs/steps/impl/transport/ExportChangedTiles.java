@@ -161,7 +161,8 @@ public class ExportChangedTiles extends ExportSpaceToFiles {
               && Objects.equals(otherExport.spatialFilter, spatialFilter)
               && Objects.equals(otherExport.propertyFilter, propertyFilter)
               && Objects.equals(otherExport.targetLevel, targetLevel)
-              && Objects.equals(otherExport.quadType, quadType);
+              && Objects.equals(otherExport.quadType, quadType)
+              && Objects.equals(otherExport.spaceCreatedAt, spaceCreatedAt);
     }
     catch (Exception e) {
       throw new RuntimeException(e);
