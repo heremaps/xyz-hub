@@ -76,7 +76,9 @@ public class S3CacheClient implements CacheClient {
                 .credentialsProvider(DefaultCredentialsProvider.create());
 
         if (Service.configuration.LOCALSTACK_ENDPOINT != null) {
-            builder.endpointOverride(URI.create(Service.configuration.LOCALSTACK_ENDPOINT))
+            builder
+                    .region(Region.EU_WEST_1)
+                    .endpointOverride(URI.create(Service.configuration.LOCALSTACK_ENDPOINT))
                     .credentialsProvider(
                             StaticCredentialsProvider.create(
                                     AwsBasicCredentials.create("localstack", "localstack")))
