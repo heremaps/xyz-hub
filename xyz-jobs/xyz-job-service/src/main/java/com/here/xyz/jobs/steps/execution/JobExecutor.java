@@ -26,6 +26,7 @@ import static com.here.xyz.jobs.RuntimeInfo.State.PENDING;
 import static com.here.xyz.jobs.RuntimeInfo.State.RUNNING;
 import static com.here.xyz.jobs.RuntimeInfo.State.SUCCEEDED;
 import static com.here.xyz.jobs.steps.execution.GraphFusionTool.fuseGraphs;
+import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static java.util.Comparator.comparingLong;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -36,12 +37,17 @@ import com.here.xyz.jobs.config.JobConfigClient;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.StepGraph;
 import com.here.xyz.jobs.steps.inputs.ModelBasedInput;
+import com.here.xyz.jobs.steps.resources.ExecutionResource;
+import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.steps.resources.ResourcesRegistry;
+import com.here.xyz.util.Async;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.Initializable;
 import io.vertx.core.Future;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,6 +65,7 @@ public abstract class JobExecutor implements Initializable {
   private static final long CANCELLATION_TIMEOUT = 10 * 60 * 1_000; //10 min
   private static final long CANCELLATION_CHECK_RERUN_PERIOD = 10_000; //10 sec
   private static final long JOB_START_TIMEOUT = 60_000;
+  private static final Async ASYNC = new Async(100, JobExecutor.class);
 
   {
     exec.scheduleWithFixedDelay(this::checkPendingJobs, 10, 60, SECONDS);
@@ -75,6 +82,7 @@ public abstract class JobExecutor implements Initializable {
     return Future.succeededFuture()
         .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
         .compose(v -> needsExecution(job))
+        //.compose(executionNeeded -> GraphSerializerTool.optimize(job).map(executionNeeded))
         .compose(executionNeeded -> executionNeeded ? mayExecute(job) : Future.succeededFuture(false))
         .compose(shouldExecute -> {
           if (!shouldExecute)
@@ -305,8 +313,11 @@ public abstract class JobExecutor implements Initializable {
   private Future<Boolean> mayExecute(Job job) {
     logger.info("[{}] Checking whether there are enough resources to execute the job ...", job.getId());
     //Check for all necessary resource loads whether they can be fulfilled
+    /**
+     * TODO: Call {@link #mayExecute(Future, Job)} instead
+     */
     return ResourcesRegistry.getFreeVirtualUnits()
-        .compose(freeVirtualUnits -> job.calculateResourceLoads()
+        .compose(freeVirtualUnits -> calculateResourceLoads(job)
             .map(neededResources -> neededResources.stream().allMatch(load -> {
               final boolean sufficientFreeUnits = freeVirtualUnits.containsKey(load.getResource())
                   && load.getEstimatedVirtualUnits() < freeVirtualUnits.get(load.getResource());
@@ -316,6 +327,16 @@ public abstract class JobExecutor implements Initializable {
                     job.getId(), load.getResource(), load.getEstimatedVirtualUnits(), freeVirtualUnits.get(load.getResource()));
               return sufficientFreeUnits;
             })));
+  }
+
+  public Future<Boolean> mayExecute(Future<Map<ExecutionResource, Double>> freeVirtualUnits, Job job) {
+    return freeVirtualUnits
+        .compose(freeUnits -> calculateResourceLoads(job)
+            .map(neededResources -> neededResources
+                .stream()
+                .allMatch(load -> freeUnits.containsKey(load.getResource())
+                          && load.getEstimatedVirtualUnits() < freeUnits.get(load.getResource()))));
+
   }
 
   private Future<Boolean> needsExecution(Job job) {
@@ -334,6 +355,39 @@ public abstract class JobExecutor implements Initializable {
           return job.store().map(false);
         });
   }
+
+  /**
+   * Calculates the overall loads (necessary resources) of this job by aggregating the resource loads of all steps of this job.
+   * The aggregation of parallel steps is done in the way that all resource-loads of parallel running steps will be added, while
+   * in the case of sequentially running steps always the maximum of the step's resources will be taken into account.
+   *
+   * @return A list of overall resource-loads being reserved by this job
+   */
+  public Future<List<Load>> calculateResourceLoads(Job job) {
+    return calculateResourceLoads(job.getExecutionSteps() != null ? job.getExecutionSteps() : job.getSteps())
+            .map(resourceLoads -> resourceLoads.entrySet().stream()
+                    .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
+                    .toList());
+  }
+
+  public Future<Map<ExecutionResource, Double>> calculateResourceLoads(StepGraph graph) {
+    return Future.all(graph.getExecutions().stream()
+                    .map(execution -> execution instanceof Step step
+                            ? calculateResourceLoads(step)
+                            : calculateResourceLoads((StepGraph) execution)).toList())
+            .map(cf -> {
+              List<Map<ExecutionResource, Double>> loadsToAggregate = cf.list();
+              Map<ExecutionResource, Double> loads = new HashMap<>();
+              loadsToAggregate.forEach(load -> addLoads(loads, load, !graph.isParallel()));
+              return loads;
+            });
+  }
+
+  private Future<Map<ExecutionResource, Double>> calculateResourceLoads(Step step) {
+    logger.info("Calculating resource loads for step {} of type {} ...", step.getGlobalStepId(), step.getClass().getSimpleName());
+    return ASYNC.run(() -> step.getAggregatedNeededResources());
+  }
+
 
   /**
    * Tries to find other existing jobs, that are completed and that already performed parts of the

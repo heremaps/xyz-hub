@@ -101,6 +101,9 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
   @JsonView({Internal.class, Static.class})
   private boolean notReusable = false;
 
+  @JsonIgnore
+  private Map<ExecutionResource, Double> aggregatedNeededResources;
+
   /**
    * Provides a list of the resource loads which will be consumed by this step during its execution.
    * If no shared resources are utilized, an empty list may be returned.
@@ -114,13 +117,16 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
 
   @JsonIgnore
   public Map<ExecutionResource, Double> getAggregatedNeededResources() {
+    if(aggregatedNeededResources != null)
+      return aggregatedNeededResources;
+
     List<Load> neededResources = getNeededResources();
     if (neededResources == null)
       return Collections.emptyMap();
 
-    Map<ExecutionResource, Double> loads = new HashMap<>();
-    neededResources.forEach(load -> addLoad(loads, load, false));
-    return loads;
+    aggregatedNeededResources = new HashMap<>();
+    neededResources.forEach(load -> addLoad(aggregatedNeededResources, load, false));
+    return aggregatedNeededResources;
   }
 
   public RuntimeInfo getStatus() {

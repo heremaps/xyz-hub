@@ -113,6 +113,8 @@ public class Job implements XyzSerializable {
   private JobClientInfo clientInfo;
   @JsonView(Static.class)
   private String secondaryResourceKey;
+  @JsonIgnore
+  private StepGraph executionSteps;
 
   private static final Async ASYNC = new Async(100, Job.class);
   private static final Logger logger = LogManager.getLogger();
@@ -466,38 +468,6 @@ public class Job implements XyzSerializable {
     });
   }
 
-  /**
-   * Calculates the overall loads (necessary resources) of this job by aggregating the resource loads of all steps of this job.
-   * The aggregation of parallel steps is done in the way that all resource-loads of parallel running steps will be added, while
-   * in the case of sequentially running steps always the maximum of the step's resources will be taken into account.
-   *
-   * @return A list of overall resource-loads being reserved by this job
-   */
-  public Future<List<Load>> calculateResourceLoads() {
-    return calculateResourceLoads(getSteps())
-        .map(resourceLoads -> resourceLoads.entrySet().stream()
-            .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
-            .toList());
-  }
-
-  private Future<Map<ExecutionResource, Double>> calculateResourceLoads(StepGraph graph) {
-    return Future.all(graph.getExecutions().stream()
-        .map(execution -> execution instanceof Step step
-            ? calculateResourceLoads(step)
-            : calculateResourceLoads((StepGraph) execution)).toList())
-        .map(cf -> {
-          List<Map<ExecutionResource, Double>> loadsToAggregate = cf.list();
-          Map<ExecutionResource, Double> loads = new HashMap<>();
-          loadsToAggregate.forEach(load -> addLoads(loads, load, !graph.isParallel()));
-          return loads;
-        });
-  }
-
-  private Future<Map<ExecutionResource, Double>> calculateResourceLoads(Step step) {
-    logger.info("Calculating resource loads for step {}.{} of type {} ...", getId(), step.getId(), step.getClass().getSimpleName());
-    return ASYNC.run(() -> step.getAggregatedNeededResources());
-  }
-
   public UploadUrl createUploadUrl(boolean compressed) {
     return createUploadUrl(compressed, DEFAULT_INPUT_SET_NAME);
   }
@@ -771,6 +741,19 @@ public class Job implements XyzSerializable {
 
   public Job withStatus(RuntimeStatus status) {
     setStatus(status);
+    return this;
+  }
+
+  public StepGraph getExecutionSteps() {
+    return executionSteps;
+  }
+
+  public void setExecutionSteps(StepGraph executionSteps) {
+    this.executionSteps = executionSteps;
+  }
+
+  public Job withExecutionSteps(StepGraph executionSteps) {
+    setExecutionSteps(executionSteps);
     return this;
   }
 

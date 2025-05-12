@@ -24,6 +24,7 @@ import static com.here.xyz.jobs.steps.resources.Load.toLoadsMap;
 
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.config.JobConfigClient;
+import com.here.xyz.jobs.steps.execution.JobExecutor;
 import com.here.xyz.jobs.steps.execution.db.Database;
 import io.vertx.core.Future;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ public class ResourcesRegistry {
         .compose(runningJobs -> Future.all(runningJobs.stream()
             .map(job -> {
               try {
-                return job.calculateResourceLoads().recover(t -> handleResourceLoadError(job, t));
+                return JobExecutor.getInstance().calculateResourceLoads(job).recover(t -> handleResourceLoadError(job, t));
               }
               catch (Exception e) {
                 return handleResourceLoadError(job, e);
