@@ -68,8 +68,10 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.junit.Ignore;
 import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
 @Disabled("Obsolete / Deprecated")
 public class JobApiIT extends TestSpaceWithFeature {
 

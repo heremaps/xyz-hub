@@ -46,9 +46,11 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
 @Disabled("Obsolete / Deprecated")
 public class JobApiGeneralIT extends JobApiIT {
     protected static String testJobId = "x-test-general-job";

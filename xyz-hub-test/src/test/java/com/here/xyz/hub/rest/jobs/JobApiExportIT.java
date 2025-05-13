@@ -36,9 +36,11 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
 @Disabled("Obsolete / Deprecated")
 public class JobApiExportIT extends JobApiIT {
 

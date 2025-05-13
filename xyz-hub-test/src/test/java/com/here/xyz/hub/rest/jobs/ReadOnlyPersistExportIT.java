@@ -38,9 +38,11 @@ import java.net.URL;
 import java.util.List;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
 @Disabled("Obsolete / Deprecated")
 public class ReadOnlyPersistExportIT extends JobApiIT {
     protected String testExportJobId = "x-test-persistent-export-job";

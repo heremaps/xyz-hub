@@ -45,9 +45,11 @@ import java.util.List;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
 @Disabled("Obsolete / Deprecated")
 public class JobApiCompositeExportIT extends JobApiIT{
     protected String testExportJobId = "x-test-composite-export-job";
