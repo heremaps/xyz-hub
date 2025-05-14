@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.locationtech.jts.geom.Coordinate;
@@ -270,7 +271,11 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     for (int i = 0; i < end; i++) {
       final String pname = path.get(i);
       sql.add(i == last && text ? "->>" : "->");
-      sql.addLiteral(pname);
+      if (StringUtils.isNumeric(pname)) {
+        sql.add(pname);
+      } else {
+        sql.addLiteral(pname);
+      }
     }
     sql.add(')');
     if (text) {

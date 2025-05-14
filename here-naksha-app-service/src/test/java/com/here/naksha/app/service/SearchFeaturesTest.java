@@ -232,4 +232,26 @@ class SearchFeaturesTest extends ApiTest {
             .hasStreamIdHeader(streamId)
             .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
   }
+
+  @Test
+  void tc1009_testSearchWithArrayBasedPropPathFilter() throws URISyntaxException, InterruptedException, IOException {
+    // Test API : GET /hub/spaces/{spaceId}/search
+    // Validate features returned matches with Property filter (even when Tags filter not supplied)
+
+    // Given: search query
+    final String propQueryParam = "p.adminInfo.0.admin.id=%s".formatted(urlEncoded("urn:here::here:Admin:20128885"))
+            + "&"
+            + "p.adminInfo.0.country.id=%s".formatted(urlEncoded("urn:here::here:Admin:20128885"));
+    final String expectedBodyPart = loadFileOrFail("ReadFeatures/Search/TC1009_searchWithArrayBasedPropPathFilter/search_response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When: Get Features By Tile request is submitted to NakshaHub
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/" + SPACE_ID + "/search" + "?" + propQueryParam, streamId);
+
+    // Then: Perform assertions
+    ResponseAssertions.assertThat(response)
+            .hasStatus(200)
+            .hasStreamIdHeader(streamId)
+            .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
+  }
 }

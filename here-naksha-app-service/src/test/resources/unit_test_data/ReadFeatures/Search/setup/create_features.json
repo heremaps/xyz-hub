@@ -57,6 +57,34 @@
         "type":"Point",
         "coordinates":[ 8.6578, 50.1234, 0.0 ]
       }
+    },
+    {
+      "id": "tc_900_feature_5",
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.0,
+          50.0
+        ]
+      },
+      "momType": "MotorisedVehicleRegulations",
+      "properties": {
+        "adminInfo": [
+          {
+            "admin": {
+              "id": "urn:here::here:Admin:20128885",
+              "featureType": "Admin"
+            },
+            "country": {
+              "id": "urn:here::here:Admin:20128885",
+              "featureType": "Admin"
+            },
+            "drivingSide": "RIGHT",
+            "adminOrder": 1
+          }
+        ]
+      }
     }
   ]
 }
