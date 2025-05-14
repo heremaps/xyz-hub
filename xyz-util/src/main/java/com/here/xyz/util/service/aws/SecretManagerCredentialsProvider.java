@@ -1,19 +1,19 @@
 package com.here.xyz.util.service.aws;
 
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
-public class SecretManagerCredentialsProvider implements AWSCredentialsProvider  {
+public class SecretManagerCredentialsProvider implements AwsCredentialsProvider {
     private static final Logger logger = LogManager.getLogger();
     private static final int DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 
-    private final AtomicReference<AWSCredentials> credentialsRef;
+    private final AtomicReference<AwsCredentials> credentialsRef;
     private final ScheduledExecutorService scheduler;
 
     private String secretArn;
@@ -25,7 +25,6 @@ public class SecretManagerCredentialsProvider implements AWSCredentialsProvider 
 
     public SecretManagerCredentialsProvider(String region, String endpointOverride, String secretArn) {
         this(region, endpointOverride, secretArn, DEFAULT_REFRESH_INTERVAL_SECONDS);
-
     }
 
     public SecretManagerCredentialsProvider(String region, String endpointOverride, String secretArn, long refreshInterval) {
@@ -44,9 +43,8 @@ public class SecretManagerCredentialsProvider implements AWSCredentialsProvider 
     }
 
     @Override
-    public AWSCredentials getCredentials() {
-
-        AWSCredentials currentCredentials = credentialsRef.get();
+    public AwsCredentials resolveCredentials() {
+        AwsCredentials currentCredentials = credentialsRef.get();
 
         if(currentCredentials == null) {
             refresh();
@@ -54,13 +52,11 @@ public class SecretManagerCredentialsProvider implements AWSCredentialsProvider 
         }
 
         return currentCredentials;
-
     }
 
-    @Override
     public void refresh() {
         try {
-            AWSCredentials newCredentials = jobSecretClient.getCredentialsFromSecret(secretArn);
+            AwsCredentials newCredentials = jobSecretClient.getCredentialsFromSecret(secretArn);
             credentialsRef.set(newCredentials);
         } catch (Exception e) {
             logger.error("Failed to refresh credentials from secret manager! ", e);
