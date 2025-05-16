@@ -33,6 +33,12 @@ public class FeatureStatistics extends ModelBasedOutput {
     private long featureCount;
     @JsonInclude(ALWAYS)
     private long byteSize;
+    @JsonInclude(ALWAYS)
+    private long fileCount;
+    @JsonInclude(ALWAYS)
+    private String version;
+    @JsonInclude(ALWAYS)
+    private String tag;
 
     public long getFeatureCount() {
         return featureCount;
@@ -57,6 +63,45 @@ public class FeatureStatistics extends ModelBasedOutput {
 
     public FeatureStatistics withByteSize(long byteSize) {
         setByteSize(byteSize);
+        return this;
+    }
+
+    public long getFileCount() {
+        return fileCount;
+    }
+
+    public void setFileCount(long fileCount) {
+        this.fileCount = fileCount;
+    }
+
+    public FeatureStatistics withFileCount(long fileCount) {
+        setFileCount(fileCount);
+        return this;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public FeatureStatistics withVersion(String version) {
+        setVersion(version);
+        return this;
+    }
+
+    public String getTag() {
+        return tag;
+    }
+
+    public void setTag(String tag) {
+        this.tag = tag;
+    }
+
+    public FeatureStatistics withTag(String tag) {
+        setTag(tag);
         return this;
     }
 }
