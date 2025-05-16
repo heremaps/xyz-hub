@@ -31,7 +31,6 @@ import static com.here.xyz.jobs.steps.impl.transport.TransportTools.buildTempora
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.errorLog;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.getTemporaryJobTableName;
 import static com.here.xyz.jobs.steps.impl.transport.TransportTools.infoLog;
-import static com.here.xyz.util.web.XyzWebClient.WebClientException;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
@@ -111,6 +110,23 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
   private long maxI = -1;
   @JsonView({Internal.class, Static.class})
   protected boolean restrictExtendOfSpatialFilter = true;
+
+  @JsonView({Internal.class, Static.class})
+  protected Ref providedVersionRef;
+
+
+  public void setProvidedVersionRef(Ref providedVersionRef) {
+    this.providedVersionRef = providedVersionRef;
+  }
+
+  public Ref getProvidedVersionRef() {
+    return this.providedVersionRef;
+  }
+
+  public ExportSpaceToFiles withProvidedVersionRef(Ref providedVersionRef) {
+    setProvidedVersionRef(providedVersionRef);
+    return this;
+  }
 
   public void setRestrictExtendOfSpatialFilter(boolean restrictExtendOfSpatialFilter) {
     this.restrictExtendOfSpatialFilter = restrictExtendOfSpatialFilter;
@@ -327,8 +343,12 @@ public class ExportSpaceToFiles extends TaskedSpaceBasedStep<ExportSpaceToFiles>
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Job Statistics: bytes=" + stepStatistics.byteSize + " files=" + stepStatistics.fileCount);
 
-    registerOutputs(List.of(new FeatureStatistics().withFeatureCount(stepStatistics.rowCount).withByteSize(stepStatistics.byteSize)),
-        STATISTICS);
+    registerOutputs(List.of(
+            new FeatureStatistics()
+                    .withFeatureCount(stepStatistics.rowCount)
+                    .withByteSize(stepStatistics.byteSize)
+                    .withVersionRef(providedVersionRef)
+            ), STATISTICS);
 
     infoLog(STEP_ON_ASYNC_SUCCESS, this, "Cleanup temporary table");
     runWriteQuerySync(buildTemporaryJobTableDropStatement(schema, getTemporaryJobTableName(getId())), db(WRITER), 0);

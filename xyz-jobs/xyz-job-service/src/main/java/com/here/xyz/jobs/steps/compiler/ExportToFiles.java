@@ -27,7 +27,6 @@ import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
-import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.jobs.Job;
 import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
@@ -37,14 +36,10 @@ import com.here.xyz.jobs.steps.CompilationStepGraph;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.JobCompiler.CompilationError;
 import com.here.xyz.jobs.steps.impl.transport.ExportSpaceToFiles;
-import com.here.xyz.psql.query.Spatial;
 import com.here.xyz.responses.StatisticsResponse;
-
-
 import java.util.Map;
 
 import javax.xml.crypto.dsig.TransformException;
-
 import org.geotools.api.referencing.FactoryException;
 import org.locationtech.jts.geom.Geometry;
 
@@ -63,6 +58,7 @@ public class ExportToFiles implements JobCompilationInterceptor {
 
   public static ExportSpaceToFiles compile(String jobId, Space source) {
     return new ExportSpaceToFiles()
+        .withProvidedVersionRef(source.getVersionRef())
         .withSpaceId(source.getId())
         .withJobId(jobId)
         .withSpatialFilter(source.getFilters() != null ? source.getFilters().getSpatialFilter() : null)
