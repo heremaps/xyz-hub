@@ -33,7 +33,6 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.S3Uri;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -100,11 +99,11 @@ public class RelocationClient {
     }
 
     logger.debug("{} - Relocating data to: {}", streamId, event.getURI());
-    S3Uri s3Uri = S3Uri.builder()
-            .bucket(bucket)
-            .uri(URI.create(event.getURI()))
-            .build();
-    uploadToS3(s3Uri, bytes);
+    if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
+      uploadToS3(bucket, event.getURI(), bytes);
+    } else {
+      logger.error("{}, Unsupported URI type {} from bucket {}, S3 path {} and name {}", event.getStreamId(), event.getURI(), bucket, S3_PATH, name);
+    }
 
     return event.toString().getBytes();
   }
@@ -139,10 +138,7 @@ public class RelocationClient {
     logger.debug("{}, Found relocation event, loading original event from '{}'", event.getStreamId(), event.getURI());
 
     if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
-      S3Uri s3Uri = S3Uri.builder()
-              .uri(URI.create(event.getURI()))
-              .build();
-      return downloadFromS3(s3Uri, region);
+      return downloadFromS3(bucket, event.getURI(), region);
     }
     throw new ErrorResponseException(event.getStreamId(), XyzError.ILLEGAL_ARGUMENT, "Unsupported URI type");
   }
@@ -150,23 +146,21 @@ public class RelocationClient {
   /**
    * Downloads the file from S3.
    */
-  public InputStream downloadFromS3(S3Uri amazonS3URI, String region) {
-    GetObjectRequest getRequest = GetObjectRequest.builder()
-            .bucket(amazonS3URI.bucket().orElseThrow(() -> new IllegalStateException("Unrecognized bucket")))
-            .key(amazonS3URI.key().orElseThrow(() -> new IllegalStateException("Unrecognized key")))
-            .build();
-    return getS3Client(region).getObject(getRequest);
+  public InputStream downloadFromS3(String bucket, String uri, String region) {
+    return getS3Client(region).getObject(GetObjectRequest.builder()
+            .bucket(bucket)
+            .key(uri)
+            .build());
   }
 
   /**
    * Uploads the data, which should be relocated to S3.
    */
-  private void uploadToS3(S3Uri amazonS3URI, byte[] content) {
-    PutObjectRequest putRequest = PutObjectRequest.builder()
-            .bucket(amazonS3URI.bucket().orElseThrow(() -> new IllegalStateException("Unrecognized bucket")))
-            .key(amazonS3URI.key().orElseThrow(() -> new IllegalStateException("Unrecognized key")))
-            .build();
-    getS3Client(null).putObject(putRequest, RequestBody.fromBytes(content));
+  private void uploadToS3(String bucket, String uri, byte[] content) {
+    getS3Client(null).putObject(PutObjectRequest.builder()
+            .bucket(bucket)
+            .key(uri)
+            .build(), RequestBody.fromBytes(content));
   }
 
   private String createS3Uri(String bucket, String key) {
