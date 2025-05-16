@@ -22,14 +22,12 @@ import com.here.xyz.jobs.util.S3ClientHelper;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import com.here.xyz.hub.Service;
 import com.here.xyz.util.service.Core;
@@ -101,18 +99,18 @@ public class S3CacheClient implements CacheClient {
                         .key(prefix + key)
                         .build();
 
-                byte[] content = s3client.getObject(request, ResponseTransformer.toBytes()).asByteArray();
+                ResponseBytes<GetObjectResponse> payload = s3client.getObject(request, ResponseTransformer.toBytes());
 
-                GetObjectResponse response = s3client.getObject(request, ResponseTransformer.toBytes()).response();
-                Map<String, String> metadata = response.metadata();
-                String lastAccessedAt = metadata.get(LAST_ACCESSED_AT.toLowerCase());
-
-                if (lastAccessedAt != null) {
+                Map<String, String> metadata = payload.response().metadata();
+                if (metadata.containsKey(LAST_ACCESSED_AT.toLowerCase())) {
                     // Update the "lastAccessedAt" metadata field asynchronously
                     updateLastAccessedAt(key, metadata, Core.currentTimeMillis());
                 }
 
-                promise.complete(content);
+                promise.complete(payload.asByteArray());
+            } catch (NoSuchKeyException e) {
+                logger.warn("Cache miss: S3 key not found {}", key);
+                promise.complete(null);
             } catch (Exception e) {
                 logger.error("Exception trying to read S3 object with key {}.", key, e);
                 promise.complete(null);
