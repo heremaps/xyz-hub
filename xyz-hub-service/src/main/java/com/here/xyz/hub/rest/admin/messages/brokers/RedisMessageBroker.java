@@ -62,8 +62,8 @@ public class RedisMessageBroker implements MessageBroker {
     RedisOptions config = new RedisOptions()
         .setConnectionString(Service.configuration.getRedisUri())
         .setNetClientOptions(new NetClientOptions()
-            .setSsl(true)
-            .setHostnameVerificationAlgorithm("HTTPS") //required for hostname check
+            .setHostnameVerificationAlgorithm("") //TODO: temp disable hostname verification
+            .setTrustAll(true)
             .setTcpKeepAlive(true)
             .setIdleTimeout(withIdleTimeout ? CONNECTION_KEEP_ALIVE : 0)
             .setConnectTimeout(2000));
