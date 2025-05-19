@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import java.util.List;
  * The response that is sent for a {@link GetStatisticsEvent}.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(Include.NON_DEFAULT)
 @JsonTypeName(value = "StatisticsResponse")
 public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
 

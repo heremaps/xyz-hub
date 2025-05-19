@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,5 +27,19 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetStatisticsEvent")
-public final class GetStatisticsEvent extends ContextAwareEvent<GetStatisticsEvent> {   
+public final class GetStatisticsEvent extends ContextAwareEvent<GetStatisticsEvent> {
+    private boolean fastMode;
+
+    public boolean isFastMode() {
+        return fastMode;
+    }
+
+    public void setFastMode(boolean fastMode) {
+        this.fastMode = fastMode;
+    }
+
+    public GetStatisticsEvent withFastMode(boolean fastMode) {
+        setFastMode(fastMode);
+        return this;
+    }
 }

@@ -1531,7 +1531,7 @@ public class FeatureTaskHandler {
     }
 
     // updates the searchable flag for each property in case of ALL or NONE
-    final Searchable searchable = response.getProperties().getSearchable();
+    final Searchable searchable = response.getProperties() == null ? null : response.getProperties().getSearchable();
     if (searchable != null && searchable != Searchable.PARTIAL) {
       if (response.getProperties().getValue() != null) {
         response.getProperties().getValue().forEach(c -> c.setSearchable(searchable == Searchable.ALL));
