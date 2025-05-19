@@ -75,6 +75,7 @@ public class ApiParam {
     static final String CONFLICT_RESOLUTION = "cr";
     static final String PREFIX_ID = "prefixId";
     static final String CLIP = "clip";
+    static final String FAST_MODE = "fastMode";
     static final String SKIP_CACHE = "skipCache";
     static final String CLUSTERING = "clustering";
     static final String TWEAKS = "tweaks";

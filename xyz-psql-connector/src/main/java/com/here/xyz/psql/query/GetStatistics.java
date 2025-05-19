@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, StatisticsResponse> {
+public class GetStatistics extends ExtendedSpace<GetStatisticsEvent, StatisticsResponse>  {
+  private boolean fastMode;
   private String spaceId;
   private Map<String, Object> connectorParams;
   private static final Pattern BBOX_PATTERN = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
@@ -52,6 +53,7 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
     setUseReadReplica(true);
     spaceId = event.getSpace();
     connectorParams = event.getConnectorParams();
+    fastMode = event.isFastMode();
   }
 
   @Override
@@ -65,6 +67,9 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
 
   @Override
   public StatisticsResponse run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    if(fastMode)
+      return super.run(dataSourceProvider);
+
     //TODO: Do version related queries directly inside xyz_statistic_space() and remove GetChangesetStatistics / GetChangesetStatisticsEvent / ChangesetStatisticsResponse ...
     long minVersion;
     long maxVersion;
