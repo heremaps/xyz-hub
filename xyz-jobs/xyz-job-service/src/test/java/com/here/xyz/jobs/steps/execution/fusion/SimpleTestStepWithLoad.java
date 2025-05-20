@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,43 +19,15 @@
 
 package com.here.xyz.jobs.steps.execution.fusion;
 
-import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
-import com.here.xyz.jobs.steps.resources.IOResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import io.vertx.core.Future;
-
 import java.util.List;
-import java.util.Objects;
 
-public class SimpleTestStepWithLoad<T extends SimpleTestStepWithLoad> extends TestStep<T> {
-
-  //Some step parameters that can differ per graph and influence the equivalence
-  public String paramA;
-  public String paramB;
-  public String paramC;
-
-  public SimpleTestStepWithLoad(String paramA, String paramB, String paramC) {
-    this.paramA = paramA;
-    this.paramB = paramB;
-    this.paramC = paramC;
-  }
+public class SimpleTestStepWithLoad<T extends SimpleTestStepWithLoad> extends SimpleTestStep<T> {
 
   public SimpleTestStepWithLoad(String paramA) {
-    this(paramA, null, null);
-  }
-
-  @Override
-  public boolean isEquivalentTo(StepExecution other) {
-    return super.isEquivalentTo(other) || other instanceof SimpleTestStepWithLoad otherStep
-        && Objects.equals(paramA, otherStep.paramA)
-        && Objects.equals(paramB, otherStep.paramB)
-        && Objects.equals(paramC, otherStep.paramC);
-  }
-
-  @Override
-  public String getDescription() {
-    return "A simple test step to simulate step graphs.";
+    super(paramA, null, null);
   }
 
   @Override

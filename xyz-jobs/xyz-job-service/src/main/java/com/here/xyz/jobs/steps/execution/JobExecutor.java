@@ -82,7 +82,7 @@ public abstract class JobExecutor implements Initializable {
     return Future.succeededFuture()
         .compose(v -> formerExecutionId == null ? reuseExistingJobIfPossible(job) : Future.succeededFuture())
         .compose(v -> needsExecution(job))
-        //.compose(executionNeeded -> GraphSerializerTool.optimize(job).map(executionNeeded))
+        //.compose(executionNeeded -> GraphSequencingTool.optimize(job).map(executionNeeded))
         .compose(executionNeeded -> executionNeeded ? mayExecute(job) : Future.succeededFuture(false))
         .compose(shouldExecute -> {
           if (!shouldExecute)
@@ -329,7 +329,7 @@ public abstract class JobExecutor implements Initializable {
             })));
   }
 
-  public Future<Boolean> mayExecute(Future<Map<ExecutionResource, Double>> freeVirtualUnits, Job job) {
+  Future<Boolean> mayExecute(Future<Map<ExecutionResource, Double>> freeVirtualUnits, Job job) {
     return freeVirtualUnits
         .compose(freeUnits -> calculateResourceLoads(job)
             .map(neededResources -> neededResources
@@ -365,29 +365,28 @@ public abstract class JobExecutor implements Initializable {
    */
   public Future<List<Load>> calculateResourceLoads(Job job) {
     return calculateResourceLoads(job.getExecutionSteps() != null ? job.getExecutionSteps() : job.getSteps())
-            .map(resourceLoads -> resourceLoads.entrySet().stream()
-                    .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
-                    .toList());
+        .map(resourceLoads -> resourceLoads.entrySet().stream()
+            .map(e -> new Load().withResource(e.getKey()).withEstimatedVirtualUnits(e.getValue()))
+            .toList());
   }
 
-  public Future<Map<ExecutionResource, Double>> calculateResourceLoads(StepGraph graph) {
+  private Future<Map<ExecutionResource, Double>> calculateResourceLoads(StepGraph graph) {
     return Future.all(graph.getExecutions().stream()
-                    .map(execution -> execution instanceof Step step
-                            ? calculateResourceLoads(step)
-                            : calculateResourceLoads((StepGraph) execution)).toList())
-            .map(cf -> {
-              List<Map<ExecutionResource, Double>> loadsToAggregate = cf.list();
-              Map<ExecutionResource, Double> loads = new HashMap<>();
-              loadsToAggregate.forEach(load -> addLoads(loads, load, !graph.isParallel()));
-              return loads;
-            });
+            .map(execution -> execution instanceof Step step
+                ? calculateResourceLoads(step)
+                : calculateResourceLoads((StepGraph) execution)).toList())
+        .map(cf -> {
+          List<Map<ExecutionResource, Double>> loadsToAggregate = cf.list();
+          Map<ExecutionResource, Double> loads = new HashMap<>();
+          loadsToAggregate.forEach(load -> addLoads(loads, load, !graph.isParallel()));
+          return loads;
+        });
   }
 
   private Future<Map<ExecutionResource, Double>> calculateResourceLoads(Step step) {
     logger.info("Calculating resource loads for step {} of type {} ...", step.getGlobalStepId(), step.getClass().getSimpleName());
     return ASYNC.run(() -> step.getAggregatedNeededResources());
   }
-
 
   /**
    * Tries to find other existing jobs, that are completed and that already performed parts of the

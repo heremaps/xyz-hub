@@ -28,7 +28,7 @@ import io.vertx.core.Future;
 import java.util.LinkedList;
 import java.util.Map;
 
-public class GraphSerializerTool {
+public class GraphSequencingTool {
 
   public static Future<Void> optimize(Job job) {
     Future<Map<ExecutionResource, Double>>  freeVirtualUnits = ResourcesRegistry.getFreeVirtualUnits();
@@ -42,7 +42,7 @@ public class GraphSerializerTool {
               if(mayExecute || !hasParallelExecutions(job.getExecutionSteps()))
                 return Future.succeededFuture();
 
-              partiallySerializeGraph(job.getExecutionSteps());
+              partiallySequenceGraph(job.getExecutionSteps());
               return optimize(freeVirtualUnits, job);
             });
   }
@@ -63,7 +63,7 @@ public class GraphSerializerTool {
   }
 
   /**
-   * Serialize first parallel graph (or sub-graph), after splitting into two parallel sub-graphs <br>
+   * Sequentialize first parallel graph (or sub-graph), after splitting into two parallel sub-graphs <br>
    * Examples:
    * <ul>
    *   <li>parallel(A, B, C, D) -> sequential(parallel(A,B), parallel(C,D))</li>
@@ -71,7 +71,7 @@ public class GraphSerializerTool {
    * </ul>
    *
    */
-  private static void partiallySerializeGraph(StepGraph stepGraph) {
+  private static void partiallySequenceGraph(StepGraph stepGraph) {
     if (stepGraph.isParallel()) {
       int executionSize = stepGraph.getExecutions().size();
       if (executionSize <= 2)
@@ -92,7 +92,7 @@ public class GraphSerializerTool {
     } else {
       for (StepExecution execution : stepGraph.getExecutions()) {
         if (execution instanceof StepGraph subStepGraph && hasParallelExecutions(subStepGraph)) {
-          partiallySerializeGraph(subStepGraph);
+          partiallySequenceGraph(subStepGraph);
           return;
         }
       }

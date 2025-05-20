@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
-public class GraphSerializerTest {
+public class GraphSequencingTest {
 
   static {
     Core.vertx = Vertx.vertx();
@@ -59,7 +59,7 @@ public class GraphSerializerTest {
     boolean mayExecuteBefore = await(JobExecutor.getInstance().mayExecute(freeVirtualUnits, job), 2);
     assertEquals(false, mayExecuteBefore);
 
-    await(GraphSerializerTool.optimize(freeVirtualUnits, job), 2);
+    await(GraphSequencingTool.optimize(freeVirtualUnits, job), 2);
     assertTrue(!job.getExecutionSteps().isParallel());
     assertEquals(2, ((StepGraph) job.getExecutionSteps().getExecutions().get(0)).getExecutions().size());
     assertEquals(2, ((StepGraph) job.getExecutionSteps().getExecutions().get(1)).getExecutions().size());
