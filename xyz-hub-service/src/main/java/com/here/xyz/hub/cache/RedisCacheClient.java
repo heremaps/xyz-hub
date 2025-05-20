@@ -39,19 +39,33 @@ public class RedisCacheClient implements CacheClient {
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<Redis> redis;
   private String connectionString = Service.configuration.getRedisUri();
-  RedisOptions config = new RedisOptions()
-      .setConnectionString(connectionString)
-      .setNetClientOptions(new NetClientOptions()
+  private static final String RND = UUID.randomUUID().toString();
+  private final boolean useSSL = connectionString != null
+          && (connectionString.startsWith("rediss://")
+          || connectionString.matches(".*[?&]ssl=(?i)(true|1|yes).*"));
+  private final NetClientOptions clientOptions = new NetClientOptions()
           .setTcpKeepAlive(true)
           .setIdleTimeout(30)
-          .setConnectTimeout(2000));
-  private static final String RND = UUID.randomUUID().toString();
+          .setConnectTimeout(2000)
+          .setSsl(useSSL)
+          .setHostnameVerificationAlgorithm(useSSL ? "HTTPS" : "");
+  private RedisOptions config = new RedisOptions()
+          .setConnectionString(connectionString)
+          .setNetClientOptions(clientOptions);
 
   private RedisCacheClient() {
     //Use redis auth token when available
     if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
       config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
     redis = ThreadLocal.withInitial(() -> Redis.createClient(Core.vertx, config));
+    logger.warn("Redis client created -> host={} ssl={} hvAlgo='{}' trustAll={} trustStore={} idle={}s connectTo={}ms",
+            Service.configuration.getRedisUri(),
+            clientOptions.isSsl(),
+            clientOptions.getHostnameVerificationAlgorithm(),
+            clientOptions.isTrustAll(),
+            (clientOptions.getTrustOptions() != null ? clientOptions.getTrustOptions().getClass().getSimpleName() : "none"),
+            clientOptions.getIdleTimeout(),
+            clientOptions.getConnectTimeout());
   }
 
   public static synchronized CacheClient getInstance() {
