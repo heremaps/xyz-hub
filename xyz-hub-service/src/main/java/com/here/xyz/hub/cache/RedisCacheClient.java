@@ -55,9 +55,25 @@ public class RedisCacheClient implements CacheClient {
 
   private RedisCacheClient() {
     //Use redis auth token when available
-    if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
+    if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null) {
       config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
-    redis = ThreadLocal.withInitial(() -> Redis.createClient(Core.vertx, config));
+      logger.info("Redis authentication configured");
+    } 
+    
+    redis = ThreadLocal.withInitial(() -> {
+      try {
+        return Redis.createClient(Core.vertx, config);
+      } catch (Exception e) {
+        logger.error("Failed to create Redis client", e);
+        logger.error("Redis client configuration: SSL={}, hostVerif='{}', trustAll={}, URI={}",
+                useSSL,
+                clientOptions.getHostnameVerificationAlgorithm(),
+                clientOptions.isTrustAll(),
+                connectionString != null ? connectionString.replaceAll("://([^:@]+):([^@]+)@", "://$1:***@") : "null");
+        throw e;
+      }
+    });
+    
     logger.warn("Redis client created -> host={} ssl={} hvAlgo='{}' trustAll={} trustStore={} idle={}s connectTo={}ms",
             Service.configuration.getRedisUri(),
             clientOptions.isSsl(),
@@ -66,6 +82,8 @@ public class RedisCacheClient implements CacheClient {
             (clientOptions.getTrustOptions() != null ? clientOptions.getTrustOptions().getClass().getSimpleName() : "none"),
             clientOptions.getIdleTimeout(),
             clientOptions.getConnectTimeout());
+            
+    testConnection();
   }
 
   public static synchronized CacheClient getInstance() {
@@ -88,6 +106,28 @@ public class RedisCacheClient implements CacheClient {
 
   protected Redis getClient() {
     return redis.get();
+  }
+  
+  private void testConnection() {
+    try {
+      logger.info("Testing Redis connection...");
+      Request pingReq = Request.cmd(Command.PING);
+      getClient().send(pingReq).onComplete(ar -> {
+        if (ar.succeeded()) {
+          logger.info("Redis connection test successful: received response '{}'", ar.result().toString());
+        } else {
+          logger.error("Redis connection test failed", ar.cause());
+          logger.error("Redis connection error details: {}", ar.cause().getMessage());
+          if (ar.cause() instanceof io.vertx.core.impl.NoStackTraceThrowable) {
+            logger.error("Redis connection parameters: ssl={}, hostname verification='{}'",
+                useSSL, 
+                clientOptions.getHostnameVerificationAlgorithm());
+          }
+        }
+      });
+    } catch (Exception e) {
+      logger.error("Exception during Redis connection test", e);
+    }
   }
 
   @Override
