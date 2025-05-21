@@ -110,7 +110,7 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 208
+ select 209
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
@@ -121,7 +121,7 @@ CREATE OR REPLACE FUNCTION xyz_statistic_fast(
     IN space_ext_table regclass,
     IN context text
 )
-RETURNS TABLE(table_size bigint, table_count bigint, is_estimated boolean, max_version bigint) AS
+RETURNS TABLE(table_size bigint, table_count bigint, is_estimated boolean, min_version bigint, max_version bigint) AS
 $BODY$
 DECLARE 	
     count_table bigint :=0;
@@ -131,31 +131,37 @@ BEGIN
 		RAISE EXCEPTION 'Unknown context: %!', context;
 	END IF;
 	
-	IF space_ext_table IS NULL THEN
+	IF space_ext_table IS NULL THEN		
 		EXECUTE format(
-		    'SELECT MAX(version), pg_total_relation_size(%L) FROM %s',
-		    space_table, space_table
-		) INTO max_version, table_size;
+		    'SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
+	            || 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s',
+		    regexp_replace(replace(space_table::text, '"', ''), '_head$', '') , space_table
+		) INTO min_version, max_version, table_size;
 		
-		RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, max_version
+		RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
 		FROM xyz_get_space_table_count(space_table) A;
 	ELSE 
-		EXECUTE format('SELECT MAX(version), pg_total_relation_size(%1$L) FROM %1$s', 
+		EXECUTE format('SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
+				|| 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s', 
+			(CASE context
+				WHEN 'SUPER' THEN regexp_replace(replace(space_ext_table::text, '"', ''), '_head$', '')
+				ELSE regexp_replace(replace(space_table::text, '"', ''), '_head$', '')
+			END),
 			(CASE context
 				WHEN 'SUPER' THEN space_ext_table
 				ELSE space_table
 			END)
-		) INTO max_version, table_size;	
+		) INTO min_version, max_version, table_size;	
 
 		CASE context
-		    WHEN 'SUPER' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, max_version
+		    WHEN 'SUPER' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
 				FROM xyz_get_space_table_count(space_ext_table) A;
-		    WHEN 'EXTENSION' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, max_version 
+		    WHEN 'EXTENSION' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version 
 				FROM xyz_get_space_table_count(space_table) A;
 		    WHEN 'DEFAULT' THEN 
 				table_size = table_size + pg_total_relation_size(space_ext_table);
 				RETURN QUERY 				
-					SELECT table_size, SUM(C.table_count)::BIGINT, BOOL_OR(C.is_estimated), max_version
+					SELECT table_size, SUM(C.table_count)::BIGINT, BOOL_OR(C.is_estimated), min_version, max_version
 					FROM(
 						SELECT A.table_count, A.is_estimated FROM xyz_get_space_table_count(space_table) A
 						UNION ALL
