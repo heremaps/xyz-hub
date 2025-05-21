@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.service.aws.S3Uri;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -87,20 +88,21 @@ public class RelocationClient {
   public byte[] relocate(String streamId, byte[] bytes) {
     String name = UUID.randomUUID().toString();
     RelocatedEvent event = new RelocatedEvent().withStreamId(streamId);
+    String region = System.getenv("AWS_REGION");
 
     if (runsAsConnectorWithRelocation())
-      event.setURI(createS3Uri(System.getenv("AWS_REGION"), bucket, S3_PATH + name));
+      event.setURI(createS3Uri(region, bucket, S3_PATH + name));
     else {
       //Keep backward compatibility.
       event
               .withLocation(name)
               .withURI(createS3Uri(bucket, S3_PATH + name))
-              .withRegion(System.getenv("AWS_REGION"));
+              .withRegion(region);
     }
 
     logger.debug("{} - Relocating data to: {}", streamId, event.getURI());
     if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
-      uploadToS3(bucket, event.getURI(), bytes);
+      uploadToS3(new S3Uri(event.getURI()), bytes, region);
     } else {
       logger.error("{}, Unsupported URI type {} from bucket {}, S3 path {} and name {}", event.getStreamId(), event.getURI(), bucket, S3_PATH, name);
     }
@@ -138,7 +140,7 @@ public class RelocationClient {
     logger.debug("{}, Found relocation event, loading original event from '{}'", event.getStreamId(), event.getURI());
 
     if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
-      return downloadFromS3(bucket, event.getURI(), region);
+      return downloadFromS3(new S3Uri(event.getURI()), region);
     }
     throw new ErrorResponseException(event.getStreamId(), XyzError.ILLEGAL_ARGUMENT, "Unsupported URI type");
   }
@@ -146,20 +148,20 @@ public class RelocationClient {
   /**
    * Downloads the file from S3.
    */
-  public InputStream downloadFromS3(String bucket, String uri, String region) {
+  public InputStream downloadFromS3(S3Uri s3Uri, String region) {
     return getS3Client(region).getObject(GetObjectRequest.builder()
-            .bucket(bucket)
-            .key(uri)
+            .bucket(s3Uri.bucket())
+            .key(s3Uri.key())
             .build());
   }
 
   /**
    * Uploads the data, which should be relocated to S3.
    */
-  private void uploadToS3(String bucket, String uri, byte[] content) {
-    getS3Client(null).putObject(PutObjectRequest.builder()
-            .bucket(bucket)
-            .key(uri)
+  private void uploadToS3(S3Uri s3Uri, byte[] content, String region) {
+    getS3Client(region).putObject(PutObjectRequest.builder()
+            .bucket(s3Uri.bucket())
+            .key(s3Uri.key())
             .build(), RequestBody.fromBytes(content));
   }
 

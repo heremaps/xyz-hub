@@ -30,7 +30,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.util.S3Client;
-import com.here.xyz.jobs.util.S3Client.S3Uri;
+import com.here.xyz.util.service.aws.S3Uri;
 import com.here.xyz.util.service.Core;
 import java.io.IOException;
 import java.util.HashSet;
