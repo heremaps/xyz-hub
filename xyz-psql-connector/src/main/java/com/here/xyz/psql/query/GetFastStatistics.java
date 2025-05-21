@@ -38,7 +38,7 @@ public class GetFastStatistics extends GetStatistics {
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
     return new SQLQuery("select table_size, table_count, is_estimated, min_version, max_version" +
-            " FROM xyz_statistic_fast(to_regclass(#{table}), to_regclass(#{extTable}), #{context});")
+            " FROM calculate_space_statistics(to_regclass(#{table}), to_regclass(#{extTable}), #{context});")
             .withNamedParameter(TABLE, getSchema() +".\""+ getDefaultTable(event) +"_head\"")
             .withNamedParameter("extTable", getSchema() +".\""+ getExtendedTable(event) + "_head\"")
             .withNamedParameter("context", event.getContext().name());
