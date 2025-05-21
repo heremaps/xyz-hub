@@ -47,7 +47,7 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
-import com.here.xyz.jobs.util.S3Client.S3Uri;
+import com.here.xyz.util.service.aws.S3Uri;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
 import java.util.ArrayList;
