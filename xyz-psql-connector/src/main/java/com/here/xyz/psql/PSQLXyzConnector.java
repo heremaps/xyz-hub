@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.psql.query.GetFastStatistics;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
@@ -44,7 +45,6 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
-import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetChangesetStatistics;
@@ -108,6 +108,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+    if(event.isFastMode())
+      return run(new GetFastStatistics(event));
     return run(new GetStatistics(event));
   }
 

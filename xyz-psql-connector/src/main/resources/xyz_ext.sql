@@ -110,10 +110,87 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 207
+ select 208
 $BODY$
   LANGUAGE sql IMMUTABLE;
 
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_statistic_fast(
+    IN space_table regclass,
+    IN space_ext_table regclass,
+    IN context text
+)
+RETURNS TABLE(table_size bigint, table_count bigint, is_estimated boolean, max_version bigint) AS
+$BODY$
+DECLARE 	
+    count_table bigint :=0;
+	count_ext_table bigint :=0;
+BEGIN
+	IF context NOT IN ('DEFAULT','SUPER','EXTENSION') THEN 
+		RAISE EXCEPTION 'Unknown context: %!', context;
+	END IF;
+	
+	IF space_ext_table IS NULL THEN
+		EXECUTE format(
+		    'SELECT MAX(version), pg_total_relation_size(%L) FROM %s',
+		    space_table, space_table
+		) INTO max_version, table_size;
+		
+		RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, max_version
+		FROM xyz_get_space_table_count(space_table) A;
+	ELSE 
+		EXECUTE format('SELECT MAX(version), pg_total_relation_size(%1$L) FROM %1$s', 
+			(CASE context
+				WHEN 'SUPER' THEN space_ext_table
+				ELSE space_table
+			END)
+		) INTO max_version, table_size;	
+
+		CASE context
+		    WHEN 'SUPER' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, max_version
+				FROM xyz_get_space_table_count(space_ext_table) A;
+		    WHEN 'EXTENSION' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, max_version 
+				FROM xyz_get_space_table_count(space_table) A;
+		    WHEN 'DEFAULT' THEN 
+				table_size = table_size + pg_total_relation_size(space_ext_table);
+				RETURN QUERY 				
+					SELECT table_size, SUM(C.table_count)::BIGINT, BOOL_OR(C.is_estimated), max_version
+					FROM(
+						SELECT A.table_count, A.is_estimated FROM xyz_get_space_table_count(space_table) A
+						UNION ALL
+						SELECT B.table_count,B.is_estimated FROM xyz_get_space_table_count(space_ext_table) B
+					) C;
+		END CASE;
+	END IF;
+END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_get_space_table_count(
+    IN space_table regclass,
+	IN estimate_from_threshold INTEGER DEFAULT 300000
+)
+RETURNS TABLE(table_count bigint, is_estimated boolean) AS
+$BODY$
+BEGIN
+	SELECT reltuples INTO table_count FROM pg_class WHERE oid = space_table;
+	
+	--IF table_count = -1 THEN
+	--	RAISE EXCEPTION 'Table "%" needs an ANALYSE!',space_table;
+	--END IF;
+
+	IF table_count <= estimate_from_threshold THEN
+		is_estimated = false;
+		EXECUTE format('SELECT COUNT(1) FROM %s', space_table) INTO table_count;
+	ELSE
+		is_estimated = true;
+	END IF;
+	
+    RETURN NEXT;
+END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 DROP FUNCTION IF EXISTS xyz_reduce_precision(geo GEOMETRY);

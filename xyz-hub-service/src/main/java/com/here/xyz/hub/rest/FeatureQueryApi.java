@@ -22,6 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.hub.rest.ApiParam.Query.FAST_MODE;
 import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
@@ -82,9 +83,12 @@ public class FeatureQueryApi extends SpaceBasedApi {
    */
   private void getStatistics(final RoutingContext context) {
     try {
-      new GetStatistics(new GetStatisticsEvent().withContext(getSpaceContext(context)), context, ApiResponseType.STATISTICS_RESPONSE,
-              Query.getBoolean(context, SKIP_CACHE, false))
-              .execute(this::sendResponse, this::sendErrorResponse);
+      new GetStatistics(new GetStatisticsEvent()
+                .withContext(getSpaceContext(context))
+                .withFastMode(Query.getBoolean(context, FAST_MODE, false)),
+              context,
+              ApiResponseType.STATISTICS_RESPONSE, Query.getBoolean(context, SKIP_CACHE, false)
+      ).execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
       sendErrorResponse(context, e);
     }

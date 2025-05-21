@@ -703,6 +703,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
     neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
         getUncompressedUploadBytesEstimation(), fileCount, threadCount);
+    neededACUs /= 4d; //TODO: Remove workaround once GraphSequentializer was implemented
 
     infoLog(JOB_EXECUTOR, this, "Calculated ACUS: expectedMemoryConsumption: "
             + getUncompressedUploadBytesEstimation() + " => neededACUs:" + neededACUs);

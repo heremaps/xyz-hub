@@ -22,8 +22,8 @@ package com.here.xyz.jobs.steps.impl.tools;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.db.pg.XyzSpaceTableHelper.OnDemandIndex;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.di.ImplementationProvider;
 import com.here.xyz.util.service.Initializable;
 
@@ -158,7 +158,7 @@ public class ResourceAndTimeCalculator implements Initializable {
         double globalMax = 200d * 1024 * 1024 * 1024;
 
         if(index instanceof OnDemandIndex)
-            return interpolate(globalMax, 10, byteSize, minACUs);
+            return interpolate(globalMax, 10, byteSize, minACUs) / 4d; //TODO: Remove workaround once GraphSequentializer was implemented
         else if(index instanceof SystemIndex systemIndex) {
             return switch (systemIndex) {
                 case GEO -> interpolate(globalMax, 30, byteSize, minACUs);
@@ -168,7 +168,7 @@ public class ResourceAndTimeCalculator implements Initializable {
                 case NEXT_VERSION -> interpolate(globalMax, 10, byteSize, minACUs);
                 case AUTHOR -> interpolate(globalMax, 10, byteSize, minACUs);
                 case SERIAL -> interpolate(globalMax, 8, byteSize, minACUs);
-            };
+            } / 4d; //TODO: Remove workaround once GraphSequentializer was implemented
         }
         return 0;
     }

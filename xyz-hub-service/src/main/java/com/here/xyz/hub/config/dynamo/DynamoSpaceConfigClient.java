@@ -204,7 +204,6 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         .compose(space -> {
           if (space == null) {
               String errMsg = String.format("Space ID '%s' - space is null during space deletion", spaceId);
-              logger.info(marker,errMsg);
               return Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND,errMsg));
           } else {
               logger.info(marker, "Space ID: {} has been retrieved", space.getId());
