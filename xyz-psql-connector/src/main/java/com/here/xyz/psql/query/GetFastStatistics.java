@@ -37,7 +37,7 @@ public class GetFastStatistics extends GetStatistics {
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("select table_size, table_count, is_estimated, max_version" +
+    return new SQLQuery("select table_size, table_count, is_estimated, min_version, max_version" +
             " FROM xyz_statistic_fast(to_regclass(#{table}), to_regclass(#{extTable}), #{context});")
             .withNamedParameter(TABLE, getSchema() +".\""+ getDefaultTable(event) +"_head\"")
             .withNamedParameter("extTable", getSchema() +".\""+ getExtendedTable(event) + "_head\"")
@@ -51,13 +51,13 @@ public class GetFastStatistics extends GetStatistics {
     Value<Long> tableSize =  new Value<>(rs.getLong("table_size")).withEstimated(true);
     Value<Long> count =  new Value<>(rs.getLong("table_count")).withEstimated(rs.getBoolean("is_estimated"));
     Value<Long> maxVersion =  new Value<>(rs.getLong("max_version")).withEstimated(false);
+    Value<Long> minVersion =  new Value<>(rs.getLong("min_version")).withEstimated(false);
 
     return new StatisticsResponse()
             .withByteSize(tableSize)
             .withDataSize(tableSize)
             .withCount(count)
             .withMaxVersion(maxVersion)
-            //minVersion is not implemented in fast mode
-            .withMinVersion(new Value<>(-1L).withEstimated(false));
+            .withMinVersion(minVersion);
   }
 }

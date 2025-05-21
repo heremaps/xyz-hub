@@ -79,7 +79,6 @@ public class ExportToFiles implements JobCompilationInterceptor {
    StatisticsResponse sourceStatistics;
 
    try {
-     sourceStatistics = hubWebClient().loadSpaceStatistics(spaceId, null);
      sourceContext = hubWebClient().loadSpace(spaceId).getExtension() != null ? EXTENSION : DEFAULT;
      sourceStatistics = hubWebClient().loadSpaceStatistics(spaceId, sourceContext); 
    } catch (WebClientException e) {
