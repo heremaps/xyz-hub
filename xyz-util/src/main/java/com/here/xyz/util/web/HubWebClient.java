@@ -177,11 +177,15 @@ public class HubWebClient extends XyzWebClient {
             .uri(uri("/spaces/" + spaceId)));
   }
 
-  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
-    return loadSpaceStatistics(spaceId, context, false);
+  public StatisticsResponse loadSpaceStatistics(String spaceId) throws WebClientException {
+    return loadSpaceStatistics(spaceId, null, true, true);
   }
 
-  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
+  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
+    return loadSpaceStatistics(spaceId, context, false, true);
+  }
+
+  public StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache, boolean fastMode) throws WebClientException {
     try {
       String cacheKey = spaceId + ":" + context + "_" + loadSpace(spaceId).getContentUpdatedAt();
       StatisticsResponse statistics = statisticsCache.get(cacheKey);
@@ -189,7 +193,7 @@ public class HubWebClient extends XyzWebClient {
         return statistics;
 
       statistics = deserialize(request(HttpRequest.newBuilder()
-          .uri(uri("/spaces/" + spaceId + "/statistics?skipCache="+skipCache
+          .uri(uri("/spaces/" + spaceId + "/statistics?fastMode=true&skipCache="+skipCache
                   + (context == null ? "" : "&context=" + context)))).body(), StatisticsResponse.class);
       statisticsCache.put(cacheKey, statistics);
       return statistics;
@@ -221,10 +225,6 @@ public class HubWebClient extends XyzWebClient {
     catch (JsonProcessingException e) {
       throw new WebClientException("Error deserializing response", e);
     }
-  }
-
-  public StatisticsResponse loadSpaceStatistics(String spaceId) throws WebClientException {
-    return loadSpaceStatistics(spaceId, null, true);
   }
 
   public Connector loadConnector(String connectorId) throws WebClientException {
