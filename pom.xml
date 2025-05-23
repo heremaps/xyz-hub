@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>1.24.1-SNAPSHOT</version>
+  <version>1.24.2-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -89,7 +89,7 @@
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
-    <vertx-version>4.1.7</vertx-version>
+    <vertx-version>4.5.15</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.13.0</jackson-version>
