@@ -192,6 +192,10 @@
       <artifactId>log4j-jcl</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.fasterxml.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
+    </dependency>
+    <dependency>
       <artifactId>disruptor</artifactId>
       <groupId>com.lmax</groupId>
     </dependency>
