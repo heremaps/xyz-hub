@@ -480,9 +480,9 @@
       </dependency>
       <dependency>
         <artifactId>rest-assured</artifactId>
-        <groupId>com.jayway.restassured</groupId>
+        <groupId>io.rest-assured</groupId>
         <scope>test</scope>
-        <version>2.9.0</version>
+        <version>5.4.0</version>
         <exclusions>
           <exclusion>
             <groupId>org.apache.httpcomponents</groupId>

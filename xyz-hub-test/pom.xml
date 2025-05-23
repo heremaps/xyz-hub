@@ -109,7 +109,7 @@
 
     <dependency>
       <artifactId>rest-assured</artifactId>
-      <groupId>com.jayway.restassured</groupId>
+      <groupId>io.rest-assured</groupId>
     </dependency>
 
     <dependency>

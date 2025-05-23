@@ -21,7 +21,7 @@ package com.here.xyz.hub.auth;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
@@ -35,7 +35,7 @@ import static org.hamcrest.core.CombinableMatcher.either;
 
 import com.here.xyz.hub.rest.RestAssuredTest;
 import com.here.xyz.hub.util.Compression;
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.response.ValidatableResponse;
 import java.util.Base64;
 import java.util.zip.DataFormatException;
 import org.junit.After;

@@ -21,12 +21,12 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
-import com.jayway.restassured.RestAssured;
+import io.restassured.RestAssured;
 import java.util.concurrent.TimeUnit;
 import org.awaitility.Durations;
 import org.junit.AfterClass;

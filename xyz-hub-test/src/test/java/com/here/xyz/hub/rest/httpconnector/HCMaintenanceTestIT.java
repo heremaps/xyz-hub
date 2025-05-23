@@ -32,7 +32,7 @@ import org.junit.*;
 import java.util.HashMap;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.equalTo;

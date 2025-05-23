@@ -20,7 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -32,9 +32,9 @@ import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.TestMessage;
-import com.jayway.restassured.response.ResponseBodyExtractionOptions;
-import com.jayway.restassured.response.ValidatableResponse;
-import com.jayway.restassured.specification.RequestSpecification;
+import io.restassured.response.ResponseBodyExtractionOptions;
+import io.restassured.response.ValidatableResponse;
+import io.restassured.specification.RequestSpecification;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;

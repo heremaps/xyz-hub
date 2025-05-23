@@ -20,12 +20,12 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
-import com.jayway.restassured.response.ValidatableResponse;
-import com.jayway.restassured.RestAssured;
+import io.restassured.response.ValidatableResponse;
+import io.restassured.RestAssured;
 
 import java.util.*;
 
