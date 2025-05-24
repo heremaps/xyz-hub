@@ -180,7 +180,9 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
                         ctx.next();
                       })
                       .handler(
-                              StaticHandler.create(safeRoot.getAbsolutePath())
+                              StaticHandler.create()
+                                      .setAllowRootFileSystemAccess(true)
+                                      .setWebRoot(safeRoot.getAbsolutePath())
                                       .setIndexPage("index.html")
                       );
             }
