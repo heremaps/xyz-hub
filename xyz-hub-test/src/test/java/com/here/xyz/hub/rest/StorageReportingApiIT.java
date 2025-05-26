@@ -1,7 +1,7 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;

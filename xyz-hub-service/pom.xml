@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>1.24.1-SNAPSHOT</version>
+    <version>1.24.2-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -143,6 +143,7 @@
               <execution>
                 <configuration>
                   <arguments>
+                    <argument>compose</argument>
                     <argument>--file</argument>
                     <argument>../${dockerComposeFile}</argument>
                     <argument>up</argument>
@@ -150,7 +151,7 @@
                     <argument>--build</argument>
                     <argument>--force-recreate</argument>
                   </arguments>
-                  <executable>docker-compose</executable>
+                  <executable>docker</executable>
                 </configuration>
                 <goals>
                   <goal>exec</goal>

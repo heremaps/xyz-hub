@@ -21,16 +21,16 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 import static io.netty.handler.codec.rtsp.RtspResponseStatuses.NOT_FOUND;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
-import com.jayway.restassured.http.Method;
-import com.jayway.restassured.response.Response;
-import com.jayway.restassured.specification.RequestSpecification;
+import io.restassured.http.Method;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;

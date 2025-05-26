@@ -21,7 +21,7 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -35,7 +35,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.List;

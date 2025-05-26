@@ -1,7 +1,7 @@
 version: "3"
 services:
     xyz-hub:
-        image: "xyz-hub"
+        image: "xyzmaps/xyz-hub"
         container_name: "xyz-hub"
         ports:
             - "8080:8080"
@@ -15,7 +15,7 @@ services:
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages
     xyz-http-connector:
-        image: "xyz-hub"
+        image: "xyzmaps/xyz-hub"
         build:
             context: "./"
         container_name: xyz-http-connector
@@ -25,7 +25,7 @@ services:
             - "postgres"
         command: java -cp xyz-hub-service.jar com.here.xyz.hub.HttpConnector
     postgres:
-        image: "xyz-postgres"
+        image: "xyzmaps/xyz-postgres"
         build:
             context: "./"
             dockerfile: "Dockerfile-postgres"

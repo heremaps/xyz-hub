@@ -21,12 +21,12 @@ package com.here.xyz.hub.rest.httpconnector;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_CHANGESET_COLLECTION;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import com.here.xyz.hub.rest.ReadHistoryApiIT;
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.response.ValidatableResponse;
 import java.util.HashMap;
 import org.junit.AfterClass;
 import org.junit.Before;

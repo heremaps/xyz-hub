@@ -19,11 +19,11 @@
 
 package com.here.xyz.hub.rest;
 
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.response.ValidatableResponse;
 import org.junit.*;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static org.hamcrest.Matchers.*;
 

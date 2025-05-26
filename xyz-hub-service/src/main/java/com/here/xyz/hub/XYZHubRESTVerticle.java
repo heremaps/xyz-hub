@@ -156,12 +156,36 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
                     }
                   }), null))
               .handler(createCorsHandler());
+
           if (Service.configuration.FS_WEB_ROOT != null) {
-            logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
-            //noinspection ResultOfMethodCallIgnored
-            new File(Service.configuration.FS_WEB_ROOT).mkdirs();
-            router.route("/hub/static/*")
-                .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
+            final File safeRoot = new File(Service.configuration.FS_WEB_ROOT).getCanonicalFile();
+            logger.debug("Serving extra web-root folder in file-system with location: {}", safeRoot);
+
+            //Ensure the directory exists
+            if (!safeRoot.exists() && !safeRoot.mkdirs()) {
+              logger.warn("Could not create FS_WEB_ROOT directory: {}", safeRoot);
+            }
+
+            if (!safeRoot.isDirectory() || safeRoot.getAbsolutePath().contains("..")) {
+              logger.warn("Invalid FS_WEB_ROOT path. Skipping StaticHandler setup: {}", safeRoot);
+            } else {
+              router.route("/hub/static/*")
+                      .handler(ctx -> {
+                        String path = ctx.normalizedPath();
+                        if (path.contains("..")) {
+                          logger.warn("Blocked suspicious path: {}", path);
+                          ctx.response().setStatusCode(403).end("Forbidden");
+                          return;
+                        }
+                        ctx.next();
+                      })
+                      .handler(
+                              StaticHandler.create()
+                                      .setAllowRootFileSystemAccess(true)
+                                      .setWebRoot(safeRoot.getAbsolutePath())
+                                      .setIndexPage("index.html")
+                      );
+            }
           }
 
           //Add default handlers

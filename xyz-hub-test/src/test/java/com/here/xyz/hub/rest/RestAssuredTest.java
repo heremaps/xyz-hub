@@ -19,11 +19,13 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.jayway.restassured.config.DecoderConfig.decoderConfig;
-import static com.jayway.restassured.config.EncoderConfig.encoderConfig;
+import static io.restassured.config.DecoderConfig.decoderConfig;
+import static io.restassured.config.EncoderConfig.encoderConfig;
+
 
 import com.here.xyz.hub.auth.TestAuthenticator;
-import com.jayway.restassured.RestAssured;
+import io.restassured.RestAssured;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
