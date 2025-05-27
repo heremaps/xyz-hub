@@ -23,6 +23,7 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
+import static com.here.xyz.responses.XyzError.NOT_FOUND;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.psql.query.GetFastStatistics;
@@ -279,7 +280,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       case "42P01":
         int messagePrefixLengthToReport = 75;
-        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Table not found in database: " + table + 
+        throw new ErrorResponseException(NOT_FOUND, "Table not found in database: " + table +
                                                            (e.getMessage() == null || e.getMessage().length() <= messagePrefixLengthToReport
                                                             ? "" 
                                                             : " - " + e.getMessage().substring(0,messagePrefixLengthToReport) ));
