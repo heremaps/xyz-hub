@@ -19,47 +19,36 @@
 
 package com.here.xyz.jobs.steps.execution;
 
+import static com.here.xyz.jobs.steps.execution.InputSetReference.INPUT_SET_REF_PATTERN;
+import static com.here.xyz.jobs.steps.execution.InputSetReference.INPUT_SET_REF_PREFIX;
+import static com.here.xyz.jobs.steps.execution.InputSetReference.INPUT_SET_REF_SUFFIX;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
+import static com.here.xyz.jobs.steps.execution.resolver.S3Util.copyFileFromS3ToLocal;
 import static java.util.regex.Matcher.quoteReplacement;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.jobs.steps.StepExecution;
+import com.here.xyz.jobs.steps.execution.resolver.EmrScriptResolver;
 import com.here.xyz.jobs.steps.inputs.Input;
-import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.resources.Load;
-import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.KeyValue;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Function;
-import java.util.regex.Pattern;
-
-import com.here.xyz.util.service.aws.S3ObjectSummary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public static final String EMR_JOB_NAME_PREFIX = "step:";
   private static final Logger logger = LogManager.getLogger();
-  private static final String INPUT_SET_REF_PREFIX = "${inputSet:";
-  private static final String INPUT_SET_REF_SUFFIX = "}";
-  private static final Pattern INPUT_SET_REF_PATTERN = Pattern.compile(
-      Pattern.quote(INPUT_SET_REF_PREFIX) + "([a-zA-Z0-9._=-]+)" + Pattern.quote(INPUT_SET_REF_SUFFIX));
 
   private String applicationId;
   private String executionRoleArn;
@@ -102,33 +91,17 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public void execute(boolean resume) throws Exception {
     logger.info("[EMR-local] Positional script params: {}", String.join(" ", getPositionalScriptParams()));
     logger.info("[EMR-local] Named script params: {}", getNamedScriptParams());
-    List<String> scriptParams = new ArrayList<>(getResolvedScriptParams());
+    List<String> rawScriptParams = getScriptParams();
+
+    String tmpDir = String.format("/tmp/%s/%s/%s", UUID.randomUUID().toString().substring(0, 4), getJobId(), getId());
+    EmrScriptResolver emrScriptResolver = new EmrScriptResolver(getJobId(), getId(), tmpDir, getInputSets());
+    List<String> scriptParams = emrScriptResolver.resolveScriptParams(rawScriptParams);
+
     logger.info("[EMR-local] Resolved script params: {}", String.join(" ", scriptParams));
 
-    //Create the local target directory in which EMR writes the output
-    String localTmpOutputsFolder = createLocalFolder(S3Client.getKeyFromS3Uri(scriptParams.get(1)), true);
-    String s3TargetDir = scriptParams.get(1);
+    emrScriptResolver.prepareInputDirectories();
 
-    //Download EMR executable JAR from S3 to local
-    String localJarPath = copyFileFromS3ToLocal(jarUrl);
-    //Copy step input files from S3 to local /tmp
-    String localTmpInputsFolder = copyFolderFromS3ToLocal(S3Client.getKeyFromS3Uri(scriptParams.get(0)));
-
-    //override params with local paths
-    scriptParams.set(0, localTmpInputsFolder);
-    scriptParams.set(1, localTmpOutputsFolder);
-
-    List<String> baseDirKeys = List.of("--baseInputDir=", "--tileInvalidations=");
-
-    for (int i = 0; i < scriptParams.size(); i++) {
-      for (String baseDirKey : baseDirKeys) {
-        if (scriptParams.get(i).startsWith(baseDirKey)) {
-          String localTmpFolder = copyFolderFromS3ToLocal(
-                  S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
-          scriptParams.set(i, baseDirKey + localTmpFolder);
-        }
-      }
-    }
+    String localJarPath = copyFileFromS3ToLocal(jarUrl, tmpDir);
 
     scriptParams.add("--local");
 
@@ -168,8 +141,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
       throw new StepException("Local EMR execution failed with exit code " + exitCode + ". Please check the logs.")
           .withCode("exit:" + exitCode);
 
-    //Upload EMR files, which are stored locally
-    uploadEMRResultsToS3(new File(localTmpOutputsFolder), S3Client.getKeyFromS3Uri(s3TargetDir));
+    emrScriptResolver.publishOutputDirectories();
   }
 
   @Override
@@ -313,133 +285,6 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public RunEmrJob withSparkParams(String sparkParams) {
     setSparkParams(sparkParams);
     return this;
-  }
-
-  private String getLocalTmpPath(String s3Path) {
-    final String localRootPath = "/tmp/";
-    return localRootPath + s3Path;
-  }
-
-  /**
-   * @param s3Path
-   * @return Local path of tmp directory
-   */
-  private String copyFileFromS3ToLocal(String s3Path) {
-    //Lambda allows writing to /tmp folder - Jar file could be bigger than 512MB
-    try {
-      logger.info("[EMR-local] Copy file: '{}' to local.", s3Path);
-      InputStream jarStream = S3Client.getInstance().streamObjectContent(s3Path);
-
-      //Create local target Folder
-      createLocalFolder(Paths.get(s3Path).getParent().toString(), false);
-      Files.copy(jarStream, Paths.get(getLocalTmpPath(s3Path)));
-      jarStream.close();
-    }
-    catch (FileAlreadyExistsException e) {
-      logger.info("[EMR-local] File: '{}' already exists locally - skip download.", s3Path);
-    }
-    catch (S3Exception e) {
-      throw new RuntimeException("[EMR-local] Can't download File: '" + s3Path + "' for local copy!", e);
-    }
-    catch (IOException e) {
-      throw new RuntimeException("[EMR-local] Can't copy File: '" + s3Path + "'!", e);
-    }
-    return getLocalTmpPath(s3Path);
-  }
-
-  /**
-   * @param s3Path
-   * @return Local path of tmp directory
-   */
-  private String copyFolderFromS3ToLocal(String s3Path) {
-    //TODO: Use inputs loading of framework instead
-    List<S3ObjectSummary> s3ObjectSummaries = S3Client.getInstance().scanFolder(s3Path);
-
-    for (S3ObjectSummary s3ObjectSummary : s3ObjectSummaries) {
-      if (!s3ObjectSummary.key().contains("modelBased"))
-        copyFileFromS3ToLocal(s3ObjectSummary.key());
-    }
-    return getLocalTmpPath(s3Path);
-  }
-
-  private static void deleteDirectory(File directory) {
-    if (directory.isDirectory()) {
-      //Get all files and directories within the directory
-      File[] files = directory.listFiles();
-      if (files != null) {
-        //Recursively delete each file and subdirectory
-        for (File file : files) {
-          deleteDirectory(file);
-        }
-      }
-    }
-    // Delete the directory or file
-    directory.delete();
-  }
-
-  /**
-   * @param s3Path
-   * @return
-   * @throws IOException
-   */
-  private String createLocalFolder(String s3Path, boolean deleteBefore) throws IOException {
-    Path path = Paths.get(getLocalTmpPath(s3Path));
-
-    //TODO: Use the step ID as prefix within /tmp instead
-    if (deleteBefore)
-      deleteDirectory(path.getParent().toFile());
-
-    logger.info("[EMR-local] Create tmp dir: " + path);
-    Files.createDirectories(path);
-
-    return getLocalTmpPath(s3Path);
-  }
-
-  // Mapping of file extensions to content types
-  private static final Map<String, String> CONTENT_TYPE_MAP = new HashMap<>() {{
-    put(".geojson", "application/json");
-    put(".json", "application/json");
-    put(".csv", "text/csv");
-    put(".txt", "text/plain");
-  }};
-
-  // Determine the content type based on the file extension
-  private static String getContentType(Path filePath) {
-    String fileName = filePath.getFileName().toString().toLowerCase();
-    return CONTENT_TYPE_MAP.entrySet().stream()
-            .filter(entry -> fileName.endsWith(entry.getKey()))
-            .map(Map.Entry::getValue)
-            .findFirst()
-            .orElse("text/plain"); // Default to text/plain for unknown types
-  }
-
-  private void uploadEMRResultsToS3(File emrOutputDir, String s3TargetPath) throws IOException {
-    if (emrOutputDir.exists() && emrOutputDir.isDirectory()) {
-      File[] files = emrOutputDir.listFiles();
-
-      if (files == null) {
-        logger.info("[EMR-local] EMR job has not produced any files!");
-        return;
-      }
-
-      for (File file : files) {
-        if (file.getPath().endsWith("crc") || file.getName().equalsIgnoreCase("_SUCCESS"))
-          continue;
-
-        if (file.isDirectory()) {
-          logger.info("[EMR-local] Folder detected {} ", file);
-          uploadEMRResultsToS3(file, s3TargetPath + file.getName());
-          continue;
-        }
-
-        logger.info("[EMR-local] Store local file {} to {} ", file, s3TargetPath);
-        s3TargetPath = s3TargetPath.replaceAll("/$", "");
-        new DownloadUrl()
-            .withContentType(getContentType(file.toPath()))
-            .withContent(Files.readAllBytes(file.toPath()))
-            .store(s3TargetPath + "/" + file.getName());
-      }
-    }
   }
 
   @Override
