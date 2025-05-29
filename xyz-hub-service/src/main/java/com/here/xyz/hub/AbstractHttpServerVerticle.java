@@ -61,6 +61,7 @@ import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.validation.BadRequestException;
 import io.vertx.ext.web.validation.BodyProcessorException;
@@ -137,9 +138,10 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     router.route().failureHandler(createFailureHandler());
     // starts at the 2nd route, since the first one is automatically added from openapi's RouterBuilder.createRouter
     router.route().order(1)
-        .handler(createReceiveHandler())
-        .handler(createMaxRequestSizeHandler())
-        .handler(createCorsHandler());
+            .handler(createCorsHandler())
+            .handler(BodyHandler.create())
+            .handler(createReceiveHandler())
+            .handler(createMaxRequestSizeHandler());
     //Default NotFound handler
     router.route().last().handler(createNotFoundHandler());
   }
