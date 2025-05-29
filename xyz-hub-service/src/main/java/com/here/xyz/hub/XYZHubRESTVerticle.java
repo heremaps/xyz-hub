@@ -143,7 +143,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
           }));
 
           //Static resources
-          router.route("/hub/static/*")
+          router.route("/hub/static/*").handler(createCorsHandler())
               .handler(
                   new DelegatingHandler<>(StaticHandler.create().setIndexPage("index.html"), context -> context.addHeadersEndHandler(v -> {
                     //This handler implements a workaround for an issue with CloudFront, which removes slashes at the end of the request-URL's path
@@ -154,38 +154,14 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
                         headers.set(LOCATION, headerValue + "index.html");
                       }
                     }
-                  }), null))
-              .handler(createCorsHandler());
+                  }), null));
 
           if (Service.configuration.FS_WEB_ROOT != null) {
-            final File safeRoot = new File(Service.configuration.FS_WEB_ROOT).getCanonicalFile();
-            logger.debug("Serving extra web-root folder in file-system with location: {}", safeRoot);
-
-            //Ensure the directory exists
-            if (!safeRoot.exists() && !safeRoot.mkdirs()) {
-              logger.warn("Could not create FS_WEB_ROOT directory: {}", safeRoot);
-            }
-
-            if (!safeRoot.isDirectory() || safeRoot.getAbsolutePath().contains("..")) {
-              logger.warn("Invalid FS_WEB_ROOT path. Skipping StaticHandler setup: {}", safeRoot);
-            } else {
-              router.route("/hub/static/*")
-                      .handler(ctx -> {
-                        String path = ctx.normalizedPath();
-                        if (path.contains("..")) {
-                          logger.warn("Blocked suspicious path: {}", path);
-                          ctx.response().setStatusCode(403).end("Forbidden");
-                          return;
-                        }
-                        ctx.next();
-                      })
-                      .handler(
-                              StaticHandler.create()
-                                      .setAllowRootFileSystemAccess(true)
-                                      .setWebRoot(safeRoot.getAbsolutePath())
-                                      .setIndexPage("index.html")
-                      );
-            }
+            logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
+            //noinspection ResultOfMethodCallIgnored
+            new File(Service.configuration.FS_WEB_ROOT).mkdirs();
+            router.route("/hub/static/*")
+                    .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
           }
 
           //Add default handlers
