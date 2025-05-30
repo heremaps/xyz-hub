@@ -1,0 +1,31 @@
+FROM redis:7.2
+
+RUN apt-get update && apt-get install -y openssl
+
+WORKDIR /tls
+
+RUN openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
+    -subj "/CN=localhost" \
+    -keyout ca.key -out ca.crt
+
+RUN openssl req -newkey rsa:4096 -nodes -keyout redis.key \
+    -subj "/CN=localhost" \
+    -out redis.csr
+
+RUN openssl x509 -req -sha256 -days 3650 \
+    -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+    -out redis.crt
+
+RUN cat redis.key redis.crt > redis.pem
+
+RUN mkdir -p /usr/local/etc/redis && \
+    echo "\
+tls-port 6379\n\
+port 0\n\
+tls-cert-file /tls/redis.crt\n\
+tls-key-file /tls/redis.key\n\
+tls-ca-cert-file /tls/ca.crt\n\
+tls-auth-clients no\n\
+" > /usr/local/etc/redis/redis.conf
+
+CMD ["redis-server", "/usr/local/etc/redis/redis.conf"]

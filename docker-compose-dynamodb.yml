@@ -64,10 +64,16 @@ services:
         ports:
             - "5432:5432"
     redis:
-        image: "redis"
-        container_name: "redis"
+        build:
+            context: ./
+            dockerfile: ./dockerfiles/Dockerfile-redis-tls
         ports:
             - "6379:6379"
+        healthcheck:
+            test: [ "CMD", "redis-cli", "-h", "localhost", "-p", "6379", "--tls", "--insecure", "ping" ]
+            interval: 10s
+            timeout: 5s
+            retries: 10
     dynamodb:
         image: "amazon/dynamodb-local"
         container_name: "dynamodb"
