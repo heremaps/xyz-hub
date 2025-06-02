@@ -1,0 +1,52 @@
+FROM sibedge/postgres-plv8-bigint:17.1-3.2.3-bookworm
+
+ENV POSTGRES_PASSWORD=password
+ENV PGPASSWORD=password
+
+USER root
+
+RUN echo "deb http://deb.debian.org/debian trixie main" >> /etc/apt/sources.list
+
+RUN apt-get update && \
+    apt-get -y install postgresql-17-postgis-3 postgresql-17-h3 postgresql-plpython3-17 git python3-boto3 make
+
+##following mappings are due to overall test state of pg.v17 for modules and assumend to be not needed when stable
+RUN for file in /usr/share/postgresql/17/extension/plpython3*; do ln -sf $file /opt/bitnami/postgresql/share/extension/$(basename "$file"); done
+RUN for file in /usr/lib/postgresql/17/lib/plpython3*; do ln -sf $file /opt/bitnami/postgresql/lib/$(basename "$file"); done
+RUN for file in /usr/share/postgresql/17/extension/h3*; do ln -sf $file /opt/bitnami/postgresql/share/extension/$(basename "$file"); done
+RUN for file in /usr/lib/postgresql/17/lib/h3*; do ln -sf $file /opt/bitnami/postgresql/lib/$(basename "$file"); done
+
+    
+WORKDIR /home/1001
+#Clone forked AWS RDS S3-Extension mock called "chimpler"
+RUN git clone https://github.com/mchrza/postgres-aws-s3.git --branch v.1.0.9 .
+RUN make install
+
+
+ARG PGCONFFILE=/opt/bitnami/postgresql/conf/postgresql.conf
+
+#Add mocked aws settings during initializiation phase
+RUN echo -e "#!/bin/sh -e \n\
+echo aws_s3.endpoint_url='http://localstack:4566' >> $PGCONFFILE \n\
+echo aws_s3.access_key_id='localstack' >> $PGCONFFILE \n\
+echo aws_s3.secret_access_key='localstack' >> $PGCONFFILE \n\
+psql -a -d postgres -U postgres -c \"SELECT pg_reload_conf();DROP USER IF EXISTS ro_user;CREATE USER ro_user WITH SUPERUSER ENCRYPTED PASSWORD 'password';GRANT pg_read_all_data TO ro_user;GRANT pg_write_server_files TO ro_user;\" > /dev/null \n\
+psql -a -d postgres -U postgres -c \"DROP DATABASE IF EXISTS postgres_db2;\" > /dev/null \n\
+psql -a -d postgres -U postgres -c \"CREATE DATABASE postgres_db2;\" > /dev/null \n\
+" > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
+
+#Increase Database Loglevel
+RUN echo -e "#!/bin/sh -e\n\
+\n\n\
+sed -i.org \
+ -e \"s/#log_min_messages = warning/log_min_messages = info/\" \
+ -e \"s/#log_min_error_statement = error/log_min_error_statement = info/\" \
+ -e \"s/#log_statement = 'none'/log_statement = 'all'/\" \
+ $PGCONFFILE\n\n\
+\n\n\
+" > /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
+
