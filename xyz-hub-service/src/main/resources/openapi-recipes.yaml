@@ -101,7 +101,7 @@ recipes:
     replace:
       - type: value
         path: servers.0.url
-        replace: /
+        replace: http://localhost:8080/
       - type: key
         path: paths.'/spaces'
         replace: paths.'/hub/spaces'
@@ -147,21 +147,21 @@ recipes:
       - type: key
         path: paths.'/connectors/{connectorId}'
         replace: paths.'/hub/connectors/{connectorId}'
-      - type: key
-        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
-        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
-      - type: key
-        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.schema
-        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.x-schema
-      - type: key
-        path: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.schema
-        replace: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.x-schema
-      - type: key
-        path: components.requestBodies.FeatureRequest.content.'application/geo+json'.schema
-        replace: components.requestBodies.FeatureRequest.content.'application/geo+json'.x-schema
-      - type: key
-        path: components.requestBodies.GeometryRequest.content.'application/geo+json'.schema
-        replace: components.requestBodies.GeometryRequest.content.'application/geo+json'.x-schema
-      - type: key
-        path: components.requestBodies.SpaceRequest.content.'application/json'.schema
-        replace: components.requestBodies.SpaceRequest.content.'application/json'.x-schema
+#      - type: key
+#        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
+#        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
+#      - type: key
+#        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.schema
+#        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.x-schema
+#      - type: key
+#        path: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.schema
+#        replace: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.x-schema
+#      - type: key
+#        path: components.requestBodies.FeatureRequest.content.'application/geo+json'.schema
+#        replace: components.requestBodies.FeatureRequest.content.'application/geo+json'.x-schema
+#      - type: key
+#        path: components.requestBodies.GeometryRequest.content.'application/geo+json'.schema
+#        replace: components.requestBodies.GeometryRequest.content.'application/geo+json'.x-schema
+#      - type: key
+#        path: components.requestBodies.SpaceRequest.content.'application/json'.schema
+#        replace: components.requestBodies.SpaceRequest.content.'application/json'.x-schema
