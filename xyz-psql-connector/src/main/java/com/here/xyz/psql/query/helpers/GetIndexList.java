@@ -82,11 +82,9 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
             )
           )
          ) o
-        )
-        select case (select count(*) from indata )
-        when 0 then '[]'::jsonb
-        else ( select json_agg( idx_available )::jsonb from indata )
-        end as idx_available
+        ),
+        iindata as ( select json_agg( idx_available )::jsonb as idx_available from indata )
+        select idx_available from iindata where 0 < ( select count(*) from indata )
       """
 /*      
           "SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
@@ -126,7 +124,7 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
             indices.add("o:" + (String) one.get("property"));
         }
 
-        indexList = new IndexList( indices.size() > 0 ? indices : null );
+        indexList = new IndexList(indices);
       }
     }
     catch (Exception e) {
