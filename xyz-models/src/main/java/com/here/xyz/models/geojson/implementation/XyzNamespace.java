@@ -133,7 +133,7 @@ public class XyzNamespace implements XyzSerializable {
         tags.set(i, normalizeTag(tags.get(i)));
       }
     }
-      return tags;
+    return tags;
   }
 
   /**
