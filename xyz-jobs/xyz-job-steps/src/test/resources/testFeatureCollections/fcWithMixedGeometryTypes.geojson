@@ -97,6 +97,7 @@
     },
     {
       "type": "Feature",
+      "id": "base_point1",
       "properties": {
         "foo": 1,
         "description" : "Point",
