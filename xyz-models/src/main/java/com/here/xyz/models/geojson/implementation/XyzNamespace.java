@@ -128,13 +128,12 @@ public class XyzNamespace implements XyzSerializable {
    */
   @SuppressWarnings("unused")
   public static List<String> normalizeTags(final List<String> tags) {
-    if (tags == null) return null;
-
-    List<String> normalizedTags = new ArrayList<>(tags.size());
-    for (String tag : tags) {
-      normalizedTags.add(normalizeTag(tag));
+    if (tags != null) {
+      for (int i = 0; i < tags.size(); i++) {
+        tags.set(i, normalizeTag(tags.get(i)));
+      }
     }
-    return normalizedTags;
+      return tags;
   }
 
   /**

@@ -203,8 +203,8 @@ public class FeatureApi extends SpaceBasedApi {
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional);
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
     ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
-    final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
-    final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
+    final List<String> addTags = new ArrayList<>(Query.queryParam(Query.ADD_TAGS, context));
+    final List<String> removeTags = new ArrayList<>(Query.queryParam(Query.REMOVE_TAGS, context));
     task.addTags = XyzNamespace.normalizeTags(addTags);
     task.removeTags = XyzNamespace.normalizeTags(removeTags);
     XyzNamespace.fixNormalizedTags(task.addTags);
