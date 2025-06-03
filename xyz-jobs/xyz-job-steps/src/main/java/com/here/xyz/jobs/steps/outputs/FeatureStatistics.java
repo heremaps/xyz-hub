@@ -24,6 +24,7 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.here.xyz.models.hub.Ref;
 
 @JsonInclude(NON_DEFAULT)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -33,11 +34,11 @@ public class FeatureStatistics extends ModelBasedOutput {
     private long featureCount;
     @JsonInclude(ALWAYS)
     private long byteSize;
-    @JsonInclude(ALWAYS)
+    @JsonInclude(NON_DEFAULT)
+    private Ref versionRef;
+    @JsonInclude(NON_DEFAULT)
     private long fileCount;
-    @JsonInclude(ALWAYS)
-    private String version;
-    @JsonInclude(ALWAYS)
+    @JsonInclude(NON_DEFAULT)
     private String tag;
 
     public long getFeatureCount() {
@@ -66,6 +67,19 @@ public class FeatureStatistics extends ModelBasedOutput {
         return this;
     }
 
+    public Ref getVersionRef() {
+        return versionRef;
+    }
+
+    public void setVersionRef(Ref versionRef) {
+        this.versionRef = versionRef;
+    }
+
+    public FeatureStatistics withVersionRef(Ref versionRef) {
+        setVersionRef(versionRef);
+        return this;
+    }
+
     public long getFileCount() {
         return fileCount;
     }
@@ -76,19 +90,6 @@ public class FeatureStatistics extends ModelBasedOutput {
 
     public FeatureStatistics withFileCount(long fileCount) {
         setFileCount(fileCount);
-        return this;
-    }
-
-    public String getVersion() {
-        return version;
-    }
-
-    public void setVersion(String version) {
-        this.version = version;
-    }
-
-    public FeatureStatistics withVersion(String version) {
-        setVersion(version);
         return this;
     }
 

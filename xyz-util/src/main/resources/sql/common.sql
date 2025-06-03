@@ -100,3 +100,93 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
+
+/**
+ * This function can be used to get the count of a table.
+ * It will use the pg_class.reltuples value if the table has more than estimate_from_threshold rows.
+ * Otherwise it will run a count query.
+ */
+CREATE OR REPLACE FUNCTION calculate_space_statistics(
+    IN space_table regclass,
+    IN space_ext_table regclass,
+    IN context text
+)
+RETURNS TABLE(table_size bigint, table_count bigint, is_estimated boolean, min_version bigint, max_version bigint) AS
+$BODY$
+DECLARE 	
+    count_table bigint :=0;
+	count_ext_table bigint :=0;
+BEGIN
+	IF context NOT IN ('DEFAULT','SUPER','EXTENSION') THEN 
+		RAISE EXCEPTION 'Unknown context: %!', context;
+	END IF;
+	
+	IF space_ext_table IS NULL THEN		
+		EXECUTE format(
+		    'SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
+	            || 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s',
+		    regexp_replace(replace(space_table::text, '"', ''), '_head$', '') , space_table
+		) INTO min_version, max_version, table_size;
+		
+		RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
+		FROM fetch_table_count(space_table) A;
+	ELSE 
+		EXECUTE format('SELECT (SELECT COALESCE((meta->>''minAvailableVersion'')::BIGINT,0) FROM xyz_config.space_meta WHERE h_id=%1$L), '
+				|| 'MAX(version), pg_total_relation_size(%2$L) FROM %2$s', 
+			(CASE context
+				WHEN 'SUPER' THEN regexp_replace(replace(space_ext_table::text, '"', ''), '_head$', '')
+				ELSE regexp_replace(replace(space_table::text, '"', ''), '_head$', '')
+			END),
+			(CASE context
+				WHEN 'SUPER' THEN space_ext_table
+				ELSE space_table
+			END)
+		) INTO min_version, max_version, table_size;	
+
+		CASE context
+		    WHEN 'SUPER' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version
+				FROM fetch_table_count(space_ext_table) A;
+		    WHEN 'EXTENSION' THEN RETURN QUERY SELECT table_size, A.table_count, A.is_estimated, min_version, max_version 
+				FROM fetch_table_count(space_table) A;
+		    WHEN 'DEFAULT' THEN 
+				table_size = table_size + pg_total_relation_size(space_ext_table);
+				RETURN QUERY 				
+					SELECT table_size, SUM(C.table_count)::BIGINT, BOOL_OR(C.is_estimated), min_version, max_version
+					FROM(
+						SELECT A.table_count, A.is_estimated FROM fetch_table_count(space_table) A
+						UNION ALL
+						SELECT B.table_count,B.is_estimated FROM fetch_table_count(space_ext_table) B
+					) C;
+		END CASE;
+	END IF;
+END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+
+/**
+ * This function can be used to get the count of a table.
+ * It will use the pg_class.reltuples value if the table has more than estimate_from_threshold rows.
+ * Otherwise it will run a count query.
+ */
+CREATE OR REPLACE FUNCTION fetch_table_count(
+    IN space_table regclass,
+	IN estimate_from_threshold INTEGER DEFAULT 300000
+)
+RETURNS TABLE(table_count bigint, is_estimated boolean) AS
+$BODY$
+BEGIN
+	SELECT reltuples INTO table_count FROM pg_class WHERE oid = space_table;
+
+	--TODO: table_count = -1 => limit query runtime to max 2sec
+
+	IF table_count <= estimate_from_threshold THEN
+		is_estimated = false;
+		EXECUTE format('SELECT COUNT(1) FROM %s WHERE operation NOT IN(''H'',''J'',''D'') ', space_table) INTO table_count;
+	ELSE
+		is_estimated = true;
+	END IF;
+	
+    RETURN NEXT;
+END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;

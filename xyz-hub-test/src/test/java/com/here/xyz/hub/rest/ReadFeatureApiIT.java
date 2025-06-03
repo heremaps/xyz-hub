@@ -32,7 +32,7 @@ import static org.apache.http.HttpHeaders.ETAG;
 import static org.apache.http.HttpHeaders.IF_NONE_MATCH;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -145,9 +145,33 @@ public class ReadFeatureApiIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/statistics").
         then().
         statusCode(OK.code()).
-        body("count.value", greaterThanOrEqualTo(0)).
-        body("count.estimated", equalTo(false));
+        body("minVersion.value", equalTo(0)).
+        body("maxVersion.value", equalTo(1)).
+        body("count.value",  equalTo(252)).
+        body("count.estimated", equalTo(false)).
+        body("byteSize.value", greaterThan(0)).
+        body("byteSize.estimated", equalTo(true)).
+        body("properties", notNullValue());
   }
+
+  @Test
+  public void testStatisticsFastMode() {
+    given().
+            accept(APPLICATION_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get(getSpacesPath() + "/x-psql-test/statistics?fastMode=true").
+            then().
+            statusCode(OK.code()).
+            body("minVersion.value", equalTo(0)).
+            body("maxVersion.value", equalTo(1)).
+            body("count.value", equalTo(252)).
+            body("count.estimated", equalTo(false)).
+            body("byteSize.value", greaterThan(0)).
+            body("byteSize.estimated", equalTo(true)).
+            body("properties", nullValue());
+  }
+
 
   @Test
   public void testSearchSpaceRequest() {

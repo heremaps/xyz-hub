@@ -217,49 +217,4 @@ public class S3Client {
                 .collect(Collectors.toList());
     }
 
-    public static class S3Uri {
-        private String bucket;
-        private String key;
-        private URI uri;
-
-        public S3Uri(URI uri) {
-            this.uri = uri;
-        }
-
-        @JsonCreator
-        public S3Uri(String uri) {
-            this(URI.create(uri));
-        }
-
-        public S3Uri(String bucket, String key) {
-            assert bucket != null;
-            assert key != null;
-            this.bucket = bucket;
-            this.key = key;
-        }
-
-        public String bucket() {
-            if (bucket == null)
-                bucket = uri.getHost();
-            return bucket;
-        }
-
-        public String key() {
-            if (key == null)
-                key = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
-            return key;
-        }
-
-        public String uri() {
-            if (uri == null)
-                uri = URI.create("s3://" + bucket + "/" + key);
-            return uri.toString();
-        }
-
-        @JsonValue
-        @Override
-        public String toString() {
-            return uri().toString();
-        }
-    }
 }

@@ -110,10 +110,9 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 207
+ select 209
 $BODY$
   LANGUAGE sql IMMUTABLE;
-
 ------------------------------------------------
 ------------------------------------------------
 DROP FUNCTION IF EXISTS xyz_reduce_precision(geo GEOMETRY);

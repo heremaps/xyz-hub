@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.service.aws.S3Uri;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -33,7 +34,6 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.S3Uri;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -88,23 +88,24 @@ public class RelocationClient {
   public byte[] relocate(String streamId, byte[] bytes) {
     String name = UUID.randomUUID().toString();
     RelocatedEvent event = new RelocatedEvent().withStreamId(streamId);
+    String region = System.getenv("AWS_REGION");
 
     if (runsAsConnectorWithRelocation())
-      event.setURI(createS3Uri(System.getenv("AWS_REGION"), bucket, S3_PATH + name));
+      event.setURI(createS3Uri(region, bucket, S3_PATH + name));
     else {
       //Keep backward compatibility.
       event
               .withLocation(name)
               .withURI(createS3Uri(bucket, S3_PATH + name))
-              .withRegion(System.getenv("AWS_REGION"));
+              .withRegion(region);
     }
 
     logger.debug("{} - Relocating data to: {}", streamId, event.getURI());
-    S3Uri s3Uri = S3Uri.builder()
-            .bucket(bucket)
-            .uri(URI.create(event.getURI()))
-            .build();
-    uploadToS3(s3Uri, bytes);
+    if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
+      uploadToS3(new S3Uri(event.getURI()), bytes, region);
+    } else {
+      logger.error("{}, Unsupported URI type {} from bucket {}, S3 path {} and name {}", event.getStreamId(), event.getURI(), bucket, S3_PATH, name);
+    }
 
     return event.toString().getBytes();
   }
@@ -139,10 +140,7 @@ public class RelocationClient {
     logger.debug("{}, Found relocation event, loading original event from '{}'", event.getStreamId(), event.getURI());
 
     if (event.getURI().startsWith("s3://") || event.getURI().startsWith("http")) {
-      S3Uri s3Uri = S3Uri.builder()
-              .uri(URI.create(event.getURI()))
-              .build();
-      return downloadFromS3(s3Uri, region);
+      return downloadFromS3(new S3Uri(event.getURI()), region);
     }
     throw new ErrorResponseException(event.getStreamId(), XyzError.ILLEGAL_ARGUMENT, "Unsupported URI type");
   }
@@ -150,23 +148,21 @@ public class RelocationClient {
   /**
    * Downloads the file from S3.
    */
-  public InputStream downloadFromS3(S3Uri amazonS3URI, String region) {
-    GetObjectRequest getRequest = GetObjectRequest.builder()
-            .bucket(amazonS3URI.bucket().orElseThrow(() -> new IllegalStateException("Unrecognized bucket")))
-            .key(amazonS3URI.key().orElseThrow(() -> new IllegalStateException("Unrecognized key")))
-            .build();
-    return getS3Client(region).getObject(getRequest);
+  public InputStream downloadFromS3(S3Uri s3Uri, String region) {
+    return getS3Client(region).getObject(GetObjectRequest.builder()
+            .bucket(s3Uri.bucket())
+            .key(s3Uri.key())
+            .build());
   }
 
   /**
    * Uploads the data, which should be relocated to S3.
    */
-  private void uploadToS3(S3Uri amazonS3URI, byte[] content) {
-    PutObjectRequest putRequest = PutObjectRequest.builder()
-            .bucket(amazonS3URI.bucket().orElseThrow(() -> new IllegalStateException("Unrecognized bucket")))
-            .key(amazonS3URI.key().orElseThrow(() -> new IllegalStateException("Unrecognized key")))
-            .build();
-    getS3Client(null).putObject(putRequest, RequestBody.fromBytes(content));
+  private void uploadToS3(S3Uri s3Uri, byte[] content, String region) {
+    getS3Client(region).putObject(PutObjectRequest.builder()
+            .bucket(s3Uri.bucket())
+            .key(s3Uri.key())
+            .build(), RequestBody.fromBytes(content));
   }
 
   private String createS3Uri(String bucket, String key) {

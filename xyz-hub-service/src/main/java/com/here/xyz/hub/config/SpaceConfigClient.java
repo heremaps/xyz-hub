@@ -40,6 +40,8 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.Level;
+
 
 public abstract class SpaceConfigClient implements Initializable {
 
@@ -144,7 +146,10 @@ public abstract class SpaceConfigClient implements Initializable {
           invalidateCache(spaceId);
           logger.info(marker, "space[{}]: Deleted space", spaceId);
         })
-        .onFailure(t -> logger.error(marker, "space[{}]: Failed deleting the space", spaceId, t));
+        .onFailure(t -> { 
+          Level logLevel = (t.getMessage() != null && t.getMessage().contains("space is null during space deletion")) ? Level.INFO : Level.ERROR;
+          logger.log(logLevel, marker, "space[{}]: Failed deleting the space", spaceId, t);
+      }) ;
   }
 
   public Future<List<Space>> getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition,
