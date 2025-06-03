@@ -30,6 +30,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Payload;
 import com.here.xyz.events.Event;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
@@ -37,14 +38,32 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedde
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.util.ARN;
+import com.here.xyz.util.db.AuroraAcuMonitor;
+import com.here.xyz.util.db.AuroraAcuMonitorManager;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.service.Core;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.xbill.DNS.Lookup;
+import org.xbill.DNS.Name;
+import org.xbill.DNS.Record;
+import software.amazon.awssdk.regions.Region;
 
 /**
  * The connector configuration.
@@ -52,6 +71,18 @@ import org.apache.logging.log4j.Logger;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Connector extends com.here.xyz.models.hub.Connector {
   private static final Logger logger = LogManager.getLogger();
+  private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
+
+  private static final int MODERATE_CONNECTIONS = 200;
+  private static final int THROTTLED_CONNECTIONS = 100;
+  private static final double LOW_THRESHOLD = 60.0;
+  private static final double HIGH_THRESHOLD = 80.0;
+
+  private static final ScheduledExecutorService monitorExecutor =
+      Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "connector-monitor"));
+
+  private transient AuroraAcuMonitor acuMonitor;
+  private transient ScheduledFuture<?> monitorTask;
 
   /**
    * A map of remote functions which may be connected by this connector.
@@ -139,6 +170,48 @@ public class Connector extends com.here.xyz.models.hub.Connector {
   }
 
   @JsonIgnore
+  public void startMonitorThrottling() {
+    if (connectionSettings == null || getRemoteFunction() == null) {
+      logger.warn("Monitor not started: Missing connection settings or remote function for connector id={}", id);
+      return;
+    }
+
+    ConnectorParameters connectorParameters = ConnectorParameters.fromMap(params);
+    if (connectorParameters.getEcps() != null) {
+      Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(CService.configuration.ECPS_PHRASE, connectorParameters.getEcps());
+      DatabaseSettings connectorDbSettings = new DatabaseSettings(id, connectorDbSettingsMap);
+      String clusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
+      String regionStr = getRemoteFunction().getRegion();
+
+      if (clusterId == null || regionStr == null) {
+        logger.warn("Monitor not started: Unable to resolve clusterId or region for connector id={}", id);
+        return;
+      }
+
+      Region region = Region.of(regionStr);
+      acuMonitor = AuroraAcuMonitorManager.get(clusterId, region);
+      monitorTask = monitorExecutor.scheduleAtFixedRate(() -> {
+        try {
+          double currentACU = acuMonitor.getUtilization();
+          int updatedConnections;
+          if (currentACU < LOW_THRESHOLD) {
+            updatedConnections = Integer.MAX_VALUE;
+          } else if (currentACU < HIGH_THRESHOLD) {
+            updatedConnections = (int) Math.ceil((double) MODERATE_CONNECTIONS / Node.count());
+          } else {
+            updatedConnections = (int) Math.ceil((double) THROTTLED_CONNECTIONS / Node.count());
+          }
+          connectionSettings.maxConnections = updatedConnections;
+          connectionSettings.maxConnectionsPerRequester = updatedConnections;
+          logger.info("Connector id={} updated: ACU={}, maxConnections={}", id, currentACU, updatedConnections);
+        } catch (Exception e) {
+          logger.warn("Failed to update connection settings for connector id={}: {}", id, e.getMessage());
+        }
+      }, 0, 1, TimeUnit.MINUTES);
+    }
+  }
+
+  @JsonIgnore
   public int getMinConnectionsPerInstance() {
     return connectionSettings.getMinConnections() / Node.count();
   }
@@ -152,6 +225,36 @@ public class Connector extends com.here.xyz.models.hub.Connector {
   public int getMaxConnectionsPerRequester() {
     int connections = connectionSettings.maxConnectionsPerRequester == 0 ? 100 : connectionSettings.maxConnectionsPerRequester;
     return (int) Math.ceil((double) connections / Node.count());
+  }
+
+  @JsonIgnore
+  public static String getClusterIdFromHostname(String hostname) {
+    if(hostname == null) return null;
+    return Optional.ofNullable(extractClusterId(hostname)).orElse(resolveAndExtractClusterId(hostname));
+  }
+
+  @JsonIgnore
+  private static String extractClusterId(String url) {
+    Matcher matcher = RDS_CLUSTER_HOSTNAME_PATTERN.matcher(url);
+    return matcher.matches() ? matcher.group(1) : null;
+  }
+
+  @JsonIgnore
+  private static String resolveAndExtractClusterId(String hostname) {
+    try {
+      Lookup lookup = new Lookup(hostname);
+
+      List<String> records = Arrays.stream(lookup.run()).map(Record::toString).collect(Collectors.toList());
+      records.addAll(Arrays.stream(lookup.getAliases()).map(Name::toString).collect(Collectors.toList()));
+
+      for(String record : records) {
+        String clusterId = extractClusterId(record);
+        if(clusterId != null) return clusterId;
+      }
+    } catch (Exception e) {
+      // Do nothing
+    }
+    return null;
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
