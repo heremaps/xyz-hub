@@ -24,10 +24,13 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -42,7 +45,10 @@ import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.Assertions;
 import org.junit.runners.MethodSorters;
+
+import java.util.UUID;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @Category(RestTests.class)
@@ -77,6 +83,48 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         then().
         statusCode(OK.code()).
         body("features[0].id", equalTo("1234"));
+  }
+
+  @Test
+  public void postFeatureWithRelocationClient() throws JsonProcessingException {
+    String content = content("/xyz/hub/featureWithNumberId.json");
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode root = mapper.readTree(content);
+    ArrayNode originalFeatures = (ArrayNode) root.get("features");
+    JsonNode featureTemplate = originalFeatures.get(0);
+
+    ArrayNode features = mapper.createArrayNode();
+
+    for (int i = 0; i < 20000; i++) {
+      ObjectNode newFeature = featureTemplate.deepCopy();
+
+      newFeature.put("id", UUID.randomUUID().toString());
+
+      features.add(newFeature);
+    }
+
+    ((ObjectNode) root).set("features", features);
+
+    String largeCollection = mapper.writeValueAsString(root);
+    Assertions.assertTrue(largeCollection.length() > 6291456);
+    given().
+            accept(APPLICATION_GEO_JSON).
+            contentType(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            body(largeCollection).
+            when().
+            post(getSpacesPath() + "/x-psql-test/features").
+            then().
+            statusCode(OK.code());
+
+    given().
+            accept(APPLICATION_GEO_JSON).
+            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+            when().
+            get(getSpacesPath() + "/x-psql-test/iterate?limit=50000").
+            then().
+            statusCode(OK.code()).
+            body("features.size()", greaterThan(20000));
   }
 
   @Test
