@@ -58,7 +58,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.io.IOException;
 import java.util.List;
 import org.apache.logging.log4j.Marker;
@@ -66,14 +66,14 @@ import org.apache.logging.log4j.Marker;
 public class FeatureQueryApi extends SpaceBasedApi {
 
   public FeatureQueryApi(RouterBuilder rb) {
-    rb.operation("getFeaturesBySpatial").handler(this::getFeaturesBySpatial);
-    rb.operation("getFeaturesBySpatialPost").handler(this::getFeaturesBySpatial);
-    rb.operation("getFeaturesByBBox").handler(this::getFeaturesByBBox);
-    rb.operation("getFeaturesByTile").handler(this::getFeaturesByTile);
-    rb.operation("getFeaturesCount").handler(this::getFeaturesCount);
-    rb.operation("getStatistics").handler(this::getStatistics);
-    rb.operation("iterateFeatures").handler(this::iterateFeatures);
-    rb.operation("searchForFeatures").handler(this::searchForFeatures);
+    rb.getRoute("getFeaturesBySpatial").setDoValidation(false).addHandler(this::getFeaturesBySpatial);
+    rb.getRoute("getFeaturesBySpatialPost").setDoValidation(false).addHandler(this::getFeaturesBySpatial);
+    rb.getRoute("getFeaturesByBBox").setDoValidation(false).addHandler(this::getFeaturesByBBox);
+    rb.getRoute("getFeaturesByTile").setDoValidation(false).addHandler(this::getFeaturesByTile);
+    rb.getRoute("getFeaturesCount").setDoValidation(false).addHandler(this::getFeaturesCount);
+    rb.getRoute("getStatistics").setDoValidation(false).addHandler(this::getStatistics);
+    rb.getRoute("iterateFeatures").setDoValidation(false).addHandler(this::iterateFeatures);
+    rb.getRoute("searchForFeatures").setDoValidation(false).addHandler(this::searchForFeatures);
   }
 
   /**
@@ -468,7 +468,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
   private Geometry getBodyAsGeometry(final RoutingContext context) throws HttpException {
     final Marker logMarker = Context.getMarker(context);
     try {
-      final String text = context.getBodyAsString();
+      final String text = context.body().asString();
       if (text == null) {
         throw new HttpException(BAD_REQUEST, "Missing content");
       }

@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -67,7 +68,8 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             body("title", equalTo("My Demo Space Updated")).
             body("storage.id", equalTo("psql")).
             body("updatedAt", not(equalTo(createdAt))).
-            body("tags.size", equalTo(2));
+            body("tags", hasSize(2));
+
 
         /** Test immutable UUID */
         given().

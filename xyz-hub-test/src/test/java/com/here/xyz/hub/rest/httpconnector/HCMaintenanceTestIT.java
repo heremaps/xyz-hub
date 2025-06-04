@@ -145,7 +145,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
+                .body("extensions", hasSize(greaterThan(1)))
                 .body("extensions", hasItem("postgis"))
                 .body("scriptVersions.h3", greaterThan(1))
                 .body("scriptVersions.ext", greaterThan(1));
@@ -195,7 +195,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("maintenanceStatus.AUTO_INDEXING.maintainedAt", greaterThan(curTime))
-                .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning.size", equalTo(0));
+                .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning", hasSize(0));
     }
 
     @Test
@@ -229,10 +229,11 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
+                .body("extensions", hasSize(greaterThan(1)))
                 .body("extensions", hasItem("postgis"))
                 .body("scriptVersions.h3", greaterThan(1))
                 .body("scriptVersions.ext", greaterThan(1));
+
     }
 
     @Test
@@ -280,7 +281,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size", equalTo(8))
+                .body("idxAvailable", hasSize(8))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }
