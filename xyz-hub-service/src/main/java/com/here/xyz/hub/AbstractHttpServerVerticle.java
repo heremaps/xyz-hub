@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,12 +28,11 @@ import com.here.xyz.util.service.HttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class AbstractHttpServerVerticle extends BaseHttpServerVerticle {
 
@@ -46,46 +45,50 @@ public abstract class AbstractHttpServerVerticle extends BaseHttpServerVerticle 
   @Override
   protected Handler<RoutingContext> createMaxRequestSizeHandler() {
     return context -> {
-      if(Service.configuration != null ) {
+      if (Service.configuration != null) {
         long limit = BaseConfig.instance.MAX_UNCOMPRESSED_REQUEST_SIZE;
 
         String errorMessage = "The request payload is bigger than the maximum allowed.";
+        String limitSizeMessage = " Allowed maximum byte size is: ";
         String uploadLimit;
         HttpResponseStatus status = REQUEST_ENTITY_TOO_LARGE;
 
         if (BaseConfig.instance.UPLOAD_LIMIT_HEADER_NAME != null
-                && (uploadLimit = context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME))!= null) {
+            && (uploadLimit = context.request().headers().get(Service.configuration.UPLOAD_LIMIT_HEADER_NAME)) != null) {
 
           try {
-             /** Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value */
+            //Override limit if we are receiving an UPLOAD_LIMIT_HEADER_NAME value
             limit = Long.parseLong(uploadLimit);
 
-            /** Add limit to streamInfo response header */
+            //Add limit to streamInfo response header
             XYZHubRESTVerticle.addStreamInfo(context, "MaxReqSize", limit);
-          } catch (NumberFormatException e) {
-            sendErrorResponse(context, new HttpException(BAD_REQUEST, "Value of header: " + Service.configuration.UPLOAD_LIMIT_HEADER_NAME + " has to be a number."));
+          }
+          catch (NumberFormatException e) {
+            sendErrorResponse(context, new HttpException(BAD_REQUEST,
+                "Value of header: " + Service.configuration.UPLOAD_LIMIT_HEADER_NAME + " has to be a number."));
             return;
           }
 
-          /** Override http response code if its configured */
-          if(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE > 0)
+          //Override http response code if it's configured
+          if (Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE > 0)
             status = HttpResponseStatus.valueOf(Service.configuration.UPLOAD_LIMIT_REACHED_HTTP_CODE);
 
-          /** Override error Message if its configured */
-          if(Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE != null)
-            errorMessage = Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE;
+          //Override error Message if its configured
+          if (Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE != null)
+            errorMessage = Service.configuration.UPLOAD_LIMIT_REACHED_MESSAGE + limitSizeMessage + limit;
         }
 
-        if (limit > 0) {
-          if (context.getBody() != null && context.getBody().length() > limit) {
-            sendErrorResponse(context, new HttpException(status, errorMessage));
-            return;
-          }
+        if (limit > 0 && context.getBody() != null && context.getBody().length() > limit) {
+          sendErrorResponse(context, new HttpException(status, errorMessage + limitSizeMessage + limit));
+          return;
         }
       }
-      try{ context.next(); }
-      catch(IllegalArgumentException e)
-      { sendErrorResponse(context, new HttpException(BAD_REQUEST,"", e));
+
+      try {
+        context.next();
+      }
+      catch (IllegalArgumentException e) {
+        sendErrorResponse(context, new HttpException(BAD_REQUEST, "", e));
         return;
       }
     };
