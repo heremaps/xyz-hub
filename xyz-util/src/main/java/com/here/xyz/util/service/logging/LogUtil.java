@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.util.service.logging;
 
 import static com.google.common.net.HttpHeaders.X_FORWARDED_FOR;
+import static com.here.xyz.util.Random.randomAlphaNumeric;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.STREAM_INFO_CTX_KEY;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
@@ -71,12 +72,12 @@ public class LogUtil {
 
   private static String getIp(RoutingContext context) {
     String ips = context.request().getHeader(X_FORWARDED_FOR);
-    if(!Strings.isNullOrEmpty(ips)) {
+    if (!Strings.isNullOrEmpty(ips)) {
       String ip = ips.split(", ")[0];
 
-      if(IPV4_PATTERN.matcher(ip).matches() ||
-              IPV6_STD_PATTERN.matcher(ip).matches() ||
-              IPV6_HEX_COMPRESSED_PATTERN.matcher(ip).matches()) {
+      if (IPV4_PATTERN.matcher(ip).matches() ||
+          IPV6_STD_PATTERN.matcher(ip).matches() ||
+          IPV6_HEX_COMPRESSED_PATTERN.matcher(ip).matches()) {
         return ip;
       }
     }
@@ -121,9 +122,10 @@ public class LogUtil {
     accessLog.reqInfo.uri = context.request().uri();
     accessLog.reqInfo.referer = context.request().getHeader(REFERER);
     accessLog.reqInfo.origin = context.request().getHeader(ORIGIN);
-    if (POST.equals(method) || PUT.equals(method) || PATCH.equals(method)) {
+
+    if (POST.equals(method) || PUT.equals(method) || PATCH.equals(method))
       accessLog.reqInfo.size = context.getBody() == null ? 0 : context.getBody().length();
-    }
+
     accessLog.clientInfo.ip = getIp(context);
     accessLog.clientInfo.remoteAddress = context.request().connection().remoteAddress().toString();
     accessLog.clientInfo.userAgent = context.request().getHeader(USER_AGENT);
@@ -179,13 +181,13 @@ public class LogUtil {
    * @return the marker or null, if no marker was found.
    */
   public static Marker getMarker(RoutingContext context) {
-    if (context == null) {
+    if (context == null)
       return null;
-    }
+
     Marker marker = context.get(MARKER);
     if (marker == null) {
       String sid = context.request().getHeader(STREAM_ID);
-      marker = new Log4jMarker( sid != null ? sid : STREAM_ID + "-null" );
+      marker = new Log4jMarker(sid != null ? sid : randomAlphaNumeric(10));
       context.put(MARKER, marker);
     }
     return marker;
@@ -198,9 +200,9 @@ public class LogUtil {
    * @return the access log object
    */
   public static AccessLog getAccessLog(RoutingContext context) {
-    if (context == null) {
+    if (context == null)
       return null;
-    }
+
     AccessLog accessLog = context.get(ACCESS_LOG);
     if (accessLog == null) {
       accessLog = new AccessLog();

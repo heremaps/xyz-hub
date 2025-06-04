@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,79 +61,80 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
 
   @Test
   public void putFeatures() {
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        accept("application/x-empty").
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(content("/xyz/hub/processedData.json")).
-        when().
-        put(getSpacesPath() + "/x-psql-test/features").
-        then().
-        statusCode(NO_CONTENT.code());
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .accept("application/x-empty")
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(content("/xyz/hub/processedData.json"))
+        .when()
+        .put(getSpacesPath() + "/x-psql-test/features")
+        .then()
+        .statusCode(NO_CONTENT.code());
   }
 
   @Test
   public void putFeatureCollectionWithoutFeatureType() {
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}").
-        when().
-        put(getSpacesPath() + "/x-psql-test/features").
-        then().
-        statusCode(OK.code());
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}")
+        .when()
+        .put(getSpacesPath() + "/x-psql-test/features")
+        .then()
+        .statusCode(OK.code());
   }
 
   @Test
   @Ignore("transactional=false is not supported anymore")
   public void testFailureResponse() {
-    FeatureCollection fc = new FeatureCollection().withFeatures(Arrays.asList(
+    FeatureCollection fc = new FeatureCollection().withFeatures(Arrays.asList(Feature.createEmptyFeature().withId("T1")));
+
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(fc.serialize())
+        .when()
+        .put(getSpacesPath() + "/x-psql-test/features")
+        .then()
+        .statusCode(OK.code());
+
+    FeatureCollection fcUpdate = new FeatureCollection().withFeatures(Arrays.asList(Feature.createEmptyFeature().withId("A1"),
         Feature.createEmptyFeature().withId("T1")));
 
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(fc.serialize()).
-        when().
-        put(getSpacesPath() + "/x-psql-test/features").
-        then().
-        statusCode(OK.code());
-
-    FeatureCollection fcUpdate = new FeatureCollection().withFeatures(Arrays.asList(
-        Feature.createEmptyFeature().withId("A1"),
-        Feature.createEmptyFeature().withId("T1")));
-
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(fcUpdate.serialize()).
-        when().
-        post(getSpacesPath() + "/x-psql-test/features?ne=retain&e=error&transactional=false").
-        then().
-        statusCode(OK.code()).
-        body("failed[0].id", equalTo("T1"));
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(fcUpdate.serialize())
+        .when()
+        .post(getSpacesPath() + "/x-psql-test/features?ne=retain&e=error&transactional=false")
+        .then()
+        .statusCode(OK.code())
+        .body("failed[0].id", equalTo("T1"));
   }
 
   @Test
   public void putFeaturesCheckCustomSizeLimit() {
-    given().
-            contentType(APPLICATION_GEO_JSON).
-            accept("application/x-empty").
-            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-            headers(new HashMap<String, String>(){{put("X-Upload-Content-Length-Limit","1");}}).
-            body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}").
-            when().
-            put(getSpacesPath() + "/x-psql-test/features").
-            then().
-            statusCode(REQUEST_ENTITY_TOO_LARGE.code());
-    given().
-            contentType(APPLICATION_GEO_JSON).
-            accept("application/x-empty").
-            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-            body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}").
-            when().
-            put(getSpacesPath() + "/x-psql-test/features").
-            then().
-            statusCode(NO_CONTENT.code());
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .accept("application/x-empty")
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .headers(new HashMap<String, String>() {{
+          put("X-Upload-Content-Length-Limit", "1");
+        }})
+        .body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}")
+        .when()
+        .put(getSpacesPath() + "/x-psql-test/features")
+        .then()
+        .statusCode(REQUEST_ENTITY_TOO_LARGE.code());
+
+    given()
+        .contentType(APPLICATION_GEO_JSON)
+        .accept("application/x-empty")
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"features\":[{\"geometry\":{\"coordinates\":[-2.960777,53.430777],\"type\":\"Point\"}}],\"type\":\"FeatureCollection\"}")
+        .when()
+        .put(getSpacesPath() + "/x-psql-test/features")
+        .then()
+        .statusCode(NO_CONTENT.code());
   }
 }
