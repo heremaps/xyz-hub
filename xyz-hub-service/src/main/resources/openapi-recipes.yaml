@@ -90,6 +90,10 @@ recipes:
         replace: ${get-tile-description}
   - name: experimental
     extends: base
+    replace:
+      - type: value
+        path: servers.0.url
+        replace: /hub
     exclude:
       - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*TagList$
       - paths.'/spaces/{spaceId}/count'
