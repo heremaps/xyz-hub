@@ -1306,6 +1306,8 @@ components:
           - "<" or "=lt=" - less than
           - "@>" or "=cs=" - Array contains
       explode: true
+      style: form
+      allowReserved: true
       schema:
         type: array
         items:
