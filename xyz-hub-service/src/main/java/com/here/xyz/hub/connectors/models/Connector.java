@@ -73,8 +73,6 @@ public class Connector extends com.here.xyz.models.hub.Connector {
   private static final Logger logger = LogManager.getLogger();
   private static final Pattern RDS_CLUSTER_HOSTNAME_PATTERN = Pattern.compile("(.+).cluster-.*.rds.amazonaws.com.*");
 
-  private static final int MODERATE_CONNECTIONS = 200;
-  private static final int THROTTLED_CONNECTIONS = 100;
   private static final double LOW_THRESHOLD = 60.0;
   private static final double HIGH_THRESHOLD = 80.0;
 
@@ -192,20 +190,33 @@ public class Connector extends com.here.xyz.models.hub.Connector {
 
       Region region = Region.of(regionStr);
       acuMonitor = AuroraAcuMonitorManager.get(clusterId, region);
+
+      // Original cluster-level limits
+      final int originalMax = connectionSettings.maxConnections;
+      final int originalPerRequester = connectionSettings.maxConnectionsPerRequester;
+
       monitorTask = monitorExecutor.scheduleAtFixedRate(() -> {
         try {
           double currentACU = acuMonitor.getUtilization();
-          int updatedConnections;
+          int scaledMax;
+          int scaledPerRequester;
+
           if (currentACU < LOW_THRESHOLD) {
-            updatedConnections = Integer.MAX_VALUE;
-          } else if (currentACU < HIGH_THRESHOLD) {
-            updatedConnections = (int) Math.ceil((double) MODERATE_CONNECTIONS / Node.count());
-          } else {
-            updatedConnections = (int) Math.ceil((double) THROTTLED_CONNECTIONS / Node.count());
+            scaledMax = originalMax * 5;
+            scaledPerRequester = originalPerRequester * 5;
           }
-          connectionSettings.maxConnections = updatedConnections;
-          connectionSettings.maxConnectionsPerRequester = updatedConnections;
-          logger.info("Connector id={} updated: ACU={}, maxConnections={}", id, currentACU, updatedConnections);
+          else if (currentACU < HIGH_THRESHOLD) {
+            scaledMax = originalMax * 2;
+            scaledPerRequester = originalPerRequester * 2;
+          }
+          else {
+            scaledMax = originalMax;
+            scaledPerRequester = originalPerRequester;
+          }
+
+          connectionSettings.maxConnections = scaledMax;
+          connectionSettings.maxConnectionsPerRequester = scaledPerRequester;
+          logger.info("Connector id={} updated: ACU={}%, maxConnections={}, maxPerRequester={}", id, currentACU, scaledMax, scaledPerRequester);
         } catch (Exception e) {
           logger.warn("Failed to update connection settings for connector id={}: {}", id, e.getMessage());
         }
