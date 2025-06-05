@@ -30,13 +30,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Payload;
 import com.here.xyz.events.Event;
-import com.here.xyz.httpconnector.CService;
 import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.admin.Node;
+import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.db.AuroraAcuMonitor;
 import com.here.xyz.util.db.AuroraAcuMonitorManager;
@@ -81,8 +81,10 @@ public class Connector extends com.here.xyz.models.hub.Connector {
   private static final ScheduledExecutorService monitorExecutor =
       Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "connector-monitor"));
 
-  private transient AuroraAcuMonitor acuMonitor;
-  private transient ScheduledFuture<?> monitorTask;
+  @JsonIgnore
+  private AuroraAcuMonitor acuMonitor;
+  @JsonIgnore
+  private ScheduledFuture<?> monitorTask;
 
   /**
    * A map of remote functions which may be connected by this connector.
@@ -178,7 +180,7 @@ public class Connector extends com.here.xyz.models.hub.Connector {
 
     ConnectorParameters connectorParameters = ConnectorParameters.fromMap(params);
     if (connectorParameters.getEcps() != null) {
-      Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(CService.configuration.ECPS_PHRASE, connectorParameters.getEcps());
+      Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(DatabaseHandler.ECPS_PHRASE, connectorParameters.getEcps());
       DatabaseSettings connectorDbSettings = new DatabaseSettings(id, connectorDbSettingsMap);
       String clusterId = getClusterIdFromHostname(connectorDbSettings.getHost());
       String regionStr = getRemoteFunction().getRegion();
