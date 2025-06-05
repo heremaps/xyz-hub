@@ -204,5 +204,9 @@
       <groupId>org.hamcrest</groupId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>dnsjava</groupId>
+      <artifactId>dnsjava</artifactId>
+    </dependency>
   </dependencies>
 </project>
