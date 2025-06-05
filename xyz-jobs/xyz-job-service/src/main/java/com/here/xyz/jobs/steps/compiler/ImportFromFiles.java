@@ -27,7 +27,7 @@ import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 
 import com.google.common.collect.Lists;
 import com.here.xyz.jobs.Job;
-import com.here.xyz.jobs.datasets.DatasetDescription;
+import com.here.xyz.jobs.datasets.DatasetDescription.Space;
 import com.here.xyz.jobs.datasets.Files;
 import com.here.xyz.jobs.datasets.files.Csv;
 import com.here.xyz.jobs.datasets.files.FileFormat;
@@ -56,16 +56,21 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ImportFromFiles implements JobCompilationInterceptor {
-  public static Set<Class<? extends DatasetDescription.Space>> allowedTargetTypes = new HashSet<>(Set.of(DatasetDescription.Space.class));
+  public static Set<Class<? extends Space>> allowedTargetTypes = new HashSet<>(Set.of(Space.class));
 
   @Override
   public boolean chooseMe(Job job) {
-    return job.getProcess() == null && job.getSource() instanceof Files && allowedTargetTypes.contains(job.getTarget().getClass());
+    return job.getProcess() == null && job.getSource() instanceof Files files && isSupportedFormat(files)
+        && allowedTargetTypes.contains(job.getTarget().getClass());
+  }
+
+  private boolean isSupportedFormat(Files files) {
+    return files.getInputSettings().getFormat() instanceof GeoJson || files.getInputSettings().getFormat() instanceof Csv;
   }
 
   @Override
   public CompilationStepGraph compile(Job job) {
-    DatasetDescription.Space target = (DatasetDescription.Space) job.getTarget();
+    Space target = (Space) job.getTarget();
     String spaceId = target.getId();
 
     final FileFormat sourceFormat = ((Files) job.getSource()).getInputSettings().getFormat();
@@ -157,7 +162,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
    */
   private static CompilationStepGraph compileOnDemandIndexSteps(String spaceId) throws CompilationError {
 
-    Map<String, Boolean> activatedSearchableProperties = getActivatedSearchableProperties(spaceId);
+    Map<String, Boolean> activatedSearchableProperties = getActiveSearchableProperties(spaceId);
     CompilationStepGraph onDemandIndicesGraph = (CompilationStepGraph) new CompilationStepGraph().withParallel(true);
 
     for(String property : activatedSearchableProperties.keySet()) {
@@ -172,25 +177,25 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   }
 
   /**
-   * Retrieves the activated searchable properties for the given space ID.
+   * Retrieves the searchable properties being active for the given space ID.
    * @param spaceId The ID of the space for which to retrieve the searchable properties.
-   * @return A map containing the activated searchable properties and their values.
+   * @return A map containing the active searchable properties and their values.
    * @throws CompilationError If an error occurs while retrieving the searchable properties.
    */
-  private static Map<String, Boolean> getActivatedSearchableProperties(String spaceId) throws CompilationError {
+  private static Map<String, Boolean> getActiveSearchableProperties(String spaceId) throws CompilationError {
     try {
       Map<String, Boolean> searchableProperties = HubWebClient.getInstance(Config.instance.HUB_ENDPOINT)
-              .loadSpace(spaceId).getSearchableProperties();
+          .loadSpace(spaceId).getSearchableProperties();
 
       return searchableProperties == null ? Map.of() : searchableProperties.entrySet().stream()
-              .filter(Map.Entry::getValue)
-              .collect(Collectors.toMap(
-                      Map.Entry::getKey,
-                      Map.Entry::getValue
-              ));
+          .filter(Map.Entry::getValue)
+          .collect(Collectors.toMap(
+              Map.Entry::getKey,
+              Map.Entry::getValue
+          ));
     }
     catch (WebClientException e) {
-      throw new CompilationError("Target is not accessible! "+ e.getMessage());
+      throw new CompilationError("Error fetching the searchable properties. Target is not accessible! " + e.getMessage(), e);
     }
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,11 @@ package com.here.xyz.hub.rest.httpconnector;
 import com.here.xyz.hub.rest.ReadFeatureApiGeomIT;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
+@Disabled("Obsolete / Deprecated")
 public class HCReadFeatureApiGeomIT extends ReadFeatureApiGeomIT {
 
   @BeforeClass

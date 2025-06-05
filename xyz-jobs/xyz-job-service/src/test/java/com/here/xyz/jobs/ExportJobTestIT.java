@@ -61,7 +61,9 @@ public class ExportJobTestIT extends JobTest {
     }
 
     @Test
+    @Disabled("This test is disabled because exporting empty file is not supported (yet, aws plugin local pg17)" )
     public void simpleEmptyFilteredExport() throws Exception {
+/* TODO: s. https://here-technologies.atlassian.net/wiki/spaces/Dragonstone/pages/1032157371/Findings */
         PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
         LinearRingCoordinates lrc = new LinearRingCoordinates();
 
