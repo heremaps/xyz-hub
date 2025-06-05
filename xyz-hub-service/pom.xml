@@ -305,10 +305,6 @@
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>secretsmanager</artifactId>
     </dependency>
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>cloudwatch</artifactId>
-    </dependency>
 
     <!-- For Job API only -->
     <dependency>
