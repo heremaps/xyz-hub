@@ -52,6 +52,7 @@ import org.apache.logging.log4j.Logger;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Connector extends com.here.xyz.models.hub.Connector {
   private static final Logger logger = LogManager.getLogger();
+
   /**
    * A map of remote functions which may be connected by this connector.
    * The remote function to be used should be determined by the "environment ID" of the service.
