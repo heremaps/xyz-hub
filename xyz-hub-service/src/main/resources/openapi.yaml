@@ -1050,6 +1050,7 @@ components:
         |             |         |           |     most use cases                                        |
       style: form
       explode: true
+      allowReserved: true
       schema:
         type: array
         items:
@@ -1309,12 +1310,12 @@ components:
       style: form
       allowReserved: true
       schema:
-        type: array
-        items:
-          type: string
+        type: object
         example:
           p.myProperty: 'someValue'
           p.otherProperty: 5
+        additionalProperties:
+          type: string
     PropertiesSelection:
       name: selection
       in: query
