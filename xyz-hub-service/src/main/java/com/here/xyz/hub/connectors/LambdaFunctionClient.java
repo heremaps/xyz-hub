@@ -331,7 +331,7 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
           int scaledMax;
           int scaledPerRequester;
 
-          if (currentACU < HIGH_THRESHOLD) {
+          if (currentACU < HIGH_THRESHOLD && currentACU != -1) {
             scaledMax = Integer.MAX_VALUE;
             scaledPerRequester = Integer.MAX_VALUE;
           }

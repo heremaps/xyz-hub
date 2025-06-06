@@ -87,6 +87,7 @@ public final class AuroraAcuMonitor {
 
     } catch (Exception e) {
       logger.warn("ACU poll failed for {} in {}", clusterId, region, e);
+      utilization = -1;
     }
   }
 
