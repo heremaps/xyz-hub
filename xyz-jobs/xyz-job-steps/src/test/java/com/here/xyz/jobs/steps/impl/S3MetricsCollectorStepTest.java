@@ -8,6 +8,7 @@ import static com.here.xyz.jobs.util.test.StepTestBase.S3ContentType.APPLICATION
 import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
+import com.here.xyz.models.hub.Ref;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -67,7 +68,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
 
         S3MetricsCollectorStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
-                .withVersion("1.0.0")
+                .withVersion(new Ref(Ref.ALL_VERSIONS))
                 .withTag("test-tag")
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -80,7 +81,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
         Assertions.assertInstanceOf(FeatureStatistics.class, testOutputs.get(0));
 
         FeatureStatistics stats = (FeatureStatistics) testOutputs.get(0);
-        Assertions.assertEquals("1.0.0", stats.getVersion());
+        Assertions.assertEquals(Ref.ALL_VERSIONS, stats.getVersionRef().getVersion());
         Assertions.assertEquals("test-tag", stats.getTag());
     }
 

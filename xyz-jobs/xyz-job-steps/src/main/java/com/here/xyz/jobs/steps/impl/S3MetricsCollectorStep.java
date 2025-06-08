@@ -7,7 +7,9 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.steps.resources.Load;
+import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,9 +17,12 @@ import org.apache.logging.log4j.Logger;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorStep> {
     public static final String S3_METRICS = "s3_metrics";
@@ -25,7 +30,7 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
     private static final Pattern FEATURE_PATTERN = Pattern.compile("\"type\"\\s*:\\s*\"Feature\"");
 
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
-    private String version;
+    private Ref version;
 
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
     private String tag;
@@ -62,14 +67,15 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
         long featureCount = calculateFeatureCount(inputs);
         long totalFileCount = inputs.size();
         long totalByteSize = calculateTotalByteSize(inputs);
+        Map<String, String> metadata = collectMetadata(inputs);
 
         FeatureStatistics resultOutput = new FeatureStatistics()
                 .withFileCount(totalFileCount)
                 .withFeatureCount(featureCount)
                 .withByteSize(totalByteSize);
 
-        if (version != null && !version.isEmpty()) {
-            resultOutput.withVersion(version);
+        if (version != null) {
+            resultOutput.withVersionRef(version);
         }
         if (tag != null && !tag.isEmpty()) {
             resultOutput.withTag(tag);
@@ -78,7 +84,20 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
         logger.info("Collected metrics: fileCount={}, byteSize={}, featureCount={}",
                 totalFileCount, totalByteSize, featureCount);
 
-        registerOutputs(List.of(resultOutput), S3_METRICS);
+        registerOutputs(List.of(resultOutput.withMetadata(metadata)), S3_METRICS);
+    }
+
+    private Map<String, String> collectMetadata(List<Input> inputs) {
+        return inputs.stream()
+                .filter((input -> input.getMetadata() != null))
+                .map(StepPayload::getMetadata)
+                .reduce(new HashMap<>(), (acc, map) -> {
+                    acc.putAll(map);
+                    return acc;
+                }, (firstMap, secondMap) -> {
+                    firstMap.putAll(secondMap);
+                    return firstMap;
+                });
     }
 
     private long calculateTotalByteSize(List<Input> inputs) {
@@ -134,15 +153,15 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
         return loadInputs(UploadUrl.class);
     }
 
-    public String getVersion() {
+    public Ref getVersion() {
         return version;
     }
 
-    public void setVersion(String version) {
+    public void setVersion(Ref version) {
         this.version = version;
     }
 
-    public S3MetricsCollectorStep withVersion(String version) {
+    public S3MetricsCollectorStep withVersion(Ref version) {
         setVersion(version);
         return this;
     }
