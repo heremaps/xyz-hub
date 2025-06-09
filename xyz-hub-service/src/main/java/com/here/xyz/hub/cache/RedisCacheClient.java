@@ -39,20 +39,62 @@ public class RedisCacheClient implements CacheClient {
   private static final Logger logger = LogManager.getLogger();
   private ThreadLocal<Redis> redis;
   private String connectionString = Service.configuration.getRedisUri();
+  private final boolean useSSL = connectionString != null
+          && (connectionString.startsWith("rediss://")
+          || connectionString.matches(".*[?&]ssl=(?i)(true|1|yes).*"));
+  private final boolean isLocalRun = connectionString != null
+          && connectionString.contains("localhost");
+  private final NetClientOptions clientOptions = new NetClientOptions()
+          .setHostnameVerificationAlgorithm(useSSL ? "HTTPS" : "")
+          .setTcpKeepAlive(true)
+          .setTrustAll(isLocalRun) // we can trust all certificates when running locally
+          .setIdleTimeout(30)
+          .setConnectTimeout(2000);
   RedisOptions config = new RedisOptions()
       .setConnectionString(connectionString)
-      .setNetClientOptions(new NetClientOptions()
-          .setHostnameVerificationAlgorithm("") //TODO: temp disable hostname verification
-          .setTcpKeepAlive(true)
-          .setIdleTimeout(30)
-          .setConnectTimeout(2000));
+      .setNetClientOptions(clientOptions);
   private static final String RND = UUID.randomUUID().toString();
 
   private RedisCacheClient() {
     //Use redis auth token when available
     if (Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN != null)
       config.setPassword(Service.configuration.XYZ_HUB_REDIS_AUTH_TOKEN);
-    redis = ThreadLocal.withInitial(() -> Redis.createClient(Core.vertx, config));
+    redis = ThreadLocal.withInitial(() -> {
+      try {
+        return Redis.createClient(Core.vertx, config);
+      } catch (Exception e) {
+        logger.error("Failed to create Redis client", e);
+        logger.error("Redis client configuration: SSL={}, hostVerif='{}', trustAll={}, URI={}",
+                useSSL,
+                clientOptions.getHostnameVerificationAlgorithm(),
+                clientOptions.isTrustAll(),
+                connectionString != null ? connectionString.replaceAll("://([^:@]+):([^@]+)@", "://$1:***@") : "null");
+        throw e;
+      }
+    });
+
+    testConnection();
+  }
+
+  private void testConnection() {
+    try {
+      logger.info("Testing Redis connection...");
+      Request pingReq = Request.cmd(Command.PING);
+      getClient().send(pingReq).onComplete(ar -> {
+        if (ar.succeeded()) {
+          logger.info("Redis connection test successful");
+        } else {
+          logger.error("Redis connection error details: {}", ar.cause().getMessage());
+          if (ar.cause() instanceof io.vertx.core.impl.NoStackTraceThrowable) {
+            logger.error("Redis connection parameters: ssl={}, hostname verification='{}'",
+                    useSSL,
+                    clientOptions.getHostnameVerificationAlgorithm());
+          }
+        }
+      });
+    } catch (Exception e) {
+      logger.error("Exception during Redis connection test", e);
+    }
   }
 
   public static synchronized CacheClient getInstance() {
