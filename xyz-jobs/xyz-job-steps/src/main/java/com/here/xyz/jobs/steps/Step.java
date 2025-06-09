@@ -47,7 +47,7 @@ import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.resources.ExecutionResource;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
-import com.here.xyz.jobs.util.S3Client.S3Uri;
+import com.here.xyz.util.service.aws.S3Uri;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -226,12 +226,12 @@ public abstract class Step<T extends Step> implements Typed, StepExecution {
         //TODO: Scan the different folders in parallel
         .flatMap(s3Prefix -> S3Client.getInstance().scanFolder(s3Prefix)
             .stream()
-            .filter(s3ObjectSummary -> s3ObjectSummary.getSize() > 0)
+            .filter(s3ObjectSummary -> s3ObjectSummary.size() > 0)
             .map(s3ObjectSummary -> modelBased
-                ? ModelBasedOutput.load(s3ObjectSummary.getKey(), outputMetadata)
+                ? ModelBasedOutput.load(s3ObjectSummary.key(), outputMetadata)
                 : new DownloadUrl()
-                    .withS3Key(s3ObjectSummary.getKey())
-                    .withByteSize(s3ObjectSummary.getSize())
+                    .withS3Key(s3ObjectSummary.key())
+                    .withByteSize(s3ObjectSummary.size())
                     .withMetadata(outputMetadata)))
         .collect(Collectors.toList());
   }

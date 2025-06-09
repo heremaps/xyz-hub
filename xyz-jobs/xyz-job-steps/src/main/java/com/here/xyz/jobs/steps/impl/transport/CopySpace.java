@@ -430,12 +430,40 @@ public class CopySpace extends SpaceBasedStep<CopySpace> {
         propertyFilter
     );
 
-    SQLQuery threadCondition = new SQLQuery("i % #{threadCount} = #{threadNumber}")
-        .withNamedParameter("threadCount", threadCount)
-        .withNamedParameter("threadNumber", threadId);
+    final long VIZ_ID_COUNT = 0xfffffL + 1,
+               blockRange = (long) Math.ceil((double) VIZ_ID_COUNT / (double) threadCount);
+
+    final String VIZ_IDX_FKT   = "left(md5((''::text || i)), 5)";
+
+    SQLQuery lowerBoundCondition = null,
+             upperBoundCondition = null;
+
+    if( threadId > 0)
+     lowerBoundCondition =
+      new SQLQuery("${{vizIdxFkt1}} >= #{vizLowerBound}")
+          .withQueryFragment("vizIdxFkt1", VIZ_IDX_FKT)
+          .withNamedParameter("vizLowerBound", String.format("%05x", threadId * blockRange));
+
+    if( threadId < threadCount - 1)
+     upperBoundCondition =
+       new SQLQuery("${{vizIdxFkt2}} < #{vizUpperBound}")
+           .withQueryFragment("vizIdxFkt2", VIZ_IDX_FKT)
+           .withNamedParameter("vizUpperBound", String.format("%05x", (threadId + 1) * blockRange));
+
+    if(lowerBoundCondition != null || upperBoundCondition != null)
+    {
+     SQLQuery additionalFilterFragment = new SQLQuery( (lowerBoundCondition != null && upperBoundCondition != null) ? "${{Bound1}} AND ${{Bound2}}" : "${{Bound1}}" );
+
+     if(lowerBoundCondition != null)
+      additionalFilterFragment.withQueryFragment("Bound1", lowerBoundCondition);
+
+     if(upperBoundCondition != null)
+      additionalFilterFragment.withQueryFragment(lowerBoundCondition != null ? "Bound2" : "Bound1", upperBoundCondition);
+
+     queryBuilder.withAdditionalFilterFragment(additionalFilterFragment);
+    }
 
     return queryBuilder
-        .withAdditionalFilterFragment(threadCondition)
         //.withSelectionOverride(new SQLQuery("jsondata, author, operation"))
         //TODO: with author, operation provided in selection the parsing of those values in buildCopySpaceQuery would be obsolete
         .buildQuery(input);

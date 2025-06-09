@@ -22,8 +22,6 @@ package com.here.xyz.jobs.steps.execution;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SYNC;
 import static java.util.regex.Matcher.quoteReplacement;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.jobs.steps.StepExecution;
 import com.here.xyz.jobs.steps.inputs.Input;
@@ -49,8 +47,12 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import com.here.xyz.util.service.aws.S3ObjectSummary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public static final String EMR_JOB_NAME_PREFIX = "step:";
@@ -101,7 +103,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
   public void execute(boolean resume) throws Exception {
     logger.info("[EMR-local] Positional script params: {}", String.join(" ", getPositionalScriptParams()));
     logger.info("[EMR-local] Named script params: {}", getNamedScriptParams());
-    List<String> scriptParams = new ArrayList<>(getResolvedScriptParams());
+    List<String> scriptParams = new ArrayList<>(resolveLocalScriptParams());
     logger.info("[EMR-local] Resolved script params: {}", String.join(" ", scriptParams));
 
     //Create the local target directory in which EMR writes the output
@@ -110,32 +112,18 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
 
     //Download EMR executable JAR from S3 to local
     String localJarPath = copyFileFromS3ToLocal(jarUrl);
-    //Copy step input files from S3 to local /tmp
-    String localTmpInputsFolder = copyFolderFromS3ToLocal(S3Client.getKeyFromS3Uri(scriptParams.get(0)));
 
-    //override params with local paths
-    scriptParams.set(0, localTmpInputsFolder);
     scriptParams.set(1, localTmpOutputsFolder);
-
-    List<String> baseDirKeys = List.of("--baseInputDir=", "--tileInvalidations=");
-
-    for (int i = 0; i < scriptParams.size(); i++) {
-      for (String baseDirKey : baseDirKeys) {
-        if (scriptParams.get(i).startsWith(baseDirKey)) {
-          String localTmpFolder = copyFolderFromS3ToLocal(
-                  S3Client.getKeyFromS3Uri(scriptParams.get(i).substring(baseDirKey.length())));
-          scriptParams.set(i, baseDirKey + localTmpFolder);
-        }
-      }
-    }
 
     scriptParams.add("--local");
 
     String localSparkParams = sparkParams.replace("$localJarPath$", localJarPath);
-    localSparkParams = "java -Xshare:off --add-exports=java.base/java.nio=ALL-UNNAMED "
+    localSparkParams = "java -Xshare:off "
+        + "--add-exports=java.base/java.nio=ALL-UNNAMED "
         + "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED "
         + "--add-exports=java.base/java.lang.invoke=ALL-UNNAMED "
         + "--add-exports=java.base/java.util=ALL-UNNAMED "
+        + "--add-exports=java.base/sun.security.action=ALL-UNNAMED "
         + localSparkParams;
 
     List<String> emrParams = new ArrayList<>(List.of(localSparkParams.split(" ")));
@@ -337,7 +325,7 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     catch (FileAlreadyExistsException e) {
       logger.info("[EMR-local] File: '{}' already exists locally - skip download.", s3Path);
     }
-    catch (AmazonS3Exception e) {
+    catch (S3Exception e) {
       throw new RuntimeException("[EMR-local] Can't download File: '" + s3Path + "' for local copy!", e);
     }
     catch (IOException e) {
@@ -355,8 +343,8 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     List<S3ObjectSummary> s3ObjectSummaries = S3Client.getInstance().scanFolder(s3Path);
 
     for (S3ObjectSummary s3ObjectSummary : s3ObjectSummaries) {
-      if (!s3ObjectSummary.getKey().contains("modelBased"))
-        copyFileFromS3ToLocal(s3ObjectSummary.getKey());
+      if (!s3ObjectSummary.key().contains("modelBased"))
+        copyFileFromS3ToLocal(s3ObjectSummary.key());
     }
     return getLocalTmpPath(s3Path);
   }
@@ -493,6 +481,25 @@ public class RunEmrJob extends LambdaBasedStep<RunEmrJob> {
     catch (NoSuchElementException e) {
       throw new IllegalArgumentException("No input set \"" + providerId + "." + name + "\" exists in step \"" + getId() + "\"");
     }
+  }
+
+  private Map<String, String> localInputRefMap = new HashMap<>();
+  List<String> resolveLocalScriptParams() {
+    return getScriptParams()
+            .stream()
+            .map(param -> mapInputReferencesIn(param, this::downloadInputReferenceData))
+            .collect(Collectors.toList());
+  }
+
+  private String downloadInputReferenceData(String referenceIdentifier) {
+
+    if(localInputRefMap.containsKey(referenceIdentifier))
+      return localInputRefMap.get(referenceIdentifier);
+
+    String s3Uri = fromReferenceIdentifier(referenceIdentifier).toS3Uri(getJobId()).toString();
+    String tmpLocalDir = copyFolderFromS3ToLocal(S3Client.getKeyFromS3Uri(s3Uri));
+    localInputRefMap.put(referenceIdentifier, tmpLocalDir);
+    return tmpLocalDir;
   }
 
   List<String> getResolvedScriptParams() {

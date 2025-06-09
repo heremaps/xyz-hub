@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,10 +110,9 @@
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 206
+ select 209
 $BODY$
   LANGUAGE sql IMMUTABLE;
-
 ------------------------------------------------
 ------------------------------------------------
 DROP FUNCTION IF EXISTS xyz_reduce_precision(geo GEOMETRY);
@@ -710,12 +709,12 @@ $BODY$
 
         IF propkey = 'f.geometry.type' THEN
             /** special handling for geometryType */
-            EXECUTE format('CREATE INDEX "%s" '
+            EXECUTE format('CREATE INDEX IF NOT EXISTS "%s" '
                 ||'ON %s."%s" '
                 ||' USING btree '
                 ||' (GeometryType(geo))', idx_name, schema, spaceid, idx_type);
         ELSE
-            EXECUTE format('CREATE INDEX "%s" '
+            EXECUTE format('CREATE INDEX IF NOT EXISTS "%s" '
                 ||'ON %s."%s" '
                 ||' USING %s '
                 ||'((jsondata->%s %s))', idx_name, schema, spaceid, idx_type, root_path, prop_path);
@@ -1194,11 +1193,13 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
+DROP FUNCTION IF EXISTS xyz_property_statistic_v2(IN schema text, IN spaceid text, IN tablesamplecnt integer);
+
 CREATE OR REPLACE FUNCTION xyz_property_statistic_v2(
     IN schema text,
     IN spaceid text,
     IN tablesamplecnt integer)
-  RETURNS TABLE(key text, count integer, searchable boolean, datatype text) AS
+  RETURNS TABLE(key text, count bigint, searchable boolean, datatype text) AS
 $BODY$
 	/**
 	* Description: Returns table which includes a overview about properties.keys, their counts and the information if they are searchable.
@@ -1233,7 +1234,7 @@ $BODY$
 				RETURN QUERY EXECUTE
 					'SELECT DISTINCT ON(propkey) * FROM (  '
 					|| '	SELECT propkey, '
-					|| '		(SELECT COALESCE(COUNT(*)::numeric::INTEGER , 0) as count '
+					|| '		(SELECT COALESCE(COUNT(*)::numeric::BIGINT , 0) as count '
 					|| '			FROM "'||schema||'"."'||spaceid||'" '
 					|| '			WHERE jsondata#> xyz_property_path_to_array(''properties.''||propkey)  IS NOT NULL), '
 					|| '		true as searchable, '
@@ -1244,7 +1245,7 @@ $BODY$
 					|| '	   ) B group by propkey '
 					|| '	UNION '
 					|| '	SELECT  propkey, '
-					|| '		COALESCE(COUNT(*)::numeric::INTEGER, 0) as count, '
+					|| '		COALESCE(COUNT(*)::numeric::BIGINT, 0) as count, '
 					|| '		(SELECT '''||idxlist||''' @>  to_jsonb(propkey)) as searchable, '
 					|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,1000)) as datatype '
 					|| '			FROM( 	'
@@ -1259,7 +1260,7 @@ $BODY$
 			RETURN QUERY EXECUTE
 				'SELECT DISTINCT ON(propkey) * FROM (  '
 				|| '	SELECT propkey, '
-				|| '		(SELECT TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count '
+				|| '		(SELECT TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::BIGINT as count '
 				|| '			FROM "'||schema||'"."'||spaceid||'" TABLESAMPLE SYSTEM_ROWS('||tablesamplecnt||') '
 				|| '			WHERE jsondata#> xyz_property_path_to_array(''properties.''||propkey)  IS NOT NULL), '
 				|| '		true as searchable, '
@@ -1270,7 +1271,7 @@ $BODY$
 				|| '	   ) B group by propkey '
 				|| '	UNION '
 				|| '	SELECT  propkey, '
-				|| '		TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::INTEGER as count, '
+				|| '		TRUNC(((COUNT(*)/1000::real) * '||estimate_cnt||')::numeric, 0)::BIGINT as count, '
 				|| '		(SELECT '''||idxlist||''' @>  to_jsonb(propkey)) as searchable, '
 				|| '		(SELECT * from xyz_property_datatype('''||schema||''','''||spaceid||''',propkey,'||tablesamplecnt||')) as datatype '
 				|| '			FROM( '

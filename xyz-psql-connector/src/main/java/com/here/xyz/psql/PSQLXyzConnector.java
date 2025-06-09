@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,10 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 import static com.here.xyz.responses.XyzError.PAYLOAD_TO_LARGE;
 import static com.here.xyz.responses.XyzError.TIMEOUT;
+import static com.here.xyz.responses.XyzError.NOT_FOUND;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.psql.query.GetFastStatistics;
 import com.here.xyz.util.runtime.FunctionRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
@@ -44,7 +46,6 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.WriteFeaturesEvent;
-import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetChangesetStatistics;
@@ -108,6 +109,8 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected StatisticsResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+    if(event.isFastMode())
+      return run(new GetFastStatistics(event));
     return run(new GetStatistics(event));
   }
 
@@ -276,7 +279,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
       }
 
       case "42P01":
-        throw new ErrorResponseException(TIMEOUT, e.getMessage());
+        int messagePrefixLengthToReport = 75;
+        throw new ErrorResponseException(NOT_FOUND, "Table not found in database: " + table +
+                                                           (e.getMessage() == null || e.getMessage().length() <= messagePrefixLengthToReport
+                                                            ? "" 
+                                                            : " - " + e.getMessage().substring(0,messagePrefixLengthToReport) ));
 
       case
           "40P01": // Database -> deadlock detected e.g. "Process 9452 waits for ShareLock on transaction 2383228826; blocked by process 9342."

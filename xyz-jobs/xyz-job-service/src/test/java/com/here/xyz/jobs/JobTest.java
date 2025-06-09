@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.jobs.datasets.DatasetDescription;
 import com.here.xyz.jobs.util.test.JobTestBase;
 import java.io.IOException;
 import java.util.List;
@@ -42,6 +43,7 @@ public class JobTest extends JobTestBase {
       if (jobOutput.get("type").equals("FeatureStatistics")) {
         foundStatistics = true;
         assertEquals(expectedFeatureCount, jobOutput.get("featureCount"));
+        assertEquals(((DatasetDescription.Space)(secondJob.getSource())).getVersionRef().toString(), jobOutput.get("versionRef"));
       }
       else if (jobOutput.get("type").equals("DownloadUrl")) {
         foundUrls = true;

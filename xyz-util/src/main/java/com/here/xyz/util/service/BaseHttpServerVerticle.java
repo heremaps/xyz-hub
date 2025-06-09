@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -341,9 +341,13 @@ public class BaseHttpServerVerticle extends AbstractVerticle {
     // starts at the 2nd route, since the first one is automatically added from openapi's RouterBuilder.createRouter
     router.route().order(1)
         .handler(createCorsHandler())
-        .handler(BodyHandler.create())
+        .handler(createBodyHandler())
         .handler(createReceiveHandler())
         .handler(createMaxRequestSizeHandler());
+  }
+
+  public static BodyHandler createBodyHandler() {
+    return BodyHandler.create().setBodyLimit(-1);
   }
 
   /**

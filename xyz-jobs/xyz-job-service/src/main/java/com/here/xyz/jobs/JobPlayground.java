@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.ARN;
-import com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index;
+import com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.aws.SimulatedContext;
@@ -237,7 +237,7 @@ public class JobPlayground {
 
       runImportFilesToSpaceStep(sampleSpace.getId(), importFormat);
 
-      for (Index index : Index.values())
+      for (SystemIndex index : SystemIndex.values())
         runCreateIndexStep(sampleSpace.getId(), index);
 
       runAnalyzeSpaceTableStep(sampleSpace.getId());
@@ -483,7 +483,7 @@ public class JobPlayground {
     runStep(new ImportFilesToSpace().withSpaceId(spaceId).withFormat(format).withUpdateStrategy(UpdateStrategy.DEFAULT_UPDATE_STRATEGY));
   }
 
-  public static void runCreateIndexStep(String spaceId, Index index) throws IOException {
+  public static void runCreateIndexStep(String spaceId, SystemIndex index) throws IOException {
     runStep(new CreateIndex().withSpaceId(spaceId).withIndex(index));
   }
 

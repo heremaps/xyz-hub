@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>3.17.4-SNAPSHOT</version>
+  <version>3.17.15-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -93,7 +93,7 @@
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.772</aws-sdk-version>
     <aws-sdk2-version>2.25.8</aws-sdk2-version>
-    <vertx-version>4.4.9</vertx-version>
+    <vertx-version>4.5.14</vertx-version>
     <geo-tools-version>30.1</geo-tools-version>
     <jts-version>1.19.0</jts-version>
     <jackson-version>2.15.2</jackson-version>
@@ -375,7 +375,51 @@
       </dependency>
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
+        <artifactId>s3</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>auth</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
         <artifactId>rds</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>secretsmanager</artifactId>
+        <version>${aws-sdk2-version}</version>
+        <exclusions>
+          <exclusion>
+            <artifactId>jackson-annotations</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>apache-client</artifactId>
         <version>${aws-sdk2-version}</version>
         <exclusions>
           <exclusion>
@@ -388,17 +432,6 @@
       <!-- AWS SDK 1.x -->
       <dependency>
         <artifactId>aws-java-sdk-core</artifactId>
-        <exclusions>
-          <exclusion>
-            <artifactId>jackson-annotations</artifactId>
-            <groupId>com.fasterxml.jackson.core</groupId>
-          </exclusion>
-        </exclusions>
-        <groupId>com.amazonaws</groupId>
-        <version>${aws-sdk-version}</version>
-      </dependency>
-      <dependency>
-        <artifactId>aws-java-sdk-s3</artifactId>
         <exclusions>
           <exclusion>
             <artifactId>jackson-annotations</artifactId>

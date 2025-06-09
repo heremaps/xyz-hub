@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.17.4-SNAPSHOT</version>
+    <version>3.17.15-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Steps</name>
@@ -84,17 +84,6 @@
       </exclusions>
     </dependency>
 
-    <!-- AWS SDK 1.x -->
-    <dependency>
-      <artifactId>aws-java-sdk-s3</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <exclusions>
-        <exclusion>
-          <artifactId>jackson-annotations</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
     <!-- TODO: Use new RDS SDK2 instead -->
     <dependency>
       <artifactId>aws-java-sdk-rds</artifactId>

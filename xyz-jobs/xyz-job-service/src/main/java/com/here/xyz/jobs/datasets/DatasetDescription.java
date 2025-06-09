@@ -44,7 +44,8 @@ import com.here.xyz.util.geo.GeometryValidator;
     @JsonSubTypes.Type(value = Space.class, name = "Space"),
     @JsonSubTypes.Type(value = Spaces.class, name = "Spaces"),
     @JsonSubTypes.Type(value = Files.class, name = "Files"),
-    @JsonSubTypes.Type(value = Notifications.class, name = "Notifications")
+    @JsonSubTypes.Type(value = Notifications.class, name = "Notifications"),
+    @JsonSubTypes.Type(value = Datasets.class, name = "Datasets")
 })
 @JsonInclude(NON_DEFAULT)
 public abstract class DatasetDescription implements Typed {

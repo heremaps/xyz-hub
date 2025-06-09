@@ -19,7 +19,7 @@
 
 package com.here.xyz.jobs.steps.inputs;
 
-import com.here.xyz.jobs.util.S3Client.S3Uri;
+import com.here.xyz.util.service.aws.S3Uri;
 import java.util.List;
 
 public class InputsFromS3 extends Input<InputsFromS3> {

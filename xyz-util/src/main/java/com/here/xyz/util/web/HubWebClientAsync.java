@@ -55,12 +55,12 @@ public class HubWebClientAsync extends HubWebClient {
     });
   }
 
-  public Future<StatisticsResponse> loadSpaceStatisticsAsync(String spaceId, SpaceContext context, boolean skipCache) {
-    return ASYNC.run(() -> loadSpaceStatistics(spaceId, context, skipCache));
+  public Future<StatisticsResponse> loadSpaceStatisticsAsync(String spaceId, SpaceContext context, boolean skipCache, boolean fastMode) {
+    return ASYNC.run(() -> loadSpaceStatistics(spaceId, context, skipCache, fastMode));
   }
 
   public Future<StatisticsResponse> loadSpaceStatisticsAsync(String spaceId) {
-    return loadSpaceStatisticsAsync(spaceId, null, false);
+    return loadSpaceStatisticsAsync(spaceId, null, false, false);
   }
 
   public Future<Connector> loadConnectorAsync(String connectorId) {

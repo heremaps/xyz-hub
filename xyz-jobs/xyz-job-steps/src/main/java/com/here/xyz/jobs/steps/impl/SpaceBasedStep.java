@@ -137,13 +137,17 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
   }
 
   protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context) throws WebClientException {
-    return loadSpaceStatistics(spaceId, context, false);
+    return loadSpaceStatistics(spaceId, context, false, true);
   }
 
-  protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache) throws WebClientException {
+  protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean fastMode) throws WebClientException {
+    return loadSpaceStatistics(spaceId, context, false, fastMode);
+  }
+
+  protected StatisticsResponse loadSpaceStatistics(String spaceId, SpaceContext context, boolean skipCache, boolean fastMode) throws WebClientException {
     try {
       logger.info("[{}] Loading statistics for space {} ...", getGlobalStepId(), getSpaceId());
-      return hubWebClient().loadSpaceStatistics(spaceId, context, skipCache);
+      return hubWebClient().loadSpaceStatistics(spaceId, context, skipCache, fastMode);
     }
     catch (ErrorResponseException e) {
       return handleErrorResponse(e);
@@ -232,7 +236,7 @@ public abstract class SpaceBasedStep<T extends SpaceBasedStep> extends DatabaseB
 
   protected StatisticsResponse spaceStatistics(SpaceContext context, boolean skipCache) throws WebClientException {
     if (spaceStatistics == null)
-      spaceStatistics = loadSpaceStatistics(getSpaceId(), context, skipCache);
+      spaceStatistics = loadSpaceStatistics(getSpaceId(), context, skipCache, true);
     return spaceStatistics;
   }
 

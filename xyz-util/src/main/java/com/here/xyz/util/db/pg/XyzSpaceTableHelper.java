@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,19 +19,29 @@
 
 package com.here.xyz.util.db.pg;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT;
 import static com.here.xyz.models.hub.Space.TABLE_NAME;
 import static com.here.xyz.util.db.pg.IndexHelper.buildCreateIndexQuery;
 import static com.here.xyz.util.db.pg.IndexHelper.buildDropIndexQuery;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.AUTHOR;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.GEO;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.NEXT_VERSION;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.OPERATION;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.SERIAL;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VERSION_ID;
-import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.Index.VIZ;
 
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.GEO;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.VERSION_ID;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.NEXT_VERSION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.OPERATION;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.SERIAL;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.VIZ;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.SystemIndex.AUTHOR;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonValue;
+import com.here.xyz.Typed;
 import com.here.xyz.util.Hasher;
 import com.here.xyz.util.db.SQLQuery;
+import org.apache.commons.codec.digest.DigestUtils;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -45,26 +55,85 @@ public class XyzSpaceTableHelper {
   public static final String HEAD_TABLE_SUFFIX = "_head";
   public static final long PARTITION_SIZE = 100_000;
 
-  public enum Index {
+  @JsonInclude(NON_DEFAULT)
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  @JsonSubTypes({
+      @JsonSubTypes.Type(value = SystemIndex.class, name = "SystemIndex"),
+      @JsonSubTypes.Type(value = OnDemandIndex.class, name = "OnDemandIndex")
+  })
+  public interface Index extends Typed {
+    String idxPrefix = "idx_";
+    String getIndexName(String tableName);
+  }
+
+  public enum SystemIndex implements Index {
     GEO,
     VERSION_ID,
     NEXT_VERSION,
     OPERATION,
     SERIAL,
     VIZ,
-    AUTHOR
+    AUTHOR;
+
+    @Override
+    public String getIndexName(String tableName) {
+      return switch (this) {
+        case SERIAL, VIZ -> idxPrefix + tableName +  "_" + name().toLowerCase();
+        case NEXT_VERSION -> idxPrefix + tableName +  "_nextversion";
+        case VERSION_ID -> idxPrefix + tableName +  "_versionid";
+        default -> idxPrefix + tableName + "_" + getIndexContent().get(0);
+      };
+    }
+
+    public String getIndexType() {
+        return switch (this) {
+            case GEO -> "GIST";
+            case VERSION_ID, NEXT_VERSION, OPERATION, SERIAL, VIZ, AUTHOR -> "BTREE";
+        };
+    }
+
+    public List<String> getIndexContent() {
+      return switch (this){
+        case GEO -> List.of(("geo"));
+        case VERSION_ID -> List.of("version", "id");
+        case NEXT_VERSION -> List.of("next_version");
+        case OPERATION -> List.of("operation");
+        case SERIAL -> List.of("i");
+        case VIZ -> List.of("(left(md5('' || i), 5))");
+        case AUTHOR -> List.of("author");
+      };
+    }
+  }
+
+  public static class OnDemandIndex implements Index {
+    private String propertyPath;
+
+    public OnDemandIndex() { }
+
+    public void setPropertyPath(String propertyPath) {
+      this.propertyPath = propertyPath;
+    }
+
+    public String getPropertyPath() {
+      return propertyPath;
+    }
+
+    public OnDemandIndex withPropertyPath(String propertyPath) {
+      setPropertyPath(propertyPath);
+      return this;
+    }
+
+    @Override
+    public String getIndexName(String tableName) {
+      // Take the first 8 characters of md5 hash of the property path
+      String shortMd5 = DigestUtils.md5Hex(propertyPath).substring(0, 7);
+
+      return idxPrefix + tableName + "_" + shortMd5 + "_m";
+    }
   }
 
   public static SQLQuery buildSpaceTableIndexQuery(String schema, String table, Index index) {
-    return switch (index) {
-      case GEO -> buildCreateIndexQuery(schema, table, "geo", "GIST");
-      case VERSION_ID -> buildCreateIndexQuery(schema, table, List.of("version", "id"), "BTREE");
-      case NEXT_VERSION -> buildCreateIndexQuery(schema, table, "next_version", "BTREE");
-      case OPERATION -> buildCreateIndexQuery(schema, table, "operation", "BTREE");
-      case SERIAL -> buildCreateIndexQuery(schema, table, "i", "BTREE", "idx_" + table + "_serial");
-      case VIZ -> buildCreateIndexQuery(schema, table, "(left(md5('' || i), 5))", "BTREE", "idx_" + table + "_viz");
-      case AUTHOR -> buildCreateIndexQuery(schema, table, "author", "BTREE");
-    };
+    return buildCreateIndexQuery(schema, table, ((SystemIndex)index).getIndexContent(), ((SystemIndex)index).getIndexType(), index.getIndexName(table));
   }
 
   /**
@@ -77,13 +146,13 @@ public class XyzSpaceTableHelper {
   @Deprecated
   public static List<SQLQuery> buildSpaceTableIndexQueries(String schema, String table, SQLQuery queryComment) {
     return Arrays.asList(
-        buildSpaceTableIndexQuery(schema, table, GEO),
-        buildSpaceTableIndexQuery(schema, table, VERSION_ID),
-        buildSpaceTableIndexQuery(schema, table, NEXT_VERSION),
-        buildSpaceTableIndexQuery(schema, table, OPERATION),
-        buildSpaceTableIndexQuery(schema, table, SERIAL),
-        buildSpaceTableIndexQuery(schema, table, VIZ),
-        buildSpaceTableIndexQuery(schema, table, AUTHOR)
+        buildCreateIndexQuery(schema, table, GEO.getIndexContent(), GEO.getIndexType(), SystemIndex.GEO.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, VERSION_ID.getIndexContent(), VERSION_ID.getIndexType(), VERSION_ID.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, NEXT_VERSION.getIndexContent(), NEXT_VERSION.getIndexType(), NEXT_VERSION.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, OPERATION.getIndexContent(), OPERATION.getIndexType(), OPERATION.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, SERIAL.getIndexContent(), SERIAL.getIndexType(), SERIAL.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, VIZ.getIndexContent(), VIZ.getIndexType(), VIZ.getIndexName(table)),
+        buildCreateIndexQuery(schema, table, AUTHOR.getIndexContent(), AUTHOR.getIndexType(), AUTHOR.getIndexName(table))
     ).stream().map(q -> addQueryComment(q, queryComment)).collect(Collectors.toList());
   }
 

@@ -63,9 +63,34 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
 
   @Override
   protected SQLQuery buildQuery(String tableName) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
+    return new SQLQuery(
+      """
+        with indata as
+        ( select idx_available from
+         (
+          select jsonb_build_object ( 'src',src,'property', idx_property ) as idx_available
+          from xyz_index_list_all_available( #{schema},#{table} )
+          where true and
+          #{threshold} <=
+          ( select sum( coalesce( reltuples::bigint, 0 ) ) from pg_class 
+            where true
+            and relkind = 'r'
+            and relname in 
+            ( select unnest( array_remove( array[m.h_id || '_head', m.meta#>>'{extends,intermediateTable}' || '_head', m.meta#>>'{extends,extendedTable}' || '_head'], null ) ) as tbl 
+              from xyz_config.space_meta m 
+              where m.schem = #{schema} and m.h_id = #{table}
+            )
+          )
+         ) o
+        ),
+        iindata as ( select json_agg( idx_available )::jsonb as idx_available from indata )
+        select idx_available from iindata where 0 < ( select count(*) from indata )
+      """
+/*      
+          "SELECT coalesce(idx_available,'[]'::jsonb) as idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
         + " WHERE spaceid = #{table} "
         + "  AND (select coalesce( (count->'value')::bigint, 0 ) from xyz_statistic_space(#{schema},#{table}, false)) >= #{threshold} "
+*/        
         )
         .withNamedParameter(TABLE, tableName)
         .withNamedParameter(SCHEMA, getSchema())
@@ -98,6 +123,7 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
           else if (one.get("src").equals("o"))
             indices.add("o:" + (String) one.get("property"));
         }
+
         indexList = new IndexList(indices);
       }
     }

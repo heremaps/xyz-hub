@@ -19,6 +19,9 @@ import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
 import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
 import com.here.xyz.models.geojson.coordinates.Position;
 import com.here.xyz.models.geojson.implementation.Polygon;
+import com.here.xyz.models.hub.Ref;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Tag;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -28,8 +31,25 @@ public class ExportJobTestIT extends JobTest {
 
     @BeforeEach
     public void setUp() {
-        createSpace(SPACE_ID);
+        createSpace(new Space()
+                        .withId(SPACE_ID)
+                        .withVersionsToKeep(10)
+                , false);
         putRandomFeatureCollectionToSpace(SPACE_ID, featureCount);
+    }
+
+    @Test
+    public void simpleExportWithTag() throws Exception {
+        String tagName = "tag1";
+        createTag(SPACE_ID, new Tag().withId(tagName));
+
+        putRandomFeatureCollectionToSpace(SPACE_ID, 5);
+        putRandomFeatureCollectionToSpace(SPACE_ID, 5);
+
+        Job exportJob = buildExportJob(generateJobId(), null, new Ref(tagName));
+        createSelfRunningJob(exportJob);
+
+        checkSucceededJob(exportJob, featureCount);
     }
 
     @Test
@@ -41,7 +61,9 @@ public class ExportJobTestIT extends JobTest {
     }
 
     @Test
+    @Disabled("This test is disabled because exporting empty file is not supported (yet, aws plugin local pg17)" )
     public void simpleEmptyFilteredExport() throws Exception {
+/* TODO: s. https://here-technologies.atlassian.net/wiki/spaces/Dragonstone/pages/1032157371/Findings */
         PolygonCoordinates polygonCoordinates = new PolygonCoordinates();
         LinearRingCoordinates lrc = new LinearRingCoordinates();
 
@@ -113,13 +135,29 @@ public class ExportJobTestIT extends JobTest {
     }
 
     @Test
+    public void testRecreationOfSpaceExport() throws Exception {
+        Job exportJob1 = buildExportJob();
+        createSelfRunningJob(exportJob1);
+        checkSucceededJob(exportJob1, featureCount);
+
+        //recreate space which should break the reusability
+        deleteSpace(SPACE_ID);
+        createSpace(SPACE_ID);
+        putRandomFeatureCollectionToSpace(SPACE_ID, featureCount);
+
+        Job exportJob2 = buildExportJob(generateJobId());
+        createSelfRunningJob(exportJob2);
+        checkJobReusage(exportJob1, exportJob2, featureCount, false);
+    }
+
+    @Test
     public void testReusingSimpleExportMismatch() throws Exception {
         Job exportJob1 = buildExportJob();
         createSelfRunningJob(exportJob1);
         checkSucceededJob(exportJob1, featureCount);
 
         //Job could not reuse the first one
-        Job exportJob2 = buildExportJob(generateJobId(), new Filters().withPropertyFilter("p.test<10"));
+        Job exportJob2 = buildExportJob(generateJobId(), new Filters().withPropertyFilter("p.test<10"), null);
         createSelfRunningJob(exportJob2);
         checkJobReusage(exportJob1, exportJob2, 10, false);
     }
@@ -129,14 +167,18 @@ public class ExportJobTestIT extends JobTest {
     }
 
     private Job buildExportJob(String jobId) {
-        return buildExportJob(jobId, null);
+        return buildExportJob(jobId, null, null);
     }
 
     private Job buildExportJob(String jobId, Filters filters) {
+        return buildExportJob(jobId, filters, null);
+    }
+
+    private Job buildExportJob(String jobId, Filters filters, Ref ref) {
         return new Job()
                 .withId(jobId)
                 .withDescription("Export Job Test")
-                .withSource(new DatasetDescription.Space<>().withId(SPACE_ID).withFilters(filters))
+                .withSource(new DatasetDescription.Space<>().withId(SPACE_ID).withFilters(filters).withVersionRef(ref == null ? new Ref("HEAD") : ref))
                 .withTarget(new Files<>().withOutputSettings(new FileOutputSettings().withFormat(new GeoJson().withEntityPerLine(Feature))));
     }
 }

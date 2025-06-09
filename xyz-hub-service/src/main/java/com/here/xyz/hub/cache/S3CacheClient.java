@@ -16,143 +16,176 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.xyz.hub.cache;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.io.ByteStreams;
+import com.here.xyz.jobs.util.S3ClientHelper;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import com.here.xyz.hub.Service;
 import com.here.xyz.util.service.Core;
 import io.vertx.core.Future;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+
+import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class S3CacheClient implements CacheClient {
-  private static final String EXPIRES_AT = "expiresAt";
-  private static final String LAST_ACCESSED_AT = "lastAccessedAt";
-  private static final long ACCESS_UPDATE_TIME_THRESHOLD = TimeUnit.DAYS.toMillis(1);
-  private static CacheClient instance;
-  private static final Logger logger = LogManager.getLogger();
-  private volatile AmazonS3 s3client;
-  private String bucket;
-  private static final String prefix = "xyz-hub-cache/";
+    private static final String EXPIRES_AT = "expiresAt";
+    private static final String LAST_ACCESSED_AT = "lastAccessedAt";
+    private static final long ACCESS_UPDATE_TIME_THRESHOLD = TimeUnit.DAYS.toMillis(1);
+    private static final Logger logger = LogManager.getLogger();
+    private static final String prefix = "xyz-hub-cache/";
+    private static CacheClient instance;
+    private volatile S3Client s3client;
+    private String bucket;
 
-
-  private S3CacheClient() {
-    if (Service.configuration.XYZ_HUB_S3_BUCKET == null)
-      throw new RuntimeException("No S3 bucket defined. S3CacheClient can not be used.");
-    bucket = Service.configuration.XYZ_HUB_S3_BUCKET;
-    initS3Client();
-  }
-
-  private void initS3Client() {
-    AmazonS3ClientBuilder builder = AmazonS3ClientBuilder
-        .standard()
-        .withCredentials(new DefaultAWSCredentialsProviderChain());
-
-    if (Service.configuration.LOCALSTACK_ENDPOINT != null) {
-      builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-          Service.configuration.LOCALSTACK_ENDPOINT, Service.configuration.AWS_REGION))
-          .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
-          .withPathStyleAccessEnabled(true);
+    private S3CacheClient() {
+        if (Service.configuration.XYZ_HUB_S3_BUCKET == null)
+            throw new RuntimeException("No S3 bucket defined. S3CacheClient can not be used.");
+        bucket = Service.configuration.XYZ_HUB_S3_BUCKET;
+        initS3Client();
     }
 
-    s3client = builder.build();
-  }
-
-  public static synchronized CacheClient getInstance() {
-    try {
-      if (instance == null)
-        instance = new S3CacheClient();
+    public static synchronized CacheClient getInstance() {
+        try {
+            if (instance == null)
+                instance = new S3CacheClient();
+        } catch (Exception e) {
+            logger.error("Error when trying to create the S3 client.", e);
+            instance = new NoopCacheClient();
+        }
+        return instance;
     }
-    catch (Exception e) {
-      logger.error("Error when trying to create the S3 client.", e);
-      instance = new NoopCacheClient();
+
+    private void initS3Client() {
+        S3ClientBuilder builder = S3Client.builder()
+                .credentialsProvider(DefaultCredentialsProvider.create());
+
+        if (Service.configuration.LOCALSTACK_ENDPOINT != null) {
+            builder
+                    .region(Region.EU_WEST_1)
+                    .endpointOverride(URI.create(Service.configuration.LOCALSTACK_ENDPOINT))
+                    .credentialsProvider(
+                            StaticCredentialsProvider.create(
+                                    AwsBasicCredentials.create("localstack", "localstack")))
+                    .forcePathStyle(true);
+        }
+
+        if (Service.configuration.AWS_REGION != null && !Service.configuration.AWS_REGION.isEmpty()) {
+            builder.region(Region.of(Service.configuration.AWS_REGION));
+        }
+
+        s3client = builder.build();
     }
-    return instance;
-  }
 
-  @Override
-  public Future<byte[]> get(String key) {
-    return Core.vertx.executeBlocking(promise -> {
-      S3Object object = s3client.getObject(bucket, prefix + key);
-      try {
-        promise.complete(ByteStreams.toByteArray(object.getObjectContent()));
-        //Update the "lastAccessedAt" metadata field asynchronously
-        updateLastAccessedAt(key, object.getObjectMetadata(), Core.currentTimeMillis());
-      }
-      catch (IOException e) {
-        logger.error("Exception trying to read S3 object with key {}.", key, e);
-        promise.complete(null);
-      }
-    });
-  }
+    @Override
+    public Future<byte[]> get(String key) {
+        return Core.vertx.executeBlocking(promise -> {
+            try {
+                GetObjectRequest request = GetObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(prefix + key)
+                        .build();
 
-  @Override
-  public void set(String key, byte[] value, long ttl) {
-    Core.vertx.executeBlocking(promise -> {
-      final long now = Core.currentTimeMillis();
-      s3client.putObject(bucket, prefix + key, new ByteArrayInputStream(value),
-          getMetadata(now + TimeUnit.SECONDS.toMillis(ttl), now, value.length));
-      promise.complete();
-    }, false);
-  }
+                ResponseBytes<GetObjectResponse> payload = s3client.getObject(request, ResponseTransformer.toBytes());
 
-  private static ObjectMetadata getMetadata(long expiresAt, long lastAccessedAt, long contentLength) {
-    return getMetadata("" + expiresAt, lastAccessedAt, contentLength);
-  }
+                Map<String, String> metadata = payload.response().metadata();
+                if (metadata.containsKey(LAST_ACCESSED_AT.toLowerCase())) {
+                    // Update the "lastAccessedAt" metadata field asynchronously
+                    updateLastAccessedAt(key, metadata, Core.currentTimeMillis());
+                }
 
-  private static ObjectMetadata getMetadata(String expiresAt, long lastAccessedAt, long contentLength) {
-    ObjectMetadata metaData = new ObjectMetadata();
-    metaData.setContentLength(contentLength);
-    metaData.setUserMetadata(ImmutableMap.of(
-        EXPIRES_AT, "" + expiresAt,
-        LAST_ACCESSED_AT, "" + lastAccessedAt
-    ));
-    return metaData;
-  }
+                promise.complete(payload.asByteArray());
+            } catch (NoSuchKeyException e) {
+                logger.warn("Cache miss: S3 key not found {}", key);
+                promise.complete(null);
+            } catch (Exception e) {
+                logger.error("Exception trying to read S3 object with key {}.", key, e);
+                promise.complete(null);
+            }
+        });
+    }
 
-  private void updateLastAccessedAt(String key, ObjectMetadata existingMetadata, long lastAccessedAt) {
-    //Only perform the update if the last update was not done too recently (to save requests)
-    long oldAccessedAt = Long.parseLong(existingMetadata.getUserMetadata().get(LAST_ACCESSED_AT)) + ACCESS_UPDATE_TIME_THRESHOLD;
-    if (lastAccessedAt - ACCESS_UPDATE_TIME_THRESHOLD < oldAccessedAt)
-      return;
-    Core.vertx.executeBlocking(promise -> {
-      s3client.copyObject(new CopyObjectRequest()
-          .withSourceBucketName(bucket)
-          .withSourceKey(key)
-          .withDestinationBucketName(bucket)
-          .withDestinationKey(key)
-          .withNewObjectMetadata(getMetadata(existingMetadata.getUserMetadata().get(EXPIRES_AT), lastAccessedAt,
-              existingMetadata.getContentLength()))
-      );
-      promise.complete();
-    }, false);
-  }
+    @Override
+    public void set(String key, byte[] value, long ttl) {
+        Core.vertx.executeBlocking(promise -> {
+            try {
+                final long now = Core.currentTimeMillis();
+                Map<String, String> metadata = new HashMap<>();
+                metadata.put(EXPIRES_AT.toLowerCase(), "" + (now + TimeUnit.SECONDS.toMillis(ttl)));
+                metadata.put(LAST_ACCESSED_AT.toLowerCase(), "" + now);
 
-  @Override
-  public void remove(String key) {
-    Core.vertx.executeBlocking(promise -> {
-      s3client.deleteObject(bucket, prefix + key);
-      promise.complete();
-    }, false);
-  }
+                PutObjectRequest request = PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(prefix + key)
+                        .contentLength((long) value.length)
+                        .metadata(metadata)
+                        .build();
 
-  @Override
-  public void shutdown() {
-    instance = null;
-    s3client.shutdown();
-  }
+                s3client.putObject(request, RequestBody.fromBytes(value));
+                promise.complete();
+            } catch (Exception e) {
+                logger.error("Exception trying to write S3 object with key {}.", key, e);
+                promise.fail(e);
+            }
+        }, false);
+    }
+
+    private void updateLastAccessedAt(String key, Map<String, String> existingMetadata, long lastAccessedAt) {
+        // Only perform the update if the last update was not done too recently (to save requests)
+        String oldAccessedAtStr = existingMetadata.get(LAST_ACCESSED_AT.toLowerCase());
+        if (oldAccessedAtStr == null) return;
+
+        long oldAccessedAt = Long.parseLong(oldAccessedAtStr) + ACCESS_UPDATE_TIME_THRESHOLD;
+        if (lastAccessedAt - ACCESS_UPDATE_TIME_THRESHOLD < oldAccessedAt)
+            return;
+
+        Core.vertx.executeBlocking(promise -> {
+            try {
+                Map<String, String> newMetadata = new HashMap<>(existingMetadata);
+                newMetadata.put(LAST_ACCESSED_AT.toLowerCase(), "" + lastAccessedAt);
+
+                CopyObjectRequest copyRequest = CopyObjectRequest.builder()
+                        .sourceBucket(bucket)
+                        .sourceKey(prefix + key)
+                        .destinationBucket(bucket)
+                        .destinationKey(prefix + key)
+                        .metadata(newMetadata)
+                        .metadataDirective(software.amazon.awssdk.services.s3.model.MetadataDirective.REPLACE)
+                        .build();
+
+                s3client.copyObject(copyRequest);
+                promise.complete();
+            } catch (Exception e) {
+                logger.error("Exception trying to update metadata for S3 object with key {}.", key, e);
+                promise.fail(e);
+            }
+        }, false);
+    }
+
+    @Override
+    public void remove(String key) {
+        Core.vertx.executeBlocking(promise -> {
+            S3ClientHelper.deleteObject(s3client, bucket, prefix + key);
+            promise.complete();
+        }, false);
+    }
+
+    @Override
+    public void shutdown() {
+        instance = null;
+        s3client.close();
+    }
 }

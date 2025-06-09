@@ -42,6 +42,7 @@ public class RedisCacheClient implements CacheClient {
   RedisOptions config = new RedisOptions()
       .setConnectionString(connectionString)
       .setNetClientOptions(new NetClientOptions()
+          .setHostnameVerificationAlgorithm("") //TODO: temp disable hostname verification
           .setTcpKeepAlive(true)
           .setIdleTimeout(30)
           .setConnectTimeout(2000));

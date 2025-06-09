@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
@@ -40,19 +39,19 @@ import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
-import com.here.xyz.jobs.datasets.filters.Filters;
-import com.here.xyz.jobs.datasets.filters.SpatialFilter;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
-import com.here.xyz.models.geojson.implementation.Point;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
+@Disabled("Obsolete / Deprecated")
 public class JobApiGeneralIT extends JobApiIT {
     protected static String testJobId = "x-test-general-job";
     protected static String scope = "general";

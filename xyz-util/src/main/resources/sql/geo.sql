@@ -240,8 +240,6 @@ BEGIN
 END
 $$ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;
 -----------------------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS here_quad_to_bbox(qk TEXT);
-
 CREATE OR REPLACE FUNCTION here_quad_to_bbox(qk TEXT, isbase4encoded boolean DEFAULT false)
     RETURNS GEOMETRY AS $$
 SELECT here_quad_to_bbox(colX,rowY, level) FROM here_quad_crl( qk, isbase4encoded );
@@ -313,7 +311,7 @@ BEGIN
 END
 $$ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE;
 -----------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION number_from_base(num TEXT, base INTEGER) 
+CREATE OR REPLACE FUNCTION number_from_base(num TEXT, base INTEGER)
     RETURNS numeric AS $$
 SELECT sum(exp * cn)
 FROM (
@@ -326,7 +324,7 @@ FROM (
      ) sub
 $$ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE;
 -----------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION number_to_base(num BIGINT, base INTEGER) 
+CREATE OR REPLACE FUNCTION number_to_base(num BIGINT, base INTEGER)
     RETURNS TEXT AS $$
 WITH RECURSIVE n(i, n, r) AS (
     SELECT -1, num, 0
@@ -374,6 +372,25 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 /****************************************************************************************************************
 ********************************** TILE_CALCULATIONS ************************************************************
 *****************************************************************************************************************/

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,7 +68,11 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.junit.Ignore;
+import org.junit.jupiter.api.Disabled;
 
+@Ignore("Obsolete / Deprecated")
+@Disabled("Obsolete / Deprecated")
 public class JobApiIT extends TestSpaceWithFeature {
 
     protected static String testSpaceId1 = "x-psql-job-space1";

@@ -154,6 +154,10 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
     return this;
   }
 
+  public int getCalculatedThreadCount() {
+    return calculatedThreadCount;
+  }
+
   public void setCalculatedThreadCount(int calculatedThreadCount) {
     this.calculatedThreadCount = calculatedThreadCount;
   }
@@ -213,20 +217,24 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      fileCount = fileCount != -1 ? fileCount : currentInputsCount(UploadUrl.class);
-
-      calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
-          ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount,
-              MAX_DB_THREAD_COUNT);
-
       //Calculate estimation for ACUs for all parallel running threads
-      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededAcus(calculatedThreadCount);
+      overallNeededAcus = overallNeededAcus != -1 ? overallNeededAcus : calculateNeededAcus(calculateThreadCount());
       return List.of(new Load().withResource(db()).withEstimatedVirtualUnits(overallNeededAcus),
           new Load().withResource(IOResource.getInstance()).withEstimatedVirtualUnits(getUncompressedUploadBytesEstimation()));
     }
     catch (WebClientException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private int countFiles() {
+    return fileCount = fileCount != -1 ? fileCount : currentInputsCount(UploadUrl.class);
+  }
+
+  private int calculateThreadCount() {
+    return calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
+        ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), countFiles(),
+            MAX_DB_THREAD_COUNT);
   }
 
   @Override
@@ -330,13 +338,8 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
         return;
       }
 
-      calculatedThreadCount = calculatedThreadCount != -1 ? calculatedThreadCount :
-          ResourceAndTimeCalculator.getInstance().calculateNeededImportDBThreadCount(getUncompressedUploadBytesEstimation(), fileCount,
-              MAX_DB_THREAD_COUNT);
-
       double neededAcusForOneThread = calculateNeededAcus(1);
-
-      for (int i = 1; i <= calculatedThreadCount; i++) {
+      for (int i = 1; i <= calculateThreadCount(); i++) {
         infoLog(STEP_EXECUTE, this,"Start Import Thread number " + i);
         runReadQueryAsync(buildImportQuery(), db(), neededAcusForOneThread, false);
       }
@@ -486,10 +489,6 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
       registerOutputs(List.of(statistics), STATISTICS);
 
       cleanUpDbRelatedResources();
-
-      infoLog(STEP_ON_ASYNC_SUCCESS, this,"Set contentUpdatedAt on target space");
-      hubWebClient().patchSpace(getSpaceId(), Map.of("contentUpdatedAt", Core.currentTimeMillis()));
-
     }
     catch (SQLException e) {
       //relation "*_job_data" does not exist - can happen when we have received twice a SUCCESS_CALLBACK
@@ -702,15 +701,21 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
   private double calculateNeededAcus(int threadCount) {
     double neededACUs;
 
-    if (fileCount == -1)
-      fileCount = currentInputsCount(UploadUrl.class);
-
     neededACUs = ResourceAndTimeCalculator.getInstance().calculateNeededImportAcus(
-        getUncompressedUploadBytesEstimation(), fileCount, threadCount);
+        getUncompressedUploadBytesEstimation(), countFiles(), threadCount);
+    neededACUs /= 4d; //TODO: Remove workaround once GraphSequentializer was implemented
 
     infoLog(JOB_EXECUTOR, this, "Calculated ACUS: expectedMemoryConsumption: "
             + getUncompressedUploadBytesEstimation() + " => neededACUs:" + neededACUs);
     return neededACUs;
+  }
+
+  public int getFileCount() {
+    return fileCount;
+  }
+
+  public void setFileCount(int fileCount) {
+    this.fileCount = fileCount;
   }
 
   //TODO: De-duplicate once CSV was removed (see GeoJson format class)
