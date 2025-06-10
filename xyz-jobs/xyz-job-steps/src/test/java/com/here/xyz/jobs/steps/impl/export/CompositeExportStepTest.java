@@ -113,9 +113,7 @@ public class CompositeExportStepTest extends ExportTestBase {
     }
     
     @Test
-    @Disabled("This test is disabled because exporting empty file is not supported (yet, aws plugin local pg17)" )
     public void exportEmptyFile() throws Exception {
-/* TODO: s. https://here-technologies.atlassian.net/wiki/spaces/Dragonstone/pages/1032157371/Findings */        
         exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
                 URLEncoder.encode("f.id=\"Non_Existing_Feature\"", StandardCharsets.UTF_8));
     }
