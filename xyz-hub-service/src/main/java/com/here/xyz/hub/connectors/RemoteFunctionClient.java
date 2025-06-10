@@ -31,6 +31,13 @@ import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
+import com.here.xyz.psql.DatabaseHandler;
+import com.here.xyz.util.db.AuroraAcuMonitor;
+import com.here.xyz.util.db.AuroraAcuMonitorManager;
+import com.here.xyz.util.db.ConnectorParameters;
+import com.here.xyz.util.db.DBClusterResolver;
+import com.here.xyz.util.db.ECPSTool;
+import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
@@ -41,9 +48,13 @@ import io.vertx.core.impl.ConcurrentHashSet;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,6 +62,7 @@ import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import software.amazon.awssdk.regions.Region;
 
 public abstract class RemoteFunctionClient {
   /**
@@ -62,6 +74,13 @@ public abstract class RemoteFunctionClient {
   private static final Logger logger = LogManager.getLogger();
   private static int MEASUREMENT_INTERVAL = 1000; //1s
   private static final int MIN_CONNECTIONS_PER_NODE = 4;
+
+  private static final ScheduledExecutorService monitorExecutor =
+      Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "connector-monitor"));
+  private AuroraAcuMonitor acuMonitor;
+  private ScheduledFuture<?> monitorTask;
+  private static final double HIGH_THRESHOLD = 80.0;
+  private String dbClusterId;
 
 //  /**
 //   * Tweaking constant for the percentage that the connection slots relevance should be used. The rest is the rateOfService relevance.
@@ -148,6 +167,7 @@ public abstract class RemoteFunctionClient {
       globalMinConnectionSum.add(-getMinConnections());
       globalMaxConnectionSum.add(-getMaxConnections());
       adjustQueueByteSizes();
+      AuroraAcuMonitorManager.remove(dbClusterId);
     }
   }
 
@@ -179,6 +199,56 @@ public abstract class RemoteFunctionClient {
 
     _invoke(fc, context);
     return fc;
+  }
+
+  public void startMonitorThrottling() {
+    if (connectorConfig.connectionSettings == null || connectorConfig.getRemoteFunction() == null) {
+      logger.warn("Monitor not started: Missing connection settings or remote function for connector id={}", connectorConfig.id);
+      return;
+    }
+
+    ConnectorParameters connectorParameters = ConnectorParameters.fromMap(connectorConfig.params);
+    if (connectorParameters.getEcps() != null) {
+      Map<String, Object> connectorDbSettingsMap = ECPSTool.decryptToMap(DatabaseHandler.ECPS_PHRASE, connectorParameters.getEcps());
+      DatabaseSettings connectorDbSettings = new DatabaseSettings(connectorConfig.id, connectorDbSettingsMap);
+      dbClusterId = DBClusterResolver.getClusterIdFromHostname(connectorDbSettings.getHost());
+      String regionStr = connectorConfig.getRemoteFunction().getRegion();
+
+      if (dbClusterId == null || regionStr == null) {
+        logger.warn("Monitor not started: Unable to resolve clusterId or region for connector id={}", connectorConfig.id);
+        return;
+      }
+
+      Region region = Region.of(regionStr);
+      acuMonitor = AuroraAcuMonitorManager.get(dbClusterId, region);
+
+      // Original cluster-level limits
+      final int originalMax = connectorConfig.connectionSettings.maxConnections;
+      final int originalPerRequester = connectorConfig.connectionSettings.maxConnectionsPerRequester;
+
+      monitorTask = monitorExecutor.scheduleAtFixedRate(() -> {
+        try {
+          double currentACU = acuMonitor.getUtilization();
+          int scaledMax;
+          int scaledPerRequester;
+
+          if (currentACU < HIGH_THRESHOLD && currentACU != -1) {
+            scaledMax = Integer.MAX_VALUE;
+            scaledPerRequester = Integer.MAX_VALUE;
+          }
+          else {
+            scaledMax = originalMax;
+            scaledPerRequester = originalPerRequester;
+          }
+
+          connectorConfig.connectionSettings.maxConnections = scaledMax;
+          connectorConfig.connectionSettings.maxConnectionsPerRequester = scaledPerRequester;
+          logger.info("Connector id={} updated: ACU={}%, maxConnections={}, maxPerRequester={}", connectorConfig.id, currentACU, scaledMax, scaledPerRequester);
+        } catch (Exception e) {
+          logger.warn("Failed to update connection settings for connector id={}: {}", connectorConfig.id, e.getMessage());
+        }
+      }, 0, 1, TimeUnit.MINUTES);
+    }
   }
 
   private static boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {

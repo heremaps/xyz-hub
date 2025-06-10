@@ -41,6 +41,8 @@ public final class AuroraAcuMonitorManager {
   }
 
   public static void remove(String clusterId) {
+    if (clusterId == null) return;
+
     AuroraAcuMonitor m = monitors.remove(clusterId);
     if (m != null) m.stop();
   }
