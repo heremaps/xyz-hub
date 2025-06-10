@@ -280,4 +280,5 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     ARN lambdaArn = ARN.fromString(remoteFunction.lambdaARN());
     return lambdaArn.getRegion() + (remoteFunction.roleARN != null ? "_" + remoteFunction.roleARN : "");
   }
+
 }
