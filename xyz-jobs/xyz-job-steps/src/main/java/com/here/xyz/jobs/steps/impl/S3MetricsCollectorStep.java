@@ -7,6 +7,7 @@ import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
+import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.jobs.steps.payloads.StepPayload;
 import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.models.hub.Ref;
@@ -17,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +35,7 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
     private Ref version;
 
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
-    private String tag;
+    private String providedTag;
 
     {
         setOutputSets(List.of(new Step.OutputSet(S3_METRICS, Step.Visibility.USER, true)));
@@ -62,42 +64,35 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
     @Override
     public void execute(boolean resume) throws Exception {
         logger.info("Starting S3MetricsCollectorStep execution");
+        List<Output> resultOutputs = new ArrayList<>();
 
-        List<Input> inputs = loadAllInputs();
-        long featureCount = calculateFeatureCount(inputs);
-        long totalFileCount = inputs.size();
-        long totalByteSize = calculateTotalByteSize(inputs);
-        Map<String, String> metadata = collectMetadata(inputs);
+        for (Input input : loadAllInputs()) {
+            List<Input> inputs = List.of(input);
+            long featureCount = calculateFeatureCount(inputs);
+            long totalFileCount = inputs.size();
+            long totalByteSize = calculateTotalByteSize(inputs);
 
-        FeatureStatistics resultOutput = new FeatureStatistics()
-                .withFileCount(totalFileCount)
-                .withFeatureCount(featureCount)
-                .withByteSize(totalByteSize);
+            FeatureStatistics resultOutput = new FeatureStatistics()
+                    .withFileCount(totalFileCount)
+                    .withFeatureCount(featureCount)
+                    .withByteSize(totalByteSize);
 
-        if (version != null) {
-            resultOutput.withVersionRef(version);
+            if (version != null) {
+                resultOutput.withVersionRef(version);
+            }
+            if (providedTag != null && !providedTag.isEmpty()) {
+                resultOutput.withTag(providedTag);
+            }
+
+            resultOutput.withMetadata(input.getMetadata());
+
+            resultOutputs.add(resultOutput);
+
+            logger.info("Collected metrics: fileCount={}, byteSize={}, featureCount={}, metadata={}",
+                    resultOutput.getFileCount(), resultOutput.getByteSize(), resultOutput.getFeatureCount(), resultOutput.getMetadata());
         }
-        if (tag != null && !tag.isEmpty()) {
-            resultOutput.withTag(tag);
-        }
 
-        logger.info("Collected metrics: fileCount={}, byteSize={}, featureCount={}",
-                totalFileCount, totalByteSize, featureCount);
-
-        registerOutputs(List.of(resultOutput.withMetadata(metadata)), S3_METRICS);
-    }
-
-    private Map<String, String> collectMetadata(List<Input> inputs) {
-        return inputs.stream()
-                .filter((input -> input.getMetadata() != null))
-                .map(StepPayload::getMetadata)
-                .reduce(new HashMap<>(), (acc, map) -> {
-                    acc.putAll(map);
-                    return acc;
-                }, (firstMap, secondMap) -> {
-                    firstMap.putAll(secondMap);
-                    return firstMap;
-                });
+        registerOutputs(resultOutputs, S3_METRICS);
     }
 
     private long calculateTotalByteSize(List<Input> inputs) {
@@ -166,16 +161,16 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
         return this;
     }
 
-    public String getTag() {
-        return tag;
+    public String getProvidedTag() {
+        return providedTag;
     }
 
-    public void setTag(String tag) {
-        this.tag = tag;
+    public void setProvidedTag(String providedTag) {
+        this.providedTag = providedTag;
     }
 
-    public S3MetricsCollectorStep withTag(String tag) {
-        setTag(tag);
+    public S3MetricsCollectorStep withProvidedTag(String tag) {
+        setProvidedTag(tag);
         return this;
     }
 

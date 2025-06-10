@@ -53,13 +53,18 @@ public class S3MetricsCollectorStepTest extends StepTest {
 
         List<Output> testOutputs = step.loadUserOutputs();
 
-        Assertions.assertEquals(1, testOutputs.size());
+        Assertions.assertEquals(2, testOutputs.size());
         Assertions.assertInstanceOf(FeatureStatistics.class, testOutputs.get(0));
 
-        FeatureStatistics stats = (FeatureStatistics) testOutputs.get(0);
-        Assertions.assertEquals(2, stats.getFileCount());
-        Assertions.assertTrue(stats.getByteSize() > 0);
-        Assertions.assertTrue(stats.getFeatureCount() > 0);
+        FeatureStatistics stats1 = (FeatureStatistics) testOutputs.get(0);
+        Assertions.assertEquals(1, stats1.getFileCount());
+        Assertions.assertTrue(stats1.getByteSize() > 0);
+        Assertions.assertTrue(stats1.getFeatureCount() > 0);
+
+        FeatureStatistics stats2 = (FeatureStatistics) testOutputs.get(1);
+        Assertions.assertEquals(1, stats2.getFileCount());
+        Assertions.assertTrue(stats2.getByteSize() > 0);
+        Assertions.assertTrue(stats2.getFeatureCount() > 0);
     }
 
     @Test
@@ -68,8 +73,8 @@ public class S3MetricsCollectorStepTest extends StepTest {
 
         S3MetricsCollectorStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
-                .withVersion(new Ref(Ref.ALL_VERSIONS))
-                .withTag("test-tag")
+                .withVersion(new Ref("1"))
+                .withProvidedTag("test-tag")
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -81,7 +86,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
         Assertions.assertInstanceOf(FeatureStatistics.class, testOutputs.get(0));
 
         FeatureStatistics stats = (FeatureStatistics) testOutputs.get(0);
-        Assertions.assertEquals(Ref.ALL_VERSIONS, stats.getVersionRef().getVersion());
+        Assertions.assertEquals(1, stats.getVersionRef().getVersion());
         Assertions.assertEquals("test-tag", stats.getTag());
     }
 
@@ -97,13 +102,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
 
         List<Output> testOutputs = step.loadUserOutputs();
 
-        Assertions.assertEquals(1, testOutputs.size());
-        Assertions.assertInstanceOf(FeatureStatistics.class, testOutputs.get(0));
-
-        FeatureStatistics stats = (FeatureStatistics) testOutputs.get(0);
-        Assertions.assertEquals(0, stats.getFileCount());
-        Assertions.assertEquals(0, stats.getByteSize());
-        Assertions.assertEquals(0, stats.getFeatureCount());
+        Assertions.assertEquals(0, testOutputs.size());
     }
 
     @Test
