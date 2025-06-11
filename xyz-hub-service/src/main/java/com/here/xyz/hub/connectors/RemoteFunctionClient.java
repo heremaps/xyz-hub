@@ -52,9 +52,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -75,10 +72,7 @@ public abstract class RemoteFunctionClient {
   private static int MEASUREMENT_INTERVAL = 1000; //1s
   private static final int MIN_CONNECTIONS_PER_NODE = 4;
 
-  private static final ScheduledExecutorService monitorExecutor =
-      Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "connector-monitor"));
   private AuroraAcuMonitor acuMonitor;
-  private ScheduledFuture<?> monitorTask;
   private static final double HIGH_THRESHOLD = 80.0;
   private String dbClusterId;
 
@@ -167,7 +161,6 @@ public abstract class RemoteFunctionClient {
       globalMinConnectionSum.add(-getMinConnections());
       globalMaxConnectionSum.add(-getMaxConnections());
       adjustQueueByteSizes();
-      AuroraAcuMonitorManager.remove(dbClusterId);
     }
   }
 
@@ -221,44 +214,21 @@ public abstract class RemoteFunctionClient {
 
       Region region = Region.of(regionStr);
       acuMonitor = AuroraAcuMonitorManager.get(dbClusterId, region);
-
-      // Original cluster-level limits
-      final int originalMax = connectorConfig.connectionSettings.maxConnections;
-      final int originalPerRequester = connectorConfig.connectionSettings.maxConnectionsPerRequester;
-
-      monitorTask = monitorExecutor.scheduleAtFixedRate(() -> {
-        try {
-          double currentACU = acuMonitor.getUtilization();
-          int scaledMax;
-          int scaledPerRequester;
-
-          if (currentACU < HIGH_THRESHOLD && currentACU != -1) {
-            scaledMax = Integer.MAX_VALUE;
-            scaledPerRequester = Integer.MAX_VALUE;
-          }
-          else {
-            scaledMax = originalMax;
-            scaledPerRequester = originalPerRequester;
-          }
-
-          connectorConfig.connectionSettings.maxConnections = scaledMax;
-          connectorConfig.connectionSettings.maxConnectionsPerRequester = scaledPerRequester;
-          logger.info("Connector id={} updated: ACU={}%, maxConnections={}, maxPerRequester={}", connectorConfig.id, currentACU, scaledMax, scaledPerRequester);
-        } catch (Exception e) {
-          logger.warn("Failed to update connection settings for connector id={}: {}", connectorConfig.id, e.getMessage());
-        }
-      }, 0, 1, TimeUnit.MINUTES);
     }
   }
 
-  private static boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {
+  private boolean checkRequesterThrottling(Marker marker, Handler<AsyncResult<byte[]>> callback, RpcContext context) {
     if (context.getRequesterId() != null) {
       AtomicInteger connectionCount = usedConnectionsByRequester.computeIfAbsent(context.getRequesterId(), (key) -> new AtomicInteger());
-      if (!compareAndIncrementUpTo(context.getConnector().getMaxConnectionsPerRequester(), connectionCount)) {
+      int maxConnectionsPerRequester = (acuMonitor != null && acuMonitor.getUtilization() < HIGH_THRESHOLD)
+          ? Integer.MAX_VALUE
+          : context.getConnector().getMaxConnectionsPerRequester();
+      logger.info("Connector id={}, maxConnectionsPerRequester={}", context.getConnector().id, maxConnectionsPerRequester);
+      if (!compareAndIncrementUpTo(maxConnectionsPerRequester, connectionCount)) {
         logger.warn(marker, "Sending to many concurrent requests for user {}. Number of active connections: {}, Maximum allowed per node: {}",
-            context.getRequesterId(), connectionCount.get(), context.getConnector().getMaxConnectionsPerRequester());
+            context.getRequesterId(), connectionCount.get(), maxConnectionsPerRequester);
         callback.handle(Future.failedFuture(new TooManyRequestsException("Maximum number of concurrent requests. "
-                + "Max concurrent connections: " + Math.round(context.getConnector().connectionSettings.maxConnectionsPerRequester * 0.6), QUOTA)));
+                + "Max concurrent connections: " + Math.round(maxConnectionsPerRequester * 0.6), QUOTA)));
         return true;
       }
     }
