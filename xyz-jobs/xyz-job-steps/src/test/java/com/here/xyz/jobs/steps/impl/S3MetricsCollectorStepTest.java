@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 public class S3MetricsCollectorStepTest extends StepTest {
 
@@ -147,6 +148,27 @@ public class S3MetricsCollectorStepTest extends StepTest {
         Assertions.assertEquals(stats.getFileCount(), stats.getFileCount());
         Assertions.assertEquals(stats.getByteSize(), stats.getByteSize());
         Assertions.assertEquals(stats.getFeatureCount(), stats.getFeatureCount());
+    }
+
+    @Test
+    public void testMetadataUpload() throws Exception {
+        uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
+
+        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+                .withJobId(JOB_ID)
+                .withOutputMetadata(Map.of("layerId", "address"))
+                .withInputSets(List.of(USER_INPUTS.get()));
+
+        step.execute(false);
+
+        List<Output> featureStatistics = step.loadUserOutputs();
+
+        Assertions.assertEquals(1, featureStatistics.size());
+
+        FeatureStatistics stats = (FeatureStatistics) featureStatistics.get(0);
+
+        Assertions.assertFalse(stats.getMetadata().isEmpty());
+        Assertions.assertEquals("address", stats.getMetadata().get("layerId"));
     }
 
     private InputStream inputStream(String fileName) {
