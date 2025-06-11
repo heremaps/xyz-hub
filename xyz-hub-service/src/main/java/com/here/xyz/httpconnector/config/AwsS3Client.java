@@ -18,33 +18,36 @@
  */
 package com.here.xyz.httpconnector.config;
 
-import com.here.xyz.jobs.util.S3ClientHelper;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.util.service.aws.S3ObjectSummary;
+import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
+import com.here.xyz.util.service.aws.s3.S3ClientHelper;
+import java.net.URI;
+import java.net.URL;
+import java.time.Duration;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
-import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-
-import com.here.xyz.httpconnector.CService;
-import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.net.URL;
-import java.net.URI;
-import java.time.Duration;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * A client for reading and writing from and to S3
+ * @deprecated Was replaced by {@link com.here.xyz.jobs.util.S3Client}
  */
+@Deprecated
 public class AwsS3Client {
     private static final Logger logger = LogManager.getLogger();
     protected static final Duration PRESIGNED_URL_EXPIRATION = Duration.ofDays(7);

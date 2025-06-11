@@ -16,226 +16,55 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 package com.here.xyz.jobs.util;
 
 import com.here.xyz.jobs.steps.Config;
-import com.here.xyz.util.service.aws.S3ObjectSummary;
+import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.http.SdkHttpResponse;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.S3Configuration;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
-public class S3Client {
-    protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
-    private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
-    protected final software.amazon.awssdk.services.s3.S3Client client;
-    protected final S3Presigner presigner;
-    private final String bucketName;
-    protected String region;
+public class S3Client extends com.here.xyz.util.service.aws.s3.S3Client {
+  private static final String DEFAULT_REGION = "eu-west-1"; //TODO: Remove default value
 
-    protected S3Client(String bucketName) {
-        this.bucketName = bucketName;
-        final String defaultRegion = "eu-west-1";
-        S3ClientBuilder builder = software.amazon.awssdk.services.s3.S3Client.builder();
-        S3Presigner.Builder presignerBuilder = S3Presigner.builder();
+  private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
+  private AwsCredentialsProvider credentialsProvider;
 
-        if (Config.instance != null && Config.instance.LOCALSTACK_ENDPOINT != null) {
+  protected S3Client(String bucketName) {
+    super(bucketName);
+  }
 
-            builder
-                    .credentialsProvider(
-                            software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
-                                    software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("localstack", "localstack")
-                            )
-                    )
-                    .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
-                    .region(Region.of(this.region = defaultRegion))
-                    .forcePathStyle(true);
-            presignerBuilder
-                    .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
-                    .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
-                    .region(Region.of(defaultRegion))
-                    .credentialsProvider(
-                            software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
-                                    software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("localstack", "localstack")
-                            ));
-        } else if (Config.instance != null && Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
-            final String region = Config.instance != null ? Config.instance.AWS_REGION : defaultRegion; //TODO: Remove default value
-            builder.region(Region.of(this.region = region));
-            presignerBuilder.region(Region.of(region));
-        } else {
-            String bucketRegion = Config.instance != null ? Config.instance.AWS_REGION : defaultRegion;
-            try {
-              getInstance().client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build());
-            }
-            catch (S3Exception e) {
-              bucketRegion = extractRegionFromHeadBucketRequestException(e);
-            }
-            if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
-              throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
-            builder.region(Region.of(this.region = bucketRegion));
-            presignerBuilder.region(Region.of(bucketRegion));
-        }
-
-        if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
-            synchronized (S3Client.class) {
-                builder.credentialsProvider(new SecretManagerCredentialsProvider(Config.instance.AWS_REGION,
-                        Config.instance.LOCALSTACK_ENDPOINT == null ? null : Config.instance.LOCALSTACK_ENDPOINT.toString(),
-                        Config.instance.JOB_BOT_SECRET_ARN));
-                presignerBuilder.credentialsProvider(new SecretManagerCredentialsProvider(Config.instance.AWS_REGION,
-                        Config.instance.LOCALSTACK_ENDPOINT == null ? null : Config.instance.LOCALSTACK_ENDPOINT.toString(),
-                        Config.instance.JOB_BOT_SECRET_ARN));
-            }
-        }
-
-        this.client = builder.build();
-        this.presigner = presignerBuilder.build();
-    }
-
-    public String region() {
-        return region;
-    }
-
-    private static String extractRegionFromHeadBucketRequestException(S3Exception e) {
-      SdkHttpResponse httpResponse = e.awsErrorDetails().sdkHttpResponse();
-      if (httpResponse != null && httpResponse.firstMatchingHeader("x-amz-bucket-region").isPresent()) {
-        String region = httpResponse.firstMatchingHeader("x-amz-bucket-region").get();
-        return region;
+  @Override
+  protected synchronized AwsCredentialsProvider credentialsProvider() {
+    if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
+      if (credentialsProvider == null) {
+        credentialsProvider = new SecretManagerCredentialsProvider(BaseConfig.instance.AWS_REGION,
+            BaseConfig.instance.LOCALSTACK_ENDPOINT == null ? null : BaseConfig.instance.LOCALSTACK_ENDPOINT.toString(),
+            Config.instance.JOB_BOT_SECRET_ARN);
       }
-      else {
-        throw new RuntimeException("The region of the bucket could not be identified.");
-      }
+      return credentialsProvider;
     }
 
-    public static S3Client getInstance() {
-        return getInstance(Config.instance.JOBS_S3_BUCKET);
-    }
+    return super.credentialsProvider();
+  }
 
-    public static S3Client getInstance(String bucketName) {
-        if (!instances.containsKey(bucketName))
-            instances.put(bucketName, new S3Client(bucketName));
-        return instances.get(bucketName);
-    }
+  @Override
+  protected String region() {
+    if (BaseConfig.instance != null && BaseConfig.instance.LOCALSTACK_ENDPOINT == null && Config.instance.JOBS_S3_BUCKET.equals(bucketName))
+      region = BaseConfig.instance != null ? BaseConfig.instance.AWS_REGION : DEFAULT_REGION;
 
-    public static String getBucketFromS3Uri(String s3Uri) {
-        if (!s3Uri.startsWith("s3://"))
-            return null;
-        return s3Uri.substring(5, s3Uri.substring(5).indexOf("/") + 5);
-    }
+    return super.region();
+  }
 
-    public static String getKeyFromS3Uri(String s3Uri) {
-        if (!s3Uri.startsWith("s3://"))
-            return null;
-        return s3Uri.substring(s3Uri.substring(5).indexOf("/") + 5 + 1);
-    }
+  public static S3Client getInstance() {
+    return getInstance(Config.instance.JOBS_S3_BUCKET);
+  }
 
-    public URL generateDownloadURL(String key) {
-        return S3ClientHelper.generateDownloadURL(presigner, bucketName, key, Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS));
-    }
-
-    public URL generateUploadURL(String key) {
-        return S3ClientHelper.generateUploadURL(presigner, bucketName, key, Duration.ofSeconds(PRESIGNED_URL_EXPIRATION_SECONDS));
-    }
-
-    public List<S3ObjectSummary> scanFolder(String folderPath) {
-       return S3ClientHelper.scanFolder(client, bucketName, folderPath);
-    }
-
-    public byte[] loadObjectContent(String s3Key) throws IOException {
-        return loadObjectContent(s3Key, -1, -1);
-    }
-
-    public byte[] loadObjectContent(String s3Key, long offset, long length) throws IOException {
-        return streamObjectContent(s3Key, offset, length).readAllBytes();
-    }
-
-    public InputStream streamObjectContent(String s3Key) {
-        return streamObjectContent(s3Key, -1, -1);
-    }
-
-    public InputStream streamObjectContent(String s3Key, long offset, long length) {
-        return S3ClientHelper.streamObjectContent(client, bucketName, s3Key, offset, length);
-    }
-
-    public void putObject(String s3Key, String contentType, String content) throws IOException {
-        putObject(s3Key, contentType, content.getBytes());
-    }
-
-    public void putObject(String s3Key, String contentType, byte[] content) throws IOException {
-        putObject(s3Key, contentType, content, false);
-    }
-
-    public void putObject(String s3Key, String contentType, byte[] content, boolean gzip) throws IOException {
-        byte[] finalContent = content;
-        if (gzip) {
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(content.length);
-            try (java.util.zip.GZIPOutputStream gzipOutputStream = new java.util.zip.GZIPOutputStream(byteArrayOutputStream)) {
-                gzipOutputStream.write(content);
-            }
-            finalContent = byteArrayOutputStream.toByteArray();
-        }
-
-        PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key)
-                .contentLength((long) finalContent.length)
-                .contentType(contentType);
-
-        if (gzip) {
-            requestBuilder.contentEncoding("gzip");
-        }
-
-        client.putObject(requestBuilder.build(), RequestBody.fromBytes(finalContent));
-    }
-
-    public HeadObjectResponse loadMetadata(String key) {
-        return S3ClientHelper.loadMetadata(client, bucketName, key);
-    }
-
-    public void deleteFolder(String folderPath) {
-        listObjects(folderPath)
-                .stream()
-                .parallel()
-                .forEach((key) -> S3ClientHelper.deleteObject(client, bucketName, key));
-    }
-
-    /**
-     * Checks if the provided S3 key is a folder.
-     * A key is considered a folder if it has other objects under it
-     *
-     * @return True if the key is a folder, otherwise false.
-     */
-    public boolean isFolder(String s3Key) {
-        return S3ClientHelper.checkIsFolder(client, bucketName, s3Key);
-    }
-
-    /**
-     * Lists all objects starting with the specified prefix (recursively).
-     * Useful for traversing folders in S3.
-     *
-     * @param prefix The prefix or "folder path" to list objects for.
-     * @return A list of object keys under the specified prefix.
-     */
-    public List<String> listObjects(String prefix) {
-        List<S3ObjectSummary> objects = scanFolder(prefix);
-        return objects.stream()
-                .map(S3ObjectSummary::key)
-                .collect(Collectors.toList());
-    }
-
+  public static S3Client getInstance(String bucketName) {
+    if (!instances.containsKey(bucketName))
+      instances.put(bucketName, new S3Client(bucketName));
+    return instances.get(bucketName);
+  }
 }

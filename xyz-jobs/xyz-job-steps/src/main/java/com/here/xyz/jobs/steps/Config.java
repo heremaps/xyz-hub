@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.jobs.steps;
 
 import com.here.xyz.util.service.BaseConfig;
-import java.net.URI;
 import java.net.URL;
 import java.util.List;
 
@@ -52,14 +51,6 @@ public class Config extends BaseConfig {
   public String JOBS_S3_BUCKET;
 
   /**
-   * The localstack endpoint to use it for all AWS clients when running locally
-   *
-   * NOTE: This config variable may only be set when running locally, because the system uses it as an indicator
-   *  to determine whether it's running locally or on AWS.
-   */
-  public URI LOCALSTACK_ENDPOINT;
-
-  /**
    * The DB hostname to be used inside the step lambda when running locally
    */
   public String LOCAL_DB_HOST_OVERRIDE;
@@ -76,14 +67,5 @@ public class Config extends BaseConfig {
 
   public List<String> stepPlugins() {
     return fromCommaSeparatedList(STEP_PLUGINS);
-  }
-
-  /**
-   * A comma separated list of AWS regions from which to not allow reading data (e.g. for import)
-   */
-  public String FORBIDDEN_SOURCE_REGIONS;
-
-  public List<String> forbiddenSourceRegions() {
-    return fromCommaSeparatedList(FORBIDDEN_SOURCE_REGIONS);
   }
 }
