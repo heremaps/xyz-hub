@@ -91,7 +91,7 @@ services:
             - QUERY_CONFIG_ENABLED=true
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
     aws-localstack:
-        image: "localstack/localstack:3.5.0"
+        image: "localstack/localstack:4.3.0"
         container_name: "localstack-main"
         hostname: localstack
         ports:
