@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -430,10 +430,6 @@ public class Config extends BaseConfig {
    * The PEM encoded certificate(-chain) to be used as truststore for client TLS authentication (mTLS) including header & footer.
    */
   public String XYZ_HUB_CLIENT_TLS_TRUSTSTORE;
-  /**
-   * S3/CW/Dynamodb localstack endpoints
-   */
-  public String LOCALSTACK_ENDPOINT;
 
   /**
    * A JSON String which holds the regional cluster mapping.
