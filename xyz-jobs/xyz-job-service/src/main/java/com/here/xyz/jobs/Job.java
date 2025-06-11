@@ -36,6 +36,7 @@ import static com.here.xyz.jobs.steps.resources.Load.addLoads;
 import static com.here.xyz.jobs.steps.resources.ResourcesRegistry.fromStaticLoads;
 import static com.here.xyz.jobs.steps.resources.ResourcesRegistry.toStaticLoads;
 import static com.here.xyz.util.Random.randomAlpha;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -260,7 +261,7 @@ public class Job implements XyzSerializable {
       if (step.getStatus().getState() != targetState)
         step.getStatus().setState(targetState);
       return isReady;
-    });
+    }, 10, SECONDS);
   }
 
   public Future<Void> start() {
