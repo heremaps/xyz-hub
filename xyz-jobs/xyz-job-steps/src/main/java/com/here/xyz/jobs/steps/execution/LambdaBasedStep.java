@@ -53,7 +53,7 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.util.JobWebClient;
 import com.here.xyz.util.ARN;
 import com.here.xyz.util.runtime.LambdaFunctionRuntime;
-import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient.ErrorResponseException;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;

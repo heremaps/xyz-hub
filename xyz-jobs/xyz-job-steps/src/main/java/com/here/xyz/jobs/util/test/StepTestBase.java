@@ -56,7 +56,7 @@ import com.here.xyz.util.db.datasource.DataSourceProvider;
 import com.here.xyz.util.db.datasource.DatabaseSettings;
 import com.here.xyz.util.db.datasource.PooledDataSources;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
-import com.here.xyz.util.service.aws.SimulatedContext;
+import com.here.xyz.util.service.aws.lambda.SimulatedContext;
 import com.here.xyz.util.web.HubWebClient;
 import com.here.xyz.util.web.XyzWebClient;
 import com.here.xyz.util.web.XyzWebClient.WebClientException;
