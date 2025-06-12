@@ -97,6 +97,7 @@ public class RpcClient {
     final RemoteFunctionConfig remoteFunction = connector.getRemoteFunction();
     if (remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
       this.functionClient = new LambdaFunctionClient(connector);
+      functionClient.startMonitorThrottling();
     }
     else if (remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
       this.functionClient = new EmbeddedFunctionClient(connector);

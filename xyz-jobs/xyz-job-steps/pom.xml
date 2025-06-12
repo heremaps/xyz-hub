@@ -106,12 +106,6 @@
       <artifactId>jackson-annotations</artifactId>
     </dependency>
 
-    <!-- Util -->
-    <dependency>
-      <groupId>dnsjava</groupId>
-      <artifactId>dnsjava</artifactId>
-    </dependency>
-
     <!--  Logging libraries -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
