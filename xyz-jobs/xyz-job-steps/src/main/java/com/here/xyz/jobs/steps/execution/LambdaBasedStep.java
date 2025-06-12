@@ -28,8 +28,8 @@ import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.ExecutionMode.SY
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.START_EXECUTION;
 import static com.here.xyz.jobs.steps.execution.LambdaBasedStep.LambdaStepRequest.RequestType.STATE_CHECK;
 import static com.here.xyz.jobs.steps.execution.StepException.codeFromErrorErrorResponseException;
-import static com.here.xyz.jobs.util.AwsClients.cloudwatchEventsClient;
-import static com.here.xyz.jobs.util.AwsClients.sfnClient;
+import static com.here.xyz.jobs.util.AwsClientFactory.cloudwatchEventsClient;
+import static com.here.xyz.jobs.util.AwsClientFactory.sfnClient;
 import static com.here.xyz.util.service.BaseHttpServerVerticle.HeaderValues.STREAM_ID;
 import static software.amazon.awssdk.services.cloudwatchevents.model.RuleState.ENABLED;
 
