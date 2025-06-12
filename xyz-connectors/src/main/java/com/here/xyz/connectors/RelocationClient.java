@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,12 @@
 package com.here.xyz.connectors;
 
 import com.here.xyz.events.RelocatedEvent;
+import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.service.aws.s3.S3Uri;
 import java.io.InputStream;
-import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.util.service.aws.S3Uri;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;

@@ -21,8 +21,6 @@ package com.here.xyz.util.service.aws.s3;
 
 import com.amazonaws.regions.Regions;
 import com.here.xyz.util.service.BaseConfig;
-import com.here.xyz.util.service.aws.S3ObjectSummary;
-import com.here.xyz.util.service.aws.S3Uri;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
