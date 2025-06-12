@@ -18,7 +18,6 @@
  */
 package com.here.xyz.util.service.aws.s3;
 
-import com.here.xyz.util.service.aws.S3ObjectSummary;
 import java.io.InputStream;
 import java.net.URL;
 import java.time.Duration;

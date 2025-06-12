@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.xyz.httpconnector.config.JobS3Client;
-import com.here.xyz.util.service.aws.S3ObjectSummary;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-
+import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import java.net.URL;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
