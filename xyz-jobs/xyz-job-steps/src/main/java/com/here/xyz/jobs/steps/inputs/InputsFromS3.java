@@ -21,6 +21,7 @@ package com.here.xyz.jobs.steps.inputs;
 
 import com.here.xyz.util.service.aws.S3Uri;
 import java.util.List;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class InputsFromS3 extends Input<InputsFromS3> {
   private String bucket;
@@ -55,8 +56,17 @@ public class InputsFromS3 extends Input<InputsFromS3> {
   }
 
   public void dereference(String forJob, String setName) {
-    //First load the inputs from the (foreign) bucket
-    List<Input> inputs = loadInputsInParallel(getBucket(), getPrefix());
+    List<Input> inputs = null;
+    try {
+      //First load the inputs from the (foreign) bucket
+      inputs = loadInputsInParallel(getBucket(), getPrefix());
+    }
+    catch (S3Exception e) {
+      if (e.awsErrorDetails().sdkHttpResponse().statusCode() == 403)
+        throw new IllegalArgumentException("Error accessing \"" + new S3Uri(getBucket(), getPrefix()) + "\": " + e.getMessage(), e);
+      else
+        throw e;
+    }
     inputs.forEach(input -> input.setS3Bucket(getBucket()));
     //Store the metadata for the job that accesses the bucket
     storeMetadata(forJob, inputs, null, new S3Uri(getBucket(), getPrefix()), setName);
