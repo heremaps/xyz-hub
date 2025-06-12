@@ -16,6 +16,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
@@ -25,6 +28,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorStep> {
     public static final String S3_METRICS = "s3_metrics";
@@ -68,7 +73,7 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
 
         for (Input input : loadAllInputs()) {
             List<Input> inputs = List.of(input);
-            long featureCount = calculateFeatureCount(inputs);
+            long featureCount = calculateFeatureCount(inputs, input.isCompressed());
             long totalFileCount = inputs.size();
             long totalByteSize = calculateTotalByteSize(inputs);
 
@@ -87,9 +92,6 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
             resultOutput.withMetadata(input.getMetadata());
 
             resultOutputs.add(resultOutput);
-
-            logger.info("Collected metrics: fileCount={}, byteSize={}, featureCount={}, metadata={}",
-                    resultOutput.getFileCount(), resultOutput.getByteSize(), resultOutput.getFeatureCount(), resultOutput.getMetadata());
         }
 
         registerOutputs(resultOutputs, S3_METRICS);
@@ -101,14 +103,14 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
                 .sum();
     }
 
-    private long calculateFeatureCount(List<Input> inputs) {
+    private long calculateFeatureCount(List<Input> inputs, boolean compressed) {
         long count = 0;
         try {
             for (Input input : inputs) {
                 if (input instanceof UploadUrl) {
                     URL downloadUrl = ((UploadUrl) input).getDownloadUrl();
                     if (downloadUrl != null) {
-                        count += countFeaturesInFile(downloadUrl);
+                        count += countFeaturesInFile(downloadUrl, compressed);
                     }
                 }
             }
@@ -118,9 +120,40 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
         return count;
     }
 
-    private long countFeaturesInFile(URL url) {
+    private long countFeaturesInFile(URL url, boolean compressed) {
         long count = 0;
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
+        try {
+            if (compressed) {
+                try (ZipInputStream zipStream = new ZipInputStream(url.openStream())) {
+                    ZipEntry entry;
+                    while ((entry = zipStream.getNextEntry()) != null) {
+                        if (!entry.isDirectory()) {
+                            count += countFeaturesInZipEntry(zipStream);
+                        }
+                        zipStream.closeEntry();
+                    }
+                }
+            } else {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        Matcher matcher = FEATURE_PATTERN.matcher(line);
+                        while (matcher.find()) {
+                            count++;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to count features in file: {}", url, e);
+        }
+        return count;
+    }
+
+    private long countFeaturesInZipEntry(InputStream zipEntryStream) {
+        long count = 0;
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(zipEntryStream));
             String line;
             while ((line = reader.readLine()) != null) {
                 Matcher matcher = FEATURE_PATTERN.matcher(line);
@@ -128,10 +161,11 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
                     count++;
                 }
             }
-        } catch (Exception e) {
-            logger.warn("Failed to count features in file: {}", url, e);
+        } catch (IOException e) {
+            logger.warn("Failed to count features in zip entry", e);
         }
         return count;
+
     }
 
     @Override
