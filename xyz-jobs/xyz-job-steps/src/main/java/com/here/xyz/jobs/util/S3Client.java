@@ -21,7 +21,7 @@ package com.here.xyz.jobs.util;
 
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.BaseConfig;
-import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
+import com.here.xyz.util.service.aws.iam.SecretManagerCredentialsProvider;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;

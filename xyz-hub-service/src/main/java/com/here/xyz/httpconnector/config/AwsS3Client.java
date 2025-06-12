@@ -19,7 +19,7 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
+import com.here.xyz.util.service.aws.iam.SecretManagerCredentialsProvider;
 import com.here.xyz.util.service.aws.s3.S3ClientHelper;
 import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import java.net.URI;
