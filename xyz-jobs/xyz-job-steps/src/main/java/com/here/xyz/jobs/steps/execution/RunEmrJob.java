@@ -30,6 +30,7 @@ import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.KeyValue;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.aws.s3.S3ObjectSummary;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -48,8 +49,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import com.here.xyz.util.service.aws.S3ObjectSummary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.services.s3.model.S3Exception;
