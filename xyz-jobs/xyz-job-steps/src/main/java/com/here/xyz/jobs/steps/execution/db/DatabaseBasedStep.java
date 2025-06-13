@@ -192,7 +192,7 @@ public abstract class DatabaseBasedStep<T extends DatabaseBasedStep> extends Lam
                   jsonb_set(
                     '${{failureRequestBody}}'::JSONB,
                     '{step, status}',
-                    ('${{failureRequestBody}}'::JSONB->'step'->'status' || format('{"errorCode": "%1$s", "errorMessage": "%2$s"}', SQLSTATE, SQLERRM)::JSONB),
+                    ('${{failureRequestBody}}'::JSONB->'step'->'status' || format('{"errorCode": %1$s, "errorMessage": %2$s}', to_json(SQLSTATE::TEXT), to_json(SQLERRM::TEXT))::JSONB),
                     true
                   )::JSON, 'Event');
             """) //TODO: Inject fields directly in memory rather than writing and deserializing new JSON object
