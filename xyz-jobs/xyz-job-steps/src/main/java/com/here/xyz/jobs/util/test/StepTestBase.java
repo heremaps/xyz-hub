@@ -318,7 +318,7 @@ public class StepTestBase {
       dropQueries.add(
           new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
               .withVariable("schema", SCHEMA)
-              .withVariable("table", TransportTools.getTemporaryTriggerTableName(stepId))
+              .withVariable("table", ImportFilesToSpace.getTemporaryTriggerTableName(stepId))
       );
     }
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());
