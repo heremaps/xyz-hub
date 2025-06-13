@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.util;
 
+import static com.here.xyz.util.service.aws.AwsClientFactoryBase.isLocal;
+
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.BaseConfig;
 import com.here.xyz.util.service.aws.iam.SecretManagerCredentialsProvider;
@@ -28,32 +30,26 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 public class S3Client extends com.here.xyz.util.service.aws.s3.S3Client {
   private static final String DEFAULT_REGION = "eu-west-1"; //TODO: Remove default value
-
   private static Map<String, S3Client> instances = new ConcurrentHashMap<>();
-  private AwsCredentialsProvider credentialsProvider;
 
   protected S3Client(String bucketName) {
     super(bucketName);
+
   }
 
   @Override
-  protected synchronized AwsCredentialsProvider credentialsProvider() {
+  protected AwsCredentialsProvider credentialsProvider() {
     if (Config.instance != null && Config.instance.JOB_BOT_SECRET_ARN != null) {
-      if (credentialsProvider == null) {
-        credentialsProvider = new SecretManagerCredentialsProvider(BaseConfig.instance.AWS_REGION,
-            BaseConfig.instance.LOCALSTACK_ENDPOINT == null ? null : BaseConfig.instance.LOCALSTACK_ENDPOINT.toString(),
-            Config.instance.JOB_BOT_SECRET_ARN);
-      }
-      return credentialsProvider;
+      return new SecretManagerCredentialsProvider(BaseConfig.instance.AWS_REGION,
+          isLocal() ? BaseConfig.instance.LOCALSTACK_ENDPOINT.toString() : null, Config.instance.JOB_BOT_SECRET_ARN);
     }
-
     return super.credentialsProvider();
   }
 
   @Override
-  protected String region() {
-    if (BaseConfig.instance != null && BaseConfig.instance.LOCALSTACK_ENDPOINT == null && Config.instance.JOBS_S3_BUCKET.equals(bucketName))
-      region = BaseConfig.instance != null ? BaseConfig.instance.AWS_REGION : DEFAULT_REGION;
+  public String region() {
+    if (Config.instance.JOBS_S3_BUCKET.equals(bucketName))
+      return BaseConfig.instance != null && BaseConfig.instance.AWS_REGION != null ? BaseConfig.instance.AWS_REGION : DEFAULT_REGION;
 
     return super.region();
   }
