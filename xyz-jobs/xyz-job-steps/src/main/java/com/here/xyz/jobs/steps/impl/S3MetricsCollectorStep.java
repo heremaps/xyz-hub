@@ -89,8 +89,6 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
                 resultOutput.withTag(providedTag);
             }
 
-            resultOutput.withMetadata(input.getMetadata());
-
             resultOutputs.add(resultOutput);
         }
 
