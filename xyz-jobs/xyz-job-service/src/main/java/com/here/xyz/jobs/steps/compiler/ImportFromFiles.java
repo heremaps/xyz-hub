@@ -163,7 +163,7 @@ public class ImportFromFiles implements JobCompilationInterceptor {
   private static CompilationStepGraph compileOnDemandIndexSteps(String spaceId) throws CompilationError {
 
     Map<String, Boolean> activatedSearchableProperties = getActiveSearchableProperties(spaceId);
-    CompilationStepGraph onDemandIndicesGraph = (CompilationStepGraph) new CompilationStepGraph().withParallel(true);
+    CompilationStepGraph onDemandIndicesGraph = (CompilationStepGraph) new CompilationStepGraph().withParallel(false);
 
     for(String property : activatedSearchableProperties.keySet()) {
       if (activatedSearchableProperties.get(property)) {
