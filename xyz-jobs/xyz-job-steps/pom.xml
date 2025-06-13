@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-jobs</artifactId>
-    <version>3.17.17-SNAPSHOT</version>
+    <version>3.17.18-SNAPSHOT</version>
   </parent>
 
   <name>XYZ Job Steps</name>
@@ -104,12 +104,6 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
-    </dependency>
-
-    <!-- Util -->
-    <dependency>
-      <groupId>dnsjava</groupId>
-      <artifactId>dnsjava</artifactId>
     </dependency>
 
     <!--  Logging libraries -->
