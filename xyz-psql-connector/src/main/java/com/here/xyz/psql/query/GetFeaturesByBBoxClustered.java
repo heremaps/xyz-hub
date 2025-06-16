@@ -166,7 +166,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             + "   (  "
             + "    select  "
             + "     'Feature'::text as type, "
-            + "     left(md5(#{fid}),15) as id, "
+            + "     left(md5(#{fid} || h3),15) as id, "
             + "     ( select row_to_json( prop ) "
             + "       from "
             + "       ( select 'H3'::text as kind, "
