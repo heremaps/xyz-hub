@@ -5,6 +5,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
 import com.here.xyz.jobs.steps.inputs.Input;
+import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -68,18 +69,40 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
 
     @Override
     public void execute(boolean resume) throws Exception {
-        logger.info("Starting S3MetricsCollectorStep execution");
-        List<Output> resultOutputs = new ArrayList<>();
+        logger.debug("Starting S3MetricsCollectorStep execution");
+        List<Input> stepInputs = loadAllInputs();
 
-        for (Input input : loadAllInputs()) {
-            List<Input> inputs = List.of(input);
-            long featureCount = calculateFeatureCount(inputs, input.isCompressed());
-            long totalFileCount = inputs.size();
-            long totalByteSize = calculateTotalByteSize(inputs);
+        long totalFeatureCount = calculateTotalFeatureCount(stepInputs);
+
+        List<Output> resultOutputs = processUploadUrlInputs(stepInputs, totalFeatureCount);
+
+        registerOutputs(resultOutputs, S3_METRICS);
+        logger.debug("S3MetricsCollectorStep execution completed successfully");
+    }
+
+    private long calculateTotalFeatureCount(List<Input> inputs) {
+        return inputs.stream()
+                .filter(input -> input instanceof InputFromOutput)
+                .map(input -> ((InputFromOutput) input).getDelegate())
+                .filter(delegate -> delegate instanceof FeatureStatistics)
+                .mapToLong(delegate -> ((FeatureStatistics) delegate).getFeatureCount())
+                .sum();
+    }
+
+    private List<Output> processUploadUrlInputs(List<Input> allInputs, long totalFeatureCount) {
+        List<Output> outputs = new ArrayList<>();
+
+        List<Input> uploadUrlInputs = allInputs.stream()
+                .filter(input -> input instanceof UploadUrl)
+                .toList();
+
+        if (!uploadUrlInputs.isEmpty()) {
+            long totalFileCount = uploadUrlInputs.size();
+            long totalByteSize = calculateTotalByteSize(uploadUrlInputs);
 
             FeatureStatistics resultOutput = new FeatureStatistics()
                     .withFileCount(totalFileCount)
-                    .withFeatureCount(featureCount)
+                    .withFeatureCount(totalFeatureCount)
                     .withByteSize(totalByteSize);
 
             if (version != null) {
@@ -89,83 +112,16 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
                 resultOutput.withTag(providedTag);
             }
 
-            resultOutputs.add(resultOutput);
+            outputs.add(resultOutput);
         }
 
-        registerOutputs(resultOutputs, S3_METRICS);
+        return outputs;
     }
 
     private long calculateTotalByteSize(List<Input> inputs) {
         return inputs.stream()
                 .mapToLong(Input::getByteSize)
                 .sum();
-    }
-
-    private long calculateFeatureCount(List<Input> inputs, boolean compressed) {
-        // we've decided to ignore counting features for now
-        return 0;
-//        long count = 0;
-//        try {
-//            for (Input input : inputs) {
-//                if (input instanceof UploadUrl) {
-//                    URL downloadUrl = ((UploadUrl) input).getDownloadUrl();
-//                    if (downloadUrl != null) {
-//                        count += countFeaturesInFile(downloadUrl, compressed);
-//                    }
-//                }
-//            }
-//        } catch (Exception e) {
-//            logger.error("Error calculating feature count", e);
-//        }
-//        return count;
-    }
-
-    private long countFeaturesInFile(URL url, boolean compressed) {
-        long count = 0;
-        try {
-            if (compressed) {
-                try (ZipInputStream zipStream = new ZipInputStream(url.openStream())) {
-                    ZipEntry entry;
-                    while ((entry = zipStream.getNextEntry()) != null) {
-                        if (!entry.isDirectory()) {
-                            count += countFeaturesInZipEntry(zipStream);
-                        }
-                        zipStream.closeEntry();
-                    }
-                }
-            } else {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        Matcher matcher = FEATURE_PATTERN.matcher(line);
-                        while (matcher.find()) {
-                            count++;
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to count features in file: {}", url, e);
-        }
-        return count;
-    }
-
-    private long countFeaturesInZipEntry(InputStream zipEntryStream) {
-        long count = 0;
-        try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(zipEntryStream));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                Matcher matcher = FEATURE_PATTERN.matcher(line);
-                while (matcher.find()) {
-                    count++;
-                }
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to count features in zip entry", e);
-        }
-        return count;
-
     }
 
     @Override
@@ -179,7 +135,7 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
     }
 
     private List<Input> loadAllInputs() {
-        return loadInputs(UploadUrl.class);
+        return loadInputs(UploadUrl.class, InputFromOutput.class);
     }
 
     public Ref getVersion() {
