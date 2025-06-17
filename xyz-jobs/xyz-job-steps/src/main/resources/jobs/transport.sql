@@ -297,7 +297,7 @@ BEGIN
 			    IF (work_item -> 'execution_count')::INT >= retry_count THEN
 			        --TODO: find a solution to read a given hint in the failure_callback. Remove than the duplication.
                     RAISE EXCEPTION 'Error on processing file ''%''. Maximum retries are reached %. Details: ''%''',
-			                right(work_item ->>'s3_path', 36), retry_count, (work_item -> 'data' -> 'error' ->> 'sqlstate')
+			                (work_item ->>'s3_path'), retry_count, (work_item -> 'data' -> 'error' ->> 'sqlstate')
                     --USING HINT = 'Details: ' || 'details' ,
                     USING ERRCODE = 'XYZ50';
                 END IF;
@@ -370,7 +370,7 @@ DECLARE
     updated_rows INT;
 BEGIN
     SELECT new_jsondata, new_geo, new_operation, new_id
-    from import_from_s3_enrich_feature(NEW.jsondata::JSONB, NEW.geo, retain_meta)
+        from import_from_s3_enrich_feature(NEW.jsondata::JSONB, NEW.geo, retain_meta)
     INTO feature;
 
     EXECUTE format('INSERT INTO "%1$s"."%2$s" (id, version, operation, author, jsondata, geo)
