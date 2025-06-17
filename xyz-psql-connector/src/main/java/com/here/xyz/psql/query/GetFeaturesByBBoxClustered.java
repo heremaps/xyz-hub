@@ -166,7 +166,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             + "   (  "
             + "    select  "
             + "     'Feature'::text as type, "
-            + "     left(md5(#{fid} || h3),15) as id, "
+            + "     left(md5(${{fid}}),15) as id, "
             + "     ( select row_to_json( prop ) "
             + "       from "
             + "       ( select 'H3'::text as kind, "
@@ -213,7 +213,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         .withQueryFragment("statistics", statisticalPropertyProvided ? ", min, max, sum, avg, median" : "")
         .withNamedParameter("zLevel", zLevel)
         .withQueryFragment("geoResultFieldName", !h3cflip ? "centroid" : "hexagon")
-        .withNamedParameter("fid", fid)
+        .withQueryFragment("fid", fid)
         .withQueryFragment("geoFilter", expBboxSql)
         .withQueryFragment("filterEmptyGeo", event.getClip() ? DhString.format(" and not st_isempty( %s ) ", clippedGeo) : "")
         .withNamedParameter("limit", event.getLimit());
