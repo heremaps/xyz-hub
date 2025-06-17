@@ -102,20 +102,22 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
     }
 
     private long calculateFeatureCount(List<Input> inputs, boolean compressed) {
-        long count = 0;
-        try {
-            for (Input input : inputs) {
-                if (input instanceof UploadUrl) {
-                    URL downloadUrl = ((UploadUrl) input).getDownloadUrl();
-                    if (downloadUrl != null) {
-                        count += countFeaturesInFile(downloadUrl, compressed);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Error calculating feature count", e);
-        }
-        return count;
+        // we've decided to ignore counting features for now
+        return 0;
+//        long count = 0;
+//        try {
+//            for (Input input : inputs) {
+//                if (input instanceof UploadUrl) {
+//                    URL downloadUrl = ((UploadUrl) input).getDownloadUrl();
+//                    if (downloadUrl != null) {
+//                        count += countFeaturesInFile(downloadUrl, compressed);
+//                    }
+//                }
+//            }
+//        } catch (Exception e) {
+//            logger.error("Error calculating feature count", e);
+//        }
+//        return count;
     }
 
     private long countFeaturesInFile(URL url, boolean compressed) {
