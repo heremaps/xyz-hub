@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.here.xyz.jobs.steps.Step;
 import com.here.xyz.jobs.steps.impl.SpaceBasedStep;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
+import com.here.xyz.jobs.util.S3Client;
 import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
@@ -72,8 +73,11 @@ public class TransportTools {
         .withVariable("primaryKey", getTemporaryJobTableName(step.getId()) + "_primKey");
   }
 
-  protected static List<SQLQuery> buildTemporaryJobTableInsertStatements(String schema, List<S3DataFile> fileList,
-      String bucketRegion, Step step) {
+  protected static String bucketRegion(String bucketName) {
+    return S3Client.getInstance(bucketName).region();
+  }
+
+  protected static List<SQLQuery> buildTemporaryJobTableInsertStatements(String schema, List<S3DataFile> fileList, Step step) {
     List<SQLQuery> queryList = new ArrayList<>();
     for (S3DataFile input : fileList) {
       if (input instanceof UploadUrl || input instanceof DownloadUrl) {
@@ -93,7 +97,7 @@ public class TransportTools {
                 .withVariable("table", getTemporaryJobTableName(step.getId()))
                 .withNamedParameter("s3Key", input.getS3Key())
                 .withNamedParameter("bucketName", input.getS3Bucket())
-                .withNamedParameter("bucketRegion", bucketRegion)
+                .withNamedParameter("bucketRegion", bucketRegion(input.getS3Bucket()))
                 .withNamedParameter("state", "SUBMITTED")
                 .withNamedParameter("data", data.toString())
         );

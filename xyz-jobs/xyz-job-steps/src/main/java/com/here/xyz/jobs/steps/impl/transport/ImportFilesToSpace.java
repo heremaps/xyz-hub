@@ -443,7 +443,7 @@ public class ImportFilesToSpace extends SpaceBasedStep<ImportFilesToSpace> {
 
       List<?> inputs = loadInputs(UploadUrl.class);
       runBatchWriteQuerySync(SQLQuery.batchOf(buildTemporaryJobTableInsertStatements(getSchema(db()),
-          (List<S3DataFile>)inputs, bucketRegion(),this)), db(), 0 );
+          (List<S3DataFile>)inputs, this)), db(), 0 );
 
       //If no Inputs are present return 0
       return inputs.size() != 0;

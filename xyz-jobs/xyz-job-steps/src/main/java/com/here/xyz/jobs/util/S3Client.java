@@ -47,6 +47,7 @@ public class S3Client {
     protected final software.amazon.awssdk.services.s3.S3Client client;
     protected final S3Presigner presigner;
     private final String bucketName;
+    protected String region;
 
     protected S3Client(String bucketName) {
         this.bucketName = bucketName;
@@ -63,7 +64,7 @@ public class S3Client {
                             )
                     )
                     .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
-                    .region(Region.of(defaultRegion))
+                    .region(Region.of(this.region = defaultRegion))
                     .forcePathStyle(true);
             presignerBuilder
                     .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
@@ -75,7 +76,7 @@ public class S3Client {
                             ));
         } else if (Config.instance != null && Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
             final String region = Config.instance != null ? Config.instance.AWS_REGION : defaultRegion; //TODO: Remove default value
-            builder.region(Region.of(region));
+            builder.region(Region.of(this.region = region));
             presignerBuilder.region(Region.of(region));
         } else {
             String bucketRegion = Config.instance != null ? Config.instance.AWS_REGION : defaultRegion;
@@ -87,7 +88,7 @@ public class S3Client {
             }
             if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
               throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
-            builder.region(Region.of(bucketRegion));
+            builder.region(Region.of(this.region = bucketRegion));
             presignerBuilder.region(Region.of(bucketRegion));
         }
 
@@ -104,6 +105,10 @@ public class S3Client {
 
         this.client = builder.build();
         this.presigner = presignerBuilder.build();
+    }
+
+    public String region() {
+        return region;
     }
 
     private static String extractRegionFromHeadBucketRequestException(S3Exception e) {
