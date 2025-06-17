@@ -90,25 +90,32 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
     }
 
     private List<Output> processUploadUrlInputs(List<Input> allInputs, long totalFeatureCount) {
-        return allInputs.stream()
+        List<Output> outputs = new ArrayList<>();
+
+        List<Input> uploadUrlInputs = allInputs.stream()
                 .filter(input -> input instanceof UploadUrl)
-                .map(input -> {
-                    long totalFileCount = 1;
-                    long totalByteSize = calculateTotalByteSize(List.of(input));
+                .toList();
 
-                    FeatureStatistics resultOutput = new FeatureStatistics()
-                            .withFileCount(totalFileCount)
-                            .withFeatureCount(totalFeatureCount)
-                            .withByteSize(totalByteSize);
+        if (!uploadUrlInputs.isEmpty()) {
+            long totalFileCount = uploadUrlInputs.size();
+            long totalByteSize = calculateTotalByteSize(uploadUrlInputs);
 
-                    if (version != null) {
-                        resultOutput.withVersionRef(version);
-                    }
-                    if (providedTag != null && !providedTag.isEmpty()) {
-                        resultOutput.withTag(providedTag);
-                    }
-                    return (Output) resultOutput;
-                }).toList();
+            FeatureStatistics resultOutput = new FeatureStatistics()
+                    .withFileCount(totalFileCount)
+                    .withFeatureCount(totalFeatureCount)
+                    .withByteSize(totalByteSize);
+
+            if (version != null) {
+                resultOutput.withVersionRef(version);
+            }
+            if (providedTag != null && !providedTag.isEmpty()) {
+                resultOutput.withTag(providedTag);
+            }
+
+            outputs.add(resultOutput);
+        }
+
+        return outputs;
     }
 
     private long calculateTotalByteSize(List<Input> inputs) {

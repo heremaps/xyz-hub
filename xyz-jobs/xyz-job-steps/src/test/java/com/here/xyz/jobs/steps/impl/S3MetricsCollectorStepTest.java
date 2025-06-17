@@ -53,16 +53,12 @@ public class S3MetricsCollectorStepTest extends StepTest {
 
         List<Output> testOutputs = step.loadUserOutputs();
 
-        Assertions.assertEquals(2, testOutputs.size());
+        Assertions.assertEquals(1, testOutputs.size());
         Assertions.assertInstanceOf(FeatureStatistics.class, testOutputs.get(0));
 
         FeatureStatistics stats1 = (FeatureStatistics) testOutputs.get(0);
-        Assertions.assertEquals(1, stats1.getFileCount());
+        Assertions.assertEquals(2, stats1.getFileCount());
         Assertions.assertTrue(stats1.getByteSize() > 0);
-
-        FeatureStatistics stats2 = (FeatureStatistics) testOutputs.get(1);
-        Assertions.assertEquals(1, stats2.getFileCount());
-        Assertions.assertTrue(stats2.getByteSize() > 0);
     }
 
     @Test
