@@ -26,8 +26,7 @@ import java.io.IOException;
 
 @JsonSubTypes({
     @JsonSubTypes.Type(value = DownloadUrl.class, name = "DownloadUrl"),
-    @JsonSubTypes.Type(value = ModelBasedOutput.class, name = "ModelBasedOutput"),
-    @JsonSubTypes.Type(value = FeatureStatistics.class, name = "FeatureStatistics")
+    @JsonSubTypes.Type(value = ModelBasedOutput.class, name = "ModelBasedOutput")
 })
 public abstract class Output<T extends Output> extends StepPayload<T> {
   @JsonIgnore

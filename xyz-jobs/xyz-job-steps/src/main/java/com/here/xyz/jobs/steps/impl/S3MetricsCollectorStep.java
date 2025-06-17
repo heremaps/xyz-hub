@@ -3,39 +3,23 @@ package com.here.xyz.jobs.steps.impl;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.jobs.steps.execution.LambdaBasedStep;
+import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
 import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
-import com.here.xyz.jobs.steps.payloads.StepPayload;
-import com.here.xyz.jobs.steps.resources.Load;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
-public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorStep> {
+public class S3MetricsCollectorStep extends SyncLambdaStep {
     public static final String S3_METRICS = "s3_metrics";
     private static final Logger logger = LogManager.getLogger();
-    private static final Pattern FEATURE_PATTERN = Pattern.compile("\"type\"\\s*:\\s*\"Feature\"");
 
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
     private Ref version;
@@ -45,11 +29,6 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
 
     {
         setOutputSets(List.of(new Step.OutputSet(S3_METRICS, Step.Visibility.USER, true)));
-    }
-
-    @Override
-    public List<Load> getNeededResources() {
-        return List.of();
     }
 
     @Override
@@ -162,15 +141,5 @@ public class S3MetricsCollectorStep extends LambdaBasedStep<S3MetricsCollectorSt
     public S3MetricsCollectorStep withProvidedTag(String tag) {
         setProvidedTag(tag);
         return this;
-    }
-
-    @Override
-    public AsyncExecutionState getExecutionState() throws UnknownStateException {
-        return AsyncExecutionState.SUCCEEDED;
-    }
-
-    @Override
-    public ExecutionMode getExecutionMode() {
-        return ExecutionMode.SYNC;
     }
 }

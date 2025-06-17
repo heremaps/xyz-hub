@@ -6,6 +6,7 @@ import static com.here.xyz.jobs.steps.impl.S3MetricsCollectorStep.S3_METRICS;
 import static com.here.xyz.jobs.util.test.StepTestBase.S3ContentType.APPLICATION_JSON;
 
 import com.google.common.io.ByteStreams;
+import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
 import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.hub.Ref;
@@ -22,7 +23,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testSingleFileMetricsCollection() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        SyncLambdaStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -44,7 +45,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        SyncLambdaStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -65,10 +66,10 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testVersionAndTagAttributes() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
-                .withJobId(JOB_ID)
+        SyncLambdaStep step = new S3MetricsCollectorStep()
                 .withVersion(new Ref("1"))
                 .withProvidedTag("test-tag")
+                .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -87,7 +88,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     @Test
     public void testEmptyInputs() throws Exception {
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        SyncLambdaStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -104,7 +105,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
         String jsonWithoutFeatures = "{\"type\": \"FeatureCollection\", \"features\": []}";
         uploadInputFile(JOB_ID, jsonWithoutFeatures.getBytes(), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        SyncLambdaStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
                 .withOutputSetVisibility(S3_METRICS, USER)
                 .withInputSets(List.of(USER_INPUTS.get()));
@@ -126,7 +127,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testBothOutputSetsHaveSameContent() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        SyncLambdaStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
                 .withInputSets(List.of(USER_INPUTS.get()));
 
@@ -147,7 +148,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
     public void testMetadataUpload() throws Exception {
         uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
 
-        S3MetricsCollectorStep step = new S3MetricsCollectorStep()
+        SyncLambdaStep step = new S3MetricsCollectorStep()
                 .withJobId(JOB_ID)
                 .withOutputMetadata(Map.of("layerId", "address"))
                 .withInputSets(List.of(USER_INPUTS.get()));
