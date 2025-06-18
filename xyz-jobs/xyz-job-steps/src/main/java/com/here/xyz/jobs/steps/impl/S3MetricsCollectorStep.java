@@ -8,17 +8,15 @@ import com.here.xyz.jobs.steps.inputs.Input;
 import com.here.xyz.jobs.steps.inputs.InputFromOutput;
 import com.here.xyz.jobs.steps.inputs.UploadUrl;
 import com.here.xyz.jobs.steps.outputs.FeatureStatistics;
-import com.here.xyz.jobs.steps.outputs.Output;
 import com.here.xyz.models.hub.Ref;
 import com.here.xyz.util.service.BaseHttpServerVerticle;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class S3MetricsCollectorStep extends SyncLambdaStep {
-    public static final String S3_METRICS = "s3_metrics";
+    public static final String S3_METRICS = "metrics";
     private static final Logger logger = LogManager.getLogger();
 
     @JsonView({XyzSerializable.Internal.class, XyzSerializable.Static.class})
@@ -53,9 +51,9 @@ public class S3MetricsCollectorStep extends SyncLambdaStep {
 
         long totalFeatureCount = calculateTotalFeatureCount(stepInputs);
 
-        List<Output> resultOutputs = processUploadUrlInputs(stepInputs, totalFeatureCount);
+        FeatureStatistics featureStatistics = processUploadUrlInputs(stepInputs, totalFeatureCount);
 
-        registerOutputs(resultOutputs, S3_METRICS);
+        registerOutputs(List.of(featureStatistics), S3_METRICS);
         logger.debug("S3MetricsCollectorStep execution completed successfully");
     }
 
@@ -68,33 +66,27 @@ public class S3MetricsCollectorStep extends SyncLambdaStep {
                 .sum();
     }
 
-    private List<Output> processUploadUrlInputs(List<Input> allInputs, long totalFeatureCount) {
-        List<Output> outputs = new ArrayList<>();
+    private FeatureStatistics processUploadUrlInputs(List<Input> allInputs, long totalFeatureCount) {
 
         List<Input> uploadUrlInputs = allInputs.stream()
                 .filter(input -> input instanceof UploadUrl)
                 .toList();
 
-        if (!uploadUrlInputs.isEmpty()) {
-            long totalFileCount = uploadUrlInputs.size();
-            long totalByteSize = calculateTotalByteSize(uploadUrlInputs);
+        long totalFileCount = uploadUrlInputs.size();
+        long totalByteSize = calculateTotalByteSize(uploadUrlInputs);
 
-            FeatureStatistics resultOutput = new FeatureStatistics()
-                    .withFileCount(totalFileCount)
-                    .withFeatureCount(totalFeatureCount)
-                    .withByteSize(totalByteSize);
+        FeatureStatistics featureStatistics = new FeatureStatistics()
+                .withFileCount(totalFileCount)
+                .withFeatureCount(totalFeatureCount)
+                .withByteSize(totalByteSize);
 
-            if (version != null) {
-                resultOutput.withVersionRef(version);
-            }
-            if (providedTag != null && !providedTag.isEmpty()) {
-                resultOutput.withTag(providedTag);
-            }
-
-            outputs.add(resultOutput);
+        if (version != null) {
+            featureStatistics.withVersionRef(version);
         }
-
-        return outputs;
+        if (providedTag != null && !providedTag.isEmpty()) {
+            featureStatistics.withTag(providedTag);
+        }
+        return featureStatistics;
     }
 
     private long calculateTotalByteSize(List<Input> inputs) {

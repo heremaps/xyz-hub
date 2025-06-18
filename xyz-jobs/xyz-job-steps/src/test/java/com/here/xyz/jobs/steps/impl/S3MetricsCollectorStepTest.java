@@ -97,7 +97,7 @@ public class S3MetricsCollectorStepTest extends StepTest {
 
         List<Output> testOutputs = step.loadUserOutputs();
 
-        Assertions.assertEquals(0, testOutputs.size());
+        Assertions.assertEquals(1, testOutputs.size());
     }
 
     @Test
