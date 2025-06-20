@@ -103,5 +103,19 @@
     "status": 405,
     "cause": "The method is not allowed, because the resource ${resourceId} is marked as read-only.",
     "action": "Update the resource definition to enable editing of features."
+  },
+  {
+    "title": "Connector timeout error.",
+    "code": "E3185540",
+    "status": 504,
+    "cause": "Remote service did not respond within the expected time",
+    "action": ""
+  },
+  {
+    "title": "Connector timeout error.",
+    "code": "E3185541",
+    "status": 504,
+    "cause": "The connector ${connectorId} [${connectorType}] responded with an error of type Timeout",
+    "action": ""
   }
 ]
