@@ -109,13 +109,13 @@
     "code": "E318540",
     "status": 504,
     "cause": "Remote service did not respond within the expected time",
-    "action": ""
+    "action": "Please try again with a smaller region selection or reduce the amount of payload data to improve response time"
   },
   {
     "title": "Connector timeout error.",
     "code": "E318541",
     "status": 504,
     "cause": "The connector ${connectorId} [${connectorType}] responded with an error of type Timeout",
-    "action": ""
+    "action": "Please try again with a smaller region selection or reduce the amount of payload data to improve response time"
   }
 ]
