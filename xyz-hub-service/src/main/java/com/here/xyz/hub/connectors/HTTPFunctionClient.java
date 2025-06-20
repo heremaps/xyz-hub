@@ -34,6 +34,7 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -169,7 +170,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       t = new RuntimeException("Connection was already closed.", t);
     logger.warn(marker, "Error while calling remote HTTP service", t);
     if (t instanceof TimeoutException)
-      t = new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", t);
+      t = new DetailedHttpException("E318540", t);
     if (!(t instanceof HttpException))
       t = new HttpException(BAD_GATEWAY, "Connector error.", t);
     callback.handle(Future.failedFuture(t));
