@@ -412,7 +412,7 @@ public class RpcClient {
         case ILLEGAL_ARGUMENT:
           throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case TIMEOUT:
-          throw new DetailedHttpException("E3185541", Map.of("connectorId", getConnector().id, "connectorType", connectorType), errorResponse.getErrorDetails());
+          throw new DetailedHttpException("E318541", Map.of("connectorId", getConnector().id, "connectorType", connectorType), errorResponse.getErrorDetails());
         case EXCEPTION:
         case BAD_GATEWAY:
           throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
@@ -570,7 +570,7 @@ public class RpcClient {
         final String errorMessage = response.get("errorMessage").toString();
         if (errorMessage.contains("timed out")) {
           String connectorType = (getConnector().getRemoteFunction()).getClass().getSimpleName();
-          return new DetailedHttpException("E3185541", Map.of("connectorId", getConnector().id, "connectorType", connectorType));
+          return new DetailedHttpException("E318541", Map.of("connectorId", getConnector().id, "connectorType", connectorType));
         }
       }
     }

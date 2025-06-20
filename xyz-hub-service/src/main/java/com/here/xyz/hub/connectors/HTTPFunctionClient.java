@@ -170,7 +170,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
       t = new RuntimeException("Connection was already closed.", t);
     logger.warn(marker, "Error while calling remote HTTP service", t);
     if (t instanceof TimeoutException)
-      t = new DetailedHttpException("E3185540", t);
+      t = new DetailedHttpException("E318540", t);
     if (!(t instanceof HttpException))
       t = new HttpException(BAD_GATEWAY, "Connector error.", t);
     callback.handle(Future.failedFuture(t));
