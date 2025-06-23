@@ -33,11 +33,11 @@ public class DetailedHttpException extends HttpException {
   public final Map<String, String> placeholders;
 
   public DetailedHttpException(String errorCode) {
-    this(errorCode, null, null);
+    this(errorCode, null, (Throwable) null);
   }
 
   public DetailedHttpException(String errorCode, Map<String, String> placeholders) {
-    this(errorCode, placeholders, null);
+    this(errorCode, placeholders, (Throwable) null);
   }
 
   public DetailedHttpException(String errorCode, Throwable cause) {
@@ -52,6 +52,15 @@ public class DetailedHttpException extends HttpException {
         putAll(placeholders);
       if (cause != null)
         put("cause", cause.getMessage());
+    }};
+  }
+
+  public DetailedHttpException(String errorCode, Map<String, String> placeholders, Map<String, Object> errorDetails) {
+    super(HttpResponseStatus.valueOf(getErrorDefinition(errorCode).getStatus()), getErrorDefinition(errorCode).composeMessage(placeholders), errorDetails);
+    this.errorDefinition = getErrorDefinition(errorCode);
+    this.placeholders = new HashMap<>() {{
+      if (placeholders != null)
+        putAll(placeholders);
     }};
   }
 }
