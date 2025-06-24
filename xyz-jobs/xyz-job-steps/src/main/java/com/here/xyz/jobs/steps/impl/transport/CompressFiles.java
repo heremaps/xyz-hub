@@ -44,7 +44,7 @@ import java.util.zip.ZipOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class CompressFiles extends SyncLambdaStep {
+public class CompressFiles extends SyncLambdaStep<CompressFiles> {
 
   public static final String COMPRESSED_DATA = "compressed-data";
   private static final int DEFAULT_BUFFER_SIZE = 8192;

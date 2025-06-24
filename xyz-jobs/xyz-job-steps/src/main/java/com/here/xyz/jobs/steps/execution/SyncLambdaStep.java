@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import java.util.List;
     @JsonSubTypes.Type(value = CompressFiles.class),
     @JsonSubTypes.Type(value = S3MetricsCollectorStep.class)
 })
-public abstract class SyncLambdaStep extends LambdaBasedStep<SyncLambdaStep> {
+public abstract class SyncLambdaStep<T extends SyncLambdaStep> extends LambdaBasedStep<T> {
 
   @Override
   public AsyncExecutionState getExecutionState() throws UnknownStateException {
