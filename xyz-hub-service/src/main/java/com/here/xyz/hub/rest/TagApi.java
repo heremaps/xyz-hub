@@ -150,13 +150,11 @@ public class TagApi extends SpaceBasedApi {
             .withVersion(version)
             .withSystem(tagFuture.result().isSystem())
             .withDescription(description == null ? tagFuture.result().getDescription() : description)
-            .withAuthor(getAuthor(tagFuture, author))
-            .withCreatedAt(getCreatedAt(tagFuture)))
         )
         .map(v -> tagFuture.result()
                 .withVersion(version)
                 .withDescription(description == null ? tagFuture.result().getDescription() : description)
-        );
+        ));
   }
 
   public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, String author) {

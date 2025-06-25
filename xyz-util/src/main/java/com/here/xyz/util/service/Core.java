@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ThreadFactory;
@@ -61,6 +63,13 @@ public class Core {
 
   public static long currentTimeMillis() {
     return clock.currentTimeMillis();
+  }
+
+  public static long startOfYearMillis() {
+    return LocalDate.of(LocalDate.now().getYear(), 1, 1)
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toEpochMilli();
   }
 
   /**

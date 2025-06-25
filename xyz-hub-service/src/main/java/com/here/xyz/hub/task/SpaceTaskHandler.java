@@ -64,6 +64,7 @@ import com.here.xyz.models.hub.jwt.ActionMatrix;
 import com.here.xyz.models.hub.jwt.AttributeMap;
 import com.here.xyz.models.hub.jwt.JWTPayload;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import io.vertx.core.Future;
@@ -746,11 +747,12 @@ public class SpaceTaskHandler {
   private static void resolveDependenciesForCreation(ConditionalOperation task, Callback<ConditionalOperation> callback) {
     final String spaceId = task.responseSpaces.get(0).getId();
 
+    String author = BaseHttpServerVerticle.getAuthor(task.context);
     // check if there are subscriptions with source pointing to the space id being created
     Service.subscriptionConfigClient.getBySource(task.getMarker(), spaceId)
         .compose(subscriptions -> {
           if (!subscriptions.isEmpty()) {
-            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG, "pipeline");
+            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG, author);
           }
 
           return Future.succeededFuture();
