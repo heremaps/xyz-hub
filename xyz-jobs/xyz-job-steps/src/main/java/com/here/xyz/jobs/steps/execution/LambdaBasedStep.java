@@ -385,7 +385,7 @@ public abstract class LambdaBasedStep<T extends LambdaBasedStep> extends Step<T>
     if (e instanceof StepException stepException)
       retryable = stepException.isRetryable();
 
-    logger.error("{}retryable error during execution of step {}:", retryable ? "" : "Non-", getGlobalStepId(), e);
+    logger.error("[{}] {}retryable error during execution:", getGlobalStepId(), retryable ? "" : "Non-", e);
     getStatus().setFailedRetryable(retryable);
     reportFailure(e, async);
   }
