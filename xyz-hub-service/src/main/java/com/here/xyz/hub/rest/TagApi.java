@@ -20,7 +20,6 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.ApiParam.Path.INCLUDE_SYSTEM_TAGS;
-import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -30,7 +29,9 @@ import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
+import com.here.xyz.util.service.BaseHttpServerVerticle;
 import com.here.xyz.util.service.BaseHttpServerVerticle.ValidationException;
+import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
 import com.here.xyz.util.service.errors.DetailedHttpException;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -53,13 +54,17 @@ public class TagApi extends SpaceBasedApi {
 
   // TODO auth
   private void createTag(RoutingContext context) {
+    String author = BaseHttpServerVerticle.getAuthor(context);
     deserializeTag(context.body().asString())
         .compose(tag -> createTag(
             getMarker(context),
             getSpaceId(context),
             tag.getId(),
             tag.getVersion(),
-            tag.isSystem()))
+            tag.isSystem(),
+            tag.getDescription(),
+            author,
+            Core.currentTimeMillis()))
         .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK.code(), result))
         .onFailure(t -> sendErrorResponse(context, t));
   }
@@ -111,13 +116,14 @@ public class TagApi extends SpaceBasedApi {
     final String tagId = context.pathParam(Path.TAG_ID);
     final Marker marker = getMarker(context);
 
+    String author = BaseHttpServerVerticle.getAuthor(context);
     deserializeTag(context.body().asString())
-        .compose(tag -> updateTag(marker, spaceId, tagId, tag.getVersion()))
+        .compose(tag -> updateTag(marker, spaceId, tagId, tag.getVersion(), author, tag.getDescription()))
         .onSuccess(tag -> sendResponse(context, HttpResponseStatus.OK.code(), tag))
         .onFailure(t -> sendErrorResponse(context, t));
   }
 
-  public static Future<Tag> updateTag(Marker marker, String spaceId, String tagId, long version) {
+  public static Future<Tag> updateTag(Marker marker, String spaceId, String tagId, long version, String author, String description) {
     if (spaceId == null) {
       return Future.failedFuture(new ValidationException("Invalid parameter"));
     }
@@ -125,6 +131,10 @@ public class TagApi extends SpaceBasedApi {
     //FIXME: Neither -2 nor -1 are valid versions
     if (version < -2) {
       return Future.failedFuture(new ValidationException("Invalid version parameter"));
+    }
+
+    if (!Tag.isDescriptionValid(description)) {
+      return Future.failedFuture(new ValidationException("Invalid description parameter"));
     }
 
     final Future<Space> spaceFuture = getSpace(marker, spaceId);
@@ -138,22 +148,34 @@ public class TagApi extends SpaceBasedApi {
             .withId(tagId)
             .withSpaceId(spaceId)
             .withVersion(version)
-            .withSystem(tagFuture.result().isSystem())))
-        .map(v -> tagFuture.result().withVersion(version));
+            .withSystem(tagFuture.result().isSystem())
+            .withDescription(description == null ? tagFuture.result().getDescription() : description)
+            .withAuthor(getAuthor(tagFuture, author))
+            .withCreatedAt(getCreatedAt(tagFuture)))
+        )
+        .map(v -> tagFuture.result()
+                .withVersion(version)
+                .withDescription(description == null ? tagFuture.result().getDescription() : description)
+        );
   }
 
-  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
-    return createTag(marker, spaceId, tagId, -2, true);
+  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, String author) {
+    return createTag(marker, spaceId, tagId, -2, true, "", author, Core.currentTimeMillis());
   }
 
   // TODO auth
-  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version, boolean system) {
+  public static Future<Tag> createTag(Marker marker, String spaceId, String tagId, long version, boolean system,
+                                      String description, String author, long createdAt) {
     if (spaceId == null) {
       return Future.failedFuture(new ValidationException("Invalid parameter"));
     }
 
     if (!Tag.isValidId(tagId)) {
       return Future.failedFuture(new ValidationException("Invalid tagId parameter"));
+    }
+
+    if (!Tag.isDescriptionValid(description)) {
+      return Future.failedFuture(new ValidationException("Invalid description parameter"));
     }
 
     if (version < -2) {
@@ -171,7 +193,10 @@ public class TagApi extends SpaceBasedApi {
           .withId(tagId)
           .withSpaceId(spaceId)
           .withVersion(version == -2 ? changesetFuture.result().getMaxVersion() : version)
-          .withSystem(system);
+          .withSystem(system)
+          .withDescription(description)
+          .withAuthor(author)
+          .withCreatedAt(createdAt);
       return Service.tagConfigClient.storeTag(marker, tag).map(v -> tag);
     });
   }
@@ -206,5 +231,14 @@ public class TagApi extends SpaceBasedApi {
         .compose(s -> !s.isActive()
             ? Future.failedFuture(new DetailedHttpException("E318451", Map.of("resourceId", spaceId)))
             : Future.succeededFuture(s));
+  }
+
+  private static String getAuthor(Future<Tag> tagFuture, String author) {
+    return tagFuture.result().getAuthor().isEmpty() ? author : tagFuture.result().getAuthor();
+  }
+
+  private static long getCreatedAt(Future<Tag> tagFuture) {
+    return tagFuture.result().getCreatedAt() == 0L ?
+            Core.currentTimeMillis() : tagFuture.result().getCreatedAt();
   }
 }

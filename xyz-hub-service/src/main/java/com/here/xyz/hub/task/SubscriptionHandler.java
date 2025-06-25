@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.util.service.BaseHttpServerVerticle.getAuthor;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -86,8 +87,9 @@ public class SubscriptionHandler {
           return Future.failedFuture(new HttpException(CONFLICT, "Resource with the given ID already exists."));
         }, t -> {
           logger.info(marker, "Subscription with id: " + subscription.getId() + " not found.");
+          String author = getAuthor(context);
           return sendEvent(context, Operation.CREATE, subscription)
-              .compose(v -> storeSubscription(marker, subscription));
+              .compose(v -> storeSubscription(marker, subscription, author));
         });
   }
 
@@ -99,14 +101,15 @@ public class SubscriptionHandler {
       subscription.setStatus(new Subscription.SubscriptionStatus().withState(Subscription.SubscriptionStatus.State.ACTIVE));
     }
 
+    String author = getAuthor(context);
     return Service.subscriptionConfigClient.get(marker, subscription.getId())
         .map(Operation.UPDATE)
         .otherwise(Operation.CREATE)
         .compose(operation -> sendEvent(context, operation, subscription))
-        .compose(v -> storeSubscription(marker, subscription));
+        .compose(v -> storeSubscription(marker, subscription, author));
   }
 
-  protected static Future<Subscription> storeSubscription(Marker marker, Subscription subscription) {
+  protected static Future<Subscription> storeSubscription(Marker marker, Subscription subscription, String author) {
     logger.info(marker, "storing subscription " + subscription.getId());
 
     return Service.subscriptionConfigClient.store(marker, subscription)
@@ -118,8 +121,9 @@ public class SubscriptionHandler {
                 return Future.failedFuture(
                     "Unable to increase versionsToKeep value on space " + subscription.getSource() + " during subscription registration.");
               });
+
           final Future<Tag> tagFuture = Service.tagConfigClient.getTag(marker, Service.configuration.SUBSCRIPTION_TAG, subscription.getSource())
-              .compose(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
+              .compose(tag -> createTagIfNecessary(marker, tag, subscription.getSource(), author))
               .recover(t -> {
                 logger.warn("tagFuture for tag creation failed with cause: " + t.getMessage(), t);
                 return Future.failedFuture(
@@ -142,9 +146,9 @@ public class SubscriptionHandler {
         Future.succeededFuture();
   }
 
-  private static Future<Tag> createTagIfNecessary(Marker marker, Tag tag, String spaceId) {
+  private static Future<Tag> createTagIfNecessary(Marker marker, Tag tag, String spaceId, String author) {
     return tag == null ?
-        TagApi.createTag(marker, spaceId, Service.configuration.SUBSCRIPTION_TAG) :
+        TagApi.createTag(marker, spaceId, Service.configuration.SUBSCRIPTION_TAG, author) :
         Future.succeededFuture(tag);
   }
 

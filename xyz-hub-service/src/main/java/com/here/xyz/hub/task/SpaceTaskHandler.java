@@ -750,7 +750,7 @@ public class SpaceTaskHandler {
     Service.subscriptionConfigClient.getBySource(task.getMarker(), spaceId)
         .compose(subscriptions -> {
           if (!subscriptions.isEmpty()) {
-            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG);
+            return TagApi.createTag(task.getMarker(), spaceId, Service.configuration.SUBSCRIPTION_TAG, "pipeline");
           }
 
           return Future.succeededFuture();
