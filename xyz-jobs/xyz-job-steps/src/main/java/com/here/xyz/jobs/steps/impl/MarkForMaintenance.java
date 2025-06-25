@@ -55,11 +55,9 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
   @Override
   public List<Load> getNeededResources() {
     try {
-      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(calculateNeededAcus()));
+      return Collections.singletonList(new Load().withResource(db()).withEstimatedVirtualUnits(0));
     }
     catch (WebClientException e) {
-      //TODO: log error
-      //TODO: is the step failed? Retry later? It could be a retryable error as the prior validation succeeded, depending on the type of HubWebClientException
       throw new RuntimeException(e);
     }
   }
@@ -79,22 +77,17 @@ public class MarkForMaintenance extends SpaceBasedStep<MarkForMaintenance> {
     return "Flag space " + getSpaceId() + " to be taken into account for next maintenance schedule.";
   }
 
-  private int calculateNeededAcus() {
-    return 0;
-  }
-
   @Override
   public void execute(boolean resume) throws WebClientException, SQLException, TooManyResourcesClaimed {
-    logger.info("Analyze table of space " + getSpaceId() + " ...");
-    if (idxCreationCompleted && !space().isActive()) {
-      logger.info("[{}] Re-activating the space and update contentUpdatedAt {} ...", getGlobalStepId(), getSpaceId());
+    if (!idxCreationCompleted && !space().isActive()) {
+      logger.info("[{}] Re-activating the space {} and update contentUpdatedAt!", getGlobalStepId(), getSpaceId());
       hubWebClient().patchSpace(getSpaceId(), Map.of(
               "active", true,
               "contentUpdatedAt", Core.currentTimeMillis()
       ));
     }
-
-    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db()), getRootTableName(space())), db(), calculateNeededAcus());
+    logger.info("[{}] Set idxCreationCompleted to {} for space {}!", getGlobalStepId(), idxCreationCompleted, getSpaceId());
+    runReadQueryAsync(buildMarkForMaintenanceQuery(getSchema(db()), getRootTableName(space())), db(), 0);
   }
 
   public SQLQuery buildMarkForMaintenanceQuery(String schema, String table) {

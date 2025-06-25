@@ -58,6 +58,7 @@ import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.service.Core;
 import com.here.xyz.util.service.HttpException;
+import com.here.xyz.util.service.errors.DetailedHttpException;
 import com.here.xyz.util.service.rest.TooManyRequestsException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -97,6 +98,7 @@ public class RpcClient {
     final RemoteFunctionConfig remoteFunction = connector.getRemoteFunction();
     if (remoteFunction instanceof Connector.RemoteFunctionConfig.AWSLambda) {
       this.functionClient = new LambdaFunctionClient(connector);
+      functionClient.startMonitorThrottling();
     }
     else if (remoteFunction instanceof Connector.RemoteFunctionConfig.Embedded) {
       this.functionClient = new EmbeddedFunctionClient(connector);
@@ -391,7 +393,8 @@ public class RpcClient {
     }
     if (payload instanceof ErrorResponse) {
       ErrorResponse errorResponse = (ErrorResponse) payload;
-      logger.warn(marker, "The connector {} [{}] responded with an error of type {}: {}", getConnector().id, (getConnector().getRemoteFunction()).getClass().getSimpleName() ,errorResponse.getError(),
+      String connectorType = (getConnector().getRemoteFunction()).getClass().getSimpleName();
+      logger.warn(marker, "The connector {} [{}] responded with an error of type {}: {}", getConnector().id, connectorType, errorResponse.getError(),
           errorResponse.getErrorMessage());
 
       switch (errorResponse.getError()) {
@@ -409,7 +412,7 @@ public class RpcClient {
         case ILLEGAL_ARGUMENT:
           throw new HttpException(BAD_REQUEST, errorResponse.getErrorMessage(), errorResponse.getErrorDetails());
         case TIMEOUT:
-          throw new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.", errorResponse.getErrorDetails());
+          throw new DetailedHttpException("E318541", Map.of("connectorId", getConnector().id, "connectorType", connectorType), errorResponse.getErrorDetails());
         case EXCEPTION:
         case BAD_GATEWAY:
           throw new HttpException(BAD_GATEWAY, "Connector error.", errorResponse.getErrorDetails());
@@ -565,8 +568,10 @@ public class RpcClient {
       Map<String, Object> response = XyzSerializable.deserialize(stringResponse, Map.class);
       if (response.containsKey("errorMessage")) {
         final String errorMessage = response.get("errorMessage").toString();
-        if (errorMessage.contains("timed out"))
-          return new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
+        if (errorMessage.contains("timed out")) {
+          String connectorType = (getConnector().getRemoteFunction()).getClass().getSimpleName();
+          return new DetailedHttpException("E318541", Map.of("connectorId", getConnector().id, "connectorType", connectorType));
+        }
       }
     }
     catch (Exception e) {

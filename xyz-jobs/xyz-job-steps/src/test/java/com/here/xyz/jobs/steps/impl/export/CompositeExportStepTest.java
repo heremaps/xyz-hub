@@ -32,8 +32,11 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.List;
+
+import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class CompositeExportStepTest extends ExportTestBase {
@@ -108,12 +111,17 @@ public class CompositeExportStepTest extends ExportTestBase {
         executeExportStepAndCheckResults(SPACE_ID_EXT, SpaceContext.SUPER, null, null,
             new Ref(HEAD), "/search?context=SUPER");
     }
+    
+    @Test
+    public void exportEmptyFile() throws Exception {
+        exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
+                URLEncoder.encode("f.id=\"Non_Existing_Feature\"", StandardCharsets.UTF_8));
+    }
 
     @Test
     public void exportWithContextSuperAndWithPropertyFilter() throws Exception {
-        //new_point does not exist in base
         exportWithContextAndWithPropertyFilter(SpaceContext.SUPER,
-                URLEncoder.encode("f.id=\"new_point1\"", StandardCharsets.UTF_8));
+                URLEncoder.encode("f.id=\"base_point1\"", StandardCharsets.UTF_8));
     }
 
     @Test

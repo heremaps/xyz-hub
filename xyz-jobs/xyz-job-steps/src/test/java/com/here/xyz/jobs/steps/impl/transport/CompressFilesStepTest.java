@@ -1,3 +1,22 @@
+/*
+ * Copyright (C) 2017-2025 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
+
 package com.here.xyz.jobs.steps.impl.transport;
 
 import static com.here.xyz.jobs.steps.Step.InputSet.USER_INPUTS;
@@ -7,7 +26,6 @@ import static com.here.xyz.jobs.util.test.StepTestBase.S3ContentType.APPLICATION
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.jobs.steps.Step;
-import com.here.xyz.jobs.steps.execution.SyncLambdaStep;
 import com.here.xyz.jobs.steps.impl.StepTest;
 import com.here.xyz.jobs.steps.outputs.DownloadUrl;
 import com.here.xyz.jobs.steps.outputs.Output;
@@ -28,7 +46,7 @@ public class CompressFilesStepTest extends StepTest {
   public void testOutputIsCompressed() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
@@ -46,7 +64,7 @@ public class CompressFilesStepTest extends StepTest {
   public void testSingleFileCompression() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
@@ -66,7 +84,7 @@ public class CompressFilesStepTest extends StepTest {
   public void testCompressionWithArchiveName() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withArchiveFileNamePrefix("test_prefix")
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -87,7 +105,7 @@ public class CompressFilesStepTest extends StepTest {
   public void testCompressionWithEmptyArchiveName() throws Exception {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withArchiveFileNamePrefix(" ")
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -99,7 +117,7 @@ public class CompressFilesStepTest extends StepTest {
   @Test
   public void testValidationThrowsErrorOnInvalidDesiredSize() throws Exception {
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(0)
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -115,7 +133,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
@@ -140,7 +158,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -169,7 +187,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(new Step.InputSet(JOB_ID, mockStepId, mockOutputStepName, false)));
@@ -191,7 +209,7 @@ public class CompressFilesStepTest extends StepTest {
 
     uploadInputFile(JOB_ID, new byte[0], APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
         .withInputSets(List.of(USER_INPUTS.get()));
@@ -213,7 +231,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file1.geojson")), APPLICATION_JSON);
     uploadInputFile(JOB_ID, ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("")
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -246,7 +264,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
@@ -277,7 +295,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -309,7 +327,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -356,7 +374,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)
@@ -405,7 +423,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId2, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withDesiredContainedFilesize(100 * 1024 * 1024)
         .withGroupByMetadataKey("layer")
         .withJobId(JOB_ID)
@@ -444,7 +462,7 @@ public class CompressFilesStepTest extends StepTest {
     uploadOutputFile(JOB_ID, mockStepId, mockOutputStepName,
         ByteStreams.toByteArray(inputStream("/testFiles/file2.geojson")), APPLICATION_JSON);
 
-    SyncLambdaStep step = new CompressFiles()
+    CompressFiles step = new CompressFiles()
         .withGroupByMetadataKey("nonExistentKey")
         .withJobId(JOB_ID)
         .withOutputSetVisibility(COMPRESSED_DATA, USER)

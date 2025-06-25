@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2023 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,6 @@ import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthenticationHandler;
-import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.openapi.router.OpenAPIRoute;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
@@ -128,7 +127,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
       final AuthenticationHandler jwtHandler = createJWTHandler();
       for (OpenAPIRoute route : rb.getRoutes()) {
-        route.addHandler(BodyHandler.create());
+        route.addHandler(createBodyHandler());
         route.addHandler(jwtHandler);
       }
 

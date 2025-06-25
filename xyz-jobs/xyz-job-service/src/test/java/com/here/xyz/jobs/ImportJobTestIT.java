@@ -40,7 +40,11 @@ public class ImportJobTestIT extends JobTest {
     @BeforeEach
     public void setUp() {
         createSpace(new Space().withId(SPACE_ID).withSearchableProperties(Map.of(
-                "foo1.nested", true)), false);
+                "foo1", true,
+                "foo2.nested", true,
+                "foo3.nested.array::array", true
+                )
+        ), false);
     }
 
     @Test

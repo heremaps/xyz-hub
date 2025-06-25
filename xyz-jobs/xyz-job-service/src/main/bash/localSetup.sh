@@ -1,5 +1,4 @@
 #!/bin/bash
-
 #
 # Copyright (C) 2017-2025 HERE Europe B.V.
 #
@@ -18,6 +17,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # License-Filename: LICENSE
 #
+set -e
 
 LOCAL_STACK_HOST="http://localhost:4566"
 
@@ -39,26 +39,42 @@ fi
 #Create the local event rule / heartbeat trigger
 state_machine_arn_prefix=arn:aws:states:us-east-1:000000000000:stateMachine:job-
 
-aws --endpoint "$LOCAL_STACK_HOST" events put-rule \
-  --name StepFunctionStateChangeRule \
-  --event-pattern "{\"source\":[\"aws.states\"],\"detail-type\":[\"Step Functions Execution Status Change\"],\"detail\":{\"stateMachineArn\":[{\"prefix\":\"$state_machine_arn_prefix\"}]}}" \
-  --state ENABLED \
-  --region us-east-1
+# Create or get the event rule
+rule_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events describe-rule --name StepFunctionStateChangeRule --region us-east-1 \
+  --query 'Arn' --output text 2>/dev/null || \
+  aws --endpoint "$LOCAL_STACK_HOST" events put-rule \
+    --name StepFunctionStateChangeRule \
+    --event-pattern "{\"source\":[\"aws.states\"],\"detail-type\":[\"Step Functions Execution Status Change\"],\"detail\":{\"stateMachineArn\":[{\"prefix\":\"$state_machine_arn_prefix\"}]}}" \
+    --state ENABLED \
+    --region us-east-1 \
+    --query 'RuleArn' --output text)
 
-connection_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events create-connection \
-  --name JobApiConnection \
-  --authorization-type API_KEY \
-  --auth-parameters "ApiKeyAuthParameters={ApiKeyName=apiKey,ApiKeyValue=dummy-admin-api-key}" \
-  --region us-east-1 | sed -n 's/.*"ConnectionArn":\s*"\([^"]*\)".*/\1/p')
+# Create or get the connection
+connection_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events list-connections --region us-east-1 \
+  --query "Connections[?Name=='JobApiConnection'].ConnectionArn" --output text)
+if [ -z "$connection_arn" ]; then
+  connection_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events create-connection \
+    --name JobApiConnection \
+    --authorization-type API_KEY \
+    --auth-parameters "ApiKeyAuthParameters={ApiKeyName=apiKey,ApiKeyValue=dummy-admin-api-key}" \
+    --region us-east-1 \
+    --query 'ConnectionArn' --output text)
+fi
 
-#Create the local event bridge rule to forward SFN events to the Job Service
-api_destination_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events create-api-destination \
-  --name JobApiDestination \
-  --connection-arn "$connection_arn" \
-  --invocation-endpoint http://host.docker.internal:7070/admin/state/events \
-  --http-method POST \
-  --region us-east-1 | sed -n 's/.*"ApiDestinationArn":\s*"\([^"]*\)".*/\1/p')
+# Create or get the API destination
+api_destination_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events list-api-destinations --region us-east-1 \
+  --query "ApiDestinations[?Name=='JobApiDestination'].ApiDestinationArn" --output text)
+if [ -z "$api_destination_arn" ]; then
+  api_destination_arn=$(aws --endpoint "$LOCAL_STACK_HOST" events create-api-destination \
+    --name JobApiDestination \
+    --connection-arn "$connection_arn" \
+    --invocation-endpoint http://host.docker.internal:7070/admin/state/events \
+    --http-method POST \
+    --region us-east-1 \
+    --query 'ApiDestinationArn' --output text)
+fi
 
+# Put targets (idempotent)
 aws --endpoint "$LOCAL_STACK_HOST" events put-targets \
   --rule StepFunctionStateChangeRule \
   --targets "Id"="JobApiDestination","Arn"="$api_destination_arn" \

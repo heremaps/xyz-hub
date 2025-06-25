@@ -310,7 +310,7 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
       calculatedThreadCount = setInitialThreadCount(schema);
       List<TaskData> taskDataList = createTaskItems(schema);
       taskItemCount = taskDataList.size();
-      insertTaskItemsInTaskAndStatisticTable(schema, this, createTaskItems(schema));
+      insertTaskItemsInTaskAndStatisticTable(schema, this, taskDataList);
     }
     startInitialTasks(schema);
     noTasksCreated = taskItemCount == 0;
@@ -334,9 +334,11 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
       infoLog(STEP_ON_ASYNC_UPDATE, this,"received progress update from: "
               + ((SpaceBasedTaskUpdate) processUpdate).taskId);
       TaskProgress taskProgressAndItem = getTaskProgressAndTaskItem();
-      if (taskProgressAndItem.isComplete())
+      if (taskProgressAndItem.isComplete()) {
+        infoLog(STEP_ON_ASYNC_UPDATE, this,"All tasks are finished."
+                + taskProgressAndItem);
         return true;
-      else {
+      }else {
         //If we are not finished, start the next export task
         startTask(getSchema(db()), taskProgressAndItem);
         //Calculate progress and set it on the step's status
@@ -479,6 +481,17 @@ public abstract class TaskedSpaceBasedStep<T extends TaskedSpaceBasedStep> exten
   protected record TaskProgress(int totalTasks, int startedTasks, int finalizedTasks, Integer taskId, TaskData taskInput) {
     public boolean isComplete() {
       return totalTasks == finalizedTasks;
+    }
+
+    @Override
+    public String toString() {
+      return "TaskProgress{" +
+              "totalTasks=" + totalTasks +
+              ", startedTasks=" + startedTasks +
+              ", finalizedTasks=" + finalizedTasks +
+              ", taskId=" + taskId +
+              ", taskInput=" + taskInput +
+              '}';
     }
   }
 

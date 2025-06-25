@@ -18,28 +18,28 @@
  */
 package com.here.xyz.jobs.util;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
 import com.here.xyz.jobs.steps.Config;
 import com.here.xyz.util.service.aws.S3ObjectSummary;
 import com.here.xyz.util.service.aws.SecretManagerCredentialsProvider;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.S3Configuration;
-import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.SdkHttpResponse;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 public class S3Client {
     protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
@@ -47,6 +47,7 @@ public class S3Client {
     protected final software.amazon.awssdk.services.s3.S3Client client;
     protected final S3Presigner presigner;
     private final String bucketName;
+    protected String region;
 
     protected S3Client(String bucketName) {
         this.bucketName = bucketName;
@@ -63,7 +64,7 @@ public class S3Client {
                             )
                     )
                     .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
-                    .region(Region.of(defaultRegion))
+                    .region(Region.of(this.region = defaultRegion))
                     .forcePathStyle(true);
             presignerBuilder
                     .endpointOverride(Config.instance.LOCALSTACK_ENDPOINT)
@@ -75,14 +76,19 @@ public class S3Client {
                             ));
         } else if (Config.instance != null && Config.instance.JOBS_S3_BUCKET.equals(bucketName)) {
             final String region = Config.instance != null ? Config.instance.AWS_REGION : defaultRegion; //TODO: Remove default value
-            builder.region(Region.of(region));
+            builder.region(Region.of(this.region = region));
             presignerBuilder.region(Region.of(region));
         } else {
-            GetBucketLocationResponse bucketLocation = getInstance().client.getBucketLocation(GetBucketLocationRequest.builder().bucket(bucketName).build());
-            String bucketRegion = bucketLocation.locationConstraintAsString();
+            String bucketRegion = Config.instance != null ? Config.instance.AWS_REGION : defaultRegion;
+            try {
+              getInstance().client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build());
+            }
+            catch (S3Exception e) {
+              bucketRegion = extractRegionFromHeadBucketRequestException(e);
+            }
             if (Config.instance.forbiddenSourceRegions().contains(bucketRegion))
-                throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
-            builder.region(Region.of(bucketRegion));
+              throw new IllegalArgumentException("Source bucket region " + bucketRegion + " is not allowed.");
+            builder.region(Region.of(this.region = bucketRegion));
             presignerBuilder.region(Region.of(bucketRegion));
         }
 
@@ -99,6 +105,21 @@ public class S3Client {
 
         this.client = builder.build();
         this.presigner = presignerBuilder.build();
+    }
+
+    public String region() {
+        return region;
+    }
+
+    private static String extractRegionFromHeadBucketRequestException(S3Exception e) {
+      SdkHttpResponse httpResponse = e.awsErrorDetails().sdkHttpResponse();
+      if (httpResponse != null && httpResponse.firstMatchingHeader("x-amz-bucket-region").isPresent()) {
+        String region = httpResponse.firstMatchingHeader("x-amz-bucket-region").get();
+        return region;
+      }
+      else {
+        throw new RuntimeException("The region of the bucket could not be identified.");
+      }
     }
 
     public static S3Client getInstance() {

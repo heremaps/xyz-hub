@@ -98,7 +98,7 @@ public class StepTestBase {
   protected static final String LAMBDA_ARN = "arn:aws:lambda:us-east-1:000000000000:function:job-step";
   private static final Logger logger = LogManager.getLogger();
   private static final S3Client s3Client;
-  private static final String PG_HOST = "localhost";
+  private static final String PG_HOST = System.getProperty("pg.host", "localhost");
   private static final String PG_DB = "postgres";
   private static final String PG_USER = "postgres";
   private static final String PG_PW = "password";
@@ -112,9 +112,9 @@ public class StepTestBase {
       Config.instance.JOBS_S3_BUCKET = "test-bucket";
       Config.instance.AWS_REGION = "us-east-1";
       Config.instance.ECPS_PHRASE = "local";
-      Config.instance.HUB_ENDPOINT = "http://localhost:8080/hub";
-      Config.instance.LOCALSTACK_ENDPOINT = new URI("http://localhost:4566");
-      Config.instance.JOB_API_ENDPOINT = new URL("http://localhost:7070");
+      Config.instance.HUB_ENDPOINT = "http://" + System.getProperty("hub.host", "localhost") + ":8080/hub";
+      Config.instance.JOB_API_ENDPOINT = new URL("http://" + System.getProperty("job.host", "localhost") + ":7070");
+      Config.instance.LOCALSTACK_ENDPOINT = new URI("http://" + System.getProperty("localstack.host", "localhost") + ":4566");
       HubWebClient.STATISTICS_CACHE_TTL_SECONDS = 0;
       s3Client = S3Client.getInstance();
       lambdaClient = LambdaClient.builder()
@@ -318,7 +318,7 @@ public class StepTestBase {
       dropQueries.add(
           new SQLQuery("DROP TABLE IF EXISTS ${schema}.${table};")
               .withVariable("schema", SCHEMA)
-              .withVariable("table", TransportTools.getTemporaryTriggerTableName(stepId))
+              .withVariable("table", ImportFilesToSpace.getTemporaryTriggerTableName(stepId))
       );
     }
     SQLQuery.join(dropQueries, ";").write(getDataSourceProvider());

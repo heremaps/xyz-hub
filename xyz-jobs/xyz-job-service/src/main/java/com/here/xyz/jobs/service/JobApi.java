@@ -203,7 +203,7 @@ public class JobApi extends JobApiBase {
     else if (context.request().bytesRead() > 256 * 1024)
       return Future.failedFuture(new DetailedHttpException("E319007"));
     else
-      return job.consumeInput(modelBasedInput).map(null);
+      return job.consumeInput(modelBasedInput).mapEmpty();
   }
 
   private static Future<Input> registerInput(Job job, InputsFromS3 s3Inputs, String inputSetName) {

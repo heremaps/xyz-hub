@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 HERE Europe B.V.
+ * Copyright (C) 2017-2025 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 
 package com.here.xyz.jobs.service;
 
+import static com.here.xyz.util.service.BaseHttpServerVerticle.createBodyHandler;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -30,7 +32,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
-import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.openapi.router.OpenAPIRoute;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import io.vertx.openapi.contract.OpenAPIContract;
@@ -64,7 +65,7 @@ public class JobRouter implements AbstractRouterBuilder {
         RouterBuilder rb = RouterBuilder.create(vertx, contract);
 
         for (OpenAPIRoute route : rb.getRoutes())
-          route.addHandler(BodyHandler.create());
+          route.addHandler(createBodyHandler());
 
         initializeJobApi(rb);
 
