@@ -3365,7 +3365,7 @@ components:
           type: integer
           format: int64
           description: >-
-            The timestamp of creation in millis.
+            The timestamp of creation of the tag in millis.
     RemoteFunctionConfig:
       type: object
       description: A connector declaration.
