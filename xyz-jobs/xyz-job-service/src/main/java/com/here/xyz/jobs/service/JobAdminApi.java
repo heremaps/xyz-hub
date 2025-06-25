@@ -301,7 +301,7 @@ public class JobAdminApi extends JobApiBase {
   private void processEmrJobStateChangeEvent(JsonObject event) {
     String emrApplicationId = event.getJsonObject("detail").getString("applicationId");
     String emrJobName = event.getJsonObject("detail").getString("jobRunName");
-    String emrJobRunId = event.getJsonObject("detail").getString("jobRunName");
+    String emrJobRunId = event.getJsonObject("detail").getString("jobRunId");
     String emrJobStatus = event.getJsonObject("detail").getString("state");
     String globalStepId = globalStepIdFromEmrJobName(emrJobName);
 
